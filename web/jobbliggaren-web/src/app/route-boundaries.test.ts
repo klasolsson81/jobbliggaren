@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -40,11 +41,55 @@ function exists(file: string): boolean {
   }
 }
 
-/** Source text with comments removed, so a docblock mentioning a call is not one. */
-function code(file: string): string {
-  return readFileSync(file, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+/** Walk a parsed source for a real, zero-argument `notFound()` call. */
+function hasNotFoundCall(sourceFile: ts.SourceFile): boolean {
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "notFound" &&
+      node.arguments.length === 0
+    ) {
+      found = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function parse(file: string, text: string): ts.SourceFile {
+  return ts.createSourceFile(
+    file,
+    text,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes — forEachChild only */ false,
+    file.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.TSX
+  );
+}
+
+/**
+ * True iff the file really calls `notFound()`.
+ *
+ * PARSED, not grepped, and the difference is not stylistic. Removing comments
+ * with a regex is fail-OPEN in a way that hides call sites: block comments must
+ * be stripped before line comments, so a slash-star sequence sitting INSIDE a
+ * line comment opens a block that runs to the next star-slash. This repo writes
+ * route globs in exactly that position — `(guest)/gast/layout.tsx` documents the
+ * guest glob in a line comment — and that one comment swallowed 50 of that
+ * file's 63 lines, `export default` included. A file whose docblock carried such
+ * a glob above its `notFound()` would drop out of the scan, and the rule below
+ * would then pass against a smaller world than the real one. Comments are not
+ * part of the AST, so this cannot happen here.
+ */
+function callsNotFound(file: string): boolean {
+  return hasNotFoundCall(parse(file, readFileSync(file, "utf8")));
+}
+
+/** Same walk over a source string — used by the scanner's own controls. */
+function callsNotFoundIn(source: string): boolean {
+  return hasNotFoundCall(parse("probe.tsx", source));
 }
 
 function sourceFiles(dir: string, acc: string[] = []): string[] {
@@ -88,17 +133,32 @@ describe("route-level failure boundaries (#1477)", () => {
     expect(exists(resolve(APP_ROOT, "not-found.tsx"))).toBe(true);
   });
 
+  it("the scanner counts notFound() CALLS, not mentions of them", () => {
+    // Crosses the control in both directions. The negative cases are the ones
+    // that matter: they are the shapes a regex-stripped scan gets wrong, and
+    // getting them wrong shrinks the world the rule below is checked against.
+    expect(callsNotFoundIn('import { notFound } from "next/navigation";\nnotFound();')).toBe(true);
+    expect(callsNotFoundIn("// the retired stub answers with notFound(), not a redirect\nexport {};")).toBe(false);
+    expect(callsNotFoundIn("/** answers notFound() when the id is unknown */\nexport {};")).toBe(false);
+    // The shape that broke the regex: a route glob inside a LINE comment, whose
+    // slash-star opens a block the stripper then runs past the code below it.
+    expect(
+      callsNotFoundIn("// middleware does not list `/gast/*` as protected\nconst a = 1;\nnotFound();")
+    ).toBe(true);
+  });
+
   it("every notFound() caller is covered by a not-found boundary inside its own shell", () => {
     // Falling through to the ROOT not-found is not coverage: it renders the
     // PUBLIC marketing frame, which is the wrong shell for a signed-in page or
     // for a visitor inside guest mode. So an ancestor other than the app root
     // must carry the file.
-    const callers = sourceFiles(APP_ROOT).filter((f) => /\bnotFound\s*\(\s*\)/.test(code(f)));
+    const callers = sourceFiles(APP_ROOT).filter(callsNotFound);
 
     expect(
       callers.length,
-      "no notFound() call site found — the scan is broken, so the rule below is vacuous"
-    ).toBeGreaterThanOrEqual(4);
+      "far fewer notFound() call sites than this tree has — the scan looks collapsed, " +
+        "so the rule below is checked against a smaller world than the real one"
+    ).toBeGreaterThanOrEqual(10);
 
     const uncovered = callers
       .filter((file) => {

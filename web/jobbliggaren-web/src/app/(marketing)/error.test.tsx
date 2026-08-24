@@ -15,10 +15,10 @@ describe("(marketing)/error boundary (#1477)", () => {
     render(<MarketingError error={boundaryError} unstable_retry={() => {}} />);
 
     expect(
-      screen.getByRole("heading", { name: "Något gick fel", level: 1 }),
+      screen.getByRole("heading", { name: "Sidan kunde inte visas", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/landing-boom-internal/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-landing/)).not.toBeInTheDocument();
@@ -47,16 +47,16 @@ describe("(marketing)/error boundary (#1477)", () => {
     expect(screen.queryByRole("contentinfo")).toBeNull();
   });
 
-  it("offers both a retry and a way back to the start page", async () => {
+  it("offers a retry, and NO link — (marketing) holds exactly one route", async () => {
+    // A "Till startsidan" control here would point at the URL the visitor is
+    // already on: dead, or a duplicate of the retry. Bites on revert.
     const unstableRetry = vi.fn();
     const user = userEvent.setup();
     render(
       <MarketingError error={boundaryError} unstable_retry={unstableRetry} />,
     );
 
-    expect(
-      screen.getByRole("link", { name: "Till startsidan" }),
-    ).toHaveAttribute("href", "/");
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
     expect(unstableRetry).toHaveBeenCalledTimes(1);

@@ -15,10 +15,10 @@ describe("(guest)/gast/error boundary (#1477)", () => {
     render(<GuestError error={boundaryError} unstable_retry={() => {}} />);
 
     expect(
-      screen.getByRole("heading", { name: "Något gick fel" }),
+      screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/guest-boom-internal/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-guest/)).not.toBeInTheDocument();

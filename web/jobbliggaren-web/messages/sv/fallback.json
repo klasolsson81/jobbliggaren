@@ -1,6 +1,6 @@
 {
-  "errorTitle": "Något gick fel",
-  "errorBodyRetry": "Ett tekniskt fel uppstod. Försök igen om en stund.",
+  "errorTitle": "Sidan kunde inte visas",
+  "errorBodyRetry": "Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund.",
   "retry": "Försök igen",
   "notFound": {
     "title": "Sidan finns inte",

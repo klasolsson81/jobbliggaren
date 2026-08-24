@@ -17,10 +17,10 @@ describe("(app)/error boundary (#995)", () => {
     render(<AppError error={boundaryError} unstable_retry={() => {}} />);
 
     expect(
-      screen.getByRole("heading", { name: "Något gick fel" }),
+      screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
 
     // Acceptance: no stack trace / internal detail is shown to the user.

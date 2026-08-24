@@ -33,9 +33,6 @@ export default function GuestError({
       <h1 className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
-        {/* unstable_retry() re-fetches and re-renders the segment (the Next
-            16.2+ recovery for a transient throw); reset() would only re-render
-            and replay the same failed RSC payload. */}
         <button
           type="button"
           onClick={() => unstable_retry()}

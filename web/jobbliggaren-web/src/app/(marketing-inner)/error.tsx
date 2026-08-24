@@ -5,9 +5,7 @@ import { useTranslations } from "next-intl";
 
 /**
  * (marketing-inner)/error — the runtime error boundary for every inner public
- * page: /villkor, /integritet, /cookies, /tillganglighet, /om, /kontakt,
- * /hjalpcenter, /vanliga-fragor, /tips, /matchning, /cv-granskning and
- * /for-utvecklare.
+ * page, the legal pages the registration consent text links to among them.
  *
  * Without it a throw bubbled to global-error.tsx, which REPLACES the root
  * layout and renders chrome-less — so the legal pages the registration consent
@@ -35,14 +33,14 @@ export default function MarketingInnerError({
     <main
       id="main"
       tabIndex={-1}
-      className="jp-container jp-page flex flex-col gap-4 focus:outline-none"
+      // min-h-[60vh] rather than flex-1: (marketing-inner)/layout wraps children
+      // in a plain block, so a flex child has nothing to grow against. Same
+      // height-floor idiom as global-error.tsx. Layout utility, not a token.
+      className="jp-container jp-page flex min-h-[60vh] flex-col justify-center gap-4 focus:outline-none"
     >
       <h1 className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
-        {/* unstable_retry() re-fetches and re-renders the segment (the Next
-            16.2+ recovery for a transient throw); reset() would only re-render
-            and replay the same failed RSC payload. */}
         <button
           type="button"
           onClick={() => unstable_retry()}

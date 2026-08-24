@@ -109,8 +109,8 @@ const SELF_SEEDED_PROVIDERS: readonly { file: string; seeds: readonly string[] }
 /**
  * Every provider site that OWNS a subtree, for exclusion purposes. A self-seeded
  * provider owns exactly its own file: without this, `global-error.tsx` counts as
- * part of the root subtree and root is charged the `pages` namespace it seeds
- * itself — which would put 24 KB back into every document in the app.
+ * part of the root subtree and root is charged the namespace it seeds itself,
+ * which every document in the app would then pay for.
  */
 const ALL_PROVIDER_SUBTREES: readonly ProviderBoundary[] = [
   ...BOUNDARIES,

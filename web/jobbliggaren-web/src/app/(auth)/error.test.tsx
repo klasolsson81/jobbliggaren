@@ -4,8 +4,7 @@ import userEvent from "@testing-library/user-event";
 import AuthError from "./error";
 
 // The harness aliases `@testing-library/react` to a render shim that wraps every
-// tree in NextIntlClientProvider (messages/sv), so this boundary's
-// `useTranslations("common")` resolves without a manual provider.
+// tree in NextIntlClientProvider (messages/sv).
 
 const boundaryError = Object.assign(new Error("auth-boom-internal"), {
   digest: "digest-auth",
@@ -16,10 +15,10 @@ describe("(auth)/error boundary (#1477)", () => {
     render(<AuthError error={boundaryError} unstable_retry={() => {}} />);
 
     expect(
-      screen.getByRole("heading", { name: "Något gick fel" }),
+      screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/auth-boom-internal/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-auth/)).not.toBeInTheDocument();

@@ -15,8 +15,8 @@ import "./globals.css";
  * global-error — the site's last-resort boundary (#995 / B3). It fires only
  * when the ROOT layout itself throws (or an error escapes (app)/error.tsx via
  * (app)/layout), so it must render its own document shell. The user sees a calm
- * civic surface (§10) — "Något gick fel", a retry, a way to the start page — no
- * stack trace, no danger-alarm styling for a generic failure.
+ * civic surface (§10) with a retry and a way to the start page — no stack
+ * trace, no danger-alarm styling for a generic failure.
  *
  * i18n: because this replaces the root layout it renders OUTSIDE
  * NextIntlClientProvider, so it seeds its own provider from the Swedish catalog
@@ -79,8 +79,8 @@ export default function GlobalError({
       {/* global-error replaces the root layout, so Next's metadata /
           generateMetadata does not apply — including the root layout's
           `title.template`. Compose it here from the same sv-pinned catalog so
-          the tab reads "Något gick fel | Jobbliggaren" like every other page,
-          rather than a stale title or a title with no site name in it. */}
+          the tab carries the site name like every other page, rather than a
+          stale title or a title with no site name in it. */}
       <head>
         <title>{svMetadata.titleTemplate.replace("%s", svFallback.errorTitle)}</title>
       </head>

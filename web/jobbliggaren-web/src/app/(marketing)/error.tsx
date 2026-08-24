@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 /**
@@ -14,6 +13,9 @@ import { useTranslations } from "next-intl";
  *
  * It carries its OWN `<main id="main">`: the landmark is the PAGE's on this
  * surface, so without one here SiteHeader's skip link would point at nothing.
+ *
+ * It offers only a retry. `(marketing)` holds exactly one route, so a "to the
+ * start page" control here would point at the URL the visitor is already on.
  *
  * Client Component by Next convention. The `error` prop is accepted to match
  * the boundary contract but is deliberately neither shown to the user (no stack
@@ -36,10 +38,7 @@ export default function MarketingError({
     >
       <h1 className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
-      <div className="flex flex-wrap gap-3">
-        {/* unstable_retry() re-fetches and re-renders the segment (the Next
-            16.2+ recovery for a transient throw); reset() would only re-render
-            and replay the same failed RSC payload. */}
+      <div>
         <button
           type="button"
           onClick={() => unstable_retry()}
@@ -47,9 +46,6 @@ export default function MarketingError({
         >
           {t("retry")}
         </button>
-        <Link href="/" className="jp-btn jp-btn--secondary">
-          {t("notFound.toStart")}
-        </Link>
       </div>
     </main>
   );

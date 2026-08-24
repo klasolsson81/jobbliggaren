@@ -5,6 +5,12 @@ import { getServerSession, getSessionId } from "@/lib/auth/session";
 import { getMyMatches, markMatchesSeen } from "@/lib/api/me-matches";
 import { assertNever } from "@/lib/dto/_helpers";
 import { MatchList } from "@/components/matches/match-list";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("matchningar.meta.title") };
+}
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 

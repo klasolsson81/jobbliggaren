@@ -14,6 +14,12 @@ import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { CompanyBrowseList } from "@/components/company-criteria/company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.smartaBevakningar.detail.meta.title") };
+}
 
 const EMPTY_REFERENCE: CriterionReference = {
   sniVersion: "",

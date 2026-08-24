@@ -10,6 +10,12 @@ import { formatTime } from "@/lib/i18n/format";
 import { ResumeCard } from "@/components/resumes/resume-card";
 import { DiscardDraftButton } from "@/components/resumes/discard-draft-button";
 import { StatusPill } from "@/components/ui/status-pill";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("cv.meta.title") };
+}
 
 /**
  * /cv-listvyn (F6 P3a, HANDOVER §7.4 + målbild 09-cv-light.png).

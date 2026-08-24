@@ -5,6 +5,12 @@ import { ArrowLeft } from "lucide-react";
 import { GuestDemoBanner } from "@/components/guest/guest-demo-banner";
 import { GuestApplicationDetail } from "@/components/guest/guest-application-detail";
 import { findGuestApplication } from "@/lib/guest/mock-data";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("guest");
+  return { title: t("ansokningar.detail.meta.title") };
+}
 
 // F-Pre Punkt 5b 2026-05-24 — fullsida för hard-nav till
 // `/gast/ansokningar/[id]` (refresh, delad länk, "öppna i ny flik").

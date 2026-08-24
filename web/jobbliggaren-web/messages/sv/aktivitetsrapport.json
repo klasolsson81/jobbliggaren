@@ -56,5 +56,8 @@
     "title": "Det gick inte att hämta aktivitetsrapporten",
     "body": "Försök igen om en stund.",
     "rateLimited": "För många förfrågningar. Försök igen om en stund."
+  },
+  "meta": {
+    "title": "Aktivitetsrapport"
   }
 }

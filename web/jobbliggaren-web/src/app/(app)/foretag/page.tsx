@@ -1,4 +1,20 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
+/**
+ * The hub root IS a served document, measured — not a 3xx. `redirect()` runs after
+ * the `(app)` layout has begun streaming, so Next cannot answer 3xx and instead
+ * answers 200 with a meta-refresh document (the same mechanism `src/proxy.ts`
+ * documents for the org.nr wash). Measured 2026-08-24 in a production build:
+ * `/foretag` returns 200 and 151 385 bytes carrying
+ * `<meta http-equiv="refresh" content="1;url=/foretag/bevakade">`. A visitor sees
+ * that document for about a second, so it needs a title of its own like any other.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.meta.title") };
+}
 
 /**
  * `/foretag` (S1 #996) — the hub root redirects to the default surface, Bevakade företag (Klas

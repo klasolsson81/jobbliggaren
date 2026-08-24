@@ -7,6 +7,12 @@ import { CompanyWatchList } from "@/components/company-follows/company-watch-lis
 import { ForetagPagehero } from "@/components/foretag/foretag-pagehero";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { renderSection } from "@/components/foretag/foretag-section";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.bevakade.meta.title") };
+}
 
 /**
  * `/foretag/bevakade` (S1 #996) — the Bevakade företag surface: the followed-company list. (The org.nr

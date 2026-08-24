@@ -8,6 +8,12 @@ import { readApplicationsView } from "@/lib/applications/view-preference";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationsPipeline } from "@/components/applications/applications-pipeline";
 import { InfoDialog } from "@/components/common/info-dialog";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("ansokningar.meta.title") };
+}
 
 export default async function AnsokningarPage() {
   const user = await getServerSession();

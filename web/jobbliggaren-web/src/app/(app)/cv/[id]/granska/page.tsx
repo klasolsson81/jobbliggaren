@@ -13,6 +13,12 @@ import {
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { findMasterVersion } from "@/lib/resumes/content-utils";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("cv.granska.meta.title") };
+}
 
 interface Props {
   params: Promise<{ id: string }>;

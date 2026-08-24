@@ -44,7 +44,10 @@
       "coverLetterHint": "Frivilligt. Du kan lägga till eller redigera det senare.",
       "submit": "Skapa ansökan",
       "submitting": "Sparar…",
-      "cancel": "Avbryt"
+      "cancel": "Avbryt",
+      "meta": {
+        "title": "Ny ansökan"
+      }
     },
     "loading": "Ansökan läses in…",
     "detail": {
@@ -53,7 +56,13 @@
       "fallbackTitle": "Ansökan #{shortId}",
       "subtitle": "{company} · #{shortId}",
       "createdSubtitle": "Skapad {date}",
-      "adRemoved": "Annonsen är borttagen"
+      "adRemoved": "Annonsen är borttagen",
+      "meta": {
+        "title": "Ansökan"
+      }
+    },
+    "meta": {
+      "title": "Mina ansökningar"
     }
   },
   "cv": {
@@ -87,7 +96,10 @@
     "import": {
       "title": "Importera CV",
       "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Ditt CV ändras inte.",
-      "modalDescription": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte."
+      "modalDescription": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte.",
+      "meta": {
+        "title": "Importera CV"
+      }
     },
     "new": {
       "title": "Nytt CV",
@@ -118,6 +130,9 @@
         "clearedKicker": "Inga hinder i filen",
         "clearedTitle": "Inget i filen hindrar den",
         "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
+      },
+      "meta": {
+        "title": "Granska importerat CV"
       }
     },
     "improve": {
@@ -147,7 +162,10 @@
       "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Inget ändras i ditt CV automatiskt.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
-      "loading": "Läser in granskningen…"
+      "loading": "Läser in granskningen…",
+      "meta": {
+        "title": "CV-granskning"
+      }
     },
     "mall": {
       "title": "Anpassa mall",
@@ -206,6 +224,9 @@
       "noFile": "Ingen fil bifogades. Välj en PDF- eller Word-fil (DOCX).",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "unreadable": "Filen kunde inte läsas. Kontrollera att det är en PDF eller Word-fil (DOCX) under 10 MB."
+    },
+    "meta": {
+      "title": "Mina CV"
     }
   },
   "jobb": {
@@ -214,18 +235,30 @@
     "resultsHeading": "Lediga jobb",
     "loading": "Jobbannonsen läses in…",
     "detail": {
-      "loadErrorTitle": "Kunde inte ladda annonsen"
+      "loadErrorTitle": "Kunde inte ladda annonsen",
+      "meta": {
+        "title": "Jobbannons"
+      }
+    },
+    "meta": {
+      "title": "Sök jobb"
     }
   },
   "sokningar": {
     "title": "Senaste sökningar",
     "lede": "Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller ta bort den du inte behöver. Vi sparar dina 20 senaste sökningar, inklusive söktexten du skrev. Du kan läsa mer i integritetspolicyn.",
-    "loadErrorTitle": "Kunde inte ladda senaste sökningar"
+    "loadErrorTitle": "Kunde inte ladda senaste sökningar",
+    "meta": {
+      "title": "Senaste sökningar"
+    }
   },
   "sparade": {
     "title": "Sparade annonser",
     "lede": "Annonser du har sparat för att kunna återvända till. Öppna annonsen för att se detaljer eller ta bort bokmärket.",
-    "loadErrorTitle": "Kunde inte ladda sparade annonser"
+    "loadErrorTitle": "Kunde inte ladda sparade annonser",
+    "meta": {
+      "title": "Sparade annonser"
+    }
   },
   "foretag": {
     "subnav": {
@@ -296,7 +329,10 @@
       "announceFilterRemoved": "Filtret {namn} är borttaget.",
       "announceBranschCleared": "Alla branschfilter är borttagna.",
       "announceOrterCleared": "Alla ortfilter är borttagna.",
-      "announceFiltersCleared": "Sökningen är rensad."
+      "announceFiltersCleared": "Sökningen är rensad.",
+      "meta": {
+        "title": "Sök företag"
+      }
     },
     "watchesHeading": "Bevakade företag",
     "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",
@@ -402,6 +438,29 @@
         "emptyTitle": "Inga företag matchar just nu.",
         "emptyBody": "Prova att ändra bevakningens branscher eller kommuner för att bredda urvalet."
       }
+    },
+    "bevakade": {
+      "meta": {
+        "title": "Bevakade företag"
+      }
+    },
+    "historik": {
+      "meta": {
+        "title": "Ansökningshistorik"
+      }
+    },
+    "smartaBevakningar": {
+      "meta": {
+        "title": "Smarta bevakningar"
+      },
+      "detail": {
+        "meta": {
+          "title": "Smart bevakning"
+        }
+      }
+    },
+    "meta": {
+      "title": "Företag"
     }
   },
   "matchningar": {
@@ -415,14 +474,20 @@
     "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
-    "loadErrorTitle": "Kunde inte ladda dina matchningar"
+    "loadErrorTitle": "Kunde inte ladda dina matchningar",
+    "meta": {
+      "title": "Mina matchningar"
+    }
   },
   "installningar": {
     "title": "Inställningar",
     "lede": "Hantera dina kontouppgifter och inställningar.",
     "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
     "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund."
+    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
+    "meta": {
+      "title": "Inställningar"
+    }
   },
   "auth": {
     "backToStart": "Till startsidan",
@@ -440,7 +505,10 @@
       "submitting": "Loggar in…",
       "noAccount": "Inget konto?",
       "createAccount": "Skapa konto",
-      "forgotPassword": "Glömt lösenordet?"
+      "forgotPassword": "Glömt lösenordet?",
+      "meta": {
+        "title": "Logga in"
+      }
     },
     "register": {
       "title": "Skapa konto",
@@ -457,7 +525,10 @@
       "haveAccount": "Har du redan ett konto?",
       "logIn": "Logga in",
       "pendingTitle": "Kontrollera din inkorg",
-      "pendingBody": "Vi har skickat ett mejl till adressen du angav. Följ instruktionerna i mejlet för att fortsätta. Kontrollera skräpposten om du inte ser det inom några minuter."
+      "pendingBody": "Vi har skickat ett mejl till adressen du angav. Följ instruktionerna i mejlet för att fortsätta. Kontrollera skräpposten om du inte ser det inom några minuter.",
+      "meta": {
+        "title": "Skapa konto"
+      }
     },
     "actions": {
       "credentialsRequired": "E-post och lösenord krävs.",
@@ -485,7 +556,10 @@
       "loginLink": "Logga in",
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Logga in och begär ett nytt adressbyte under Inställningar.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
+      "meta": {
+        "title": "Bekräfta e-postadress"
+      }
     },
     "confirmAccount": {
       "title": "Bekräfta din e-postadress",
@@ -497,7 +571,10 @@
       "loginLink": "Logga in",
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
+      "meta": {
+        "title": "Bekräfta konto"
+      }
     },
     "resendConfirmation": {
       "button": "Skicka en ny bekräftelselänk",
@@ -516,7 +593,10 @@
       "sentTitle": "Kontrollera din inkorg",
       "sentBody": "Om adressen hör till ett konto har vi skickat en länk dit. Kontrollera skräpposten om du inte ser mejlet inom några minuter. Länken gäller en kort stund, och tiden står i mejlet.",
       "backToLogin": "Tillbaka till inloggningen",
-      "requestNewLink": "Begär en ny återställningslänk"
+      "requestNewLink": "Begär en ny återställningslänk",
+      "meta": {
+        "title": "Återställ lösenord"
+      }
     },
     "resetPassword": {
       "title": "Välj ett nytt lösenord",
@@ -531,7 +611,10 @@
       "invalidTitle": "Länken går inte att använda",
       "invalidBody": "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.",
       "passwordTooShort": "Lösenordet måste vara minst 12 tecken.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund."
+      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
+      "meta": {
+        "title": "Välj nytt lösenord"
+      }
     }
   }
 }

@@ -6,6 +6,12 @@ import { ApplicationHistoryList } from "@/components/application-history/applica
 import { ForetagPagehero } from "@/components/foretag/foretag-pagehero";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { renderSection } from "@/components/foretag/foretag-section";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.historik.meta.title") };
+}
 
 /**
  * `/foretag/historik` (S1 #996) — the Ansökningshistorik surface: the caller's application history

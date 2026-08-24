@@ -72,7 +72,10 @@
     "rowLatestResume": "Senast uppdaterat CV",
     "rowDemoActiveSince": "Demo aktiv sedan",
     "hintNotSaved": "ej sparad",
-    "valueDash": "–"
+    "valueDash": "–",
+    "meta": {
+      "title": "Översikt (demoläge)"
+    }
   },
   "ansokningar": {
     "kicker": "Demopipeline",
@@ -83,7 +86,15 @@
     "emptyStatus": "Inga ansökningar i den här statusen.",
     "fullKicker": "Demoansökan",
     "fullLede": "{company} · {source}",
-    "backToList": "Tillbaka till ansökningarna"
+    "backToList": "Tillbaka till ansökningarna",
+    "meta": {
+      "title": "Mina ansökningar (demoläge)"
+    },
+    "detail": {
+      "meta": {
+        "title": "Ansökan (demoläge)"
+      }
+    }
   },
   "cv": {
     "kicker": "Demo-CV",
@@ -95,7 +106,10 @@
     "languageEnglish": "Engelska",
     "latestRoleLabel": "Senaste roll",
     "sectionsLabel": "Sektioner",
-    "updatedLabel": "Uppdaterad"
+    "updatedLabel": "Uppdaterad",
+    "meta": {
+      "title": "CV (demoläge)"
+    }
   },
   "jobb": {
     "heroTitle": "Sök jobb",
@@ -108,7 +122,15 @@
     "cardPublished": "Publicerad <b>{date}</b>",
     "cardApplyBy": "Sista ansökan <b>{date}</b>",
     "fullKicker": "Demoannons",
-    "backToList": "Tillbaka till annonserna"
+    "backToList": "Tillbaka till annonserna",
+    "meta": {
+      "title": "Sök jobb (demoläge)"
+    },
+    "detail": {
+      "meta": {
+        "title": "Jobbannons (demoläge)"
+      }
+    }
   },
   "detail": {
     "company": "Företag",

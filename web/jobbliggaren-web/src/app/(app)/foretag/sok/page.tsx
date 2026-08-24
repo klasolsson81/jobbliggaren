@@ -19,6 +19,12 @@ import {
   MAX_SNI_CODES,
   MAX_MUNICIPALITY_CODES,
 } from "@/lib/company-search/search-params";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.sok.meta.title") };
+}
 
 const EMPTY_REFERENCE: CriterionReference = {
   sniVersion: "",

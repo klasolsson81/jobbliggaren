@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
+import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return notFoundMetadata();
+}
+
 /**
  * (guest)/gast/not-found — the 404 boundary for the guest mirrors. Four guest
  * pages call notFound() for an unknown mock id (/gast/jobb/[id],

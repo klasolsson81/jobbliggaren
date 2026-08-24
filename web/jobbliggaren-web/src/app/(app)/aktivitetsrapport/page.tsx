@@ -15,6 +15,12 @@ import {
   type ActivityReportRow,
   type MonthOption,
 } from "@/components/aktivitetsrapport/activity-report-view";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("aktivitetsrapport");
+  return { title: t("meta.title") };
+}
 
 // Arbetsförmedlingen's "Mina sidor" — where you log in with BankID and file the
 // activity report (verified live 2026-06-28; the previously-guessed

@@ -79,5 +79,8 @@
     "today": "today",
     "yesterday": "yesterday",
     "daysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+  },
+  "meta": {
+    "title": "Overview"
   }
 }

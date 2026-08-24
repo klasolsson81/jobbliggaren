@@ -2,6 +2,13 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { RegisterForm } from "@/components/forms/RegisterForm";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("auth.register.meta.title") };
+}
 
 /**
  * There is no waitlist and no invitation gate (Klas 2026-06-27, ADR 0083; supersedes ADR 0005

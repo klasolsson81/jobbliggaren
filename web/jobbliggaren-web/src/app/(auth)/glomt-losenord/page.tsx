@@ -1,5 +1,12 @@
 import { useTranslations } from "next-intl";
 import { ForgotPasswordForm } from "@/components/forms/ForgotPasswordForm";
+import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("auth.forgotPassword.meta.title") };
+}
 
 // #1171 — PUBLIC forgot-password request page. Lives under (auth)/ rather than (app)/ on purpose: the
 // visitor has lost access by definition, so it must be reachable without a session. Because it is not

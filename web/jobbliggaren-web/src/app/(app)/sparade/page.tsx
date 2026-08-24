@@ -4,6 +4,12 @@ import { getServerSession } from "@/lib/auth/session";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { assertNever } from "@/lib/dto/_helpers";
 import { SavedJobAdList } from "@/components/saved-job-ads/saved-job-ad-list";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("sparade.meta.title") };
+}
 
 type PagesTranslator = Awaited<ReturnType<typeof getTranslations<"pages">>>;
 

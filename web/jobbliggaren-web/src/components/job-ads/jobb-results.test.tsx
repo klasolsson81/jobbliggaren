@@ -165,8 +165,13 @@ describe("JobbResults — the load's completion reaches the surface region", () 
     });
     await renderHosted();
 
-    expect(announced()).toHaveTextContent("Inga träffar");
-    // Not a stray zero: the empty arm is the noHits sentence, never "0 träffar".
+    // Title AND body — `design-reviewer` Major 1: the title states the dead end, only the body
+    // gives the way out, and the two error branches in this same switch already announce both.
+    expect(announced()).toHaveTextContent("Inga jobb hittades");
+    expect(announced()).toHaveTextContent(
+      "Justera filtren eller töm sökrutan",
+    );
+    // Not a stray zero: the empty arm never announces "0 träffar".
     expect(announced()).not.toHaveTextContent(/\d/);
   });
 
@@ -178,6 +183,12 @@ describe("JobbResults — the load's completion reaches the surface region", () 
     // limit the natural guess — retry now — extends the block. Both halves or neither.
     expect(announced()).toHaveTextContent("För många förfrågningar");
     expect(announced()).toHaveTextContent("42 sekunder");
+    // `design-reviewer` Major 3 — the card carries NO `role="alert"`. It used to, and the two
+    // channels then said the same sentence twice, one of them interrupting: an alert node inserted
+    // into a live DOM with its text already in place is the case AT does announce. `Announce` is
+    // the single path. Parity with `foretag-sok-results.test.tsx`, and measured there: without
+    // this assertion, restoring the role kills no test.
+    expect(document.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("a TECHNICAL ERROR announces too, where it previously reached a screen reader through nothing", async () => {

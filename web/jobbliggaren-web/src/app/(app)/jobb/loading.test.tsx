@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../../messages/sv";
 import Loading from "./loading";
 
 /**
@@ -35,6 +38,48 @@ describe("/jobb loading.tsx — the skeleton has a region to announce through", 
     // …and the visible one is ordinary content, not a second live region.
     expect(visible[0]).not.toHaveAttribute("role");
     expect(visible[0]).not.toHaveAttribute("aria-live");
+  });
+
+  it("ships the region EMPTY in the server HTML, before any effect has run", () => {
+    // The half no client render can measure. `useEffect` does not run on the server, so the first
+    // bytes a browser receives are the region's true initial state — and ARIA22 is about exactly
+    // that: the container must hold its role BEFORE the message occurs. Every other assertion in
+    // this file runs after the effect and therefore cannot tell "empty then filled" from "born
+    // filled".
+    //
+    // The mutation this exists for (`test-writer`, the tenth): give `Announcer` an
+    // `initialMessage` prop and have THIS file pass its opening sentence. Every client-side pin
+    // still passes, the e2e spec still passes — it measures node identity across an IN-PAGE
+    // search — and the route-level path is back in precisely the defect this PR closes.
+    //
+    // It has to be rendered HERE, not against `Announcer` alone: an isolated render never passes
+    // the prop, so it is blind to the host that would. Measured — the first version of this pin
+    // lived in `announcer.test.tsx` and the whole mutation survived it.
+    //
+    // Same shape and reason as `foretag-sok-searchbar.test.tsx`'s pre-hydration assertion, the
+    // repo's other `react-dom/server` pin.
+    const html = renderToString(
+      <NextIntlClientProvider
+        locale="sv"
+        messages={messages}
+        timeZone="Europe/Stockholm"
+      >
+        <Loading />
+      </NextIntlClientProvider>,
+    );
+
+    // Parse the region OUT and assert it is empty, rather than asserting the absence of one
+    // particular sentence. Measured why: a version of this pin checked that
+    // "Söker bland annonser…" occurred exactly once, and the mutation survived it by seeding the
+    // region with a DIFFERENT string. What the criterion requires is that the container is empty,
+    // whatever the message would have been.
+    // `[\s\S]` rather than the `s` flag: the tsconfig target predates es2018 (TS1501).
+    const region = /<p[^>]*aria-atomic="true"[^>]*>([\s\S]*?)<\/p>/.exec(html);
+    expect(region).not.toBeNull();
+    expect(region?.[1]).toBe("");
+    // …and it really is the announcer's region, not some other atomic element.
+    expect(region?.[0]).toContain('role="status"');
+    expect(region?.[0]).toContain('aria-live="polite"');
   });
 
   it("keeps the skeleton itself free of any live-region role", () => {

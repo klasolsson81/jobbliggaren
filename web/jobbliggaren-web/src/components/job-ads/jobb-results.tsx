@@ -400,14 +400,15 @@ export async function JobbResults({
       return (
         <>
           {/* #1505 — the sentence that ends the load, announced through the page's persistent
-              region. Both arms are what the toolbar already renders: Understanding 4.1.3 names
-              "18 results returned" and "No results returned" as its own examples, so nothing is
-              invented here — the criterion's caveat about not forcing new status messages is
-              respected by construction. */}
+              region. Both arms are already on screen — the count in the toolbar, the empty pair in
+              `JobAdList`'s `.jp-empty` — so nothing is invented here and Understanding 4.1.3's
+              caveat about not forcing new status messages is respected by construction.
+              The empty arm carries title AND body for the same reason the two error branches do:
+              the title states the dead end and only the body gives the way out. */}
           <Announce
             message={
               result.data.totalCount === 0
-                ? t("toolbar.noHits")
+                ? `${t("list.emptyTitle")} ${t("list.emptyBody")}`
                 : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
             }
           />
@@ -469,15 +470,11 @@ export async function JobbResults({
         // on the `.jp-h2`: `.jp-*` is unlayered and beats `@layer utilities`, so an `mb-*` on
         // the heading computes to 0 (globals.css:1731 names the same trap). Same placement as
         // `foretag-sok-results.tsx`'s ErrorShell, which carries its own margin for this reason.
-        <div
-          role="alert"
-          className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4"
-        >
+        <div className="mt-6 rounded-md border border-warning-700/30 bg-warning-50 px-6 py-4">
           {/* #1505 — a start that is never closed leaves a screen reader waiting on a load that
-              has in fact finished, which is worse than the silence it replaced. The `role="alert"`
-              stays: a visible warning does not become wrong by being unreliable for AT, and
-              `Announce` is what actually reaches the region. Title AND body, because the title
-              alone says an error occurred and only the body says what to do about it. */}
+              has in fact finished, which is worse than the silence it replaced. Title AND body,
+              because the title alone says an error occurred and only the body says what to do
+              about it. */}
           <Announce
             message={`${t("results.rateLimitedTitle")} ${t("results.rateLimitedBody", { seconds: result.retryAfterSeconds })}`}
           />

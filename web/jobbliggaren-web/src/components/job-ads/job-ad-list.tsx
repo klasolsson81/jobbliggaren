@@ -62,8 +62,9 @@ export function JobAdList({
   // Synchronous next-intl translator — keeps JobAdList a non-async RSC.
   const t = useTranslations("jobads.ui");
   if (jobAds.length === 0) {
-    // Ingen `role=status`/`aria-live` här — page.tsx har redan en live-region
-    // på resultat-räknaren. Två live-regions samtidigt riskerar dubbel-
+    // Ingen `role=status`/`aria-live` här — `page.tsx` monterar redan sidans enda
+    // lastcykel-region (`Announcer`), och `jobb-results.tsx` skjuter in de två
+    // meningarna nedan i den. Två live-regions samtidigt riskerar dubbel-
     // announcement (design-reviewer F2-P10 Minor 2). Empty-state-texten är
     // statiskt DOM-innehåll som läses upp vid navigation.
     return (

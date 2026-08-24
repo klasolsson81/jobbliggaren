@@ -20,12 +20,19 @@ const RUN_ID = Date.now();
 
 const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
-// The load-cycle region, distinguished from the hero search's own filter region by `aria-atomic`:
-// the announcer swaps whole sentences and sets it, the hero one does not. Both are `sr-only`
-// `role="status"` and would otherwise resolve to two elements — the exact strict-mode collision
-// that broke `foretag-sok-live-commit.spec.ts` when #1092 added the second region there.
-const LOAD_REGION = "p[aria-live='polite'].sr-only[aria-atomic='true']";
-const FILTER_REGION = "p[aria-live='polite'].sr-only:not([aria-atomic])";
+// The load-cycle region, located STRUCTURALLY rather than by counting. A hydrated `/jobb` carries
+// four polite regions, not two: this one, the hero search's tag announcement
+// (`jobb-hero-search.tsx:668`), the typeahead's suggestion count (`job-ad-typeahead.tsx:287`,
+// mounted behind `hydrated`) and the shell's header stats (`header-stats.tsx:219`, a `<span>`).
+// An earlier version of this file asserted `toHaveCount(1)` on the non-atomic selector and PASSED
+// in CI — by racing hydration and measuring the pre-hydration DOM, where the typeahead is not yet
+// mounted. A green test measuring the wrong state, on a `continue-on-error` lane. Three reviewers
+// found it independently.
+//
+// The scoping below cannot race: `section[aria-labelledby="jobb-results-title"]` is server-rendered
+// and no hero region can ever be its descendant.
+const RESULTS_SECTION = "section[aria-labelledby='jobb-results-title']";
+const LOAD_REGION = `${RESULTS_SECTION} p[aria-live='polite'].sr-only[aria-atomic='true']`;
 
 test.beforeAll(async () => {
   await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
@@ -36,15 +43,24 @@ test.describe("/jobb — the load cycle announces through a region that precedes
     await loginAs(page, RUN_ID);
   });
 
-  test("exactly two regions, with distinct jobs", async ({ page }) => {
+  test("the results section owns exactly one region, and the hero regions stay outside it", async ({
+    page,
+  }) => {
     await page.goto("/jobb");
+    // Wait for hydration before counting anything: the typeahead's region only exists after it,
+    // and counting before it is what made the previous version of this test pass while wrong.
+    await expect(page.getByLabel(SEARCH_FIELD_LABEL)).toBeEnabled();
 
-    // Two regions with two writers is the house rule; one region with two would let a filter
-    // change overwrite a result count mid-load.
+    // One region per job is the house rule; one region with two writers would let a filter change
+    // overwrite a result count mid-load.
     await expect(page.locator(LOAD_REGION)).toHaveCount(1);
-    // Positive control on the split: if the announcer ever loses `aria-atomic`, the locator above
-    // starts matching the hero region instead and would pass for the wrong element.
-    await expect(page.locator(FILTER_REGION)).toHaveCount(1);
+    // Positive control on the scoping: the hero's own polite regions exist and are NOT inside the
+    // results section. Asserted as "at least one" — the exact number is a property of the hero,
+    // not of this fix, and pinning it here would break on an unrelated hero change.
+    const heroRegions = page.locator(
+      `p[aria-live='polite'].sr-only:not(${RESULTS_SECTION} *)`,
+    );
+    expect(await heroRegions.count()).toBeGreaterThan(0);
   });
 
   test("the region survives a search as the SAME node, and carries the outcome", async ({

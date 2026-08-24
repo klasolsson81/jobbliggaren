@@ -427,8 +427,6 @@ describe("ForetagSokResults — the load's completion reaches the surface region
    * leaves a screen reader waiting on a search that has finished failing.
    *
    * `code-reviewer` Major 2 on PR #1504 — four reachable branches, none of them covered until now.
-   * `ErrorShell`'s `role="alert"` does not discharge it: that element is mounted with its text
-   * already in place, which is the exact ARIA22 shape this PR exists to stop relying on.
    */
   it.each([
     ["rateLimited", "Vänta en stund och ladda om sidan."],
@@ -447,6 +445,12 @@ describe("ForetagSokResults — the load's completion reaches the surface region
       // catalogue so a renamed key fails here rather than announcing a raw message id.
       expect(announced()).toHaveTextContent("Sökningen kunde inte läsas in");
       expect(announced()).toHaveTextContent(remedy);
+      // #1505 `design-reviewer` Major 3 — the card carries NO `role="alert"`. It used to, and the
+      // two channels then said the same sentence twice, one of them interrupting: an alert node
+      // inserted into a live DOM with its text already in place is the case AT does announce.
+      // `Announce` above is the single path. Without this assertion the deletion is unguarded —
+      // measured: restoring the role killed no test in the suite.
+      expect(document.querySelector('[role="alert"]')).toBeNull();
     },
   );
 

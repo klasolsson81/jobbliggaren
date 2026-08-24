@@ -1,9 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { createTranslator } from "next-intl";
+import svJobads from "../../../messages/sv/jobads.json";
 import { Announcer } from "@/components/common/announcer";
 import { JobAdListSkeleton } from "./job-ad-list-skeleton";
 
 const region = (c: HTMLElement) => c.querySelector('p[role="status"]');
+
+// Read through the real catalogue, so a renamed or deleted key fails here rather than silently
+// announcing a raw message id. Parity with `foretag-sok-results-skeleton.test.tsx`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { jobads: svJobads },
+  namespace: "jobads.ui",
+});
 
 describe("JobAdListSkeleton", () => {
   it("keeps the visible sentence but carries NO live region of its own", () => {
@@ -25,7 +35,7 @@ describe("JobAdListSkeleton", () => {
       </Announcer>,
     );
 
-    expect(region(container)).toHaveTextContent("Söker bland annonser…");
+    expect(region(container)).toHaveTextContent(t("skeleton.searching"));
   });
 
   it("renders no global id (safe to render multiple times)", () => {

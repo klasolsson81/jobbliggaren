@@ -73,8 +73,8 @@ function pageFiles(dir: string, acc: string[] = []): string[] {
  *
  * Scoping matters more than it looks. A `title:` ANYWHERE in the file — an
  * `ErrorShell({ title, body })` helper's prop type, a DTO mapping, a section lookup —
- * would satisfy a file-wide search, and 7 of the 55 pages carry exactly such a
- * `title:` outside their metadata. A file-wide predicate therefore passes them with
+ * would satisfy a file-wide search, and pages do carry such a `title:` outside their
+ * metadata. A file-wide predicate therefore passes them with
  * the metadata title removed, which is precisely the defect this test exists to catch:
  * three `(auth)` pages really did export `metadata` for `robots`/`referrer` and no
  * title at all.

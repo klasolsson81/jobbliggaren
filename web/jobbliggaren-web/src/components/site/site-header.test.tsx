@@ -84,15 +84,14 @@ describe("SiteHeader — the one public header (#1476)", () => {
   });
 });
 
-// The landing is the only surface that passes `stats`, and it passes
-// showLogin={false} — so these render the combination production actually
-// produces. `stats` together with the login action is not a shape any route
-// mounts today, and asserting it would pin a state production cannot reach
-// (AGENTS.md §5 `Tests:`); the wave that removes AuthCard turns the action on
-// and inverts the absence pinned below.
+// The landing is the only surface that passes `stats`, and since #1480 it passes
+// no showLogin — so these render the combination production actually produces
+// (AGENTS.md §5 `Tests:`). Until #1480 the landing suppressed the action because
+// the hero's AuthCard mounted a tab with the same label; the absence pinned below
+// is now a presence.
 describe("SiteHeader — the landing surface (stats slot)", () => {
   const renderLanding = (stats: LandingStats) =>
-    render(<SiteHeader stats={stats} showLogin={false} />);
+    render(<SiteHeader stats={stats} />);
 
   it("renders the brand + both stats blocks", () => {
     renderLanding(STATS_MOCK);
@@ -109,15 +108,19 @@ describe("SiteHeader — the landing surface (stats slot)", () => {
     expect(screen.getByText("+312")).toBeInTheDocument();
   });
 
-  it("carries NO account action — the hero's AuthCard tab owns it", () => {
+  it("carries the account action, now that no hero tab owns the label", () => {
     // Two controls labelled "Logga in" with different behaviour (one navigating,
     // one switching a tab panel in place) sat ~134px apart on the product's front
-    // door when the header half shipped ahead of the hero half. Bites on revert:
-    // flipping showLogin back on here re-creates that pair.
+    // door when the header half shipped ahead of the hero half. #1480 removed the
+    // tab, so the header is the label's only home here. Bites on revert: passing
+    // showLogin={false} again empties the right cluster of its only action.
     renderLanding(STATS_MOCK);
-    expect(
-      screen.queryByRole("link", { name: /Logga in/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Logga in/i })).toHaveAttribute(
+      "href",
+      "/logga-in",
+    );
+    // Still exactly one account control: registration is reached from the hero
+    // card, never from the header.
     expect(
       screen.queryByRole("link", { name: /Skapa konto/i }),
     ).not.toBeInTheDocument();

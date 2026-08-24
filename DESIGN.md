@@ -216,6 +216,8 @@ SSOT: `web/jobbliggaren-web/src/components/brand/brand-mark-svg.tsx` (`BrandMark
 
 **Laddningsindikator — spinner-vs-skeleton-doktrin** (ADR 0070 Fas 2): `BrandSpinner` ("Sigillet i rörelse" — pulserande register + roterande guldbåge; ren CSS, `prefers-reduced-motion` → statisk seal, `role="status"` + sr-only-label). **Skeleton är default (~90 %)** för innehållsladdning med känd form (listor, kort, detaljvyer) — den visar formen som fylls i. `BrandSpinner` används **endast** för känt-långsamma, formlösa väntor (> ~1–2 s): öppna ytan direkt, visa sedan spinnern + en svensk statusrad inuti ("Jobbannonsen läses in…"). Första konsumenter: jobbannons-modalen + sparad-ansökan-modalen (`ModalLoadingShell`). **Aldrig** spinner på snabba sid-/flik-byten — läser som jank och eroderar det seriösa intrycket.
 
+**Guld utanför sigillet** (Klas-direktiv 2026-08-23, #1480): `--jp-gold` får bära en **typografisk roll** på exakt två ytor — landningsplattans kicker (`.jp-land-hero__kicker`) och footerns kolumnrubriker (`.jp-foot__colhead`). Båda är mono-versaler i överlinje-storlek och båda ligger på `#0B2A1E`: footern på solid `--jp-accent-900`, kickern på hero-gradientens första stopp (`--jp-hero-from`, samma värde). Paret mäter **9,45:1**, räknat ur tokenvärdena. **Fristående dekor är fortsatt förbjudet**: ingen guldregel, ingen guldram, ingen guldprick som inte är sigillets egen, och guld bär aldrig en interaktiv affordans. Regeln är den här filens — ADR 0070 *inför* guldet och förbjuder ingenting. `design-reviewer` har veto på varje ny guldyta.
+
 Krav (uppfyllda): SVG; fungerar på ljus och mörk bakgrund; monokrom fallback (sätt accent = papper); civic-ton (geometrisk, stabil, inte lekfull).
 
 ---
@@ -250,7 +252,8 @@ copyn ligger i `EmailTemplates.cs` bredvid textdelen den speglar. Ingen annan yt
 **Dessutom, och utan avsteg:** tabellayout och inline-CSS (inget `<style>`-block alls), max 600px,
 ingen flexbox/grid, `color-scheme: light` — mejlet är avsiktligt ljust i båda teman, vilket är rätt
 e-postpraxis och det enda undantaget från "light-only är blockerat". **Guld (`--jp-gold`) hör till
-sigillet och får inte användas som fristående dekor i mejl** (ADR 0070). Brand-signalen är den gröna
+sigillet och får inte användas som fristående dekor i mejl** (§11 ovan; ADR 0070
+inför guldet och bär ingen sådan regel). Brand-signalen är den gröna
 4px-regeln överst, och den ska vara den enda.
 
 ---

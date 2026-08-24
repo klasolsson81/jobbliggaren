@@ -215,7 +215,7 @@
   /* Landing-displayens clamp()-storlekar (dokumenterade, ADR 0068 Beslut 3):
      komponentbundna display-tokens — ingår INTE i H-skalan. */
   --jp-fs-land-section: clamp(28px, 3.5vw, 38px); /* .jp-land-section__title */
-  --jp-fs-land-verb:    clamp(40px, 4.6vw, 66px); /* .jp-land-hero__stack-verb (förslag 3a) */
+  --jp-fs-land-verb:    clamp(40px, 4.6vw, 60px); /* .jp-land-hero__stack-verb (förslag 3a; toppen 66→60 i #1480) */
 
   /* Kontroll-storlek (SSOT — ändra HÄR, aldrig inline per komponent).
      /jobb-filterraden (hero-pills + sort-select) läser dessa två så alla
@@ -4391,16 +4391,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-section {
   padding: 80px 0;
 }
-.jp-land-section__head { text-align: center; margin-bottom: 48px; }
-.jp-land-kicker {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--jp-ink-2);
-  margin-bottom: 10px;
-}
+.jp-land-section__head { margin-bottom: 48px; }
 .jp-land-section__title {
   margin: 0;
   font-size: var(--jp-fs-land-section);
@@ -4527,7 +4518,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    cutover (#518); gäst-länkens vita platt-variant + fokusring bor
    i plattblocket nedan (scopad 0,2,0 för att slå globala
    a:not(.jp-btn)). */
-.jp-land-hero__authcol { min-width: 0; }
+.jp-land-hero__cardcol { min-width: 0; }
 .jp-land-hero__guestrow { margin-top: 16px; display: flex; justify-content: center; }
 .jp-land-hero__guestlink {
   display: inline-flex; align-items: center; gap: 8px;
@@ -4535,28 +4526,39 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
 
-/* ── On-page auth-kort med flikar (.jp-auth-tabcard) ─────────
-   Flik-kort i heron som återanvänder LoginForm/RegisterForm.
-   INGEN OAuth/Namn (döda affordanser, borttagna per epic #267). */
-.jp-auth-tabcard {
-  background: var(--jp-surface); border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-lg); box-shadow: var(--jp-shadow-card); overflow: hidden; width: 100%;
-}
-.jp-auth-tabs { display: flex; border-bottom: 1px solid var(--jp-border); }
-.jp-auth-tab {
-  position: relative; flex: 1; padding: 15px 10px; background: var(--jp-surface-2);
-  border: 0; font-family: inherit; font-size: var(--text-ui); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); cursor: pointer;
-}
-.jp-auth-tab + .jp-auth-tab { border-left: 1px solid var(--jp-border); }
-.jp-auth-tab[aria-selected="true"] { background: var(--jp-surface); }
-.jp-auth-tab[aria-selected="true"]::after {
-  content: ""; position: absolute; inset-inline: 0; bottom: -1px; height: 2px; background: var(--jp-accent-700);
-}
-.jp-auth-panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
+/* ── Gratis- och datarader under ett registreringsformulär ───
+   Kvar av det flikade auth-kortet, som förlorade sin enda konsument
+   med <AuthCard/> i #1480. /registrera renderar båda raderna;
+   landningens kontokort bara gratisraden. */
 .jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
 /* Gratis-rad i auth-kortet (förslag 3a) — direkt under submit, före fine
    print, ENDAST register-fliken. Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
+
+/* ── Kontokortet i landningens hero (riktning 2b, #1480) ─────
+   Ljust kort på den mörka plattan. Ersatte det inbäddade
+   registreringsformuläret: kortet säljer kontot och länkar till
+   /registrera i stället för att kräva ifyllnad direkt.
+   Radierna, färgerna och skuggan är befintliga tokens — inga nya. */
+.jp-land-account {
+  background: var(--jp-surface); border: 1px solid var(--jp-border);
+  border-radius: var(--jp-r-lg); padding: 28px; width: 100%;
+}
+.jp-land-account__title {
+  margin: 0; font-size: var(--text-h2); font-weight: var(--jp-fw-bold);
+  letter-spacing: -0.01em; color: var(--jp-ink-1);
+}
+.jp-land-account__list { list-style: none; margin: 18px 0 0; padding: 0; }
+.jp-land-account__item {
+  display: flex; gap: 10px; padding: 12px 0;
+  border-top: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body); line-height: 1.5; color: var(--jp-ink-1);
+}
+.jp-land-account__item:last-child { border-bottom: 1px solid var(--jp-border-soft); }
+.jp-land-account__check { flex-shrink: 0; margin-top: 3px; color: var(--jp-accent-700); }
+.jp-land-account__cta { margin-top: 22px; width: 100%; }
+/* Gratisraden sitter under knappen här, inte under ett submit-fält. */
+.jp-land-account .jp-auth-free { margin-top: 12px; }
 
 /* ── Landnings-hero "Plattan" (förslag 3a, epic #267) ────────
    Mörkgrön hero-platta på --jp-hero-gradient (sanktionerad på JUST
@@ -4576,12 +4578,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero--plate { background: var(--jp-hero-gradient); padding: 0; }
 .jp-land-hero__inner--plate {
   max-width: 1232px;
-  grid-template-columns: minmax(0, 1fr) 440px;
-  gap: 72px;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 64px;
   padding: 62px 40px 64px;
 }
 .jp-land-hero__kicker {
-  margin: 0 0 26px;
+  margin: 0 0 24px;
   font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.14em; text-transform: uppercase; color: var(--jp-gold);
 }
@@ -4592,17 +4594,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-land-hero__lede--plate {
   margin: 26px 0 0; font-size: var(--text-h3); line-height: 1.55;
-  color: rgba(255, 255, 255, 0.94); max-width: 50ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  color: rgba(255, 255, 255, 0.94); max-width: 48ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
 .jp-land-hero__source {
   margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
   font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
   letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
 }
-/* Auth-kortet flyter på mörk platta → starkare pop-skugga. Scoped undantag
+/* Kontokortet flyter på mörk platta → starkare pop-skugga. Scoped undantag
    mot §5 (skugga > shadow-sm på cards) ENDAST i plattans kontext; motsvarar
-   footerns tema-stabila undantag. Design-reviewer-noterat (ADR-not). */
-.jp-land-hero--plate .jp-auth-tabcard { box-shadow: var(--jp-shadow-pop); }
+   footerns tema-stabila undantag. Design-reviewer-noterat (ADR-not). Bars av
+   .jp-auth-tabcard till och med #1480, som ersatte kortet. */
+.jp-land-hero--plate .jp-land-account { box-shadow: var(--jp-shadow-pop); }
 /* Gäst-länk vit på plattan (literal #FFFFFF, tema-stabil som footerns länkar).
    MÅSTE scopas under plattan (0,2,0) för att slå den globala a:not(.jp-btn)-
    länkfärgen (0,1,1) — basens .jp-land-hero__guestlink (0,1,0) räcker inte.
@@ -4667,7 +4670,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-foot__colhead {
   margin: 0 0 14px; font-family: var(--jp-font-mono); font-size: var(--text-overline); font-weight: var(--jp-fw-semibold);
-  text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.72); /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */
+  text-transform: uppercase; letter-spacing: 0.1em; color: var(--jp-gold);
 }
 .jp-foot__links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
 .jp-foot__links a { color: #FFFFFF; text-decoration: none; font-size: var(--text-ui); } /* guard-allow: footer literal-vit pa djupgron platta - dok. undantag, ej ink-inverse */

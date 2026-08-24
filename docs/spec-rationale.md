@@ -134,11 +134,6 @@ overturned trace-level claims twice (a focus-to-field claim refuted on both arms
 card; a Radix-Select survival question the source could not answer resolved to
 "destroyed") — the gap was live, not theoretical.
 
-**Why the cost bound is in the rule:** 14 section-load surfaces × the runbook's 6-image
-matrix × states is an unpayable bill that would have made the rule dead on arrival; the
-mapping itself rendered state-only scenarios at 1280 and reserved the full matrix for
-composition-critical families. The rule encodes that split.
-
 **Why the design-reviewer charter changed in the same PR:** the charter's Tools line
 forbade Bash while she measurably rendered PR #1502 via a local dev server (five
 viewports, DOM injection) — the prose ban was unenforced (no `tools:` frontmatter) and

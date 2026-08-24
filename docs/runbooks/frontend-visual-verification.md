@@ -48,14 +48,13 @@ Vid tvekan: kör loopen — den är billig.
    tillstånd renderas lokalt utan riktiga creds: en lokal stub som besvarar
    login/me/refresh plus sidans datafetch (zod-schemana i `src/lib/dto/` är
    fixturspecen) ger riktig inloggning i riktiga kaskaden — mätt 2026-08-24.
-   `pnpm visual-verify` täcker INTE detta läge (hårdkodade publika sidor ×
-   full matris); tillståndskörningen är en egen Playwright-läsning per
-   kostnadsgränsen i triggern.
+   `pnpm visual-verify` täcker INTE detta läge; tillståndskörningen är en
+   egen Playwright-läsning per kostnadsgränsen i triggern.
 1. Starta dev-servern i en separat terminal:
    `cd web/jobbliggaren-web && pnpm dev`
 2. Kör loopen: `cd web/jobbliggaren-web && pnpm visual-verify`
 3. Scriptet (`scripts/visual-verify.ts`) tar screenshots i **tre viewports
-   (1280 / 1920 / 3440)** × **light + dark** av alla publika sidor.
+   (1280 / 1920 / 3440)** av alla publika sidor.
 
 ### Viewports
 
@@ -173,7 +172,8 @@ Visuell verifiering: <utdatakatalog>
     full matris vid strukturell trigger, kostnadsgränsens urval vid
     tillståndstrigger>)
   — design-reviewer-verdikt mot bilderna: <kort>
-  — auth-gated: <renderat lokalt via stub (Hur steg 0) | pending live-deploy | ej berört>
+  — auth-gated: <renderat lokalt via stub (Hur steg 0) | pending live-deploy
+    (endast strukturell auth-gated yta) | ej berört>
   — raderas automatiskt vid nästa körning
 ```
 

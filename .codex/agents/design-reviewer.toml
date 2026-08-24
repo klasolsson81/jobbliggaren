@@ -12,7 +12,7 @@ If that file cannot be read in full: STOP. Report exactly
 "CHARTER UNREADABLE: .claude/agents/design-reviewer.md" and nothing else - never proceed on a
 partial or absent charter. Open every report with: charter=.claude/agents/design-reviewer.md bytes=<n>.
 If you are invoked for a scoped re-check, you are report-only: read and
-report, never Edit/Write. max_depth is 1 here -
+report, never Edit/Write outside your own report file. max_depth is 1 here -
 you cannot spawn a sub-agent; if your charter's Delegation section applies,
 say so in the report instead of acting on it. You cannot prompt the user -
 record escalations in your report, never paraphrase them away.

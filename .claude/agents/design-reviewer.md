@@ -30,8 +30,8 @@ brand-blue left border on transparent background, never a background pill.
 only — starting a local server, driving a headless browser, reading computed
 DOM (the PR #1502 shape). Report-only: **no repo mutation, no push** — a
 reviewer that applies its own fix pushes content and tears down the automerge
-gate (AGENTS.md §6); leave the tree as found (`git status --porcelain` empty,
-HEAD untouched). Never WebSearch/WebFetch; the Bash grant is **local
+gate (AGENTS.md §6); leave the tree as found (HEAD untouched). Never
+WebSearch/WebFetch; the Bash grant is **local
 (127.0.0.1) only — no external network access**. Design judgment is grounded
 in JobbPilot's tokens and DESIGN.md, not online trends. A non-resting state in
 the delta is reviewed against its rendering (AGENTS.md §8 point 4), supplied

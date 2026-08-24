@@ -75,14 +75,13 @@ describe("PageHeroSkeleton", () => {
    * and `""`; all three render nothing, and all three would leave the empty `__aside`
    * behind that #1385 measured. Relaxing the guard to `!= null` closes only `undefined` —
    * `false != null` and `"" != null` are both true — so the guard cannot be the fix.
-   * `ReactElement | null` makes all three a compile error instead, and `null` stays the
-   * one way a page says it renders no aside.
+   * `ReactElement | null` makes all three a compile error instead.
    *
    * These are the pin: if the prop ever widens back to `ReactNode`, each directive becomes
    * an unused `@ts-expect-error` and `tsc --noEmit` fails. Nothing is rendered here — a
    * type contract is not observable at runtime.
    */
-  it("accepts only an element or null — every empty-but-not-null value is a type error", () => {
+  it("rejects undefined, false and the empty string at compile time", () => {
     const reject = () => [
       // @ts-expect-error — undefined renders nothing but is not `null`
       <PageHeroSkeleton key="u" aside={undefined} />,

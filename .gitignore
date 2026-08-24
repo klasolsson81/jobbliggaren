@@ -32,6 +32,8 @@
 .env
 .env.local
 .env.*.local
+# log-sink.md §3 step 8 writes .env.XXXXXX next to the target before renaming it.
+.env.??????
 appsettings.Local.json
 
 # RSA keys and other local secrets (never commit)

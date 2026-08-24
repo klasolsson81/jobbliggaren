@@ -836,3 +836,30 @@ dated and stands as provenance; the **live** question — whether a policy exist
 has one home, `docs/runbooks/log-sink.md` §4, with its instrument and its controls.
 **Referenser:** #1170, ADR 0128 (gitignored) Amendment 2026-08-23 (second), `docs/runbooks/log-sink.md`
 §3/§4/§5, `docs/runbooks/gdpr-processing-register.md` (gitignored).
+
+---
+
+## Amendment 2026-08-24 — the follow-up the amendment above anticipated has landed, so §3 step 8 carries the gate (#1170)
+
+**Superseded by name, not rewritten.** The section *"The ordering is a property of the run, not of
+the procedure"* in `Amendment 2026-08-23 (2)` says of `log-sink.md` §3 step 8 that *"it carries no
+retention gate"*, and that *"Adding the gate to §3 is a follow-up with its own change-reason"*. Both
+sentences were true when written. [PR #1486](https://github.com/klasolsson81/jobbliggaren/pull/1486)
+is that follow-up: step 8 now opens with an authenticated `GET /api/retentionpolicies` that must
+return a non-empty list before `SEQ_SERVER_URL` is set.
+
+**Why this is recorded rather than left to the reader.** A pointer is enough for a fact and never for
+an action. The superseded sentence does not only describe the procedure — it tells the next reader to
+build the gate, and a reader who follows it builds one that already exists.
+
+The gate binds the **next** run only, exactly as the amendment above says it would. It makes no claim
+about the run of 2026-08-23, whose ordering stands as `log-sink.md` §4 records it.
+
+### Discipline
+
+Additive amendment. The original text and all prior amendments stand unaltered, including the two
+sentences above, which are superseded by name rather than rewritten. Docs-sync ships in the same PR
+as scope (ADR 0065) — no docs-only PR. The gate's own measurement is dated and has one home,
+`docs/runbooks/log-sink.md` §4, not here.
+**Referenser:** #1170, [PR #1486](https://github.com/klasolsson81/jobbliggaren/pull/1486),
+`docs/runbooks/log-sink.md` §3 step 8 and §4.

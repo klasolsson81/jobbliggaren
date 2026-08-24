@@ -358,7 +358,10 @@ at all. §8 point 3 rests on that: "architecture tests green" is a non-zero
 
 1. Acceptance criteria (BUILD.md §2) met · 2. unit + integration tests,
 coverage not lowered · 3. architecture tests green (§7 — read the `total:` line)
-· 4. manually tested in dev · 5. Lighthouse > 90 on affected pages · 6. keyboard
+· 4. manually tested in dev — **a surface's non-resting states (error, refusal,
+outcome/receipt, empty, loading) that the delta introduces, changes, or makes
+reachable are rendered before a design verdict** (trigger, cost bound and mechanics:
+`docs/runbooks/frontend-visual-verification.md`) · 5. Lighthouse > 90 on affected pages · 6. keyboard
 + screen-reader accessible · 7. domain events documented · 8. GDPR impact
 assessed (new PII? logging? retention?) · 9. ADR written for architecture
 decisions · 10. code review done.

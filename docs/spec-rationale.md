@@ -121,6 +121,27 @@ worktrees, 1121 "no-marker" skips, one reap in the hook's entire history.**
 every form above says `Zero tests ran` or names the right flag. It survived because
 nobody read the line.
 
+## §8
+
+**Why point 4 names non-resting states (2026-08-24):** rendered verification's trigger
+was purely structural — the runbook's "När" section carried zero state words, so a
+state no reviewer had ever SEEN could ship reviewed. The measured instance: RegisterForm's
+registrationsClosed panel existed in zero captures, zero visual-verify runs, zero reflow
+sweeps. The 2026-08-24 mapping session then rendered the class wholesale (adjudicated in
+`docs/research/2026-08-24-error-surface-matrix.md`, 2026-08-24, local-only per ADR 0072)
+and the rendering
+overturned trace-level claims twice (a focus-to-field claim refuted on both arms of one
+card; a Radix-Select survival question the source could not answer resolved to
+"destroyed") — the gap was live, not theoretical.
+
+**Why the design-reviewer charter changed in the same PR:** the charter's Tools line
+forbade Bash while she measurably rendered PR #1502 via a local dev server (five
+viewports, DOM injection) — the prose ban was unenforced (no `tools:` frontmatter) and
+false to practice. A must-render rule aimed at a reviewer whose charter forbids the tool
+is inert; the line now permits local rendered measurement and keeps the report-only and
+no-online-trends bans. **§12 gains no new class here** — an unrendered state fails DoD
+point 4 and blocks through the ordinary review gate, not through a new STOPP class.
+
 ## §9.2
 
 **Why the security-auditor trigger class is duplicated into the spec:** it is written

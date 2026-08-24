@@ -40,7 +40,7 @@ import { describe, expect, it } from "vitest";
  * holding the token — are invisible to any static scan; `scripts/guard-css.mjs`
  * declares the same limit for the same reason. And the container side is a token
  * list, not a measurement like the centring side: a parent that becomes a flex or
- * grid container through a `.jp-*` class, a responsive variant, or `grow`/`shrink`
+ * grid container through a `.jp-*` class or a responsive variant
  * is not modelled. Measured when this was written — widening it to grid changed
  * nothing, and no stylesheet class that is currently the parent of a centring
  * element is a flex or grid container — so the gap is declared rather than closed.
@@ -309,8 +309,7 @@ describe("content rail — a centring container is never a flex item without a w
     // Non-vacuity, keyed on what the walk REACHED rather than on how much of it.
     // A count cannot see the collapse that matters, because either subtree alone
     // clears any threshold low enough to be safe: dropping `app/` loses every
-    // route surface including both files the defect shipped on, and dropping
-    // `components/` loses the larger share of the centring elements. So both are
+    // route surface including both files the defect shipped on. So both are
     // asserted, and the two repaired surfaces by name on top.
     expect(subtrees, "the walk no longer reaches one of the two subtrees").toEqual(
       expect.arrayContaining(["app", "components"])

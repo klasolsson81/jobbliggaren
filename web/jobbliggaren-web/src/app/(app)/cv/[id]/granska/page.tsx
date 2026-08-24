@@ -14,8 +14,25 @@ import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { findMasterVersion } from "@/lib/resumes/content-utils";
 import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The title resolves against the record's ABSENCE, not just against the route.
+ *
+ * Without this the document read "CV-granskning" while its body read "Sidan finns inte":
+ * `(app)/not-found.tsx` cannot title itself (its metadata is inert — the `notFound()`
+ * is thrown mid-stream, after the head has flushed), so the title that survives is
+ * this page's, unconditionally. Measured on `a0956bfd` before this change.
+ *
+ * The gate is `kind === "notFound"` and nothing else, deliberately. Titling an
+ * `error`, `rateLimited` or `unauthorized` result "Sidan finns inte" would assert
+ * something false — the same defect class, pointed the other way.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const result = await getResumeById(id);
+  if (result.kind === "notFound") return notFoundMetadata();
+
   const t = await getTranslations("pages");
   return { title: t("cv.granska.meta.title") };
 }

@@ -219,15 +219,6 @@ zero years, and the text is already preserved in `RawText`.
 
 ### Negative — accepted
 
-- **`Period` is empty for this notation, on every layout.** A4/B6/B7 report `NotAssessed` and
-  `OccupationExperienceDeriver` attributes no years to the entry. This is deliberate, and it is
-  what ADR 0071 already prescribes; `ExtractPeriod`'s own comment states the rule this extends —
-  *"A bare year on a later line is deliberately NOT treated as a period (honest-absent over
-  confidently-wrong)"*.
-  **What the empty field replaces is not one right answer but three measured wrong ones:** nothing
-  stored at all (the three-line layout), a bare leading year parsing to a zero-length span
-  (`2019/20 – 2021` → `2019`), and a span lifted out of a prose bullet (`2021 – 2023` for a CV
-  stating `2020/01 – 2024/12`). Nothing true is lost. Three false things are.
 - **The user's stated period leaves the structured field entirely.** It survives in the CV's raw
   text, which is what she sees; it does not reach anything that grades or aggregates periods.
 

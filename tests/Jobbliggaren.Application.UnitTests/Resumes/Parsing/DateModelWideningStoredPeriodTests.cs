@@ -93,8 +93,7 @@ public class DateModelWideningStoredPeriodTests
     [InlineData("jan 2020 – dec 2024", "MM/YYYY")]
     // "2020/01 – 2024/12" — BOTH endpoints year-first SLASH — is NOT a row here, and that is
     // decision D′ plus ADR 0136, not an oversight: DateRange still matches neither slash endpoint,
-    // and ADR 0136's veto now makes the segmenter store nothing on EVERY layout rather than only
-    // this one (PeriodFor returns null). That is a different mechanism from the mixed rows above,
+    // and PeriodFor returns null. That is a different mechanism from the mixed rows above,
     // which still store a truncated-but-readable value — a pure-slash pair has no modelled point on
     // either side to fall back to. Pinned as a stored-nothing case in
     // DateRangeYearFirstCharacterisationTests, which owns the whole year-first grammar; this theory

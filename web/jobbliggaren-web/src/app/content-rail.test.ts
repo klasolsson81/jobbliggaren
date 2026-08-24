@@ -33,12 +33,17 @@ import { describe, expect, it } from "vitest";
  * join it by being forgotten, which is the same way the two defects above came
  * to exist.
  *
- * Known reach, both directions. Flex-item-ness is decided from the enclosing
- * JSX element IN THE SAME FILE, so an element whose parent is a layout's
- * `{children}` is only caught by the `flex-*` it carries itself. And class
- * names composed at runtime — a template literal's interpolated half, a
- * variable holding the token — are invisible to any static scan;
- * `scripts/guard-css.mjs` declares the same limit for the same reason.
+ * Known reach, and the list is not short. Flex-item-ness is decided from the
+ * enclosing JSX element IN THE SAME FILE, so an element whose parent is a
+ * layout's `{children}` is only caught by the `flex-*` it carries itself. Class
+ * names composed at runtime — a template literal's interpolated half, a variable
+ * holding the token — are invisible to any static scan; `scripts/guard-css.mjs`
+ * declares the same limit for the same reason. And the container side is a token
+ * list, not a measurement like the centring side: a parent that becomes a flex or
+ * grid container through a `.jp-*` class, a responsive variant, or `grow`/`shrink`
+ * is not modelled. Measured when this was written — widening it to grid changed
+ * nothing, and no stylesheet class that is currently the parent of a centring
+ * element is a flex or grid container — so the gap is declared rather than closed.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -47,8 +52,12 @@ const STYLESHEETS = [resolve(HERE, "globals.css"), resolve(HERE, "(app)", "app.c
 
 const toPosix = (p: string) => p.split(sep).join("/");
 
-/** Tailwind tokens that make an element a flex CONTAINER, so its children are items. */
-const FLEX_CONTAINER = new Set(["flex", "inline-flex"]);
+/**
+ * Tailwind tokens that make an element a formatting context whose children are
+ * items. Grid is here because auto inline margins disarm `justify-self: stretch`
+ * exactly as they disarm the flex one.
+ */
+const FLEX_CONTAINER = new Set(["flex", "inline-flex", "grid", "inline-grid"]);
 
 /** `flex-<n>` and friends: written only on something the author means as a flex item. */
 const FLEX_ITEM_INTENT = /^flex-(1|auto|initial|none|\[)/;
@@ -294,12 +303,21 @@ describe("content rail — a centring container is never a flex item without a w
 
   it("no centring container in the tree collapses", () => {
     const files = sourceFiles(SRC);
+    const seen = files.map((f) => toPosix(relative(SRC, f)));
+    const subtrees = [...new Set(seen.map((p) => p.split("/")[0]))];
 
-    expect(
-      files.length,
-      "far fewer .tsx files than this tree has — the walk looks collapsed, so the rule " +
-        "below is checked against a smaller world than the real one"
-    ).toBeGreaterThanOrEqual(100);
+    // Non-vacuity, keyed on what the walk REACHED rather than on how much of it.
+    // A count cannot see the collapse that matters, because either subtree alone
+    // clears any threshold low enough to be safe: dropping `app/` loses every
+    // route surface including both files the defect shipped on, and dropping
+    // `components/` loses the larger share of the centring elements. So both are
+    // asserted, and the two repaired surfaces by name on top.
+    expect(subtrees, "the walk no longer reaches one of the two subtrees").toEqual(
+      expect.arrayContaining(["app", "components"])
+    );
+    expect(seen, "the walk no longer reaches the surfaces this rule was written for").toEqual(
+      expect.arrayContaining(["app/not-found.tsx", "app/(marketing)/error.tsx"])
+    );
 
     const offenders: string[] = [];
     for (const file of files) {

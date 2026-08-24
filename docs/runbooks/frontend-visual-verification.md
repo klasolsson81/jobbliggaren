@@ -24,16 +24,37 @@ Visuell verifiering krävs när en frontend-batch:
     layout-tokens / `.jp-*`-komponentprimitiv
   - ändrad responsiv struktur
 
+- bär ett **icke-vilotillstånd i deltat** — en fel-, vägrans-, kvittens-/
+  utfalls-, tom- eller laddningsyta som införs, ändras, **eller får ändrad
+  nåbarhet** (flagga/gate/env-villkor). Tillståndet **renderas** före
+  designverdikt — aldrig bara asserterat som sträng: en strängassertion kan
+  inte se en tom sida. Framkallning: *Hur* steg 0.
+  **Kostnadsgräns:** ett rent tillstånds-delta renderas vid **1280 i varje
+  nåbart färgläge** (i dag ett: light — `DARK_MODE_ENABLED = false` i
+  `theme-provider.tsx`; två när flaggan sätts true), **plus 3440 när
+  tillståndet ersätter sidkroppen eller sektionen** (replaces-page/-section/
+  -form); hela viewport-matrisen krävs bara när ändringen också är
+  strukturell enligt punkterna ovan.
+
 Ren copy- eller token-färgändring utan strukturell påverkan triggar **inte**.
 Vid tvekan: kör loopen — den är billig.
 
 ## Hur
 
+0. **Tillståndsrendering** (triggerns icke-vilotillståndspunkt): framkalla
+   tillståndet på riktigt — stubbat svar, död backend-port, eller
+   konfigflagga — och läs utfallet i renderad DOM (skärmbild + computed DOM),
+   aldrig i rå HTML (flight-payloaden ger falska träffar). Auth-grindade
+   tillstånd renderas lokalt utan riktiga creds: en lokal stub som besvarar
+   login/me/refresh plus sidans datafetch (zod-schemana i `src/lib/dto/` är
+   fixturspecen) ger riktig inloggning i riktiga kaskaden — mätt 2026-08-24.
+   `pnpm visual-verify` täcker INTE detta läge; tillståndskörningen är en
+   egen Playwright-läsning per kostnadsgränsen i triggern.
 1. Starta dev-servern i en separat terminal:
    `cd web/jobbliggaren-web && pnpm dev`
 2. Kör loopen: `cd web/jobbliggaren-web && pnpm visual-verify`
 3. Scriptet (`scripts/visual-verify.ts`) tar screenshots i **tre viewports
-   (1280 / 1920 / 3440)** × **light + dark** av alla publika sidor.
+   (1280 / 1920 / 3440)** av alla publika sidor.
 
 ### Viewports
 
@@ -146,10 +167,13 @@ Ett **dedikerat syntetiskt dev-test-JobSeeker-konto** används för auth-läget,
 Varje STOPP-rapport för en triggande batch innehåller:
 
 ```
-Visuell verifiering: C:/tmp/jobbliggaren-visual/<tidsstämpel>/
-  — N screenshots (publika sidor × 1280/1920/3440 × light/dark)
+Visuell verifiering: <utdatakatalog>
+  — N screenshots (<ytor × viewports × färglägen — per körningens klass:
+    full matris vid strukturell trigger, kostnadsgränsens urval vid
+    tillståndstrigger>)
   — design-reviewer-verdikt mot bilderna: <kort>
-  — auth-gated: <pending live-deploy | ej berört i denna batch>
+  — auth-gated: <renderat lokalt via stub (Hur steg 0) | pending live-deploy
+    (endast strukturell auth-gated yta) | ej berört>
   — raderas automatiskt vid nästa körning
 ```
 

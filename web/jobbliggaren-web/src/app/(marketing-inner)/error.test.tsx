@@ -53,4 +53,17 @@ describe("(marketing-inner)/error boundary (#1477)", () => {
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
     expect(unstableRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
+    // The PROPERTY, not the attribute. A throw caught after hydration swaps this
+    // subtree in place; that is not a navigation, so Next's route announcer never
+    // re-runs and the element that had focus is unmounted with the old subtree.
+    // Bites on revert twice over: remove the ref and focus stays on <body>, remove
+    // the tabIndex and .focus() is a silent no-op on a heading.
+    render(<MarketingInnerError error={boundaryError} unstable_retry={() => {}} />);
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1 }),
+    );
+  });
 });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
 /**
  * (marketing-inner)/error — the runtime error boundary for every inner public
@@ -28,6 +29,7 @@ export default function MarketingInnerError({
   unstable_retry: () => void;
 }) {
   const t = useTranslations("fallback");
+  const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
     <main
@@ -38,7 +40,7 @@ export default function MarketingInnerError({
       // height-floor idiom as global-error.tsx. Layout utility, not a token.
       className="jp-container jp-page flex min-h-[60vh] flex-col justify-center gap-4 focus:outline-none"
     >
-      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
         <button

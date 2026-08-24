@@ -17,9 +17,9 @@ import { describe, expect, it } from "vitest";
  * preempts any `notFound()` the slot could call. The group must stop matching.
  *
  * The catch-all was not decoration — Next's own docs (16.3,
- * `03-file-conventions/parallel-routes.md:485`) make it the mechanism that closes a
+ * `03-file-conventions/parallel-routes.md`) make it the mechanism that closes a
  * modal on client-side navigation to a route the slot no longer matches; `default.tsx`
- * only covers hard-nav. The same docs (:458) give the narrower form this replaces it
+ * only covers hard-nav. The same docs give the narrower form this replaces it
  * with: a slot page per destination. Measured with an isolated probe at `d4cf0552` —
  * a plain slot `page.tsx` closes the modal on soft-nav exactly as the catch-all did,
  * and an intercepting route still wins over a competing normal route in the same slot.
@@ -85,7 +85,7 @@ function appSegments(): string[] {
 /** Direct children of `@modal` that are plain route segments — not interceptors. */
 function modalSegmentDirs(): string[] {
   return readdirSync(MODAL, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("("))
+    .filter((entry) => entry.isDirectory() && !/^\(\.{1,3}\)/.test(entry.name))
     .map((entry) => entry.name)
     .sort();
 }
@@ -140,9 +140,6 @@ describe("@modal slot coverage (#1488)", () => {
   it("gives every (app) segment with nested routes a catch-all under that segment", () => {
     const nested = appSegments().filter(hasNestedRoute);
 
-    // Same reason as above, and it also pins the route-group trap: if `hasNestedRoute`
-    // ever started counting `cv/(hub)` as depth, or stopped walking at all, this is
-    // what notices.
     expect(nested.length).toBeGreaterThanOrEqual(1);
 
     const missing = nested.filter(

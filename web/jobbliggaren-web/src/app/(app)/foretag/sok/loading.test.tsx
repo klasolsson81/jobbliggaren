@@ -6,7 +6,7 @@ import Loading from "./loading";
  * #1092 — the CALL SITE of the live region on the route-level loading path.
  *
  * Same reason as `page.test.tsx`'s block: `Announce` is inert without a provider by design, so
- * removing `<ForetagSokAnnouncer>` from this file leaves no type error, no runtime error and every
+ * removing `<Announcer>` from this file leaves no type error, no runtime error and every
  * other test green while a cross-route navigation to `/foretag/sok` announces nothing.
  * `code-reviewer` Major 3 on PR #1504.
  *

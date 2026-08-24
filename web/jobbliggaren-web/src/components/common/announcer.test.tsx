@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { createTranslator } from "next-intl";
-import svPages from "../../../messages/sv/pages.json";
-import { ForetagSokAnnouncer, Announce } from "./foretag-sok-announcer";
-import { ForetagSokResultsSkeleton } from "./foretag-sok-results-skeleton";
+import { Announcer, Announce } from "@/components/common/announcer";
 
 /**
- * #1092 — the mechanism that makes `/foretag/sok`'s load cycle announceable (WCAG 4.1.3).
+ * #1092/#1505 — the mechanism that makes a streamed surface's load cycle announceable (WCAG 4.1.3).
  *
  * What is actually at stake is not "is there a live region" — there always was one, on the element
  * that rendered the text. It is whether the region exists BEFORE the message does, which is what
@@ -21,12 +18,12 @@ import { ForetagSokResultsSkeleton } from "./foretag-sok-results-skeleton";
 
 const region = (c: HTMLElement) => c.querySelector('p[role="status"]');
 
-describe("ForetagSokAnnouncer — the region precedes the message", () => {
+describe("Announcer — the region precedes the message", () => {
   it("is in the DOM and EMPTY with no announcement at all", () => {
     const { container } = render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <p>results</p>
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
 
     const live = region(container);
@@ -39,16 +36,16 @@ describe("ForetagSokAnnouncer — the region precedes the message", () => {
 
   it("survives a content swap as the SAME node", () => {
     const { container, rerender } = render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <p>loading</p>
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
     const before = region(container);
 
     rerender(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <p>settled</p>
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
 
     expect(screen.getByText("settled")).toBeInTheDocument();
@@ -58,9 +55,9 @@ describe("ForetagSokAnnouncer — the region precedes the message", () => {
 
   it("carries the sentence a mounted Announce gives it", () => {
     const { container } = render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <Announce message="Söker företag…" />
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
 
     expect(region(container)).toHaveTextContent("Söker företag…");
@@ -81,16 +78,16 @@ describe("ForetagSokAnnouncer — the region precedes the message", () => {
    */
   it("replaces the sentence when a later Announce supersedes it", () => {
     const { container, rerender } = render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <Announce message="Söker företag…" />
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
     expect(region(container)).toHaveTextContent("Söker företag…");
 
     rerender(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <Announce message="1 234 träffar" />
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
     expect(region(container)).toHaveTextContent("1 234 träffar");
   });
@@ -99,42 +96,5 @@ describe("ForetagSokAnnouncer — the region precedes the message", () => {
     // Not a convenience: it keeps the skeleton renderable by any future host, and a throw here
     // would take down a loading state rather than degrade one announcement.
     expect(() => render(<Announce message="orphaned" />)).not.toThrow();
-  });
-});
-
-/**
- * The skeleton's half of the same criterion. It renders the visible "Söker företag…" sentence, and
- * that sentence is a status message in WCAG's own vocabulary ("Searching…" is the Understanding
- * document's example). What changed is only WHERE it is announced from.
- */
-describe("ForetagSokResultsSkeleton — announces through the region, never from itself", () => {
-  const t = createTranslator({
-    locale: "sv",
-    messages: { pages: svPages },
-    namespace: "pages",
-  });
-
-  it("keeps the visible sentence but carries NO live region of its own", () => {
-    const { container } = render(<ForetagSokResultsSkeleton />);
-
-    expect(screen.getByText("Söker företag…")).toBeInTheDocument();
-    // The regression this guards: restoring `role="status"` here would re-create the unreliable
-    // shape AND double the announcement once the surface region is in place.
-    expect(container.querySelector('[role="status"]')).toBeNull();
-    expect(container.querySelector("[aria-live]")).toBeNull();
-    // `aria-busy` describes this subtree's own state and is unrelated to the announcement.
-    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-  });
-
-  it("puts that same sentence into the surface region when hosted by one", () => {
-    const { container } = render(
-      <ForetagSokAnnouncer>
-        <ForetagSokResultsSkeleton />
-      </ForetagSokAnnouncer>,
-    );
-
-    // Read through the real catalogue, so a renamed or deleted key fails here rather than
-    // silently announcing a raw message id.
-    expect(region(container)).toHaveTextContent(t("foretag.sok.loadingResults"));
   });
 });

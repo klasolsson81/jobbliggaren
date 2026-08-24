@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../messages/sv/pages.json";
 import { ForetagSokResults } from "./foretag-sok-results";
-import { ForetagSokAnnouncer } from "./foretag-sok-announcer";
+import { Announcer } from "@/components/common/announcer";
 import { ForetagSokResultsSkeleton } from "./foretag-sok-results-skeleton";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
@@ -330,7 +330,7 @@ describe("ForetagSokResults — browse-all carries NO number, a search carries o
  * #1092 — the END of the load, announced. Klas fell the WCAG 4.1.3 verdict on 2026-08-24: Major,
  * fixed in-block, and the count IS to be announced.
  *
- * These render inside `ForetagSokAnnouncer`, which is how the page composes them. Without the
+ * These render inside `Announcer`, which is how the page composes them. Without the
  * wrapper `Announce` is inert by design, so the assertions below would pass vacuously against a
  * results tree that announced nothing — the wrapper is the production shape, not test scaffolding.
  *
@@ -364,7 +364,7 @@ describe("ForetagSokResults — the load's completion reaches the surface region
 
   const renderHosted = async (namn: string) =>
     render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         {await ForetagSokResults({
           namn,
           sni: [],
@@ -372,7 +372,7 @@ describe("ForetagSokResults — the load's completion reaches the surface region
           page: 1,
           reference: REFERENCE,
         })}
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
 
   beforeEach(() => {
@@ -459,14 +459,14 @@ describe("ForetagSokResults — the load's completion reaches the surface region
     searchCompanies.mockResolvedValue({ kind: "error" });
 
     const { rerender } = render(
-      <ForetagSokAnnouncer>
+      <Announcer>
         <ForetagSokResultsSkeleton />
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
     expect(announced()).toHaveTextContent("Söker företag…");
 
     rerender(
-      <ForetagSokAnnouncer>
+      <Announcer>
         {await ForetagSokResults({
           namn: "acme",
           sni: [],
@@ -474,7 +474,7 @@ describe("ForetagSokResults — the load's completion reaches the surface region
           page: 1,
           reference: REFERENCE,
         })}
-      </ForetagSokAnnouncer>,
+      </Announcer>,
     );
 
     expect(announced()).toHaveTextContent("Sökningen kunde inte läsas in");

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations, getFormatter } from "next-intl/server";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
-import { Announce } from "@/components/company-criteria/foretag-sok-announcer";
+import { Announce } from "@/components/common/announcer";
 import { CompanyBrowseList } from "./company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -89,7 +89,7 @@ export async function ForetagSokResults({
 
   // #1092 — the end-of-load status message, routed to the surface's persistent live region rather
   // than announced from the element that renders it (WCAG 4.1.3; the mechanism and why it has to be
-  // this way are in `foretag-sok-announcer.tsx`).
+  // this way are in `announcer.tsx`).
   //
   // Three cases, and they are deliberately not one sentence. A zero-match search is W3C's own
   // "No results returned" example and today reaches a screen reader through nothing at all — the

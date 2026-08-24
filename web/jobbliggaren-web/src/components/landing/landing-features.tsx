@@ -28,7 +28,6 @@ export function LandingFeatures() {
     <section className="jp-land-section">
       <div className="jp-container">
         <div className="jp-land-section__head">
-          <div className="jp-land-kicker">{t("features.kicker")}</div>
           <h2 className="jp-land-section__title">{t("features.title")}</h2>
         </div>
         <div className="jp-land-features--grid">

@@ -7,8 +7,7 @@
  * serialized all 13 remaining namespaces (~102 KB minified) into every
  * document's RSC Flight payload, which is why `resource-summary:document:size`
  * failed its ADR 0045 budget on 8/8 measured URLs (40–46 KB against 30 KB).
- * A payload is a property of the PROVIDER BOUNDARY, not of the app: `/` needs
- * `landing`, never `resumes`.
+ * A payload is a property of the PROVIDER BOUNDARY, not of the app.
  *
  * Server rendering is unaffected — `request.ts` still returns the full catalog
  * and `getTranslations` reads all of it. Only the CLIENT provider is scoped.

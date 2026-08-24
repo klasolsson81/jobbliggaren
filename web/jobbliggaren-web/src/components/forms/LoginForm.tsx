@@ -62,9 +62,7 @@ export function LoginForm() {
           required
           aria-required="true"
         />
-        {/* #1171 — under the field it recovers, which is where a user looks after a failed attempt.
-            A plain Link, so it works inside AuthCard too: that component mounts only one of
-            LoginForm/RegisterForm at a time because both use fixed ids, and a link adds no id. */}
+        {/* #1171 — under the field it recovers, which is where a user looks after a failed attempt. */}
         <p className="text-body-sm">
           <Link
             href="/glomt-losenord"

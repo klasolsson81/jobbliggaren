@@ -198,8 +198,7 @@ describe("RegisterForm", () => {
     expect(nameInput.getAttribute("aria-describedby")).toBe("name-hint");
   });
 
-  // #1479 — the acceptance lives in the FORM, not in the landing card that used to carry the
-  // sentence: RegisterForm is what both account-creating surfaces (/ and /registrera) mount.
+  // #1479 — the acceptance lives in the FORM, not in the surface that mounts it.
   it("renders the terms checkbox, unticked by default and required", () => {
     render(<RegisterForm />);
     const box = screen.getByRole("checkbox", {

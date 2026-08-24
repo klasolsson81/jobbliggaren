@@ -24,9 +24,9 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default function RegistreraPage() {
   const t = useTranslations("pages");
-  // The same two lines AuthCard renders under this form on the landing
-  // (auth-card.tsx). A visitor arriving from the footer or from /logga-in met
-  // neither; the landing's did.
+  // `landing.auth.free` is also the last line of the landing's account card
+  // (landing-account-card.tsx); the data line lives only here. A visitor
+  // arriving from the footer or from /logga-in met neither before #1493.
   const tAuth = useTranslations("landing.auth");
   return (
     <div className="flex flex-col gap-8">

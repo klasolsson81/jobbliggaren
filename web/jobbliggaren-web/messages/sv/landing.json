@@ -22,11 +22,18 @@
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
     "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
-    "source": "Byggd på öppen data från Arbetsförmedlingen",
+    "source": "Byggd på öppen data från Arbetsförmedlingen och SCB",
     "guest": "Utforska som gäst, utan konto"
   },
+  "account": {
+    "title": "Det här får du med ett konto",
+    "savedAds": "Annonser du sparar, med påminnelse före sista ansökningsdag",
+    "applications": "Varje ansökan spårad från utkast till svar",
+    "companyWatch": "Företag du bevakar, med deras nya annonser på översikten",
+    "cvReview": "Ditt CV granskat mot svenska kriterier",
+    "cta": "Skapa konto"
+  },
   "features": {
-    "kicker": "Funktioner",
     "title": "Allt du behöver för att hålla ordning",
     "search": {
       "key": "Sökning",
@@ -54,15 +61,12 @@
     }
   },
   "auth": {
-    "tabRegister": "Skapa konto",
-    "tabLogin": "Logga in",
-    "tablistLabel": "Logga in eller skapa konto",
     "free": "Jobbliggaren är helt gratis att använda.",
     "fine": "Jobbliggaren säljer aldrig din data."
   },
   "footer": {
     "blurb": "Håll ordning i hela ditt jobbsökande. Sök, ansök och följ upp på ett ställe.",
-    "source": "Byggd på öppen data från Arbetsförmedlingen",
+    "source": "Byggd på öppen data från Arbetsförmedlingen och SCB",
     "free": "Jobbliggaren är gratis att använda.",
     "copyright": "© 2026 Jobbliggaren",
     "colStart": "Kom igång",

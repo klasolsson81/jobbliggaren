@@ -10,10 +10,11 @@ import { useEffect, useRef } from "react";
  * hydration, React swaps the boundary's subtree in place. That is NOT a
  * navigation, so the router tree never changes and Next's route announcer —
  * whose effect is keyed on `tree`, see
- * `next/dist/client/components/app-router-announcer.js` — does not re-run.
- * Nothing is announced. Meanwhile the element that had focus is unmounted with
- * the old subtree and focus falls to `<body>`, so a screen-reader user gets no
- * signal at all that the surface changed content (WCAG 4.1.3, 2.4.3).
+ * `next/dist/client/components/app-router-announcer.js`, read in next 16.3.0 —
+ * does not re-run. Nothing is announced. Meanwhile the element that had focus
+ * is unmounted with the old subtree and focus falls to `<body>`, so a
+ * screen-reader user gets no signal at all that the surface changed content
+ * (WCAG 4.1.3, 2.4.3).
  *
  * Moving focus to the boundary's `<h1>` announces the heading through the
  * ordinary focus path. That is also why the boundaries carry no `role="alert"`

@@ -56,11 +56,9 @@ describe("global-error boundary (#995)", () => {
   });
 
   it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
-    // The PROPERTY, not the attribute. A throw caught after hydration swaps this
-    // subtree in place; that is not a navigation, so Next's route announcer never
-    // re-runs and the element that had focus is unmounted with the old subtree.
-    // Bites on revert twice over: remove the ref and focus stays on <body>, remove
-    // the tabIndex and .focus() is a silent no-op on a heading.
+    // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
+    // and focus stays on <body>, remove the tabIndex and .focus() is a silent
+    // no-op on a heading.
     render(<GlobalError error={rootError} unstable_retry={() => {}} />);
 
     expect(document.activeElement).toBe(

@@ -20,13 +20,13 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  *
  * It now mirrors that structure: the real title and lede (static translations, so the
  * browser wraps them exactly as the page does — `cv/(hub)/loading.tsx` is the precedent),
- * the `--stacked` modifier via `asideClassName`, and both rows at the `.jp-btn` height.
+ * the `--stacked` modifier via `stacked`, and both rows at the `.jp-btn` height.
  *
- * ⚠ **The row-2 bar widths are the one part that approximates rather than mirrors**, and
- * that is where this file can still disagree with the page. Their COMBINED width decides
- * where row 2 wraps, and the wrap is what the band's height is made of — but a fixed bar
- * stands in for a control whose width follows its label, so the two thresholds cannot
- * coincide at every width, and they move apart again in a locale whose labels are longer.
+ * ⚠ **The bar widths approximate rather than mirror**, and that is where this file can
+ * still disagree with the page. Row 2's COMBINED width decides where it wraps, and the
+ * wrap is what the band's height is made of — but a fixed bar stands in for a control
+ * whose width follows its label, so the two thresholds cannot coincide at every width,
+ * and they move apart again in a locale whose labels are longer.
  * The residual is a narrow viewport band around the wrap transition, measured and named in
  * the PR that closes #1467; re-measure it rather than reasoning about it if these labels
  * change.
@@ -42,7 +42,7 @@ export default function Loading() {
       <PageHeroSkeleton
         title={t("ansokningar.title")}
         lede={t("ansokningar.lede")}
-        asideClassName="jp-pagehero__aside--stacked"
+        stacked
         aside={
           <>
             <div className="jp-pagehero__btnrow">

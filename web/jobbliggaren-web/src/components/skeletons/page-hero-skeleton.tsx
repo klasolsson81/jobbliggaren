@@ -40,25 +40,34 @@ import type { ReactNode } from "react";
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
  *
- * `asideClassName` appends a page's own aside MODIFIER, and children alone cannot
- * substitute for it (#1467): `.jp-pagehero__aside--stacked` sets `flex-direction: column`
- * and, under `@media (max-width: 720px)`, `width: 100%` + `align-items: stretch`. A
- * fallback that passes stacked rows into the unmodified base class lays them out as a
- * wrapping ROW at every width, so the band disagrees with the page by a whole row. The
- * prop carries the modifier, not arbitrary styling: the real pages compose the same two
- * class names on the same element, and `ansokningar/loading.tsx` records what that cost
- * when it did not.
+ * `stacked` carries the page's aside MODIFIER, which children alone cannot substitute for
+ * (#1467): `.jp-pagehero__aside--stacked` sets `flex-direction: column` and, under
+ * `@media (max-width: 720px)`, `width: 100%` + `align-items: stretch`. A fallback that
+ * passes stacked rows into the unmodified base class lays them out as a wrapping ROW at
+ * every width, so the band disagrees with the page by a whole row —
+ * `ansokningar/loading.tsx` records what that cost when it did not.
+ *
+ * It is a boolean rather than a class-name string because the modifier space is ONE:
+ * `--stacked` is the only `__aside` modifier in `globals.css`, scoped there to this one
+ * hero. A string would model a binary structural choice as free text and hand a caller
+ * one of the envelope class names the component otherwise spells itself — `kicker` is the
+ * same shape for the same reason.
+ *
+ * `aside` is REQUIRED, and `null` is how a page says it renders none. There is no default
+ * aside: the component cannot know what a page it has never seen puts there, and the one
+ * consumer that used to take the default renders no aside at all (#1490).
  */
 export function PageHeroSkeleton({
   aside,
-  asideClassName,
+  stacked = false,
   kicker = false,
   title,
   lede,
 }: {
-  aside?: ReactNode;
-  /** The page's own `.jp-pagehero__aside--*` modifier, appended to the base class. */
-  asideClassName?: string;
+  /** The page's aside content, or `null` where the page renders no aside element. */
+  aside: ReactNode;
+  /** Set where the page composes `.jp-pagehero__aside--stacked` on its aside. */
+  stacked?: boolean;
   kicker?: boolean;
   /** The page's real title. Given, it is rendered instead of the title bar. */
   title?: string;
@@ -84,17 +93,12 @@ export function PageHeroSkeleton({
         {aside !== null && (
           <div
             className={
-              asideClassName
-                ? `jp-pagehero__aside ${asideClassName}`
+              stacked
+                ? "jp-pagehero__aside jp-pagehero__aside--stacked"
                 : "jp-pagehero__aside"
             }
           >
-            {aside ?? (
-              <>
-                <span className="jp-skeleton block h-10 w-32" />
-                <span className="jp-skeleton block h-10 w-28" />
-              </>
-            )}
+            {aside}
           </div>
         )}
       </div>

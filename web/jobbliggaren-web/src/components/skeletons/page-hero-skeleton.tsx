@@ -39,14 +39,26 @@ import type { ReactNode } from "react";
  * Översikt renders above its title (`.jp-pagehero__kicker`), so the band height
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
+ *
+ * `asideClassName` appends a page's own aside MODIFIER, and children alone cannot
+ * substitute for it (#1467): `.jp-pagehero__aside--stacked` sets `flex-direction: column`
+ * and, under `@media (max-width: 720px)`, `width: 100%` + `align-items: stretch`. A
+ * fallback that passes stacked rows into the unmodified base class lays them out as a
+ * wrapping ROW at every width, so the band disagrees with the page by a whole row. The
+ * prop carries the modifier, not arbitrary styling: the real pages compose the same two
+ * class names on the same element, and `ansokningar/loading.tsx` records what that cost
+ * when it did not.
  */
 export function PageHeroSkeleton({
   aside,
+  asideClassName,
   kicker = false,
   title,
   lede,
 }: {
   aside?: ReactNode;
+  /** The page's own `.jp-pagehero__aside--*` modifier, appended to the base class. */
+  asideClassName?: string;
   kicker?: boolean;
   /** The page's real title. Given, it is rendered instead of the title bar. */
   title?: string;
@@ -70,7 +82,13 @@ export function PageHeroSkeleton({
           )}
         </div>
         {aside !== null && (
-          <div className="jp-pagehero__aside">
+          <div
+            className={
+              asideClassName
+                ? `jp-pagehero__aside ${asideClassName}`
+                : "jp-pagehero__aside"
+            }
+          >
             {aside ?? (
               <>
                 <span className="jp-skeleton block h-10 w-32" />

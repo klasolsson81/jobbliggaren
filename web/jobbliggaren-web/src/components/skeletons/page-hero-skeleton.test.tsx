@@ -108,6 +108,33 @@ describe("PageHeroSkeleton", () => {
     expect(main?.querySelectorAll("p.jp-pagehero__lede")).toHaveLength(1);
   });
 
+  /**
+   * A page's aside MODIFIER is part of the envelope, not styling the children can carry:
+   * `--stacked` sets `flex-direction: column` and, under 720px, `width: 100%` +
+   * `align-items: stretch`. Without it the same children lay out as a wrapping row, which
+   * is a whole row of height the band does not reserve (#1467).
+   *
+   * Pinned in BOTH directions — a prop that appended nothing, or that dropped the base
+   * class while adding the modifier, would each break the envelope, and only one of those
+   * is visible from a test that looks for the modifier alone.
+   */
+  it("appends the page's aside modifier while keeping the base class", () => {
+    const { container } = render(
+      <PageHeroSkeleton asideClassName="jp-pagehero__aside--stacked" />
+    );
+    const aside = container.querySelector(".jp-pagehero__aside");
+    expect(aside).not.toBeNull();
+    expect(aside).toHaveClass("jp-pagehero__aside", "jp-pagehero__aside--stacked");
+  });
+
+  it("carries no modifier class when asideClassName is not given", () => {
+    const { container } = render(<PageHeroSkeleton />);
+    // The negative half: the base class must not silently grow a modifier.
+    expect(container.querySelector(".jp-pagehero__aside")?.className).toBe(
+      "jp-pagehero__aside"
+    );
+  });
+
   it("keeps the band decorative even when it carries a real heading", () => {
     // The h1 is real markup inside an aria-hidden band: the announce stays owned by the
     // route's sr-only role="status", so the fallback must not expose a second heading.

@@ -7,10 +7,29 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * applications-list ledger shape immediately on navigation, instead of freezing
  * the previous page.
  *
- * Re-uses `jp-pagehero` + `jp-section` structural classes; the aside mirrors the
- * single "Ny ansökan" primary action. Also covers the deeper `/ansokningar/[id]`
- * route only until that segment's own `loading.tsx` (the detail skeleton) takes
- * over. sr-only `role="status"` announces; visuals decorative. Sync RSC.
+ * Re-uses `jp-pagehero` + `jp-section` structural classes. Also covers the deeper
+ * `/ansokningar/[id]` route only until that segment's own `loading.tsx` (the detail
+ * skeleton) takes over. sr-only `role="status"` announces; visuals decorative. Sync RSC.
+ *
+ * **The band this file reserves used to model a page layout that no longer exists**
+ * (#1467, measured 2026-08-23 at `173e767c`: the hero grew by up to 202px on swap, worst
+ * at 375–414). It reserved ONE row-shaped block in the aside and drew the secondary
+ * actions as a separate right-aligned row BELOW the hero — but `page.tsx` puts all three
+ * controls INSIDE the aside, in two `__btnrow`s under the `--stacked` modifier. So the
+ * fallback under-reserved the band and over-reserved beneath it, in the same swap.
+ *
+ * It now mirrors that structure: the real title and lede (static translations, so the
+ * browser wraps them exactly as the page does — `cv/(hub)/loading.tsx` is the precedent),
+ * the `--stacked` modifier via `asideClassName`, and both rows at the `.jp-btn` height.
+ *
+ * ⚠ **The row-2 bar widths are the one part that approximates rather than mirrors**, and
+ * that is where this file can still disagree with the page. Their COMBINED width decides
+ * where row 2 wraps, and the wrap is what the band's height is made of — but a fixed bar
+ * stands in for a control whose width follows its label, so the two thresholds cannot
+ * coincide at every width, and they move apart again in a locale whose labels are longer.
+ * The residual is a narrow viewport band around the wrap transition, measured and named in
+ * the PR that closes #1467; re-measure it rather than reasoning about it if these labels
+ * change.
  */
 export default function Loading() {
   const t = useTranslations("pages");
@@ -20,15 +39,24 @@ export default function Loading() {
         {t("navLoading.ansokningar")}
       </span>
 
-      <PageHeroSkeleton aside={<span className="jp-skeleton block h-10 w-36" />} />
+      <PageHeroSkeleton
+        title={t("ansokningar.title")}
+        lede={t("ansokningar.lede")}
+        asideClassName="jp-pagehero__aside--stacked"
+        aside={
+          <>
+            <div className="jp-pagehero__btnrow">
+              <span className="jp-skeleton block h-11 w-36" />
+            </div>
+            <div className="jp-pagehero__btnrow">
+              <span className="jp-skeleton block h-11 w-28" />
+              <span className="jp-skeleton block h-11 w-64" />
+            </div>
+          </>
+        }
+      />
 
       <div className="jp-container jp-page" aria-hidden="true">
-        {/* Secondary actions (Statistik / Aktivitetsrapport), right-aligned */}
-        <div className="mb-6 flex flex-wrap justify-end gap-3">
-          <span className="jp-skeleton block h-9 w-28" />
-          <span className="jp-skeleton block h-9 w-40" />
-        </div>
-
         <section className="jp-section">
           <div className="jp-section__head">
             <span className="jp-skeleton block h-5 w-48" />

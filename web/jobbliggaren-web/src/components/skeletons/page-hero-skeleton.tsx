@@ -25,7 +25,7 @@ import type { ReactElement } from "react";
  * fallback time the default bars stand in, and reserve one lede line.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
- * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton/AuthCardSkeleton).
+ * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton).
  * `aria-hidden`: the announce to assistive tech is owned by the route
  * `loading.tsx` (an sr-only `role="status"`), so the visual shape stays
  * decorative. Sync RSC (no interactivity).

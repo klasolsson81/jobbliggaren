@@ -19,10 +19,8 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
  *
  *   `stats`      present only on the landing (inner pages never repeat them)
  *   `showLogin`  false wherever a link to the current page is not an action —
- *                the auth surfaces, and for now the landing too, because the
- *                hero still mounts AuthCard's own "Logga in" tab. Two controls
- *                with that label and different behaviour is a defect, so the
- *                landing turns this on in the wave that removes the card.
+ *                the auth surfaces. The landing carries it since #1480, which
+ *                removed the hero card that used to own the same label.
  *
  * LP-5b (#259) did NOT fold the signed-in shells in here, and this change does
  * not either: `.jp-header` is a different CSS contract with its own dark-mode

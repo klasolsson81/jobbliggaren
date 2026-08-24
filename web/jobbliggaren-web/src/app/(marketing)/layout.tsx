@@ -30,10 +30,10 @@ import { getLandingStats } from "@/components/landing/landing-stats";
  * mismatch, so it cannot throw past this point — and an unmeasured count is
  * rendered as ABSENCE, never a floor value (CTO-bind 2026-07-13).
  *
- * `showLogin={false}`: the hero mounts AuthCard's own "Logga in" tab, and two
- * controls with that label and different behaviour is the defect. It turns on
- * in the wave that removes the card. On the error surface the tab is exactly
- * what did not render — the footer's "Logga in" link is the way in there.
+ * The header carries its "Logga in" action here since #1480. It was suppressed
+ * while the hero mounted AuthCard's own tab with that label, because two
+ * controls carrying one label and two behaviours is the defect. The card is
+ * gone, so the header is the only place the label appears on this surface.
  */
 export default async function MarketingLayout({ children }: { children: ReactNode }) {
   // Declared set, verified for EQUALITY against the import graph by
@@ -41,13 +41,13 @@ export default async function MarketingLayout({ children }: { children: ReactNod
   // nothing and a nested provider replaces context rather than merging, so this
   // set must be complete for the landing subtree.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["common", "fallback", "landing", "pages"]);
+  const messages = pickClientMessages(await getMessages(), ["common", "fallback"]);
   const stats = await getLandingStats();
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
       <div className="flex min-h-screen flex-col bg-surface-primary text-text-primary">
-        <SiteHeader stats={stats} showLogin={false} />
+        <SiteHeader stats={stats} />
         {children}
         <SiteFooter />
       </div>

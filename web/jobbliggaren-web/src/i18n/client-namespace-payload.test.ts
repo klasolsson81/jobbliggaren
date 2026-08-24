@@ -134,7 +134,7 @@ const MIN_CLIENT_FILES: Readonly<Record<string, number>> = {
   "(app)": 120,
   "(auth)": 10,
   "(guest)": 20,
-  "(marketing)": 10,
+  "(marketing)": 4,
   "(marketing-inner)": 2,
   "not-found": 2,
 };

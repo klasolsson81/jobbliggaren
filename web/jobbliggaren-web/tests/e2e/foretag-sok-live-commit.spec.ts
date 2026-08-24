@@ -153,7 +153,7 @@ test.describe("/foretag/sok — a second filter change is announced", () => {
     await page.goto("/foretag/sok");
 
     // Scoped to the FILTER region, which is what this spec is about. Since #1092 the surface also
-    // carries the load-cycle region from `ForetagSokAnnouncer`, and it matches the same tag, role
+    // carries the load-cycle region from `Announcer`, and it matches the same tag, role
     // and class — the unscoped locator resolved to two elements, failing `toHaveCount(1)` and
     // turning every later `region` call into a strict-mode violation. `aria-atomic` is the
     // distinguishing attribute: the announcer swaps whole sentences and sets it, this one does not.

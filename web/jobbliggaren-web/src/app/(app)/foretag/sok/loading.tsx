@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
-import { ForetagSokAnnouncer } from "@/components/company-criteria/foretag-sok-announcer";
+import { Announcer } from "@/components/common/announcer";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 
 /**
@@ -29,9 +29,9 @@ export default function Loading() {
       </section>
       <div className="jp-container jp-page">
         <ForetagSubnav active="sok" />
-        <ForetagSokAnnouncer>
+        <Announcer>
           <ForetagSokResultsSkeleton />
-        </ForetagSokAnnouncer>
+        </Announcer>
       </div>
     </>
   );

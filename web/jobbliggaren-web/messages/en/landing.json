@@ -28,6 +28,7 @@
   "account": {
     "title": "What an account gives you",
     "savedAds": "Ads you save, with a reminder before the closing date",
+    "matching": "Ads matched against your profile, from Basic match to Top match",
     "applications": "Every application tracked from draft to reply",
     "companyWatch": "Companies you watch, with their new ads on your overview",
     "cvReview": "Your CV reviewed against Swedish criteria",

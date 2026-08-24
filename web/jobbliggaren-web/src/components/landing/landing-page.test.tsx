@@ -144,6 +144,7 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     ).toBeInTheDocument();
     for (const row of [
       "Annonser du sparar, med påminnelse före sista ansökningsdag",
+      "Annonser matchade mot din profil, från Grundmatch till Toppmatch",
       "Varje ansökan spårad från utkast till svar",
       "Företag du bevakar, med deras nya annonser på översikten",
       "Ditt CV granskat mot svenska kriterier",
@@ -155,6 +156,10 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     // revert: mounting a form here turns this back into a role="button".
     const card = container.querySelector(".jp-land-account") as HTMLElement;
     expect(card).not.toBeNull();
+    // Closed pin: five rows is the cap (design-reviewer, PR #1509 — a sixth
+    // pushes the plate past a full-screen hero at 1280). Adding a row means
+    // consciously reopening that verdict, not just appending a key.
+    expect(within(card).getAllByRole("listitem")).toHaveLength(5);
     const cta = within(card).getByRole("link", { name: "Skapa konto" });
     expect(cta).toHaveAttribute("href", "/registrera");
   });

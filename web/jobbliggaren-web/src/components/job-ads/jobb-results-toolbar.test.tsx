@@ -59,13 +59,16 @@ beforeEach(() => {
 describe("JobbResultsToolbar — träffar + chips + sort", () => {
   it("visar mono-formaterat antal träffar", () => {
     const { container } = renderToolbar({ totalCount: 1234 });
-    // issue #292 — i PÅ-läget (matchActive default true) finns nu TVÅ role=status
-    // (träffräknaren + grad-filtrets hjälprad), så bare getByRole("status") är
-    // tvetydigt. Träffräknaren är den distinkta `.jp-results-count`-noden.
     // sv-SE grupperar med NBSP.
     const count = container.querySelector(".jp-results-count");
     expect(count).not.toBeNull();
     expect(count).toHaveTextContent(/1\s234 träffar/);
+    // #1505 — the counter is NOT a live region: it renders with its own text, which is the shape
+    // ARIA22 rules out. Restoring the role here would re-create the defect AND double the
+    // announcement the surface region now carries. Nothing else in the blocking suites pins this
+    // (`jobb-results.test.tsx` stubs this island out), so it is pinned at the element itself.
+    expect(count).not.toHaveAttribute("role");
+    expect(count).not.toHaveAttribute("aria-live");
   });
 
   it("renderar aktiva chips via resolverad label och tar bort vid ×", async () => {

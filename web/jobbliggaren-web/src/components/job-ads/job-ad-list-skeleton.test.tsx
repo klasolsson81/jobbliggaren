@@ -1,31 +1,41 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { createTranslator } from "next-intl";
+import svJobads from "../../../messages/sv/jobads.json";
+import { Announcer } from "@/components/common/announcer";
 import { JobAdListSkeleton } from "./job-ad-list-skeleton";
 
+const region = (c: HTMLElement) => c.querySelector('p[role="status"]');
+
+// Read through the real catalogue, so a renamed or deleted key fails here rather than silently
+// announcing a raw message id. Parity with `foretag-sok-results-skeleton.test.tsx`.
+const t = createTranslator({
+  locale: "sv",
+  messages: { jobads: svJobads },
+  namespace: "jobads.ui",
+});
+
 describe("JobAdListSkeleton", () => {
-  it("exposes a polite status live-region for screen readers", () => {
-    render(<JobAdListSkeleton />);
-    const status = screen.getByRole("status");
-    expect(status).toHaveAttribute("aria-live", "polite");
-    expect(status).toHaveAttribute("aria-busy", "true");
+  it("keeps the visible sentence but carries NO live region of its own", () => {
+    const { container } = render(<JobAdListSkeleton />);
+
+    expect(screen.getByText("Söker bland annonser…")).toBeInTheDocument();
+    // #1505 — the regression this guards: restoring `role="status"` here would re-create the
+    // unreliable shape AND double the announcement once the surface region is in place.
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector("[aria-live]")).toBeNull();
+    // `aria-busy` describes this subtree's own state and is unrelated to the announcement.
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
-  it("renders a visible 'Söker bland annonser…' message inside the status live-region", () => {
-    render(<JobAdListSkeleton />);
-    // Synlig DOM-text — seende användare ser exakt samma signal som
-    // aria-live="polite" annonserar via live-region-uppdateringen när
-    // statusen mountas. Ingen sr-only-divergens.
-    const text = screen.getByText("Söker bland annonser…");
-    expect(text).toBeInTheDocument();
-    // Texten ligger inuti role="status" så live-region:en når den.
-    const status = screen.getByRole("status");
-    expect(status).toContainElement(text);
-    // ARIA 1.2 — role=status har `nameFrom: author`: aria-label/aria-labelledby
-    // skulle ÖVERSKUGGA den synliga texten i accessible-name-beräkningen.
-    // Vi vill att SR läser exakt den synliga texten via live-regionen — alltså
-    // INGEN aria-label/aria-labelledby.
-    expect(status).not.toHaveAttribute("aria-label");
-    expect(status).not.toHaveAttribute("aria-labelledby");
+  it("puts that same sentence into the surface region when hosted by one", () => {
+    const { container } = render(
+      <Announcer>
+        <JobAdListSkeleton />
+      </Announcer>,
+    );
+
+    expect(region(container)).toHaveTextContent(t("skeleton.searching"));
   });
 
   it("renders no global id (safe to render multiple times)", () => {
@@ -62,8 +72,8 @@ describe("JobAdListSkeleton", () => {
       "aria-hidden",
       "true"
     );
-    // Toolbaren själv är INTE aria-hidden längre — den innehåller den
-    // synliga statustexten som role="status" måste kunna läsa.
+    // Toolbaren själv är INTE aria-hidden — den bär den synliga "Söker…"-texten,
+    // som är vanligt innehåll och ska nå en skärmläsare som sådant.
     expect(container.querySelector(".jp-results-toolbar")).not.toHaveAttribute(
       "aria-hidden"
     );

@@ -7,7 +7,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 import { ForetagSokSearchbar } from "@/components/company-criteria/foretag-sok-searchbar";
 import { ForetagSokResults } from "@/components/company-criteria/foretag-sok-results";
 import { ForetagSokResultsSkeleton } from "@/components/company-criteria/foretag-sok-results-skeleton";
-import { ForetagSokAnnouncer } from "@/components/company-criteria/foretag-sok-announcer";
+import { Announcer } from "@/components/common/announcer";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import {
   parseCodeAxis,
@@ -167,7 +167,7 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
             destroyed and rebuilt with each load, which is the very thing that made the old
             per-element `role="status"` unreliable. Out here it survives every swap and is in the
             DOM, empty, before either the skeleton or the results exist. */}
-        <ForetagSokAnnouncer>
+        <Announcer>
           <Suspense key={suspenseKey} fallback={<ForetagSokResultsSkeleton />}>
             <ForetagSokResults
               namn={namn}
@@ -177,7 +177,7 @@ export default async function ForetagSokPage({ searchParams }: PageProps) {
               reference={reference}
             />
           </Suspense>
-        </ForetagSokAnnouncer>
+        </Announcer>
       </div>
     </>
   );

@@ -4579,7 +4579,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    landing-hero per ADR 0068). Ersatte den tidigare ledger-heron
    (dess .jp-land-hero__ledger*-klasser borttagna i #517 efter
    cutover). Verb-stack utan nummer/linjer,
-   guld-kicker, källrad, kontokort som flyter på plattan.
+   guld-kicker, källrad, ett kort som flyter på plattan.
 
    ALLT på plattan använder LITERALA vita/guld-värden (tema-STABILT,
    samma doktrin som footern) — ALDRIG --jp-ink-inverse (som vänder

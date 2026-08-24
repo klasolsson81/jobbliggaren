@@ -9,8 +9,20 @@ import { WithdrawApplicationButton } from "@/components/applications/withdraw-ap
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
 import { getAllowedTransitions } from "@/lib/applications/status";
 import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The title resolves against the record's ABSENCE: a missing record must not serve this
+ * route's title over a "Sidan finns inte" body, and `(app)/not-found.tsx` cannot correct
+ * that (`lib/metadata/not-found-title.ts` records why). The gate is `kind === "notFound"`
+ * and nothing else — both halves are pinned by
+ * `(app)/detail-route-not-found-title.test.ts`.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const result = await getApplicationById(id);
+  if (result.kind === "notFound") return notFoundMetadata();
+
   const t = await getTranslations("pages");
   return { title: t("ansokningar.detail.meta.title") };
 }

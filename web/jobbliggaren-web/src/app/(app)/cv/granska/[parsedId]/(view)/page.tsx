@@ -19,8 +19,23 @@ import { CvPreamble } from "@/components/resumes/cv-preamble";
 import { CvReviewPanel } from "@/components/resumes/cv-review-panel";
 import { CvPreview } from "@/components/resumes/cv-preview";
 import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The title resolves against the record's ABSENCE: a missing record must not serve this
+ * route's title over a "Sidan finns inte" body, and `(app)/not-found.tsx` cannot correct
+ * that (`lib/metadata/not-found-title.ts` records why). The gate is `kind === "notFound"`
+ * and nothing else — both halves are pinned by
+ * `(app)/detail-route-not-found-title.test.ts`.
+ *
+ * `getParsedResume` and not `getCvReview`: the parse artefact is this page's existence
+ * authority, and the review degrades civilly rather than 404-ing the page.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { parsedId } = await params;
+  const result = await getParsedResume(parsedId);
+  if (result.kind === "notFound") return notFoundMetadata();
+
   const t = await getTranslations("pages");
   return { title: t("cv.review.meta.title") };
 }

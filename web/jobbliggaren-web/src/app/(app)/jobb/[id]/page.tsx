@@ -6,8 +6,21 @@ import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
 import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+import { getJobAd } from "@/lib/api/job-ads";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The title resolves against the record's ABSENCE: a missing record must not serve this
+ * route's title over a "Sidan finns inte" body, and `(app)/not-found.tsx` cannot correct
+ * that (`lib/metadata/not-found-title.ts` records why). The gate is `kind === "notFound"`
+ * and nothing else — both halves are pinned by
+ * `(app)/detail-route-not-found-title.test.ts`.
+ */
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const result = await getJobAd(id);
+  if (result.kind === "notFound") return notFoundMetadata();
+
   const t = await getTranslations("pages");
   return { title: t("jobb.detail.meta.title") };
 }

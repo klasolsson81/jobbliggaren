@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { metadataBlock } from "@/test/metadata-source";
 
 /**
  * Fitness function for repo-wide document-title coverage (WCAG 2.4.2, level A).
@@ -69,36 +70,6 @@ function pageFiles(dir: string, acc: string[] = []): string[] {
 }
 
 /**
- * The source of the file's metadata export, and nothing else.
- *
- * Scoping matters more than it looks. A `title:` ANYWHERE in the file — an
- * `ErrorShell({ title, body })` helper's prop type, a DTO mapping, a section lookup —
- * would satisfy a file-wide search, and pages do carry such a `title:` outside their
- * metadata. A file-wide predicate therefore passes them with
- * the metadata title removed, which is precisely the defect this test exists to catch:
- * three `(auth)` pages really did export `metadata` for `robots`/`referrer` and no
- * title at all.
- *
- * The block ends at the first line that closes at column zero (`}` or `};`), which is
- * what the repo's formatting guarantees for a top-level export and what makes this a
- * scan rather than a parser.
- */
-function metadataBlock(source: string): string | null {
-  const lines = source.split(/\r?\n/);
-  const start = lines.findIndex((line) =>
-    /^export (?:const metadata\b|(?:async )?function generateMetadata\b)/.test(line)
-  );
-  if (start === -1) return null;
-
-  const end = lines.findIndex(
-    (line, index) => index > start && /^\};?$/.test(line)
-  );
-  if (end === -1) return null;
-
-  return lines.slice(start, end + 1).join("\n");
-}
-
-/**
  * A module declares a title if it exports metadata AND that metadata carries a title.
  * The second half is load-bearing, for the reason `metadataBlock` records.
  *
@@ -134,11 +105,17 @@ function message(path: string): string {
  * It throws rather than returning a fallback: a page whose title cannot be resolved is
  * a hole in the check, and a hole that reports itself as a pass is the failure mode
  * this whole file is about.
+ *
+ * The delegation to `notFoundMetadata()` is read LAST, and that order is load-bearing.
+ * Since #1508 a detail route delegates CONDITIONALLY — only when its record is gone —
+ * and titles itself the rest of the time. Read first, the delegation swept all four
+ * detail routes into the shared-title exemption and stopped comparing them at all:
+ * measured on this suite, giving `/jobb/[id]` the same title as `/ansokningar/[id]`
+ * then passed.
  */
 function resolveTitle(source: string): string {
   const block = metadataBlock(source);
   if (block === null) throw new Error("no metadata export");
-  if (/\bnotFoundMetadata\(/.test(block)) return SHARED_NOT_FOUND_TITLE;
 
   const [, key] = /title:\s*t\("([^"]+)"\)/.exec(block) ?? [];
   if (key !== undefined) {
@@ -149,6 +126,8 @@ function resolveTitle(source: string): string {
 
   const [, literal] = /title:\s*"([^"]+)"/.exec(block) ?? [];
   if (literal !== undefined) return literal;
+
+  if (/\bnotFoundMetadata\(/.test(block)) return SHARED_NOT_FOUND_TITLE;
 
   throw new Error("metadata export carries no title");
 }
@@ -185,6 +164,33 @@ describe("document title coverage", () => {
     expect(
       declaresATitle('export const metadata: Metadata = {\n  title: "x",\n};')
     ).toBe(true);
+  });
+
+  it("reads a conditional 404 delegation as the route's own title", () => {
+    // The control for the ordering inside `resolveTitle`, in both polarities. A page
+    // whose whole metadata IS the 404 title takes the shared exemption; a page that
+    // delegates only when its record is gone keeps its own title and stays in the
+    // collision check below.
+    const conditional = [
+      'export async function generateMetadata({ params }: Props): Promise<Metadata> {',
+      '  const { id } = await params;',
+      '  const result = await getApplicationById(id);',
+      '  if (result.kind === "notFound") return notFoundMetadata();',
+      '',
+      '  const t = await getTranslations("pages");',
+      '  return { title: t("ansokningar.detail.meta.title") };',
+      '}',
+    ].join("\n");
+    const unconditional = [
+      "export async function generateMetadata(): Promise<Metadata> {",
+      "  return notFoundMetadata();",
+      "}",
+    ].join("\n");
+
+    expect(resolveTitle(conditional)).toBe(
+      message("pages.ansokningar.detail.meta.title")
+    );
+    expect(resolveTitle(unconditional)).toBe(SHARED_NOT_FOUND_TITLE);
   });
 
   it.each(documents)("%s sets a document title", (file) => {

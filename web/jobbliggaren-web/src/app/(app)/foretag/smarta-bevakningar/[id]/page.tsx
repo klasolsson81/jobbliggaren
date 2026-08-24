@@ -15,8 +15,21 @@ import { CompanyBrowseList } from "@/components/company-criteria/company-browse-
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * The title resolves against the record's ABSENCE: a missing record must not serve this
+ * route's title over a "Sidan finns inte" body, and `(app)/not-found.tsx` cannot correct
+ * that (`lib/metadata/not-found-title.ts` records why). The gate is `kind === "notFound"`
+ * and nothing else — both halves are pinned by
+ * `(app)/detail-route-not-found-title.test.ts`.
+ */
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const { page: pageParam } = await searchParams;
+  const result = await browseCriterionCompanies(id, parsePageParam(pageParam));
+  if (result.kind === "notFound") return notFoundMetadata();
+
   const t = await getTranslations("pages");
   return { title: t("foretag.smartaBevakningar.detail.meta.title") };
 }

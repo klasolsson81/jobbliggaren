@@ -74,6 +74,16 @@ describe("LoginForm", () => {
     expect(checkbox).toHaveAttribute("name", "rememberMe");
   });
 
+  it("carries no explanation under the checkbox (#1478)", () => {
+    render(<LoginForm />);
+    // Klas 2026-08-23: "det behövs absolut ingen förklaring till vad Håll mig
+    // inloggad betyder". The hint was the largest text block on the form, and
+    // at text-body-sm in text-text-primary it sat at field-label weight.
+    const checkbox = screen.getByRole("checkbox", { name: "Håll mig inloggad" });
+    expect(checkbox).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/180 dagar/)).toBeNull();
+  });
+
   it("does not post rememberMe when the box stays unticked", async () => {
     const user = userEvent.setup();
     render(<LoginForm />);

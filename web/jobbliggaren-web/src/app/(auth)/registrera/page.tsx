@@ -19,12 +19,9 @@ export default function RegistreraPage() {
   const t = useTranslations("pages");
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-h1 font-bold text-heading-1">
-          {t("auth.register.title")}
-        </h1>
-        <p className="text-body text-text-secondary">{t("auth.register.brand")}</p>
-      </div>
+      <h1 className="text-h1 font-bold text-heading-1">
+        {t("auth.register.title")}
+      </h1>
 
       <Suspense fallback={null}>
         <RegisterForm />

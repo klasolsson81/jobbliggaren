@@ -43,4 +43,15 @@ describe("(auth)/error boundary (#1477)", () => {
 
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
+
+  it("moves focus to the heading when the boundary mounts (WCAG 4.1.3)", () => {
+    // The PROPERTY, not the attribute. Bites on revert twice over: remove the ref
+    // and focus stays on <body>, remove the tabIndex and .focus() is a silent
+    // no-op on a heading.
+    render(<AuthError error={boundaryError} unstable_retry={() => {}} />);
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1 }),
+    );
+  });
 });

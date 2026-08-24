@@ -32,11 +32,10 @@ describe("Announcer — the region precedes the message", () => {
     // `aria-atomic` so a swapped sentence is read whole rather than diffed word by word.
     expect(live).toHaveAttribute("aria-atomic", "true");
     expect(live).toHaveTextContent("");
-    // ARIA 1.2 — `role=status` has `nameFrom: author`, so an `aria-label`/`aria-labelledby` here
-    // would OVERRIDE the announced text in the accessible-name computation and a screen reader
-    // would read the label instead of the sentence. These negations guarded the old per-element
-    // region in `job-ad-list-skeleton.test.tsx`; the concern moved here with the mechanism, and
-    // the mechanism is now shared by two surfaces, so one degradation would silence both.
+    // ARIA 1.2 — `role=status` is `nameFrom: author`, so a label here would give the region an
+    // accessible name of its own. These negations guarded the old per-element region in
+    // `job-ad-list-skeleton.test.tsx`; the concern moved here with the mechanism, and the
+    // mechanism is now shared by two surfaces, so one degradation would reach both.
     expect(live).not.toHaveAttribute("aria-label");
     expect(live).not.toHaveAttribute("aria-labelledby");
   });

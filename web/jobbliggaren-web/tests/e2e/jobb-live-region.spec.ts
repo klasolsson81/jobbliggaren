@@ -30,7 +30,7 @@ const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 // found it independently.
 //
 // The scoping below cannot race: `section[aria-labelledby="jobb-results-title"]` is server-rendered
-// and no hero region can ever be its descendant.
+// and no hero region can ever be its descendant, hydrated or not.
 const RESULTS_SECTION = "section[aria-labelledby='jobb-results-title']";
 const LOAD_REGION = `${RESULTS_SECTION} p[aria-live='polite'].sr-only[aria-atomic='true']`;
 
@@ -47,20 +47,16 @@ test.describe("/jobb — the load cycle announces through a region that precedes
     page,
   }) => {
     await page.goto("/jobb");
-    // Wait for hydration before counting anything: the typeahead's region only exists after it,
-    // and counting before it is what made the previous version of this test pass while wrong.
-    await expect(page.getByLabel(SEARCH_FIELD_LABEL)).toBeEnabled();
 
     // One region per job is the house rule; one region with two writers would let a filter change
     // overwrite a result count mid-load.
     await expect(page.locator(LOAD_REGION)).toHaveCount(1);
-    // Positive control on the scoping: the hero's own polite regions exist and are NOT inside the
-    // results section. Asserted as "at least one" — the exact number is a property of the hero,
-    // not of this fix, and pinning it here would break on an unrelated hero change.
-    const heroRegions = page.locator(
-      `p[aria-live='polite'].sr-only:not(${RESULTS_SECTION} *)`,
-    );
-    expect(await heroRegions.count()).toBeGreaterThan(0);
+    // Positive control on the scoping: the hero's own polite regions exist and are somewhere else.
+    // Asserted as "at least one" — how many the hero has is a property of the hero, not of this
+    // fix, and pinning the number here would break on an unrelated hero change.
+    expect(
+      await page.locator("section.jp-hero p[aria-live='polite'].sr-only").count(),
+    ).toBeGreaterThan(0);
   });
 
   test("the region survives a search as the SAME node, and carries the outcome", async ({

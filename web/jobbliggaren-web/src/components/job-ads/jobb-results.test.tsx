@@ -192,7 +192,7 @@ describe("JobbResults — the load's completion reaches the surface region", () 
   });
 
   it("a TECHNICAL ERROR announces too, where it previously reached a screen reader through nothing", async () => {
-    // This card carries no role at all — not even the rate-limit branch's `role="alert"`.
+    // This card carries no role at all.
     getJobAds.mockResolvedValue({ kind: "error" });
     await renderHosted();
 

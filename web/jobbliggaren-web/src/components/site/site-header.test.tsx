@@ -181,12 +181,7 @@ describe("SiteHeader — omätta tal renderas ALDRIG (CTO-bind 2026-07-13, A′)
     // isStale, men FE slängde flaggan och renderade siffran som ett faktum — på produktens ytterdörr,
     // för varje anonym besökare. Nu är ett omätt tal null och gruppen utelämnas: ett kort tomrum är
     // billigare än en permanent strukturell osanning.
-    render(
-      <SiteHeader
-        stats={{ activeCount: null, newToday: null }}
-        showLogin={false}
-      />,
-    );
+    render(<SiteHeader stats={{ activeCount: null, newToday: null }} />);
 
     expect(screen.getByText("Jobbliggaren")).toBeInTheDocument();
     expect(screen.queryByText("aktiva annonser")).not.toBeInTheDocument();
@@ -201,7 +196,7 @@ describe("SiteHeader — omätta tal renderas ALDRIG (CTO-bind 2026-07-13, A′)
     // Båda talen pinnas: en truthiness-vakt (`stats.activeCount ? …`) i stället för `!== null` skulle
     // dölja en mätt nolla, och en ensidig pinne hade bara fångat halva den fällan.
     render(
-      <SiteHeader stats={{ activeCount: 0, newToday: 0 }} showLogin={false} />,
+      <SiteHeader stats={{ activeCount: 0, newToday: 0 }} />,
     );
 
     expect(screen.getByText("aktiva annonser")).toBeInTheDocument();

@@ -4615,7 +4615,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-hero-ink); text-decoration: underline; text-underline-offset: 3px;
 }
 /* Vit fokusring ENDAST på gäst-länken (enda länken direkt på grön platta;
-   grön --jp-focus syns dåligt mot grönt, WCAG 2.4.7). Auth-kortets länkar
+   grön --jp-focus syns dåligt mot grönt, WCAG 2.4.7). Kontokortets länkar
    sitter på vit yta och behåller sin normala (gröna) fokusring. */
 .jp-land-hero--plate .jp-land-hero__guestlink:focus-visible {
   outline: 2px solid #FFFFFF; /* guard-allow: vit ring pa fargad yta - scoped literal, ej --jp-focus-pin (pin skulle kaskada in i vita barn-ytor, #549 WS2) */ outline-offset: 2px; border-radius: 2px;

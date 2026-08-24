@@ -18,11 +18,10 @@ import { LandingAccountCard } from "@/components/landing/landing-account-card";
  *  - right (`.jp-land-hero__cardcol`): `<LandingAccountCard/>`, which sells the
  *    account instead of demanding a form fill, and a white guest link below it.
  *
- * The whole section is now server-rendered. `<AuthCard/>` was the landing's last
- * client island, and it needed a Suspense boundary because the inner
- * Login/RegisterForm read `useSearchParams` — without one `next build` failed
- * static generation. With the card gone there is nothing to suspend, so the
- * boundary and its skeleton went with it.
+ * The whole section is now server-rendered. `<AuthCard/>` needed a Suspense
+ * boundary because the inner Login/RegisterForm read `useSearchParams` —
+ * without one `next build` failed static generation. With the card gone there
+ * is nothing to suspend, so the boundary and its skeleton went with it.
  *
  * Live stats live in the <SiteHeader/> and are never repeated here (design
  * rule 2). No CTA buttons besides the card's one primary, no OAuth:

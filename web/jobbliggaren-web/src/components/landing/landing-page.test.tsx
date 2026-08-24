@@ -146,7 +146,7 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
       "Annonser du sparar, med påminnelse före sista ansökningsdag",
       "Varje ansökan spårad från utkast till svar",
       "Företag du bevakar, med deras nya annonser på översikten",
-      "Ditt CV granskat mot en svensk kvalitetsrubrik",
+      "Ditt CV granskat mot svenska kriterier",
     ]) {
       expect(screen.getByText(row)).toBeInTheDocument();
     }

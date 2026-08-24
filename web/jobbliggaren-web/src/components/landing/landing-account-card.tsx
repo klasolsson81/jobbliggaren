@@ -8,9 +8,9 @@ import { Check } from "lucide-react";
  * visitor to fill in a registration form before the page had said what an
  * account is for. The card sells the account and links to `/registrera`.
  *
- * Server component. Removing the form removed the last client island from the
- * landing document, and with it the Suspense boundary the inner forms needed
- * (they read `useSearchParams`, which suspends during static generation).
+ * Server component. Removing the form removed the Suspense boundary the inner
+ * forms needed (they read `useSearchParams`, which suspends during static
+ * generation).
  *
  * **Every row restates a capability the Funktioner section already claims two
  * bands below, on this same page** — the reminder before a closing date, the

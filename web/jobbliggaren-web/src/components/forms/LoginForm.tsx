@@ -36,12 +36,16 @@ export function LoginForm() {
         <label htmlFor="email" className="text-label font-medium text-text-primary">
           {t("auth.login.emailLabel")}
         </label>
+        {/* Re-seeded from the echo the action returns on failure: React 19 resets this uncontrolled
+            form after every action, so a wrong password otherwise costs the address too. The
+            password is deliberately not echoed and is the one field retyped on a retry. */}
         <Input
           ref={emailInputRef}
           id="email"
           name="email"
           type="email"
           autoComplete="email"
+          defaultValue={state?.values?.email ?? ""}
           required
           aria-required="true"
           aria-describedby="email-hint"
@@ -73,7 +77,10 @@ export function LoginForm() {
         </p>
       </div>
 
-      <RememberMeCheckbox label={t("auth.login.rememberMeLabel")} />
+      <RememberMeCheckbox
+        label={t("auth.login.rememberMeLabel")}
+        defaultChecked={state?.values?.rememberMe ?? false}
+      />
 
       {state?.error && (
         <p role="alert" className="text-body-sm leading-5 text-danger-600">

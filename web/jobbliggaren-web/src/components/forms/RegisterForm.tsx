@@ -20,6 +20,7 @@ export function RegisterForm() {
   const pendingRef = useRef<HTMLDivElement>(null);
   const displayNameRef = useRef<HTMLInputElement>(null);
   const acceptTermsRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const errorId = useId();
   // #1117: the error belongs to a named field only when the action says so. Absent `field`
   // means a non-field failure (network, kill-switch), which must not mark an input invalid.
@@ -27,6 +28,11 @@ export function RegisterForm() {
   // #1479: the server-side half of the terms gate. `required` already blocks the submit in a
   // browser with constraint validation, so this state is what a bypassed client produces.
   const acceptTermsInvalid = state?.error !== undefined && state.field === "acceptTerms";
+  // A failure that names no field — a breached password, an unreachable server, a validator
+  // message from the backend. There is no input to send the caret to, and the submit button the
+  // user pressed is disabled during the action, so focus lands on <body> and the next Tab starts
+  // over at the skip link. The message itself is the only honest target.
+  const genericError = state?.error !== undefined && state.field === undefined;
 
   // Focus goes to the field the user has to correct, the same move ForgotPasswordForm makes.
   // Without it the message is announced but the caret is nowhere near the input it names.
@@ -37,6 +43,10 @@ export function RegisterForm() {
   useEffect(() => {
     if (acceptTermsInvalid) acceptTermsRef.current?.focus();
   }, [acceptTermsInvalid, state]);
+
+  useEffect(() => {
+    if (genericError) errorRef.current?.focus();
+  }, [genericError, state]);
 
   // Focus management (not data fetching): when registration flips to the pending-confirmation state,
   // move focus to the status panel so keyboard users land on it and screen readers announce it.
@@ -110,6 +120,10 @@ export function RegisterForm() {
     <form action={formAction} className="flex flex-col gap-5">
       <input type="hidden" name="next" value={searchParams.get("next") ?? "/jobb"} />
 
+      {/* Every non-secret input below re-seeds from the echo the action returns on failure. React 19
+          resets this uncontrolled form after every action, so without it a single wrong character
+          costs the user the whole form. The password is deliberately absent from the echo and is
+          therefore the one field that is retyped. */}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="displayName" className="text-label font-medium text-text-primary">
           {t("auth.register.nameLabel")}
@@ -120,6 +134,7 @@ export function RegisterForm() {
           name="displayName"
           type="text"
           autoComplete="name"
+          defaultValue={state?.values?.displayName ?? ""}
           required
           aria-required="true"
           aria-invalid={displayNameInvalid ? true : undefined}
@@ -141,6 +156,7 @@ export function RegisterForm() {
           name="email"
           type="email"
           autoComplete="email"
+          defaultValue={state?.values?.email ?? ""}
           required
           aria-required="true"
           aria-describedby="email-hint"
@@ -169,12 +185,19 @@ export function RegisterForm() {
 
       <AcceptTermsCheckbox
         ref={acceptTermsRef}
+        defaultChecked={state?.values?.acceptTerms ?? false}
         aria-invalid={acceptTermsInvalid ? true : undefined}
         aria-describedby={acceptTermsInvalid ? errorId : undefined}
       />
 
       {state?.error && (
-        <p id={errorId} role="alert" className="text-body-sm leading-5 text-danger-600">
+        <p
+          ref={errorRef}
+          tabIndex={-1}
+          id={errorId}
+          role="alert"
+          className="text-body-sm leading-5 text-danger-600"
+        >
           {state.error}
         </p>
       )}

@@ -61,6 +61,23 @@ export type AuthActionState = {
   // semantics ForgotPasswordForm already reads off `!state.refused`. Existing errors are left
   // unstamped deliberately: stamping them would change behaviour outside this change-reason.
   field?: "displayName" | "acceptTerms";
+  // The non-secret fields just submitted, echoed back so the form can re-seed its own inputs.
+  // React 19 resets an uncontrolled `<form action={…}>` after EVERY action, so without this a
+  // failed submit destroys the name, the address and the ticked terms box, and the user retypes
+  // the whole form to retry one wrong character.
+  //
+  // `password` is NOT a member and must never become one: it is deliberately never re-seeded, so
+  // echoing it would carry a plaintext secret through a payload nothing reads. Like `email` above
+  // this lives only in the returned action state and is never logged.
+  //
+  // Set on FAILURE states only. The 202 check-inbox panel and the registrations-closed panel each
+  // replace the form, so an echo there would feed inputs that are no longer mounted.
+  values?: {
+    displayName?: string;
+    email?: string;
+    rememberMe?: boolean;
+    acceptTerms?: boolean;
+  };
 } | null;
 
 export async function loginAction(
@@ -75,8 +92,12 @@ export async function loginAction(
   const rememberMe = formData.get("rememberMe") === "on";
   const next = safeRedirectPath(formData.get("next") as string | null);
 
+  // Built once and attached to every failure return below — see `values` on AuthActionState.
+  // `password` is absent by construction, not by omission at each site.
+  const values = { email: email ?? "", rememberMe };
+
   if (!email || !password) {
-    return { error: t("auth.actions.credentialsRequired") };
+    return { error: t("auth.actions.credentialsRequired"), values };
   }
 
   let sessionId: string;
@@ -90,7 +111,7 @@ export async function loginAction(
     });
 
     if (res.status === 401) {
-      return { error: t("auth.actions.loginFailed") };
+      return { error: t("auth.actions.loginFailed"), values };
     }
     // #714: an unconfirmed account whose password is correct is gated with a distinct 403
     // (Auth.EmailNotConfirmed) — actionable copy tells the user to confirm their email. Only reachable
@@ -106,10 +127,11 @@ export async function loginAction(
         error: t("auth.actions.emailNotConfirmed"),
         emailNotConfirmed: true,
         email,
+        values,
       };
     }
     if (!res.ok) {
-      return { error: t("auth.actions.unexpectedError") };
+      return { error: t("auth.actions.unexpectedError"), values };
     }
 
     const data = await parseResponse(
@@ -119,7 +141,7 @@ export async function loginAction(
     );
     sessionId = data.sessionId;
   } catch {
-    return { error: t("auth.actions.serverUnreachable") };
+    return { error: t("auth.actions.serverUnreachable"), values };
   }
 
   await setSessionCookie(sessionId, rememberMe);
@@ -140,8 +162,16 @@ export async function registerAction(
   const acceptTerms = formData.get("acceptTerms") === "on";
   const next = safeRedirectPath(formData.get("next") as string | null);
 
+  // Same construction as loginAction: one non-secret echo, attached to every failure return.
+  // The form posts no rememberMe (#1478), so nothing sets it here.
+  const values = {
+    displayName: displayName ?? "",
+    email: email ?? "",
+    acceptTerms,
+  };
+
   if (!displayName || !email || !password) {
-    return { error: t("auth.actions.registrationFieldsRequired") };
+    return { error: t("auth.actions.registrationFieldsRequired"), values };
   }
 
   // #1479: the checkbox carries `required`, so a browser blocks this submit before it is sent.
@@ -149,7 +179,7 @@ export async function registerAction(
   // without passing through the form at all, and refused BEFORE the fetch: an account created
   // without the acceptance is exactly what this must not produce.
   if (!acceptTerms) {
-    return { error: t("auth.actions.termsRequired"), field: "acceptTerms" };
+    return { error: t("auth.actions.termsRequired"), field: "acceptTerms", values };
   }
 
   let sessionId: string;
@@ -174,7 +204,7 @@ export async function registerAction(
         // must map to localized copy here (NIST "provide the reason"). Exact-whitelist
         // comparison only; ProblemDetails text is never rendered.
         if (errorBody.title === "Auth.PwnedPassword") {
-          return { error: t("auth.actions.passwordBreached") };
+          return { error: t("auth.actions.passwordBreached"), values };
         }
         // #1117 — the display-name personnummer refusal is an aggregate invariant, so it
         // arrives as a ProblemDetails `title` and NOT in the FluentValidation `errors` dict the
@@ -185,14 +215,15 @@ export async function registerAction(
           return {
             error: t("auth.actions.displayNamePersonnummer"),
             field: "displayName",
+            values,
           };
         }
         const firstError = errorBody.errors
           ? Object.values(errorBody.errors).flat()[0]
           : null;
-        return { error: firstError ?? t("auth.actions.registrationFailed") };
+        return { error: firstError ?? t("auth.actions.registrationFailed"), values };
       } catch {
-        return { error: t("auth.actions.registrationFailed") };
+        return { error: t("auth.actions.registrationFailed"), values };
       }
     }
     // #714: email-confirmation-first — a 202 means "we sent a confirmation link" and NO session was
@@ -240,10 +271,10 @@ export async function registerAction(
       // Any other 503 on this route is transport, not policy — an API container restarting, an
       // upstream timeout, a deploy window. "Kunde inte nå servern" is literally true for those and
       // invites the retry that will actually work; unexpectedError would be vaguer for no gain.
-      return { error: t("auth.actions.serverUnreachable") };
+      return { error: t("auth.actions.serverUnreachable"), values };
     }
     if (!res.ok) {
-      return { error: t("auth.actions.unexpectedError") };
+      return { error: t("auth.actions.unexpectedError"), values };
     }
 
     const data = await parseResponse(
@@ -253,7 +284,7 @@ export async function registerAction(
     );
     sessionId = data.sessionId;
   } catch {
-    return { error: t("auth.actions.serverUnreachable") };
+    return { error: t("auth.actions.serverUnreachable"), values };
   }
 
   await setSessionCookie(sessionId, rememberMe);

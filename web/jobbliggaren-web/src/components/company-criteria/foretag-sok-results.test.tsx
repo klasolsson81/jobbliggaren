@@ -4,6 +4,7 @@ import { createTranslator } from "next-intl";
 import svPages from "../../../messages/sv/pages.json";
 import { ForetagSokResults } from "./foretag-sok-results";
 import { ForetagSokAnnouncer } from "./foretag-sok-announcer";
+import { ForetagSokResultsSkeleton } from "./foretag-sok-results-skeleton";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 const searchCompanies = vi.fn();
@@ -400,7 +401,7 @@ describe("ForetagSokResults — the load's completion reaches the surface region
     respondWith(null);
     await renderHosted("");
 
-    expect(announced()).toHaveTextContent("Företagen har laddats.");
+    expect(announced()).toHaveTextContent("Företagen i registret visas.");
     // #1149's ruling is untouched: no number is claimed on this state, in the region or on the page.
     expect(announced()).not.toHaveTextContent(/\d/);
     expect(document.querySelector(".jp-results-count")).toBeNull();
@@ -410,11 +411,66 @@ describe("ForetagSokResults — the load's completion reaches the surface region
     respondWith({ magnitude: 1234, saturated: false });
     await renderHosted("acme");
 
-    // Exactly one region on the surface. Restoring `role="status"` on the count line would announce
-    // the same sentence twice — the regression this pins, and one no rendered-text assertion sees.
+    // Exactly one region in the RESULTS SUBTREE — not on the surface, which carries the searchbar's
+    // filter region and its org.nr section besides. Restoring `role="status"` on the count line
+    // would announce the same sentence twice: the regression this pins, and one no rendered-text
+    // assertion sees.
     expect(document.querySelectorAll('[role="status"]')).toHaveLength(1);
     expect(document.querySelector(".jp-results-count")).not.toHaveAttribute(
       "role",
     );
+  });
+
+  /**
+   * The failure branches END the load too, and the surface rule applies to them unchanged: the
+   * skeleton has already said "Söker företag…" through the region, so a branch that sets nothing
+   * leaves a screen reader waiting on a search that has finished failing.
+   *
+   * `code-reviewer` Major 2 on PR #1504 — four reachable branches, none of them covered until now.
+   * `ErrorShell`'s `role="alert"` does not discharge it: that element is mounted with its text
+   * already in place, which is the exact ARIA22 shape this PR exists to stop relying on.
+   */
+  it.each(["rateLimited", "notFound", "forbidden", "error"])(
+    "a %s response closes the loop instead of leaving it open",
+    async (kind) => {
+      searchCompanies.mockResolvedValue({ kind });
+      await renderHosted("acme");
+
+      // All four share `loadErrorTitle` — the branches differ only in the BODY, and the title is
+      // the sentence that carries the status. Read through the real catalogue so a renamed key
+      // fails here rather than announcing a raw message id.
+      expect(announced()).toHaveTextContent("Sökningen kunde inte läsas in");
+    },
+  );
+
+  it("REPLACES the skeleton's opening sentence rather than leaving it standing", async () => {
+    // The defect as a transition, which is the only way to state it honestly. Asserting merely that
+    // the region does not say "Söker företag…" after rendering the error in isolation is vacuous —
+    // the region starts empty, so it passes with no announcement wired at all. This renders the
+    // skeleton first, proves the opening sentence is actually there, then swaps in the failed
+    // results the way Suspense does.
+    searchCompanies.mockResolvedValue({ kind: "error" });
+
+    const { rerender } = render(
+      <ForetagSokAnnouncer>
+        <ForetagSokResultsSkeleton />
+      </ForetagSokAnnouncer>,
+    );
+    expect(announced()).toHaveTextContent("Söker företag…");
+
+    rerender(
+      <ForetagSokAnnouncer>
+        {await ForetagSokResults({
+          namn: "acme",
+          sni: [],
+          kommun: [],
+          page: 1,
+          reference: REFERENCE,
+        })}
+      </ForetagSokAnnouncer>,
+    );
+
+    expect(announced()).toHaveTextContent("Sökningen kunde inte läsas in");
+    expect(announced()).not.toHaveTextContent("Söker företag…");
   });
 });

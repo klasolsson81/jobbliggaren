@@ -67,29 +67,31 @@ describe("ForetagSokAnnouncer — the region precedes the message", () => {
   });
 
   /**
-   * The cleanup blank, pinned in both directions.
+   * A later sentence replaces the one before it. That is the whole contract, and it is deliberately
+   * stated as a contract rather than as a claim about what a user hears.
    *
-   * React bails out on `Object.is`, so without the blank two identical consecutive sentences are a
-   * single DOM mutation and the second is never spoken — a second search returning the same count
-   * as the first would arrive in silence. This is the trap `foretag-sok-searchbar.tsx` declares as
-   * a known limitation of its own region; here it is closed rather than declared.
+   * An earlier version of this file pinned a cleanup blank instead, asserting that it kept two
+   * identical consecutive counts audible. `code-reviewer` measured that false (Blocker 1, PR #1504):
+   * React runs passive unmount and mount effects in the same flush, so a blank written by a
+   * departing subtree is batched away and never reaches the DOM. The only sequence in which it did
+   * anything was the test harness's own — a `src/` path produces no such sequence, which is the §5
+   * `Tests:` violation. The blank is gone and the claim with it; what actually keeps a repeated
+   * count audible is the skeleton's differing sentence between the two, which the surface cases
+   * cover.
    */
-  it("blanks the region when an Announce unmounts, so an identical repeat still mutates", () => {
-    function Harness({ show }: { show: boolean }) {
-      return (
-        <ForetagSokAnnouncer>
-          {show ? <Announce message="1 234 träffar" /> : null}
-        </ForetagSokAnnouncer>
-      );
-    }
+  it("replaces the sentence when a later Announce supersedes it", () => {
+    const { container, rerender } = render(
+      <ForetagSokAnnouncer>
+        <Announce message="Söker företag…" />
+      </ForetagSokAnnouncer>,
+    );
+    expect(region(container)).toHaveTextContent("Söker företag…");
 
-    const { container, rerender } = render(<Harness show />);
-    expect(region(container)).toHaveTextContent("1 234 träffar");
-
-    rerender(<Harness show={false} />);
-    expect(region(container)).toHaveTextContent("");
-
-    rerender(<Harness show />);
+    rerender(
+      <ForetagSokAnnouncer>
+        <Announce message="1 234 träffar" />
+      </ForetagSokAnnouncer>,
+    );
     expect(region(container)).toHaveTextContent("1 234 träffar");
   });
 

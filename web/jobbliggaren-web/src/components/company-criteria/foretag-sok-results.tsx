@@ -226,12 +226,25 @@ export async function ForetagSokResults({
   );
 }
 
+/**
+ * The four reachable failure branches end the load too, so they close the announcement the skeleton
+ * opened (#1092, `code-reviewer` Major 2). Without this the region keeps saying "Söker företag…"
+ * after the search has finished failing — the state the surface rule calls worse than the silence
+ * it replaced.
+ *
+ * `role="alert"` stays and is NOT the announcement path: it is mounted with its text already in
+ * place, which is the ARIA22 shape this PR exists to stop relying on. It is kept because an alert
+ * that a sighted user can read is not made wrong by being unreliable for AT, and removing it would
+ * change the visible error's semantics for no gain. `Announce` is what actually reaches a screen
+ * reader; the title carries the whole status in one sentence, so the body is not repeated into it.
+ */
 function ErrorShell({ title, body }: { title: string; body: string }) {
   return (
     <div
       role="alert"
       className="mt-8 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700"
     >
+      <Announce message={title} />
       <p className="text-body font-medium">{title}</p>
       <p className="mt-1 text-body-sm">{body}</p>
     </div>

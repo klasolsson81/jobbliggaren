@@ -292,7 +292,7 @@
       "loadErrorBody": "Försök igen om en stund.",
       "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
       "loadingResults": "Söker företag…",
-      "announceResultsReady": "Företagen har laddats.",
+      "announceResultsReady": "Företagen i registret visas.",
       "announceFilterAdded": "Filtret {namn} är tillagt.",
       "announceFilterRemoved": "Filtret {namn} är borttaget.",
       "announceBranschCleared": "Alla branschfilter är borttagna.",

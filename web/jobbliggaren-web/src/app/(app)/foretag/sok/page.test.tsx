@@ -188,3 +188,51 @@ describe("/foretag/sok — the refusal is explained on the wash target", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+/**
+ * #1092 — the CALL SITE of the live region.
+ *
+ * `foretag-sok-announcer.test.tsx` proves the mechanism works. It cannot prove this page mounts it,
+ * and `Announce` is inert without a provider BY DESIGN — so deleting `<ForetagSokAnnouncer>` from
+ * `page.tsx` leaves no type error, no runtime error and every unit test green while `/foretag/sok`
+ * announces nothing at all. `code-reviewer` Major 3 on PR #1504.
+ *
+ * This is the same inversion `foretag-sok-results.test.tsx` names as a house rule — "the rule
+ * pinned, the call site not" — and the same one that let the removed island pending line survive
+ * review in #1086.
+ */
+describe("/foretag/sok — the page mounts the live region itself", () => {
+  beforeEach(() => {
+    redirect.mockReset();
+    getServerSession.mockReset();
+    getCriterionReference.mockReset();
+    getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
+    getCriterionReference.mockResolvedValue({
+      kind: "ok",
+      data: { sniVersion: "2025", kommunVersion: "2025", sni: [], lan: [] },
+    });
+  });
+
+  it("renders the region, and renders it EMPTY", async () => {
+    const { container } = render(await renderPage({ namn: "Volvo" }));
+
+    const live = container.querySelector('p[role="status"][aria-live="polite"]');
+    expect(live).not.toBeNull();
+    expect(live).toHaveAttribute("aria-atomic", "true");
+    // Empty at first paint is the half ARIA22 actually requires; a region that arrives holding its
+    // sentence is the defect #1092 was filed for.
+    expect(live).toHaveTextContent("");
+  });
+
+  it("keeps the region OUTSIDE the Suspense boundary", async () => {
+    const { container } = render(await renderPage({ namn: "Volvo" }));
+
+    const live = container.querySelector('p[role="status"][aria-live="polite"]');
+    const results = screen.getByTestId("results");
+    // Placement is the whole mechanism: `<Suspense key={suspenseKey}>` remounts on every search, so
+    // a region nested inside it would be destroyed and rebuilt per load — exactly the shape that
+    // made the old per-element `role="status"` unreliable. Siblinghood is what survives the swap.
+    expect(live?.contains(results)).toBe(false);
+    expect(results.contains(live as Node)).toBe(false);
+  });
+});

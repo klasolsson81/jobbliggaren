@@ -10,8 +10,9 @@ import { Announce } from "@/components/company-criteria/foretag-sok-announcer";
  * a11y (#1092): the visible sentence is ordinary content and this element is NOT a live region.
  * It cannot be one and be reliable — the fallback mounts with its text already in place, which is
  * what ARIA22's "before the status message occurs" rules out. `Announce` routes the same sentence
- * to the persistent region in `ForetagSokAnnouncer`, which is in the DOM and empty before this
- * subtree exists. `aria-busy` stays: it describes THIS subtree's state, not an announcement.
+ * to the region in `ForetagSokAnnouncer`, which holds its role before the message reaches it —
+ * that ordering is the criterion, and it holds even where the region and this subtree mount in the
+ * same commit. `aria-busy` stays: it describes THIS subtree's state, not an announcement.
  * The grey rows keep `aria-hidden` so nothing reads them as content.
  */
 

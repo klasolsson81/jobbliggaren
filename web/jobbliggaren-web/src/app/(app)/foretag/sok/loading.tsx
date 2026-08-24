@@ -11,6 +11,9 @@ import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
  * #1092 — the skeleton announces through a live region it does not own, so this host provides one
  * too. Next's route announcer already speaks the page title on a cross-route navigation; this adds
  * the load sentence beneath it, and without the wrapper the skeleton would simply be silent here.
+ * This region is its own node, distinct from the one `page.tsx` mounts: the end-of-load sentence
+ * lands in that one. Both are empty when they mount, which is what ARIA22 asks; neither spans the
+ * whole cycle.
  */
 export default function Loading() {
   const t = useTranslations("pages.foretag.sok");

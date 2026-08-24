@@ -6,6 +6,12 @@ import { getServerSession } from "@/lib/auth/session";
 import { getApplicationStats } from "@/lib/api/applications";
 import { assertNever } from "@/lib/dto/_helpers";
 import { ApplicationStats } from "@/components/applications/application-stats";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("statistik");
+  return { title: t("meta.title") };
+}
 
 /**
  * #313 — `/statistik` (BUILD.md §6.2: avslags-analys, pipeline-konvertering).

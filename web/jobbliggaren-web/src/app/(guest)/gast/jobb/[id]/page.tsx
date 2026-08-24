@@ -6,6 +6,12 @@ import { GuestDemoBanner } from "@/components/guest/guest-demo-banner";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
 import { findGuestJobAd } from "@/lib/guest/mock-data";
 import { toJobAdDetail } from "@/lib/guest/mock-adapters";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("guest");
+  return { title: t("jobb.detail.meta.title") };
+}
 
 // F-Pre Punkt 5b 2026-05-24 — fullsida för hard-nav till `/gast/jobb/[id]`.
 // Soft-nav fångas av intercepting route → modal.

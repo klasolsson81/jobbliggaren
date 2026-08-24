@@ -4,6 +4,12 @@ import { getTranslations } from "next-intl/server";
 import { ChevronLeft } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import { CvUploadForm } from "@/components/resumes/cv-upload-form";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("cv.import.meta.title") };
+}
 
 /**
  * /cv/importera — CV-import, steg 1 (Fas 4 STEG B, F1). RSC: auth-grind +

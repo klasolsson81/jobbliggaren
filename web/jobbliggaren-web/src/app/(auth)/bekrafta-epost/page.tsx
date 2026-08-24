@@ -11,16 +11,21 @@ import { ConfirmEmailChange } from "@/components/auth/confirm-email-change";
 
 // The URL carries a single-use confirmation token; keep it out of search indexes as
 // defense-in-depth (the page is only ever reached from an emailed link).
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-  // The URL's query carries the token AND the new address, and Referrer-Policy:
-  // strict-origin-when-cross-origin strips path+query only CROSS-origin — a same-origin
-  // navigation sends the whole URL. The edge can persist that Referer: Caddy's default
-  // http.log.error logger emits the request line with unredacted Referer on 5xx even with
-  // no `log` directive (measured 2026-08-11, PR #1313), so "no-referrer" makes the absence
-  // of the leak a property of this page rather than of edge config.
-  referrer: "no-referrer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+
+  return {
+    title: t("auth.confirmEmailChange.meta.title"),
+    robots: { index: false, follow: false },
+    // The URL's query carries the token AND the new address, and Referrer-Policy:
+    // strict-origin-when-cross-origin strips path+query only CROSS-origin — a same-origin
+    // navigation sends the whole URL. The edge can persist that Referer: Caddy's default
+    // http.log.error logger emits the request line with unredacted Referer on 5xx even with
+    // no `log` directive (measured 2026-08-11, PR #1313), so "no-referrer" makes the absence
+    // of the leak a property of this page rather than of edge config.
+    referrer: "no-referrer",
+  };
+}
 
 interface PageProps {
   // Next.js 16 App Router: searchParams is a Promise (see

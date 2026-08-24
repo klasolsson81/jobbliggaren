@@ -10,6 +10,12 @@ import { CriteriaSection } from "@/components/company-criteria/criteria-section"
 import { ForetagPagehero } from "@/components/foretag/foretag-pagehero";
 import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { renderSection } from "@/components/foretag/foretag-section";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("foretag.smartaBevakningar.meta.title") };
+}
 
 // A degraded reference load must not fail the whole page (parity with the F4b taxonomy degradation):
 // an empty tree makes the picker show civil "unavailable" notices and disables creating.

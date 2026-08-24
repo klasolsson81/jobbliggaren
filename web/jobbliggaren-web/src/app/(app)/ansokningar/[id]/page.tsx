@@ -8,6 +8,12 @@ import { ApplicationDetail } from "@/components/applications/application-detail"
 import { WithdrawApplicationButton } from "@/components/applications/withdraw-application-button";
 import { DeleteApplicationButton } from "@/components/applications/delete-application-button";
 import { getAllowedTransitions } from "@/lib/applications/status";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("ansokningar.detail.meta.title") };
+}
 
 interface Props {
   // Next.js 16 App Router: params är Promise (verifierat mot

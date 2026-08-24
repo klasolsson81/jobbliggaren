@@ -1,6 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 
+import type { Metadata } from "next";
+import { notFoundMetadata } from "@/lib/metadata/not-found-title";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return notFoundMetadata();
+}
+
 interface Props {
   params: Promise<{ parsedId: string }>;
   searchParams: Promise<{ profile?: string }>;

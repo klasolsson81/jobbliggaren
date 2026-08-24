@@ -56,5 +56,8 @@
     "title": "Could not load the activity report",
     "body": "Try again in a moment.",
     "rateLimited": "Too many requests. Try again in a moment."
+  },
+  "meta": {
+    "title": "Activity report helper"
   }
 }

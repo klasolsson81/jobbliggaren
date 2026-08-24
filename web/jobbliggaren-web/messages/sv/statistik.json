@@ -51,5 +51,8 @@
     "intro": "Skickade ansökningar de senaste tolv månaderna.",
     "month": "Månad",
     "count": "Antal"
+  },
+  "meta": {
+    "title": "Statistik"
   }
 }

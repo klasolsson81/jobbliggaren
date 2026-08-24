@@ -5,6 +5,12 @@ import { getServerSession, getSessionId } from "@/lib/auth/session";
 import { markFollowedCompanyAdSeen } from "@/lib/api/company-follows";
 import { loadJobDetailData } from "@/lib/job-ads/load-job-detail-data";
 import { JobAdDetail } from "@/components/job-ads/job-ad-detail";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("jobb.detail.meta.title") };
+}
 
 interface PageProps {
   // Next.js 16 App Router: params är Promise (verifierat mot

@@ -51,5 +51,8 @@
     "intro": "Sent applications over the last twelve months.",
     "month": "Month",
     "count": "Count"
+  },
+  "meta": {
+    "title": "Statistics"
   }
 }

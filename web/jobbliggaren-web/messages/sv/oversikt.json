@@ -79,5 +79,8 @@
     "today": "i dag",
     "yesterday": "i går",
     "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
+  },
+  "meta": {
+    "title": "Översikt"
   }
 }

@@ -5,6 +5,12 @@ import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
 import { SettingsForm } from "@/components/settings/settings-form";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("installningar.meta.title") };
+}
 
 /**
  * `/installningar` — v3-version av användarens inställningssida (F6 Prompt 2,

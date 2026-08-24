@@ -11,16 +11,21 @@ import { ResetPassword } from "@/components/auth/reset-password";
 // confirmation links, so the same noindex applies with more reason. Referrer leakage is already closed
 // separately: buildSecurityHeaders sets Referrer-Policy: strict-origin-when-cross-origin, so a
 // cross-origin request sends the origin without the path or query.
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-  // The URL's query carries the token, and Referrer-Policy: strict-origin-when-cross-origin strips
-  // path+query only CROSS-origin — a same-origin navigation would send the whole URL, token included.
-  // The edge CAN persist it: no access log is configured, but Caddy's default http.log.error logger
-  // emits the request line with unredacted Referer on 5xx even with no `log` directive (measured
-  // 2026-08-11, PR #1313) — "no-referrer" makes the absence of the leak a property of this page
-  // rather than of the edge config.
-  referrer: "no-referrer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+
+  return {
+    title: t("auth.resetPassword.meta.title"),
+    robots: { index: false, follow: false },
+    // The URL's query carries the token, and Referrer-Policy: strict-origin-when-cross-origin strips
+    // path+query only CROSS-origin — a same-origin navigation would send the whole URL, token included.
+    // The edge CAN persist it: no access log is configured, but Caddy's default http.log.error logger
+    // emits the request line with unredacted Referer on 5xx even with no `log` directive (measured
+    // 2026-08-11, PR #1313) — "no-referrer" makes the absence of the leak a property of this page
+    // rather than of the edge config.
+    referrer: "no-referrer",
+  };
+}
 
 interface PageProps {
   // Next.js 16 App Router: searchParams is a Promise.

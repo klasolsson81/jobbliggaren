@@ -27,6 +27,13 @@ import { StripCommitParam } from "@/components/job-ads/strip-commit-param";
 import { RecentSearchesHeroChip } from "@/components/recent-searches/recent-searches-hero-chip";
 import { SavedJobAdsHeroChip } from "@/components/saved-job-ads/saved-job-ads-hero-chip";
 
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("pages");
+  return { title: t("jobb.meta.title") };
+}
+
 // searchParams-värden kan vara string | string[] | undefined.
 // occupationGroup/region/municipality skrivs som ETT param per axel med värdena
 // joinade sedan 2026-08-01 (ADR 0042 Beslut B). Typen förblir `string | string[]`

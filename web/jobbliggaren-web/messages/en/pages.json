@@ -44,7 +44,10 @@
       "coverLetterHint": "Optional. You can add or edit it later.",
       "submit": "Create application",
       "submitting": "Saving…",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "meta": {
+        "title": "New application"
+      }
     },
     "loading": "The application is loading…",
     "detail": {
@@ -53,7 +56,13 @@
       "fallbackTitle": "Application #{shortId}",
       "subtitle": "{company} · #{shortId}",
       "createdSubtitle": "Created {date}",
-      "adRemoved": "The ad has been removed"
+      "adRemoved": "The ad has been removed",
+      "meta": {
+        "title": "Application"
+      }
+    },
+    "meta": {
+      "title": "My applications"
     }
   },
   "cv": {
@@ -87,7 +96,10 @@
     "import": {
       "title": "Import CV",
       "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Your CV is not changed.",
-      "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed."
+      "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed.",
+      "meta": {
+        "title": "Import CV"
+      }
     },
     "new": {
       "title": "New CV",
@@ -118,6 +130,9 @@
         "clearedKicker": "No blockers in the file",
         "clearedTitle": "Nothing in the file blocks it",
         "clearedBody": "We find nothing in the file that stops it. Upload it again and it will be checked afresh. A name you type yourself is only checked at upload."
+      },
+      "meta": {
+        "title": "Review imported CV"
       }
     },
     "improve": {
@@ -147,7 +162,10 @@
       "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Nothing changes in your CV automatically.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
-      "loading": "Loading the review…"
+      "loading": "Loading the review…",
+      "meta": {
+        "title": "CV review"
+      }
     },
     "mall": {
       "title": "Customize template",
@@ -206,6 +224,9 @@
       "noFile": "No file was attached. Choose a PDF or Word file (DOCX).",
       "serverUnreachable": "Could not reach the server. Try again.",
       "unreadable": "The file could not be read. Check that it is a PDF or Word file (DOCX) under 10 MB."
+    },
+    "meta": {
+      "title": "My CVs"
     }
   },
   "jobb": {
@@ -214,18 +235,30 @@
     "resultsHeading": "Available jobs",
     "loading": "The job listing is loading…",
     "detail": {
-      "loadErrorTitle": "Could not load the listing"
+      "loadErrorTitle": "Could not load the listing",
+      "meta": {
+        "title": "Job ad"
+      }
+    },
+    "meta": {
+      "title": "Search jobs"
     }
   },
   "sokningar": {
     "title": "Recent searches",
     "lede": "Searches you have run under Jobs. Click to run a search again, or remove one you do not need. We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
-    "loadErrorTitle": "Could not load recent searches"
+    "loadErrorTitle": "Could not load recent searches",
+    "meta": {
+      "title": "Recent searches"
+    }
   },
   "sparade": {
     "title": "Saved listings",
     "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
-    "loadErrorTitle": "Could not load saved listings"
+    "loadErrorTitle": "Could not load saved listings",
+    "meta": {
+      "title": "Saved ads"
+    }
   },
   "foretag": {
     "subnav": {
@@ -297,7 +330,10 @@
       "announceFilterRemoved": "The filter {namn} is removed.",
       "announceBranschCleared": "All industry filters are removed.",
       "announceOrterCleared": "All location filters are removed.",
-      "announceFiltersCleared": "The search is cleared."
+      "announceFiltersCleared": "The search is cleared.",
+      "meta": {
+        "title": "Search companies"
+      }
     },
     "watchesHeading": "Followed companies",
     "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",
@@ -403,6 +439,29 @@
         "emptyTitle": "No companies match right now.",
         "emptyBody": "Try changing the watch's industries or municipalities to broaden the selection."
       }
+    },
+    "bevakade": {
+      "meta": {
+        "title": "Followed companies"
+      }
+    },
+    "historik": {
+      "meta": {
+        "title": "Application history"
+      }
+    },
+    "smartaBevakningar": {
+      "meta": {
+        "title": "Smart watches"
+      },
+      "detail": {
+        "meta": {
+          "title": "Smart watch"
+        }
+      }
+    },
+    "meta": {
+      "title": "Companies"
     }
   },
   "matchningar": {
@@ -416,14 +475,20 @@
     "emptyBody": "Background matching runs every night once you have turned on Match notifications under Settings (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
-    "loadErrorTitle": "Could not load your matches"
+    "loadErrorTitle": "Could not load your matches",
+    "meta": {
+      "title": "My matches"
+    }
   },
   "installningar": {
     "title": "Settings",
     "lede": "Manage your account details and settings.",
     "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
     "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
-    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment."
+    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment.",
+    "meta": {
+      "title": "Settings"
+    }
   },
   "auth": {
     "backToStart": "To the start page",
@@ -441,7 +506,10 @@
       "submitting": "Logging in…",
       "noAccount": "No account?",
       "createAccount": "Create account",
-      "forgotPassword": "Forgotten your password?"
+      "forgotPassword": "Forgotten your password?",
+      "meta": {
+        "title": "Log in"
+      }
     },
     "register": {
       "title": "Create account",
@@ -458,7 +526,10 @@
       "haveAccount": "Already have an account?",
       "logIn": "Log in",
       "pendingTitle": "Check your inbox",
-      "pendingBody": "We have sent an email to the address you entered. Follow the instructions in the email to continue. Check your spam folder if you do not see it within a few minutes."
+      "pendingBody": "We have sent an email to the address you entered. Follow the instructions in the email to continue. Check your spam folder if you do not see it within a few minutes.",
+      "meta": {
+        "title": "Create account"
+      }
     },
     "actions": {
       "credentialsRequired": "Email and password are required.",
@@ -486,7 +557,10 @@
       "loginLink": "Log in",
       "invalidTitle": "The link cannot be used",
       "invalidBody": "The link is invalid or has expired. Log in and request a new email change under Settings.",
-      "networkError": "Could not reach the server. Try again in a moment."
+      "networkError": "Could not reach the server. Try again in a moment.",
+      "meta": {
+        "title": "Confirm email address"
+      }
     },
     "confirmAccount": {
       "title": "Confirm your email address",
@@ -498,7 +572,10 @@
       "loginLink": "Log in",
       "invalidTitle": "The link cannot be used",
       "invalidBody": "The link is invalid or has expired. Register again to get a new link.",
-      "networkError": "Could not reach the server. Try again in a moment."
+      "networkError": "Could not reach the server. Try again in a moment.",
+      "meta": {
+        "title": "Confirm account"
+      }
     },
     "resendConfirmation": {
       "button": "Send a new confirmation link",
@@ -517,7 +594,10 @@
       "sentTitle": "Check your inbox",
       "sentBody": "If the address belongs to an account, we have sent a link there. Check your spam folder if you do not see the email within a few minutes. The link is valid for a short time, and the email says how long.",
       "backToLogin": "Back to sign in",
-      "requestNewLink": "Request a new reset link"
+      "requestNewLink": "Request a new reset link",
+      "meta": {
+        "title": "Reset password"
+      }
     },
     "resetPassword": {
       "title": "Choose a new password",
@@ -532,7 +612,10 @@
       "invalidTitle": "This link cannot be used",
       "invalidBody": "The link is invalid or has expired. Request a new reset link and try again.",
       "passwordTooShort": "The password must be at least 12 characters.",
-      "networkError": "We could not reach the server. Try again in a moment."
+      "networkError": "We could not reach the server. Try again in a moment.",
+      "meta": {
+        "title": "Choose a new password"
+      }
     }
   }
 }

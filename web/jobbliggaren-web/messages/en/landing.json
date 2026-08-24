@@ -22,11 +22,18 @@
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
     "ledgerLede": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application, from draft to response. All in one place.",
-    "source": "Built on open data from the Swedish Public Employment Service",
+    "source": "Built on open data from the Swedish Public Employment Service and Statistics Sweden",
     "guest": "Explore as a guest, without an account"
   },
+  "account": {
+    "title": "What an account gives you",
+    "savedAds": "Ads you save, with a reminder before the closing date",
+    "applications": "Every application tracked from draft to reply",
+    "companyWatch": "Companies you watch, with their new ads on your overview",
+    "cvReview": "Your CV reviewed against Swedish criteria",
+    "cta": "Create account"
+  },
   "features": {
-    "kicker": "Features",
     "title": "Everything you need to stay organised",
     "search": {
       "key": "Search",
@@ -54,15 +61,12 @@
     }
   },
   "auth": {
-    "tabRegister": "Create account",
-    "tabLogin": "Log in",
-    "tablistLabel": "Log in or create account",
     "free": "Jobbliggaren is completely free to use.",
     "fine": "Jobbliggaren never sells your data."
   },
   "footer": {
     "blurb": "Keep your whole job search in order. Search, apply and follow up in one place.",
-    "source": "Built on open data from the Swedish Public Employment Service",
+    "source": "Built on open data from the Swedish Public Employment Service and Statistics Sweden",
     "free": "Jobbliggaren is free to use.",
     "copyright": "© 2026 Jobbliggaren",
     "colStart": "Get started",

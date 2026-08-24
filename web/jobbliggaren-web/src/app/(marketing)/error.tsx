@@ -33,22 +33,28 @@ export default function MarketingError({
   const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
-    <main
-      id="main"
-      tabIndex={-1}
-      className="jp-container jp-page flex flex-1 flex-col justify-center gap-4 focus:outline-none"
-    >
-      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
-      <p className="jp-lede">{t("errorBodyRetry")}</p>
-      <div>
-        <button
-          type="button"
-          onClick={() => unstable_retry()}
-          className="jp-btn jp-btn--primary"
-        >
-          {t("retry")}
-        </button>
-      </div>
-    </main>
+    // `w-full` below is load-bearing. <main> is a flex item, and a flex item with
+    // auto inline margins — which is what `.jp-container` centres with — gets no
+    // `stretch`, so without a definite width it collapses to fit-content and never
+    // lands on the content rail (DESIGN.md). Same shape as the root not-found.
+    <div className="flex flex-1 flex-col justify-center">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="jp-container jp-page flex w-full flex-col gap-4"
+      >
+        <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
+        <p className="jp-lede">{t("errorBodyRetry")}</p>
+        <div>
+          <button
+            type="button"
+            onClick={() => unstable_retry()}
+            className="jp-btn jp-btn--primary"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      </main>
+    </div>
   );
 }

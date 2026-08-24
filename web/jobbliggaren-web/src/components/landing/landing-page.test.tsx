@@ -1,28 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import LandingPage from "@/app/(marketing)/page";
 import MarketingLayout from "@/app/(marketing)/layout";
 import svMessages from "../../../messages/sv";
 
-// next/navigation: useSearchParams must be mocked in jsdom (no Next router
-// context) — the inline AuthCard's Login/RegisterForm read it, and SiteHeader's
-// LanguageSwitcher reads useRouter. A hoisted ref lets a test vary the query
-// string to assert next-param deep-link propagation through the mounted form.
-const { searchParamsRef } = vi.hoisted(() => ({
-  searchParamsRef: { current: new URLSearchParams() },
-}));
-
+// next/navigation: SiteHeader's LanguageSwitcher reads useRouter and there is no
+// Next router context in jsdom. `useSearchParams` is stubbed only because the
+// mock replaces the whole module — nothing on this surface reads it since #1480
+// took the forms out of the hero.
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => searchParamsRef.current,
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => "/",
-}));
-
-// The auth forms wire login/registerAction via useActionState — stub the module
-// so mounting them never calls fetch().
-vi.mock("@/lib/auth/actions", () => ({
-  loginAction: vi.fn().mockResolvedValue(null),
-  registerAction: vi.fn().mockResolvedValue(null),
 }));
 
 // SiteHeader's LanguageSwitcher posts setLocaleAction (server-only cookies).
@@ -46,35 +35,44 @@ vi.mock("@/components/landing/landing-stats", async () => {
   };
 });
 
-// The layout owns the client i18n payload; return the REAL catalog so the
-// pickClientMessages() call under test runs for real rather than on a stub.
+// The layout owns the client i18n payload; return the REAL catalog.
 vi.mock("next-intl/server", () => ({
   getLocale: async () => "sv",
   getMessages: async () => svMessages,
 }));
 
+// jsdom renders the WHOLE tree as client React, so the layout's scoped client
+// payload would also have to carry every namespace its SERVER components read.
+// Since #1480 that is `landing`, which no client component in this boundary
+// reaches — in production SiteHeader, SiteFooter and the two landing sections are
+// RSCs and resolve from the request config, never from this provider. Hand them
+// the full catalog here; the declaration-equals-reach property belongs to
+// client-namespace-payload.test.ts, which walks the import graph statically and is
+// the only instrument that can tell a server reader from a client one.
+vi.mock("@/i18n/client-messages", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/i18n/client-messages")>(
+      "@/i18n/client-messages",
+    );
+  return { ...actual, pickClientMessages: () => svMessages };
+});
+
 // Since #1477 the chrome (SiteHeader + SiteFooter) lives in
 // (marketing)/layout, so the page alone is no longer the surface a visitor
 // sees — compose the two the way Next does. Async RSCs can't be rendered
-// directly by RTL; pre-resolve the element tree. This also renders the
-// layout's SCOPED provider rather than the shim's full catalog, so a
-// namespace missing from the declaration surfaces here as raw keys.
+// directly by RTL; pre-resolve the element tree.
 async function renderAsyncPage() {
   const element = await MarketingLayout({ children: LandingPage() });
   return render(element);
 }
 
 describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
-  beforeEach(() => {
-    searchParamsRef.current = new URLSearchParams();
-  });
-
   it("renders header + ledger hero + features + a single footer", async () => {
     await renderAsyncPage();
     // Brand appears in both the header and the inverse footer brand.
     expect(screen.getAllByText("Jobbliggaren").length).toBeGreaterThan(0);
-    // Features section
-    expect(screen.getByText("Funktioner")).toBeInTheDocument();
+    // Features section. Its mono kicker was removed in #1480 — the heading is
+    // the section's only label now, and it is left-aligned.
     expect(
       screen.getByRole("heading", {
         name: "Allt du behöver för att hålla ordning",
@@ -126,9 +124,11 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
       screen.getByText("Jobbliggaren är helt gratis att använda."),
     ).toBeInTheDocument();
     // The mono source line renders on the plate (and once more in the footer).
+    // Both name SCB since #1480; the exact-string query bites if only one moved.
     expect(
-      screen.getAllByText("Byggd på öppen data från Arbetsförmedlingen").length,
-    ).toBeGreaterThan(0);
+      screen.getAllByText("Byggd på öppen data från Arbetsförmedlingen och SCB")
+        .length,
+    ).toBe(2);
   });
 
   it("renders live stats in the header (45 580 active ads)", async () => {
@@ -137,18 +137,33 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     expect(screen.getByText("aktiva annonser")).toBeInTheDocument();
   });
 
-  it("mounts the inline AuthCard tablist with the register tab live by default", async () => {
-    await renderAsyncPage();
+  it("sells the account instead of demanding a form fill (2b, #1480)", async () => {
+    const { container } = await renderAsyncPage();
     expect(
-      screen.getByRole("tablist", { name: "Logga in eller skapa konto" }),
+      screen.getByRole("heading", { name: "Det här får du med ett konto" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: "Skapa konto" }),
-    ).toHaveAttribute("aria-selected", "true");
-    // The live RegisterForm submit button (role=button) is distinct from the tab.
-    expect(
-      screen.getByRole("button", { name: "Skapa konto" }),
-    ).toBeInTheDocument();
+    for (const row of [
+      "Annonser du sparar, med påminnelse före sista ansökningsdag",
+      "Varje ansökan spårad från utkast till svar",
+      "Företag du bevakar, med deras nya annonser på översikten",
+      "Ditt CV granskat mot svenska kriterier",
+    ]) {
+      expect(screen.getByText(row)).toBeInTheDocument();
+    }
+    // The CTA is a LINK to /registrera, not a submit. Scoped to the card: the
+    // footer's "Kom igång" column carries a link with the same label. Bites on
+    // revert: mounting a form here turns this back into a role="button".
+    const card = container.querySelector(".jp-land-account") as HTMLElement;
+    expect(card).not.toBeNull();
+    const cta = within(card).getByRole("link", { name: "Skapa konto" });
+    expect(cta).toHaveAttribute("href", "/registrera");
+  });
+
+  it("is the page's only solid primary button (ADR 0038 / DESIGN.md §6)", async () => {
+    const { container } = await renderAsyncPage();
+    const primaries = container.querySelectorAll(".jp-btn--primary");
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]).toHaveTextContent("Skapa konto");
   });
 
   it("exposes a skip link to #main", async () => {
@@ -157,7 +172,7 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     expect(skip).toHaveAttribute("href", "#main");
   });
 
-  it("has NO waitlist CTA and NO product-peek (replaced by the ledger + AuthCard)", async () => {
+  it("has NO waitlist CTA and NO product-peek (replaced by the plate hero)", async () => {
     await renderAsyncPage();
     expect(
       screen.queryByRole("button", { name: /Anmäl till väntelista/i }),
@@ -165,30 +180,29 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     expect(screen.queryByText("A-2841")).not.toBeInTheDocument();
   });
 
-  it("puts NO second 'Logga in' in the header while the AuthCard tab carries it", async () => {
-    // The header half of #1476 shipped before the hero half, so for one wave the
-    // surface mounts SiteHeader with showLogin={false}: two controls labelled
-    // "Logga in" with different behaviour — one navigating, one switching a tab
-    // panel in place — sat ~134px apart on the product's front door. Bites on
-    // revert: dropping showLogin={false} in (marketing)/layout.tsx re-creates
-    // the pair. The wave that removes AuthCard inverts this.
+  it("puts the one 'Logga in' in the header, now that no hero tab carries it", async () => {
+    // #1476 shipped the header half first, so for one wave the landing mounted
+    // SiteHeader with showLogin={false}: two controls labelled "Logga in" with
+    // different behaviour — one navigating, one switching a tab panel in place —
+    // sat ~134px apart on the product's front door. #1480 removed the tab, so the
+    // header is the label's only home. Bites on revert in both directions:
+    // restoring showLogin={false} empties the header, remounting a tabbed card
+    // re-creates the pair.
     const { container } = await renderAsyncPage();
     const head = container.querySelector(".jp-head");
     expect(head).not.toBeNull();
     expect(
-      within(head as HTMLElement).queryByRole("link", { name: /Logga in/i }),
-    ).toBeNull();
-    // The tab is where the label lives on this surface, and it is still live.
-    expect(screen.getByRole("tab", { name: "Logga in" })).toBeInTheDocument();
+      within(head as HTMLElement).getByRole("link", { name: /Logga in/i }),
+    ).toHaveAttribute("href", "/logga-in");
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
-  it("propagates the next deep-link param through the mounted AuthCard", async () => {
-    searchParamsRef.current = new URLSearchParams("next=/cv");
+  it("mounts no form field at all — the whole point of 2b (#1480)", async () => {
+    // The hero used to ask an anonymous visitor to fill in a registration form
+    // before the page had said what an account is for. Bites on revert: remount
+    // AuthCard, or any form, and the landing document grows inputs again.
     const { container } = await renderAsyncPage();
-    // RegisterForm (the live default tab) carries a hidden next field seeded
-    // from the query string — the on-page card preserves deep-link intent.
-    const nextField = container.querySelector('input[name="next"]');
-    expect(nextField).not.toBeNull();
-    expect(nextField).toHaveValue("/cv");
+    expect(container.querySelectorAll("input")).toHaveLength(0);
+    expect(container.querySelectorAll("form")).toHaveLength(0);
   });
 });

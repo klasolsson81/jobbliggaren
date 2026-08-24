@@ -15,7 +15,13 @@ type AuthActionState = {
   pendingConfirmation?: boolean;
   registrationsClosed?: boolean;
   email?: string;
-  field?: "displayName" | "acceptTerms";
+  field?: "displayName" | "acceptTerms" | "password";
+  values?: {
+    displayName?: string;
+    email?: string;
+    rememberMe?: boolean;
+    acceptTerms?: boolean;
+  };
 } | null;
 const registerActionMock =
   vi.fn<
@@ -292,6 +298,162 @@ describe("RegisterForm", () => {
     expect(alert.id).not.toBe("");
     expect(box.getAttribute("aria-describedby")).toContain(alert.id);
     await waitFor(() => expect(box).toHaveFocus());
+  });
+
+  // React 19 resets an uncontrolled `<form action={…}>` after EVERY action, so a failed submit used
+  // to destroy the name, the address and the ticked terms box. The action echoes the non-secret
+  // fields back and the form re-seeds itself from that echo.
+  it("keeps the name, address and ticked terms after a failure — but never the password", async () => {
+    registerActionMock.mockResolvedValue({
+      error: "Kunde inte na servern.",
+      values: {
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        acceptTerms: true,
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Namn")).toHaveValue("Anna Andersson");
+    });
+    expect(screen.getByLabelText("E-postadress")).toHaveValue("anna@example.se");
+    expect(screen.getByRole("checkbox", { name: TERMS })).toBeChecked();
+    // The counterfactual, and it is what keeps the three assertions above from measuring nothing:
+    // the password WAS typed and IS gone, so the reset demonstrably ran on this very submit. It is
+    // deliberately absent from the echo — a re-seeded password would be a plaintext secret riding
+    // a payload for no gain, so it is the one field a retry retypes.
+    expect(screen.getByLabelText("Lösenord")).toHaveValue("");
+  });
+
+  it("does not re-tick the terms box when the submit did not carry the acceptance", async () => {
+    // The echo restores an acceptance the user performed; it must never manufacture one. The
+    // server-side refusal is reachable past a client that skipped `required`, and its echo reports
+    // the box as it arrived: unticked.
+    registerActionMock.mockResolvedValue({
+      error: "Du måste godkänna användarvillkoren och integritetspolicyn för att skapa konto.",
+      field: "acceptTerms",
+      values: {
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        acceptTerms: false,
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    expect(screen.getByRole("checkbox", { name: TERMS })).not.toBeChecked();
+  });
+
+  // #1117 sends focus to the named input. A failure that names NO input had nowhere to send it: the
+  // submit button is disabled during the action, so focus fell to <body> and the next Tab restarted
+  // at the skip link. The message is the only honest target.
+  it("moves focus to the message when the failure names no field", async () => {
+    registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    await waitFor(() => expect(alert).toHaveFocus());
+    // Programmatic focus only — the message must not join the Tab order.
+    expect(alert).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("leaves focus on the named input when the failure DOES name one", async () => {
+    // The counterfactual for the move above: a field error still lands on the field, which is the
+    // control the user has to change. Without this, focusing the message unconditionally would
+    // silently undo #1117 and the test above would not notice.
+    registerActionMock.mockResolvedValue({
+      error: "Namnet far inte innehalla ett personnummer.",
+      field: "displayName",
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna 811218-9876");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    await waitFor(() => expect(screen.getByLabelText("Namn")).toHaveFocus());
+  });
+
+  it("wires aria-invalid, aria-describedby and focus when the password is refused as breached", async () => {
+    // A breached password is a refusal about ONE field, fixed by changing it — the same wiring
+    // reset-password gives the identical refusal.
+    registerActionMock.mockResolvedValue({
+      error: "Lösenordet finns i kända läckor. Välj ett annat.",
+      field: "password",
+      values: {
+        displayName: "Anna Andersson",
+        email: "anna@example.se",
+        acceptTerms: true,
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    const password = screen.getByLabelText("Lösenord");
+
+    expect(password).toHaveAttribute("aria-invalid", "true");
+    expect(password.getAttribute("aria-describedby")).toContain(alert.id);
+    await waitFor(() => expect(password).toHaveFocus());
+    // The message itself must NOT take focus here — it is not a nameless failure any more.
+    expect(alert).not.toHaveFocus();
+  });
+
+  it("leaves the password unmarked for a failure that is not about it", async () => {
+    registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
+
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Namn"), "Anna Andersson");
+    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
+    await user.type(screen.getByLabelText("Lösenord"), "password1");
+    await user.click(screen.getByRole("checkbox", { name: TERMS }));
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    await screen.findByRole("alert");
+    const password = screen.getByLabelText("Lösenord");
+    expect(password).not.toHaveAttribute("aria-invalid");
+    expect(password.getAttribute("aria-describedby")).toBe("password-hint");
   });
 
   it("leaves the terms checkbox unmarked for a failure that is not about it", async () => {

@@ -99,6 +99,7 @@ describe("requestPasswordResetAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.actions.passwordResetFailed",
+      values: { email: EMAIL },
     });
     expect(result).not.toHaveProperty("refused");
   });
@@ -112,6 +113,7 @@ describe("requestPasswordResetAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.actions.passwordResetFailed",
+      values: { email: EMAIL },
     });
     expect(result).not.toHaveProperty("refused");
   });
@@ -139,6 +141,7 @@ describe("requestPasswordResetAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.actions.passwordResetFailed",
+      values: { email: EMAIL },
     });
   });
 
@@ -160,6 +163,7 @@ describe("requestPasswordResetAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.actions.serverUnreachable",
+      values: { email: EMAIL },
     });
   });
 
@@ -169,6 +173,10 @@ describe("requestPasswordResetAction", () => {
     expect(result).toEqual({
       success: false,
       error: "auth.actions.passwordResetEmailRequired",
+      // The trimmed address, which is the empty string here — the form re-seeds what was sent.
+      values: { email: "" },
+      // The ONE failure this action can attribute to the input, so it is the only one stamped.
+      field: "email",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

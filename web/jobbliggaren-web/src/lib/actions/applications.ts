@@ -336,14 +336,29 @@ export async function logFollowUpAction(
   return { success: true };
 }
 
+/**
+ * `ActionResult` whose FAILURE arm echoes back the one field this form posts, so `AddNoteForm` can
+ * re-seed itself: React 19 resets an uncontrolled `<form action={…}>` after EVERY action, and a note
+ * can run to several paragraphs that a failed save destroyed every word of.
+ *
+ * Derived from the shared union rather than restated, the discipline `_action-result.ts` sets for
+ * its own variants. Nothing this form posts is a secret; no secret may become a member.
+ */
+export type AddNoteActionState =
+  | Extract<ActionResult, { success: true }>
+  | (Extract<ActionResult, { success: false }> & { values?: { content: string } });
+
 export async function addNoteAction(
   applicationId: string,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<AddNoteActionState> {
   const tUi = await getTranslations("applications.ui");
   const te = await getTranslations("errors");
+  const values = { content: (formData.get("content") as string | null) ?? "" };
   const sessionId = await getSessionId();
-  if (!sessionId) return { success: false, error: tUi("actions.notLoggedIn") };
+  if (!sessionId) {
+    return { success: false, error: tUi("actions.notLoggedIn"), values };
+  }
 
   const t = await getTranslations("validation");
   const parsed = makeAddNoteSchema(t).safeParse({
@@ -351,7 +366,11 @@ export async function addNoteAction(
     content: formData.get("content"),
   });
   if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput") };
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? tUi("actions.invalidInput"),
+      values,
+    };
   }
 
   try {
@@ -365,10 +384,14 @@ export async function addNoteAction(
     );
 
     if (!res.ok) {
-      return { success: false, error: mapActionError(res, tUi("actions.addNoteFailed"), te) };
+      return {
+        success: false,
+        error: mapActionError(res, tUi("actions.addNoteFailed"), te),
+        values,
+      };
     }
   } catch {
-    return { success: false, error: tUi("actions.serverUnreachable") };
+    return { success: false, error: tUi("actions.serverUnreachable"), values };
   }
 
   revalidatePath(`/ansokningar/${applicationId}`);

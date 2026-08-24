@@ -10,7 +10,7 @@
     "coverLetterMax": "Personligt brev får vara max 5 000 tecken.",
     "applicationIdInvalid": "Ogiltigt ansöknings-ID.",
     "statusInvalid": "Ogiltig status.",
-    "channelInvalid": "Ogiltig kanal.",
+    "channelInvalid": "Välj en kanal.",
     "dateRequired": "Datum krävs.",
     "noteMax": "Anteckning får vara max 1 000 tecken.",
     "noteContentRequired": "Notering får inte vara tom.",

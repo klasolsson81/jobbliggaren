@@ -11,17 +11,27 @@ import { Check } from "lucide-react";
 // input additionally gives free keyboard operation (Space), the global
 // :focus-visible ring, and correct screen-reader semantics with zero JS.
 //
-// Unticked by default — a pre-ticked box is invalid consent (GDPR Art. 7). The
-// box is styled with design tokens to match .jp-checkitem__box: a 2px
+// Unticked by default — a pre-ticked box is invalid consent (GDPR Art. 7).
+// `defaultChecked` is not a way around that: React 19 resets this uncontrolled
+// form after every action, silently unticking a box the user DID tick, and the
+// login action echoes the submitted opt-in back so the form can re-apply it. The
+// only value a caller can pass is the one that arrived in that submit's own
+// FormData, so this restores a choice the user made and never invents one.
+//
+// The box is styled with design tokens to match .jp-checkitem__box: a 2px
 // border-strong boundary (#7C8AA0, the WCAG 1.4.11 3:1 UI floor — NOT the lighter
 // border-input which fails it), accent-800 fill + white check when checked. No
 // custom CSS, no new dependency.
 
 interface RememberMeCheckboxProps {
   label: string;
+  defaultChecked?: boolean;
 }
 
-export function RememberMeCheckbox({ label }: RememberMeCheckboxProps) {
+export function RememberMeCheckbox({
+  label,
+  defaultChecked = false,
+}: RememberMeCheckboxProps) {
   return (
     // Implicit label wraps the control: one large, gap-free hit target
     // (min-h-11 = 44px, the touch floor + the form's input height) with no
@@ -31,6 +41,7 @@ export function RememberMeCheckbox({ label }: RememberMeCheckboxProps) {
         <input
           name="rememberMe"
           type="checkbox"
+          defaultChecked={defaultChecked}
           className="peer size-5 cursor-pointer appearance-none rounded-sm border-2 border-border-strong bg-surface-primary transition-colors duration-75 checked:border-brand-600 checked:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <Check

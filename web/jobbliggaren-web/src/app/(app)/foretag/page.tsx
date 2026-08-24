@@ -6,10 +6,10 @@ import { getTranslations } from "next-intl/server";
  * The hub root IS a served document, measured — not a 3xx. `redirect()` runs after
  * the `(app)` layout has begun streaming, so Next cannot answer 3xx and instead
  * answers 200 with a meta-refresh document (the same mechanism `src/proxy.ts`
- * documents for the org.nr wash). Measured 2026-08-24 in a production build:
- * `/foretag` returns 200 and 151 385 bytes carrying
- * `<meta http-equiv="refresh" content="1;url=/foretag/bevakade">`. A visitor sees
- * that document for about a second, so it needs a title of its own like any other.
+ * documents for the org.nr wash). Reproduce with
+ * `curl -si -H "Cookie: <session>" localhost:3000/foretag | head -1` and a grep for
+ * `http-equiv="refresh"`. A visitor sees that document for about a second, so it
+ * needs a title of its own like any other.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");

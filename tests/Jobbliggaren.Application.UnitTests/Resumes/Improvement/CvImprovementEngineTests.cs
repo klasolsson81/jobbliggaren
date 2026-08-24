@@ -693,13 +693,15 @@ public class CvImprovementEngineTests
     public async Task SuggestAsync_ShouldNotProposeDateNormalization_ForTheSlashFormOnTheFirstLineLayout(
         string dateLine)
     {
-        // THE OTHER LAYOUT decision D′'s obligation 8 names, and it is silent for a DIFFERENT
-        // reason than the three-line case above — the point of pinning it, not a duplicate. Here
-        // the date row IS Lines[0], so ExtractPeriod's Year() fallback fires and stores the LEADING
-        // bare year ("2020" / "2008") — a value that DOES parse (token "YYYY"), so the transform's
-        // guard exits on `PeriodParser.TryParse(period, …)` returning true, never reaching the
-        // "nothing stored" branch the three-line layout takes. Two different silences, same
-        // observable outcome — and a test asserting only one of them cannot tell them apart.
+        // THE OTHER LAYOUT decision D′'s obligation 8 names. Until ADR 0136 it was silent for a
+        // DIFFERENT reason than the three-line case above: the date row IS Lines[0] here, so
+        // ExtractPeriod's Year() fallback stored the LEADING bare year ("2020" / "2008") — a value
+        // that DOES parse — and the transform's guard exited on `PeriodParser.TryParse` returning
+        // true rather than on the "nothing stored" branch. ADR 0136's veto suppresses that fallback
+        // (the bare year was a zero-length span claimed for a multi-year tenure), so BOTH layouts
+        // now take the `IsNullOrWhiteSpace(period)` branch. The layout coverage stays: the two
+        // reached the same silence by different paths once, and a single-layout test could not have
+        // told them apart when they did.
         var cv = $"""
             Anna Andersson
             anna@example.com
@@ -713,8 +715,8 @@ public class CvImprovementEngineTests
         var result = await SuggestAsync(Review.CvReviewFixtures.ResumeFromCvText(cv));
 
         result.Changes.ShouldNotContain(c => c.Kind == ProposedChangeKind.DateNormalization,
-            $"[{dateLine}] degrades to a bare leading year on this layout, which PARSES — so there " +
-            "is nothing to standardise, for a different reason than the three-line layout.");
+            $"[{dateLine}] stores no Period on this layout either, so there is nothing to flag — " +
+            "and nothing that could tell the user to rewrite a correct läsår as MM/ÅÅÅÅ.");
     }
 
     [Fact]

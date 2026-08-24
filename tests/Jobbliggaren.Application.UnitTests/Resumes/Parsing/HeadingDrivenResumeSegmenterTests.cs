@@ -1022,10 +1022,12 @@ public class HeadingDrivenResumeSegmenterTests
     /// verbatim because the prediction it makes is the one that came true for three of the four: the
     /// predicate PROMOTION left all four green (4/4, data unchanged), and the date-model WIDENING is
     /// what reddened them — which is exactly what the trigger was written to distinguish. <b>The
-    /// fourth, <c>YYYY/MM</c>, moved back to its ORIGINAL side in round 5</b> (decision D′, senior-cto-advisor
-    /// round-5 bind): the year-first slash notation collided with the Swedish läsår and DateRange no
-    /// longer models it at all, so this test's own population is once again ACCURATE for it — see
-    /// <c>Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression</c>
+    /// fourth, <c>YYYY/MM</c>, moved back to its ORIGINAL side in round 5</b> (decision D′,
+    /// senior-cto-advisor round-5 bind) <b>and then forward again in ADR 0136</b>: D′ took the slash
+    /// point out of <c>DateRange</c> because the läsår collision made the shared grammar unsafe, and
+    /// ADR 0136 gave the LINE question its own grammar so the row is recognised without the value
+    /// grammar moving — see
+    /// <c>Segment_DateLineTheYearFirstSlashForm_IsNotTakenAsTheOrganization</c>
     /// below, which pins that row rather than silently dropping it.</para>
     ///
     /// <para>What it pins now, for the surviving three, is β-3's rule reaching its intended
@@ -1074,17 +1076,15 @@ public class HeadingDrivenResumeSegmenterTests
     }
 
     /// <summary>
-    /// THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned rather than
-    /// left implicit. Removing the year-first SLASH point from <c>DatePatterns.DateRange</c> closed a
-    /// Blocker (a mixed-notation range storing a value neither engine could read) at the cost of
-    /// reopening THIS β-3 population for the one notation the fix touched: the date row is no longer
-    /// recognised at the LINE level either, so on the TWO-LINE "Title / Dates" layout it becomes the
-    /// employer — fabricated, with <c>ParseConfidence</c> = Confident, on a CV the user sends to
-    /// employers. This is <c>origin/main</c>'s own behaviour, not a NEW regression this PR created:
-    /// <c>origin/main</c> never modelled the slash form either.
+    /// THE LAST β-3 POPULATION, CLOSED (ADR 0136). Decision D′ removed the year-first SLASH point
+    /// from <c>DatePatterns.DateRange</c> to close a Blocker, and the cost was that the date row
+    /// stopped being recognised at the LINE level too — so on the TWO-LINE "Title / Dates" layout it
+    /// became the employer, fabricated, with <c>ParseConfidence</c> = Confident, on a CV the user
+    /// sends to employers. ADR 0136 separates the two grammars, so the row grammar recognises the
+    /// line and β-3's guard acts on it again without the value grammar moving.
     /// </summary>
     [Fact]
-    public void Segment_DateLineTheYearFirstSlashFormStillReaches_IsTakenAsTheOrganization_KnownAcceptedRegression()
+    public void Segment_DateLineTheYearFirstSlashForm_IsNotTakenAsTheOrganization()
     {
         const string cv = """
             Anna Andersson
@@ -1100,27 +1100,32 @@ public class HeadingDrivenResumeSegmenterTests
 
         var exp = result.Content.Experience.ShouldHaveSingleItem();
         exp.Title.ShouldBe("Systemutvecklare");
-        exp.Organization.ShouldBe("2020/01 – 2024/12",
-            "the date row is unrecognised at the LINE level (decision D′), so β-3's guard cannot " +
-            "act on it — origin/main's own behaviour, priced and tracked in #1195.");
+        exp.Organization.ShouldBeNull(
+            "a line carrying nothing but a date must not become the employer (#1060 β-3). The row " +
+            "grammar reads the slash point, so the guard can act on it (ADR 0136).");
     }
 
     /// <summary>
-    /// A FOURTH ALTITUDE THE ROUND-5 BIND DID NOT ENUMERATE (found in round 6). On the two-column
-    /// "period first" layout, <c>Lines[0]</c> IS the date row. <c>StripTrailingPeriod</c> used to
-    /// reduce it to empty, so the separator loop below fell through to <c>Lines[1]</c>. Under
-    /// decision D′ the slash form is not reduced at all, so <c>splitSource</c> stays the WHOLE date
-    /// row — and <c>TitleOrgSeparators</c> contains <c>" – "</c>, the exact glyph inside
-    /// <c>"2020/01 – 2024/12"</c>. The loop matches on the date's own separator and splits the DATE
-    /// ITSELF into <c>Title</c>/<c>Organization</c>, so the real employer on <c>Lines[1]</c> is never
-    /// read at all. This is <c>origin/main</c>'s own behaviour (it never reduced the slash row
-    /// either), not something decision D′ creates — but it is a distinct FAILURE SHAPE from the
-    /// two-line-layout Organization fabrication pinned above (there the real Title survives and only
-    /// the Organization is wrong; here BOTH fields are fabricated out of the date row and the real
-    /// employer is lost entirely), so it needs its own pin rather than being assumed covered.
+    /// A FOURTH ALTITUDE THE ROUND-5 BIND DID NOT ENUMERATE (found in round 6), CLOSED BY ADR 0136.
+    /// On the two-column "period first" layout, <c>Lines[0]</c> IS the date row. Under decision D′
+    /// the slash form was not reduced at all, so <c>splitSource</c> stayed the WHOLE date row — and
+    /// <c>TitleOrgSeparators</c> contains <c>" – "</c>, the exact glyph inside
+    /// <c>"2020/01 – 2024/12"</c>. The loop matched on the date's own separator and split the DATE
+    /// ITSELF into <c>Title</c>/<c>Organization</c>, so the real employer on <c>Lines[1]</c> was
+    /// never read. That is a distinct FAILURE SHAPE from the two-line-layout Organization
+    /// fabrication pinned above — there the real Title survives and only the Organization is wrong;
+    /// here BOTH fields were fabricated out of the date row and the real employer was lost — so it
+    /// keeps its own pin rather than being assumed covered by that one.
+    ///
+    /// <para>With the row grammar reading the slash point, <c>StripTrailingPeriod</c> reduces
+    /// <c>Lines[0]</c> to empty again and the split falls through to <c>Lines[1]</c>. The employer is
+    /// read; the Role is genuinely absent from this layout's first two lines, so it stays null and
+    /// the Domain refuses honestly (<c>Resume.ExperienceRoleRequired</c>) — the same outcome every
+    /// other recognised date form already produces here, which is the parity that makes this a
+    /// closure rather than a new class.</para>
     /// </summary>
     [Fact]
-    public void Segment_TheYearFirstSlashFormOnTheFirstLineLayout_IsSplitIntoTitleAndOrganization_KnownAcceptedRegression()
+    public void Segment_TheYearFirstSlashFormOnTheFirstLineLayout_IsNotSplitIntoTitleAndOrganization()
     {
         const string cv = """
             Anna Andersson
@@ -1135,12 +1140,11 @@ public class HeadingDrivenResumeSegmenterTests
         var result = _sut.Segment(cv);
 
         var exp = result.Content.Experience.ShouldHaveSingleItem();
-        exp.Title.ShouldBe("2020/01",
-            "StripTrailingPeriod no longer reduces the slash row (decision D′), so the separator " +
-            "loop splits the DATE on its own en dash instead of falling through to Lines[1].");
-        exp.Organization.ShouldBe("2024/12",
-            "the real employer, \"Acme AB\" on Lines[1], is never read — both fields are fabricated " +
-            "out of the date row. origin/main's own behaviour, priced and tracked in #1195.");
+        exp.Title.ShouldBeNull(
+            "the date row reduces to empty, so the split reads Lines[1] and no field is fabricated " +
+            "out of the date's own en dash (ADR 0136).");
+        exp.Organization.ShouldBe("Acme AB",
+            "the real employer on Lines[1] is read, where before both slots were fabricated.");
     }
 
     [Theory]

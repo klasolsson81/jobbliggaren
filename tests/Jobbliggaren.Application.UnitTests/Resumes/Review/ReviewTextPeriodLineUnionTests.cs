@@ -62,9 +62,9 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 /// quantified result. <b>That A1/A2/A6 consequence WAS derived from reading the rules and is now
 /// MEASURED</b> (#1060 road 3, (S1)): all three cited the user's date row, and on the
 /// <c>YYYY/MM</c> form A1 returned an affirmative Pass noting "kvantifierad uppgift". <b>The
-/// widening closed it for three of the four forms it added; the fourth, <c>YYYY/MM</c>, is open
-/// again as of round 5 (decision D′)</b> — see
-/// <see cref="DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression"/> below.
+/// widening closed it for three of the four forms it added; the fourth, <c>YYYY/MM</c>, reopened in
+/// round 5 (decision D′) and closed again in ADR 0136</b> — see
+/// <see cref="DescriptionLines_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone"/> below.
 /// The verdicts live in <c>DateModelWideningReviewSideTests</c>; what is run and pinned HERE is the
 /// bullet unit, which is where the cause is.</para>
 ///
@@ -201,11 +201,17 @@ public class ReviewTextPeriodLineUnionTests
     [InlineData("jan 2020 – dec 2024")]
     [InlineData("2020 – 2024 (heltid)")]
     [InlineData("2020 –")]
-    // "2020/01 – 2024/12" was IN this theory (#1060 road 3, commit 2) and moved back OUT in round 5
-    // (decision D′): the year-first slash notation collided with the Swedish läsår and DateRange no
-    // longer models it at all, so this specific escape is open again — origin/main's own behaviour,
-    // priced and pinned rather than silently dropped. See
-    // DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression below.
+    // "2020/01 – 2024/12" was IN this theory (#1060 road 3, commit 2), moved back OUT in round 5
+    // (decision D′, which took the slash point out of DateRange to close a Blocker), and is back in
+    // under ADR 0136 — this time through a row grammar that recognises the LINE without the VALUE
+    // grammar moving, so the escape closes and D′'s Blocker stays closed. The five mixed and
+    // all-slash siblings come with it: the same residue kept every one of them unsuppressed.
+    [InlineData("2020/01 – 2024/12")]
+    [InlineData("2008/09 – 2011/12")]
+    [InlineData("2019/20 – 2021")]
+    [InlineData("2018 – 2019/20")]
+    [InlineData("2020 – 2024/12")]
+    [InlineData("2020-06 – 2024/12")]
     public void DescriptionLines_ShouldNowSuppressTheDateRow_OnTheLayoutWhereItUsedToEscape(
         string dateLine)
     {
@@ -239,21 +245,16 @@ public class ReviewTextPeriodLineUnionTests
     }
 
     [Fact]
-    public void DescriptionLines_StillYieldsTheYearFirstSlashDateRow_KnownAcceptedRegression()
+    public void DescriptionLines_SuppressesTheSlashDateRow_ThroughTheDatePatternsDisjunctAlone()
     {
-        // THE PRICE OF DECISION D′ (senior-cto-advisor round-5 bind §9 trade-off 1), pinned at the
-        // bullet-unit altitude to match the test it replaces one row of. Neither half of the union
-        // reaches "2020/01 – 2024/12" any more — DatePatterns no longer models the slash point on
-        // either endpoint, and PeriodParser never did — so the date row is yielded as an ordinary
-        // description bullet, exactly as origin/main did (that notation was never modelled by
-        // either type before #1060 road 3 existed). Not a NEW escape; the original one, returned.
-        var (review, improve, organization) = BulletsFor("2020/01 – 2024/12");
-
-        organization.ShouldBe("Acme AB", "the employer is real here, unaffected by the date model.");
-        review.ShouldBe(["2020/01 – 2024/12", Bullet],
-            "the date row reaches the bullet scorer — origin/main's behaviour, priced and tracked " +
-            "in #1195.");
-        improve.ShouldBe(["2020/01 – 2024/12", Bullet],
-            "WeakVerbTransform is offered the same unit, for the same reason.");
+        // WHICH HALF OF THE UNION DOES IT, asserted rather than assumed — the property this class
+        // exists for. PeriodParser still refuses "2020/01 – 2024/12" (ADR 0136 changed no reading),
+        // so the suppression can only be the DatePatterns disjunct. A union that started passing
+        // because BOTH halves reached the form would be a different change wearing this one's
+        // result, and D′'s Blocker rides on the value half not moving.
+        PeriodParser.TryParse("2020/01 – 2024/12", out _, out _, out _).ShouldBeFalse(
+            "the VALUE half must still decline it — that is decision D′, unchanged by ADR 0136.");
+        DatePatterns.IsDateOnlyLine("2020/01 – 2024/12").ShouldBeTrue(
+            "so the LINE half is what suppresses it, alone.");
     }
 }

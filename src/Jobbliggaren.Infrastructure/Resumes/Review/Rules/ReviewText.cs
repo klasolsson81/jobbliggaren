@@ -173,14 +173,16 @@ internal static class ReviewText
             // call site suppresses those three through BOTH disjuncts for the point form and through
             // the DatePatterns disjunct alone for the line forms.
             //
-            // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), WAS ADDED AND THEN DECLINED (round 5): it
-            // collided with the Swedish läsår notation and a mixed-endpoint form of it regressed a
-            // working origin/main degradation into an unparseable stored value. Neither disjunct
-            // models it now, so a CV whose date row is written that way still reaches this method as
-            // an ordinary bullet — origin/main's behaviour, not a regression this PR created, and not
-            // fixed by it either. Tracked in #1195. The union is otherwise unchanged and is still a
-            // union: neither predicate subsumes the other, and DatePatternsDateOnlyLineTests owns the
-            // axis list.
+            // THE FOURTH, YYYY/MM ("2020/01 – 2024/12"), WAS ADDED, DECLINED (round 5) AND IS NOW
+            // SUPPRESSED THROUGH THE DatePatterns DISJUNCT ALONE (ADR 0136): it collided with the
+            // Swedish läsår notation and a mixed-endpoint form of it regressed a working origin/main
+            // degradation into an unparseable stored value, so the VALUE grammar still declines it
+            // and PeriodParser still refuses it. The LINE grammar reads it, which is why this
+            // disjunct fires and the other does not — pinned in
+            // ReviewTextPeriodLineUnionTests.DescriptionLines_SuppressesTheSlashDateRow_…, because a
+            // union that started passing through BOTH halves would be a different change wearing
+            // this one's result. The union is otherwise unchanged and is still a union: neither
+            // predicate subsumes the other, and DatePatternsDateOnlyLineTests owns the axis list.
             //
             // TWO DEFERRALS, AND THE ORDER WAS LOAD-BEARING — the promotion FIRST, the widening
             // SECOND. Not a preference, and the argument was about the TWO-LINE layout specifically:

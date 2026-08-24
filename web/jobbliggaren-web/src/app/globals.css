@@ -4467,6 +4467,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
    rather than its two children matters — `.jp-brand`'s own gap would otherwise
    survive against an empty box. Where the name is hidden the control's accessible
    name is just "Språk": `display: none` takes a node out of the a11y tree. */
+/* The stats rung above is UNGRADED, so both row forms drop the cluster at the
+   same width — which this ladder's own rule says cannot be right, since the
+   `--action` cluster is the wider of the two. Measured 2026-08-24 with stats
+   present (six-digit count, four-digit delta): the action row's own text wraps
+   at <= 832px and is clean from 833 — the two stat labels break to two lines and
+   the brand tagline with them. `min-height: 88px` is a FLOOR, so none of that
+   moved the row's height, and no measurement of spill or height could see it
+   (design-reviewer, PR #1501). Re-measure by rendering `/` with stats present and
+   counting line boxes with a Range over each label's CONTENTS; an element's own
+   getClientRects() returns one rect per box and is blind to a wrap. */
+@media (max-width: 832px) {
+  .jp-head--action .jp-head__stats,
+  .jp-head--action .jp-head__sep { display: none; }
+}
 @media (max-width: 640px) {
   .jp-head .jp-brand__tagline { display: none; }
 }
@@ -4565,7 +4579,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    landing-hero per ADR 0068). Ersatte den tidigare ledger-heron
    (dess .jp-land-hero__ledger*-klasser borttagna i #517 efter
    cutover). Verb-stack utan nummer/linjer,
-   guld-kicker, källrad, auth-kort som flyter på plattan.
+   guld-kicker, källrad, kontokort som flyter på plattan.
 
    ALLT på plattan använder LITERALA vita/guld-värden (tema-STABILT,
    samma doktrin som footern) — ALDRIG --jp-ink-inverse (som vänder

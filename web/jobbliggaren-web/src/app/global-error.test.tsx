@@ -28,6 +28,14 @@ describe("global-error boundary (#995)", () => {
     expect(screen.queryByText(/digest-abc/)).not.toBeInTheDocument();
   });
 
+  it("names the site in the tab title, which Next's title.template cannot reach here", () => {
+    render(<GlobalError error={rootError} unstable_retry={() => {}} />);
+
+    // React hoists <title> into document.head. Bites on revert: dropping the
+    // template composition leaves the tab reading "Något gick fel" alone.
+    expect(document.title).toBe("Något gick fel | Jobbliggaren");
+  });
+
   it("offers a way back to the start page", () => {
     render(<GlobalError error={rootError} unstable_retry={() => {}} />);
 

@@ -12,7 +12,7 @@ import { getTranslations } from "next-intl/server";
  * (app)/layout, which runs before children render.
  */
 export default async function AppNotFound() {
-  const t = await getTranslations("pages");
+  const t = await getTranslations("fallback");
 
   return (
     // jp-container jp-page assumes every notFound() caller is a v3-native route
@@ -21,11 +21,11 @@ export default async function AppNotFound() {
     // notFound(), this boundary double-wraps (shell container + this one) —
     // re-evaluate the wrap then (design-reviewer Minor, PR 2b).
     <div className="jp-container jp-page flex flex-col gap-4">
-      <h1 className="jp-h1">{t("common.notFound.title")}</h1>
-      <p className="jp-lede">{t("common.notFound.body")}</p>
+      <h1 className="jp-h1">{t("notFound.title")}</h1>
+      <p className="jp-lede">{t("notFound.body")}</p>
       <div>
         <Link href="/oversikt" className="jp-btn jp-btn--secondary">
-          {t("common.notFound.toOverview")}
+          {t("notFound.toOverview")}
         </Link>
       </div>
     </div>

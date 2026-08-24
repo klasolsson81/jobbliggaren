@@ -24,6 +24,15 @@ Visuell verifiering krävs när en frontend-batch:
     layout-tokens / `.jp-*`-komponentprimitiv
   - ändrad responsiv struktur
 
+- bär ett **icke-vilotillstånd i deltat** — en fel-, vägrans-, tom- eller
+  laddningsyta som införs eller ändras. Tillståndet **renderas** före
+  designverdikt, framkallat på riktigt (stubbat svar, död backend-port,
+  konfigflagga) — aldrig bara asserterat som sträng: en strängassertion kan
+  inte se en tom sida.
+  **Kostnadsgräns:** ett rent tillstånds-delta renderas vid **1280 × light +
+  dark** på det tillståndet; hela viewport-matrisen krävs bara när ändringen
+  också är strukturell enligt punkterna ovan.
+
 Ren copy- eller token-färgändring utan strukturell påverkan triggar **inte**.
 Vid tvekan: kör loopen — den är billig.
 

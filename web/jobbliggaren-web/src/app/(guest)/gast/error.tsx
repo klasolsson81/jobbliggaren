@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
 /**
  * (guest)/gast/error — the runtime error boundary for the guest mirrors
@@ -27,10 +28,11 @@ export default function GuestError({
   unstable_retry: () => void;
 }) {
   const t = useTranslations("fallback");
+  const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
     <div className="jp-container jp-page flex flex-col gap-4">
-      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
         <button

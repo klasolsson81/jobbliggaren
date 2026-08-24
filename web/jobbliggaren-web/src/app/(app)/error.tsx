@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
 /**
  * (app)/error — the signed-in app's runtime error boundary (#995 / B3). A
@@ -29,6 +30,7 @@ export default function AppError({
   unstable_retry: () => void;
 }) {
   const t = useTranslations("fallback");
+  const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
     // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored
@@ -38,7 +40,7 @@ export default function AppError({
     // accepted Minor not-found already carries; re-evaluate when the
     // transitional container is retired (ADR 0052).
     <div className="jp-container jp-page flex flex-col gap-4">
-      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div className="flex flex-wrap gap-3">
         <button

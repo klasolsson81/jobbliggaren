@@ -378,12 +378,11 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
 
   it("a self-seeded provider reaches no more than the namespaces it seeds", () => {
     // Otherwise this is the one provider payload in the app nothing verifies.
-    // global-error.tsx is a leaf today (reads the fallback namespace, imports
-    // only JSON + globals.css) — but pull a shared <Button>/ui/dialog into
-    // the crash surface and it reads a namespace the hardcoded seed does not
-    // carry. Neither the equality check (this file is excluded from root's walk
-    // by design), nor global-error.test.tsx (asserts today's three strings), nor
-    // a rendered crawl would see that.
+    // Pull a shared <Button>/ui/dialog into the crash surface and it reads a
+    // namespace the hardcoded seed does not carry. Neither the equality check
+    // (this file is excluded from root's walk by design), nor
+    // global-error.test.tsx (asserts today's three strings), nor a rendered
+    // crawl would see that.
     for (const { file, seeds } of SELF_SEEDED_PROVIDERS) {
       const boundary: ProviderBoundary = { name: file, providerFile: file, routeRoot: file };
       const reach = reachableNamespaces(boundary, ALL_PROVIDER_SUBTREES, SRC_ROOT);

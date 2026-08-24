@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
 /**
  * (admin)/error — the runtime error boundary for the admin surfaces.
@@ -22,10 +23,11 @@ export default function AdminError({
   unstable_retry: () => void;
 }) {
   const t = useTranslations("fallback");
+  const headingRef = useFocusOnMount<HTMLHeadingElement>();
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="jp-h1">{t("errorTitle")}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="jp-h1">{t("errorTitle")}</h1>
       <p className="jp-lede">{t("errorBodyRetry")}</p>
       <div>
         <button

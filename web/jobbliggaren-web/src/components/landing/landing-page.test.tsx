@@ -144,6 +144,7 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     ).toBeInTheDocument();
     for (const row of [
       "Annonser du sparar, med påminnelse före sista ansökningsdag",
+      "Annonser matchade mot din profil, från Grundmatch till Toppmatch",
       "Varje ansökan spårad från utkast till svar",
       "Företag du bevakar, med deras nya annonser på översikten",
       "Ditt CV granskat mot svenska kriterier",

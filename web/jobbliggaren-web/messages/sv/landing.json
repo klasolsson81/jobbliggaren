@@ -28,6 +28,7 @@
   "account": {
     "title": "Det här får du med ett konto",
     "savedAds": "Annonser du sparar, med påminnelse före sista ansökningsdag",
+    "matching": "Annonser matchade mot din profil, från Grundmatch till Toppmatch",
     "applications": "Varje ansökan spårad från utkast till svar",
     "companyWatch": "Företag du bevakar, med deras nya annonser på översikten",
     "cvReview": "Ditt CV granskat mot svenska kriterier",

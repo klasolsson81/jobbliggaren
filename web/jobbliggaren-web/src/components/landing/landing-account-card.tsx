@@ -14,8 +14,9 @@ import { Check } from "lucide-react";
  *
  * **Every row restates a capability the Funktioner section already claims two
  * bands below, on this same page** — the reminder before a closing date, the
- * draft-to-reply application trail, the followed companies surfacing on the
- * overview, the CV reviewed against the versioned Swedish rubric. That is the
+ * graded matching (Grundmatch to Toppmatch), the draft-to-reply application
+ * trail, the followed companies surfacing on the overview, the CV reviewed
+ * against the versioned Swedish rubric. That is the
  * rule the copy is written to: if a row here were false, `landing.features.*`
  * would already be false. It is deliberately NOT the handoff's own first row
  * ("sparade sökningar som bevakar nya annonser") — a saved search is a stored
@@ -27,6 +28,7 @@ import { Check } from "lucide-react";
 
 const BENEFIT_KEYS = [
   "savedAds",
+  "matching",
   "applications",
   "companyWatch",
   "cvReview",

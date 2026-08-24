@@ -159,7 +159,10 @@ test.describe("/jobb — auth-gated rendering", () => {
     // Sekundära, medvetet svagare: "Inga jobb hittades" är redan synligt före klicket (tom
     // annons-DB) och React håller kvar det gamla trädet genom startTransition, så de kan
     // passera på det gamla trädet. De står kvar som beskrivning — inte som garanti.
-    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
+    // #1505 — skopad till den SYNLIGA noden. Sedan tom-läget också annonseras genom sidans
+    // live-region bär två element strängen, och en oskopad `getByText` är en strict-mode-
+    // violation. Det är den synliga tom-ytan testet handlar om.
+    await expect(page.locator(".jp-empty__title")).toBeVisible();
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")
     ).toHaveCount(0);
@@ -174,7 +177,8 @@ test.describe("/jobb — auth-gated rendering", () => {
     await page.goto("/jobb?q=a");
     // Positivt: träfflistans yta renderade (felkortet hade ersatt den). Testets NAMN lovar
     // det — då ska det också asserteras, inte bara frånvaron av felkortet.
-    await expect(page.getByText("Inga jobb hittades")).toBeVisible();
+    // #1505 — samma skopning som ovan: tom-läget bär nu strängen på två ställen.
+    await expect(page.locator(".jp-empty__title")).toBeVisible();
     await expect(
       page.getByText("Kunde inte ladda jobbannonser")
     ).toHaveCount(0);

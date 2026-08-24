@@ -52,10 +52,12 @@ internal static partial class PeriodParser
     // free: DateRange's match VALUE is what ExtractPeriod stores, so a slash point beside an
     // UNRELATED, perfectly readable endpoint ("2020 – 2024/12") stored a value this type then
     // refused whole, where origin/main had stored a working bare-year degradation. Round 5 removed
-    // the branch from DateRange too, on both endpoints — so the form is now unmodelled in BOTH
-    // homes, origin/main's own answer, restored rather than repaired. See
-    // DateRangeYearFirstCharacterisationTests for the measurement. #1195 owns whether the LINE half
-    // alone (recognise, still never date) should be reintroduced.
+    // the branch from DateRange too, on both endpoints — so the form is DATED by neither VALUE home,
+    // origin/main's own answer, restored rather than repaired. See
+    // DateRangeYearFirstCharacterisationTests for the measurement. ADR 0136 then gave the LINE
+    // question its own grammar (DatePatterns.DateRowRange), which recognises the form as a date ROW
+    // and produces no stored value — so this type's reading is unchanged and must stay so: it is
+    // what keeps round 5's Blocker closed.
     //
     // THE MONTH-NAME FORM IS HERE BECAUSE DatePatterns.DateRange MATCHES IT, and
     // the two must widen together (senior-cto-advisor re-bind 2026-08-03, Approach A). DateRange's

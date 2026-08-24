@@ -92,13 +92,12 @@ public class DateModelWideningStoredPeriodTests
     // structural-vs-semantic instances pinned below.)
     [InlineData("jan 2020 – dec 2024", "MM/YYYY")]
     // "2020/01 – 2024/12" — BOTH endpoints year-first SLASH — is NOT a row here, and that is
-    // decision D′, not an oversight: DateRange no longer matches EITHER slash endpoint, so no
-    // substring of the line survives as a DateRange match at all and the segmenter stores nothing
-    // (PeriodFor returns null). That is a different mechanism from the mixed rows above, which still
-    // store a truncated-but-readable value — a pure-slash pair has no modelled point on either side
-    // to fall back to. Pinned as a stored-nothing case in DateRangeYearFirstCharacterisationTests,
-    // which owns the whole year-first grammar; this theory is about what IS stored, so an input that
-    // stores nothing does not belong in it.
+    // decision D′ plus ADR 0136, not an oversight: DateRange still matches neither slash endpoint,
+    // and PeriodFor returns null. That is a different mechanism from the mixed rows above,
+    // which still store a truncated-but-readable value — a pure-slash pair has no modelled point on
+    // either side to fall back to. Pinned as a stored-nothing case in
+    // DateRangeYearFirstCharacterisationTests, which owns the whole year-first grammar; this theory
+    // is about what IS stored, so an input that stores nothing does not belong in it.
     // Controls the widening must not disturb.
     [InlineData("2013 - 2021", "YYYY")]
     [InlineData("2020-06 – 2024-03", "MM/YYYY")]
@@ -158,8 +157,14 @@ public class DateModelWideningStoredPeriodTests
     // a change to the LINE grammar (IsIgnorableTail learning a dangling [-/]\d{2}) on a population
     // whose frequency nobody has measured, with its own risk surface ("Acme AB 2000-25") — a
     // genuinely separate change-reason, available as a follow-up PR and not taken here.
+    //
+    // THE SLASH TWIN OF THIS ROW IS NO LONGER HERE. "2018 – 2019/20" sat beside the hyphen row
+    // until ADR 0136, on the reasoning that the two notations shared a residual. They do not any
+    // more: the ROW grammar reads a slash point, so that line reduces to empty and both residuals
+    // close for it. It moved to TheSlashAcademicYearForm_HasBothResidualsClosed below. The HYPHEN
+    // row keeps both residuals, and nothing in ADR 0136 reaches it — ISO 8601 adjudicates the
+    // hyphen, so its NN-outside-01-12 case is a different question with a different owner.
     [InlineData("2018 – 2019-20")]
-    [InlineData("2018 – 2019/20")]
     public void TheAcademicYearForm_IsStillNotADateOnlyLine_WhichLeavesBetaThreeOpenForIt(string line)
     {
         // RESIDUAL 1: the trailing "-20" is not consumed, so the line keeps a non-empty remainder.
@@ -175,15 +180,43 @@ public class DateModelWideningStoredPeriodTests
             "the orphaned academic-year suffix survives masking — unchanged from origin/main.");
     }
 
+    [Theory]
+    // THE SLASH ACADEMIC YEAR, moved out of the residual theory above by ADR 0136 — both residuals
+    // are closed for it, and each is asserted through its own consumer so neither can be assumed
+    // from the other.
+    [InlineData("2018 – 2019/20")]
+    [InlineData("2020 – 2024/25")]
+    public void TheSlashAcademicYearForm_HasBothResidualsClosed(string line)
+    {
+        // RESIDUAL 1 (β-3): the row grammar reads the slash point, so the line reduces to empty and
+        // can no longer become the Organization on the two-line layout.
+        DatePatterns.IsDateOnlyLine(line).ShouldBeTrue();
+
+        // RESIDUAL 2 (#487): StripDates reads the same row grammar, so the range is masked whole and
+        // no orphan token survives to read as a measurable digit.
+        ReviewText.ContainsMeasurableDigit($"Ansvarig {line} för budget").ShouldBeFalse();
+
+        // AND THE VALUE AXIS IS UNMOVED, which is what keeps decision D′'s Blocker closed: the
+        // entry still stores the bare-year degradation, and PeriodParser still reads it.
+        var period = PeriodFor(line);
+        PeriodParser.TryParse(period, out _, out _, out _).ShouldBeTrue(
+            $"[{period}] must stay readable — recognising the LINE must never cost the VALUE.");
+    }
+
     [Fact]
-    public void TheYearFallbackPath_AlsoDegradesRatherThanStoringARefusedValue()
+    public void TheYearFallbackPath_IsSuppressedRatherThanStoringAConfidentBareYear()
     {
         // (S4) obligation 1, the Year() fallback — and it needs its OWN layout, which is the point.
         // ExtractPeriod tries DateRange over the whole entry text first and only then Year() over
         // Lines[0], so this path is reached when the date row IS the first line. An earlier revision
         // asserted this row's value inside the three-line theory above, having measured it on this
         // shape: a value true of one layout asserted of another, which is the failure this whole
-        // session keeps meeting.
+        // lane keeps meeting.
+        //
+        // THIS TEST ASSERTED THE OPPOSITE UNTIL ADR 0136, calling "2019" "a value both types agree
+        // on". Agreement was never the property: the CV states autumn 2019 to 2021 and "2019" parses
+        // to a span of start==end, i.e. ZERO years, confidently. ADR 0136's veto suppresses the
+        // fallback for a date row the value grammar cannot read, so the entry reports nothing.
         const string cv = """
             Anna Andersson
             anna@example.com
@@ -197,9 +230,10 @@ public class DateModelWideningStoredPeriodTests
         var exp = new HeadingDrivenResumeSegmenter(CvParsingLexiconLoader.Load())
             .Segment(cv).Content.Experience.ShouldHaveSingleItem();
 
-        exp.Period.ShouldBe("2019",
-            "the bare-year fallback still yields a value both types agree on.");
-        PeriodParser.TryParse(exp.Period, out _, out _, out _).ShouldBeTrue();
+        exp.Period.ShouldBeNull(
+            "a zero-length span claimed for a multi-year tenure is a confident wrong answer, and " +
+            "this lane refuses rather than answers (ADR 0071).");
+        PeriodParser.TryParse(exp.Period, out _, out _, out _).ShouldBeFalse();
     }
 
     [Fact]

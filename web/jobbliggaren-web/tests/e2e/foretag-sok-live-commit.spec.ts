@@ -152,8 +152,18 @@ test.describe("/foretag/sok — a second filter change is announced", () => {
     await loginAs(page, RUN_ID);
     await page.goto("/foretag/sok");
 
-    const region = page.locator("p[aria-live='polite'].sr-only");
+    // Scoped to the FILTER region, which is what this spec is about. Since #1092 the surface also
+    // carries the load-cycle region from `ForetagSokAnnouncer`, and it matches the same tag, role
+    // and class — the unscoped locator resolved to two elements, failing `toHaveCount(1)` and
+    // turning every later `region` call into a strict-mode violation. `aria-atomic` is the
+    // distinguishing attribute: the announcer swaps whole sentences and sets it, this one does not.
+    const region = page.locator("p[aria-live='polite'].sr-only:not([aria-atomic])");
     await expect(region).toHaveCount(1);
+    // Positive control on the split: if the two regions are ever merged or the announcer loses its
+    // attribute, this drops to 0 and the assertion above starts passing for the wrong element.
+    await expect(
+      page.locator("p[aria-live='polite'].sr-only[aria-atomic='true']"),
+    ).toHaveCount(1);
     // Present and EMPTY at first paint: a live region mounted with its content already in place is
     // not reliably announced.
     await expect(region).toHaveText("");

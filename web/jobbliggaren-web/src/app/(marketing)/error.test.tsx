@@ -18,7 +18,7 @@ describe("(marketing)/error boundary (#1477)", () => {
       screen.getByRole("heading", { name: "Sidan kunde inte visas", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när innehållet skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/landing-boom-internal/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-landing/)).not.toBeInTheDocument();

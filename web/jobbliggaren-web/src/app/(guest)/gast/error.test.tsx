@@ -18,7 +18,7 @@ describe("(guest)/gast/error boundary (#1477)", () => {
       screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när innehållet skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/guest-boom-internal/)).not.toBeInTheDocument();
     expect(screen.queryByText(/digest-guest/)).not.toBeInTheDocument();

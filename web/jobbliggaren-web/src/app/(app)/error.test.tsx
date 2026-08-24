@@ -4,9 +4,7 @@ import userEvent from "@testing-library/user-event";
 import AppError from "./error";
 
 // The harness aliases `@testing-library/react` to a render shim that wraps every
-// tree in NextIntlClientProvider (messages/sv), so this client boundary's
-// `useTranslations("pages")` resolves without a manual provider (see
-// vitest.config.ts / src/test/render-intl.tsx).
+// tree in NextIntlClientProvider (messages/sv).
 
 const boundaryError = Object.assign(new Error("boom-internal-detail"), {
   digest: "digest-123",
@@ -20,7 +18,7 @@ describe("(app)/error boundary (#995)", () => {
       screen.getByRole("heading", { name: "Sidan kunde inte visas" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund."),
+      screen.getByText("Ett tekniskt fel uppstod när innehållet skulle hämtas. Försök igen om en stund."),
     ).toBeInTheDocument();
 
     // Acceptance: no stack trace / internal detail is shown to the user.

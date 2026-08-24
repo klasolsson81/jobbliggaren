@@ -1,6 +1,6 @@
 {
   "errorTitle": "The page could not be displayed",
-  "errorBodyRetry": "A technical error occurred while loading the page. Try again in a moment.",
+  "errorBodyRetry": "A technical error occurred while loading the content. Try again in a moment.",
   "retry": "Try again",
   "notFound": {
     "title": "The page does not exist",

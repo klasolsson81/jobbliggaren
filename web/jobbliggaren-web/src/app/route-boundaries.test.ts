@@ -77,8 +77,8 @@ function parse(file: string, text: string): ts.SourceFile {
  * be stripped before line comments, so a slash-star sequence sitting INSIDE a
  * line comment opens a block that runs to the next star-slash. This repo writes
  * route globs in exactly that position — `(guest)/gast/layout.tsx` documents the
- * guest glob in a line comment — and that one comment swallowed 50 of that
- * file's 63 lines, `export default` included. A file whose docblock carried such
+ * guest glob in a line comment — and that one comment swallowed most of that
+ * file, `export default` included. A file whose docblock carried such
  * a glob above its `notFound()` would drop out of the scan, and the rule below
  * would then pass against a smaller world than the real one. Comments are not
  * part of the AST, so this cannot happen here.
@@ -134,16 +134,13 @@ describe("route-level failure boundaries (#1477)", () => {
   });
 
   it("the scanner counts notFound() CALLS, not mentions of them", () => {
-    // Crosses the control in both directions. The negative cases are the ones
-    // that matter: they are the shapes a regex-stripped scan gets wrong, and
-    // getting them wrong shrinks the world the rule below is checked against.
     expect(callsNotFoundIn('import { notFound } from "next/navigation";\nnotFound();')).toBe(true);
     expect(callsNotFoundIn("// the retired stub answers with notFound(), not a redirect\nexport {};")).toBe(false);
     expect(callsNotFoundIn("/** answers notFound() when the id is unknown */\nexport {};")).toBe(false);
-    // The shape that broke the regex: a route glob inside a LINE comment, whose
-    // slash-star opens a block the stripper then runs past the code below it.
     expect(
-      callsNotFoundIn("// middleware does not list `/gast/*` as protected\nconst a = 1;\nnotFound();")
+      callsNotFoundIn(
+        "// middleware does not list `/gast/*` as protected\nnotFound();\n/** trailing doc */\nexport {};"
+      )
     ).toBe(true);
   });
 

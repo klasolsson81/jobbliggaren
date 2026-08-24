@@ -23,7 +23,7 @@ describe("global-error boundary (#995)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Ett tekniskt fel uppstod när sidan skulle hämtas. Försök igen om en stund.",
+        "Ett tekniskt fel uppstod när innehållet skulle hämtas. Försök igen om en stund.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/root-layout-crash/)).not.toBeInTheDocument();

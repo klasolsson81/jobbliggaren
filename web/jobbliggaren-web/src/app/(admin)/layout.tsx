@@ -33,7 +33,7 @@ export default async function AdminLayout({
   // The declaration is verified for EQUALITY against the import graph by
   // client-namespace-payload.test.ts — do not edit it by hand-reasoning.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["admin"]);
+  const messages = pickClientMessages(await getMessages(), ["admin", "fallback"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

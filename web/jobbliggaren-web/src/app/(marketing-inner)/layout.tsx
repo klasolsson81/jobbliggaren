@@ -32,7 +32,7 @@ export default async function MarketingInnerLayout({
   // to carry. Verified for EQUALITY against the import graph by
   // client-namespace-payload.test.ts.
   const locale = await getLocale();
-  const messages = pickClientMessages(await getMessages(), ["common"]);
+  const messages = pickClientMessages(await getMessages(), ["common", "fallback"]);
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>

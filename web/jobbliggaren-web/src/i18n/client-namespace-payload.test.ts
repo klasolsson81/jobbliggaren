@@ -84,6 +84,12 @@ const BOUNDARIES: readonly ProviderBoundary[] = [
     providerFile: "app/(marketing-inner)/layout.tsx",
     routeRoot: "app/(marketing-inner)",
   },
+  // The last-line 404 for unmatched URLs. routeRoot is the FILE, not "app":
+  // it mounts the public chrome, whose <LanguageSwitcher/> is a client
+  // component reading `common`. Counted into root's subtree instead, that
+  // namespace would land in the root declaration the assertion below pins to
+  // [] — and every document in the app would pay for one 404's header.
+  { name: "not-found", providerFile: "app/not-found.tsx", routeRoot: "app/not-found.tsx" },
 ];
 
 /**
@@ -92,19 +98,19 @@ const BOUNDARIES: readonly ProviderBoundary[] = [
  *
  * `global-error.tsx` replaces the root layout entirely when the root itself
  * throws (Next file convention), so it cannot inherit any provider. It seeds a
- * single namespace straight from the Swedish catalog (`messages/sv/pages.json`)
+ * single namespace straight from the Swedish catalog (`messages/sv/fallback.json`)
  * — a hardcoded one-namespace payload is the point: the error page must not
  * depend on the request-scoped config that may be what failed.
  */
 const SELF_SEEDED_PROVIDERS: readonly { file: string; seeds: readonly string[] }[] = [
-  { file: "app/global-error.tsx", seeds: ["pages"] },
+  { file: "app/global-error.tsx", seeds: ["fallback"] },
 ];
 
 /**
  * Every provider site that OWNS a subtree, for exclusion purposes. A self-seeded
  * provider owns exactly its own file: without this, `global-error.tsx` counts as
- * part of the root subtree and root is charged the `pages` namespace it seeds
- * itself — which would put 24 KB back into every document in the app.
+ * part of the root subtree and root is charged the namespace it seeds itself,
+ * which every document in the app would then pay for.
  */
 const ALL_PROVIDER_SUBTREES: readonly ProviderBoundary[] = [
   ...BOUNDARIES,
@@ -130,6 +136,7 @@ const MIN_CLIENT_FILES: Readonly<Record<string, number>> = {
   "(guest)": 20,
   "(marketing)": 10,
   "(marketing-inner)": 2,
+  "not-found": 2,
 };
 
 function collectSourceFiles(dir: string, acc: string[] = []): string[] {
@@ -371,9 +378,9 @@ describe("client i18n payload is scoped per provider boundary (#737)", () => {
 
   it("a self-seeded provider reaches no more than the namespaces it seeds", () => {
     // Otherwise this is the one provider payload in the app nothing verifies.
-    // global-error.tsx is a leaf today (reads pages.common.*, imports only
-    // svPages + globals.css) — but pull a shared <Button>/ui/dialog into the
-    // crash surface and it reads `common`, which the hardcoded seed does not
+    // global-error.tsx is a leaf today (reads the fallback namespace, imports
+    // only JSON + globals.css) — but pull a shared <Button>/ui/dialog into
+    // the crash surface and it reads a namespace the hardcoded seed does not
     // carry. Neither the equality check (this file is excluded from root's walk
     // by design), nor global-error.test.tsx (asserts today's three strings), nor
     // a rendered crawl would see that.

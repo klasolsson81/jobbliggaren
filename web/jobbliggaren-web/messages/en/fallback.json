@@ -1,0 +1,11 @@
+{
+  "errorTitle": "The page could not be displayed",
+  "errorBodyRetry": "A technical error occurred while loading the content. Try again in a moment.",
+  "retry": "Try again",
+  "notFound": {
+    "title": "The page does not exist",
+    "body": "The address may be misspelled, or the page has been removed.",
+    "toOverview": "To the overview",
+    "toStart": "To the start page"
+  }
+}

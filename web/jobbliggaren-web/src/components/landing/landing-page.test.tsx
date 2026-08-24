@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import LandingPage from "@/app/(marketing)/page";
+import MarketingLayout from "@/app/(marketing)/layout";
+import svMessages from "../../../messages/sv";
 
 // next/navigation: useSearchParams must be mocked in jsdom (no Next router
 // context) — the inline AuthCard's Login/RegisterForm read it, and SiteHeader's
@@ -44,9 +46,21 @@ vi.mock("@/components/landing/landing-stats", async () => {
   };
 });
 
-// Async RSC can't be rendered directly by RTL; pre-resolve the element tree.
+// The layout owns the client i18n payload; return the REAL catalog so the
+// pickClientMessages() call under test runs for real rather than on a stub.
+vi.mock("next-intl/server", () => ({
+  getLocale: async () => "sv",
+  getMessages: async () => svMessages,
+}));
+
+// Since #1477 the chrome (SiteHeader + SiteFooter) lives in
+// (marketing)/layout, so the page alone is no longer the surface a visitor
+// sees — compose the two the way Next does. Async RSCs can't be rendered
+// directly by RTL; pre-resolve the element tree. This also renders the
+// layout's SCOPED provider rather than the shim's full catalog, so a
+// namespace missing from the declaration surfaces here as raw keys.
 async function renderAsyncPage() {
-  const element = await LandingPage();
+  const element = await MarketingLayout({ children: LandingPage() });
   return render(element);
 }
 
@@ -153,11 +167,11 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
 
   it("puts NO second 'Logga in' in the header while the AuthCard tab carries it", async () => {
     // The header half of #1476 shipped before the hero half, so for one wave the
-    // page mounts SiteHeader with showLogin={false}: two controls labelled
+    // surface mounts SiteHeader with showLogin={false}: two controls labelled
     // "Logga in" with different behaviour — one navigating, one switching a tab
     // panel in place — sat ~134px apart on the product's front door. Bites on
-    // revert: dropping showLogin={false} in (marketing)/page.tsx re-creates the
-    // pair. The wave that removes AuthCard inverts this.
+    // revert: dropping showLogin={false} in (marketing)/layout.tsx re-creates
+    // the pair. The wave that removes AuthCard inverts this.
     const { container } = await renderAsyncPage();
     const head = container.querySelector(".jp-head");
     expect(head).not.toBeNull();

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations, getFormatter } from "next-intl/server";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
+import { Announce } from "@/components/company-criteria/foretag-sok-announcer";
 import { CompanyBrowseList } from "./company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -29,7 +30,8 @@ interface ForetagSokResultsProps {
  * zero-match filter shows the empty state.
  *
  * #1149 — `magnitude === null` is the single thing that distinguishes browse-all from a search here: it
- * decides the count line, the table's accessible name, and nothing else re-derives it.
+ * decides the count line, the table's accessible name, the end-of-load announcement (#1092), and
+ * nothing else re-derives it.
  */
 export async function ForetagSokResults({
   namn,
@@ -85,8 +87,26 @@ export async function ForetagSokResults({
     followStateByOrgNr.set(orgNr, followStatuses[i]?.companyWatchId ?? null);
   });
 
+  // #1092 — the end-of-load status message, routed to the surface's persistent live region rather
+  // than announced from the element that renders it (WCAG 4.1.3; the mechanism and why it has to be
+  // this way are in `foretag-sok-announcer.tsx`).
+  //
+  // Three cases, and they are deliberately not one sentence. A zero-match search is W3C's own
+  // "No results returned" example and today reaches a screen reader through nothing at all — the
+  // empty state has no live region of any kind. A count is its "18 results returned". A browse-all
+  // renders NO number by #1149's ruling, so it gets a plain completion sentence instead of an
+  // invented figure: announcing the start and then never closing it would leave a screen reader
+  // waiting on a load that has in fact finished, which is worse than the silence it replaced.
+  const announcement =
+    companies.items.length === 0
+      ? t("emptyTitle")
+      : magnitude !== null
+        ? `${formatMagnitude(format, magnitude)} ${t("resultsCountUnit", { count: magnitude.magnitude })}`
+        : t("announceResultsReady");
+
   return (
     <div className="mt-8">
+      <Announce message={announcement} />
       {companies.items.length === 0 ? (
         // Empty state carries the statement + next step; the magnitude headline + seat explainer are
         // suppressed here so a zero-match search does not double the "no companies" message (they
@@ -106,17 +126,18 @@ export async function ForetagSokResults({
           <h2 className="jp-h2">{t("resultsHeading")}</h2>
 
           {/* The count, and only when there IS one.
-              `role="status"` because the search commits with `router.push` — no document
-              navigation, no focus move — so without a live region the result of the user's own
-              action is announced to nobody. The skeleton this replaces is already one ("Söker
-              företag…"); the answer has to be too (WCAG 4.1.3).
+              It carries NO `role="status"` of its own (#1092): the search commits with
+              `router.push`, so the result of the user's own action does have to be announced — but
+              this element renders together with its text, which is exactly the shape ARIA22 rules
+              out. The sentence goes to the persistent region above instead; keeping a role here as
+              well would announce the same count twice.
               `.jp-results-count` is the house count line (`/jobb` uses it): sans with tabular
               figures and the number in `<b>`, never monospace, because DESIGN.md forbids mono for
               information-bearing digits. The number and the noun are separate arguments because
               the magnitude renders as a STRING when it saturates ("10 000+") while the plural has
               to select on the NUMBER. */}
           {magnitude !== null && (
-            <p className="jp-results-count mt-1" role="status" aria-live="polite">
+            <p className="jp-results-count mt-1">
               <b>{formatMagnitude(format, magnitude)}</b>{" "}
               {t("resultsCountUnit", { count: magnitude.magnitude })}
             </p>
@@ -205,12 +226,27 @@ export async function ForetagSokResults({
   );
 }
 
+/**
+ * The four reachable failure branches end the load too, so they close the announcement the skeleton
+ * opened (#1092, `code-reviewer` Major 2). Without this the region keeps saying "Söker företag…"
+ * after the search has finished failing — the state the surface rule calls worse than the silence
+ * it replaced.
+ *
+ * `role="alert"` stays and is NOT the announcement path: it is mounted with its text already in
+ * place, which is the ARIA22 shape this PR exists to stop relying on. It is kept because an alert
+ * that a sighted user can read is not made wrong by being unreliable for AT, and removing it would
+ * change the visible error's semantics for no gain. `Announce` is what actually reaches a screen
+ * reader, so it carries the whole notice: all four branches share `loadErrorTitle`, and the remedy
+ * that distinguishes them — wait out a rate limit, or retry — lives only in the body. The region is
+ * `aria-atomic`, so the two read as one utterance.
+ */
 function ErrorShell({ title, body }: { title: string; body: string }) {
   return (
     <div
       role="alert"
       className="mt-8 rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700"
     >
+      <Announce message={`${title} ${body}`} />
       <p className="text-body font-medium">{title}</p>
       <p className="mt-1 text-body-sm">{body}</p>
     </div>

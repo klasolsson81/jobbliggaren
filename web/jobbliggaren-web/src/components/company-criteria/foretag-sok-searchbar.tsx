@@ -101,7 +101,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * argued. `page.tsx` wraps the results in `<Suspense key={suspenseKey}>`, and the key changes on
  * every applied search — so the fallback REMOUNTS and suspends immediately, which ends the
  * transition long before any delay could elapse. Probed against the running stack: the skeleton
- * appears at 158 ms already carrying `loadingResults` in its own `role="status"`, while an island
+ * appears at 158 ms already carrying `loadingResults`, while an island
  * pending line sampled every 60 ms across the whole navigation never rendered a single character.
  * A second line here would at best be dead code and at worst a duplicate announcement of the same
  * sentence. The design framing assumed the fallback does not show on a soft navigation; it does.

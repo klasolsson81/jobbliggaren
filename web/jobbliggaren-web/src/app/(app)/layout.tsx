@@ -57,6 +57,7 @@ export default async function AppLayout({
     "applications",
     "common",
     "components",
+    "fallback",
     "jobads",
     "landing",
     "matchsetup",

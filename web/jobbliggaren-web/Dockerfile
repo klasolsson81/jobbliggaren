@@ -90,6 +90,17 @@ COPY --from=build --chown=node:node /app/public ./public
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && rm -rf /opt/yarn* /usr/local/bin/yarn /usr/local/bin/yarnpkg /usr/local/bin/corepack
 
+# The base layer's own OS packages need patching for the same reason caddy's do: a
+# published tag is not rebuilt when alpine ships a fix, so the image arrives carrying
+# advisories that already have an upstream repair. Measured 2026-08-27 on node:22-alpine:
+# libcrypto3 3.5.7-r0 installed, 3.5.8-r0 available (CVE-2026-14456, HIGH). Regenerate
+# with `docker run --rm node:22-alpine apk policy libcrypto3`.
+#
+# ADR 0065 Amendment 2026-07-28 Beslut 1: repair outranks acceptance, and an advisory
+# may be accepted only when no dependency-level fix EXISTS. One does, so this is the
+# required disposal rather than a trivy ignore entry.
+RUN apk --no-cache upgrade
+
 USER node
 EXPOSE 3000
 

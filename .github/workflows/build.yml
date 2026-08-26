@@ -969,8 +969,9 @@ jobs:
       #
       # An unmatched stage name is SILENTLY ignored by buildkit — exit 0, no warning, step
       # served from cache (measured 2026-08-27, buildx v0.29.1). `nocache-stage-guard.sh` in
-      # the `scripts` job asserts every non-empty value against a real `FROM ... AS <name>`,
-      # because buildkit will not.
+      # the `scripts` job is what checks this instead: that each value names a stage that
+      # exists AND is the one carrying the upgrade RUN, that this file wires the field into
+      # `no-cache-filters` at all, and that its own reader saw every row before saying so.
       matrix:
         include:
           - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile", nocache: "" }

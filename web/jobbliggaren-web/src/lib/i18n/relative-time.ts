@@ -39,8 +39,8 @@ export type RelativeTimeTranslator = (
 
 /**
  * Härleder en svensk relativ tids-sträng från ett ISO-datum jämfört med `now`.
- * "i dag" (0 dagar), "i går" (1 dag), "{N} dagar sedan" (>=2 dagar). Negativa
- * dagar (framtid) faller på "i dag" — bör inte uppstå vid normala BE-svar.
+ * "idag" (0 dagar), "igår" (1 dag), "{N} dagar sedan" (>=2 dagar). Negativa
+ * dagar (framtid) faller på "idag" — bör inte uppstå vid normala BE-svar.
  * Den svenska copyn resolvas via next-intl (`<ns>.relativeTime.*`).
  */
 export function formatDaysAgo(

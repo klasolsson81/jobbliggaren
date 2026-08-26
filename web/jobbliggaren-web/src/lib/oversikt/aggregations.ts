@@ -165,7 +165,7 @@ export interface SwedishLongDate {
 }
 
 /**
- * Lång svensk form för "I dag"-kortets datumblock:
+ * Lång svensk form för "Idag"-kortets datumblock:
  * { day: 23, weekday: "lördag", monthYear: "maj 2026" }
  */
 export function formatSwedishLongDate(date: Date): SwedishLongDate {

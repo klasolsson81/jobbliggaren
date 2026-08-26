@@ -4889,7 +4889,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    gäller INTE här (per-user auth-gated, ej publik anonym).
    ============================================================ */
 
-/* "I dag" — kalenderblock i toppen.
+/* "Idag" — kalenderblock i toppen.
    Visar dagens planerade händelser (mockas; senare Google Calendar). */
 .jp-oversikt__today {
   width: 320px;
@@ -5441,7 +5441,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-weight: var(--jp-fw-medium);
   min-width: 0;
   /* Tillåt wrap så hela texten syns ("Senaste sökning",
-     "Profilen synlig för", "Nya matchningar i dag · profil"
+     "Profilen synlig för", "Nya matchningar idag · profil"
      trunkerades tidigare vid 880–1200px). */
   white-space: normal;
   word-break: normal;

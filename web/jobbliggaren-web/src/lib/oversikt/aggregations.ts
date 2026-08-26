@@ -235,7 +235,7 @@ export function formatNoticesStamp(date: Date): string {
  * och `updatedAt` ligger inom 1 UTC-kalenderdag bakåt från `now` (kan i
  * praktiken vara upp till ~47h gammal pga `daysSince`-trunkering). Driver
  * Intervju-bekräftelse-notisen — fönstret är kalenderdag-bundet, inte
- * 24h rullande, för att matcha "i går"/"i dag"-copyn.
+ * 24h rullande, för att matcha "igår"/"idag"-copyn.
  */
 export function findRecentInterviews(
   apps: ReadonlyArray<ApplicationDto>,

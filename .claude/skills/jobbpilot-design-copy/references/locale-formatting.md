@@ -152,9 +152,9 @@ could not express.
 `messages/sv/`.
 
 **`idag` / `igår`, closed up.** Klas-direktiv 2026-08-26 (#1168), which settled a
-12:4 split the other way than the count alone would have. `messages/sv/` carries no
+13:4 split the other way than the count alone would have. `messages/sv/` carries no
 spaced form, and `relative-time.ts` resolves the word through the catalogue rather
-than spelling it, so one edit moves it. The connector row above therefore reads
+than spelling it. The connector row above therefore reads
 `idag, kl. 14:32`, which is what `jobads.json` sends.
 
 ### Currency

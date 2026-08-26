@@ -947,13 +947,27 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      # `nocache` names the stage that must NEVER be served from the layer cache, and the
+      # invariant is deliberately general rather than keyed to one advisory: a stage whose
+      # output is a function of wall-clock time against a MOVING UPSTREAM INDEX cannot be
+      # cached without going stale. `RUN apk --no-cache upgrade` is exactly that — `--no-cache`
+      # forces a fresh apk index fetch, so a freshly executed upgrade cannot yield a version
+      # older than the index carries. If it does, the RUN did not execute, and layer cache is
+      # the only mechanism by which a RUN does not execute.
+      #
+      # Deterministic stages (`pnpm install`, `next build`, `xcaddy build`) may still cache —
+      # that is why this is per-stage and not `no-cache: true`.
+      #
+      # The three .NET legs are empty ON PURPOSE, not by omission: they carry no upgrade RUN
+      # at all. Their OS state comes wholly from `mcr.microsoft.com/dotnet/aspnet:10.0-noble`,
+      # whose digest moves when Microsoft rebuilds, which invalidates their cache naturally.
       matrix:
         include:
-          - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile" }
-          - { name: worker, context: ".", file: "src/Jobbliggaren.Worker/Dockerfile" }
-          - { name: migrate, context: ".", file: "src/Jobbliggaren.Migrate/Dockerfile" }
-          - { name: web, context: "web/jobbliggaren-web", file: "web/jobbliggaren-web/Dockerfile" }
-          - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile" }
+          - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile", nocache: "" }
+          - { name: worker, context: ".", file: "src/Jobbliggaren.Worker/Dockerfile", nocache: "" }
+          - { name: migrate, context: ".", file: "src/Jobbliggaren.Migrate/Dockerfile", nocache: "" }
+          - { name: web, context: "web/jobbliggaren-web", file: "web/jobbliggaren-web/Dockerfile", nocache: "runtime" }
+          - { name: caddy, context: "deploy/caddy", file: "deploy/caddy/Dockerfile", nocache: "runtime" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -969,6 +983,7 @@ jobs:
           tags: jobbliggaren-${{ matrix.name }}:ci
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          no-cache-filters: ${{ matrix.nocache }}
           # web-imagen bakar in NEXT_PUBLIC_* vid build och kan inte rättas vid runtime.
           # Värdet här är CI:ns, inte produktionens — jobbet bevisar att bygget går, inte
           # vad som publiceras. Release-workflowen skickar sitt eget.

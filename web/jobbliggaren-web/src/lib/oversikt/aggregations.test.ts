@@ -366,15 +366,15 @@ describe("findRecentInterviews", () => {
 describe("formatDaysAgo", () => {
   const now = new Date("2026-05-24T12:00:00Z");
 
-  it("ger 'i dag' för 0 dagar", () => {
+  it("ger 'idag' för 0 dagar", () => {
     expect(formatDaysAgo(tRelativeTime, "2026-05-24T01:00:00Z", now)).toBe(
-      "i dag"
+      "idag"
     );
   });
 
-  it("ger 'i går' för 1 dag", () => {
+  it("ger 'igår' för 1 dag", () => {
     expect(formatDaysAgo(tRelativeTime, "2026-05-23T10:00:00Z", now)).toBe(
-      "i går"
+      "igår"
     );
   });
 
@@ -384,9 +384,9 @@ describe("formatDaysAgo", () => {
     );
   });
 
-  it("ger 'i dag' för framtida datum (defensiv — bör inte uppstå)", () => {
+  it("ger 'idag' för framtida datum (defensiv — bör inte uppstå)", () => {
     expect(formatDaysAgo(tRelativeTime, "2026-05-26T00:00:00Z", now)).toBe(
-      "i dag"
+      "idag"
     );
   });
 });

@@ -724,12 +724,6 @@ procedure here will help.
   declare `USER app` — but **no gate anywhere measures that they still agree**, in CI or on the
   box (measured 2026-08-12: `release-images.yml` contains no `uid`/`gid` check). A worker or
   migrate image that drifted alone would be caught by nothing.
-- **The directory's OWNER is read by nothing (#1295).** `--check` reads its mode, the reconcile
-  gate reads its group and the files' owner and mode. `install -d -o root` sets it once at
-  injection and `tmpfiles` is create-only, so a hand-`chown` — including the `chown -R` this
-  runbook now warns against — leaves `0710 <container-uid>:<gid>` with every gate green. The
-  cutover row (`vps-deploy-stack.md` 32b) is the only place that reads the axis, and it reads it
-  once. Owned by [#1319](https://github.com/klasolsson81/jobbliggaren/issues/1319).
 - **Injection still runs an unattested image.** `jobbliggaren-inject-secrets.sh` measures the ids
   from the operator's tag, resolved out of the compose file before anything has been verified.
   After #1295, reconcile is clean on that axis — it measures the digest attestation just cleared

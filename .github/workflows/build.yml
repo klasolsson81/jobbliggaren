@@ -968,8 +968,9 @@ jobs:
       # whose digest moves when Microsoft rebuilds, which invalidates their cache naturally.
       #
       # An unmatched stage name is SILENTLY ignored by buildkit — exit 0, no warning, step
-      # served from cache (measured 2026-08-27, buildx v0.29.1). Nothing here asserts the name
-      # still matches a `FROM ... AS <name>`; #1518 owns that gate.
+      # served from cache (measured 2026-08-27, buildx v0.29.1). `nocache-stage-guard.sh` in
+      # the `scripts` job asserts every non-empty value against a real `FROM ... AS <name>`,
+      # because buildkit will not.
       matrix:
         include:
           - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile", nocache: "" }

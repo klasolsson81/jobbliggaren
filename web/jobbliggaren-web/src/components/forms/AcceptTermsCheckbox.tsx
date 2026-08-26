@@ -14,6 +14,12 @@ import { useTranslations } from "next-intl";
 //
 // Unticked by default: a pre-ticked box is not acceptance the user performed.
 //
+// `defaultChecked` is the one exception, and it is narrow on purpose. React 19 resets this
+// uncontrolled form after every action, which silently unticks a box the user DID tick, so the
+// register action echoes the submitted acceptance back and the form re-applies it here. That
+// restores an acceptance the user performed; it never manufactures one, because the only value
+// the caller can pass is the one that arrived in that submit's own FormData.
+//
 // The two policy links sit INSIDE the label, which is safe — the HTML standard
 // suppresses a label's activation behavior for events targeted at interactive
 // descendants, so following a link does not also toggle the box. They open in a
@@ -22,14 +28,17 @@ import { useTranslations } from "next-intl";
 // are part of the label, so an "(öppnas i ny flik)" per link would be read back
 // twice inside the checkbox's own name.
 //
-// The props are narrowed to the three the form actually supplies, so a call
-// site cannot pre-tick the box or drop `required`, and the spread still goes
-// FIRST so the attributes below also win at runtime. A caller-supplied
+// The props are narrowed to the four the form actually supplies, so a call site
+// cannot drop `required` or reach any other input attribute, and the spread
+// still goes FIRST so the attributes below also win at runtime. A caller-supplied
 // `aria-describedby` (the error) is prepended by the hint, not replaced by it.
 export function AcceptTermsCheckbox({
   "aria-describedby": describedBy,
   ...props
-}: Pick<ComponentProps<"input">, "ref" | "aria-invalid" | "aria-describedby">) {
+}: Pick<
+  ComponentProps<"input">,
+  "ref" | "aria-invalid" | "aria-describedby" | "defaultChecked"
+>) {
   const t = useTranslations("pages");
   const hintId = useId();
   return (

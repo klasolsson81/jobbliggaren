@@ -40,7 +40,7 @@
       "channelPlaceholder": "Välj kanal",
       "dateLabel": "Datum",
       "noteLabel": "Anteckning (valfritt)",
-      "noteHint": "Till exempel vad som diskuterades.",
+      "noteHint": "Till exempel vad som diskuterades. Max 1 000 tecken.",
       "submit": "Lägg till uppföljning"
     },
     "addNote": {
@@ -322,9 +322,9 @@
       "createFromJobAdFailed": "Kunde inte registrera ansökan.",
       "createApplicationFailed": "Kunde inte spara ansökan.",
       "transitionFailed": "Statusbytet misslyckades.",
-      "addFollowUpFailed": "Kunde inte spara uppföljningen.",
+      "addFollowUpFailed": "Kunde inte spara uppföljningen. Försök igen.",
       "logFollowUpFailed": "Kunde inte logga uppföljningen.",
-      "addNoteFailed": "Kunde inte spara noteringen.",
+      "addNoteFailed": "Kunde inte spara noteringen. Försök igen.",
       "recordOutcomeFailed": "Kunde inte registrera utfallet.",
       "deleteFailed": "Det gick inte att ta bort ansökan."
     },

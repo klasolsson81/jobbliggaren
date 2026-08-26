@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { requestPasswordResetAction } from "@/lib/actions/forgot-password";
-import type { RefusableActionResult } from "@/lib/actions/_action-result";
+import {
+  requestPasswordResetAction,
+  type ForgotPasswordActionState,
+} from "@/lib/actions/forgot-password";
 
 /**
  * #1171 — the forgot-password request form.
@@ -32,7 +34,7 @@ import type { RefusableActionResult } from "@/lib/actions/_action-result";
 export function ForgotPasswordForm() {
   const t = useTranslations("pages");
   const [state, formAction, isPending] = useActionState<
-    RefusableActionResult | null,
+    ForgotPasswordActionState | null,
     FormData
   >(requestPasswordResetAction, null);
 
@@ -127,15 +129,23 @@ export function ForgotPasswordForm() {
         <label htmlFor="email" className="text-label font-medium text-text-primary">
           {t("auth.forgotPassword.emailLabel")}
         </label>
+        {/* Re-seeded from the echo an ordinary failure returns. React 19 resets this uncontrolled
+            form after every action, so the address the user must resend was emptied by the very
+            failure telling them to try again. */}
         <Input
           ref={emailInputRef}
           id="email"
           name="email"
           type="email"
           autoComplete="email"
+          defaultValue={
+            state?.success === false ? (state.values?.email ?? "") : ""
+          }
           required
           aria-required="true"
-          aria-invalid={state?.success === false && !state.refused ? true : undefined}
+          aria-invalid={
+            state?.success === false && state.field === "email" ? true : undefined
+          }
           aria-describedby={
             state?.success === false && !state.refused
               ? `email-hint ${errorId}`

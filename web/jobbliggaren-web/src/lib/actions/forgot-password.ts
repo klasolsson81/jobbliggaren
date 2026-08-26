@@ -7,6 +7,28 @@ import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemTitle } from "@/lib/http/problem";
 
 /**
+ * `RefusableActionResult` plus the address the caller just submitted, echoed on the FAILURE arm so
+ * `ForgotPasswordForm` can re-seed its input: React 19 resets an uncontrolled `<form action={…}>`
+ * after every action, so a failure otherwise empties the field the user must retype to retry.
+ *
+ * DERIVED from the shared union rather than restated — two near-identical hand-written unions drift
+ * the moment either is edited, which is why `RefusableActionResult` itself is derived where it lives.
+ * The success and refused panels replace the form, so neither carries an echo; the refused arm keeps
+ * the property optional only because it shares the failure shape.
+ *
+ * No secret is a member. This form posts one field and it is not one.
+ */
+export type ForgotPasswordActionState =
+  | Extract<RefusableActionResult, { success: true }>
+  | (Extract<RefusableActionResult, { success: false }> & {
+      values?: { email: string };
+      // #1117's discriminator, for the one failure this action can attribute to the input: a
+      // missing address. Absent means "not a field error" — a transport fault or a rate limit
+      // must not mark an address the user typed correctly as invalid.
+      field?: "email";
+    });
+
+/**
  * #1171 — PUBLIC forgot-password request. The requester has lost access by definition, so this action
  * reads no session (no `getSessionId`, no `authedFetch`) and sends no Authorization header.
  *
@@ -25,14 +47,22 @@ import { readProblemTitle } from "@/lib/http/problem";
  * (`readProblemTitle` consumes it) and never rendered — `detail` can carry server text.
  */
 export async function requestPasswordResetAction(
-  _prev: RefusableActionResult | null,
+  _prev: ForgotPasswordActionState | null,
   formData: FormData
-): Promise<RefusableActionResult> {
+): Promise<ForgotPasswordActionState> {
   const t = await getTranslations("pages");
 
   const email = (formData.get("email") as string | null)?.trim() ?? "";
+  // The trimmed address, which is the one that was actually sent — re-seeding the raw input would
+  // hand back whitespace the request did not carry.
+  const values = { email };
   if (!email) {
-    return { success: false, error: t("auth.actions.passwordResetEmailRequired") };
+    return {
+      success: false,
+      error: t("auth.actions.passwordResetEmailRequired"),
+      values,
+      field: "email",
+    };
   }
 
   try {
@@ -66,8 +96,8 @@ export async function requestPasswordResetAction(
     // 429 and every other non-202 collapse to one message. A malformed address is the backend's only
     // 400 and is existence-independent, so nothing here needs to distinguish it — and collapsing keeps
     // the frontend from inventing a signal the API refused to give.
-    return { success: false, error: t("auth.actions.passwordResetFailed") };
+    return { success: false, error: t("auth.actions.passwordResetFailed"), values };
   } catch {
-    return { success: false, error: t("auth.actions.serverUnreachable") };
+    return { success: false, error: t("auth.actions.serverUnreachable"), values };
   }
 }

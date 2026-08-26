@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { RefusableActionResult } from "@/lib/actions/_action-result";
+import type { ForgotPasswordActionState } from "@/lib/actions/forgot-password";
 
 // #1171 — the three outcome channels of the forgot-password form, and the counterfactual that keeps
 // them apart. The refusal must render in the STATUS channel with the submit affordance GONE, while an
@@ -9,7 +9,7 @@ import type { RefusableActionResult } from "@/lib/actions/_action-result";
 // "you typed something wrong". Assertions are literal Swedish because the test renderer wraps every
 // render in NextIntlClientProvider with the sv catalogue.
 
-const actionMock = vi.fn<() => Promise<RefusableActionResult>>();
+const actionMock = vi.fn<() => Promise<ForgotPasswordActionState>>();
 
 vi.mock("@/lib/actions/forgot-password", () => ({
   requestPasswordResetAction: () => actionMock(),
@@ -86,8 +86,62 @@ describe("ForgotPasswordForm", () => {
     expect(screen.getByRole("button", { name: SUBMIT })).toBeInTheDocument();
     const field = screen.getByLabelText("E-postadress");
     expect(field).toBeInTheDocument();
+    // NOT marked invalid: this failure belongs to no field. The address may be perfectly well
+    // formed and the send still fail, so stamping the input would tell a screen-reader user their
+    // address is wrong when the server was simply unreachable (#1117's absent-means-not-a-field).
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(field.getAttribute("aria-describedby")).toContain(alert.id);
+  });
+
+  it("marks the field invalid only when the action names it", async () => {
+    // The other polarity. `field: "email"` is stamped on the one refusal this action can attribute
+    // to the input — a missing address — and that is the case where the mark is true.
+    actionMock.mockResolvedValue({
+      success: false,
+      error: "Skriv in din e-postadress.",
+      values: { email: "" },
+      field: "email",
+    });
+    const user = userEvent.setup();
+    render(<ForgotPasswordForm />);
+
+    await submit(user);
+
+    const alert = await screen.findByRole("alert");
+    const field = screen.getByLabelText("E-postadress");
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toContain(alert.id);
+  });
+
+  it("keeps the address in the field when an ordinary failure asks for a retry", async () => {
+    // The failure copy invites a retry, and React 19 had just emptied the only field that retry
+    // needs. The action echoes the address it actually sent (trimmed) and the form re-seeds it.
+    //
+    // The echo deliberately differs from what `submit` types. In production they are equal, and
+    // that is why the difference is needed: asserting the typed string would also pass if the field
+    // were never reset at all. LoginForm's #791 test types one address and echoes another for the
+    // same reason.
+    actionMock.mockResolvedValue({
+      success: false,
+      error: "Det gick inte att skicka någon återställningslänk just nu.",
+      values: { email: "ekot@exempel.se" },
+    });
+    const user = userEvent.setup();
+    render(<ForgotPasswordForm />);
+
+    await submit(user);
+
+    await screen.findByRole("alert");
+    await waitFor(() => {
+      expect(screen.getByLabelText("E-postadress")).toHaveValue("ekot@exempel.se");
+    });
+  });
+
+  it("starts empty, so nothing carries over into a form that has not been submitted", async () => {
+    // The seed is a property of a FAILED submit, not of the field. A first render must not put an
+    // address in an input the visitor has not filled in.
+    render(<ForgotPasswordForm />);
+    expect(screen.getByLabelText("E-postadress")).toHaveValue("");
   });
 
   it("offers a way back to sign-in before and after submitting", async () => {

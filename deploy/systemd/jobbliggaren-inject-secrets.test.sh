@@ -36,6 +36,30 @@ readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
 readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
+# THE OWNER SEAM (#1319, #1320), AND WHY IT MOVES THE EXPECTATION RATHER THAN THE FILESYSTEM.
+# --check asserts two ABSOLUTE owners — uid 0, root, for the secrets directory and for
+# deploy/.env. This suite does not run as root and cannot `chown`, so the fixture's directory and
+# its .env are owned by this account instead. The rig therefore moves the other side: the SUT
+# copy's two owner constants are rewritten to whatever owns the fixture. That is the same move
+# jobbliggaren-reconcile.test.sh makes for the #1295 ownership cases, where the docker stub
+# reports ids that do or do not match the directory this unprivileged process owns — and it makes
+# BOTH arms reachable without root, on Windows and on the ubuntu runner alike.
+#
+# TWO VARIABLES, NOT ONE, and the isolation is the whole reason. With a single expectation a
+# wrong-owner case would fire the directory arm and the .env arm together, and neither could be
+# shown to work on its own — the fail-open shape this suite's %g-vs-%u case exists to refuse
+# ("Only the correct pair passes"). Each case sets exactly the one it is measuring.
+readonly FIXTURE_OWNER="$(id -u)"
+SUT_SECRETS_DIR_OWNER="$FIXTURE_OWNER"
+SUT_ENV_FILE_OWNER="$FIXTURE_OWNER"
+
+# Set per case, never left over: a stale expectation is a case measuring its neighbour's
+# condition. seed_all_secrets calls this, so the default for every case is "both correct".
+reset_owner_expectations() {
+  SUT_SECRETS_DIR_OWNER="$FIXTURE_OWNER"
+  SUT_ENV_FILE_OWNER="$FIXTURE_OWNER"
+}
+
 pass=0
 fail=0
 skipped=0
@@ -101,6 +125,7 @@ seed_all_secrets() {
   # It was order-dependent until 2026-08-12: nothing mismeasured, but the property held because
   # of where the SES block sat in the file, which is not a property at all.
   rm -f "$ENV_FIXTURE"
+  reset_owner_expectations
   mkdir -p "$SECRETS"
   # 0710 is the mode the running stack needs and the mode --check asserts: root owns the
   # directory, the container's group traverses it. The fixture must reproduce the production
@@ -131,6 +156,8 @@ make_sut_copy() {
     -e "s#^readonly SECRETS_DIR=.*#readonly SECRETS_DIR=$SECRETS#" \
     -e "s#^readonly HOST_SECRETS_DIR=.*#readonly HOST_SECRETS_DIR=$HOST_SECRETS#" \
     -e "s#^readonly ENV_FILE=.*#readonly ENV_FILE=$ENV_FIXTURE#" \
+    -e "s#^readonly SECRETS_DIR_OWNER=.*#readonly SECRETS_DIR_OWNER=$SUT_SECRETS_DIR_OWNER#" \
+    -e "s#^readonly ENV_FILE_OWNER=.*#readonly ENV_FILE_OWNER=$SUT_ENV_FILE_OWNER#" \
     "$SUT" > "$sut_copy"
   grep -qxF "readonly SECRETS_DIR=$SECRETS" "$sut_copy" || {
     echo "FIXTURE BROKEN: SECRETS_DIR redirect did not apply — the suite would measure the host" >&2
@@ -148,6 +175,22 @@ make_sut_copy() {
   # would still report the exit code they wanted. Green for the opposite reason.
   grep -qxF "readonly ENV_FILE=$ENV_FIXTURE" "$sut_copy" || {
     echo "FIXTURE BROKEN: ENV_FILE redirect did not apply — the suite would measure the host" >&2
+    exit 1
+  }
+  # THE TWO OWNER REDIRECTS, PROVEN FOR A REASON THE OTHERS DO NOT CARRY. An unapplied redirect
+  # here does not point the suite at the host — it leaves the constant at its production value 0,
+  # which no fixture path is owned by. Every exit-0 case in this file would then fail with a
+  # posture line, which reads as a broken SUT rather than a broken rig: the suite would be
+  # reporting a defect in the thing it is measuring, caused by itself. Measured before this proof
+  # existed: 5 of 66 cases went red for exactly that reason.
+  grep -qxF "readonly SECRETS_DIR_OWNER=$SUT_SECRETS_DIR_OWNER" "$sut_copy" || {
+    echo "FIXTURE BROKEN: SECRETS_DIR_OWNER redirect did not apply — every exit-0 case would" >&2
+    echo "                report a posture fault against the rig, not against the SUT" >&2
+    exit 1
+  }
+  grep -qxF "readonly ENV_FILE_OWNER=$SUT_ENV_FILE_OWNER" "$sut_copy" || {
+    echo "FIXTURE BROKEN: ENV_FILE_OWNER redirect did not apply — every exit-0 case with an .env" >&2
+    echo "                would report a posture fault against the rig, not against the SUT" >&2
     exit 1
   }
   printf '%s' "$sut_copy"
@@ -172,6 +215,13 @@ set_env_provider() {
 # distinct state from having no file at all.
 write_env() {
   : > "$ENV_FIXTURE"
+  # 0600 IS THE PRODUCTION SHAPE AND THE FIXTURE MUST CARRY IT, for the same reason
+  # seed_all_secrets chmods the directory 0710: a fixture built by the runner's umask is 0644,
+  # which is a state --check now REFUSES (#1320). Leaving it would make every mail case a posture
+  # case by accident, and the wrong-mode case below would then prove nothing — it would be
+  # measuring the default rather than a deviation from it. Best-effort, like every other chmod
+  # here: a filesystem that ignores it takes the announced skip.
+  chmod 0600 "$ENV_FIXTURE" 2>/dev/null || true
   local line
   for line in "$@"; do printf '%s\n' "$line" >> "$ENV_FIXTURE"; done
 }
@@ -909,6 +959,146 @@ for scw_var in "${EXPECTED_SCALEWAY_VARS[@]}"; do
     sed 's/^/       /' "$TMPROOT/out" >&2
   fi
 done
+
+echo "-- the at-rest posture: the secrets directory's OWNER (#1319)"
+# WHAT THIS SECTION MEASURES AND WHY IT CAN. --check now asserts that root owns the secrets
+# directory. The suite is not root, so it moves the EXPECTATION (SUT_SECRETS_DIR_OWNER) rather
+# than the filesystem — see the seam's note at the top. Both arms are therefore reachable
+# unprivileged.
+#
+# THE PRODUCTION TRIPLE ITSELF (0710 root:<container-gid>) IS NOT MEASURED HERE and cannot be;
+# its proof is the cutover row in vps-deploy-stack.md. What is measured is the PREDICATE.
+
+# A uid that is certainly not the fixture's owner, derived from it rather than hard-coded: a
+# literal would collide the day this suite runs as that uid, and the case would silently invert.
+readonly NOT_FIXTURE_OWNER=$((FIXTURE_OWNER + 1))
+
+# The posture summary, by a substring unique to it. The NEGATIVE half of each assertion below is
+# what makes it a pin rather than a coincidence: a posture fault wrongly routed into `missing`
+# still prints its own WRONG OWNER line and still exits 1, so only the absence of the crash-loop
+# summary tells the two apart — and telling them apart is the whole reason the third flag exists.
+readonly POSTURE_SUMMARY="Do not read a serving stack as"
+
+assert_posture_summary() {
+  local desc="$1"
+  if grep -qF "$POSTURE_SUMMARY" "$TMPROOT/out" && ! grep -qF "$BLOCKING_SUMMARY" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   $desc summarises as posture, not as a crash-loop"
+  else
+    fail=$((fail + 1)); echo "  FAIL $desc did not summarise as posture" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+assert_output_has() {
+  if grep -qF -- "$1" "$TMPROOT/out"; then
+    pass=$((pass + 1)); echo "  ok   $2"
+  else
+    fail=$((fail + 1)); echo "  FAIL $2 — the output did not name it:" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  fi
+}
+
+assert_output_lacks() {
+  if grep -qF -- "$1" "$TMPROOT/out"; then
+    fail=$((fail + 1)); echo "  FAIL $2 — the output named it and should not have:" >&2
+    sed 's/^/       /' "$TMPROOT/out" >&2
+  else
+    pass=$((pass + 1)); echo "  ok   $2"
+  fi
+}
+
+# EVERY CASE BELOW NEEDS A CLEAN DIRECTORY POSTURE, not only a chmod-able .env — which is why
+# this gate sits at the section and not at the mode cases. Where chmod is ignored the fixture
+# directory is 0755, --check's own mode arm fires, `missing` is set, and the blocking summary
+# prints beside every posture line. That defeats the negative half of assert_posture_summary and
+# both independence assertions at once. Measured on Git Bash before the gate moved out: 4 of these
+# went red for the platform rather than for the SUT, which is a rig reporting a defect it caused.
+if [ "$MODE_ENFORCED" = "yes" ]; then
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  SUT_SECRETS_DIR_OWNER="$NOT_FIXTURE_OWNER"
+  expect_check 1 "a secrets directory owned by anyone but root refuses"
+  assert_output_has "WRONG OWNER: $SECRETS" "and the line names the directory"
+  assert_posture_summary "the directory-owner fault"
+  # THE MODE IS CORRECT IN THIS CASE, deliberately. Without that the arm could be piggybacking on
+  # the mode branch — both set a flag from the same `if`-chain — and a predicate that only ever
+  # fires alongside another is not shown to work.
+  assert_output_lacks "WRONG MODE: $SECRETS" "and it is the OWNER arm firing, not the mode arm"
+  # INDEPENDENCE, the property this suite's %g-vs-%u case establishes for the other gate: a wrong
+  # directory owner must not drag deploy/.env into the report. Without it, one over-broad predicate
+  # would satisfy both sections here and neither would have measured its own subject.
+  assert_output_lacks "$ENV_FIXTURE" "and it says nothing about deploy/.env"
+
+  # THE REPAIR IS THE DIRECTORY ALONE. `chown -R` from the directory is the defect that produced
+  # this state in the first place (#1319: three published repair commands took the operand too),
+  # so a repair published here that recursed would re-create it. And a glob cannot be run by the
+  # operator it addresses — 0710 denies the read to every non-root user and the shell expands
+  # before sudo elevates — which is the same measurement vps-deploy-stack.md row 32b's drill took.
+  if grep -qF -- "chown -R" "$TMPROOT/out"; then
+    fail=$((fail + 1)); echo "  FAIL the owner repair published a recursive chown" >&2
+  else
+    pass=$((pass + 1)); echo "  ok   the owner repair is not recursive"
+  fi
+  if grep -qE -- '(chown|chmod|stat)[^|]*/\*' "$TMPROOT/out"; then
+    fail=$((fail + 1)); echo "  FAIL the owner repair published a shell glob the operator cannot expand" >&2
+  else
+    pass=$((pass + 1)); echo "  ok   the owner repair publishes no glob"
+  fi
+
+  echo "-- the at-rest posture: deploy/.env's owner and mode (#1320)"
+  # Seven permanent plaintext credentials rest on this file's posture, and until #1320 it was
+  # prescribed in four places and read by none of them.
+
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  SUT_ENV_FILE_OWNER="$NOT_FIXTURE_OWNER"
+  expect_check 1 "an .env owned by anyone but root refuses"
+  assert_output_has "WRONG OWNER: $ENV_FIXTURE" "and the line names the file"
+  assert_posture_summary "the .env-owner fault"
+  # The mirror of the independence assertion above, and it must be here too: the two arms read two
+  # different paths, and either one alone reporting both would go unnoticed with only one direction
+  # measured.
+  assert_output_lacks "WRONG OWNER: $SECRETS" "and it says nothing about the secrets directory"
+
+    # 0644 — the mode a fresh file gets under the default umask, which is exactly how this drifts
+    # in the field: an operator recreates the file and never runs the chmod the four prescriptions
+    # ask for.
+    seed_all_secrets
+    write_env "SITE_HOST=jobbliggaren.se"
+    chmod 0644 "$ENV_FIXTURE"
+    expect_check 1 "a world-readable .env refuses"
+    assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the line names the file and its mode"
+    assert_posture_summary "the .env-mode fault"
+
+    # 0640 — the GROUP bit alone. A mask that only covered `other` would call this healthy, and a
+    # group-readable credentials file is the shape a "let the deploy group read it" convenience
+    # takes. This case is what makes the mask 0077 rather than 0007.
+    seed_all_secrets
+    write_env "SITE_HOST=jobbliggaren.se"
+    chmod 0640 "$ENV_FIXTURE"
+    expect_check 1 "a group-readable .env refuses too"
+    assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the group bit alone is enough to refuse"
+
+    # 0400 PASSES, AND THIS CASE IS THE MASK'S OTHER HALF. The assertion is "no non-root reader",
+    # not "the mode is 600" — jobbliggaren-reconcile.sh wrote that precedent for the files' 0400.
+    # An `== 600` implementation passes every case above and fails this one; without it the
+    # difference between a property and an opinion about permissions is unmeasured.
+    seed_all_secrets
+    write_env "SITE_HOST=jobbliggaren.se"
+    chmod 0400 "$ENV_FIXTURE"
+    expect_check 0 "a stricter-than-prescribed .env (0400) is a pass, not a deviation"
+
+    seed_all_secrets
+    write_env "SITE_HOST=jobbliggaren.se"
+    chmod 0600 "$ENV_FIXTURE"
+    expect_check 0 "the prescribed 0600 with a root-owned directory is a clean posture"
+else
+  skipped=$((skipped + 18))
+  echo "  SKIP the whole at-rest posture section: this filesystem does not honour chmod"
+  echo "       (Git Bash/Windows), so the directory cannot be put in the 0710 posture these"
+  echo "       cases measure against. They RUN in CI on ubuntu, where JBL_REQUIRE_MODE_CASES"
+  echo "       makes a skip an error."
+fi
 
 echo
 echo "passed: $pass   failed: $fail   skipped: $skipped"

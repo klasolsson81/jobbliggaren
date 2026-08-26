@@ -578,6 +578,16 @@ jobs:
       - name: seq-retention-duration-guard (fixturer + de scopade filerna)
         run: bash .github/scripts/seq-retention-duration-guard.test.sh
 
+      # #1518. The `images` matrix's `nocache` field names a build stage in another file, and
+      # buildkit SILENTLY ignores a name that matches nothing — exit 0, no warning, the step
+      # served from cache (measured 2026-08-27 two ways: buildkit's own source, where
+      # `resolveTarget` errors on an unknown `--target` while the no-cache lookup does not
+      # validate at all; and a synthetic probe against buildx v0.29.1). So a stage rename
+      # disarms a CVE gate with nothing to read. This is the direction buildkit refuses to
+      # check, which is why the repo has to.
+      - name: nocache-stage-guard (fixturer + den riktiga matrisen)
+        run: bash .github/scripts/nocache-stage-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #
@@ -958,8 +968,9 @@ jobs:
       # whose digest moves when Microsoft rebuilds, which invalidates their cache naturally.
       #
       # An unmatched stage name is SILENTLY ignored by buildkit — exit 0, no warning, step
-      # served from cache (measured 2026-08-27, buildx v0.29.1). Nothing here asserts the name
-      # still matches a `FROM ... AS <name>`; #1518 owns that gate.
+      # served from cache (measured 2026-08-27, buildx v0.29.1). `nocache-stage-guard.sh` in
+      # the `scripts` job asserts every non-empty value against a real `FROM ... AS <name>`,
+      # because buildkit will not.
       matrix:
         include:
           - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile", nocache: "" }

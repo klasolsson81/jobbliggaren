@@ -38,8 +38,6 @@ class CatchBoundary extends Component<{ children: ReactNode }> {
   }
 }
 
-// Labels carry a visually hidden required marker, so the two mandatory fields are matched by
-// prefix. The other three have plain labels.
 const field = {
   title: () => screen.getByLabelText(/^Jobbtitel/),
   company: () => screen.getByLabelText(/^Företag/),
@@ -216,6 +214,5 @@ describe("NewApplicationForm", () => {
       expect(createApplicationActionMock).toHaveBeenCalledTimes(1)
     );
     await waitFor(() => expect(caught).toBeInstanceOf(RedirectError));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

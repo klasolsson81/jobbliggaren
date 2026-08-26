@@ -15,10 +15,10 @@ interface TodayCardProps {
 }
 
 /**
- * "I dag"-kort i Översikt-toppen. Server Component — ren render utan state.
+ * "Idag"-kort i Översikt-toppen. Server Component — ren render utan state.
  *
  * Tre tillstånd per HANDOVER §2.3:
- * - inga events ⇒ italic "Inget planerat i dag."
+ * - inga events ⇒ italic "Inget planerat idag."
  * - Jobbliggaren-events ⇒ lista + fot "Google Calendar inte synkad"
  * - Google synkad (framtid) ⇒ events får --google-variant + fot "Synkad ..."
  */

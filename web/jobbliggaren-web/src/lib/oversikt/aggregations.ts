@@ -165,7 +165,7 @@ export interface SwedishLongDate {
 }
 
 /**
- * Lång svensk form för "I dag"-kortets datumblock:
+ * Lång svensk form för "Idag"-kortets datumblock:
  * { day: 23, weekday: "lördag", monthYear: "maj 2026" }
  */
 export function formatSwedishLongDate(date: Date): SwedishLongDate {
@@ -235,7 +235,7 @@ export function formatNoticesStamp(date: Date): string {
  * och `updatedAt` ligger inom 1 UTC-kalenderdag bakåt från `now` (kan i
  * praktiken vara upp till ~47h gammal pga `daysSince`-trunkering). Driver
  * Intervju-bekräftelse-notisen — fönstret är kalenderdag-bundet, inte
- * 24h rullande, för att matcha "i går"/"i dag"-copyn.
+ * 24h rullande, för att matcha "igår"/"idag"-copyn.
  */
 export function findRecentInterviews(
   apps: ReadonlyArray<ApplicationDto>,

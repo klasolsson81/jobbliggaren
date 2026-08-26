@@ -88,7 +88,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Backend-utvecklare",
     status: "Interview",
     statusLabel: "Intervju",
-    updatedAtLabel: "i går",
+    updatedAtLabel: "igår",
     source: "Platsbanken",
   },
   {
@@ -106,7 +106,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Lösningsarkitekt",
     status: "Offer",
     statusLabel: "Erbjudande",
-    updatedAtLabel: "i dag",
+    updatedAtLabel: "idag",
     source: "Manual",
   },
   {
@@ -155,7 +155,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
     latestRole: "Junior systemutvecklare",
     sectionCount: 6,
     topSkills: ["C#", ".NET", "PostgreSQL", "Next.js"],
-    updatedAtLabel: "i dag",
+    updatedAtLabel: "idag",
     isPrimary: true,
   },
   {

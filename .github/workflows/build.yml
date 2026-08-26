@@ -947,20 +947,19 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      # `nocache` names the stage that must NEVER be served from the layer cache, and the
-      # invariant is deliberately general rather than keyed to one advisory: a stage whose
-      # output is a function of wall-clock time against a MOVING UPSTREAM INDEX cannot be
-      # cached without going stale. `RUN apk --no-cache upgrade` is exactly that — `--no-cache`
-      # forces a fresh apk index fetch, so a freshly executed upgrade cannot yield a version
-      # older than the index carries. If it does, the RUN did not execute, and layer cache is
-      # the only mechanism by which a RUN does not execute.
+      # `nocache` names the stage that must NEVER be served from the layer cache: one running
+      # `apk --no-cache upgrade` against alpine's moving index. A cached upgrade layer yields
+      # an image carrying the package versions of whenever that layer was built.
       #
-      # Deterministic stages (`pnpm install`, `next build`, `xcaddy build`) may still cache —
-      # that is why this is per-stage and not `no-cache: true`.
+      # Per-stage and not `no-cache: true`, so the expensive deterministic work still caches.
       #
       # The three .NET legs are empty ON PURPOSE, not by omission: they carry no upgrade RUN
       # at all. Their OS state comes wholly from `mcr.microsoft.com/dotnet/aspnet:10.0-noble`,
       # whose digest moves when Microsoft rebuilds, which invalidates their cache naturally.
+      #
+      # An unmatched stage name is SILENTLY ignored by buildkit — exit 0, no warning, step
+      # served from cache (measured 2026-08-27, buildx v0.29.1). Nothing here asserts the name
+      # still matches a `FROM ... AS <name>`; #1518 owns that gate.
       matrix:
         include:
           - { name: api, context: ".", file: "src/Jobbliggaren.Api/Dockerfile", nocache: "" }

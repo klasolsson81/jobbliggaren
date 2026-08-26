@@ -13,24 +13,31 @@ import { describe, it, expect } from "vitest";
  * shipped anyway. Measured at `3490d4b4`: 13 spaced against 4 closed, with both forms
  * reachable in ONE viewport — `/oversikt` rendered `i dag` from `oversikt.json` while
  * the header above it rendered `nya idag` from `common.json`. A convention with no gate
- * is what this replaces.
+ * is what this replaces. Regenerate that count with:
+ *
+ *   git grep -ohIE -i '\bi (dag|går)\b' <ref> -- 'web/jobbliggaren-web/messages/sv/*.json'
+ *
+ * `-i` must come BEFORE the pattern. After the pathspec git reads it as another
+ * pathspec, the grep runs case-sensitively, and the count comes back 12 — silently
+ * missing `oversikt.json`'s sentence-initial "I dag". That is not hypothetical: it is
+ * how the 12 was produced during this PR's own review.
  *
  * The file set is DERIVED from the directory, never listed. `document-title-coverage.test.ts`
  * states the doctrine in this repo: "a list is the silent hole". A catalogue added later is
  * swept without anyone remembering to extend this file.
  *
- * LIMIT, named rather than implied: this reaches `messages/sv/` and nothing else. Swedish
- * rendered from outside the catalogue — `lib/guest/mock-data.ts` carries three such labels —
- * is a §5 hardcoded-UI-string concern and is deliberately not gated here.
- *
  * `messages/en/` is not swept: it spells the word "today", so it has no form to diverge.
  */
 
-const SV = join(dirname(fileURLToPath(import.meta.url)), "../../../messages/sv");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SV = join(HERE, "../../../messages/sv");
+const GUEST_MOCK = join(HERE, "../guest/mock-data.ts");
 
 // `\b` before `i` rejects "vi dag…"; `\b` after `dag`/`går` rejects "i dagar", "1 dag".
 // Case-insensitive so the sentence-initial "I dag" — the site the original #1168 sweep
 // missed, because it grepped lowercase only — cannot slip back in.
+// No `g` flag, deliberately: `.test()` on a global regex is stateful via `lastIndex` and
+// would return alternating answers across calls.
 const SPACED = /\bi (dag|går)\b/iu;
 const CLOSED = /\b(idag|igår)\b/iu;
 
@@ -49,6 +56,21 @@ function offendingLines(file: string, pattern: RegExp): readonly string[] {
 }
 
 describe("sv catalogue — one spelling of today/yesterday (#1168)", () => {
+  it("matches what it claims to match, and rejects what it claims to reject", () => {
+    // Positive control on the pattern that carries the invariant. Without it, a typo in
+    // SPACED leaves `offenders` empty for the WRONG reason and the suite stays green:
+    // the vacuity floor below keys on CLOSED, so it would not notice
+    // (dotnet-architect, 2026-08-26).
+    expect(SPACED.test("Väntetiden räknas om från i dag")).toBe(true);
+    expect(SPACED.test("Senast ändrad i går")).toBe(true);
+    expect(SPACED.test("I dag")).toBe(true);
+
+    // The word boundaries the comment above claims, asserted rather than asserted-by-comment.
+    for (const notAMatch of ["1 dag", "i dagar", "vi dagar", "i dagsläget", "# dgr"]) {
+      expect(SPACED.test(notAMatch)).toBe(false);
+    }
+  });
+
   it("sweeps a non-empty catalogue that actually carries the word", () => {
     // Vacuity guard: without this, an empty or moved directory makes the assertion
     // below pass while measuring nothing at all.
@@ -62,5 +84,25 @@ describe("sv catalogue — one spelling of today/yesterday (#1168)", () => {
   it("spells it closed up everywhere — no `i dag` / `i går`", () => {
     const offenders = catalogueFiles().flatMap((f) => offendingLines(f, SPACED));
     expect(offenders).toEqual([]);
+  });
+
+  it("gates the rendered Swedish labels that live outside the catalogue", () => {
+    // NAMED rather than derived, and the asymmetry is deliberate. A derived sweep of
+    // `src/` cannot work: the word appears in roughly a dozen prose comments that are
+    // correct Swedish and must NOT be gated (§5 — "imperfect phrasing is not" a defect).
+    // This file is different because its strings are RENDERED — on `/gast/ansokningar`,
+    // `/gast/cv`, `/gast/oversikt` and the guest application detail — directly beside
+    // `guest.json`'s own `timeToday`/`timeYesterday`. Left ungated, a demo refresh
+    // reintroduces the exact two-forms-in-one-viewport defect #1168 closed
+    // (design-reviewer, 2026-08-26).
+    //
+    // That these labels live outside the catalogue AT ALL is a separate §5
+    // hardcoded-UI-string concern, and this test does not close it.
+    const labels = [
+      ...readFileSync(GUEST_MOCK, "utf8").matchAll(/updatedAtLabel:\s*"([^"]*)"/g),
+    ].map((m) => m[1] ?? "");
+
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.filter((l) => SPACED.test(l))).toEqual([]);
   });
 });

@@ -88,8 +88,8 @@
       "discardConfirm": "Ta bort utkastet",
       "discardCancel": "Avbryt",
       "relativeTime": {
-        "today": "i dag",
-        "yesterday": "i går",
+        "today": "idag",
+        "yesterday": "igår",
         "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
       }
     },

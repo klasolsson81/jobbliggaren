@@ -47,7 +47,7 @@ RUN mkdir -p /out \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.82.1
 
-FROM caddy:2-alpine
+FROM caddy:2-alpine AS runtime
 
 # The base layer's own OS packages still need patching: the published tag is not rebuilt
 # when alpine ships a fix, so c-ares, curl and libcurl arrive stale. This closes the class

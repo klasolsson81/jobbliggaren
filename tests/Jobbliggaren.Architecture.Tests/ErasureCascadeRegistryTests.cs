@@ -170,117 +170,15 @@ public class ErasureCascadeRegistryTests
         ErasureColumnDisposition.NotRecruiterData,
     ];
 
-    private static AppDbContext ModelOnlyContext()
-    {
-        // The EF model is the source of truth — not a list someone maintains, which is the failure
-        // mode this test exists to prevent. The connection is never opened.
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql("Host=localhost;Database=model-only")
-            .UseSnakeCaseNamingConvention()
-            .Options;
-
-        return new AppDbContext(options);
-    }
-
-    private static string ColumnKey(IEntityType entity, IProperty property) =>
-        $"{entity.GetTableName()}.{property.GetColumnName()}";
-
-    /// <summary>
-    /// True when a Postgres store type can carry text. <b>The sweep enumerates FORMS, not
-    /// instances</b> (round-5 security M1): the STORE type is the mapping's own word for what a
-    /// column can hold, and it is invariant under every CLR-side disguise.
-    /// </summary>
-    /// <remarks>
-    /// Every earlier version of this filter was CLR-typed, and every hole it had was a CLR shape
-    /// nobody thought of while the column stayed text: <c>string</c> was the first cut,
-    /// <c>byte[]</c> (the CV file) was missed once, <c>IEnumerable&lt;string&gt;</c> → <c>text[]</c>
-    /// (top_skills, employer_list) was missed once, and a <c>HasConversion</c> property (CLR type
-    /// <c>SearchCriteria</c>, column <c>jsonb</c> — the user's free-text <c>q</c> inside
-    /// <c>saved_searches.criteria</c>) was invisible for three rounds. Deriving from
-    /// <c>GetColumnType()</c> kills the whole class: a value converter, an array mapping, a
-    /// SmartEnum, a tsvector — they all land on a store type, and the store type cannot lie about
-    /// whether Postgres will hold text in it.
-    /// </remarks>
-    private static bool IsTextBearingStoreType(string storeType)
-    {
-        var t = storeType.Trim().ToLowerInvariant();
-
-        // Arrays of a text-bearing type bear text ("text[]", "character varying(400)[]").
-        while (t.EndsWith("[]", StringComparison.Ordinal))
-            t = t[..^2];
-
-        // Strip the length facet ("character varying(200)" → "character varying").
-        var paren = t.IndexOf('(');
-        if (paren > 0)
-            t = t[..paren].TrimEnd();
-
-        return t is "text" or "citext" or "json" or "jsonb" or "xml"
-            or "character varying" or "varchar" or "character" or "char"
-            or "bytea"      // a document IS text at rest — resume_files.content taught us that
-            or "tsvector";  // derived text is still text — job_ads.search_vector is FTS-searched
-    }
-
-    /// <summary>
-    /// Every text-bearing column in the model, grouped by table. <b>The ONE enumeration</b>, shared
-    /// by the unclassified sweep (<see cref="RecruiterTextColumns"/>) and by
-    /// <see cref="Every_wholesale_excluded_tables_ground_names_every_text_bearing_column"/>, which
-    /// reads the columns an excluded table hides.
-    /// </summary>
-    /// <remarks>
-    /// One implementation, deliberately. The two callers ask opposite questions of the SAME set -
-    /// "what did the registry forget?" and "what does an exclusion hide?" - and a second copy of the
-    /// <c>.ToJson()</c> branch below is a place for those answers to drift apart.
-    /// <para>
-    /// Several entity types can map to ONE table (an owned type is the usual case), so columns
-    /// ACCUMULATE per table rather than replacing each other.
-    /// </para>
-    /// </remarks>
-    private static Dictionary<string, List<string>> TextColumnsByTable()
-    {
-        using var context = ModelOnlyContext();
-
-        var byTable = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var entity in context.Model.GetEntityTypes())
-        {
-            var table = entity.GetTableName();
-            if (table is null)
-                continue;
-
-            if (!byTable.TryGetValue(table, out var columns))
-            {
-                columns = [];
-                byTable[table] = columns;
-            }
-
-            foreach (var property in entity.GetProperties())
-            {
-                if (!IsTextBearingStoreType(property.GetColumnType()))
-                    continue;
-
-                columns.Add(ColumnKey(entity, property));
-            }
-
-            // The .ToJson() seam, CLOSED (it was ⚠-disclosed for two rounds): an owned
-            // aggregate mapped to a JSON container column presents as a NAVIGATION, so its columns
-            // never appear among the scalar properties above - but the container column itself is
-            // text-bearing jsonb, and the model knows its name.
-            var container = entity.GetContainerColumnName();
-            if (container is not null)
-                columns.Add($"{table}.{container}");
-        }
-
-        return byTable;
-    }
-
     private static List<string> RecruiterTextColumns() =>
-        [.. TextColumnsByTable()
+        [.. ModelSweep.AppModelTextColumnsByTable()
             .Where(kv => !NonRecruiterTables.ContainsKey(kv.Key))
             .SelectMany(kv => kv.Value)];
 
     /// <summary>
     /// <b>Anti-vacuity for the sweep itself: one sentinel column per FORM.</b> The unclassified
     /// check below can only see columns the sweep SURFACES — narrow
-    /// <see cref="IsTextBearingStoreType"/> (drop <c>jsonb</c>, drop the array unwrap) and it
+    /// <see cref="ModelSweep.IsTextBearingStoreType"/> (drop <c>jsonb</c>, drop the array unwrap) and it
     /// reports fewer columns, which reads as MORE classified. The sweep silently losing a form is
     /// exactly how <c>saved_searches.criteria</c> stayed invisible for three rounds, so every form
     /// pins a column that must be visible.
@@ -310,7 +208,7 @@ public class ErasureCascadeRegistryTests
         // caller that does — every sentinel above lives in a table that is NOT excluded. Restore the
         // exclusion filter into the shared helper and all of them stay green while that guard skips
         // every table it exists to check: this file's own vacuity, one level up.
-        var byTable = TextColumnsByTable();
+        var byTable = ModelSweep.AppModelTextColumnsByTable();
         NonRecruiterTables.ShouldContainKey("user_data_keys",
             "this pin is about an EXCLUDED table. If user_data_keys is ever column-classified — "
             + "which is exactly what job_seekers, company_watches and resumes each did — the "
@@ -382,7 +280,7 @@ public class ErasureCascadeRegistryTests
     [Fact]
     public void Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable()
     {
-        var encrypted = EncryptedColumns();
+        var encrypted = ModelSweep.AppModelEncryptedColumns();
 
         // ── Anti-vacuity, per FORM. ──────────────────────────────────────────────────────────
         // A single floor over the union is not enough: Form A alone (4 columns) satisfies
@@ -459,87 +357,6 @@ public class ErasureCascadeRegistryTests
             + "NOT ABSENT — an unclassified encrypted column never reaches CouldNotSearch, so the "
             + "list we hand her presents itself as complete and is not. Art. 5(1)(d), 5(2), 12(3).\n\n"
             + "Offenders:\n  " + string.Join("\n  ", wrong));
-    }
-
-    /// <summary>
-    /// Every encrypted column, as <c>table.column</c>, resolved through the EF model from
-    /// Infrastructure's own encryption allowlist.
-    /// </summary>
-    /// <remarks>
-    /// <b>Form A</b> is read from <c>EncryptedFieldRegistry</c> through its real probe, by reflection
-    /// (the type is internal). <b>Form B</b> — a JSON-serialised VO written to an encrypted shadow —
-    /// is enumerated EXPLICITLY, because its allowlist is keyed by domain property and shadow name in
-    /// a way the EF model does not hand back symmetrically. <b>That manual list is a seam, and it is
-    /// named as one: add a Form-B column and you must add it here.</b> Saying so out loud beats a
-    /// cross-check that silently covers one form and reads as if it covered both — which is the
-    /// mistake this whole guard exists to stop.
-    /// </remarks>
-    private static HashSet<string> EncryptedColumns()
-    {
-        var registry = typeof(AppDbContext).Assembly
-            .GetType("Jobbliggaren.Infrastructure.Security.EncryptedFieldRegistry", throwOnError: false);
-
-        registry.ShouldNotBeNull(
-            "EncryptedFieldRegistry was not found by reflection. It moved or was renamed, and this "
-            + "guard just became vacuous. Fix the reflection — do not delete the test.");
-
-        var tryGet = registry.GetMethod(
-            "TryGetEncryptedProperties",
-            BindingFlags.Public | BindingFlags.Static,
-            [typeof(Type), typeof(string[]).MakeByRefType()]);
-
-        tryGet.ShouldNotBeNull(
-            "EncryptedFieldRegistry.TryGetEncryptedProperties(Type, out string[]) was not found. The "
-            + "Form-A probe changed shape and this guard just became vacuous.");
-
-        using var context = ModelOnlyContext();
-        var columns = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var entity in context.Model.GetEntityTypes())
-        {
-            if (entity.GetTableName() is null)
-                continue;
-
-            // Form A — ask the REAL registry, through its real probe, for this entity's CLR type.
-            var args = new object?[] { entity.ClrType, null };
-            if (tryGet.Invoke(null, args) is true && args[1] is string[] encryptedProperties)
-            {
-                foreach (var name in encryptedProperties)
-                {
-                    var property = entity.FindProperty(name);
-                    if (property is not null)
-                        columns.Add(ColumnKey(entity, property));
-                }
-            }
-
-            // Form B — the manual seam. See the remarks.
-            foreach (var shadow in new[] { "ContentEnc", "ParsedContentEnc" })
-            {
-                var property = entity.FindProperty(shadow);
-                if (property is not null)
-                    columns.Add(ColumnKey(entity, property));
-            }
-
-            // Form C — the binary store. THE SAME MANUAL SEAM, and it was PROMISED and not
-            // delivered: the registry's written ground said "this column is enumerated BY HAND
-            // there", and it was not. So flipping resume_files.content to NotRecruiterData would
-            // have dropped it out of CouldNotSearch in silence, with a green suite — the round-3
-            // Blocker again, one form over.
-            //
-            // Form C is sealed via IBinaryFieldSealer/IBinaryFieldOpener and is DELIBERATELY absent
-            // from EncryptedFieldRegistry (its read path is streaming and never engages the
-            // materialisation interceptor), so there is no allowlist to reflect over. Hence the hand
-            // enumeration — and hence saying so, loudly, instead of letting the guard read as if it
-            // covered all three forms.
-            foreach (var sealedProperty in new[] { "SealedContent" })
-            {
-                var property = entity.FindProperty(sealedProperty);
-                if (property is not null)
-                    columns.Add(ColumnKey(entity, property));
-            }
-        }
-
-        return columns;
     }
 
     /// <summary>
@@ -988,12 +805,18 @@ public class ErasureCascadeRegistryTests
     /// than load-bearing, which is the <c>sessions</c> shape one step milder. Re-measure with
     /// <c>git grep -n "asp_net" tests/Jobbliggaren.Architecture.Tests/ErasureCascadeRegistryTests.cs</c>
     /// against <c>AppDbContextModelSnapshot</c> rather than trusting a count written here.
+    /// <b>Inert twice over, measured 2026-08-27 (#1285):</b> Identity sets its table names with an
+    /// explicit <c>ToTable()</c>, so the model calls them <c>AspNetUsers</c> — the
+    /// <c>asp_net_users</c> keys below match no table in EITHER model, whatever the sweep reached.
+    /// <b>Identity IS swept now, for a different question:</b>
+    /// <see cref="MappedPlaintextExposureRegistryTests"/> unions both models, because a
+    /// <c>pg_dump</c> does not stop at a DbContext boundary. This fact's reach is unchanged.
     /// </para>
     /// </remarks>
     [Fact]
     public void Every_wholesale_excluded_tables_ground_names_every_text_bearing_column()
     {
-        var byTable = TextColumnsByTable();
+        var byTable = ModelSweep.AppModelTextColumnsByTable();
         var unnamed = new List<string>();
 
         foreach (var (table, ground) in NonRecruiterTables)
@@ -1062,7 +885,7 @@ public class ErasureCascadeRegistryTests
     [Fact]
     public void Every_persisted_aggregate_is_classified_or_excluded_with_a_ground()
     {
-        using var context = ModelOnlyContext();
+        using var context = ModelSweep.AppModelContext();
 
         var dbSetTypes = typeof(IAppDbContext)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)

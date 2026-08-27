@@ -217,11 +217,27 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 
 > **Amenderad 2026-06-08:** backup-målet **Cloudflare R2** ersattes med
 > **Hetzner-EU Storage Box** efter security-auditor-/senior-cto-advisor-dom
-> (M-4). Skälet: `pg_dump` bär icke-krypterad PII (bara 4 kolumner är
-> fält-krypterade per ADR 0049; e-post/namn/`waitlist_entries`/audit-IP i
-> klartext) och Cloudflare är ett US-bolag (CLOUD Act) → R2 vore en
+> (M-4). Skälet: `pg_dump` bär icke-krypterad PII
+> och Cloudflare är ett US-bolag (CLOUD Act) → R2 vore en
 > tredjelandsöverföring (GDPR Kap. V/Schrems II). Hetzner-EU håller hela
 > data-livscykeln i samma jurisdiktion som boxen.
+>
+> ⚠ **Daterad not 2026-08-27 (#1285) — två klausuler STRUKNA ur stycket ovan, inte rättade.**
+> Meningen bar *"(bara 4 kolumner är fält-krypterade per ADR 0049;
+> e-post/namn/`waitlist_entries`/audit-IP i klartext)"*. **Båda talen hade förfallit.**
+> `waitlist_entries` föll med migrationen `RetireWaitlistAndInvitations` 2026-06-27, tre veckor
+> efter att raden skrevs — uppräkningen namngav alltså en tabell som inte finns. Och
+> fält-krypteringen är sedan ADR 0074 (Form B/C) **sju** kolumner, inte fyra, så meningen
+> underskattade skyddet och överskattade klartexten i samma andetag.
+> **Klausulerna är strukna och inte ersatta med en tredje lista** — den hade förfallit också.
+> Uppräkningen är sedan #1285 **härledd ur EF-modellen för BÅDA DbContexterna** och bruten av
+> bygget: `tests/Jobbliggaren.Architecture.Tests/MappedPlaintextExposureRegistry.cs`. Argumentet
+> som bar M-4-domen står oförändrat — `pg_dump` bär icke-krypterad PII, och det är fortfarande
+> sant. *(Provenans, inte levande register: ADR 0050 är daterad och förfaller inte, §1.6.)*
+> ⛔ **Registret heter `Mapped…` och inte `Backup…`, och luckan hör till pekaren:** det täcker vad de
+> två EF-modellerna mappar. Dumpen bär mer — `hangfire`-schemat ligger i **samma databas**.
+> Klassas av en följd-PR
+> (`security-auditor` Major 1, PR #1530); hennes Case 2-signatur hänger på den.
 
 Cloudflare gratis-tier framför boxen (TLS-edge/DNS/CDN/DDoS) — **Cloudflare-proxy
 "Full (strict)"** mot ett giltigt origin-cert på Caddy (aldrig "Flexible" =

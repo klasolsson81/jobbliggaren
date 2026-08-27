@@ -5,8 +5,9 @@ import { GuestAnsokningarPage } from "./guest-ansokningar-page";
 /**
  * #1516 — the guest pipeline's time column renders the product's form.
  *
- * This is the surface the defect was measured on: seven rows in ONE column,
- * three carrying `idag`/`igår` and four carrying `för N dagar sedan`. The first
+ * This is the surface the defect was measured on: seven rows in ONE column —
+ * two carrying `idag`/`igår`, four carrying `för N dagar sedan`, and one
+ * carrying `för 1 vecka sedan`, which the catalogue cannot express. The first
  * assertion is that defect expressed as a test — all three forms in one view.
  * A per-string form check would not have caught it: every single string was
  * well-formed Swedish, and it was the combination that was wrong.

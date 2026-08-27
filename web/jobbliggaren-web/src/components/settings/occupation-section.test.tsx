@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TaxonomyOccupationField } from "@/lib/dto/taxonomy";
 import type { CvSuggestResult } from "@/lib/actions/match-preferences";
+import type { UploadOutcome } from "@/components/resumes/cv-upload-form";
 
 const { cvSuggestMock, parsedSuggestMock } = vi.hoisted(() => ({
   cvSuggestMock: vi.fn(),
@@ -15,39 +16,54 @@ vi.mock("@/lib/actions/match-preferences", () => ({
 }));
 
 // Stub CvUploadForm (Spår 4 inline-upload) — the real one uses next/navigation +
-// fetch which jsdom lacks. The stub exposes a button that fires onUploaded with a
-// fixed LeftPending outcome (CV-pivot 5c — the callback is outcome-aware) so the
-// inline-upload → suggest flow is testable.
+// fetch which jsdom lacks. The stub exposes one button per outcome so BOTH arms of
+// the inline-upload → suggest flow are testable.
+//
+// `UploadOutcome` is imported as a TYPE from the production module rather than written
+// out structurally. `vi.mock` is not type-checked, so a hand-written union would keep
+// this file green while drifting from what production actually emits — and a union
+// that only carried `kind: "pending"` is precisely what let the promoted arm go
+// untested through the defect this file now guards. Same reasoning, and the same
+// remedy, as `match-setup-rail-modal.cv-outcome.test.tsx`.
 vi.mock("@/components/resumes/cv-upload-form", () => ({
   CvUploadForm: ({
     onUploaded,
   }: {
-    onUploaded?: (
-      outcome: {
-        kind: "pending";
-        parsedResumeId: string;
-        blockReason: string;
-        personnummerCount: number;
-      },
-      fileName?: string
-    ) => void;
+    onUploaded?: (outcome: UploadOutcome, fileName?: string) => void;
   }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onUploaded?.(
-          {
-            kind: "pending",
-            parsedResumeId: "parsed-uploaded",
-            blockReason: "ParseNotConfident",
-            personnummerCount: 0,
-          },
-          "cv.pdf"
-        )
-      }
-    >
-      Ladda upp (stub)
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={() =>
+          onUploaded?.(
+            {
+              kind: "pending",
+              parsedResumeId: "parsed-uploaded",
+              blockReason: "ParseNotConfident",
+              personnummerCount: 0,
+            },
+            "cv.pdf"
+          )
+        }
+      >
+        Ladda upp (stub)
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onUploaded?.(
+            {
+              kind: "promoted",
+              resumeId: "resume-1",
+              parsedResumeId: "parsed-promoted",
+            },
+            "cv.pdf"
+          )
+        }
+      >
+        Ladda upp promoted (stub)
+      </button>
+    </div>
   ),
 }));
 
@@ -270,6 +286,39 @@ describe("OccupationSection — CV-förslag pre-addas som chips", () => {
     expect(
       await screen.findByRole("button", { name: "Ta bort Backendutvecklare" })
     ).toBeInTheDocument();
+  });
+
+  it("kör förslaget mot parsen även när uppladdningen befordrades direkt", async () => {
+    // Den arm defekten satt i. Auto-promote är det VANLIGA utfallet, och tidigare nollade
+    // den här handlern parse-id:t och föll till latestRole — en enda denormaliserad
+    // sträng som på ett riktigt CV bär arbetsgivaren, inte titeln. Inget kastar när det
+    // sker; sektionen blir bara tom, vilket är varför den behöver en vakt.
+    const user = userEvent.setup();
+    cvSuggestMock.mockResolvedValue({ kind: "noCv" } satisfies CvSuggestResult);
+    parsedSuggestMock.mockResolvedValue({
+      kind: "candidates",
+      candidates: [
+        {
+          occupationGroupConceptId: "grp_backend",
+          occupationGroupLabel: "Backendutvecklare",
+        },
+      ],
+    } satisfies CvSuggestResult);
+    render(<HostHarness autoSuggestFromCv />);
+
+    await user.click(await screen.findByRole("button", { name: "Ladda upp CV" }));
+    // Mount-effekten har redan kört latestRole-vägen en gång (inget parse-id fanns då).
+    // Det är rätt beteende, så vakten mäter vad UPPLADDNINGEN gjorde: räknaren får inte
+    // röra sig efter den, för det vore återfallet.
+    const cvCallsBeforeUpload = cvSuggestMock.mock.calls.length;
+    await user.click(
+      screen.getByRole("button", { name: "Ladda upp promoted (stub)" })
+    );
+
+    await waitFor(() =>
+      expect(parsedSuggestMock).toHaveBeenCalledWith("parsed-promoted")
+    );
+    expect(cvSuggestMock.mock.calls.length).toBe(cvCallsBeforeUpload);
   });
 
   it("dialog-läget (autoSuggestFromCv=false) har en knapp som triggar CV-förslaget", async () => {

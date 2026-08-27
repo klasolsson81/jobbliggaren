@@ -9,7 +9,7 @@ import { z } from "zod";
  *    OWNER's CV-resolved skill proposals for a freshly-uploaded `parsed_resume`
  *    (propose-and-approve, ADR 0040 Beslut 4 — never written until the user
  *    saves). Owner-scoped + IDOR fail-closed in backend (unknown/cross-user/
- *    promoted → 404).
+ *    discarded → 404).
  *  - `GET /api/v1/job-ads/taxonomy/skills/search?q=<query>` → `SkillOptionDto[]`:
  *    the skill typeahead used by the "add" affordance (the flat 20k skill
  *    vocabulary has NO hierarchy, so a cascade does not apply — search instead).

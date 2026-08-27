@@ -11,11 +11,11 @@ import { isValidId } from "@/lib/validation/guid";
 
 /**
  * STEG 3 / ADR 0079 (Beslut 1) — the OWNER's CV-resolved skill proposals for a
- * PendingReview parsed CV (`GET /api/v1/resumes/parsed/{id}/skills`). Mirrors
+ * PendingReview or Promoted parsed CV (`GET /api/v1/resumes/parsed/{id}/skills`). Mirrors
  * `getParsedResumeOccupations`: server-only, auth-gated, owner-scoped + IDOR
- * fail-closed in backend (unknown/cross-user/promoted → 404, no enumeration
+ * fail-closed in backend (unknown/cross-user/discarded → 404, no enumeration
  * oracle). Lets the match-preference UI suggest skills from a freshly-uploaded
- * CV that has not yet been promoted to a `Resume`. The wire shape is already
+ * CV. The wire shape is already
  * `{conceptId, label}`, so no boundary remap is needed (unlike the occupation
  * proposal endpoint, whose wire shape differs from `OccupationCandidate`).
  *

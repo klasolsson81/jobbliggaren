@@ -190,11 +190,11 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // The owner's non-PII SSYK occupation proposals for a PendingReview parsed CV (F4-8),
-        // derived deterministically at import and stored as plain jsonb. Drives the match-setup
-        // wizard's CV-suggest for a freshly-uploaded-but-not-yet-promoted CV. Projects the jsonb
+        // The owner's non-PII SSYK occupation proposals for a PendingReview or Promoted parsed
+        // CV (F4-8), derived deterministically at import and stored as plain jsonb. Drives the
+        // match-setup wizard's CV-suggest for a freshly-uploaded CV. Projects the jsonb
         // column ONLY — never reads/decrypts the CV-PII (PII-minimisation, CTO Variant B
-        // 2026-06-21). Cross-user/unknown/promoted → 404 (global DeletedAt filter + fail-closed
+        // 2026-06-21). Cross-user/unknown/discarded → 404 (status allow-list + fail-closed
         // handler, no enumeration oracle).
         group.MapGet("/parsed/{id:guid}/occupations", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
@@ -204,12 +204,12 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // The owner's non-PII JobTech skill proposals for a PendingReview parsed CV
-        // (ADR 0079 STEG 3), resolved deterministically at import and stored as plain
-        // jsonb. Drives the match-setup skill section's CV-suggest for a freshly-uploaded-
-        // but-not-yet-promoted CV. Projects the jsonb column ONLY — never reads/decrypts
+        // The owner's non-PII JobTech skill proposals for a PendingReview or Promoted parsed
+        // CV (ADR 0079 STEG 3), resolved deterministically at import and stored as plain
+        // jsonb. Drives the match-setup skill section's CV-suggest for a freshly-uploaded
+        // CV. Projects the jsonb column ONLY — never reads/decrypts
         // the CV-PII (PII-minimisation, mirrors the occupations projection). Cross-user/
-        // unknown/promoted → 404 (global DeletedAt filter + fail-closed handler, no
+        // unknown/discarded → 404 (status allow-list + fail-closed handler, no
         // enumeration oracle).
         group.MapGet("/parsed/{id:guid}/skills", async (
             Guid id, IMediator mediator, CancellationToken ct) =>

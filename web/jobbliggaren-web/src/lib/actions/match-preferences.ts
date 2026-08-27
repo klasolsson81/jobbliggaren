@@ -144,14 +144,14 @@ export async function suggestOccupationsFromCvAction(): Promise<CvSuggestResult>
  * Fas 4 onboarding (ADR 0076, CTO Variant B 2026-06-21) — CV-suggest sourced from a SPECIFIC
  * freshly-uploaded `parsed_resume` (the wizard receives its `parsedResumeId` from the welcome
  * upload). Distinct from {@link suggestOccupationsFromCvAction}, which reads the promoted
- * `Resume`'s `latestRole`: a brand-new user who just uploaded has NO promoted Resume yet (only a
- * PendingReview parsed_resume), so the latestRole path returns `noCv`. This reads the non-PII
+ * `Resume`'s `latestRole` — one denormalised string, against the union over education and
+ * experience the import itself derived from. This reads the non-PII
  * `occupation_proposals` already derived at import — no DEK, no CV-PII egress (the backend
  * projects the jsonb column).
  *
  * Maps to the SAME {@link CvSuggestResult} union so the YRKEN section renders unchanged: an
  * empty proposal list → `noRole` (CV read, no occupation derivable — honest, not a failure); a
- * missing/cross-user/promoted artifact → `noCv` (404 from the owner-scoped, fail-closed read).
+ * missing/cross-user/discarded artifact → `noCv` (404 from the owner-scoped, fail-closed read).
  * The proposal is never written (propose-and-approve, ADR 0040/0071).
  */
 export async function suggestOccupationsFromParsedResumeAction(
@@ -242,11 +242,11 @@ export type SkillSuggestResult =
  * non-PII `/skills` projection (no DEK, no CV-PII egress — the backend projects
  * the resolved concept-ids/labels). Maps to the SAME {@link SkillSuggestResult}
  * union: an empty list → `noRole` (CV read, no skill resolvable — honest, not a
- * failure); a missing/cross-user/promoted artifact → `noCv` (404 from the
+ * failure); a missing/cross-user/discarded artifact → `noCv` (404 from the
  * fail-closed read). Never written (propose-and-approve, ADR 0040/0071).
  *
- * No promoted-CV (`latestRole`-style) auto-suggest path exists yet for settings
- * users — the search-add affordance covers them. A noted follow-up, not built.
+ * This is the ONLY skill-suggest source there is; there is no `latestRole`-style
+ * fallback. Settings users without an upload use the search-add affordance.
  */
 export async function suggestSkillsFromParsedResumeAction(
   parsedResumeId: string

@@ -46,6 +46,19 @@ public class GetParsedResumeSkillsEndpointTests(ApiFactory factory)
         return new MultipartFormDataContent { { part, "file", "cv.pdf" } };
     }
 
+    private static async Task<(string ParsedResumeId, string Outcome)> ImportDocxAsync(
+        HttpClient client, byte[] docx, CancellationToken ct)
+    {
+        var part = new ByteArrayContent(docx);
+        part.Headers.ContentType = new MediaTypeHeaderValue(CvDocxFixtures.ContentType);
+        using var form = new MultipartFormDataContent { { part, "file", "cv.docx" } };
+        var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
+        import.IsSuccessStatusCode.ShouldBeTrue();
+        var body = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        return (body.GetProperty("parsedResumeId").GetString()!,
+                body.GetProperty("outcome").GetString()!);
+    }
+
     private static async Task<string> ImportAsync(HttpClient client, CancellationToken ct)
     {
         using var form = PdfForm();
@@ -88,6 +101,46 @@ public class GetParsedResumeSkillsEndpointTests(ApiFactory factory)
         get.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.ValueKind.ShouldBe(JsonValueKind.Array);
+    }
+
+    // Mirrors GetParsedResumeOccupationsEndpointTests. This read matters more than its twin:
+    // it is the ONLY skill-suggest source there is — no latest_role-style fallback was ever
+    // built — so while a promoted parse read as 404 the wizard's skill step had nothing at all
+    // to offer on the ordinary upload path.
+    [Fact]
+    public async Task Auto_promoted_import_then_GET_skills_returns_200_with_the_resolved_array()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var (id, outcome) = await ImportDocxAsync(
+            _client, CvDocxFixtures.ConfidentSwedishDeveloperCv(), ct);
+        outcome.ShouldBe("Promoted");
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/skills", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        json.ValueKind.ShouldBe(JsonValueKind.Array);
+        json.GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task GET_skills_for_a_discarded_parse_returns_404()
+    {
+        // The other side of the status allow-list, on real Postgres: IgnoreQueryFilters must not
+        // hand back an import the user rejected. Discarded is produced by the discard endpoint,
+        // the same actor the CV hub invokes.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await ImportAsync(_client, ct);
+
+        var discard = await _client.PostAsync($"/api/v1/resumes/parsed/{id}/discard", content: null, ct);
+        discard.IsSuccessStatusCode.ShouldBeTrue();
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/skills", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

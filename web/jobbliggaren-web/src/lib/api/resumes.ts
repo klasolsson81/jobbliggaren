@@ -109,8 +109,8 @@ export async function getLatestPendingParsedResume(): Promise<PendingParsedResum
  * for a PendingReview parsed CV (`GET /api/v1/resumes/parsed/{id}/occupations`). The backend
  * PROJECTS the plain-jsonb proposals and never decrypts the CV-PII (the query is not
  * `IRequiresFieldEncryptionKey`), so this read carries no CV-PII. Lets the match-setup wizard
- * suggest occupations from a freshly-uploaded CV that has not yet been promoted to a Resume.
- * Owner-scoped + IDOR fail-closed lives in backend (unknown/cross-user/promoted → 404).
+ * suggest occupations from a freshly-uploaded CV, promoted or still pending review.
+ * Owner-scoped + IDOR fail-closed lives in backend (unknown/cross-user/discarded → 404).
  * Maps the wire shape to the shared `OccupationCandidate` so the wizard toggles the right group.
  */
 export async function getParsedResumeOccupations(

@@ -1,14 +1,9 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useId, useMemo, useRef, useTransition } from "react";
+import { Controller, useForm, type FieldErrors } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useTranslations } from "next-intl";
 
 /**
@@ -36,7 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { addFollowUpAction } from "@/lib/actions/applications";
-import { makeAddFollowUpSchema } from "@/lib/actions/application-schemas";
+import {
+  makeAddFollowUpSchema,
+  type ValidationTranslator,
+} from "@/lib/actions/application-schemas";
 import { CHANNEL_KEYS, channelLabel } from "@/lib/applications/status";
 
 interface AddFollowUpFormProps {
@@ -47,19 +45,32 @@ interface AddFollowUpFormProps {
   onCancel?: () => void;
 }
 
-type FormValues = {
-  channel: string;
-  scheduledAt: string;
-  note: string;
-};
+// The schema the client mirrors, minus the one member that is not a field of this form:
+// applicationId arrives as a prop, so a client-side complaint about it would name something the
+// user cannot change. The action still parses the full object, applicationId included — it stays
+// the authority, and this is only the round trip saved.
+function makeFormSchema(t: ValidationTranslator) {
+  return makeAddFollowUpSchema(t).omit({ applicationId: true });
+}
 
-// Maps a zod issue path back to the control that owns it, so a refusal can mark and focus the
-// input it names. Keyed by form field, so a renamed field breaks the build rather than the routing.
+// The form's values are the schema's INPUT shape, derived rather than restated. `z.infer` would
+// give the output shape; a form holds what the user picked and typed, which is the input side.
+// `channel` is therefore the enum, and "nothing picked yet" is `undefined` rather than the empty
+// string that used to stand in for it — the Select maps it back to "" at its own boundary below.
+type FormValues = z.input<ReturnType<typeof makeFormSchema>>;
+
+// Maps a form field to the control that owns it, so a refusal can mark the input it names and
+// address that input's own message node. Keyed by form field, so a renamed field breaks the build
+// rather than the routing.
 const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
   channel: "follow-up-channel",
   scheduledAt: "follow-up-date",
   note: "follow-up-note",
 };
+
+// The note's hint states the length cap its refusal is about, so a refused note is described by the
+// hint AND its own message rather than by the message alone.
+const NOTE_HINT_ID = "follow-up-note-hint";
 
 /**
  * React Hook Form owns all three values, and that ownership is the point.
@@ -74,8 +85,18 @@ const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
  * for. The values survive a failure by construction rather than by being handed back. The form is
  * cleared exactly once, deliberately, on a successful save.
  *
- * Client validation mirrors the server's own schema (`makeAddFollowUpSchema`, the same builder
- * `addFollowUpAction` runs) and the server stays authoritative — the shape `cv-gapfill-form` uses.
+ * <b>React Hook Form owns the REFUSALS too, through the schema resolver.</b>
+ *
+ * Client validation used to run as a hand-rolled `schema.safeParse` whose result was kept in a
+ * `useState` beside the form. That split ownership — values in RHF, errors next to it — produced
+ * two defects at once (#1514): only `issues[0]` was ever surfaced, so an unpicked channel AND an
+ * over-long note took two submits, and nothing cleared the refusal while the user typed, so a
+ * corrected field kept `aria-invalid="true"`. Handing the same schema to `zodResolver` removes both
+ * by construction rather than by wiring: every issue lands on the field it names, and
+ * `reValidateMode: "onChange"` drops a field's error the moment it becomes valid again.
+ *
+ * The schema is `makeAddFollowUpSchema`, the same builder `addFollowUpAction` runs, and the server
+ * stays authoritative — this is only the round trip saved.
  */
 export function AddFollowUpForm({
   applicationId,
@@ -85,90 +106,119 @@ export function AddFollowUpForm({
   const t = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
   const tValidation = useTranslations("validation");
-  // The action's own schema, minus the one member that is not a field of this form: applicationId
-  // arrives as a prop, so a client-side complaint about it would name something the user cannot
-  // change. The action still parses the full object, applicationId included — it stays the
-  // authority, and this is only the round trip saved.
-  const schema = useMemo(
-    () => makeAddFollowUpSchema(tValidation).omit({ applicationId: true }),
-    [tValidation]
-  );
+  const schema = useMemo(() => makeFormSchema(tValidation), [tValidation]);
 
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
-  // An object rather than a bare string so two identical failures in a row are two distinct states
-  // — the focus effect below has to fire on the second one too. `field` carries #1117's
-  // discriminator: the name of the ONE control a client-side refusal belongs to, absent for a
-  // server failure that belongs to no field.
-  const [error, setError] = useState<{
-    message: string;
-    field?: keyof FormValues;
-  } | null>(null);
 
-  const { register, control, handleSubmit, reset } = useForm<FormValues>({
-    defaultValues: { channel: "", scheduledAt: localDatetimeNow(), note: "" },
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<FormValues>({
+    // `raw: true` is load-bearing, not cosmetic. Without it `handleSubmit` receives the schema's
+    // TRANSFORMED output, in which an empty `note` has become `undefined` — and
+    // `formData.set("note", undefined)` posts the literal string "undefined". With it the raw
+    // values the user picked and typed reach the action, which is what the action parses.
+    resolver: zodResolver(schema, undefined, { raw: true }),
+    // Refuse on submit, then re-check a refused field on every change. The second half is what
+    // clears a corrected field's `aria-invalid` while the user is still typing (#1514).
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    shouldFocusError: false,
+    defaultValues: { scheduledAt: localDatetimeNow(), note: "" },
   });
 
-  function fieldA11y(name: keyof FormValues) {
-    return error?.field === name
-      ? ({ "aria-invalid": true, "aria-describedby": errorId } as const)
-      : {};
+  function fieldA11y(name: keyof FormValues, hintId?: string) {
+    const invalid = errors[name] !== undefined;
+    const describedBy = [
+      hintId,
+      invalid ? `${FIELD_ELEMENT_IDS[name]}-error` : undefined,
+    ].filter((id) => id !== undefined);
+    return {
+      "aria-invalid": invalid || undefined,
+      "aria-describedby":
+        describedBy.length > 0 ? describedBy.join(" ") : undefined,
+    };
   }
 
-  // A refusal that names a control sends the caret there — it is what the user has to change. One
-  // that names none has no field to go to, and the submit button is disabled while the action runs,
-  // so focus would otherwise fall to <body> and the next Tab restart at the top of the page.
+  // Every refused field carries its OWN message node under its own stable id. One shared node would
+  // make each invalid control's `aria-describedby` point at every other refused field's message as
+  // well — the error would be identified but misattributed, which is not what WCAG 3.3.1 asks for.
+  function fieldError(name: keyof FormValues) {
+    const message = errors[name]?.message;
+    if (message === undefined) return null;
+    return (
+      <p
+        id={`${FIELD_ELEMENT_IDS[name]}-error`}
+        role="alert"
+        className="text-body-sm text-danger-700"
+      >
+        {message}
+      </p>
+    );
+  }
+
+  // A server failure names no control, so it has no field to go to, and the submit button is
+  // disabled while the action runs — focus would otherwise fall to <body> and the next Tab restart
+  // at the top of the page.
   useEffect(() => {
-    if (!error) return;
-    if (error.field) {
-      document.getElementById(FIELD_ELEMENT_IDS[error.field])?.focus();
-      return;
-    }
+    if (errors.root === undefined) return;
     errorRef.current?.focus();
-  }, [error]);
+  }, [errors.root]);
+
+  // A refusal that names controls sends the caret to the first of them IN THE ORDER THIS FORM
+  // DECLARES ITS FIELDS, which is the order they appear on screen.
+  //
+  // RHF's own `shouldFocusError` is off rather than unused. It walks its internal registration
+  // order, and with the channel and the note both refused it focused the NOTE (measured
+  // 2026-08-27), dropping the user past the refusal above it. Doing it here also confines the move
+  // to a refused submit: an effect keyed on `errors` would re-fire on every keystroke once
+  // `reValidateMode: "onChange"` is on, and would yank the caret out of the field being corrected
+  // as soon as an earlier field came clean.
+  function focusFirstRefused(fieldErrors: FieldErrors<FormValues>) {
+    const names = Object.keys(FIELD_ELEMENT_IDS) as (keyof FormValues)[];
+    const first = names.find((name) => fieldErrors[name] !== undefined);
+    if (first === undefined) return;
+    document.getElementById(FIELD_ELEMENT_IDS[first])?.focus();
+  }
 
   function onSubmit(values: FormValues) {
-    setError(null);
-    const parsed = schema.safeParse({
-      channel: values.channel,
-      scheduledAt: values.scheduledAt,
-      note: values.note || undefined,
-    });
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const path = issue?.path[0];
-      setError({
-        message: issue?.message ?? tUi("actions.invalidInput"),
-        field: typeof path === "string" && path in FIELD_ELEMENT_IDS
-          ? (path as keyof FormValues)
-          : undefined,
-      });
-      return;
-    }
-
+    clearErrors("root");
     startTransition(async () => {
       const formData = new FormData();
       formData.set("channel", values.channel);
       formData.set("scheduledAt", values.scheduledAt);
-      formData.set("note", values.note);
+      // `note` is `string | undefined` on the schema's input side. RHF holds it as the empty string
+      // `defaultValues` seeds, so `?? ""` never fires at runtime — it is there because
+      // `formData.set(k, undefined)` would post the literal string "undefined".
+      formData.set("note", values.note ?? "");
       const result = await addFollowUpAction(applicationId, formData);
       if (!result.success) {
-        setError({ message: result.error });
+        setError("root", { message: result.error });
         return;
       }
       // The only place this form is ever cleared. `localDatetimeNow()` is re-read here so the next
-      // follow-up in the same session opens on the current time, not on the mount time.
-      reset({ channel: "", scheduledAt: localDatetimeNow(), note: "" });
+      // follow-up in the same session opens on the current time, not on the mount time, and the
+      // channel goes back to "nothing picked".
+      reset({ channel: undefined, scheduledAt: localDatetimeNow(), note: "" });
       onSuccess?.();
     });
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
+    <form
+      onSubmit={handleSubmit(onSubmit, focusFirstRefused)}
+      className="flex flex-col gap-3"
+    >
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="follow-up-channel">{tUi("addFollowUp.channelLabel")}</Label>
+          <Label htmlFor={FIELD_ELEMENT_IDS.channel}>{tUi("addFollowUp.channelLabel")}</Label>
           {/* Controller, not `register`: Radix Select is not a native control and posts nothing on
               its own. With the value held here it also cannot be cleared behind the form's back.
 
@@ -186,7 +236,11 @@ export function AddFollowUpForm({
             render={({ field }) => (
               <Select
                 name={field.name}
-                value={field.value}
+                // "Nothing picked yet" is `undefined` in the form's values, because that is what
+                // the schema's input side calls it. Radix spells the same state as the empty
+                // string — no item may carry it, so it renders the placeholder — and this is the
+                // one boundary where the two spellings meet.
+                value={field.value ?? ""}
                 onValueChange={field.onChange}
                 disabled={isPending}
               >
@@ -210,9 +264,10 @@ export function AddFollowUpForm({
               </Select>
             )}
           />
+          {fieldError("channel")}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="follow-up-date">{tUi("addFollowUp.dateLabel")}</Label>
+          <Label htmlFor={FIELD_ELEMENT_IDS.scheduledAt}>{tUi("addFollowUp.dateLabel")}</Label>
           <Input
             id={FIELD_ELEMENT_IDS.scheduledAt}
             type="datetime-local"
@@ -221,32 +276,29 @@ export function AddFollowUpForm({
             {...fieldA11y("scheduledAt")}
             {...register("scheduledAt")}
           />
+          {fieldError("scheduledAt")}
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="follow-up-note">{tUi("addFollowUp.noteLabel")}</Label>
-        {/* The hint is kept alongside the error rather than replaced by it — the length cap it
+        <Label htmlFor={FIELD_ELEMENT_IDS.note}>{tUi("addFollowUp.noteLabel")}</Label>
+        {/* The hint is kept alongside the message rather than replaced by it — the length cap it
             states is exactly what the refusal is about. */}
         <Textarea
           id={FIELD_ELEMENT_IDS.note}
           rows={2}
-          aria-invalid={error?.field === "note" ? true : undefined}
-          aria-describedby={
-            error?.field === "note"
-              ? `follow-up-note-hint ${errorId}`
-              : "follow-up-note-hint"
-          }
           disabled={isPending}
+          {...fieldA11y("note", NOTE_HINT_ID)}
           {...register("note")}
         />
         <p
-          id="follow-up-note-hint"
+          id={NOTE_HINT_ID}
           className="text-body-sm text-text-primary"
         >
           {tUi("addFollowUp.noteHint")}
         </p>
+        {fieldError("note")}
       </div>
-      {error && (
+      {errors.root && (
         <p
           id={errorId}
           ref={errorRef}
@@ -254,7 +306,7 @@ export function AddFollowUpForm({
           role="alert"
           className="text-body-sm text-danger-700"
         >
-          {error.message}
+          {errors.root.message ?? tUi("actions.invalidInput")}
         </p>
       )}
       <div className="flex flex-wrap gap-2">

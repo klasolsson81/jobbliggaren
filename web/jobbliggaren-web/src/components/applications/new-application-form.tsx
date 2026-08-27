@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useId, useMemo, useRef, useTransition } from "react";
+import { useForm, type FieldErrors } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,17 +13,15 @@ import { Label } from "@/components/ui/label";
 import { createApplicationAction } from "@/lib/actions/applications";
 import { makeCreateApplicationSchema } from "@/lib/actions/application-schemas";
 
-type FormValues = {
-  title: string;
-  company: string;
-  url: string;
-  expiresAt: string;
-  coverLetter: string;
-};
+// The form's values are the schema's INPUT shape, derived rather than restated. `z.infer` would
+// give the output shape, in which an empty optional field has already been transformed away to
+// `undefined`; a form holds what the user typed, which is the input side. Deriving it also means a
+// field added to the schema fails this file's build until it is rendered here.
+type FormValues = z.input<ReturnType<typeof makeCreateApplicationSchema>>;
 
-// Maps a zod issue path back to the control that owns it, so a refusal can mark and focus the
-// input it names. Keyed by form field, so a renamed field breaks the build rather than the routing.
-// The JSX derives every `id`/`htmlFor` from this map for the same reason.
+// Maps a form field to the control that owns it, so a refusal can mark the input it names and
+// address that input's own message node. Keyed by form field, so a renamed field breaks the build
+// rather than the routing. The JSX derives every `id`/`htmlFor` from this map for the same reason.
 const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
   title: "title",
   company: "company",
@@ -30,15 +30,8 @@ const FIELD_ELEMENT_IDS: Record<keyof FormValues, string> = {
   coverLetter: "cover-letter",
 };
 
-// Narrows a zod issue path segment to a field of this form. A path naming something the form does
-// not render leaves the refusal fieldless, so it announces at the message row rather than marking
-// a control that is not there.
-function isFieldName(value: unknown): value is keyof FormValues {
-  return typeof value === "string" && value in FIELD_ELEMENT_IDS;
-}
-
 // Hint paragraphs the three optional fields are described by. A field in error is described by its
-// hint AND the message, not the message alone: each hint states the constraint the refusal is
+// hint AND its own message, not the message alone: each hint states the constraint the refusal is
 // about.
 const URL_HINT_ID = "url-hint";
 const EXPIRES_HINT_ID = "expires-hint";
@@ -65,17 +58,24 @@ const COVER_LETTER_HINT_ID = "cover-letter-hint";
  * rather than by being handed back, which is why `createApplicationAction` grew no echo of the
  * submitted values — it would be dead weight (the same conclusion PR #1512 reached).
  *
- * Client validation mirrors the server's own schema (`makeCreateApplicationSchema`, the same
- * builder the action runs) and the server stays authoritative — the shape `cv-gapfill-form` and
- * `add-follow-up-form` use.
+ * <b>React Hook Form owns the REFUSALS too, through the schema resolver.</b>
+ *
+ * Client validation used to run as a hand-rolled `schema.safeParse` whose result was kept in a
+ * `useState` beside the form. That split ownership — values in RHF, errors next to it — produced
+ * two defects at once (#1514): only `issues[0]` was ever surfaced, so a bad link AND an over-long
+ * cover letter took two submits, and nothing cleared the refusal while the user typed, so a
+ * corrected field kept `aria-invalid="true"`. Handing the same schema to `zodResolver` removes
+ * both by construction rather than by wiring: every issue lands on the field it names, and
+ * `reValidateMode: "onChange"` drops a field's error the moment it becomes valid again.
+ *
+ * The schema is `makeCreateApplicationSchema`, the same builder `createApplicationAction` runs, and
+ * the server stays authoritative — this is only the round trip saved.
  */
 export function NewApplicationForm() {
   const t = useTranslations("pages");
   const tUi = useTranslations("applications.ui");
   const tValidation = useTranslations("validation");
-  // The action's own schema, unmodified: every member of it is a field of this form. The action
-  // still parses the whole object server-side and stays the authority; this is only the round trip
-  // saved.
+  // The action's own schema, unmodified: every member of it is a field of this form.
   const schema = useMemo(
     () => makeCreateApplicationSchema(tValidation),
     [tValidation]
@@ -84,15 +84,24 @@ export function NewApplicationForm() {
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
-  // An object rather than a bare string so two identical failures in a row are two distinct states
-  // — the focus effect below has to fire on the second one too. `field` names the ONE control a
-  // client-side refusal belongs to, and is absent for a server failure that belongs to no field.
-  const [error, setError] = useState<{
-    message: string;
-    field?: keyof FormValues;
-  } | null>(null);
 
-  const { register, handleSubmit } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors },
+  } = useForm<FormValues>({
+    // `raw: true` is load-bearing, not cosmetic. Without it `handleSubmit` receives the schema's
+    // TRANSFORMED output, in which an empty `url` or `expiresAt` has become `undefined` — and
+    // `formData.set("url", undefined)` posts the string "undefined". With it the raw strings the
+    // user typed reach the action, which is what the action parses.
+    resolver: zodResolver(schema, undefined, { raw: true }),
+    // Refuse on submit, then re-check a refused field on every keystroke. The second half is what
+    // clears a corrected field's `aria-invalid` while the user is still typing (#1514).
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    shouldFocusError: false,
     defaultValues: {
       title: "",
       company: "",
@@ -103,53 +112,71 @@ export function NewApplicationForm() {
   });
 
   function fieldA11y(name: keyof FormValues, hintId?: string) {
-    const invalid = error?.field === name;
+    const invalid = errors[name] !== undefined;
+    const describedBy = [
+      hintId,
+      invalid ? `${FIELD_ELEMENT_IDS[name]}-error` : undefined,
+    ].filter((id) => id !== undefined);
     return {
       "aria-invalid": invalid || undefined,
-      "aria-describedby": invalid
-        ? [hintId, errorId].filter((id) => id !== undefined).join(" ")
-        : hintId,
+      "aria-describedby":
+        describedBy.length > 0 ? describedBy.join(" ") : undefined,
     };
   }
 
-  // A refusal that names a control sends the caret there — it is what the user has to change. One
-  // that names none has no field to go to, and the submit button is disabled while the action runs,
-  // so focus would otherwise fall to <body> and the next Tab restart at the top of the page.
+  // Every refused field carries its OWN message node under its own stable id. One shared node would
+  // make each invalid control's `aria-describedby` point at every other refused field's message as
+  // well — the error would be identified but misattributed, which is not what WCAG 3.3.1 asks for.
+  function fieldError(name: keyof FormValues) {
+    const message = errors[name]?.message;
+    if (message === undefined) return null;
+    return (
+      <p
+        id={`${FIELD_ELEMENT_IDS[name]}-error`}
+        role="alert"
+        className="text-body-sm text-danger-700"
+      >
+        {message}
+      </p>
+    );
+  }
+
+  // A server failure names no control, so it has no field to go to, and the submit button is
+  // disabled while the action runs — focus would otherwise fall to <body> and the next Tab restart
+  // at the top of the page.
   useEffect(() => {
-    if (!error) return;
-    if (error.field) {
-      document.getElementById(FIELD_ELEMENT_IDS[error.field])?.focus();
-      return;
-    }
+    if (errors.root === undefined) return;
     errorRef.current?.focus();
-  }, [error]);
+  }, [errors.root]);
+
+  // A refusal that names controls sends the caret to the first of them IN THE ORDER THIS FORM
+  // DECLARES ITS FIELDS, which is the order they appear on screen. This form's registration order
+  // happens to agree, but `add-follow-up-form` — the other half of #1514 — has a `Controller` whose
+  // registration lands out of document order, and the two surfaces carry ONE shape deliberately.
+  //
+  // Doing it here rather than in an effect also confines the move to a refused submit: an effect
+  // keyed on `errors` would re-fire on every keystroke once `reValidateMode: "onChange"` is on, and
+  // would yank the caret out of the field being corrected as soon as an earlier field came clean.
+  function focusFirstRefused(fieldErrors: FieldErrors<FormValues>) {
+    const names = Object.keys(FIELD_ELEMENT_IDS) as (keyof FormValues)[];
+    const first = names.find((name) => fieldErrors[name] !== undefined);
+    if (first === undefined) return;
+    document.getElementById(FIELD_ELEMENT_IDS[first])?.focus();
+  }
 
   function onSubmit(values: FormValues) {
-    setError(null);
-    const parsed = schema.safeParse({
-      title: values.title,
-      company: values.company,
-      url: values.url,
-      expiresAt: values.expiresAt,
-      coverLetter: values.coverLetter || undefined,
-    });
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const path = issue?.path[0];
-      setError({
-        message: issue?.message ?? tUi("actions.invalidInput"),
-        field: isFieldName(path) ? path : undefined,
-      });
-      return;
-    }
-
+    clearErrors("root");
     startTransition(async () => {
       const formData = new FormData();
       formData.set("title", values.title);
       formData.set("company", values.company);
-      formData.set("url", values.url);
-      formData.set("expiresAt", values.expiresAt);
-      formData.set("coverLetter", values.coverLetter);
+      // The three optional members are `string | undefined` on the schema's input side. RHF holds
+      // them as the empty strings `defaultValues` seeds, so `?? ""` never fires at runtime — it is
+      // there because `formData.set(k, undefined)` would post the literal string "undefined", and
+      // the type is the only thing that can rule that out.
+      formData.set("url", values.url ?? "");
+      formData.set("expiresAt", values.expiresAt ?? "");
+      formData.set("coverLetter", values.coverLetter ?? "");
       // A successful create never returns here. The action ends in `redirect()`, and Next REJECTS
       // the action promise with that redirect so its own router performs the navigation
       // (`server-action-reducer`, Next 16.3.0, measured 2026-08-25). That rejection is a success
@@ -162,14 +189,14 @@ export function NewApplicationForm() {
       // this form is its only other caller.
       const result = await createApplicationAction(null, formData);
       if (!result.success) {
-        setError({ message: result.error });
+        setError("root", { message: result.error });
       }
     });
   }
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={handleSubmit(onSubmit, focusFirstRefused)}
       className="flex max-w-lg flex-col gap-5"
     >
       <div className="flex flex-col gap-1.5">
@@ -192,6 +219,7 @@ export function NewApplicationForm() {
           {...fieldA11y("title")}
           {...register("title")}
         />
+        {fieldError("title")}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -209,6 +237,7 @@ export function NewApplicationForm() {
           {...fieldA11y("company")}
           {...register("company")}
         />
+        {fieldError("company")}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -226,6 +255,7 @@ export function NewApplicationForm() {
         <p id={URL_HINT_ID} className="text-body-sm text-text-primary">
           {t("ansokningar.new.urlHint")}
         </p>
+        {fieldError("url")}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -242,6 +272,7 @@ export function NewApplicationForm() {
         <p id={EXPIRES_HINT_ID} className="text-body-sm text-text-primary">
           {t("ansokningar.new.expiresAtHint")}
         </p>
+        {fieldError("expiresAt")}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -258,9 +289,10 @@ export function NewApplicationForm() {
         <p id={COVER_LETTER_HINT_ID} className="text-body-sm text-text-primary">
           {t("ansokningar.new.coverLetterHint")}
         </p>
+        {fieldError("coverLetter")}
       </div>
 
-      {error && (
+      {errors.root && (
         <p
           id={errorId}
           ref={errorRef}
@@ -268,7 +300,7 @@ export function NewApplicationForm() {
           role="alert"
           className="text-body-sm text-danger-700"
         >
-          {error.message}
+          {errors.root.message ?? tUi("actions.invalidInput")}
         </p>
       )}
 

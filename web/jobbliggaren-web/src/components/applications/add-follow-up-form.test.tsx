@@ -26,6 +26,13 @@ vi.mock("@/lib/actions/applications", () => ({
 // `required` was removed at the usage site — browser probe 2026-08-24, PR #1512, measured the
 // native bubble pre-empting the zod arm entirely — and it means no test in this file can measure
 // whether native validation fires before the zod gate.
+//
+// The trigger FORWARDS ITS REF, because the real one does. Since #1514 the form no longer moves
+// focus itself; RHF's own `shouldFocusError` calls `.focus()` on whatever `Controller`'s
+// `field.ref` received, so a seam that swallowed the ref would report a focus failure production
+// does not have. Measured 2026-08-27 by rendering the real `SelectTrigger` with a ref: it receives
+// a BUTTON, `typeof node.focus === "function"`, and `.focus()` moves `document.activeElement` to
+// it.
 let selectOnValueChange: (v: string) => void = () => {};
 
 vi.mock("@/components/ui/select", () => ({
@@ -50,17 +57,20 @@ vi.mock("@/components/ui/select", () => ({
   },
   SelectTrigger: ({
     id,
+    ref,
     "aria-invalid": ariaInvalid,
     "aria-describedby": ariaDescribedBy,
     "aria-required": ariaRequired,
   }: {
     id?: string;
+    ref?: React.Ref<HTMLSelectElement>;
     "aria-invalid"?: boolean;
     "aria-describedby"?: string;
     "aria-required"?: boolean | "true" | "false";
   }) => (
     <select
       id={id}
+      ref={ref}
       aria-invalid={ariaInvalid}
       aria-describedby={ariaDescribedBy}
       aria-required={ariaRequired}
@@ -161,14 +171,100 @@ describe("AddFollowUpForm", () => {
     expect(addFollowUpActionMock).not.toHaveBeenCalled();
 
     // The refusal names one control, so it marks and focuses that control — not the message row.
+    // The message id is the field's own and is asserted literally: since #1514 each refused field
+    // carries its own message node, so `aria-describedby` naming "whatever the single alert is"
+    // would no longer be a meaningful pin.
     const trigger = screen.getByLabelText("Kanal");
     expect(trigger).toHaveAttribute("aria-invalid", "true");
-    expect(trigger.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
+    expect(alert.id).toBe("follow-up-channel-error");
     await waitFor(() => expect(trigger).toHaveFocus());
 
     // Dropping native `required` (the unreachable-gate fix) must not silence the requiredness
     // channel entirely: the visible trigger carries it as aria-required (a11y skill §5).
     expect(trigger).toHaveAttribute("aria-required", "true");
+  });
+
+  it("surfaces an unpicked channel and an over-long note in the SAME pass", async () => {
+    // #1514 defect 1. The refusal used to read `parsed.error.issues[0]`, so these two took two
+    // submits: the note's cap only appeared once the channel had been picked. WCAG 3.3.1 expects
+    // every detected error to be identified in the same pass.
+    //
+    // Both halves are reachable in a browser, which is why this pair and not another: the channel
+    // Select carries no native `required` (see the seam docblock), and a textarea has no native
+    // length gate, so nothing fires before the zod arm.
+    const user = userEvent.setup();
+    render(<AddFollowUpForm applicationId="app-1" />);
+
+    const note = screen.getByLabelText(NOTE);
+    await user.click(note);
+    await user.paste("x".repeat(1001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((a) => a.textContent)).toEqual([
+      "Välj en kanal.",
+      "Anteckning får vara max 1 000 tecken.",
+    ]);
+    expect(addFollowUpActionMock).not.toHaveBeenCalled();
+
+    // Every named field is marked, and each is described by ITS OWN message — not by a shared row
+    // that would read the other field's complaint out on this control.
+    const trigger = screen.getByLabelText("Kanal");
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
+    expect(note).toHaveAttribute("aria-invalid", "true");
+    expect(note.getAttribute("aria-describedby")).toBe(
+      "follow-up-note-hint follow-up-note-error",
+    );
+
+    // Focus goes to the FIRST refused field, not the last and not the message row.
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("drops a field's refusal as soon as that field is corrected, and leaves the others", async () => {
+    // #1514 defect 2. The refusal used to live in `useState` and was cleared only by the next
+    // submit, so a user who picked a channel kept `aria-invalid="true"` on it until they submitted
+    // again. It is RHF's `reValidateMode: "onChange"` that clears it now.
+    const user = userEvent.setup();
+    render(<AddFollowUpForm applicationId="app-1" />);
+
+    const note = screen.getByLabelText(NOTE);
+    await user.click(note);
+    await user.paste("x".repeat(1001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    const trigger = screen.getByLabelText("Kanal");
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-invalid", "true"));
+
+    await user.selectOptions(trigger, "Email");
+
+    // The corrected field is released — mark, description and message all go.
+    await waitFor(() => expect(trigger).not.toHaveAttribute("aria-invalid"));
+    expect(trigger).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText("Välj en kanal.")).not.toBeInTheDocument();
+
+    // The note was not corrected, so its refusal stands. Clearing is per field, not per form.
+    expect(note).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByText("Anteckning får vara max 1 000 tecken."),
+    ).toBeInTheDocument();
+  });
+
+  it("posts an empty note as an empty string", async () => {
+    // The resolver is asked for RAW values (`raw: true`). Under the schema's OUTPUT shape an empty
+    // optional `note` has already become `undefined`, and `formData.set("note", undefined)` posts
+    // the four-character string "undefined". This is the pin for that choice.
+    const user = userEvent.setup();
+    render(<AddFollowUpForm applicationId="app-1" />);
+
+    await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(addFollowUpActionMock).toHaveBeenCalledTimes(1));
+    const sent = addFollowUpActionMock.mock.calls[0]?.[0];
+    if (!sent) throw new Error("addFollowUpAction was not invoked");
+    expect(sent.get("note")).toBe("");
   });
 
   it("clears the form on a successful save, and only then", async () => {

@@ -94,7 +94,7 @@ export function LogFollowUpDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="log-follow-up-note">{tUi("logFollowUp.noteLabel")}</Label>
           <Textarea
             id="log-follow-up-note"
@@ -116,7 +116,7 @@ export function LogFollowUpDialog({
           </p>
         )}
 
-        <DialogFooter className="mt-4">
+        <DialogFooter>
           <Button
             type="button"
             variant="ghost"

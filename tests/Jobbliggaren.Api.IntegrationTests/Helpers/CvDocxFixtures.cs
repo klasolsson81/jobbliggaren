@@ -17,9 +17,9 @@ public static class CvDocxFixtures
 
     /// <summary>
     /// A minimal, valid in-memory DOCX (OpenXml) — identical construction to
-    /// <c>ImportResumeEndpointTests.BuildDocx</c> and
     /// <c>PdfPigOpenXmlCvTextExtractorTests.BuildDocx</c>, so the real extractor yields the
-    /// paragraphs back as raw text.
+    /// paragraphs back as raw text. The two private copies this assembly used to carry were
+    /// retired in favour of this one.
     /// </summary>
     public static byte[] BuildDocx(params string[] paragraphs)
     {

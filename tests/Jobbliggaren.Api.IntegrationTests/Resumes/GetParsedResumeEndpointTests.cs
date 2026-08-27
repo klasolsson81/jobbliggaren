@@ -72,26 +72,6 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
             .GetProperty("parsedResumeId").GetString()!;
     }
 
-    // A minimal, valid in-memory DOCX (OpenXml) — identical construction to
-    // ImportResumeEndpointTests.BuildDocx, so the REAL extractor yields these paragraphs as raw
-    // text and the authoritative server-side personnummer scan runs over them. A stub file has
-    // no text layer, which is why the pnr path cannot be exercised with PdfBytes.
-    private static byte[] BuildDocx(params string[] paragraphs)
-    {
-        using var stream = new MemoryStream();
-        using (var document = WordprocessingDocument.Create(
-            stream, WordprocessingDocumentType.Document))
-        {
-            var mainPart = document.AddMainDocumentPart();
-            var body = new Body();
-            foreach (var text in paragraphs)
-                body.AppendChild(new Paragraph(new Run(new Text(text))));
-            mainPart.Document = new Document(body);
-            mainPart.Document.Save();
-        }
-
-        return stream.ToArray();
-    }
 
     [Fact]
     public async Task GET_parsed_without_auth_returns_401()
@@ -149,7 +129,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        var docx = CvDocxFixtures.BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
         var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
         import.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -178,7 +158,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        var docx = CvDocxFixtures.BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
         var import = await _client.PostAsync("/api/v1/resumes/import", form, ct);
         var id = (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
@@ -233,7 +213,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var docx = BuildDocx(
+        var docx = CvDocxFixtures.BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare",
             "Utbildning", "Civilingenjör - KTH", "2015-2020",
@@ -305,7 +285,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
             await db.SaveChangesAsync(ct);
         }
 
-        var docx = BuildDocx(
+        var docx = CvDocxFixtures.BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
             "Utbildning", "Civilingenjör - KTH", "2015-2020",
@@ -358,7 +338,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
 
-        var docx = BuildDocx(
+        var docx = CvDocxFixtures.BuildDocx(
             "Anna Andersson", "anna@example.com",
             "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
             "Utbildning", "Civilingenjör - KTH", "2015-2020",

@@ -152,6 +152,36 @@ public class GetParsedResumeSkillsQueryHandlerTests
             "ParsedResume", otherParsed.Id.Value, _userId, "GetParsedResumeSkills");
     }
 
+    // The two arms the delta actually CHANGED, and neither had an assertion. A foreign
+    // promoted or discarded artifact used to be invisible to the probe as well as to the find
+    // — the global filter hid it from both — so a genuine cross-user attempt against one went
+    // unrecorded. The probe now ignores that filter, so these are audited (Art. 5(2)) while the
+    // answer stays a uniform 404. Promoted/Discarded are produced by ParsedResume's own
+    // Promote/Discard, the actors the import and discard endpoints invoke.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_ShouldReturnNullAndLogCrossUserAttempt_WhenForeignArtifactIsFinalised(
+        bool promoted)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid(), [Proposal()]);
+        if (promoted)
+            otherParsed.Promote(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
+        else
+            otherParsed.Discard(FakeDateTimeProvider.Default);
+        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        db.JobSeekers.Add(self);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            new GetParsedResumeSkillsQuery(otherParsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.ShouldBeNull();
+        _failedAccess.Received(1).LogCrossUserAttempt(
+            "ParsedResume", otherParsed.Id.Value, _userId, "GetParsedResumeSkills");
+    }
+
     [Fact]
     public async Task Handle_ShouldReturnProposals_AndNotLogCrossUser_WhenOwnArtifactIsPromoted()
     {

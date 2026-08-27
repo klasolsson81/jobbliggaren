@@ -177,3 +177,40 @@ describe("MatchSetupRailModal — bekräftelse-plattan efter uppladdning (#1060)
     expect(screen.queryByText("CV sparat: anna-cv.pdf")).not.toBeInTheDocument();
   });
 });
+
+describe("MatchSetupRailModal — förslagskällan efter uppladdning", () => {
+  // Regressionsvakten för den halva av fixen som lever i FE. Går parse-id:t tillbaka till
+  // null på den promotade armen faller yrkena tyst till latestRole-vägen och kompetenserna
+  // till ingen väg alls — inget kastar, inget syns, sektionerna blir bara tomma. Det är
+  // precis den formen defekten hade i produktion.
+  it("matar parse-id:t till båda sektionerna när uppladdningen befordrades", async () => {
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "stub-promoted" }));
+    await user.click(screen.getByRole("button", { name: "Fortsätt" }));
+
+    expect(parsedSuggestMock).toHaveBeenCalledWith("p-1");
+    expect(cvSuggestMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+
+    expect(skillSuggestMock).toHaveBeenCalledWith("p-1");
+  });
+
+  it("matar parse-id:t till båda sektionerna när uppladdningen stannade i granskning", async () => {
+    // Kontrollarmen: den här vägen fungerade före fixen, och måste fortsätta göra det.
+    const user = userEvent.setup();
+    renderModal();
+
+    await user.click(screen.getByRole("button", { name: "stub-pending" }));
+    await user.click(screen.getByRole("button", { name: "Fortsätt" }));
+
+    expect(parsedSuggestMock).toHaveBeenCalledWith("p-2");
+    expect(cvSuggestMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Nästa" }));
+
+    expect(skillSuggestMock).toHaveBeenCalledWith("p-2");
+  });
+});

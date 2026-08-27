@@ -217,9 +217,7 @@ export function MatchSetupRailModal({
     ...discoveredSkillGroups,
   ];
 
-  // Start-steget: FÖRSLAGSKÄLLAN — id för en live staging-artefakt (LeftPending).
-  // På Promoted är parsen borta (soft-deleted) och detta är null: sektionerna
-  // faller då tillbaka på det promotade Resume:ts latestRole-väg (CV-pivot 5c).
+  // Start-steget: FÖRSLAGSKÄLLAN — id för den uppladdade parsen.
   const [uploadedParsedId, setUploadedParsedId] = useState<string | null>(null);
   // UI-NÄRVARON — sant så snart en uppladdning lyckats i denna session (Promoted
   // ELLER LeftPending). Skild från förslagskällan ovan: utan denna split skulle

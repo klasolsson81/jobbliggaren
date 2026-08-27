@@ -10,9 +10,9 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResumeSkills;
 /// <summary>
 /// Returns the OWNING job seeker's non-PII JobTech skill proposals for a PendingReview or
 /// Promoted parsed-CV staging artifact (ADR 0079 STEG 3). Mirrors
-/// <c>GetParsedResumeOccupationsQueryHandler</c>'s fail-closed IDOR shape EXACTLY
+/// <c>GetParsedResumeOccupationsQueryHandler</c>'s fail-closed IDOR shape
 /// (resolve owner → owner-scoped find → cross-user/not-found → null + audit, no
-/// enumeration oracle), with the same deliberate difference: it PROJECTS the plain-jsonb
+/// enumeration oracle). It PROJECTS the plain-jsonb
 /// <c>skill_proposals</c> column instead of materialising the aggregate. Materialising
 /// would (a) hit the <c>FieldDecryptionMaterializationInterceptor</c> on the CV-PII
 /// shadows with no warmed DEK (the query is intentionally NOT
@@ -51,8 +51,8 @@ public sealed class GetParsedResumeSkillsQueryHandler(
         //
         // IgnoreQueryFilters + an explicit status ALLOW-LIST, not the global DeletedAt filter.
         // Promote() soft-deletes the artifact, so the filter alone made a promoted CV's
-        // proposals unreadable — and since the import endpoint auto-promotes EVERY upload, that
-        // is every ordinary upload. The allow-list is fail-closed by shape: a status added later
+        // proposals unreadable — and since the import endpoint ATTEMPTS auto-promote on every
+        // upload, that is every ordinary upload. The allow-list is fail-closed by shape: a status added later
         // is unreadable until someone names it here, which `!= Discarded` would not have been.
         // Discarded stays out on its own merit: the user rejected that import.
         var found = await db.ParsedResumes
@@ -74,8 +74,7 @@ public sealed class GetParsedResumeSkillsQueryHandler(
             // is scoped to rows this caller does NOT own, and that scope is load-bearing now
             // that the find above ignores the query filter: an own DISCARDED artifact reaches
             // here, and an unscoped probe would see it and log its own owner as a cross-user
-            // attempt. Filtering by ownership reports only what the name says
-            // (parity GetParsedResumeOccupationsQueryHandler).
+            // attempt. Filtering by ownership reports only what the name says.
             var exists = await db.ParsedResumes
                 .AsNoTracking()
                 .IgnoreQueryFilters()

@@ -68,25 +68,6 @@ public class ImportResumeEndpointTests(ApiFactory factory)
         return form;
     }
 
-    // A minimal, valid in-memory DOCX (OpenXml) — identical construction to
-    // PdfPigOpenXmlCvTextExtractorTests.BuildDocx, so the real extractor yields the paragraphs
-    // as raw text the personnummer scanner then runs over.
-    private static byte[] BuildDocx(params string[] paragraphs)
-    {
-        using var stream = new MemoryStream();
-        using (var document = WordprocessingDocument.Create(
-            stream, WordprocessingDocumentType.Document))
-        {
-            var mainPart = document.AddMainDocumentPart();
-            var body = new Body();
-            foreach (var text in paragraphs)
-                body.AppendChild(new Paragraph(new Run(new Text(text))));
-            mainPart.Document = new Document(body);
-            mainPart.Document.Save();
-        }
-
-        return stream.ToArray();
-    }
 
     // resume_files is write-once with no soft-delete filter, keyed by ParsedResumeId — a captured
     // original is directly visible. Projects only the id (never the sealed bytea → no DEK needed).
@@ -183,7 +164,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
-        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        var docx = CvDocxFixtures.BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
 
         var response = await _client.PostAsync("/api/v1/resumes/import", form, ct);
@@ -210,7 +191,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
-        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        var docx = CvDocxFixtures.BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
         using var form = FileForm(docx, "cv.docx", DocxContentType, acknowledged: true, name: null);
 
         var response = await _client.PostAsync("/api/v1/resumes/import", form, ct);
@@ -236,7 +217,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
-        var docx = BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
+        var docx = CvDocxFixtures.BuildDocx("Anna Andersson", $"Personnummer: {ValidPersonnummer}");
         using var form = FileForm(docx, "cv.docx", DocxContentType);
 
         var response = await _client.PostAsync("/api/v1/resumes/import", form, ct);

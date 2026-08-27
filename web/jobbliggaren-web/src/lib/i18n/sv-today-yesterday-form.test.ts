@@ -31,7 +31,6 @@ import { describe, it, expect } from "vitest";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SV = join(HERE, "../../../messages/sv");
-const GUEST_MOCK = join(HERE, "../guest/mock-data.ts");
 
 // `\b` before `i` rejects "vi dag…"; `\b` after `dag`/`går` rejects "i dagar", "1 dag".
 // Case-insensitive so the sentence-initial "I dag" — the site the original #1168 sweep
@@ -84,25 +83,5 @@ describe("sv catalogue — one spelling of today/yesterday (#1168)", () => {
   it("spells it closed up everywhere — no `i dag` / `i går`", () => {
     const offenders = catalogueFiles().flatMap((f) => offendingLines(f, SPACED));
     expect(offenders).toEqual([]);
-  });
-
-  it("gates the rendered Swedish labels that live outside the catalogue", () => {
-    // NAMED rather than derived, and the asymmetry is deliberate. A derived sweep of
-    // `src/` cannot work: the word appears in roughly a dozen prose comments that are
-    // correct Swedish and must NOT be gated (§5 — "imperfect phrasing is not" a defect).
-    // This file is different because its strings are RENDERED — on `/gast/ansokningar`,
-    // `/gast/cv`, `/gast/oversikt` and the guest application detail — directly beside
-    // `guest.json`'s own `timeToday`/`timeYesterday`. Left ungated, a demo refresh
-    // reintroduces the exact two-forms-in-one-viewport defect #1168 closed
-    // (design-reviewer, 2026-08-26).
-    //
-    // That these labels live outside the catalogue AT ALL is a separate §5
-    // hardcoded-UI-string concern, and this test does not close it.
-    const labels = [
-      ...readFileSync(GUEST_MOCK, "utf8").matchAll(/updatedAtLabel:\s*"([^"]*)"/g),
-    ].map((m) => m[1] ?? "");
-
-    expect(labels.length).toBeGreaterThan(0);
-    expect(labels.filter((l) => SPACED.test(l))).toEqual([]);
   });
 });

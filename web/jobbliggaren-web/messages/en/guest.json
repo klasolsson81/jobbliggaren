@@ -31,6 +31,11 @@
   "layout": {
     "skipToContent": "Skip to main content"
   },
+  "relativeTime": {
+    "today": "today",
+    "yesterday": "yesterday",
+    "daysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+  },
   "oversikt": {
     "kicker": "Demo overview",
     "title": "Overview",
@@ -82,7 +87,7 @@
     "title": "My applications",
     "lede": "{total} sample applications spread across all status stages.",
     "groupAriaLabel": "{statusLabel} ({count})",
-    "rowAriaLabel": "{role} – {company} – {statusLabel}",
+    "rowAriaLabel": "{role} – {company} – {statusLabel} – {source}, updated {updated}",
     "emptyStatus": "No applications in this status.",
     "fullKicker": "Demo application",
     "fullLede": "{company} · {source}",

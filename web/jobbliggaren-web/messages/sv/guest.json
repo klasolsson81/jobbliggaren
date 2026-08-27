@@ -31,6 +31,11 @@
   "layout": {
     "skipToContent": "Hoppa till huvudinnehåll"
   },
+  "relativeTime": {
+    "today": "idag",
+    "yesterday": "igår",
+    "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
+  },
   "oversikt": {
     "kicker": "Demoöversikt",
     "title": "Översikt",
@@ -82,7 +87,7 @@
     "title": "Mina ansökningar",
     "lede": "{total} exempelansökningar fördelade över alla statuslägen.",
     "groupAriaLabel": "{statusLabel} ({count})",
-    "rowAriaLabel": "{role} – {company} – {statusLabel}",
+    "rowAriaLabel": "{role} – {company} – {statusLabel} – {source}, uppdaterad {updated}",
     "emptyStatus": "Inga ansökningar i den här statusen.",
     "fullKicker": "Demoansökan",
     "fullLede": "{company} · {source}",

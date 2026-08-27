@@ -59,12 +59,18 @@
     "en": "English"
   },
   "dev": {
-    "note": "Utvecklarverktyg, syns bara lokalt och tas bort före lansering.",
-    "resetButton": "Dev: återställ mina testdata (tas bort före lansering)",
+    "note": "Utvecklarverktyg, aktiveras med en flagga och tas bort före lansering.",
+    "resetButton": "Dev: återställ dina testdata (tas bort före lansering)",
     "confirmTitle": "Återställ dina testdata?",
-    "confirmBody": "Ditt CV, dina matchningsval, sparade och senaste sökningar samt dina matchningar tas bort. Kontot, e-posten och lösenordet påverkas inte. Det går inte att ångra.",
+    "confirmBody": "Ditt CV, dina matchningsval, sparade annonser, senaste sökningar och dina matchningar tas bort. Kontot, dina ansökningar, dina bevakningar och dina sparade sökningar påverkas inte. Det går inte att ångra.",
     "confirmButton": "Återställ testdata",
     "resetting": "Återställer…",
-    "cancel": "Avbryt"
+    "cancel": "Avbryt",
+    "errors": {
+      "notLoggedIn": "Du är inte inloggad.",
+      "serverUnreachable": "Kunde inte nå servern. Försök igen.",
+      "disabled": "Återställning är avstängd på servern. Sätt DevTools:EnableResetMyData och starta om API:t.",
+      "failed": "Återställningen misslyckades. Försök igen."
+    }
   }
 }

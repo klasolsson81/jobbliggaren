@@ -18,6 +18,8 @@ namespace Jobbliggaren.Api.Endpoints;
 /// </summary>
 public static class DevEndpoints
 {
+    private const string GroupPrefix = "/api/v1/dev";
+
     /// <summary>
     /// DEV-ONLY, ENVIRONMENT-gated and NOT configurable. The caller (<c>Program.cs</c>) MUST guard
     /// this with <c>app.Environment.IsDevelopment()</c> and nothing else — no flag may widen it.
@@ -27,7 +29,7 @@ public static class DevEndpoints
     /// </summary>
     public static void MapDevEnvironmentOnlyEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/dev").WithTags("Dev");
+        var group = app.MapGroup(GroupPrefix).WithTags("Dev");
 
         // DEV-ONLY — token-free confirmed-login seam for the Playwright E2E suite (#796).
         // Force-confirms a test account's email so the loginAs specs can obtain a login-
@@ -61,7 +63,7 @@ public static class DevEndpoints
     /// </summary>
     public static void MapDevResetMyDataEndpoint(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/dev").WithTags("Dev");
+        var group = app.MapGroup(GroupPrefix).WithTags("Dev");
 
         // DEV-ONLY — clears the current user's CV data, saved/recent searches, graded
         // matches and match preferences (re-triggers the welcome modal). Does NOT delete

@@ -5,6 +5,7 @@ using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
@@ -192,6 +193,29 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         // non-404 proves the mapping; asserting 401 additionally pins that turning the flag on
         // did not also drop the auth requirement.
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public void Only_reset_my_data_is_mapped_under_api_v1_dev_in_Production_env_when_the_flag_is_on()
+    {
+        // The three route tests above are ENUMERATED — they each name a route. That is fine for
+        // the two routes that exist and blind to a third: a new endpoint added to
+        // MapDevResetMyDataEndpoint, or a new method called under the same flag, would reach
+        // Production with the flag on and nothing would go red. This assertion is universally
+        // quantified over the route table instead, so it fails on arrival rather than on
+        // someone remembering to add a case.
+        using var host = _factory.WithWebHostBuilder(
+            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
+        _ = host.CreateClient(); // forces the host to build so the route table exists
+
+        var devRoutes = host.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText ?? string.Empty)
+            .Where(p => p.Contains("api/v1/dev", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+
+        devRoutes.ShouldBe(["/api/v1/dev/reset-my-data"]);
     }
 
     [Fact]

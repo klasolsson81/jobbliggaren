@@ -2207,6 +2207,9 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
      och `AddDevOnlyTestingSupport` i samma fil
    - `"DevTools"`-sektionen i `src/Jobbliggaren.Api/appsettings.Development.json`
+   - `deploy/docker-compose.yml` (`DevTools__EnableResetMyData` på `api`,
+     `DEV_TOOLS_RESET_ENABLED` på `web`), `deploy/.env.example`-blocket, och
+     `tests/Jobbliggaren.Migrate.UnitTests/DeployComposeDevToolsGateTests.cs`
    - `web/jobbliggaren-web/src/components/dev/`, `src/lib/dev/`,
      `DEV_TOOLS_RESET_ENABLED` i `src/lib/env.ts`, och renderingen i
      `src/app/(app)/oversikt/page.tsx`
@@ -2219,8 +2222,12 @@ overksamt inom en omstart; en halvriven kodbas är inte.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
    `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
    först när det inte finns någon rutt att mappa.
-4. **Verifiera efteråt:** `grep -rn "api/v1/dev" src web tests deploy` → noll träffar
-   utanför den här filen.
+4. **Verifiera efteråt:** `grep -rnE "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
+   → noll träffar utanför den här filen. **Den vidare formen är avsiktlig:** token
+   `api/v1/dev` finns varken i `DevToolsOptions.cs`, `DevToolsLog.cs`, `env.ts`,
+   `"DevTools"`-sektionen, compose-sloten, `.env.example`-raden eller
+   `DeployComposeDevToolsGateTests` — en grind som mäter en annan mängd än steg 2
+   river är sämre än ingen grind.
 
 ---
 

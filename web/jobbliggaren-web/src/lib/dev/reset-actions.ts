@@ -7,6 +7,7 @@
 // cookie. Never a product surface.
 
 import { cookies } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { revalidatePath } from "next/cache";
 import { getSessionId } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
@@ -30,9 +31,11 @@ import type { ActionResult } from "@/lib/actions/_action-result";
  * the welcome modal over data that is still there, which is a worse lie than an error.
  */
 export async function resetMyDataAction(): Promise<ActionResult> {
+  const t = await getTranslations("common");
+
   const sessionId = await getSessionId();
   if (!sessionId) {
-    return { success: false, error: "Du är inte inloggad." };
+    return { success: false, error: t("dev.errors.notLoggedIn") };
   }
 
   let response: Response;
@@ -41,7 +44,7 @@ export async function resetMyDataAction(): Promise<ActionResult> {
       method: "POST",
     });
   } catch {
-    return { success: false, error: "Kunde inte nå servern." };
+    return { success: false, error: t("dev.errors.serverUnreachable") };
   }
 
   if (!response.ok) {
@@ -50,8 +53,8 @@ export async function resetMyDataAction(): Promise<ActionResult> {
     // the round trip of wondering whether the button is broken.
     const error =
       response.status === 404
-        ? "Återställning är avstängd på servern."
-        : "Återställningen misslyckades.";
+        ? t("dev.errors.disabled")
+        : t("dev.errors.failed");
     return { success: false, error };
   }
 

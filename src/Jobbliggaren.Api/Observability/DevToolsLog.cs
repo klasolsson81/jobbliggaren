@@ -15,8 +15,10 @@ namespace Jobbliggaren.Api.Observability;
 /// </summary>
 internal static partial class DevToolsLog
 {
+    // No parameter: this line fires on exactly one condition, so a {DevToolState} property
+    // could only ever read "ENABLED" and would carry nothing the EventId does not. The
+    // registration gate parameterises because a Seq query there must match TWO lines.
     [LoggerMessage(EventId = 4310, Level = LogLevel.Warning,
-        Message = "Dev tool reset-my-data: {DevToolState} outside Development")]
-    public static partial void AnnounceResetMyDataEnabledOutsideDevelopment(
-        ILogger logger, string devToolState);
+        Message = "Dev tool reset-my-data: ENABLED outside Development")]
+    public static partial void AnnounceResetMyDataEnabledOutsideDevelopment(ILogger logger);
 }

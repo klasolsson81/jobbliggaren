@@ -306,6 +306,9 @@ services:
       # Caddy to Next, which has no /api/v1/* handlers, and 404s.
       BACKEND_URL: "http://api:8080"
       NODE_ENV: production
+      # DEV-ONLY, see the api service. Without this slot NODE_ENV=production hides the reset
+      # button on the very box it exists for.
+      DEV_TOOLS_RESET_ENABLED: ${DEV_TOOLS_RESET_ENABLED:-false}
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
     mem_limit: 640m
@@ -359,6 +362,13 @@ services:
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
       Auth__RequireEmailConfirmation: ${AUTH_REQUIRE_EMAIL_CONFIRMATION:-false}
+      # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
+      # (docs/runbooks/release-checklist.md 2.7). Default pinned by
+      # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an
+      # absent value must resolve to false rather than to whatever the shell happens to hold.
+      # Same variable feeds the web service, deliberately: the two halves are set together or
+      # not at all, and with only one on the button renders and every press is refused.
+      DevTools__EnableResetMyData: ${DEV_TOOLS_RESET_ENABLED:-false}
       # Read by IdempotentAdminRoleSeeder at every Api START, never at registration: an
       # account created after this boot receives the role on the NEXT restart, and the boot
       # in between logs "ingen matchande user hittades". It re-asserts on every start, so

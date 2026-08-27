@@ -468,15 +468,14 @@ if (app.Environment.IsDevelopment())
 // (Klas-direktiv 2026-08-27). Fail-closed: DevToolsOptions.EnableResetMyData defaults to false,
 // and the handler refuses independently of this gate.
 var devTools = app.Services.GetRequiredService<IOptions<DevToolsOptions>>().Value;
-if (app.Environment.IsDevelopment() || devTools.EnableResetMyData)
+if (devTools.EnableResetMyData)
     app.MapDevResetMyDataEndpoint();
 
 // Warning, not Information, and only outside Development: a destructive throwaway tool live in a
 // deployed environment is a security-posture statement that should be alertable rather than one
-// Information line among a boot's dozens. Parity with the registration-gate announcement, whose
-// own rationale is that a restart is what keeps a once-per-process announcement true.
+// Information line among a boot's dozens.
 if (devTools.EnableResetMyData && !app.Environment.IsDevelopment())
-    DevToolsLog.AnnounceResetMyDataEnabledOutsideDevelopment(app.Logger, "ENABLED");
+    DevToolsLog.AnnounceResetMyDataEnabledOutsideDevelopment(app.Logger);
 
 app.Run();
 

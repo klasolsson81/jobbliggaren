@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { resetMyDataAction } from "@/lib/dev/reset-actions";
 
@@ -19,9 +20,11 @@ import { resetMyDataAction } from "@/lib/dev/reset-actions";
  * (docs/runbooks/release-checklist.md). An unobtrusive note at the bottom of /oversikt
  * that wipes the caller's own test data and lets the welcome setup run again.
  *
- * The caller MUST render this only when the reset is actually enabled — defence in depth
- * alongside the backend, which maps the route only under `IsDevelopment()` or an explicit
- * `DevTools:EnableResetMyData`, and refuses a second time inside the handler.
+ * The caller renders this only when the reset is enabled. Read that for what it is: a
+ * RENDER gate, not an authorisation one. The module is imported unconditionally, so the
+ * server action's id exists in the module graph and stays callable whatever the flag says.
+ * The authoritative gates are both on the backend — the route is mapped only under
+ * `DevTools:EnableResetMyData`, and the handler refuses again on the same flag.
  *
  * <b>It is a confirmation dialog, not a bare submit.</b> It was a one-click irreversible
  * wipe while it lived only in Development. Reachable on a box that is about to have real
@@ -55,15 +58,6 @@ export function ResetMyDataNote() {
   return (
     <div className="mt-8 rounded-md border border-dashed border-border bg-muted/40 p-4 text-body-sm leading-5 text-text-secondary">
       <p className="mb-2">{t("dev.note")}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        {t("dev.resetButton")}
-      </Button>
-
       <Dialog
         open={open}
         onOpenChange={(next) => {
@@ -73,6 +67,17 @@ export function ResetMyDataNote() {
           }
         }}
       >
+        {/* DialogTrigger, not a bare Button with onClick. Radix's close handler calls
+            preventDefault() unconditionally and then focuses triggerRef; with no trigger
+            registered that ref is null, FocusScope's own restoration is suppressed by the
+            preventDefault, and focus lands on <body> (WCAG 2.4.3). Same defect and same
+            remedy as #748 in match-preferences-card.tsx. It also supplies aria-haspopup
+            and aria-expanded for free. */}
+        <DialogTrigger asChild>
+          <Button type="button" variant="outline" size="sm">
+            {t("dev.resetButton")}
+          </Button>
+        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("dev.confirmTitle")}</DialogTitle>
@@ -100,6 +105,9 @@ export function ResetMyDataNote() {
               type="button"
               variant="destructive"
               size="sm"
+              // Width is held across the label swap so the footer does not reflow while
+              // the reset runs (DESIGN.md 6: replace the label, keep the width).
+              className="min-w-[10.5rem]"
               disabled={isPending}
               onClick={confirm}
             >

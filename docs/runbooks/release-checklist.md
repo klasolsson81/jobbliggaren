@@ -2181,6 +2181,49 @@ samma stycken men medvetet inte flippade dem).
 
 ---
 
+## 2.7 HÅRD GRIND: riv dev-verktygen före första riktiga användare
+
+**Hemvist för avvecklingen av `/api/v1/dev/*`.** Skriven i samma PR som gjorde
+`reset-my-data` nåbar på lådan (Klas-direktiv 2026-08-27), därför att ett verktyg vars
+borttagning är ingens uppgift är ett verktyg som följer med till produktion.
+
+**Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
+operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
+e-postadress. Ingen av dem får finnas när riktiga användare gör det.
+
+**Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
+overksamt inom en omstart; en halvriven kodbas är inte.
+
+1. **Stäng av flaggan på lådan.** Ta bort `DevTools__EnableResetMyData` ur
+   `deploy/.env` och `DEV_TOOLS_RESET_ENABLED` ur webbtjänstens miljö, och starta om.
+   Verifiera: `POST /api/v1/dev/reset-my-data` → **404**, och knappen syns inte på
+   `/oversikt`. Det är hela skyddet, redan innan någon kod tas bort.
+2. **Riv koden**, i en egen PR:
+   - `src/Jobbliggaren.Api/Endpoints/DevEndpoints.cs` (hela filen)
+   - de två map-grindarna och boot-annonseringen i `src/Jobbliggaren.Api/Program.cs`
+   - `src/Jobbliggaren.Api/Observability/DevToolsLog.cs`
+   - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Configuration/DevToolsOptions.cs`,
+     `Commands/ResetMyData/`, `Commands/ConfirmEmail/`, `Abstractions/`)
+   - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
+     och `AddDevOnlyTestingSupport` i samma fil
+   - `"DevTools"`-sektionen i `src/Jobbliggaren.Api/appsettings.Development.json`
+   - `web/jobbliggaren-web/src/components/dev/`, `src/lib/dev/`,
+     `DEV_TOOLS_RESET_ENABLED` i `src/lib/env.ts`, och renderingen i
+     `src/app/(app)/oversikt/page.tsx`
+   - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
+   - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`
+   - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
+     i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
+     strykning, och det är därför avstängningen i steg 1 kommer först.
+3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
+   `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
+   först när det inte finns någon rutt att mappa.
+4. **Verifiera efteråt:** `grep -rn "api/v1/dev" src web tests deploy` → noll träffar
+   utanför den här filen.
+
+---
+
 ## 3. Tagga + deploy
 
 ```bash

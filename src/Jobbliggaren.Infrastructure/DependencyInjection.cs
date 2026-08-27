@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
+using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
@@ -1669,6 +1670,14 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(AuthOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+
+        // DEV-ONLY throwaway tooling toggle — REMOVE BEFORE LAUNCH with everything it gates
+        // (docs/runbooks/release-checklist.md). Plain Bind, deliberately NOT ValidateOnStart:
+        // there is no unsafe COMBINATION to refuse here, and a validator that rejected the flag
+        // outside Development would forbid its only purpose. Fail-closed lives in the default
+        // (false) and in the two independent gates that read it — the map gate in Program.cs and
+        // the handler's own refusal.
+        services.Configure<DevToolsOptions>(configuration.GetSection(DevToolsOptions.SectionName));
 
         // #733/#703 — Redis-backed anti-email-bomb cooldown gate (ICooldownGate) + its window options. The
         // gate is the #733 primitive generalised (a policy-free check-and-set on a (scope, subject) pair)

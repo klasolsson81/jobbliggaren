@@ -137,10 +137,18 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
-    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12): the whole /api/v1/dev/*
-    // group — including the token-free confirmed-login seam — MUST be unmapped outside
-    // Development. A 404 (not 401/405) proves the route does not exist in Production; if
-    // the Program.cs IsDevelopment() gate ever regressed, these turn red before deploy.
+    // #796 map-gate guardrail (HARD merge gate, CLAUDE.md §12). The invariant is now NARROWER
+    // than "the whole group is unmapped", and the narrowing is measured rather than assumed:
+    //
+    //   * /api/v1/dev/confirm-email is UNCONDITIONALLY unmapped outside Development. It force-
+    //     confirms an address without authentication, so no configuration may widen it — and
+    //     the flag-ON arm below is what turns that from a code-reading into a measurement.
+    //   * /api/v1/dev/reset-my-data is unmapped outside Development UNLESS
+    //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
+    //     owner-scoped, authenticated, and refused a second time inside the handler.
+    //
+    // A 404 (not 401/405) proves the route does not exist; if either gate regressed, these
+    // turn red before deploy.
 
     [Fact]
     public async Task POST_dev_confirm_email_is_unmapped_in_Production_env()
@@ -156,13 +164,60 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     }
 
     [Fact]
-    public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env()
+    public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env_when_the_flag_is_absent()
     {
+        // The fail-closed DEFAULT, measured rather than assumed: this host sets no DevTools
+        // section at all, which is exactly how a deployed environment that never heard of the
+        // flag binds it.
         var ct = TestContext.Current.CancellationToken;
 
         var response = await _client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_reset_my_data_is_mapped_in_Production_env_when_the_flag_is_on()
+    {
+        // The arm the flag exists for. 404 here would mean the box still cannot re-test
+        // onboarding, which is the whole point of the change.
+        var ct = TestContext.Current.CancellationToken;
+        using var host = _factory.WithWebHostBuilder(
+            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
+        using var client = host.CreateClient();
+
+        var response = await client.PostAsync("/api/v1/dev/reset-my-data", content: null, ct);
+
+        // 401, not 204: the route now EXISTS, and RequireAuthorization answers first. Any
+        // non-404 proves the mapping; asserting 401 additionally pins that turning the flag on
+        // did not also drop the auth requirement.
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task POST_dev_confirm_email_stays_unmapped_in_Production_env_even_when_the_reset_flag_is_on()
+    {
+        // THE load-bearing test of this whole change. The reset flag must never be one || away
+        // from re-arming the unauthenticated confirm-email seam in a deployed environment. That
+        // is why the two routes are mapped by two different extension methods rather than one
+        // call behind one condition — and this is the measurement that keeps it true.
+        var ct = TestContext.Current.CancellationToken;
+        using var host = _factory.WithWebHostBuilder(
+            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
+        using var client = host.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/dev/confirm-email",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        // And the second, independent gate is still shut too: the dev-only confirmer is not in
+        // the container. Both must hold — a 404 alone could also come from the endpoint's own
+        // not-found branch if both structural gates ever regressed together.
+        using var scope = host.Services.CreateScope();
+        scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
     }
 
     // The map-gate 404 above is necessary but not sufficient on its own: the endpoint's

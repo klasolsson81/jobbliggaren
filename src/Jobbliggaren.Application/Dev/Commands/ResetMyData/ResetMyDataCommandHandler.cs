@@ -1,8 +1,11 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Domain.Resumes.Files;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 
@@ -41,11 +44,26 @@ namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 public sealed class ResetMyDataCommandHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
-    IDateTimeProvider clock)
+    IDateTimeProvider clock,
+    IOptions<DevToolsOptions> devTools)
     : ICommandHandler<ResetMyDataCommand, Result>
 {
     public async ValueTask<Result> Handle(ResetMyDataCommand command, CancellationToken cancellationToken)
     {
+        // Gate TWO of two, and not redundant with the map gate in Program.cs. That one decides
+        // whether the ROUTE exists; this decides whether the OPERATION runs, so the primitive
+        // stays refused if it is ever reached by another caller — a second endpoint, a job, a
+        // test host that maps everything. Same two-independent-structural-gates shape the
+        // confirm-email seam already has, and fail-closed for the same reason: the flag defaults
+        // to false.
+        if (!devTools.Value.EnableResetMyData)
+        {
+            return Result.Failure(
+                DomainError.Validation(
+                    "Dev.ResetMyDataDisabled",
+                    "Återställning av testdata är avstängd."));
+        }
+
         // Defense-in-depth: AuthorizationBehavior normally checks the
         // IAuthenticatedRequest marker, but we don't take a hard dependency on the
         // pipeline being configured (mirrors DeleteAccountCommandHandler).
@@ -75,12 +93,29 @@ public sealed class ResetMyDataCommandHandler(
         foreach (var resume in resumes)
             resume.SoftDelete(clock);
 
+        // Point the account away from a CV that is now invisible (parity
+        // DeleteResumeCommandHandler, which unsets it for exactly this reason).
+        if (jobSeeker.PrimaryResumeId is not null)
+            jobSeeker.UnsetPrimaryResume(clock);
+
         // Parsed-CV staging artifacts — soft-delete via Discard (sets DeletedAt).
         var parsedResumes = await db.ParsedResumes
             .Where(p => p.JobSeekerId == jobSeeker.Id)
             .ToListAsync(cancellationToken);
         foreach (var parsed in parsedResumes)
             parsed.Discard(clock);
+
+        // The uploaded originals — the union of the two cascades the product already performs
+        // (DeleteResumeCommandHandler for a promoted original, DiscardParsedResumeCommandHandler
+        // for a rejected one). Without this the raw PDF/DOCX survived every reset: the retention
+        // sweep deliberately does not collect a PROMOTED original. Owner-scoped, and projects
+        // ONLY the id — never the sealed bytea (§5 minimisation).
+        var fileIds = await db.ResumeFiles
+            .Where(f => f.JobSeekerId == jobSeeker.Id)
+            .Select(f => f.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var fileId in fileIds)
+            db.ResumeFiles.Remove(ResumeFile.DeleteHandle(fileId));
 
         // "Sökta annonser" — saved bookmarks (hard-delete, raise unsaved event first).
         var savedJobAds = await db.SavedJobAds
@@ -95,6 +130,14 @@ public sealed class ResetMyDataCommandHandler(
             .Where(r => r.JobSeekerId == jobSeeker.Id)
             .ToListAsync(cancellationToken);
         db.RecentJobSearches.RemoveRange(recentSearches);
+
+        // Graded matches — the setup's OUTPUT. Empty preferences beside live graded matches is a
+        // state no lifecycle in src/ produces, and the surfaces that read them would describe
+        // preferences the account no longer has. Keyed on UserId, NOT JobSeekerId (#868).
+        var matches = await db.UserJobAdMatches
+            .Where(m => m.UserId == userId)
+            .ToListAsync(cancellationToken);
+        db.UserJobAdMatches.RemoveRange(matches);
 
         // Reset stated match preferences → Empty so hasStatedDesiredOccupation
         // becomes false and the welcome modal re-triggers (tracked mutation).

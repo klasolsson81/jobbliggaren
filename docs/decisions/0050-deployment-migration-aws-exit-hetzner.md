@@ -231,9 +231,13 @@ State: medvetet SPOF-val för beta kompenseras med headroom i delad resurs).
 > underskattade skyddet och överskattade klartexten i samma andetag.
 > **Klausulerna är strukna och inte ersatta med en tredje lista** — den hade förfallit också.
 > Uppräkningen är sedan #1285 **härledd ur EF-modellen för BÅDA DbContexterna** och bruten av
-> bygget: `tests/Jobbliggaren.Architecture.Tests/BackupPlaintextExposureRegistry.cs`. Argumentet
+> bygget: `tests/Jobbliggaren.Architecture.Tests/MappedPlaintextExposureRegistry.cs`. Argumentet
 > som bar M-4-domen står oförändrat — `pg_dump` bär icke-krypterad PII, och det är fortfarande
 > sant. *(Provenans, inte levande register: ADR 0050 är daterad och förfaller inte, §1.6.)*
+> ⛔ **Registret heter `Mapped…` och inte `Backup…`, och luckan hör till pekaren:** det täcker vad de
+> två EF-modellerna mappar. Dumpen bär mer — `hangfire`-schemat ligger i **samma databas** och
+> passerar båda `pg_dump`-anropen, som saknar `--schema`. Klassas av en följd-PR
+> (`security-auditor` Major 1, PR #1530); hennes Case 2-signatur hänger på den.
 
 Cloudflare gratis-tier framför boxen (TLS-edge/DNS/CDN/DDoS) — **Cloudflare-proxy
 "Full (strict)"** mot ett giltigt origin-cert på Caddy (aldrig "Flexible" =

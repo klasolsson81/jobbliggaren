@@ -280,7 +280,7 @@ public class ErasureCascadeRegistryTests
     [Fact]
     public void Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable()
     {
-        var encrypted = ModelSweep.EncryptedColumns();
+        var encrypted = ModelSweep.AppModelEncryptedColumns();
 
         // ── Anti-vacuity, per FORM. ──────────────────────────────────────────────────────────
         // A single floor over the union is not enough: Form A alone (4 columns) satisfies
@@ -809,7 +809,7 @@ public class ErasureCascadeRegistryTests
     /// explicit <c>ToTable()</c>, so the model calls them <c>AspNetUsers</c> — the
     /// <c>asp_net_users</c> keys below match no table in EITHER model, whatever the sweep reached.
     /// <b>Identity IS swept now, for a different question:</b>
-    /// <see cref="BackupPlaintextExposureRegistryTests"/> unions both models, because a
+    /// <see cref="MappedPlaintextExposureRegistryTests"/> unions both models, because a
     /// <c>pg_dump</c> does not stop at a DbContext boundary. This fact's reach is unchanged.
     /// </para>
     /// </remarks>

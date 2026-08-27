@@ -9,8 +9,8 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// The ONE model sweep, shared by the two column-granularity registries: the Art. 17 erasure
-/// cascade (<see cref="ErasureCascadeRegistryTests"/>) and the backup plaintext exposure
-/// (<see cref="BackupPlaintextExposureRegistryTests"/>).
+/// cascade (<see cref="ErasureCascadeRegistryTests"/>) and the mapped plaintext exposure
+/// (<see cref="MappedPlaintextExposureRegistryTests"/>).
 /// </summary>
 /// <remarks>
 /// <b>Why this is one implementation and not two.</b> "What counts as a text-bearing column in this
@@ -25,8 +25,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// subject.</b> <see cref="AppModelTextColumnsByTable"/> sweeps <c>AppDbContext</c> alone — the
 /// reach the Art. 17 cascade has always had. <see cref="AllModelsTextColumnsByTable"/> unions
 /// <c>AppIdentityDbContext</c> into it, because a <c>pg_dump</c> does not stop at a DbContext
-/// boundary: it carries every schema in the database, and <c>asp_net_users</c> holds the email and
-/// the name that two of the backup enumeration's four entries name.
+/// boundary: it carries every schema in the database, and <c>AspNetUsers</c> holds the email and
+/// the name that two of the oldest delivered enumeration's four entries name.
 /// </para>
 /// </remarks>
 internal static class ModelSweep
@@ -48,10 +48,18 @@ internal static class ModelSweep
     /// two columns into one key — is therefore not argued away, it is <b>asserted</b>: see
     /// <see cref="AssertNoCrossSchemaTableCollision"/>, which this method calls on every sweep.
     /// </remarks>
-    internal static Dictionary<string, List<string>> AllModelsTextColumnsByTable()
+    internal static Dictionary<string, List<string>> AllModelsTextColumnsByTable() =>
+        TextColumnsByTable(AllEntities());
+
+    /// <summary>
+    /// The union, with the key form's precondition asserted. <b>Every union sweep goes through
+    /// here</b> — the guard belongs to the KEY FORM, not to one call path, and it was reachable
+    /// from only one of the two before (dotnet-architect NTH 1 / code-reviewer Minor 7).
+    /// </summary>
+    private static IReadOnlyList<IEntityType> AllEntities()
     {
         AssertNoCrossSchemaTableCollision();
-        return TextColumnsByTable([.. AppModelEntities(), .. IdentityModelEntities()]);
+        return [.. AppModelEntities(), .. IdentityModelEntities()];
     }
 
     /// <summary>
@@ -59,8 +67,12 @@ internal static class ModelSweep
     /// one column.
     /// </summary>
     /// <remarks>
-    /// Measured 2026-08-27: no collision (the app model's tables are unprefixed, Identity's are all
-    /// <c>asp_net_*</c>). <b>That is a measurement, not a guarantee</b> — nothing stops a future
+    /// Measured 2026-08-27: no collision. The app model's tables are unprefixed; Identity's are
+    /// <c>AspNetUsers</c>, <c>AspNetRoles</c>, <c>AspNetUserClaims</c>, <c>AspNetUserLogins</c>,
+    /// <c>AspNetUserRoles</c>, <c>AspNetUserTokens</c>, <c>AspNetRoleClaims</c> — <b>PascalCase</b>,
+    /// in schema <c>identity</c>, because Identity names them with an explicit <c>ToTable()</c> that
+    /// <c>UseSnakeCaseNamingConvention()</c> does not rewrite. <b>That is a measurement, not a
+    /// guarantee</b> — nothing stops a future
     /// <c>identity.users</c> beside an app-side <c>users</c>. If this fails, do not widen the key
     /// form here: the two registries key against it and would both need re-keying in the same
     /// change.
@@ -157,10 +169,34 @@ internal static class ModelSweep
     }
 
     /// <summary>
-    /// Every DEK-encrypted column, as <c>table.column</c>, resolved through the EF model from
-    /// Infrastructure's own encryption allowlist. Swept over BOTH models: nothing in Identity is
-    /// field-encrypted today, and running it there anyway is what keeps that a measurement rather
-    /// than an assumption.
+    /// The app model's DEK-encrypted columns — <b>the Art. 17 cascade's reach, unchanged by the
+    /// extraction.</b>
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists because the union nearly ate a boundary.</b> The first cut of the extraction
+    /// gave this one entry point over BOTH models, on the reasoning that sweeping Identity anyway
+    /// keeps its emptiness a measurement. But its consumer is
+    /// <c>Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable</c>, which
+    /// requires every column in the set to be classified in <c>ErasureCascadeRegistry</c> — an
+    /// artefact that excludes ASP.NET Identity wholesale by its own ground. The first DEK-encrypted
+    /// Identity column would have failed that fact with <c>ABSENT from the registry entirely</c>,
+    /// and the only green path would have been to write an Identity column into the recruiter
+    /// cascade's register. A refactor would have changed what a DIFFERENT GDPR artefact must
+    /// contain. It read green only because nothing in Identity is encrypted — <b>unchanged by
+    /// accident, not by a boundary</b> (dotnet-architect Viktigt 1).
+    /// </remarks>
+    internal static HashSet<string> AppModelEncryptedColumns() => EncryptedIn(AppModelEntities());
+
+    /// <summary>
+    /// Both models' DEK-encrypted columns. <b>Here</b> the union is right: a <c>pg_dump</c> does not
+    /// stop at a DbContext boundary, so sweeping Identity anyway is what keeps its emptiness a
+    /// measurement rather than an assumption.
+    /// </summary>
+    internal static HashSet<string> AllModelsEncryptedColumns() => EncryptedIn(AllEntities());
+
+    /// <summary>
+    /// Every DEK-encrypted column among the given entities, as <c>table.column</c>, resolved through
+    /// the EF model from Infrastructure's own encryption allowlist.
     /// </summary>
     /// <remarks>
     /// <b>Form A</b> is read from <c>EncryptedFieldRegistry</c> through its real probe, by
@@ -175,11 +211,22 @@ internal static class ModelSweep
     /// <c>Every_DEK_encrypted_column_carries_EXACTLY_ONE_disposition_HeldButNotSearchable</c>. For
     /// the backup registry it fails <b>SAFE but SILENT</b>: a missed encrypted column presents as
     /// apparent plaintext and must then be declared as exposed — an overstatement of what a restore
-    /// leaks, never an understatement. Saying so beats a cross-check that reads as if it covered
-    /// all three forms by derivation.
+    /// leaks, never an understatement.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>The seam has one direction that is NOT fail-safe, and it is written here rather than
+    /// left for someone to find</b> (code-reviewer Minor 9). The Form-B/C probe matches on a BARE
+    /// PROPERTY NAME against every entity in the sweep, with no check that the property is actually
+    /// encrypted. A future UNencrypted property named <c>ContentEnc</c>, <c>ParsedContentEnc</c> or
+    /// <c>SealedContent</c> is subtracted from the plaintext set in silence — and
+    /// <c>Every_classified_column_still_exists_in_a_model</c> would then instruct, in its own failure
+    /// message, that the entry be DELETED. That is the one path where this blindness understates the
+    /// exposure. It is unlikely (a new Form-B shadow is named for its own field, not one of these
+    /// three) and it is deliberately not closed here: closing it means asking the registry whether a
+    /// property is encrypted, which is the question this probe exists to answer.
     /// </para>
     /// </remarks>
-    internal static HashSet<string> EncryptedColumns()
+    private static HashSet<string> EncryptedIn(IReadOnlyList<IEntityType> entities)
     {
         var registry = typeof(AppDbContext).Assembly
             .GetType("Jobbliggaren.Infrastructure.Security.EncryptedFieldRegistry", throwOnError: false);
@@ -199,7 +246,7 @@ internal static class ModelSweep
 
         var columns = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var entity in (IReadOnlyList<IEntityType>)[.. AppModelEntities(), .. IdentityModelEntities()])
+        foreach (var entity in entities)
         {
             if (entity.GetTableName() is null)
                 continue;

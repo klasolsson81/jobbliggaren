@@ -13,6 +13,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Common.Behaviors;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
@@ -453,12 +454,28 @@ app.MapMeFollowedCompanyAdsEndpoints();
 app.MapMeJobsEndpoints();
 app.MapLandingEndpoints();
 
-// DEV-ONLY — not mapped in production; remove before launch (Klas). Throwaway
-// "reset my data" tool so onboarding can be re-tested from scratch. Gated on
-// IsDevelopment() so the /api/v1/dev/* routes never exist in a deployed env
-// (defense in depth — the FE button is dev-gated too).
+// DEV-ONLY — remove before launch (Klas), with everything they gate
+// (docs/runbooks/release-checklist.md). TWO gates, deliberately not one.
+//
+// The token-free confirm-email seam is ENVIRONMENT-gated and nothing widens it: it force-
+// confirms an address without authentication, so it must be unreachable in every deployed
+// environment regardless of configuration.
 if (app.Environment.IsDevelopment())
-    app.MapDevEndpoints();
+    app.MapDevEnvironmentOnlyEndpoints();
+
+// The owner-scoped reset is CONFIGURATION-gated on top of the environment, because the box runs
+// ASPNETCORE_ENVIRONMENT=Production and is the one place the onboarding flow needs re-testing
+// (Klas-direktiv 2026-08-27). Fail-closed: DevToolsOptions.EnableResetMyData defaults to false,
+// and the handler refuses independently of this gate.
+var devTools = app.Services.GetRequiredService<IOptions<DevToolsOptions>>().Value;
+if (devTools.EnableResetMyData)
+    app.MapDevResetMyDataEndpoint();
+
+// Warning, not Information, and only outside Development: a destructive throwaway tool live in a
+// deployed environment is a security-posture statement that should be alertable rather than one
+// Information line among a boot's dozens.
+if (devTools.EnableResetMyData && !app.Environment.IsDevelopment())
+    DevToolsLog.AnnounceResetMyDataEnabledOutsideDevelopment(app.Logger);
 
 app.Run();
 

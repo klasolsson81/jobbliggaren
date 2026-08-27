@@ -59,7 +59,18 @@
     "en": "English"
   },
   "dev": {
-    "note": "Developer tools, shown only locally and removed before launch.",
-    "resetButton": "Dev: reset my test data (removed before launch)"
+    "note": "Developer tools, enabled by a flag and removed before launch.",
+    "resetButton": "Dev: reset your test data (removed before launch)",
+    "confirmTitle": "Reset your test data?",
+    "confirmBody": "Your CV, matching choices, saved job ads, recent searches and your matches are removed. The account, your applications, your company watches and your saved searches are unaffected. This cannot be undone.",
+    "confirmButton": "Reset test data",
+    "resetting": "Resetting…",
+    "cancel": "Cancel",
+    "errors": {
+      "notLoggedIn": "You are not logged in. Sign in and try again.",
+      "serverUnreachable": "Could not reach the server. Try again.",
+      "disabled": "Reset is disabled on the server. Set DevTools:EnableResetMyData and restart the API.",
+      "failed": "The reset failed. Try again."
+    }
   }
 }

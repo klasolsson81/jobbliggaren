@@ -36,6 +36,25 @@ readonly SECRETS="$TMPROOT/run/jobbliggaren/secrets"
 readonly HOST_SECRETS="$TMPROOT/run/jobbliggaren/host-secrets"
 readonly ENV_FIXTURE="$TMPROOT/deploy.env"
 
+# THE PRODUCTION VALUES THEMSELVES, PINNED AGAINST THE ORIGINAL AND NEVER THE COPY. The seam below
+# rewrites both owner constants in the SUT COPY so that both arms are reachable unprivileged — and
+# that rewrite is exactly why no case in this file can otherwise see the shipped value. For
+# ENV_FILE_OWNER that is harmless: a wrong value fails LOUDLY, because a correct root-owned .env
+# would then alarm. For SECRETS_DIR_OWNER it is fail-OPEN, and that is the whole reason these lines
+# exist: the same constant feeds `install -d -o` and the assertion, so changing it to the
+# container's uid would put the box in precisely the #1319 posture AND make --check certify it,
+# with this suite green. Compare DIR_MODE, whose production value IS pinned, because the fixture
+# reproduces 0710 and the positive case would fall.
+assert_ships_production_owner() {
+  grep -qxF -- "readonly $1=0" "$SUT" || {
+    echo "FIXTURE BROKEN: $SUT does not ship '$1=0'. Every case here rewrites that constant, so" >&2
+    echo "                nothing else in this suite can see the value the box actually runs." >&2
+    exit 1
+  }
+}
+assert_ships_production_owner SECRETS_DIR_OWNER
+assert_ships_production_owner ENV_FILE_OWNER
+
 # THE OWNER SEAM (#1319, #1320), AND WHY IT MOVES THE EXPECTATION RATHER THAN THE FILESYSTEM.
 # --check asserts two ABSOLUTE owners — uid 0, root, for the secrets directory and for
 # deploy/.env. This suite does not run as root and cannot `chown`, so the fixture's directory and
@@ -1035,19 +1054,19 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # operator it addresses — 0710 denies the read to every non-root user and the shell expands
   # before sudo elevates — which is the same measurement vps-deploy-stack.md row 32b's drill took.
   if grep -qF -- "chown -R" "$TMPROOT/out"; then
-    fail=$((fail + 1)); echo "  FAIL the owner repair published a recursive chown" >&2
+  fail=$((fail + 1)); echo "  FAIL the owner repair published a recursive chown" >&2
   else
-    pass=$((pass + 1)); echo "  ok   the owner repair is not recursive"
+  pass=$((pass + 1)); echo "  ok   the owner repair is not recursive"
   fi
   if grep -qE -- '(chown|chmod|stat)[^|]*/\*' "$TMPROOT/out"; then
-    fail=$((fail + 1)); echo "  FAIL the owner repair published a shell glob the operator cannot expand" >&2
+  fail=$((fail + 1)); echo "  FAIL the owner repair published a shell glob the operator cannot expand" >&2
   else
-    pass=$((pass + 1)); echo "  ok   the owner repair publishes no glob"
+  pass=$((pass + 1)); echo "  ok   the owner repair publishes no glob"
   fi
 
   echo "-- the at-rest posture: deploy/.env's owner and mode (#1320)"
-  # Seven permanent plaintext credentials rest on this file's posture, and until #1320 it was
-  # prescribed in four places and read by none of them.
+  # Every permanent plaintext credential the stack has rests on this file's posture, and until
+  # #1320 it was prescribed in four places and read by none of them.
 
   seed_all_secrets
   write_env "SITE_HOST=jobbliggaren.se"
@@ -1060,40 +1079,64 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # measured.
   assert_output_lacks "WRONG OWNER: $SECRETS" "and it says nothing about the secrets directory"
 
-    # 0644 — the mode a fresh file gets under the default umask, which is exactly how this drifts
-    # in the field: an operator recreates the file and never runs the chmod the four prescriptions
-    # ask for.
-    seed_all_secrets
-    write_env "SITE_HOST=jobbliggaren.se"
-    chmod 0644 "$ENV_FIXTURE"
-    expect_check 1 "a world-readable .env refuses"
-    assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the line names the file and its mode"
-    assert_posture_summary "the .env-mode fault"
+  # 0644 — the mode a fresh file gets under the default umask, which is exactly how this drifts
+  # in the field: an operator recreates the file and never runs the chmod the four prescriptions
+  # ask for.
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  chmod 0644 "$ENV_FIXTURE"
+  expect_check 1 "a world-readable .env refuses"
+  assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the line names the file and its mode"
+  assert_posture_summary "the .env-mode fault"
 
-    # 0640 — the GROUP bit alone. A mask that only covered `other` would call this healthy, and a
-    # group-readable credentials file is the shape a "let the deploy group read it" convenience
-    # takes. This case is what makes the mask 0077 rather than 0007.
-    seed_all_secrets
-    write_env "SITE_HOST=jobbliggaren.se"
-    chmod 0640 "$ENV_FIXTURE"
-    expect_check 1 "a group-readable .env refuses too"
-    assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the group bit alone is enough to refuse"
+  # 0640 — the GROUP bit alone. A mask that only covered `other` would call this healthy, and a
+  # group-readable credentials file is the shape a "let the deploy group read it" convenience
+  # takes. This case is what makes the mask 0077 rather than 0007.
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  chmod 0640 "$ENV_FIXTURE"
+  expect_check 1 "a group-readable .env refuses too"
+  assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the group bit alone is enough to refuse"
 
-    # 0400 PASSES, AND THIS CASE IS THE MASK'S OTHER HALF. The assertion is "no non-root reader",
-    # not "the mode is 600" — jobbliggaren-reconcile.sh wrote that precedent for the files' 0400.
-    # An `== 600` implementation passes every case above and fails this one; without it the
-    # difference between a property and an opinion about permissions is unmeasured.
-    seed_all_secrets
-    write_env "SITE_HOST=jobbliggaren.se"
-    chmod 0400 "$ENV_FIXTURE"
-    expect_check 0 "a stricter-than-prescribed .env (0400) is a pass, not a deviation"
+  # 0400 PASSES, AND THIS CASE IS THE MASK'S OTHER HALF. The assertion is "no non-root reader",
+  # not "the mode is 600" — jobbliggaren-reconcile.sh wrote that precedent for the files' 0400.
+  # An `== 600` implementation passes every case above and fails this one; without it the
+  # difference between a property and an opinion about permissions is unmeasured.
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  chmod 0400 "$ENV_FIXTURE"
+  expect_check 0 "a stricter-than-prescribed .env (0400) is a pass, not a deviation"
 
-    seed_all_secrets
-    write_env "SITE_HOST=jobbliggaren.se"
-    chmod 0600 "$ENV_FIXTURE"
-    expect_check 0 "the prescribed 0600 with a root-owned directory is a clean posture"
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  chmod 0600 "$ENV_FIXTURE"
+  expect_check 0 "the prescribed 0600 with a root-owned directory is a clean posture"
+
+  # A SYMLINKED .env IS MEASURED AT ITS TARGET, and this pair is what fails without the `-L`. A
+  # symlink's own mode is 0777 on Linux and means nothing; `chmod` follows the link while a bare
+  # `stat` does not, so a link-measuring arm refuses, publishes a chmod, and that chmod changes a
+  # target which was already correct — an alarm nobody can clear, which rows 30/32b of
+  # vps-deploy-stack.md call worse than no gate at all.
+  seed_all_secrets
+  write_env "SITE_HOST=jobbliggaren.se"
+  mv "$ENV_FIXTURE" "$TMPROOT/env-target"
+  chmod 0600 "$TMPROOT/env-target"
+  if ln -s "$TMPROOT/env-target" "$ENV_FIXTURE" 2>/dev/null && [ -L "$ENV_FIXTURE" ]; then
+    expect_check 0 "a symlinked .env whose TARGET is 0600 is a clean posture, not a refusal"
+
+    # The other direction, so the case above cannot be passing merely because the arm went quiet:
+    # the same link over a world-readable target must still refuse.
+    chmod 0644 "$TMPROOT/env-target"
+    expect_check 1 "and the same link over a 0644 target still refuses"
+    assert_output_has "WRONG MODE: $ENV_FIXTURE" "naming the path the operator will chmod"
+  else
+    skipped=$((skipped + 3))
+    echo "  SKIP the symlinked-.env cases: this filesystem does not create symlinks (Windows"
+    echo "       without developer mode). They RUN in CI on ubuntu."
+  fi
+  rm -f "$ENV_FIXTURE" "$TMPROOT/env-target"
 else
-  skipped=$((skipped + 18))
+  skipped=$((skipped + 21))
   echo "  SKIP the whole at-rest posture section: this filesystem does not honour chmod"
   echo "       (Git Bash/Windows), so the directory cannot be put in the 0710 posture these"
   echo "       cases measure against. They RUN in CI on ubuntu, where JBL_REQUIRE_MODE_CASES"

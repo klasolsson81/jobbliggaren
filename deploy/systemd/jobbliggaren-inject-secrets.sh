@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # jobbliggaren-inject-secrets — write the crypto secrets to tmpfs after a boot, and (--check)
+# detect their absence and any drift in the at-rest protection around them
 # detect their absence.
 #
 # WHY THERE IS NO AT-REST COPY TO UNSEAL. Gate B-1 (ADR 0050:566) requires the field-encryption
@@ -39,14 +40,16 @@ readonly COMPOSE_FILE=/opt/jobbliggaren/deploy/docker-compose.yml
 # aborts before a single byte is written.
 readonly RUNTIME_IDS=/opt/jobbliggaren/deploy/systemd/jobbliggaren-runtime-ids.sh
 
-# Read for the mail configuration only — the provider, the two credential pointers and the
-# region. Those four answers decide whether the Scaleway credentials are required and whether the
-# stack can start at all; nothing else in this script consults this file.
+# Read for two things. The mail configuration — the provider, the two credential pointers and the
+# region — whose four answers decide whether the Scaleway credentials are required and whether the
+# stack can start at all; and, since #1320, the file's own owner and mode.
 readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 
-# The OWNER that file must have (#1320). Seven permanent plaintext credentials rest on its
-# posture — four database passwords, both edge basic-auth values and the ACME contact address —
-# and until this constant existed the posture was prescribed in four places and read by none:
+# The OWNER that file must have (#1320). Every permanent plaintext credential the stack has rests
+# on its posture — the count is deliberately not written here, because it has already decayed once:
+# "seven" was measured 2026-08-10 and #1312 appended two Seq values the next day. Read
+# `deploy/.env.example` for the current set. Until this constant existed the posture was
+# prescribed in four places and read by none:
 # `deploy/.env.example:1`, `deploy/docker-compose.yml`, `docs/runbooks/vps-deploy-stack.md` §2
 # and ADR 0049 §B-1. All four are prose. Nothing in this repo WRITES the file — the operator
 # copies the template by hand on the box — so there is no setter to give the duty to, and a
@@ -54,8 +57,8 @@ readonly ENV_FILE=/opt/jobbliggaren/deploy/.env
 #
 # ITS OWN CONSTANT, NOT SECRETS_DIR_OWNER. Both are 0 today, and a single constant would assert
 # that the secrets directory's owner and this file's owner are one decision. They are not: one is
-# set by this script from a measurement, the other by an operator following a runbook, and a
-# future divergence must be expressible without editing an assertion that was never about it.
+# set by this script, the other by an operator following a runbook, and a future divergence must
+# be expressible without editing an assertion that was never about it.
 readonly ENV_FILE_OWNER=0
 
 # A SECOND DIRECTORY, FOR SECRETS NO CONTAINER MAY SEE (#197). SECRETS_DIR is bind-mounted
@@ -363,14 +366,20 @@ if [[ "${1:-}" == "--check" ]]; then
     # is a posture fault (it traverses perfectly, and the owner can substitute the key). One
     # measurement would tempt one message for two states.
     #
-    # `?` ON FAILURE, matching the mode arm: an unreadable stat must fall INTO the branch and be
-    # reported, never past it. Under `set -e` a bare assignment would exit with no line at all.
-    dir_uid=$(stat -c '%u' "$SECRETS_DIR" 2>/dev/null || echo "?")
-    if [[ "$dir_uid" != "$SECRETS_DIR_OWNER" ]]; then
+    # AN UNREAD OWNER IS NOT A WRONG OWNER, and the mode arm's `?` sentinel cannot be borrowed
+    # here: this arm publishes a command, and `sudo chown 0:? <dir>` is one its addressee cannot
+    # run (measured: `chown: invalid group: '0:?'`) — the #1317 class. jobbliggaren-reconcile.sh
+    # already spells this state CANNOT ANSWER and keeps it distinct from a refusal.
+    if ! dir_uid=$(stat -c '%u' "$SECRETS_DIR" 2>/dev/null); then
+      log "CANNOT ANSWER: $SECRETS_DIR exists but its owner could not be read, so whether root"
+      log "               still owns the directory holding the master key is unknown."
+      posture=1
+    elif [[ "$dir_uid" != "$SECRETS_DIR_OWNER" ]]; then
       # The group is preserved rather than prescribed: this arm is about the owner, and the group
       # is jobbliggaren-reconcile.sh's to judge against the image about to run. A repair naming a
-      # group would be guessing at the other gate's answer.
-      dir_gid=$(stat -c '%g' "$SECRETS_DIR" 2>/dev/null || echo "?")
+      # group would be guessing at the other gate's answer. No fallback: reaching here means the
+      # stat above succeeded.
+      dir_gid=$(stat -c '%g' "$SECRETS_DIR")
       log "WRONG OWNER: $SECRETS_DIR is owned by uid $dir_uid, expected $SECRETS_DIR_OWNER (root)."
       log "             THIS DOES NOT BLOCK THE CONTAINER: the directory is ${DIR_MODE#0}, so it"
       log "             still traverses by group and still reads each file as its owner. What the"
@@ -390,26 +399,30 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   done
 
-  # deploy/.env's POSTURE (#1320). The file is this unit's subject matter by its charter above —
-  # "they stat files and read deploy/.env, and nothing else" — and ENV_FILE is this script's own
-  # constant. Read the precision here, because the looser claim is false: env_value reads the file
-  # only from the mail branch below and only when it is readable, so before this arm a --check run
-  # could complete without ever having opened it. After this arm every run stats it, which is what
-  # makes that charter line fully load-bearing rather than conditionally so.
+  # deploy/.env's POSTURE (#1320). ENV_FILE is this script's own constant, and this branch already
+  # reaches the file — though read the precision, because the looser claim is false: env_value
+  # reads it only from the mail branch below and only when it is readable, so before this arm a
+  # --check run could complete without ever having opened it. After this arm every run stats it.
   #
-  # WHAT RESTS ON IT: seven permanent plaintext credentials — four database passwords, both edge
-  # basic-auth values and the ACME contact address. master-key-ops.md records that they stay in
-  # plaintext deliberately; a named non-goal is not a reason to leave the one control unread.
+  # WHAT RESTS ON IT: every permanent plaintext credential in that file. master-key-ops.md records
+  # that they stay in plaintext deliberately; a named non-goal is not a reason to leave the one
+  # control unread.
   #
   # OWNER AND MODE IN ONE `stat`, because neither is the property alone. `0600 someuser:someuser`
   # is a flawless mode over credentials someuser reads, and a mode check alone would report it
   # healthy — the half-a-property class this repo has been caught by before.
   #
+  # `-L`, BECAUSE `chmod` FOLLOWS AND `stat` DOES NOT. Measured: a symlinked .env pointing at a
+  # correct 0600 file reports the LINK's 0777 and refuses, and the repair this arm publishes then
+  # changes the target — which was already right — so the alarm cannot be cleared. Rows 30/32b of
+  # vps-deploy-stack.md: a gate that cannot clear itself is worse than none. `-e` above follows
+  # links too, so a dangling one is an absence and the two agree.
+  #
   # A MASK, NOT `== 600`. The property is "no non-root reader", not an opinion about permissions;
   # jobbliggaren-reconcile.sh wrote that precedent for the files' 0400. 0400 and 0600 pass, 0640
   # and 0644 do not, and the four prose prescriptions stay true without an edit.
   # CONDITIONAL ON THE FILE EXISTING, AND THAT IS NOT A HOLE. The property asserted here is
-  # "these seven plaintext credentials have no non-root reader". With no file there are no
+  # "the plaintext credentials in this file have no non-root reader". With no file there are no
   # credentials on disk and the property is vacuously satisfied — nothing is exposed by a file
   # that is not there. Fail-open would be a file that EXISTS, is world-readable, and reads green;
   # that is what the arms below refuse.
@@ -419,39 +432,37 @@ if [[ "${1:-}" == "--check" ]]; then
   # summary below would prescribe a remedy that reports success and changes nothing.
   if [[ ! -e "$ENV_FILE" ]]; then
     :
-  elif env_meta=$(stat -c '%u %a' "$ENV_FILE" 2>/dev/null); then
+  elif env_meta=$(stat -L -c '%u %a' "$ENV_FILE" 2>/dev/null); then
     env_uid="${env_meta% *}"
     env_mode="${env_meta#* }"
     if [[ "$env_uid" != "$ENV_FILE_OWNER" ]]; then
       log "WRONG OWNER: $ENV_FILE is owned by uid $env_uid, expected $ENV_FILE_OWNER (root)."
       log "             THIS DOES NOT BLOCK COMPOSE — it reads the file as root either way. What"
-      log "             the wrong owner gains is READ access to seven plaintext credentials: four"
-      log "             database passwords, both edge basic-auth values and the ACME contact address."
+      log "             the wrong owner gains is READ access to every plaintext credential in it."
       log "               sudo chown ${ENV_FILE_OWNER}:${ENV_FILE_OWNER} $ENV_FILE"
       posture=1
     fi
     if (( (8#$env_mode & 8#0077) != 0 )); then
-      log "WRONG MODE: $ENV_FILE is $env_mode — group or other can read it. Expected no bit outside"
+      log "WRONG MODE: $ENV_FILE is $env_mode — it grants group or other a bit. Expected none outside"
       log "            the owner's: 0600 is what the runbook prescribes, and 0400 passes too."
-      log "            THIS BLOCKS NOTHING — it widens who may READ seven plaintext credentials"
-      log "            beyond root."
+      log "            THIS BLOCKS NOTHING — it widens who may READ every plaintext credential in"
+      log "            it beyond root."
       log "              sudo chmod 0600 $ENV_FILE"
       posture=1
     fi
   else
     # THE FILE IS THERE AND ITS PROTECTION IS UNKNOWN — the one state that must not read green,
     # and the reason this is an `elif` chain rather than a bare `stat`. It is a different answer
-    # from the absence above: something on disk holds those seven credentials and this check could
-    # not measure who may read it. "I could not measure the protection" and "the protection is
+    # from the absence above: something on disk holds those credentials and this check could not
+    # measure who may read it. "I could not measure the protection" and "the protection is
     # correct" are exactly the two answers this arm exists to keep apart.
     #
     # env_value's own `[[ -r "$ENV_FILE" ]] || return 0` fails OPEN by design, and correctly so
     # for its question (an unset variable is compose's ${EMAIL_PROVIDER:-Console} default). A
     # posture assertion must not inherit that.
     log "CANNOT ANSWER: $ENV_FILE exists but could not be stat'ed, so who may read it is unknown."
-    log "               This is not a statement that it is wrong. Seven plaintext credentials live"
-    log "               in that file — four database passwords, both edge basic-auth values and the"
-    log "               ACME contact address — and this check could not measure their protection."
+    log "               This is not a statement that it is wrong. The stack's plaintext credentials"
+    log "               live in that file and this check could not measure their protection."
     posture=1
   fi
 
@@ -628,9 +639,7 @@ if [[ "${1:-}" == "--check" ]]; then
     log "The posture line(s) above are about the PROTECTION around the secrets, not their presence,"
     log "and none of them says api, worker or mail is failing. Do not read a serving stack as"
     log "evidence that this alarm is wrong — that inference is the one thing this line exists to"
-    log "prevent. It exits non-zero because systemctl --failed is this box's only fault surface,"
-    log "and an exposure that reaches no surface is one nobody repairs. Re-running the injection"
-    log "fixes none of it: these are chown/chmod repairs, published line by line above."
+    log "prevent. It exits non-zero because systemctl --failed is this box's only fault surface."
   fi
 
   if [[ $missing -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then

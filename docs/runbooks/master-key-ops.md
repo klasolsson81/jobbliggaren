@@ -78,7 +78,7 @@ list is clean". The cost above is then the crash-loop **without** the alarm.
 
 | Path | What |
 |---|---|
-| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` means the injection has not run. **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
+| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` **naming this directory** means the injection has not run (since #1320 the same run can also emit one naming `deploy/.env`, which means the opposite — the injection ran and a file's mode drifted). **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
 | `…/FieldEncryption__LocalMasterKeyBase64` | the master key, `0400` |
 | `…/FieldEncryption__LocalMasterKeyId` | key identity, not a secret — the rotation marker |
 | `…/AuditPseudonymization__PepperBase64` | pepper |
@@ -88,7 +88,7 @@ list is clean". The cost above is then the crash-loop **without** the alarm.
 | `…/Email__Scaleway__ProjectId` | project selector, **not a secret and NOT on a rotation clock** — it changes only if the project does. Delivered through the same seam as the key above and therefore easy to sweep into one "rotate the Scaleway credentials" step; they are two lifecycles and the injection script's `SCALEWAY_SECRET_KEYS` comment is that distinction's home |
 | `/run/app-secrets` | the same directory as api and worker see it (read-only bind mount) |
 | `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | **#197, and mounted into no container.** `0400 root:root` in a `0700 root:root` directory. Injected by the same script, in the same run — but demanded by `--check-host` and by no other predicate, so its absence gates its **own** timer and nothing else (#1329) |
-| `jobbliggaren-inject-secrets.sh` | injection (interactive), `--check` (crypto absence) and `--check-host` (host-only absence) — **two detectors, one per set, one per owner** |
+| `jobbliggaren-inject-secrets.sh` | injection (interactive), `--check` (crypto absence + at-rest posture) and `--check-host` (host-only absence) — **two detectors, one per set, one per owner** |
 | `jobbliggaren-secrets-present.{service,timer}` | runs `--check` at boot + every 10 min. Enabled in the same visit as the install below; it owes #197 nothing |
 | `jobbliggaren-host-secrets-present.{service,timer}` | runs `--check-host` at boot + **hourly** — the resolution that matches "tonight's backup will not upload", not "the site is down". Installed with the pair above; **enabled only once the rclone config exists** |
 
@@ -114,7 +114,7 @@ sudo systemctl daemon-reload
 **Both pairs are installed here; the two are ENABLED at different moments, and which one waits is
 the whole of #1329.** Each timer is armed by the set its own detector reads, and neither can be
 enabled before that set exists: a timer enabled against an absent set fails on **every** fire.
-`--check` demands the crypto secrets, their directory mode, and `deploy/.env`'s mail configuration
+`--check` demands the crypto secrets, their directory's mode **and owner**, `deploy/.env`'s **owner and mode** (both since #1320/#1319), and `deploy/.env`'s mail configuration
 (an invalid `EMAIL_PROVIDER` — `Ses` and `Resend` among them, since both arms are gone and reach the
 same `else throw`; `Resend`'s went in `3ee3d85c` (#1237) and `Ses`'s in `b71c14de` (#183 E1) — and,
 under `Scaleway`, its two secrets **plus the region**, each named separately by the script). `--check-host` demands #197's
@@ -733,9 +733,12 @@ procedure here will help.
 - **The measurement needs `sh` and `id` inside the image (#1295).** A chiseled or distroless base
   — the same event class the gate exists to catch — would make the helper exit non-zero, and the
   gate would then refuse the apply hourly as "cannot answer" rather than as a bad base image.
-- **Three of the gate's own guards are unreachable by construction, and so unpinned (#1295).**
-  Reconcile's re-validation of the helper's numeric output, the
-  `@sha256:` digest assertion, and the mode arithmetic's failure branch. Each is a guard on a
+- **Five of the gate's own guards are unreachable by construction, and so unpinned (#1295;
+  the last two #1319/#1320).** Reconcile's re-validation of the helper's numeric output, the
+  `@sha256:` digest assertion, the mode arithmetic's failure branch, and — since the posture arms
+  landed — `--check`'s two CANNOT ANSWER branches: a `stat` that fails on a directory `[[ -d ]]`
+  has just accepted, and one that fails on a file `[[ -e ]]` has just accepted. Both need an I/O
+  error or a race against a unit running as root. Each is a guard on a
   SEAM — a separate executable, a directory another actor writes — rather than on a state any
   path in `src/` or on this box produces today. They are deliberately not fixtured: a fixture
   would have to manufacture a state nothing produces, which is the test-premise class CLAUDE.md

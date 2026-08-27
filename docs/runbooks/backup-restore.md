@@ -238,7 +238,7 @@ mount later, and a directory that is not mounted cannot be exposed by any edit t
 >
 > Use the injector's own `--check`, which inspects the directory, its mode and each secret's
 > contents. It is also the diagnostic `master-key-ops.md` §2 already relies on: with the `:` prefix
-> in the tmpfiles unit, a `WRONG MODE` from `--check` **means the injection has not run**.
+> in the tmpfiles unit, a `WRONG MODE` from `--check` **naming the secrets directory** means the injection has not run. Since #1320 the same run can also emit one naming `deploy/.env`; that one means the opposite.
 >
 > Then confirm the timer — and note what is and is not silent here, because the reason is not the
 > one that applied to a `test -d`. **`--check` is loud when it refuses**, a named line per missing

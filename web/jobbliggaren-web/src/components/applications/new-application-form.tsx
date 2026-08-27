@@ -84,8 +84,8 @@ export function NewApplicationForm() {
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
   // The fields the last submit refused. `errors` alone cannot gate the display: with a resolver
-  // RHF re-validates EVERY field on each keystroke once a submit has failed, so a field the user
-  // was never refused on would start marking itself mid-word.
+  // RHF re-validates on every keystroke once a submit has failed, and a field the user was never
+  // refused on would start marking itself mid-word.
   const [refused, setRefused] = useState<ReadonlySet<keyof FormValues>>(
     new Set()
   );

@@ -117,7 +117,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     expect(
       screen.getByRole("button", { name: /Lägg till uppföljning/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Kanal")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
   it("klick på Lägg till-knapp expanderar form, Avbryt kollapsar", () => {
@@ -127,7 +127,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     );
     expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
-    expect(screen.queryByLabelText("Kanal")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Kanal/)).not.toBeInTheDocument();
   });
 
   it("renderar empty-state när inga uppföljningar", () => {

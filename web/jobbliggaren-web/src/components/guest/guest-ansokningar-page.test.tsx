@@ -26,7 +26,11 @@ describe("GuestAnsokningarPage — relativ tid (#1516)", () => {
 
     // Bred med flit: `för` följt av en siffra fångar både "för 3 dagar sedan"
     // och "för 1 vecka sedan", och skulle fånga en ny variant ingen räknat upp.
-    expect(container.textContent).not.toMatch(/\bför \d/);
+    // Ingen ordgräns i mönstret, med flit: `textContent` slår ihop
+    // elementgränser, så en etikett i ett eget element abutterar
+    // föregående ordtecken och en ordgräns matchar aldrig. Mätt: en
+    // mutation som renderade "för 2 dagar sedan" lämnade den gröna.
+    expect(container.textContent).not.toMatch(/för \d/);
   });
 
   it("uttrycker sjudagarsintervallet i dagar, inte i veckor", () => {

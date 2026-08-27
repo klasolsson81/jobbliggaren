@@ -21,6 +21,6 @@ describe("GuestCvPage — relativ tid (#1516)", () => {
   it("renderar ingen `för …`-form någonstans på sidan", () => {
     const { container } = render(<GuestCvPage />);
 
-    expect(container.textContent).not.toMatch(/\bför \d/);
+    expect(container.textContent).not.toMatch(/för \d/);
   });
 });

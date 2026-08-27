@@ -31,6 +31,6 @@ describe("GuestApplicationDetail — relativ tid (#1516)", () => {
       <GuestApplicationDetail application={application!} />
     );
 
-    expect(container.textContent).not.toMatch(/\bför \d/);
+    expect(container.textContent).not.toMatch(/för \d/);
   });
 });

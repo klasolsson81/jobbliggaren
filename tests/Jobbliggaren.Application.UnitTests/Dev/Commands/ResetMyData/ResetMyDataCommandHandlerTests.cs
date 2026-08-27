@@ -306,6 +306,13 @@ public class ResetMyDataCommandHandlerTests
             .ShouldBeTrue();
         (await db.RecentJobSearches.AnyAsync(r => r.JobSeekerId == other.Id, CancellationToken.None))
             .ShouldBeTrue();
+        (await db.ResumeFiles.AnyAsync(f => f.JobSeekerId == other.Id, CancellationToken.None))
+            .ShouldBeTrue();
+        // UserJobAdMatch is the ONE arm keyed on UserId rather than JobSeekerId (#868), and a
+        // key divergence is exactly the shape a cross-tenant bug hides in. The guard that would
+        // catch it has to cover the arm with the odd key, not only the uniform ones.
+        (await db.UserJobAdMatches.AnyAsync(m => m.UserId == otherUserId, CancellationToken.None))
+            .ShouldBeTrue();
 
         var otherSeeker = await db.JobSeekers
             .FirstAsync(js => js.UserId == otherUserId, CancellationToken.None);

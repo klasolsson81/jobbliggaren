@@ -14,7 +14,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Queries;
 
 /// <summary>
 /// ADR 0079 STEG 3 (CV-seeded skill chips) — the read handler returning the OWNING job
-/// seeker's non-PII JobTech skill proposals for a PendingReview parsed CV. An EXACT mirror
+/// seeker's non-PII JobTech skill proposals for a PendingReview or Promoted parsed CV. An EXACT mirror
 /// of <see cref="GetParsedResumeOccupationsQueryHandlerTests"/>: the same fail-closed IDOR
 /// orchestration (resolve owner → owner-scoped find → cross-user/unknown → null + audit, no
 /// enumeration oracle) AND the positive projection path. Unlike the GetParsedResume Content
@@ -153,14 +153,39 @@ public class GetParsedResumeSkillsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNull_AndNotLogCrossUser_WhenOwnArtifactIsPromoted()
+    public async Task Handle_ShouldReturnProposals_AndNotLogCrossUser_WhenOwnArtifactIsPromoted()
     {
-        // A promoted (soft-deleted) artifact is excluded by the global DeletedAt filter from BOTH
-        // the owner-scoped find AND the AnyAsync probe → plain null, no false cross-user audit on
-        // a legitimate own-promote (parity GetParsedResumeOccupationsQueryHandler).
+        // The soft-deleted state is produced by ParsedResume.Promote — the same actor the import
+        // endpoint invokes on every upload. This read is the ONLY skill-suggest source there is,
+        // so while it returned null the wizard's skill step had no source at all on the ordinary
+        // path: the section's one-shot auto-suggest is guarded on the parse id and simply never
+        // fired. Promote finalises the artifact; it does not recompute the proposals.
         var db = TestAppDbContextFactory.Create();
         var parsed = await SeedOwnedAsync(db, _userId, [Proposal()]);
         parsed.Promote(FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await CreateSut(db).Handle(
+            new GetParsedResumeSkillsQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.Count.ShouldBe(1);
+        result[0].ConceptId.ShouldBe("k1A2_b3C4_d5E");
+        _failedAccess.DidNotReceive().LogCrossUserAttempt(
+            Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnNull_AndNotLogCrossUser_WhenOwnArtifactIsDiscarded()
+    {
+        // The other side of the allow-list, and the reason it is an allow-list rather than
+        // "not Discarded": a rejected import stays unreadable. The discarded state is produced by
+        // ParsedResume.Discard, the actor DiscardParsedResumeCommand invokes. The owner-scoped
+        // probe must stay silent here — an unscoped probe would see this row through
+        // IgnoreQueryFilters and report the owner as a cross-user attempt.
+        var db = TestAppDbContextFactory.Create();
+        var parsed = await SeedOwnedAsync(db, _userId, [Proposal()]);
+        parsed.Discard(FakeDateTimeProvider.Default);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await CreateSut(db).Handle(

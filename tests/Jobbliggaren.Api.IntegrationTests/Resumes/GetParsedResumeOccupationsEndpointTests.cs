@@ -45,6 +45,19 @@ public class GetParsedResumeOccupationsEndpointTests(ApiFactory factory)
         return new MultipartFormDataContent { { part, "file", "cv.pdf" } };
     }
 
+    private static async Task<(string ParsedResumeId, string Outcome)> ImportDocxAsync(
+        HttpClient client, byte[] docx, CancellationToken ct)
+    {
+        var part = new ByteArrayContent(docx);
+        part.Headers.ContentType = new MediaTypeHeaderValue(CvDocxFixtures.ContentType);
+        using var form = new MultipartFormDataContent { { part, "file", "cv.docx" } };
+        var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
+        import.IsSuccessStatusCode.ShouldBeTrue();
+        var body = await import.Content.ReadFromJsonAsync<JsonElement>(ct);
+        return (body.GetProperty("parsedResumeId").GetString()!,
+                body.GetProperty("outcome").GetString()!);
+    }
+
     private static async Task<string> ImportAsync(HttpClient client, CancellationToken ct)
     {
         using var form = PdfForm();
@@ -87,6 +100,48 @@ public class GetParsedResumeOccupationsEndpointTests(ApiFactory factory)
         get.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.ValueKind.ShouldBe(JsonValueKind.Array);
+    }
+
+    // The two arms below are the reason this file gained a real DOCX fixture. Every upload runs
+    // auto-promote, and Promote() soft-deletes the staging artifact — so the ORDINARY outcome of
+    // an ordinary CV is Promoted, and until this read admitted that state the match-setup wizard
+    // lost the proposals the import had just derived. The 8-byte PDF stub used above can only
+    // ever produce a degraded parse, which is why the Promoted arm was previously unreachable
+    // here and the claim rested on unit tests alone.
+    [Fact]
+    public async Task Auto_promoted_import_then_GET_occupations_returns_200_with_the_derived_array()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var (id, outcome) = await ImportDocxAsync(
+            _client, CvDocxFixtures.ConfidentSwedishDeveloperCv(), ct);
+        outcome.ShouldBe("Promoted");
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/occupations", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await get.Content.ReadFromJsonAsync<JsonElement>(ct);
+        json.ValueKind.ShouldBe(JsonValueKind.Array);
+        json.GetArrayLength().ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task GET_occupations_for_a_discarded_parse_returns_404()
+    {
+        // The other side of the status allow-list, on real Postgres: IgnoreQueryFilters must not
+        // hand back an import the user rejected. Discarded is produced by the discard endpoint,
+        // the same actor the CV hub invokes.
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var id = await ImportAsync(_client, ct);
+
+        var discard = await _client.PostAsync($"/api/v1/resumes/parsed/{id}/discard", content: null, ct);
+        discard.IsSuccessStatusCode.ShouldBeTrue();
+
+        var get = await _client.GetAsync($"/api/v1/resumes/parsed/{id}/occupations", ct);
+
+        get.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

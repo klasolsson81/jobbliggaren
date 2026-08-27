@@ -33,7 +33,7 @@
 # `want 0, got 1` with the cause invisible — the same complaint this guard makes about
 # buildkit.
 #
-# SECTION 6 ASKS THE OTHER QUESTION ENTIRELY: not "does the guard judge a fixture right" but
+# SECTION 5 ASKS THE OTHER QUESTION ENTIRELY: not "does the guard judge a fixture right" but
 # "is the artefact it reads the one that ships". `real_repo` pins the delivery itself.
 
 set -euo pipefail
@@ -111,6 +111,16 @@ df "$r" api/Dockerfile 'FROM scratch AS runtime'
 df "$r" web/Dockerfile 'FROM --platform=$BUILDPLATFORM scratch AS runtime' 'RUN apk --no-cache upgrade'
 expect "FROM --platform is read, not misdiagnosed" "$r" 0
 
+# Buildkit compares stage names with strings.EqualFold, which this file's own WHY section
+# cites — so a differently-cased filter DOES un-cache the stage and must not be failed. The
+# first rewrite folded case in one check and not the other, which failed this shape while
+# claiming buildkit would not match it: the guard contradicting its own measurement. Found by
+# all three reviewers independently, 2026-08-27.
+r=$(mk casefold "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "Runtime" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
+expect "filter case differs from stage case" "$r" 0
+
 echo "== 2. violations — every one passed the first version =="
 r=$(mk renamed "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }')
 df "$r" api/Dockerfile 'FROM scratch AS runtime'
@@ -152,6 +162,41 @@ df "$r" api/Dockerfile 'FROM scratch AS runtime'
 df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN dnf -y upgrade'
 expect "dnf_upgrade: canonical spelling" "$r" 1
 
+# The yum family treats `update` as an ALIAS for `upgrade`. v1 caught this and the first
+# rewrite lost it by calling the alias merely non-canonical. One fixture per manager added,
+# because coverage with no kill power is what this file's own header forbids.
+r=$(mk dnfupd "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN dnf -y update'
+expect "dnfupd: alias is an upgrade" "$r" 1
+r=$(mk yumupd "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN yum -y update'
+expect "yumupd: alias is an upgrade" "$r" 1
+r=$(mk mdnfupd "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN microdnf -y update'
+expect "mdnfupd: alias is an upgrade" "$r" 1
+r=$(mk zypdup "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN zypper -n dup'
+expect "zypdup: alias is an upgrade" "$r" 1
+
+# The counterweight: for apk and apt-get `update` is a pure index refresh and must NOT match,
+# or every Dockerfile in the repo becomes a violation.
+r=$(mk aptrefresh "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apt-get update'
+expect "apt-get update alone is not an upgrade" "$r" 0
+
+# A synthetic name for an unnamed FROM must never be matchable: buildkit cannot match it
+# either, so accepting it would be the guard manufacturing the very hole it exists for
+# (`security-auditor`, 2026-08-27).
+r=$(mk synthname "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "stage-1" }')
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS base' 'FROM scratch' 'RUN apk --no-cache upgrade'
+expect "synthetic stage-N is not matchable" "$r" 1
+
 echo "== 3. refusals — 'could not run' is not 'passed' =="
 missing="$TMPROOT/no_workflow"; mkdir -p "$missing"
 expect "workflow absent" "$missing" 2
@@ -170,6 +215,30 @@ df "$r" api/Dockerfile 'FROM scratch AS runtime'
 df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
 df "$r" svc/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
 expect "extra_block_leg: sixth leg unread" "$r" 2
+
+# THE COUNTER MUST NOT SHARE THE READER'S BLINDNESS. `declared` was a state machine closed by
+# the first line not matching the row indent — including a blank line and a column-0 comment,
+# both legal YAML. The shortfall then cancelled itself and `matched == declared` held
+# vacuously while a whole leg went unread (`dotnet-architect`, 2026-08-27).
+ROWS=$(printf '%s\n%s\n\n%s\n%s' "$ROW_API" \
+  '          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }' \
+  '          - name: newsvc' \
+  '            file: "svc/Dockerfile"')
+r=$(mk blankrow "$ROWS")
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
+df "$r" svc/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
+expect "blank line does not end the count" "$r" 2
+
+ROWS=$(printf '%s\n%s\n# a column-0 comment\n%s\n%s' "$ROW_API" \
+  '          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }' \
+  '          - name: newsvc' \
+  '            file: "svc/Dockerfile"')
+r=$(mk commentrow "$ROWS")
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
+df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
+df "$r" svc/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
+expect "column-0 comment does not end the count" "$r" 2
 
 r=$(mk gone "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }')
 df "$r" api/Dockerfile 'FROM scratch AS runtime'
@@ -195,12 +264,15 @@ r=$(mk empty1 "$ROW_API")
 df "$r" api/Dockerfile 'FROM scratch AS runtime'
 expect "empty_nocache_not_swallowed (only leg)" "$r" 0
 
-# Distinct from the above and from section 1's `ok`: here the EMPTY field sits on the leg that
-# is checked FIRST while a filled one follows, which is the ordering that shifts fields.
-r=$(mk empty2 "$ROW_API"$'\n''          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }')
-df "$r" api/Dockerfile 'FROM scratch AS runtime' 'RUN echo no-upgrade-here'
+# Distinct from section 1's `ok`, which has the empty field FIRST. Here it is LAST, so a
+# field-order regression that only bites the trailing row cannot hide behind `ok`.
+# `code-reviewer` measured that the previous version of this fixture was a duplicate of `ok`
+# and killed nothing `ok` did not already kill (2026-08-27).
+r=$(mk empty2 '          - { name: web, context: "web", file: "web/Dockerfile", nocache: "runtime" }'$'
+'"$ROW_API")
+df "$r" api/Dockerfile 'FROM scratch AS runtime'
 df "$r" web/Dockerfile 'FROM scratch AS runtime' 'RUN apk --no-cache upgrade'
-expect "empty field precedes a filled one" "$r" 0
+expect "empty field is the LAST row" "$r" 0
 
 echo "== 5. the delivered artefact, not a fixture of it =="
 expect "real_repo: build.yml + real Dockerfiles" "$REPO_ROOT" 0

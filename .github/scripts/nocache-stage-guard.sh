@@ -29,7 +29,8 @@
 # CLASS THIS GATE BLOCKS ON, which is not the same as never a false pass.
 #
 # FOUR THINGS IT CHECKS. The first three are the coupling; the fourth is the reader itself.
-#   1. Every leg whose Dockerfile upgrades OS packages carries a `nocache`.
+#   1. Every leg whose Dockerfile upgrades OS packages carries a `nocache` — for the verbs
+#      the Dockerfile reader models, which is NOT every verb. See the limitation below.
 #   2. Every non-empty `nocache` names a stage that EXISTS, and specifically the stage the
 #      upgrade RUN lives in. Naming a real-but-wrong stage passed the first version of this
 #      guard while buildkit un-cached something else entirely.
@@ -47,6 +48,16 @@
 # So the count is checked FIRST: rows matched must equal sequence entries declared, and any
 # shortfall is a refusal. That is the same floor `build.yml`'s `deploy/systemd` gate already
 # applies to its own glob, for the same stated reason.
+#
+# AND THERE IS A SECOND READER WITH A SECOND BLIND SPOT, declared here because the first
+# version declared only the matrix one — and the two fail in OPPOSITE directions, which is what
+# makes the silence dangerous. The matrix reader fails CLOSED: a shape it cannot read makes the
+# count disagree and the guard refuses. The Dockerfile reader fails OPEN: a shape it cannot read
+# is simply not an upgrade, and the leg passes. Known unmodelled shapes, measured 2026-08-27 and
+# none of them present in this repo's five Dockerfiles: heredoc (RUN <<EOF), exec-form
+# (RUN ["apk","upgrade"]), and any package manager outside apk/apt/apt-get/dnf/microdnf/yum/
+# zypper. Reachability is zero today; the point is that the claim is bounded rather than the gap
+# hidden (security-auditor, 2026-08-27).
 #
 # THREE OUTCOMES, NEVER COLLAPSED — the house rule (cf. compose-loopback-guard.sh):
 #   exit 0 — read everything, and the coupling holds.
@@ -77,13 +88,16 @@ violate() { echo "VIOLATION: $*" >&2; violations=$((violations + 1)); }
 # Without this line every other check in this file is theatre: the matrix can be perfect and
 # buildx never receives a filter. Measured 2026-08-27 — deleting it made the previous version
 # of this guard answer "coupling holds" with exit 0.
-grep -qE '^[[:space:]]*no-cache-filters:[[:space:]]*\$\{\{[[:space:]]*matrix\.nocache[[:space:]]*\}\}' "$WORKFLOW" \
-  || refuse "the workflow does not wire matrix.nocache into no-cache-filters; every check below would be inert"
+wiring_hits=$(grep -cE '^[[:space:]]*no-cache-filters:[[:space:]]*\$\{\{[[:space:]]*matrix\.nocache[[:space:]]*\}\}' "$WORKFLOW" || true)
+[ "$wiring_hits" = "1" ] \
+  || refuse "expected exactly one 'no-cache-filters: matrix.nocache' line in $WORKFLOW, found $wiring_hits. Zero means every check below is inert; more than one means this guard cannot tell which step is actually wired."
 
 # --- check 4: the reader must have seen every row ------------------------------------------
 declared=$(awk '
   /^      matrix:[[:space:]]*$/             { in_m = 1; next }
   in_m && /^        include:[[:space:]]*$/  { in_i = 1; next }
+  in_i && /^[[:space:]]*$/                 { next }
+  in_i && /^[[:space:]]*#/                 { next }
   in_i && /^          - /                   { n++; next }
   in_i && !/^          /                    { in_i = 0; in_m = 0 }
   END { print n + 0 }
@@ -139,15 +153,21 @@ while IFS=$'\t' read -r name file has_nocache nocache; do
           sub(/^[[:space:]]*[Aa][Ss][[:space:]]+/, "", nm)
           gsub(/[[:space:]]/, "", nm)
         }
-        if (nm == "") { nm = "stage-" idx }
+        if (nm == "") { nm = "«unnamed-" idx "»" }
         idx++
         cur = tolower(nm)
         print "STAGE\t" cur
-        next_ok = 1
         return
       }
-      if (low ~ /^[[:space:]]*run[[:space:]]/ &&
-          low ~ /(apk|apt-get|apt|dnf|microdnf|yum|zypper)[[:space:]][^|;&]*(upgrade|dist-upgrade)/) {
+      # Verb sets differ PER MANAGER and that is not tidiness. For apk and apt-get, `update`
+      # is a pure index refresh and must NOT match. For the yum family `update` IS an alias
+      # for `upgrade` — v1 caught `dnf -y update` and an earlier version of this file lost it
+      # by treating the alias as merely non-canonical (`code-reviewer`, 2026-08-27).
+      is_up = 0
+      if (low ~ /(^|[^a-z-])(apk|apt|apt-get)[[:space:]][^|;&]*(upgrade|dist-upgrade)/) { is_up = 1 }
+      if (low ~ /(^|[^a-z-])(dnf|microdnf|yum)[[:space:]][^|;&]*(upgrade|update)/) { is_up = 1 }
+      if (low ~ /(^|[^a-z-])zypper[[:space:]][^|;&]*([[:space:]](up|dup|patch)([[:space:]]|$)|upgrade|update)/) { is_up = 1 }
+      if (low ~ /^[[:space:]]*run[[:space:]]/ && is_up) {
         print "UPGRADE\t" cur "\t" lineno
       }
     }
@@ -173,7 +193,7 @@ while IFS=$'\t' read -r name file has_nocache nocache; do
 
   # `no-cache-filters` is a LIST input, so a comma-separated value is legal and each element
   # is checked on its own.
-  filtered=$(printf '%s' "$nocache" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)
+  filtered=$(printf '%s' "$nocache" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]' | grep -v '^$' || true)
 
   # --- check 2a: every filtered name must name a real stage (the rename catch) --------------
   # FIXED-STRING, and case normalised by hand rather than with `grep -i`. Without `-F` a
@@ -185,7 +205,7 @@ while IFS=$'\t' read -r name file has_nocache nocache; do
   # one that crashes everywhere, so the case fold is done in the shell and never by grep.
   if [ -n "$filtered" ]; then
     while IFS= read -r want; do
-      printf '%s\n' "$stages" | grep -qxF -- "$(printf %s "$want" | tr "[:upper:]" "[:lower:]")" || violate "leg '$name' filters stage '$want', which does not exist in $file. Buildkit ignores this silently, so the filter is inert and the upgrade layer is served from cache. Stages present: $(printf '%s ' $stages)"
+      printf '%s\n' "$stages" | grep -qxF -- "$want" || violate "leg '$name' filters stage '$want', which does not exist in $file. Buildkit ignores this silently, so the filter is inert and the upgrade layer is served from cache. Stages present: $(printf '%s ' $stages)"
     done <<< "$filtered"
   fi
 

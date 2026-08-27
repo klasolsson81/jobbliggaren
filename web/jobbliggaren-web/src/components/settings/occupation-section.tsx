@@ -198,19 +198,12 @@ export function OccupationSection({
     });
   }
 
-  // Inline-uppladdning klar (CV-pivot 5c: utfalls-medvetet). `pending` → parsen lever;
-  // behåll id:t och kör CV-förslaget mot den (samma propose-and-approve). `promoted` →
-  // parsen är auto-promotad (borta); fall tillbaka på det promotade Resume:ts latestRole
-  // via runCvSuggest utan explicit parse-id (annars 404:ar förslaget mot en borttagen parse).
+  // Inline-uppladdning klar. Parsen är förslagskällan i BÅDA utfallen — läsningen
+  // släpper igenom en promotad parse till dess ägare.
   function handleCvUploaded(outcome: UploadOutcome) {
     setUploadOpen(false);
-    if (outcome.kind === "pending") {
-      setLocalParsedId(outcome.parsedResumeId);
-      runCvSuggest(outcome.parsedResumeId);
-    } else {
-      setLocalParsedId(null);
-      runCvSuggest();
-    }
+    setLocalParsedId(outcome.parsedResumeId);
+    runCvSuggest(outcome.parsedResumeId);
   }
 
   // Wizard-prefill: kör CV-suggest en gång vid montering. "use client"-effekt

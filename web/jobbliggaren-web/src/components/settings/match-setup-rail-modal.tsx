@@ -217,9 +217,7 @@ export function MatchSetupRailModal({
     ...discoveredSkillGroups,
   ];
 
-  // Start-steget: FÖRSLAGSKÄLLAN — id för en live staging-artefakt (LeftPending).
-  // På Promoted är parsen borta (soft-deleted) och detta är null: sektionerna
-  // faller då tillbaka på det promotade Resume:ts latestRole-väg (CV-pivot 5c).
+  // Start-steget: FÖRSLAGSKÄLLAN — id för den uppladdade parsen.
   const [uploadedParsedId, setUploadedParsedId] = useState<string | null>(null);
   // UI-NÄRVARON — sant så snart en uppladdning lyckats i denna session (Promoted
   // ELLER LeftPending). Skild från förslagskällan ovan: utan denna split skulle
@@ -371,11 +369,14 @@ export function MatchSetupRailModal({
   }
 
   function handleCvUploaded(outcome: UploadOutcome, fileName?: string) {
-    // CV-pivot 5c (utfalls-medvetet): `promoted` → parsen är auto-promotad (borta), så
-    // yrkes-/kompetens-sektionerna faller tillbaka på det promotade Resume:t (uploadedParsedId
-    // = null). `pending` → parsen lever; använd den för förslagen. UI-närvaron
-    // (plattan, intro-copy, restore-knappen) styrs av hasUploadedCv i BÅDA fallen.
-    setUploadedParsedId(outcome.kind === "pending" ? outcome.parsedResumeId : null);
+    // Förslagskällan är parsen i BÅDA utfallen. Importen härleder yrken och kompetenser en
+    // gång och sparar dem på parse-raden; promoten soft-deletar bara den raden, den räknar
+    // inte om något. Att nolla id:t här skickade därför den auto-promotade vägen — alltså
+    // varje vanlig uppladdning — till latestRole-reservvägen för yrken och till ingen väg
+    // alls för kompetenser. Läsningarna släpper nu igenom en promotad parse till dess ägare.
+    // UI-närvaron (plattan, intro-copy, restore-knappen) bärs av hasUploadedCv och
+    // cvWasSaved, inte av det här id:t — den uppdelningen är kvar och är vad 5c skyddade.
+    setUploadedParsedId(outcome.parsedResumeId);
     setHasUploadedCv(true);
     setUploadedFileName(fileName ?? null);
     setCvWasSaved(outcome.kind === "promoted");

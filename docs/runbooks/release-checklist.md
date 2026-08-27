@@ -2215,6 +2215,7 @@ overksamt inom en omstart; en halvriven kodbas är inte.
      `src/app/(app)/oversikt/page.tsx`
    - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
    - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
+     `web/jobbliggaren-web/src/lib/env.test.ts`,
      `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`
    - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
      i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
@@ -2222,9 +2223,9 @@ overksamt inom en omstart; en halvriven kodbas är inte.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
    `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
    först när det inte finns någon rutt att mappa.
-4. **Verifiera efteråt:** `grep -rnE "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
+4. **Verifiera efteråt:** `grep -rnE --exclude-dir=node_modules --exclude-dir=.next "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
    → noll träffar utanför den här filen. **Den vidare formen är avsiktlig:** token
-   `api/v1/dev` finns varken i `DevToolsOptions.cs`, `DevToolsLog.cs`, `env.ts`,
+   `api/v1/dev` finns varken i `DevToolsLog.cs`, `env.ts`,
    `"DevTools"`-sektionen, compose-sloten, `.env.example`-raden eller
    `DeployComposeDevToolsGateTests` — en grind som mäter en annan mängd än steg 2
    river är sämre än ingen grind.

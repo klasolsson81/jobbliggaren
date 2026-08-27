@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Dev.Commands.ResetMyData;
 using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Application.UnitTests.Resumes.Review;
+using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Matching;
@@ -121,6 +122,43 @@ public class ResetMyDataCommandHandlerTests
         await db.SaveChangesAsync(CancellationToken.None);
         db.Detach(file);
         return seeker;
+    }
+
+    // The audited id must be non-empty on EVERY branch that reaches a success, and this is
+    // the measurement rather than the claim: AuditLogEntry.Create refuses Guid.Empty
+    // outright, AuditBehavior calls ExtractAggregateId on any success, and nothing in the
+    // API's typed catches turns an ArgumentException into anything but a 500. So a tolerant
+    // no-op that carried an empty id would answer 500 instead of 204 — while a unit test
+    // that only checked IsSuccess stayed green, because it never goes through the pipeline.
+    // Asserting through AuditLogEntry.Create is what couples this test to the real refusal.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ResetMyDataCommandHandler_OnEverySuccessfulBranch_ReturnsAnIdTheAuditRowAccepts(
+        bool hasJobSeeker)
+    {
+        var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        if (hasJobSeeker)
+            await SeedFullUserAsync(db, userId);
+
+        var handler = new ResetMyDataCommandHandler(db, AuthenticatedAs(userId), Clock, EnabledDevTools);
+
+        var result = await handler.Handle(new ResetMyDataCommand(), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(userId);
+
+        // The actor that would reject an empty id, invoked directly.
+        Should.NotThrow(() => AuditLogEntry.Create(
+            occurredAt: Clock.UtcNow,
+            correlationId: Guid.NewGuid(),
+            userId: userId,
+            eventType: "User.DataReset",
+            aggregateType: "User",
+            aggregateId: result.Value,
+            ipAddress: null,
+            userAgent: null));
     }
 
     [Fact]

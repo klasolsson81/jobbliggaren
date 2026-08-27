@@ -86,8 +86,10 @@ public sealed class ResetMyDataCommandHandler(
         var jobSeeker = await db.JobSeekers
             .FirstOrDefaultAsync(js => js.UserId == userId, cancellationToken);
 
+        // Tolerant: nothing to clear is a success, not a failure. It carries the USER id
+        // because AuditLogEntry.Create refuses Guid.Empty — see the command's docblock.
         if (jobSeeker is null)
-            return Result.Success(Guid.Empty);
+            return Result.Success(userId);
 
         // CVs — soft-delete via the aggregate's own method (cascades to Versions).
         // Global query filter already excludes any already soft-deleted rows.
@@ -150,6 +152,6 @@ public sealed class ResetMyDataCommandHandler(
         jobSeeker.UpdateMatchPreferences(MatchPreferences.Empty, clock);
 
         // SaveChanges happens via UnitOfWorkBehavior — atomic across all the above.
-        return Result.Success(jobSeeker.Id.Value);
+        return Result.Success(userId);
     }
 }

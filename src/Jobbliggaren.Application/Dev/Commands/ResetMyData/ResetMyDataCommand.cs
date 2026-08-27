@@ -39,15 +39,18 @@ namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 /// so the two refusal branches write nothing.
 /// </para>
 ///
-/// Returns the owning <c>JobSeeker</c>'s id so the audit row can name the aggregate.
-/// Tolerant of not-found (no JobSeeker yet) — returns Success carrying
-/// <see cref="System.Guid.Empty"/>, so the dev can call it idempotently and the audit
-/// row still records that the reset ran against nothing.
+/// Returns the authenticated USER's id, not the JobSeeker's, and that is load-bearing
+/// rather than incidental: the not-found branch is deliberately tolerant, and a JobSeeker
+/// id is exactly what it does not have. <c>AuditLogEntry.Create</c> refuses
+/// <c>Guid.Empty</c>, so an empty id there would throw inside the audit behavior and turn
+/// an idempotent no-op into a 500. The user id is non-empty on every branch that reaches
+/// a success, which is why the aggregate audited here is the User (parity
+/// <c>ChangePasswordCommand</c>).
 /// </summary>
 public sealed record ResetMyDataCommand
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
 {
-    public string EventType => "Dev.DataReset";
-    public string AggregateType => "JobSeeker";
+    public string EventType => "User.DataReset";
+    public string AggregateType => "User";
     public Guid ExtractAggregateId(Result<Guid> response) => response.Value;
 }

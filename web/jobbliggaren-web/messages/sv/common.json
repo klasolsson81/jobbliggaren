@@ -67,7 +67,7 @@
     "resetting": "Återställer…",
     "cancel": "Avbryt",
     "errors": {
-      "notLoggedIn": "Du är inte inloggad.",
+      "notLoggedIn": "Du är inte inloggad. Logga in och försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "disabled": "Återställning är avstängd på servern. Sätt DevTools:EnableResetMyData och starta om API:t.",
       "failed": "Återställningen misslyckades. Försök igen."

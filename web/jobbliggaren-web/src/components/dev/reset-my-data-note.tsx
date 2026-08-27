@@ -20,7 +20,10 @@ import { resetMyDataAction } from "@/lib/dev/reset-actions";
  * (docs/runbooks/release-checklist.md). An unobtrusive note at the bottom of /oversikt
  * that wipes the caller's own test data and lets the welcome setup run again.
  *
- * The caller renders this only when the reset is enabled. Read that for what it is: a
+ * The caller renders this on `NODE_ENV !== "production" || DEV_TOOLS_RESET_ENABLED` — a
+ * wider predicate than the backend's, which is the flag alone. In Development the two
+ * agree because `appsettings.Development.json` sets the flag; override it off there and
+ * the button renders while every press is refused. Read the whole thing for what it is: a
  * RENDER gate, not an authorisation one. The module is imported unconditionally, so the
  * server action's id exists in the module graph and stays callable whatever the flag says.
  * The authoritative gates are both on the backend — the route is mapped only under
@@ -61,7 +64,16 @@ export function ResetMyDataNote() {
       <Dialog
         open={open}
         onOpenChange={(next) => {
-          if (!next && !isPending) {
+          // BOTH directions. The dialog is controlled (`open` is always defined), so
+          // Radix never flips its own state: the trigger's open arrives here and nowhere
+          // else. Handling only the close branch threw it away and the dialog could not
+          // be opened at all.
+          if (next) {
+            setError(null);
+            setOpen(true);
+            return;
+          }
+          if (!isPending) {
             setOpen(false);
             setError(null);
           }
@@ -70,9 +82,10 @@ export function ResetMyDataNote() {
         {/* DialogTrigger, not a bare Button with onClick. Radix's close handler calls
             preventDefault() unconditionally and then focuses triggerRef; with no trigger
             registered that ref is null, FocusScope's own restoration is suppressed by the
-            preventDefault, and focus lands on <body> (WCAG 2.4.3). Same defect and same
-            remedy as #748 in match-preferences-card.tsx. It also supplies aria-haspopup
-            and aria-expanded for free. */}
+            preventDefault, and focus lands on <body> (WCAG 2.4.3). Same defect as #748;
+            a different remedy — that one kept a triggerless controlled dialog and restored
+            focus in onCloseAutoFocus, this one registers the trigger, which also supplies
+            aria-haspopup and aria-expanded for free. */}
         <DialogTrigger asChild>
           <Button type="button" variant="outline" size="sm">
             {t("dev.resetButton")}

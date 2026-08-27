@@ -36,9 +36,9 @@ internal enum PlaintextExposure
 /// </summary>
 /// <remarks>
 /// <b>Why this is code and not a paragraph.</b> The same enumeration lived in three normative prose
-/// homes and disagreed with itself in all three: ADR 0050:221 carried four entries, ADR 0125 five,
+/// homes and disagreed with itself in all three: ADR 0050 carried four entries, ADR 0125 five,
 /// the ROPA's backup entry six. <b>All three named <c>waitlist_entries</c></b>, a table dropped on
-/// 2026-06-27. In the same sentence as its own list, ADR 0050:221 also counted the field-encrypted
+/// 2026-06-27. In the same sentence as its own list, ADR 0050 also counted the field-encrypted
 /// columns at "4" when the registry it cited held seven. That is ADR 0024's failure exactly —
 /// <i>"prose in a document; it listed raw_payload and nothing else, went stale silently, and an
 /// auditor reading it would have concluded we were compliant"</i> — and the sibling registry in this
@@ -52,12 +52,6 @@ internal enum PlaintextExposure
 /// false-completeness defect #1285 reported, reproduced in an identifier. <b>The gap is named in
 /// every pointer to this file, never implied away</b>, and closing it is a follow-up PR's
 /// change-reason: *the dump carries only schemas that are classified*.
-/// </para>
-/// <para>
-/// <b>An enumeration a human has to remember to update is not an enumeration.</b> A text column
-/// added to either model breaks the build until somebody decides what a restore exposes of it, and
-/// an entry naming a column or table the models do not have breaks the build too — which is what
-/// makes a <c>waitlist_entries</c> entry unwritable rather than merely wrong.
 /// </para>
 /// <para>
 /// <b>This is NOT the Art. 17 cascade, and the difference is the data subject.</b>
@@ -194,13 +188,18 @@ internal static class MappedPlaintextExposureRegistry
                 + "details — the ROPA's sixth entry, which ADR 0125's five-item list omitted. "
                 + "extracted_terms, extracted_lexemes and search_vector are derived FROM the "
                 + "description and carry whatever it carried. The recruiter is a data subject too.",
+            ["job_ad_snapshot_misses"] = "One row per (source, external_id) whose ad left the "
+                + "snapshot. No person column of its own, and it falls the row test on the SAME "
+                + "subset ground as job_ads: the row is created only for an ad we hold, so "
+                + "external_id joins to an organization_number that IS a personnummer for a "
+                + "sole trader (#841) — in the same dump.",
         };
 
     /// <summary>
     /// <b>STEP 2 — THE COLUMN TEST.</b> Per-column verdicts for the tables that PASS the row test.
     /// </summary>
     /// <remarks>
-    /// Six tables reach this step, measured 2026-08-27. Reference data and a role vocabulary: no row
+    /// Five tables reach this step, measured 2026-08-27. Reference data and a role vocabulary: no row
     /// here is about a natural person, so a column-level judgement is meaningful.
     /// </remarks>
     internal static IReadOnlyDictionary<string, PlaintextExposure> Columns { get; } =
@@ -212,10 +211,6 @@ internal static class MappedPlaintextExposureRegistry
             ["AspNetRoles.concurrency_stamp"] = PlaintextExposure.NoPersonalData,
             ["AspNetRoleClaims.claim_type"] = PlaintextExposure.NoPersonalData,
             ["AspNetRoleClaims.claim_value"] = PlaintextExposure.NoPersonalData,
-
-            // ── Ingestion bookkeeping about an AD we failed to snapshot. No person. ───────────
-            ["job_ad_snapshot_misses.external_id"] = PlaintextExposure.NoPersonalData,
-            ["job_ad_snapshot_misses.source"] = PlaintextExposure.NoPersonalData,
 
             // ── Taxonomy reference data. No user write path reaches any of it. ───────────────
             ["taxonomy_concepts.concept_id"] = PlaintextExposure.NoPersonalData,

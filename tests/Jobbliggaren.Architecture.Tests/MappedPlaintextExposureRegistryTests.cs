@@ -70,7 +70,7 @@ public class MappedPlaintextExposureRegistryTests
         stale.ShouldBeEmpty(
             "a listed table or column is not in either EF model.\n\n"
             + "If it was DROPPED: delete the entry. This arm exists because `waitlist_entries` was "
-            + "dropped on 2026-06-27 and went on being named by ADR 0050:221, ADR 0125 (three "
+            + "dropped on 2026-06-27 and went on being named by ADR 0050, ADR 0125 (three "
             + "times) and the ROPA's backup entry — an enumeration Klas was meant to sign against, "
             + "one of whose four entries was a ghost. No prose home could catch that; this does.\n\n"
             + "If it became ENCRYPTED: delete the entry — it is no longer plaintext in a restore, "

@@ -5,8 +5,8 @@
     "lede": "Notiser och händelser i ditt jobbsökande, samlade på ett ställe."
   },
   "today": {
-    "kicker": "I dag",
-    "empty": "Inget planerat i dag.",
+    "kicker": "Idag",
+    "empty": "Inget planerat idag.",
     "footSynced": "Synkad med Google Calendar · {syncedAt}",
     "footNotSynced": "Google Calendar inte synkad. Visar endast Jobbliggaren-händelser."
   },
@@ -22,7 +22,7 @@
     "restore": "Återställ notis",
     "fallbackCompany": "ett företag",
     "fallbackEmployer": "en arbetsgivare",
-    "timeToday": "i dag",
+    "timeToday": "idag",
     "sectionApplications": "Mina ansökningar",
     "sectionJobAds": "Jobbannonser",
     "sectionCompanies": "Företagsbevakning",
@@ -76,8 +76,8 @@
     "calloutHint": "Tar ett par minuter"
   },
   "relativeTime": {
-    "today": "i dag",
-    "yesterday": "i går",
+    "today": "idag",
+    "yesterday": "igår",
     "daysAgo": "{count, plural, one {# dag sedan} other {# dagar sedan}}"
   },
   "meta": {

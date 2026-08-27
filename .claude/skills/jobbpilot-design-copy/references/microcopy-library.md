@@ -116,8 +116,8 @@ Används i listor och kortvy där fullständigt datum ej ryms.
 
 | Situation | Format | Exempel |
 |---|---|---|
-| Idag | "idag kl HH:mm" | "idag kl 09:14" |
-| Igår | "igår kl HH:mm" | "igår kl 14:32" |
+| Idag | "idag, kl. HH:mm" | "idag, kl. 09:14" |
+| Igår | "igår, kl. HH:mm" | "igår, kl. 14:32" |
 | Denna vecka | "veckodagnamn" | "måndag" |
 | Äldre | "D MMM" | "3 apr" |
 | Gammalt (>1 år) | "D MMM YYYY" | "3 apr 2025" |

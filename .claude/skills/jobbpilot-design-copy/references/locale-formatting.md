@@ -109,7 +109,7 @@ in the helper. The clock is injectable — pass `now` rather than letting the he
 read it, so callers stay testable.
 
 **Its missing-value contract is not `format.ts`'s.** `daysSince` returns `0` for
-unparseable input, so `formatDaysAgo` renders "i dag" for garbage rather than
+unparseable input, so `formatDaysAgo` renders "idag" for garbage rather than
 returning null. Do not generalise the null contract across the module boundary.
 
 ---
@@ -151,15 +151,11 @@ could not express.
 (`ui.card.published*`). Never `kl` bare, never `klockan`, which appears nowhere in
 `messages/sv/`.
 
-**`i dag` / `i går`, spaced.** The majority form in `messages/sv/`, and it matches
-`relative-time.ts`. The closed form still ships in a few message files, and it ships
-in **two different copy calls**: the published label `"idag, kl."`, and the adverbial
-`"nya idag"` in counter labels. A follow-up should not treat those as one edit. Grep
-`\bidag\b` rather than assuming the divergence is where you last saw it — it is worth
-its own PR, and not a licence to pick freely meanwhile. Note the consequence for the
-row above: the connector
-example `i dag, kl. 14:32` is the form to write, not a string `jobads.json` currently
-sends, since its own label is closed.
+**`idag` / `igår`, closed up.** Klas-direktiv 2026-08-26 (#1168), which settled a
+13:4 split the other way than the count alone would have. `messages/sv/` carries no
+spaced form, and `relative-time.ts` resolves the word through the catalogue rather
+than spelling it. The connector row above therefore reads
+`idag, kl. 14:32`, which is what `jobads.json` sends.
 
 ### Currency
 
@@ -264,6 +260,6 @@ Never store local time in DB. Never assume client timezone == Stockholm.
 >
 > **Kept, because the conventions were not where the fiction lived** — though review
 > found three this rewrite had dropped (the `kl.` connector, the date-only ISO form,
-> the long-month shape) and two the old file had wrong (`kl` without the stop, and
-> `idag` closed up). What `14 apr 2026`, `14:32`, `1 234 kr` and `4,5` should look
+> the long-month shape) and one the old file had wrong (`kl` without the stop).
+> What `14 apr 2026`, `14:32`, `1 234 kr` and `4,5` should look
 > like was broadly right; it was the code claiming to produce them that was invented.

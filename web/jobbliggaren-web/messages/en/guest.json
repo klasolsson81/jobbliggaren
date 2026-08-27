@@ -31,6 +31,11 @@
   "layout": {
     "skipToContent": "Skip to main content"
   },
+  "relativeTime": {
+    "today": "today",
+    "yesterday": "yesterday",
+    "daysAgo": "{count, plural, one {# day ago} other {# days ago}}"
+  },
   "oversikt": {
     "kicker": "Demo overview",
     "title": "Overview",

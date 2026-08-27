@@ -35,7 +35,7 @@ export interface GuestMockApplication {
   readonly role: string;
   readonly status: GuestApplicationStatus;
   readonly statusLabel: string;
-  readonly updatedAtLabel: string;
+  readonly updatedAtIso: string;
   readonly source: string;
 }
 
@@ -46,7 +46,7 @@ export interface GuestMockResume {
   readonly latestRole: string | null;
   readonly sectionCount: number;
   readonly topSkills: ReadonlyArray<string>;
-  readonly updatedAtLabel: string;
+  readonly updatedAtIso: string;
   readonly isPrimary: boolean;
 }
 
@@ -88,7 +88,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Backend-utvecklare",
     status: "Interview",
     statusLabel: "Intervju",
-    updatedAtLabel: "igår",
+    updatedAtIso: "2026-05-23T14:20:00Z",
     source: "Platsbanken",
   },
   {
@@ -97,7 +97,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Systemutvecklare .NET",
     status: "Submitted",
     statusLabel: "Inskickad",
-    updatedAtLabel: "för 3 dagar sedan",
+    updatedAtIso: "2026-05-21T09:05:00Z",
     source: "Platsbanken",
   },
   {
@@ -106,7 +106,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Lösningsarkitekt",
     status: "Offer",
     statusLabel: "Erbjudande",
-    updatedAtLabel: "idag",
+    updatedAtIso: "2026-05-24T07:15:00Z",
     source: "Manual",
   },
   {
@@ -115,7 +115,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Verksamhetsutvecklare",
     status: "Submitted",
     statusLabel: "Inskickad",
-    updatedAtLabel: "för 5 dagar sedan",
+    updatedAtIso: "2026-05-19T16:40:00Z",
     source: "Platsbanken",
   },
   {
@@ -124,7 +124,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Fullstack-utvecklare",
     status: "Draft",
     statusLabel: "Utkast",
-    updatedAtLabel: "för 2 dagar sedan",
+    updatedAtIso: "2026-05-22T11:30:00Z",
     source: "Manual",
   },
   {
@@ -133,7 +133,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Backend-utvecklare junior",
     status: "Rejected",
     statusLabel: "Avslag",
-    updatedAtLabel: "för 1 vecka sedan",
+    updatedAtIso: "2026-05-17T13:00:00Z",
     source: "Platsbanken",
   },
   {
@@ -142,7 +142,7 @@ const APPLICATIONS: ReadonlyArray<GuestMockApplication> = [
     role: "Webbutvecklare",
     status: "Draft",
     statusLabel: "Utkast",
-    updatedAtLabel: "för 4 dagar sedan",
+    updatedAtIso: "2026-05-20T08:50:00Z",
     source: "Platsbanken",
   },
 ];
@@ -155,7 +155,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
     latestRole: "Junior systemutvecklare",
     sectionCount: 6,
     topSkills: ["C#", ".NET", "PostgreSQL", "Next.js"],
-    updatedAtLabel: "idag",
+    updatedAtIso: "2026-05-24T06:30:00Z",
     isPrimary: true,
   },
   {
@@ -165,7 +165,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
     latestRole: "Webbutvecklare praktik",
     sectionCount: 5,
     topSkills: ["TypeScript", "React", "CSS", "Accessibility"],
-    updatedAtLabel: "för 2 dagar sedan",
+    updatedAtIso: "2026-05-22T15:10:00Z",
     isPrimary: false,
   },
   {
@@ -175,7 +175,7 @@ const RESUMES: ReadonlyArray<GuestMockResume> = [
     latestRole: "Junior Software Developer",
     sectionCount: 6,
     topSkills: ["C#", ".NET", "REST APIs", "Git"],
-    updatedAtLabel: "för 5 dagar sedan",
+    updatedAtIso: "2026-05-19T10:00:00Z",
     isPrimary: false,
   },
 ];

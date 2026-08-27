@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
-import { buildGuestPipeline } from "@/lib/guest/mock-data";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import {
+  buildGuestPipeline,
+  GUEST_MOCK_REF_DATE,
+} from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-ansökningar-pipeline. Mockdata-driven, ingen
 // "Ny ansökan"-knapp (muterande action — Klas-direktiv §F). Samma applications
@@ -14,6 +18,9 @@ export function GuestAnsokningarPage() {
   // `t` bär enum-etiketter (applicationSourceLabel), `tg` bär gäst-sidans copy.
   const t = useTranslations("applications.enums");
   const tg = useTranslations("guest");
+  // Scoped translator for the relative-time helper, same shape as
+  // `oversikt-page.tsx`. The mock's frozen "now" is the clock.
+  const tRelativeTime = useTranslations("guest.relativeTime");
   const groups = buildGuestPipeline();
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
@@ -72,7 +79,13 @@ export function GuestAnsokningarPage() {
                       <div className="jp-app__meta">
                         <span>{applicationSourceLabel(t, app.source)}</span>
                         <span aria-hidden="true"> · </span>
-                        <span>{app.updatedAtLabel}</span>
+                        <span>
+                          {formatDaysAgo(
+                            tRelativeTime,
+                            app.updatedAtIso,
+                            GUEST_MOCK_REF_DATE
+                          )}
+                        </span>
                       </div>
                     </div>
                   </Link>

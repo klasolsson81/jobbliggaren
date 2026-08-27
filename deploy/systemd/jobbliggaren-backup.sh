@@ -266,8 +266,20 @@ log "main artefact -> ${main_object}"
 # --exclude-table-data, NOT --exclude-table: the table's DEFINITION must be restored (empty) so
 # the DEK artefact has somewhere to land and so the schema is complete.
 set +e
+# --schema, and the dump then carries ONLY schemas the plaintext enumeration classifies.
+# Without it this is `-d jobbliggaren` whole, and `hangfire` lives in the SAME database
+# (docker-compose.yml points ConnectionStrings__HangfireStorage at it with SchemaName=hangfire)
+# -- ~13 tables, not EF-mapped, and therefore outside MappedPlaintextExposureRegistry entirely.
+# hangfire-schema.md:195-197 records that those tables can carry "job arguments -- user-IDs,
+# aggregat-IDs, business-data" and "stack-traces -- potentially PII in exception messages", so
+# the artefact carried personal data the enumeration Klas signs against does not describe
+# (#1285; security-auditor Major 1 on PR #1530).
+#
+# THE DEK DUMP BELOW NEEDS NO --schema, and that asymmetry is deliberate: its --table already
+# restricts it to one table. Measured 2026-08-27 -- only this call was ever schema-wide.
 docker exec "$PG_CONTAINER" \
   pg_dump -U "$PG_USER" -d "$PG_DATABASE" -Fc --no-owner --no-privileges \
+    --schema=public --schema=identity \
     --exclude-table-data="$DEK_TABLE" \
   | age -r "$recipient" \
   | rclone rcat "${RCLONE_FLAGS[@]}" "$main_object"

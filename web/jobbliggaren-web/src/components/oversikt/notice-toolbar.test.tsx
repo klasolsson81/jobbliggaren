@@ -18,7 +18,7 @@ function notice(overrides: Partial<NoticeData> = {}): SectionNoticeData {
     text: "En notis.",
     cta: "Visa",
     href: "/jobb",
-    time: "i dag",
+    time: "idag",
     ...overrides,
   };
 }
@@ -32,7 +32,7 @@ const applicationsNotice: SectionNoticeData = {
   text: "En notis.",
   cta: "Visa",
   href: "/ansokningar",
-  time: "i dag",
+  time: "idag",
 };
 
 describe("NoticeToolbar", () => {

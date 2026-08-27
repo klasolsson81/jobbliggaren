@@ -22,7 +22,7 @@ function n(
     text: `Notis ${id}`,
     cta: "Visa",
     href: "/jobb",
-    time: "i dag",
+    time: "idag",
     ...overrides,
   };
 }

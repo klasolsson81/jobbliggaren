@@ -106,12 +106,12 @@
     "logFollowUp": {
       "title": "Logga uppföljning",
       "noteLabel": "Notering (valfri)",
-      "hint": "Uppföljningen loggas med dagens datum under Uppföljningar och i tidslinjen. Väntetiden räknas om från i dag.",
+      "hint": "Uppföljningen loggas med dagens datum under Uppföljningar och i tidslinjen. Väntetiden räknas om från idag.",
       "save": "Spara uppföljning"
     },
     "finishDraft": {
       "title": "Slutför och skicka",
-      "body": "När du skickar flyttas ansökan till Skickad och väntetiden räknas från i dag.",
+      "body": "När du skickar flyttas ansökan till Skickad och väntetiden räknas från idag.",
       "applyBy": "Sök senast",
       "send": "Skicka ansökan"
     },
@@ -173,7 +173,7 @@
       "sortedDescending": "fallande",
       "selectAllAriaLabel": "Markera alla på sidan",
       "selectRowAriaLabel": "Markera {role}",
-      "sinceStep": "{days, plural, =0 {i dag} one {1 dag} other {# dgr}}",
+      "sinceStep": "{days, plural, =0 {idag} one {1 dag} other {# dgr}}",
       "nextStepArrow": "→ {status}",
       "footerSummary": "Visar {shown} av {total} ansökningar",
       "lastEventFollowUp": "Uppföljning loggad",

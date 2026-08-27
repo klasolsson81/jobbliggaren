@@ -51,7 +51,7 @@ describe("LogFollowUpDialog (design §9, #630 PR 7)", () => {
     const textarea = screen.getByLabelText("Notering (valfri)");
     expect(textarea).not.toHaveAttribute("placeholder");
     expect(
-      screen.getByText(/Väntetiden räknas om från i dag/),
+      screen.getByText(/Väntetiden räknas om från idag/),
     ).toBeInTheDocument();
   });
 

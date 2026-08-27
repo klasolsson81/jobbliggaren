@@ -13,7 +13,7 @@ const dismissibleNotice: NoticeData = {
   text: "En avfärdbar notis.",
   cta: "Visa",
   href: "/sokningar",
-  time: "i går",
+  time: "igår",
 };
 
 const nonDismissibleNudge: NoticeData = {

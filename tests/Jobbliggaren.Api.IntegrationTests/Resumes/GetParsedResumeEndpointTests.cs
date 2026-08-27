@@ -2,9 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
@@ -71,7 +68,6 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
             .GetProperty("parsedResumeId").GetString()!;
     }
-
 
     [Fact]
     public async Task GET_parsed_without_auth_returns_401()

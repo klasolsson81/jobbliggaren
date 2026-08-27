@@ -2,9 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Domain.Resumes.Parsing;
@@ -67,7 +64,6 @@ public class ImportResumeEndpointTests(ApiFactory factory)
             form.Add(new StringContent(name), "name");
         return form;
     }
-
 
     // resume_files is write-once with no soft-delete filter, keyed by ParsedResumeId — a captured
     // original is directly visible. Projects only the id (never the sealed bytea → no DEK needed).

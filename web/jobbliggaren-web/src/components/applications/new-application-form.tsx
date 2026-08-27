@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ import { makeCreateApplicationSchema } from "@/lib/actions/application-schemas";
 // The form's values are the schema's INPUT shape, derived rather than restated. `z.infer` would
 // give the output shape, in which an empty optional field has already been transformed away to
 // `undefined`; a form holds what the user typed, which is the input side. Deriving it also means a
-// field added to the schema fails this file's build until it is rendered here.
+// field added to the schema fails this file's build until it is named in `FIELD_ELEMENT_IDS`.
 type FormValues = z.input<ReturnType<typeof makeCreateApplicationSchema>>;
 
 // Maps a form field to the control that owns it, so a refusal can mark the input it names and
@@ -81,21 +81,24 @@ export function NewApplicationForm() {
     [tValidation]
   );
 
-  const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
+  // The fields the last submit refused. `errors` alone cannot gate the display: with a resolver
+  // RHF re-validates EVERY field on each keystroke once a submit has failed, so a field the user
+  // was never refused on would start marking itself mid-word.
+  const [refused, setRefused] = useState<ReadonlySet<keyof FormValues>>(
+    new Set()
+  );
 
   const {
     register,
     handleSubmit,
     setError,
-    clearErrors,
     formState: { errors },
   } = useForm<FormValues>({
-    // `raw: true` is load-bearing, not cosmetic. Without it `handleSubmit` receives the schema's
-    // TRANSFORMED output, in which an empty `url` or `expiresAt` has become `undefined` — and
-    // `formData.set("url", undefined)` posts the string "undefined". With it the raw strings the
-    // user typed reach the action, which is what the action parses.
+    // `raw: true` keeps `handleSubmit`'s argument the schema's INPUT shape, which is what
+    // `FormValues` above declares it to be. Without it the resolver hands back parsed OUTPUT at
+    // runtime while the type still says input.
     resolver: zodResolver(schema, undefined, { raw: true }),
     // Refuse on submit, then re-check a refused field on every keystroke. The second half is what
     // clears a corrected field's `aria-invalid` while the user is still typing (#1514).
@@ -111,8 +114,12 @@ export function NewApplicationForm() {
     },
   });
 
+  function isRefused(name: keyof FormValues) {
+    return errors[name] !== undefined && refused.has(name);
+  }
+
   function fieldA11y(name: keyof FormValues, hintId?: string) {
-    const invalid = errors[name] !== undefined;
+    const invalid = isRefused(name);
     const describedBy = [
       hintId,
       invalid ? `${FIELD_ELEMENT_IDS[name]}-error` : undefined,
@@ -128,7 +135,7 @@ export function NewApplicationForm() {
   // make each invalid control's `aria-describedby` point at every other refused field's message as
   // well — the error would be identified but misattributed, which is not what WCAG 3.3.1 asks for.
   function fieldError(name: keyof FormValues) {
-    const message = errors[name]?.message;
+    const message = isRefused(name) ? errors[name]?.message : undefined;
     if (message === undefined) return null;
     return (
       <p
@@ -149,23 +156,27 @@ export function NewApplicationForm() {
     errorRef.current?.focus();
   }, [errors.root]);
 
-  // A refusal that names controls sends the caret to the first of them IN THE ORDER THIS FORM
-  // DECLARES ITS FIELDS, which is the order they appear on screen. This form's registration order
-  // happens to agree, but `add-follow-up-form` — the other half of #1514 — has a `Controller` whose
-  // registration lands out of document order, and the two surfaces carry ONE shape deliberately.
+  // Runs on a refused submit, and nowhere else. It records which fields were refused and sends the
+  // caret to the first of them IN THE ORDER THIS FORM DECLARES ITS FIELDS, which is the order they
+  // appear on screen. This form's registration order happens to agree, but `add-follow-up-form` —
+  // the other half of #1514 — has a `Controller` whose registration lands out of document order,
+  // and the two surfaces carry ONE shape deliberately.
   //
-  // Doing it here rather than in an effect also confines the move to a refused submit: an effect
-  // keyed on `errors` would re-fire on every keystroke once `reValidateMode: "onChange"` is on, and
-  // would yank the caret out of the field being corrected as soon as an earlier field came clean.
-  function focusFirstRefused(fieldErrors: FieldErrors<FormValues>) {
+  // `focusVisible` is explicit because a programmatic `.focus()` after a MOUSE click leaves
+  // `:focus-visible` false on a <button>, and the app's focus ring is drawn by that selector alone.
+  function onRefused(fieldErrors: FieldErrors<FormValues>) {
     const names = Object.keys(FIELD_ELEMENT_IDS) as (keyof FormValues)[];
-    const first = names.find((name) => fieldErrors[name] !== undefined);
+    const refusedNow = names.filter((name) => fieldErrors[name] !== undefined);
+    setRefused(new Set(refusedNow));
+    const first = refusedNow[0];
     if (first === undefined) return;
-    document.getElementById(FIELD_ELEMENT_IDS[first])?.focus();
+    document
+      .getElementById(FIELD_ELEMENT_IDS[first])
+      ?.focus({ focusVisible: true });
   }
 
   function onSubmit(values: FormValues) {
-    clearErrors("root");
+    setRefused(new Set());
     startTransition(async () => {
       const formData = new FormData();
       formData.set("title", values.title);
@@ -196,7 +207,7 @@ export function NewApplicationForm() {
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit, focusFirstRefused)}
+      onSubmit={handleSubmit(onSubmit, onRefused)}
       className="flex max-w-lg flex-col gap-5"
     >
       <div className="flex flex-col gap-1.5">
@@ -294,7 +305,6 @@ export function NewApplicationForm() {
 
       {errors.root && (
         <p
-          id={errorId}
           ref={errorRef}
           tabIndex={-1}
           role="alert"

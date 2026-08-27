@@ -125,7 +125,7 @@ describe("FollowUpsSection — disclosure-mönster (Prompt 4)", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Lägg till uppföljning/ }),
     );
-    expect(screen.getByLabelText("Kanal")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Kanal/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
     expect(screen.queryByLabelText("Kanal")).not.toBeInTheDocument();
   });

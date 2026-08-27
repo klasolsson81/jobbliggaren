@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Controller, useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -108,9 +108,14 @@ export function AddFollowUpForm({
   const tValidation = useTranslations("validation");
   const schema = useMemo(() => makeFormSchema(tValidation), [tValidation]);
 
-  const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
   const [isPending, startTransition] = useTransition();
+  // The fields the last submit refused. `errors` alone cannot gate the display: with a resolver
+  // RHF re-validates EVERY field on each keystroke once a submit has failed, so a field the user
+  // was never refused on would start marking itself mid-word.
+  const [refused, setRefused] = useState<ReadonlySet<keyof FormValues>>(
+    new Set()
+  );
 
   const {
     register,
@@ -118,13 +123,11 @@ export function AddFollowUpForm({
     handleSubmit,
     reset,
     setError,
-    clearErrors,
     formState: { errors },
   } = useForm<FormValues>({
-    // `raw: true` is load-bearing, not cosmetic. Without it `handleSubmit` receives the schema's
-    // TRANSFORMED output, in which an empty `note` has become `undefined` — and
-    // `formData.set("note", undefined)` posts the literal string "undefined". With it the raw
-    // values the user picked and typed reach the action, which is what the action parses.
+    // `raw: true` keeps `handleSubmit`'s argument the schema's INPUT shape, which is what
+    // `FormValues` above declares it to be. Without it the resolver hands back parsed OUTPUT at
+    // runtime while the type still says input.
     resolver: zodResolver(schema, undefined, { raw: true }),
     // Refuse on submit, then re-check a refused field on every change. The second half is what
     // clears a corrected field's `aria-invalid` while the user is still typing (#1514).
@@ -134,8 +137,12 @@ export function AddFollowUpForm({
     defaultValues: { scheduledAt: localDatetimeNow(), note: "" },
   });
 
+  function isRefused(name: keyof FormValues) {
+    return errors[name] !== undefined && refused.has(name);
+  }
+
   function fieldA11y(name: keyof FormValues, hintId?: string) {
-    const invalid = errors[name] !== undefined;
+    const invalid = isRefused(name);
     const describedBy = [
       hintId,
       invalid ? `${FIELD_ELEMENT_IDS[name]}-error` : undefined,
@@ -151,7 +158,7 @@ export function AddFollowUpForm({
   // make each invalid control's `aria-describedby` point at every other refused field's message as
   // well — the error would be identified but misattributed, which is not what WCAG 3.3.1 asks for.
   function fieldError(name: keyof FormValues) {
-    const message = errors[name]?.message;
+    const message = isRefused(name) ? errors[name]?.message : undefined;
     if (message === undefined) return null;
     return (
       <p
@@ -172,24 +179,30 @@ export function AddFollowUpForm({
     errorRef.current?.focus();
   }, [errors.root]);
 
-  // A refusal that names controls sends the caret to the first of them IN THE ORDER THIS FORM
-  // DECLARES ITS FIELDS, which is the order they appear on screen.
+  // Runs on a refused submit, and nowhere else. It records which fields were refused and sends the
+  // caret to the first of them IN THE ORDER THIS FORM DECLARES ITS FIELDS, which is the order they
+  // appear on screen.
   //
   // RHF's own `shouldFocusError` is off rather than unused. It walks its internal registration
   // order, and with the channel and the note both refused it focused the NOTE (measured
-  // 2026-08-27), dropping the user past the refusal above it. Doing it here also confines the move
-  // to a refused submit: an effect keyed on `errors` would re-fire on every keystroke once
-  // `reValidateMode: "onChange"` is on, and would yank the caret out of the field being corrected
-  // as soon as an earlier field came clean.
-  function focusFirstRefused(fieldErrors: FieldErrors<FormValues>) {
+  // 2026-08-27), dropping the user past the refusal above it.
+  //
+  // `focusVisible` is explicit because a programmatic `.focus()` after a MOUSE click leaves
+  // `:focus-visible` false on a <button>, and the app's focus ring is drawn by that selector alone.
+  // The Radix trigger IS a <button>.
+  function onRefused(fieldErrors: FieldErrors<FormValues>) {
     const names = Object.keys(FIELD_ELEMENT_IDS) as (keyof FormValues)[];
-    const first = names.find((name) => fieldErrors[name] !== undefined);
+    const refusedNow = names.filter((name) => fieldErrors[name] !== undefined);
+    setRefused(new Set(refusedNow));
+    const first = refusedNow[0];
     if (first === undefined) return;
-    document.getElementById(FIELD_ELEMENT_IDS[first])?.focus();
+    document
+      .getElementById(FIELD_ELEMENT_IDS[first])
+      ?.focus({ focusVisible: true });
   }
 
   function onSubmit(values: FormValues) {
-    clearErrors("root");
+    setRefused(new Set());
     startTransition(async () => {
       const formData = new FormData();
       formData.set("channel", values.channel);
@@ -213,12 +226,17 @@ export function AddFollowUpForm({
 
   return (
     <form
-      onSubmit={handleSubmit(onSubmit, focusFirstRefused)}
+      onSubmit={handleSubmit(onSubmit, onRefused)}
       className="flex flex-col gap-3"
     >
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={FIELD_ELEMENT_IDS.channel}>{tUi("addFollowUp.channelLabel")}</Label>
+          <Label htmlFor={FIELD_ELEMENT_IDS.channel}>
+            {tUi("addFollowUp.channelLabel")}{" "}
+            <span aria-hidden="true" className="text-danger-600">
+              *
+            </span>
+          </Label>
           {/* Controller, not `register`: Radix Select is not a native control and posts nothing on
               its own. With the value held here it also cannot be cleared behind the form's back.
 
@@ -267,11 +285,17 @@ export function AddFollowUpForm({
           {fieldError("channel")}
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={FIELD_ELEMENT_IDS.scheduledAt}>{tUi("addFollowUp.dateLabel")}</Label>
+          <Label htmlFor={FIELD_ELEMENT_IDS.scheduledAt}>
+            {tUi("addFollowUp.dateLabel")}{" "}
+            <span aria-hidden="true" className="text-danger-600">
+              *
+            </span>
+          </Label>
           <Input
             id={FIELD_ELEMENT_IDS.scheduledAt}
             type="datetime-local"
             required
+            aria-required="true"
             disabled={isPending}
             {...fieldA11y("scheduledAt")}
             {...register("scheduledAt")}
@@ -300,7 +324,6 @@ export function AddFollowUpForm({
       </div>
       {errors.root && (
         <p
-          id={errorId}
           ref={errorRef}
           tabIndex={-1}
           role="alert"

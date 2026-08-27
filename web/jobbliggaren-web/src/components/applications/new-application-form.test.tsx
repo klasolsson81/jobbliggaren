@@ -272,11 +272,44 @@ describe("NewApplicationForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("leaves a field the refusal did not name alone while the user types in it", async () => {
+    // With a resolver RHF re-validates EVERY field on each keystroke once a submit has failed, not
+    // only the ones that were refused. Measured 2026-08-27: with the display gated on `errors`
+    // alone, a cover-letter refusal made the untouched link field raise "Annonslänken måste vara en
+    // giltig webbadress." on the FIRST character and hold it for six more — and `role="alert"` is
+    // assertive, so a screen reader is interrupted once per keystroke while the user types an
+    // ordinary link.
+    const user = userEvent.setup();
+    render(<NewApplicationForm />);
+
+    await user.type(field.title(), TYPED.title);
+    await user.type(field.company(), TYPED.company);
+    await user.click(field.coverLetter());
+    await user.paste("x".repeat(5001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(field.coverLetter()).toHaveAttribute("aria-invalid", "true")
+    );
+
+    // The link field was empty and valid, so the submit did not refuse it. Half-typed it is not a
+    // valid URL, but the user has not been told anything about it yet.
+    await user.type(field.url(), "http://");
+
+    expect(field.url()).not.toHaveAttribute("aria-invalid");
+    expect(
+      screen.queryByText("Annonslänken måste vara en giltig webbadress.")
+    ).not.toBeInTheDocument();
+    expect(field.url().getAttribute("aria-describedby")).toBe("url-hint");
+
+    // The field that WAS refused keeps its refusal — the gate is on what the submit named, not on
+    // silence for everyone.
+    expect(field.coverLetter()).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("posts empty optional fields as empty strings", async () => {
-    // The resolver is asked for RAW values (`raw: true`). Under the schema's OUTPUT shape an empty
-    // `url` or `expiresAt` has already been transformed to `undefined`, and
-    // `formData.set("url", undefined)` posts the four-character string "undefined". This is the pin
-    // for that choice.
+    // The wire value for an untouched optional field is the empty string — never the
+    // four-character string "undefined" that `formData.set(k, undefined)` would post.
     createApplicationActionMock.mockResolvedValue({ success: true });
     const user = userEvent.setup();
     render(<NewApplicationForm />);

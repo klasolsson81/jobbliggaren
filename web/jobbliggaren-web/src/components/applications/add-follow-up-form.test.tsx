@@ -27,12 +27,9 @@ vi.mock("@/lib/actions/applications", () => ({
 // native bubble pre-empting the zod arm entirely — and it means no test in this file can measure
 // whether native validation fires before the zod gate.
 //
-// The trigger FORWARDS ITS REF, because the real one does. Since #1514 the form no longer moves
-// focus itself; RHF's own `shouldFocusError` calls `.focus()` on whatever `Controller`'s
-// `field.ref` received, so a seam that swallowed the ref would report a focus failure production
-// does not have. Measured 2026-08-27 by rendering the real `SelectTrigger` with a ref: it receives
-// a BUTTON, `typeof node.focus === "function"`, and `.focus()` moves `document.activeElement` to
-// it.
+// The trigger FORWARDS ITS REF, because the real one does. Measured 2026-08-27 by rendering the
+// real `SelectTrigger` with a ref: it receives a BUTTON, `typeof node.focus === "function"`, and
+// `.focus()` moves `document.activeElement` to it.
 let selectOnValueChange: (v: string) => void = () => {};
 
 vi.mock("@/components/ui/select", () => ({
@@ -113,16 +110,16 @@ describe("AddFollowUpForm", () => {
     const user = userEvent.setup();
     render(<AddFollowUpForm applicationId="app-1" />);
 
-    const dateBeforeSubmit = (screen.getByLabelText("Datum") as HTMLInputElement).value;
+    const dateBeforeSubmit = (screen.getByLabelText(/^Datum/) as HTMLInputElement).value;
 
-    await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+    await user.selectOptions(screen.getByLabelText(/^Kanal/), "Email");
     await user.type(screen.getByLabelText(NOTE), "Ringer pa fredag");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     await screen.findByRole("alert");
 
     expect(screen.getByLabelText(NOTE)).toHaveValue("Ringer pa fredag");
-    expect(screen.getByLabelText("Datum")).toHaveValue(dateBeforeSubmit);
+    expect(screen.getByLabelText(/^Datum/)).toHaveValue(dateBeforeSubmit);
 
     // The channel has no visible value through the mock, so it is measured where it matters: the
     // retry has to resend it rather than an empty string.
@@ -146,7 +143,7 @@ describe("AddFollowUpForm", () => {
     const user = userEvent.setup();
     render(<AddFollowUpForm applicationId="app-1" />);
 
-    await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+    await user.selectOptions(screen.getByLabelText(/^Kanal/), "Email");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     const alert = await screen.findByRole("alert");
@@ -174,7 +171,7 @@ describe("AddFollowUpForm", () => {
     // The message id is the field's own and is asserted literally: since #1514 each refused field
     // carries its own message node, so `aria-describedby` naming "whatever the single alert is"
     // would no longer be a meaningful pin.
-    const trigger = screen.getByLabelText("Kanal");
+    const trigger = screen.getByLabelText(/^Kanal/);
     expect(trigger).toHaveAttribute("aria-invalid", "true");
     expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
     expect(alert.id).toBe("follow-up-channel-error");
@@ -210,7 +207,7 @@ describe("AddFollowUpForm", () => {
 
     // Every named field is marked, and each is described by ITS OWN message — not by a shared row
     // that would read the other field's complaint out on this control.
-    const trigger = screen.getByLabelText("Kanal");
+    const trigger = screen.getByLabelText(/^Kanal/);
     expect(trigger).toHaveAttribute("aria-invalid", "true");
     expect(trigger.getAttribute("aria-describedby")).toBe("follow-up-channel-error");
     expect(note).toHaveAttribute("aria-invalid", "true");
@@ -234,7 +231,7 @@ describe("AddFollowUpForm", () => {
     await user.paste("x".repeat(1001));
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
-    const trigger = screen.getByLabelText("Kanal");
+    const trigger = screen.getByLabelText(/^Kanal/);
     await waitFor(() => expect(trigger).toHaveAttribute("aria-invalid", "true"));
 
     await user.selectOptions(trigger, "Email");
@@ -251,14 +248,40 @@ describe("AddFollowUpForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("posts an empty note as an empty string", async () => {
-    // The resolver is asked for RAW values (`raw: true`). Under the schema's OUTPUT shape an empty
-    // optional `note` has already become `undefined`, and `formData.set("note", undefined)` posts
-    // the four-character string "undefined". This is the pin for that choice.
+  it("leaves a field the refusal did not name alone while the user types in it", async () => {
+    // The other half of the same gate (see the sibling test in new-application-form.test.tsx): with
+    // a resolver RHF re-validates EVERY field on each keystroke once a submit has failed, so a
+    // field the submit never refused would start marking itself mid-word into an assertive
+    // `role="alert"`.
     const user = userEvent.setup();
     render(<AddFollowUpForm applicationId="app-1" />);
 
-    await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+    // Only the channel is refused: the note is empty, which is valid.
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+    const trigger = screen.getByLabelText(/^Kanal/);
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-invalid", "true"));
+
+    const note = screen.getByLabelText(NOTE);
+    await user.click(note);
+    await user.paste("x".repeat(1001));
+
+    expect(note).not.toHaveAttribute("aria-invalid");
+    expect(
+      screen.queryByText("Anteckning får vara max 1 000 tecken.")
+    ).not.toBeInTheDocument();
+    expect(note.getAttribute("aria-describedby")).toBe("follow-up-note-hint");
+
+    // The refused field keeps its refusal.
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("posts an empty note as an empty string", async () => {
+    // The wire value for an untouched optional note is the empty string — never the
+    // four-character string "undefined" that `formData.set(k, undefined)` would post.
+    const user = userEvent.setup();
+    render(<AddFollowUpForm applicationId="app-1" />);
+
+    await user.selectOptions(screen.getByLabelText(/^Kanal/), "Email");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     await waitFor(() => expect(addFollowUpActionMock).toHaveBeenCalledTimes(1));
@@ -274,17 +297,21 @@ describe("AddFollowUpForm", () => {
     const user = userEvent.setup();
     render(<AddFollowUpForm applicationId="app-1" onSuccess={onSuccess} />);
 
-    await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+    await user.selectOptions(screen.getByLabelText(/^Kanal/), "Email");
     await user.type(screen.getByLabelText(NOTE), "Ringer pa fredag");
     await user.click(screen.getByRole("button", { name: SUBMIT }));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(screen.getByLabelText(NOTE)).toHaveValue("");
+
+    // The channel too. The seam's hidden input mirrors the value the Select is driven by, so an
+    // empty one is the reset having reached `field.value ?? ""`.
+    expect(document.querySelector('input[name="channel"]')).toHaveValue("");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     // The date is re-read on clear rather than rewound to the mount time, so a second follow-up in
     // the same session does not open on a stale clock.
-    expect(screen.getByLabelText("Datum")).not.toHaveValue("");
+    expect(screen.getByLabelText(/^Datum/)).not.toHaveValue("");
   });
 
   it("re-reads the clock when it clears, so a second follow-up does not open on the mount time", async () => {
@@ -300,16 +327,16 @@ describe("AddFollowUpForm", () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(<AddFollowUpForm applicationId="app-1" />);
 
-      const mountValue = (screen.getByLabelText("Datum") as HTMLInputElement).value;
+      const mountValue = (screen.getByLabelText(/^Datum/) as HTMLInputElement).value;
       expect(mountValue).toBe("2026-08-24T09:00");
 
       vi.setSystemTime(new Date(2026, 7, 24, 14, 30));
 
-      await user.selectOptions(screen.getByLabelText("Kanal"), "Email");
+      await user.selectOptions(screen.getByLabelText(/^Kanal/), "Email");
       await user.click(screen.getByRole("button", { name: SUBMIT }));
 
       await waitFor(() =>
-        expect(screen.getByLabelText("Datum")).toHaveValue("2026-08-24T14:30"),
+        expect(screen.getByLabelText(/^Datum/)).toHaveValue("2026-08-24T14:30"),
       );
     } finally {
       vi.useRealTimers();
@@ -319,7 +346,7 @@ describe("AddFollowUpForm", () => {
   it("opens on the current time with nothing pre-filled", async () => {
     render(<AddFollowUpForm applicationId="app-1" />);
 
-    expect(screen.getByLabelText("Datum")).not.toHaveValue("");
+    expect(screen.getByLabelText(/^Datum/)).not.toHaveValue("");
     expect(screen.getByLabelText(NOTE)).toHaveValue("");
   });
 });

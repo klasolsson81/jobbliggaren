@@ -60,36 +60,45 @@ export function GuestAnsokningarPage() {
                   {tg("ansokningar.emptyStatus")}
                 </p>
               ) : (
-                group.applications.map((app) => (
-                  // F-Pre Punkt 5b: rader är `<Link>` så soft-nav fångas av
-                  // `@modal/(.)ansokningar/[id]` → modal (ADR 0053-paritet).
-                  <Link
-                    key={app.id}
-                    href={`/gast/ansokningar/${app.id}`}
-                    className="jp-app"
-                    aria-label={tg("ansokningar.rowAriaLabel", {
-                      role: app.role,
-                      company: app.company,
-                      statusLabel: group.statusLabel,
-                    })}
-                  >
-                    <div className="jp-job__body">
-                      <h3 className="jp-app__title">{app.role}</h3>
-                      <div className="jp-app__company">{app.company}</div>
-                      <div className="jp-app__meta">
-                        <span>{applicationSourceLabel(t, app.source)}</span>
-                        <span aria-hidden="true"> · </span>
-                        <span>
-                          {formatDaysAgo(
-                            tRelativeTime,
-                            app.updatedAtIso,
-                            GUEST_MOCK_REF_DATE
-                          )}
-                        </span>
+                group.applications.map((app) => {
+                  // Derived once per row and read by BOTH the visible meta line
+                  // and the accessible name. Computing them twice is the same
+                  // divergence class this PR closes, one storey down
+                  // (design-reviewer, 2026-08-27).
+                  const source = applicationSourceLabel(t, app.source);
+                  const updated = formatDaysAgo(
+                    tRelativeTime,
+                    app.updatedAtIso,
+                    GUEST_MOCK_REF_DATE
+                  );
+
+                  return (
+                    // F-Pre Punkt 5b: rader är `<Link>` så soft-nav fångas av
+                    // `@modal/(.)ansokningar/[id]` → modal (ADR 0053-paritet).
+                    <Link
+                      key={app.id}
+                      href={`/gast/ansokningar/${app.id}`}
+                      className="jp-app"
+                      aria-label={tg("ansokningar.rowAriaLabel", {
+                        role: app.role,
+                        company: app.company,
+                        statusLabel: group.statusLabel,
+                        source,
+                        updated,
+                      })}
+                    >
+                      <div className="jp-job__body">
+                        <h3 className="jp-app__title">{app.role}</h3>
+                        <div className="jp-app__company">{app.company}</div>
+                        <div className="jp-app__meta">
+                          <span>{source}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span>{updated}</span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))
+                    </Link>
+                  );
+                })
               )}
             </div>
           </section>

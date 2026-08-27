@@ -4,19 +4,19 @@ import { GuestApplicationDetail } from "./guest-application-detail";
 import { findGuestApplication } from "@/lib/guest/mock-data";
 
 /**
- * #1516 — detaljmodalens `Senast uppdaterad` renderar produktens form.
+ * #1516 — the detail modal's `Senast uppdaterad` renders the product's form.
  *
- * Denna site namngavs aldrig i issuen, som räknade två renderingssiter där det
- * fanns fyra. Den är ändå en defekt site: mätt renderat 2026-08-27 vid
- * `a49789c6` visade `/gast/ansokningar/ga-2` texten `SENAST UPPDATERAD ·
- * för 3 dagar sedan`.
+ * This site was never named in the issue, which counted two render sites where
+ * there were four. It is a defect site all the same: measured rendered on
+ * 2026-08-27 at `a49789c6`, `/gast/ansokningar/ga-2` showed
+ * `SENAST UPPDATERAD · för 3 dagar sedan`.
  *
- * Ansökan hämtas genom `findGuestApplication` i stället för att byggas för
- * hand, så testet mäter den rad som faktiskt renderas i produktionen
- * (AGENTS.md §5 `Tests:` — premissen ska vara en produktionen producerar).
+ * The application is fetched through `findGuestApplication` rather than built
+ * by hand, so the test measures the row production actually renders
+ * (AGENTS.md §5 `Tests:` — the premise must be one production produces).
  */
-describe("GuestApplicationDetail — relativ tid (#1516)", () => {
-  it("renderar katalogens form för ga-2", () => {
+describe("GuestApplicationDetail — relative time (#1516)", () => {
+  it("renders the catalogue's form for ga-2", () => {
     const application = findGuestApplication("ga-2");
     expect(application).not.toBeNull();
 
@@ -25,7 +25,7 @@ describe("GuestApplicationDetail — relativ tid (#1516)", () => {
     expect(screen.getByText("3 dagar sedan")).toBeInTheDocument();
   });
 
-  it("renderar ingen `för …`-form", () => {
+  it("renders no `för …` form", () => {
     const application = findGuestApplication("ga-2");
     const { container } = render(
       <GuestApplicationDetail application={application!} />

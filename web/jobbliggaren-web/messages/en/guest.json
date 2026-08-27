@@ -87,7 +87,7 @@
     "title": "My applications",
     "lede": "{total} sample applications spread across all status stages.",
     "groupAriaLabel": "{statusLabel} ({count})",
-    "rowAriaLabel": "{role} – {company} – {statusLabel}",
+    "rowAriaLabel": "{role} – {company} – {statusLabel} – {source}, updated {updated}",
     "emptyStatus": "No applications in this status.",
     "fullKicker": "Demo application",
     "fullLede": "{company} · {source}",

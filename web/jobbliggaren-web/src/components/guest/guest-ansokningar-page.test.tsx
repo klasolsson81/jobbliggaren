@@ -3,41 +3,51 @@ import { render, screen } from "@testing-library/react";
 import { GuestAnsokningarPage } from "./guest-ansokningar-page";
 
 /**
- * #1516 — gäst-pipelinens tidskolumn renderar produktens form.
+ * #1516 — the guest pipeline's time column renders the product's form.
  *
- * Detta är den yta defekten mättes på: sju rader i EN kolumn, där tre bar
- * `idag`/`igår` och fyra bar `för N dagar sedan`. Assertionen nedan är
- * defekten uttryckt som ett test — alla tre formerna i samma vy, och ingen
- * `för`-prefixad. En form-assertion per sträng hade inte fångat den, för varje
- * enskild sträng var välformad svenska; det var kombinationen som var fel.
+ * This is the surface the defect was measured on: seven rows in ONE column,
+ * three carrying `idag`/`igår` and four carrying `för N dagar sedan`. The first
+ * assertion is that defect expressed as a test — all three forms in one view.
+ * A per-string form check would not have caught it: every single string was
+ * well-formed Swedish, and it was the combination that was wrong.
  */
-describe("GuestAnsokningarPage — relativ tid (#1516)", () => {
-  it("renderar katalogens tre former i samma vy", () => {
+describe("GuestAnsokningarPage — relative time (#1516)", () => {
+  it("renders the catalogue's three forms in one view", () => {
     render(<GuestAnsokningarPage />);
 
-    // ga-3 (0 dagar), ga-1 (1 dag), ga-2 (3 dagar) mot mockens frusna referens.
+    // ga-3 (0 days), ga-1 (1 day), ga-2 (3 days) against the mock's frozen now.
     expect(screen.getByText("idag")).toBeInTheDocument();
     expect(screen.getByText("igår")).toBeInTheDocument();
     expect(screen.getByText("3 dagar sedan")).toBeInTheDocument();
   });
 
-  it("renderar ingen `för …`-form någonstans på sidan", () => {
+  it("renders no `för …` form anywhere on the page", () => {
     const { container } = render(<GuestAnsokningarPage />);
 
-    // Bred med flit: `för` följt av en siffra fångar både "för 3 dagar sedan"
-    // och "för 1 vecka sedan", och skulle fånga en ny variant ingen räknat upp.
-    // Ingen ordgräns i mönstret, med flit: `textContent` slår ihop
-    // elementgränser, så en etikett i ett eget element abutterar
-    // föregående ordtecken och en ordgräns matchar aldrig. Mätt: en
-    // mutation som renderade "för 2 dagar sedan" lämnade den gröna.
+    // Deliberately broad: `för` followed by a digit catches both
+    // "för 3 dagar sedan" and "för 1 vecka sedan". No word boundary — see
+    // guest-cv-page.test.tsx for the measurement that settled that.
     expect(container.textContent).not.toMatch(/för \d/);
   });
 
-  it("uttrycker sjudagarsintervallet i dagar, inte i veckor", () => {
-    // ga-6 bar "för 1 vecka sedan", som katalogens plural inte kan uttrycka.
+  it("expresses the seven-day interval in days, not weeks", () => {
+    // ga-6 carried "för 1 vecka sedan", which the catalogue plural cannot say.
     render(<GuestAnsokningarPage />);
 
     expect(screen.getByText("7 dagar sedan")).toBeInTheDocument();
     expect(screen.queryByText(/vecka/)).not.toBeInTheDocument();
+  });
+
+  it("the row's accessible name carries the source and the time", () => {
+    // `aria-label` overrides the link's own content, so the meta line reaches a
+    // screen reader only if the label names it — the value this PR corrects is
+    // otherwise the one missing from the reading (design-reviewer, 2026-08-27).
+    render(<GuestAnsokningarPage />);
+
+    expect(
+      screen.getByRole("link", {
+        name: "Systemutvecklare .NET – Folksam IT – Inskickad – Platsbanken, uppdaterad 3 dagar sedan",
+      })
+    ).toBeInTheDocument();
   });
 });

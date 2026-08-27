@@ -3,28 +3,31 @@ import { render, screen } from "@testing-library/react";
 import { GuestOversiktPage } from "./guest-oversikt-page";
 
 /**
- * #1516 — översiktens `Senast uppdaterat CV` renderar produktens form.
+ * #1516 — the overview's `Senast uppdaterat CV` renders the product's form.
  *
- * Fjärde renderingssiten, och den andra issuen inte räknade. Den är särskild
- * på ett sätt: raden står som granne till `Demo aktiv sedan`, som hämtar sitt
- * `idag` ur `guest.oversikt.timeToday` i stället för ur data. Båda renderar
- * `idag` i dag, och det är ett sammanfall — CTO-bindet 2026-08-27 lät den
- * andra stå kvar eftersom den bär ett valt ord, inte en härledd fras.
+ * Fourth render site, and the second one the issue did not count. It is special
+ * in one way: the row sits next to `Demo aktiv sedan`, which takes its `idag`
+ * from `guest.oversikt.timeToday` rather than from data. Both render `idag`
+ * today, and that is a coincidence — the CTO bind of 2026-08-27 left the second
+ * one alone because it carries a chosen word, not a derived phrase.
  *
- * Därför assertar detta test på raden, inte på förekomsten av ordet `idag`:
- * en assertion på ordet ensamt hade passerat även om denna site slutat renderas.
+ * So this test asserts on the row, not on the presence of the word `idag`: an
+ * assertion on the word alone would pass even if this site stopped rendering.
+ *
+ * `getNodeText` reads direct text nodes only, so the match is the label
+ * `<span>` and `parentElement` is the row — deliberately not the group, which
+ * also contains `Demo aktiv sedan`.
  */
-describe("GuestOversiktPage — relativ tid (#1516)", () => {
-  it("Senast uppdaterat CV renderar den härledda formen", () => {
+describe("GuestOversiktPage — relative time (#1516)", () => {
+  it("Senast uppdaterat CV renders the derived form", () => {
     render(<GuestOversiktPage />);
 
-    // gr-1 ligger på referensdatumet -> `idag`, härlett via formatDaysAgo.
-    const row = screen.getByText("Senast uppdaterat CV").closest("*");
-    expect(row).not.toBeNull();
-    expect(row!.parentElement?.textContent).toContain("idag");
+    // gr-1 sits on the reference date -> `idag`, derived via formatDaysAgo.
+    const row = screen.getByText("Senast uppdaterat CV").parentElement;
+    expect(row?.textContent).toContain("idag");
   });
 
-  it("renderar ingen `för …`-form någonstans på sidan", () => {
+  it("renders no `för …` form anywhere on the page", () => {
     const { container } = render(<GuestOversiktPage />);
 
     expect(container.textContent).not.toMatch(/för \d/);

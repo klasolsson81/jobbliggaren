@@ -2223,12 +2223,21 @@ overksamt inom en omstart; en halvriven kodbas är inte.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
    `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
    först när det inte finns någon rutt att mappa.
-4. **Verifiera efteråt:** `grep -rnE --exclude-dir=node_modules --exclude-dir=.next "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
+4. **Verifiera efteråt:** `grep -rnE --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=bin
+   --exclude-dir=obj "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
    → noll träffar utanför den här filen. **Den vidare formen är avsiktlig:** token
    `api/v1/dev` finns varken i `DevToolsLog.cs`, `env.ts`,
    `"DevTools"`-sektionen, compose-sloten, `.env.example`-raden eller
    `DeployComposeDevToolsGateTests` — en grind som mäter en annan mängd än steg 2
    river är sämre än ingen grind.
+   ⚠ **Uteslutningarna är inte kosmetik — utan dem kan kriteriet aldrig uppnås.** Mätt
+   2026-08-27 på ett byggt träd: **90 filer med bara `node_modules`/`.next` uteslutna, 22
+   när `bin`/`obj` också utesluts.** Resten är kompilerade `.dll`/`.pdb`, `.next`-chunks
+   och testernas kopior av `appsettings`/`docker-compose`. En operatör som möter brus vid
+   lansering ögonfiltrerar eller lägger in ad-hoc-undantag, och den enda träff som betyder
+   något göms i bruset.
+   ⚠ **Mät med RÅ `grep -r`, aldrig `git grep`** — den senare hoppar över gitignorerat och
+   ser därför inte byggutdata alls, så den ger ett falskt godkänt på exakt den här grinden.
 
 ---
 

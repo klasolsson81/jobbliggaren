@@ -1054,14 +1054,14 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # operator it addresses — 0710 denies the read to every non-root user and the shell expands
   # before sudo elevates — which is the same measurement vps-deploy-stack.md row 32b's drill took.
   if grep -qF -- "chown -R" "$TMPROOT/out"; then
-  fail=$((fail + 1)); echo "  FAIL the owner repair published a recursive chown" >&2
+    fail=$((fail + 1)); echo "  FAIL the owner repair published a recursive chown" >&2
   else
-  pass=$((pass + 1)); echo "  ok   the owner repair is not recursive"
+    pass=$((pass + 1)); echo "  ok   the owner repair is not recursive"
   fi
   if grep -qE -- '(chown|chmod|stat)[^|]*/\*' "$TMPROOT/out"; then
-  fail=$((fail + 1)); echo "  FAIL the owner repair published a shell glob the operator cannot expand" >&2
+    fail=$((fail + 1)); echo "  FAIL the owner repair published a shell glob the operator cannot expand" >&2
   else
-  pass=$((pass + 1)); echo "  ok   the owner repair publishes no glob"
+    pass=$((pass + 1)); echo "  ok   the owner repair publishes no glob"
   fi
 
   echo "-- the at-rest posture: deploy/.env's owner and mode (#1320)"

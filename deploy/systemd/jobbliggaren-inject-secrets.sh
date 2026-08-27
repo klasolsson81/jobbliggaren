@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # jobbliggaren-inject-secrets — write the crypto secrets to tmpfs after a boot, and (--check)
 # detect their absence and any drift in the at-rest protection around them
-# detect their absence.
 #
 # WHY THERE IS NO AT-REST COPY TO UNSEAL. Gate B-1 (ADR 0050:566) requires the field-encryption
 # master key never be plaintext on disk. The gate's parenthetical names two mechanisms — a

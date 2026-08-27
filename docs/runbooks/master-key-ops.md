@@ -78,7 +78,7 @@ list is clean". The cost above is then the crash-loop **without** the alarm.
 
 | Path | What |
 |---|---|
-| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` **naming this directory** means the injection has not run (since #1320 the same run can also emit one naming `deploy/.env`, which means the opposite — the injection ran and a file's mode drifted). **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
+| `/run/jobbliggaren/secrets/` | tmpfs staging dir. **`0700 root:root` at boot** (`/etc/tmpfiles.d/jobbliggaren.conf`), **raised to `0710 root:<container-gid>` by the injection script**. Two actors, two states — and with the `:` prefix tmpfiles can never produce the second one, so a `WRONG MODE` from `--check` **naming this directory** means the injection has not run (since #1320 the same run can also emit one naming `deploy/.env`). **A third actor reads it since #1295, and only reads:** `jobbliggaren-reconcile.service` re-asserts the ownership against the image it is about to apply, and refuses the apply rather than repairing anything |
 | `…/FieldEncryption__LocalMasterKeyBase64` | the master key, `0400` |
 | `…/FieldEncryption__LocalMasterKeyId` | key identity, not a secret — the rotation marker |
 | `…/AuditPseudonymization__PepperBase64` | pepper |

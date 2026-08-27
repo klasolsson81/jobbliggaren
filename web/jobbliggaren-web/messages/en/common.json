@@ -60,6 +60,11 @@
   },
   "dev": {
     "note": "Developer tools, shown only locally and removed before launch.",
-    "resetButton": "Dev: reset my test data (removed before launch)"
+    "resetButton": "Dev: reset my test data (removed before launch)",
+    "confirmTitle": "Reset your test data?",
+    "confirmBody": "Your CV, matching choices, saved and recent searches and your matches are removed. The account, email and password are unaffected. This cannot be undone.",
+    "confirmButton": "Reset test data",
+    "resetting": "Resetting…",
+    "cancel": "Cancel"
   }
 }

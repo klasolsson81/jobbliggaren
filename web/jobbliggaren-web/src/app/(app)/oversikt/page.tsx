@@ -7,6 +7,7 @@ import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getMatchCount } from "@/lib/api/match-count";
 import { getNewFollowedCompanyAdCount } from "@/lib/api/company-follows";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
+import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
 import { OversiktPage } from "@/components/oversikt/oversikt-page";
 import { MatchSetupLauncher } from "@/components/onboarding/match-setup-launcher";
@@ -170,9 +171,18 @@ export default async function OversiktRoute({
           importCvHref={IMPORT_CV_HREF}
         />
       )}
-      {/* DEV-ONLY — not rendered in production; remove before launch (Klas).
-          Lets Klas wipe his own test data and re-run onboarding from scratch. */}
-      {process.env.NODE_ENV !== "production" && <ResetMyDataNote />}
+      {/* DEV-ONLY — remove before launch (Klas), with the flag and the endpoint
+          (docs/runbooks/release-checklist.md). Wipes the caller's own test data so the
+          welcome setup can run again.
+
+          NODE_ENV alone is not enough any more: the box builds and runs the web image in
+          production mode, so that check hid the button in the one environment that needs
+          it. The explicit opt-in is what makes it reachable there, and it must be set
+          together with the backend's DevTools:EnableResetMyData — with only this half on,
+          the button renders and every press returns "avstängd på servern". */}
+      {(process.env.NODE_ENV !== "production" || env.DEV_TOOLS_RESET_ENABLED) && (
+        <ResetMyDataNote />
+      )}
     </>
   );
 }

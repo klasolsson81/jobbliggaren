@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
-import { GUEST_MOCK } from "@/lib/guest/mock-data";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import { GUEST_MOCK, GUEST_MOCK_REF_DATE } from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-CV-sida. Mockdata-grid, inga muterande knappar
 // ("Nytt CV" hide:as per Klas-direktiv §F). Använder befintliga `.jp-card`
@@ -10,6 +11,7 @@ import { GUEST_MOCK } from "@/lib/guest/mock-data";
 export function GuestCvPage() {
   // Synchronous next-intl translator — keeps this a non-async RSC.
   const t = useTranslations("guest");
+  const tRelativeTime = useTranslations("guest.relativeTime");
   const { resumes } = GUEST_MOCK;
 
   return (
@@ -57,7 +59,13 @@ export function GuestCvPage() {
                 <dt>{t("cv.sectionsLabel")}</dt>
                 <dd>{resume.sectionCount}</dd>
                 <dt>{t("cv.updatedLabel")}</dt>
-                <dd>{resume.updatedAtLabel}</dd>
+                <dd>
+                  {formatDaysAgo(
+                    tRelativeTime,
+                    resume.updatedAtIso,
+                    GUEST_MOCK_REF_DATE
+                  )}
+                </dd>
               </dl>
 
               <div className="jp-guest-resume__skills">

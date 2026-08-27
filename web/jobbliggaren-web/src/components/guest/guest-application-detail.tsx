@@ -4,6 +4,8 @@ import {
   applicationStatusLabel,
   getStatusPillClass,
 } from "@/lib/applications/status";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import { GUEST_MOCK_REF_DATE } from "@/lib/guest/mock-data";
 import type {
   GuestApplicationStatus,
   GuestMockApplication,
@@ -42,6 +44,7 @@ export function GuestApplicationDetail({
   // `t` bär enum-etiketten (applicationStatusLabel), `tg` bär gäst-detaljens copy.
   const t = useTranslations("applications.enums");
   const tg = useTranslations("guest");
+  const tRelativeTime = useTranslations("guest.relativeTime");
   const liveStatus = GUEST_TO_LIVE_STATUS[application.status];
 
   return (
@@ -69,7 +72,13 @@ export function GuestApplicationDetail({
         </div>
         <div className="jp-modal__metaitem">
           <dt>{tg("detail.lastUpdated")}</dt>
-          <dd>{application.updatedAtLabel}</dd>
+          <dd>
+            {formatDaysAgo(
+              tRelativeTime,
+              application.updatedAtIso,
+              GUEST_MOCK_REF_DATE
+            )}
+          </dd>
         </div>
       </dl>
 

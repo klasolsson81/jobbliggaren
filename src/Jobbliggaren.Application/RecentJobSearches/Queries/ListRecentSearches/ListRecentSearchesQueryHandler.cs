@@ -203,7 +203,7 @@ public sealed class ListRecentSearchesQueryHandler(
     }
 
     private static RecentSearchLabelPartDto Named(string text) =>
-        new(RecentSearchLabelPartKind.Named, text, MoreCount: 0);
+        new(RecentSearchLabelPartKind.Named, text, ConceptId: null, MoreCount: 0);
 
     private static RecentSearchLabelDto Single(
         RecentSearchLabelKind kind,
@@ -229,9 +229,9 @@ public sealed class ListRecentSearchesQueryHandler(
         // DeriveOrtLabel.
         var parts = new List<RecentSearchLabelPartDto>(2);
         if (employmentTypeLabels.Count > 0)
-            parts.Add(WithMoreCount(employmentTypeLabels));
+            parts.Add(CodedWithMoreCount(employmentTypeLabels));
         if (worktimeExtentLabels.Count > 0)
-            parts.Add(WithMoreCount(worktimeExtentLabels));
+            parts.Add(CodedWithMoreCount(worktimeExtentLabels));
 
         return new RecentSearchLabelDto(
             RecentSearchLabelKind.Dimensions,
@@ -263,7 +263,7 @@ public sealed class ListRecentSearchesQueryHandler(
             parts.Add(WithMoreCount(regionLabels));
         if (remote)
             parts.Add(new RecentSearchLabelPartDto(
-                RecentSearchLabelPartKind.Remote, Text: null, MoreCount: 0));
+                RecentSearchLabelPartKind.Remote, Text: null, ConceptId: null, MoreCount: 0));
 
         return new RecentSearchLabelDto(
             RecentSearchLabelKind.Dimensions,
@@ -273,5 +273,11 @@ public sealed class ListRecentSearchesQueryHandler(
 
     // "{första} +{N−1}" — +N räknar samma enhet som första namnet anger.
     private static RecentSearchLabelPartDto WithMoreCount(IReadOnlyList<TaxonomyLabelDto> labels) =>
-        new(RecentSearchLabelPartKind.Named, labels[0].Label, labels.Count - 1);
+        new(RecentSearchLabelPartKind.Named, labels[0].Label, ConceptId: null, labels.Count - 1);
+
+    // Samma form, men koden i stället för namnet: klass 2-termerna är allmänsubstantiv och
+    // deras ord ägs av katalogen (#1537). Id:t läses ur SAMMA TaxonomyLabelDto som WithMoreCount
+    // läser sitt namn ur, så ingen parning behöver härledas på klientsidan.
+    private static RecentSearchLabelPartDto CodedWithMoreCount(IReadOnlyList<TaxonomyLabelDto> labels) =>
+        new(RecentSearchLabelPartKind.Coded, Text: null, labels[0].ConceptId, labels.Count - 1);
 }

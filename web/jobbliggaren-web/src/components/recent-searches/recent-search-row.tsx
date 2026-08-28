@@ -11,6 +11,7 @@ import {
   buildRecentSearchLabel,
   recentSearchLabelCopy,
 } from "@/lib/job-ads/recent-search-label";
+import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { deleteRecentSearchAction } from "@/lib/actions/recent-searches";
 import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 
@@ -68,12 +69,13 @@ function CountMeta({
 export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: RecentSearchRowProps) {
   const router = useRouter();
   const t = useTranslations("jobads.recent");
+  const coded = useCodedTaxonomyName();
   const [isPending, startTransition] = useTransition();
   const href = buildRecentSearchHref(item);
   // One const, read by BOTH the heading and the remove button's accessible name. Two
   // renderings of the same label would diverge, and WCAG 2.5.3 Label in Name is exactly
   // that divergence (design-reviewer, PR #1533).
-  const label = buildRecentSearchLabel(item.label, recentSearchLabelCopy(t));
+  const label = buildRecentSearchLabel(item.label, recentSearchLabelCopy(t, coded));
 
   function handleRowClick(e: React.MouseEvent<HTMLElement>) {
     // Skippa när klick var på en knapp/länk inuti raden — de bär egna handlers.

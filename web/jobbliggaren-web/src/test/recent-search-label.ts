@@ -13,6 +13,6 @@ export function queryLabel(text: string): RecentSearchLabel {
   return {
     kind: "Query",
     join: "None",
-    parts: [{ kind: "Named", text, moreCount: 0 }],
+    parts: [{ kind: "Named", text, conceptId: null, moreCount: 0 }],
   };
 }

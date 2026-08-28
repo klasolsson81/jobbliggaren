@@ -15,6 +15,7 @@ import {
  */
 function copyFrom(catalogue: typeof svJobads): RecentSearchLabelCopy {
   const c = catalogue.recent.label;
+  const coded: Record<string, string> = catalogue.enums.codedTaxonomy;
   return {
     all: c.all,
     remoteLeading: c.remoteLeading,
@@ -22,6 +23,9 @@ function copyFrom(catalogue: typeof svJobads): RecentSearchLabelCopy {
     or: c.or,
     separator: c.separator,
     more: (count) => c.more.replace("{count}", String(count)),
+    // Same doctrine as the words above: the shipped values, not a stand-in. A missing key
+    // renders a visible sentinel so the assertion names it instead of printing `undefined`.
+    coded: (conceptId) => coded[conceptId] ?? `?${conceptId}`,
   };
 }
 
@@ -31,9 +35,25 @@ const en = copyFrom(enJobads);
 const named = (text: string, moreCount = 0): RecentSearchLabelPart => ({
   kind: "Named",
   text,
+  conceptId: null,
   moreCount,
 });
-const remote: RecentSearchLabelPart = { kind: "Remote", text: null, moreCount: 0 };
+const remote: RecentSearchLabelPart = {
+  kind: "Remote",
+  text: null,
+  conceptId: null,
+  moreCount: 0,
+};
+// The refinement axes ship a code, not a name (#1537). Real ids from
+// `klass2-taxonomy.json`, so these rows pin what production actually emits.
+const PERMANENT = "kpPX_CNN_gDU";
+const FULL_TIME = "6YE1_gAC_R2G";
+const coded = (conceptId: string, moreCount = 0): RecentSearchLabelPart => ({
+  kind: "Coded",
+  text: null,
+  conceptId,
+  moreCount,
+});
 
 const label = (
   kind: RecentSearchLabel["kind"],
@@ -69,8 +89,8 @@ describe("buildRecentSearchLabel", () => {
         label("Dimensions", "Disjunction", named("Göteborg", 1), remote),
       ],
       [
-        "Tillsvidare +1 till, Heltid",
-        label("Dimensions", "Conjunction", named("Tillsvidare", 1), named("Heltid")),
+        "Tillsvidareanställning (inkl. eventuell provanställning) +1 till, Heltid",
+        label("Dimensions", "Conjunction", coded(PERMANENT, 1), coded(FULL_TIME)),
       ],
     ])("renderar %j", (expected, input) => {
       expect(buildRecentSearchLabel(input, sv)).toBe(expected);
@@ -89,6 +109,12 @@ describe("buildRecentSearchLabel", () => {
       [
         "Göteborg +1 more or remote",
         label("Dimensions", "Disjunction", named("Göteborg", 1), remote),
+      ],
+      // #1537 — the row this issue was filed for. Before the coded part it rendered
+      // "Tillsvidareanställning (inkl. eventuell provanställning) +1 more, Heltid".
+      [
+        "Permanent employment (including any trial employment) +1 more, Full time",
+        label("Dimensions", "Conjunction", coded(PERMANENT, 1), coded(FULL_TIME)),
       ],
     ])("renderar %j", (expected, input) => {
       expect(buildRecentSearchLabel(input, en)).toBe(expected);

@@ -1233,9 +1233,45 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > 1. Retentionsledet sa *"saknas helt i dag"*. **Beslutat 2026-08-28 av personuppgiftsansvarig:
 >    tolv månader efter att ärendet har avslutats.** Beslutets hem är ROPA:ns STRATO-post
 >    (gitignorerad); den publicerade formen står i `content-legal.json` under Art. 13(2)(a).
->    ⚠ **Beslutat är inte mekaniserat** — ingenting raderar automatiskt i en STRATO-brevlåda, och
->    verkställigheten kräver en namngiven läsare som ännu inte är utpekad. Skriv aldrig ledet som
->    uppfyllt på grundval av att beslutet är fattat.
+>    ⚠ **Beslutat är inte mekaniserat** — ingenting raderar automatiskt i en STRATO-brevlåda.
+>    Skriv aldrig ledet som uppfyllt på grundval av att beslutet är fattat.
+>
+>    ✅ **LÄSAREN ÄR UTPEKAD SEDAN 2026-08-28, OCH DET HÄR ÄR HANS HEM (#183 led 6).**
+>    **Läsare: Klas Olsson, personuppgiftsansvarig.** CC ska aldrig ha brevlådeåtkomst — ingen
+>    credentialförvaring, och en sådan åtkomst vidgar en behandling registret nyss villkorade.
+>    ⚠ **Detta är en operativ kontroll, inte en riskaccept.** §9.6 (3):s väg är **otillgänglig**
+>    här och behövs inte: föremålet är inkommande rättighetskorrespondens, alltså tredje parts
+>    uppgifter **per konstruktion**, och en accept vidgad med en enda icke-ansvarig registrerad är
+>    en accept av någon annans rättigheter. En **manuell** retentionsrutin är däremot fullt laglig
+>    under Art. 5(1)(e) jämförd med Art. 24(1) (`security-auditor`, 2026-08-28).
+>
+>    **Triggermängden — uppräknad, aldrig en grundmening.** En enda mening är ingen triggermängd;
+>    den formen graderades under-triggering (`security-auditor` M-1, ADR 0133). Genomgången görs vid
+>    **vilken som helst** av:
+>    **(a) varje avslutat ärende** — det är då tolvmånadersklockan startar, och ingen annan trigger
+>    ser den händelsen;
+>    **(b) halvårsvis** (Klas-beslut 2026-08-28), samordnat med den halvårsvisa
+>    underbiträdesläsningen ovan så att två obevakade kalenderförpliktelser blir ett tillfälle;
+>    **(c) varje körning av §2.5 eller §2.6**;
+>    **(d) varje ändring av apex-MX eller av brevlådans mottagande** — flytten själv inkluderad.
+>
+>    ⛔ **INGEN PÅMINNARE ÄR BYGGD, och den meningen får aldrig strykas av att åtgärden godkänts.**
+>    Ingenting pagar någon, ingenting mäter att genomgången skett, och en kalenderförpliktelse utan
+>    påminnare körs inte. Det är recordet av vad som **inte** finns; #1267 AC 2 är påminnarhalvans
+>    hem, och den är obyggd. **`#1267 AC 2` är däremot INTE hemmet för den här kontrollen** — en
+>    issue-AC har ingen §13-uppdateringsprocess, ingen läsarplikt och inget svep som tittar där.
+>    Hemmet är den här raden, och den är trackad med flit: led 6:s hela poäng är en mänsklig läsare
+>    som inte har det gitignorerade registret.
+>
+>    **Mätt 2026-08-28, tre ytor, samma svar — ingen åldersbaserad radering finns att hänga den på:**
+>    OX:s regelmotor kan bara jämföra `Aktuellt datum` mot ett **fast** `YYYY-M-D` och agerar vid
+>    **leverans** (åtgärderna är arkivera/omdirigera/kasta/avslå/behåll), alltså varken
+>    meddelandeålder eller ett svep över lagrad post · STRATO:s FAQ för E-postadministrationen
+>    räknar upp vad som går att ställa in per konto (namn, lösenord, postfackstorlek, filterregler,
+>    alias, spamskydd) och **ingen retention** · den svenska produktsidan beskriver ingen
+>    bevarandetid. ⚠ **Gränsen: "beskrivs inte" är inte "existerar inte".** En odokumenterad
+>    automatisk rensning i kundpanelen vore ett **annat** fynd med motsatt riktning — för mycket
+>    radering mot vårt tolvmånaderslöfte, inte för lite — och den är **omätt**.
 > 2. AVV-ledet sa *"som är Klas-åtgärd och aldrig CC:s"* i presens, som om det vore ogjort.
 >    **Avtalet är tecknat 2026-01-29 21:15** — *Data Processing Agreement according to Art. 28(3)*,
 >    version 3.6. Att teckna förblir Klas, men handlingen är utförd.

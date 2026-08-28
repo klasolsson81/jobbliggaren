@@ -1222,12 +1222,30 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 > (`gdpr-processing-register.md`, lokal) säger att *DNS* hos STRATO inte är en biträdesrad,
 > eftersom en DNS-operatör *"tar inte emot registrerades uppgifter för vår räkning"*. En brevlåda
 > gör precis det. Grunden är sann om DNS och faller för post. Krävs innan brevlådan tas i bruk:
-> ROPA-amendment (Art. 30(1)(d)) + retentionsbeslut för inkommande korrespondens (Art. 5(1)(e),
-> saknas helt i dag) + `Mottagare`-stycke i policyn (Art. 13(1)(e)) + **AVV med STRATO (Art. 28),
-> som är Klas-åtgärd och aldrig CC:s**. *Förläget var sämre på varje axel — en privat Gmail
-> gjorde Google till de facto inbound-biträde, US-domicilierat, utan möjligt Art. 28-avtal på ett
-> konsumentkonto; STRATO AG är tyskt och tecknar AVV. Bytet förbättrar läget, det skapar inte
-> luckan.*
+> ROPA-amendment (Art. 30(1)(d)) + retentionsbeslut för inkommande korrespondens (Art. 5(1)(e)) +
+> `Mottagare`-stycke i policyn (Art. 13(1)(e)) + **AVV med STRATO (Art. 28)**. *Förläget var sämre
+> på varje axel — en privat Gmail gjorde Google till de facto inbound-biträde, US-domicilierat,
+> utan möjligt Art. 28-avtal på ett konsumentkonto; **STRATO GmbH** är tyskt och tecknar AVV.
+> Bytet förbättrar läget, det skapar inte luckan.*
+>
+> ⚠ **TRE PÅSTÅENDEN I STYCKET OVAN VAR FALSKA OCH ÄR RÄTTADE 2026-08-28 (#183, `code-reviewer`
+> Major 1/2/4 + `security-auditor` Minor 1). Alla tre mättes; ingen är framräknad.**
+> 1. Retentionsledet sa *"saknas helt i dag"*. **Beslutat 2026-08-28 av personuppgiftsansvarig:
+>    tolv månader efter att ärendet har avslutats.** Beslutets hem är ROPA:ns STRATO-post
+>    (gitignorerad); den publicerade formen står i `content-legal.json` under Art. 13(2)(a).
+>    ⚠ **Beslutat är inte mekaniserat** — ingenting raderar automatiskt i en STRATO-brevlåda, och
+>    verkställigheten kräver en namngiven läsare som ännu inte är utpekad. Skriv aldrig ledet som
+>    uppfyllt på grundval av att beslutet är fattat.
+> 2. AVV-ledet sa *"som är Klas-åtgärd och aldrig CC:s"* i presens, som om det vore ogjort.
+>    **Avtalet är tecknat 2026-01-29 21:15** — *Data Processing Agreement according to Art. 28(3)*,
+>    version 3.6, kundnummer 78284084. Att teckna förblir Klas, men handlingen är utförd.
+> 3. Entiteten stod som **STRATO AG**. Avtalsdokumentet säger **STRATO GmbH**,
+>    Otto-Ostrowski-Straße 7, 10249 Berlin. ⚠ **Formen är den part-bärande, samma precisionsstandard
+>    som `netcup GmbH` och `Scaleway SAS`,** och den publiceras nu under Art. 13(1)(e) —
+>    varumärket hade inte dugt. *Mätt mot avtalsdokumentet självt 2026-08-28. En rå `grep -r`
+>    (utan gitignore-filtrering) fann före rättelsen tre förekomster i trädet och ingen fjärde:
+>    den här raden med `AG`, och copyns två med `GmbH`. Ingen av dem bar då en registrerad
+>    mätning — den här raden är hädanefter den tracked mätningens hem.*
 >
 > **Läget idag är korrekt för de rader som fortfarande beskriver något planerat, och
 > trasigt för dem som inte gör det.** Policyn beskriver ansökningshistorik/
@@ -1262,9 +1280,21 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-19 (sökhistorik-disclosuren, ADR 0060 rad 152): 7 + 7** (rad 37, 50,
-      82, 92, 115, 116, 151 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff).
-      **Mängden är oförändrad medan fem av sju rader flyttade, med TVÅ OLIKA förskjutningar** —
+      **Regenererad 2026-08-28 (#183, STRATO-mottagarstycket): 8 + 8** (rad 37, 50, 82, 92, **95**,
+      116, 117, 152 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff).
+      **Den här gången VÄXTE mängden, och förskjutningen är enhetlig:** det nya lövet är
+      STRATO-raden på 95, och de tre raderna under den flyttade **+1** (115→116, 116→117, 151→152).
+      Rad 37, 50, 82 och 92 ligger ovanför insättningen och står stilla — inklusive notisraden på
+      82 med sina tolv egna hem, som alltså inte behövde röras.
+      ⚠ **Ett stycke lades till i `Mottagare av uppgifter` utan att någon spärr fällde**, och det
+      är väntat: både e-post- och värdtripwiren är term-scopade (`Scaleway` respektive
+      `netcup GmbH`) och itererar inte lövet. Sedan 2026-08-28 har STRATO-raden **en egen spärr** i
+      `content-legal-parity.test.ts` med golv, path-paritet och positiv markörpinne. Den tar den
+      här inventeringens plats som mekanisk läsare **för just den raden**, aldrig för de övriga sju.
+      *(Föregående regenerering, kvar som daterad proveniens: **2026-08-19**, sökhistorik-disclosuren,
+      ADR 0060 rad 152 — **7 + 7** på rad 37, 50, 82, 92, 115, 116, 151.)*
+      **Vid den regenereringen var mängden oförändrad medan fem av sju rader flyttade, med TVÅ
+      OLIKA förskjutningar** —
       och det är den detalj som gör att mängden inte får framräknas. Två insättningar skedde i
       samma PR: sökhistorik-sektionen på `privacy.sections[4]` (18 rader) och dess retentionsrad i
       `Hur länge vi sparar uppgifter` (1 rad, hamnade på rad 113). Rad 37 och 50 ligger ovanför

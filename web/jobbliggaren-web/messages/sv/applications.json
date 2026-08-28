@@ -144,7 +144,6 @@
     "all": {
       "title": "Alla ansökningar",
       "hint": "Klicka på en rad eller ett kort för alla detaljer",
-      "terminalKicker": "Avslut och vilande",
       "noResults": "Inga ansökningar matchar sökningen eller filtret."
     },
     "controls": {
@@ -199,8 +198,11 @@
       "confirmCta": "Markera {status}",
       "confirming": "Markerar…"
     },
+    "counts": {
+      "totalWithActive": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}",
+      "terminalGroup": "Avslut och vilande"
+    },
     "board": {
-      "toolbarCount": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}",
       "toolbarHint": "Dra ett kort till ett annat steg. Klicka på ett kort för detaljer.",
       "showMore": "Visa {count} fler",
       "showFewer": "Visa färre",

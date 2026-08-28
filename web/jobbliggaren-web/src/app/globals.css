@@ -5015,6 +5015,94 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-oversikt__today { width: 100%; }
 }
 
+/* Ansöknings-sammanfattning på Översikt (#1548) — stående tillstånd över
+   notislistan. Platt rad avskild med hårlinje, ALDRIG ett kort: DESIGN.md §6
+   ("inga stats-kort runt enstaka värden, visa siffran direkt i rad/tabell
+   ovanför listan"). */
+.jp-appsummary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body);
+}
+.jp-appsummary__anchor {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+}
+.jp-appsummary__totals {
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-appsummary__link {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-bold);
+  text-decoration: none;
+}
+.jp-appsummary__link:hover { text-decoration: underline; }
+.jp-appsummary__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.jp-appsummary__step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.jp-appsummary__name { color: var(--jp-ink-2); }
+.jp-appsummary__num {
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+/* Nollsteg skiljs med VIKT, aldrig med opacity. Stegrailens 0.55-dimning är
+   kontrast-undantagen bara för att dess cell är `disabled`; den här listan är
+   icke-interaktiv, så samma dimning hade fällt WCAG 1.4.3. */
+.jp-appsummary__step[data-empty="true"] .jp-appsummary__num {
+  font-weight: var(--jp-fw-regular);
+}
+/* Skiljelinje före den terminala posten. Stegrailens data-divider är förebilden
+   för FÄRGEN, inte för mekaniken: dess celler är en 10-kolumnsgrid som inte kan
+   radbryta, medan den här raden kan. */
+.jp-appsummary__step[data-terminal="true"] {
+  padding-left: 18px;
+  border-left: 1px solid var(--jp-border-strong);
+}
+/* Under den bredd där posten kan hamna först på en ny rad läses en vänsterkant
+   som ett inledande streck i stället för en avdelare — och det är just den
+   aktiv/terminal-partition som "N aktiva" vilar på. En horisontell hårlinje är
+   entydig oavsett brytning. Brytpunkten mäts mot en-strängarna, som är längre. */
+@media (max-width: 1000px) {
+  .jp-appsummary__step[data-terminal="true"] {
+    flex-basis: 100%;
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--jp-border-strong);
+    padding-top: 6px;
+  }
+}
+.jp-appsummary__emptytitle {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-appsummary__emptybody {
+  margin: 0;
+  color: var(--jp-ink-2);
+}
+.jp-appsummary--empty .jp-btn { align-self: flex-start; }
+/* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
+.jp-appsummary--unavailable { color: var(--jp-ink-1); }
+
 /* Notiser */
 .jp-notice-list {
   list-style: none;

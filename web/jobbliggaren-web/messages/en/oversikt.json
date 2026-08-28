@@ -10,6 +10,14 @@
     "footSynced": "Synced with Google Calendar · {syncedAt}",
     "footNotSynced": "Google Calendar not synced. Showing only Jobbliggaren events."
   },
+  "summary": {
+    "stepsAriaLabel": "Applications per step",
+    "link": "Show all applications",
+    "emptyTitle": "You have no applications yet",
+    "emptyBody": "Add an application to see status and follow-ups here.",
+    "emptyCta": "New application",
+    "unavailable": "The application count could not be loaded. Use Refresh to try again."
+  },
   "notices": {
     "title": "Notices",
     "lastUpdated": "last updated <mono>{date}</mono>",

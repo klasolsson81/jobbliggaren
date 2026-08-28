@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { OversiktPage } from "./oversikt-page";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
+import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type {
   ListSavedJobAdsResult,
   SavedJobAdDto,
@@ -50,6 +51,7 @@ interface RenderOpts {
   readonly savedJobAds?: ApiResult<ListSavedJobAdsResult>;
   readonly newFollowedCompanyAdCount?: number;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
+  readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
 
 function renderOversikt(
@@ -60,6 +62,7 @@ function renderOversikt(
     savedJobAds = errored,
     newFollowedCompanyAdCount = 0,
     profileOverrides = {},
+    pipeline = errored,
   }: RenderOpts = {},
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
@@ -71,7 +74,7 @@ function renderOversikt(
       email="anna@example.se"
       displayName="Anna"
       profile={profile}
-      pipeline={errored}
+      pipeline={pipeline}
       savedJobAds={savedJobAds}
       recentSearches={recentSearches}
       matchCount={matchCount}
@@ -283,6 +286,79 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
         selector: ".jp-notice__text b",
       }),
     ).toBeInTheDocument();
+  });
+
+  // #1548 var en KOMPOSITIONSdefekt: sammanfattningen fanns inte på sidan alls.
+  // application-summary.test.tsx målar komponenten isolerat och skulle förblir
+  // grön om summary-propen togs bort här eller om NoticeSection slutade rendera
+  // sloten. Dessa två asserterar inkopplingen, inne i rätt sektion.
+  it("ansökningssammanfattningen renderas inuti Mina ansökningar", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      pipeline: {
+        kind: "ok",
+        data: [
+          { status: "Submitted", count: 2, applications: [] },
+          { status: "Rejected", count: 1, applications: [] },
+        ],
+      },
+    });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(
+      within(section).getByText("3 ansökningar · 2 aktiva"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("list", { name: "Ansökningar per steg" }),
+    ).toBeInTheDocument();
+  });
+
+  it("degraderad pipeline ger ingen siffra i sammanfattningen", () => {
+    renderOversikt(true, { matchCount: null });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(
+      within(section).getByText(/kunde inte hämtas/),
+    ).toBeInTheDocument();
+    expect(within(section).queryByText(/ansökningar ·/)).toBeNull();
+  });
+
+  // design-reviewer Major 1+2: sektionen får inte säga två saker om samma
+  // olästa data. När sammanfattningen bär sektionens tillstånd ska notislistans
+  // eget tomt-kort utebli — och vid en misslyckad hämtning även oläst-räknaren,
+  // som annars räknar notiser som aldrig lästes.
+  it("degraderad pipeline: varken oläst-räknare eller tomt-kort i sektionen", () => {
+    renderOversikt(true, { matchCount: null });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(within(section).queryByText(/olästa/)).toBeNull();
+    expect(within(section).queryByText("Inget nytt just nu")).toBeNull();
+    expect(within(section).getByText(/kunde inte hämtas/)).toBeInTheDocument();
+    // En tom <ul> renderar som en 2 px hög tom ramremsa; den ska inte finnas.
+    expect(section.querySelector("ul.jp-notice-list")).toBeNull();
+  });
+
+  it("tomt konto: tomt-kortet utelämnas, men oläst-räknaren står kvar", () => {
+    renderOversikt(true, { matchCount: null, pipeline: { kind: "ok", data: [] } });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(within(section).queryByText("Inget nytt just nu")).toBeNull();
+    expect(within(section).getByText("Du har inga ansökningar än")).toBeInTheDocument();
+    // Källan lästes och höll inget, så noll olästa är ett MÄTT påstående.
+    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+  });
+
+  it("populerat konto: notislistan bär sitt eget tomt-läge som förut", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      pipeline: {
+        kind: "ok",
+        data: [{ status: "Submitted", count: 2, applications: [] }],
+      },
+    });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(within(section).getByText("Inget nytt just nu")).toBeInTheDocument();
   });
 
   it("ingen recent-search → ingen senaste-sök-notis", () => {

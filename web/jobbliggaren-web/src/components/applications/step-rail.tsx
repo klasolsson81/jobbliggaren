@@ -8,6 +8,10 @@ import {
   isActivePipelineStatus,
   PIPELINE_ORDER,
 } from "@/lib/applications/status";
+import {
+  countByStatus,
+  statusCount,
+} from "@/lib/applications/pipeline-counts";
 import type { ApplicationStatus, PipelineGroupDto } from "@/lib/dto/applications";
 
 interface StepRailProps {
@@ -37,10 +41,7 @@ export const StepRail = memo(function StepRail({
   const tEnum = useTranslations("applications.enums");
   const tUi = useTranslations("applications.ui");
 
-  const countByStatus = useMemo(
-    () => new Map(groups.map((g) => [g.status, g.count])),
-    [groups],
-  );
+  const counts = useMemo(() => countByStatus(groups), [groups]);
 
   return (
     <div className="jp-steprail">
@@ -54,7 +55,7 @@ export const StepRail = memo(function StepRail({
         aria-label={tUi("rail.ariaLabel")}
       >
         {PIPELINE_ORDER.map((status, index) => {
-          const count = countByStatus.get(status) ?? 0;
+          const count = statusCount(counts, status);
           const selected = statusFilter === status;
           const active = isActivePipelineStatus(status);
           // Skiljelinjen ligger före den FÖRSTA terminala cellen (Accepterad):

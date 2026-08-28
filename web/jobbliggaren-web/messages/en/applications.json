@@ -144,7 +144,6 @@
     "all": {
       "title": "All applications",
       "hint": "Click a row or a card for all the details",
-      "terminalKicker": "Closed and dormant",
       "noResults": "No applications match the search or filter."
     },
     "controls": {
@@ -199,8 +198,11 @@
       "confirmCta": "Mark {status}",
       "confirming": "Marking…"
     },
+    "counts": {
+      "totalWithActive": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}",
+      "terminalGroup": "Closed and dormant"
+    },
     "board": {
-      "toolbarCount": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}",
       "toolbarHint": "Drag a card to another step. Click a card for details.",
       "showMore": "Show {count} more",
       "showFewer": "Show fewer",

@@ -10,6 +10,14 @@
     "footSynced": "Synkad med Google Calendar · {syncedAt}",
     "footNotSynced": "Google Calendar inte synkad. Visar endast Jobbliggaren-händelser."
   },
+  "summary": {
+    "stepsAriaLabel": "Ansökningar per steg",
+    "link": "Visa alla ansökningar",
+    "emptyTitle": "Du har inga ansökningar än",
+    "emptyBody": "Lägg till en ansökan, så ser du status och uppföljningar här.",
+    "emptyCta": "Ny ansökan",
+    "unavailable": "Antalet ansökningar kunde inte hämtas. Använd Uppdatera för att försöka igen."
+  },
   "notices": {
     "title": "Notiser",
     "lastUpdated": "senast uppdaterad <mono>{date}</mono>",

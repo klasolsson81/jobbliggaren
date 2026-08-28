@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Settings } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -45,6 +52,23 @@ interface NoticeSectionProps {
   readonly emptyBody: string;
   /** Typer som listas i kugghjuls-popovern (inkl. förberedda typer utan notiser). */
   readonly prefTypes: ReadonlyArray<NoticePrefType>;
+  /**
+   * Stående tillstånd över notislistan (#1548) — render-only. AVSIKTLIGT en
+   * ReactNode och inte en datastruktur: sektionen är källagnostisk, och en
+   * `summaryData`-prop hade dragit in applikationskunskap i en komponent som
+   * också bär jobbannonser och företagsbevakning.
+   */
+  readonly summary?: ReactNode;
+  /**
+   * Vad {@link summary} redan säger om sektionen, när den säger något.
+   * "unreadable" = källan kunde inte läsas, så även oläst-räknaren vore ett
+   * påstående om odata. "empty" = källan lästes och höll inget.
+   * Frånvarande = sektionen bär sitt eget tomt-läge som förut.
+   *
+   * En renderingsfakta om sektionen, aldrig applikationsdata: sektionen bär
+   * också jobbannonser och företagsbevakning.
+   */
+  readonly summaryOwns?: "unreadable" | "empty";
 }
 
 // Åtgärdsnotiser (warning/success) sorteras först, info/brand därefter — övrigt
@@ -66,8 +90,7 @@ function actionFirst(
 /**
  * En notissektion per källa (Mina ansökningar / Jobbannonser / Företagsbevakning).
  * Client Component — äger läst-läge (dismiss/restore via delad store),
- * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln. Sektionen döljs
- * aldrig: saknar den synliga olästa notiser visas ett tomt-läge i listkortet.
+ * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln.
  */
 export function NoticeSection({
   source,
@@ -76,6 +99,8 @@ export function NoticeSection({
   notices,
   emptyBody,
   prefTypes,
+  summary,
+  summaryOwns,
 }: NoticeSectionProps) {
   const t = useTranslations("oversikt");
   const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
@@ -160,9 +185,11 @@ export function NoticeSection({
         <h2 className="jp-section__title" id={titleId}>
           {title}
         </h2>
-        <span className="jp-section__count">
-          {t("notices.unreadCount", { count: unread.length })}
-        </span>
+        {summaryOwns !== "unreadable" && (
+          <span className="jp-section__count">
+            {t("notices.unreadCount", { count: unread.length })}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <div className="jp-notice-prefs-anchor">
           <button
@@ -213,40 +240,46 @@ export function NoticeSection({
         </div>
       </div>
 
-      <ul className="jp-notice-list">
-        {unread.length > 0 ? (
-          unread.map((n) => (
-            <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
-          ))
-        ) : (
-          <li className="jp-notice-empty">
-            <div className="jp-notice-empty__title">
-              {t("notices.emptySectionTitle")}
-            </div>
-            <div className="jp-notice-empty__body">{emptyBody}</div>
-          </li>
-        )}
-        {showRead &&
-          read.map((n) => (
-            <NoticeRow key={n.id} notice={n} read onRestore={handleRestore} />
-          ))}
-        {read.length > 0 && (
-          <li className="jp-notice-foot">
-            <span className="jp-notice-foot__count">
-              {t("notices.readCount", { count: read.length })}
-            </span>
-            <button
-              ref={footToggleRef}
-              type="button"
-              className="jp-notice-foot__toggle"
-              aria-expanded={showRead}
-              onClick={() => setShowRead((v) => !v)}
-            >
-              {showRead ? t("notices.hideRead") : t("notices.showRead")}
-            </button>
-          </li>
-        )}
-      </ul>
+      {summary}
+
+      {/* När sammanfattningen bär sektionens tillstånd och det inte finns någon
+          rad alls skulle listan rendera som en 2 px hög tom ramremsa. */}
+      {(unread.length > 0 || read.length > 0 || !summaryOwns) && (
+        <ul className="jp-notice-list">
+          {unread.length > 0 ? (
+            unread.map((n) => (
+              <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
+            ))
+          ) : summaryOwns ? null : (
+            <li className="jp-notice-empty">
+              <div className="jp-notice-empty__title">
+                {t("notices.emptySectionTitle")}
+              </div>
+              <div className="jp-notice-empty__body">{emptyBody}</div>
+            </li>
+          )}
+          {showRead &&
+            read.map((n) => (
+              <NoticeRow key={n.id} notice={n} read onRestore={handleRestore} />
+            ))}
+          {read.length > 0 && (
+            <li className="jp-notice-foot">
+              <span className="jp-notice-foot__count">
+                {t("notices.readCount", { count: read.length })}
+              </span>
+              <button
+                ref={footToggleRef}
+                type="button"
+                className="jp-notice-foot__toggle"
+                aria-expanded={showRead}
+                onClick={() => setShowRead((v) => !v)}
+              >
+                {showRead ? t("notices.hideRead") : t("notices.showRead")}
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
     </section>
   );
 }

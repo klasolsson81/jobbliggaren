@@ -1251,7 +1251,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    triggermängd; den formen graderades under-triggering (`security-auditor` M-1, ADR 0133).
 >    ⚠ **Egna etiketter med flit, och förväxlingen de förhindrar är verklig:** §2.5 punkt 1 led (e)
 >    förutsättning 5 äger en **annan** fyrmedlemsmängd som också heter (a)–(d), och §2.6 citerar den
->    på tre ställen. **`R`-prefixet gör en framtida hänvisning till "trigger (d)" entydig igen.**
+>    på flera ställen. **`R`-prefixet gör en framtida hänvisning till "trigger (d)" entydig igen.**
 >    De två mängderna mäter olika saker — förutsättning 5:s eskalerar en GRAD, dessa utlöser en
 >    GENOMGÅNG — och ingen av dem får någonsin läsas in i den andra.
 >    Genomgången görs vid **vilken som helst** av:

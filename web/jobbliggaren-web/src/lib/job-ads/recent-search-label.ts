@@ -14,13 +14,17 @@ export interface RecentSearchLabelCopy {
   readonly all: string;
   /** The distance facet where it LEADS the label, e.g. "Distans" / "Remote". */
   readonly remoteLeading: string;
-  /** The distance facet after another part. Swedish lowercases it here; English does not. */
+  /** The distance facet after another part, e.g. "distans" / "remote". */
   readonly remoteInline: string;
   /** Joins the final two alternatives of a union. Carries its own spacing, e.g. " eller ". */
   readonly or: string;
   /** Separates the earlier parts, and separates conjoined axes. Carries its own spacing. */
   readonly separator: string;
-  /** What a part stands for beyond the name it shows, e.g. "+3 till" / "+3 more". */
+  /**
+   * What a part stands for beyond the name it shows, e.g. "+3 till" / "+3 more". Unlike
+   * `or` and `separator` this does NOT carry its own spacing — the caller puts the space
+   * between the name and this.
+   */
   readonly more: (count: number) => string;
 }
 
@@ -39,8 +43,9 @@ type RecentSearchLabelKey =
   | "label.more";
 
 /**
- * Resolves the label copy once, so each of the four render sites stays a single line and
- * none of them can drift into its own wording.
+ * Resolves the label copy once, so each of the three call sites stays a single line and none
+ * of them can drift into its own wording. (Three callers, four rendered surfaces — the
+ * `/sokningar` row spends the same string on its heading and its remove button.)
  */
 export function recentSearchLabelCopy(
   t: (key: RecentSearchLabelKey, values?: { count: number }) => string,
@@ -60,14 +65,15 @@ function renderPart(
   index: number,
   copy: RecentSearchLabelCopy,
 ): string {
-  // Position, not a flag on the wire: Swedish capitalises the distance word only where it
-  // leads. Deriving it from the part order keeps the rule in the locale that has it.
+  // Position, not a flag on the wire: which word the distance facet renders as depends on
+  // where the part sits, and the catalogue owns both forms per locale.
   if (part.kind === "Remote") {
     return index === 0 ? copy.remoteLeading : copy.remoteInline;
   }
 
-  const text = part.text ?? "";
-  return part.moreCount > 0 ? `${text} ${copy.more(part.moreCount)}` : text;
+  return part.moreCount > 0
+    ? `${part.text} ${copy.more(part.moreCount)}`
+    : part.text;
 }
 
 /**

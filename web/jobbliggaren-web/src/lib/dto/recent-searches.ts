@@ -41,13 +41,25 @@ const sortByFromWire = z
  * Enums når wire:n som NAMN (backend `JsonStringEnumConverter`), aldrig som ordinaler —
  * pinnat ände-till-ände i `RecentSearchesTests`.
  */
-export const recentSearchLabelPartSchema = z.object({
-  // "Remote" bär inget namn: den är ett ORD, och vilket ord beror på locale OCH position
-  // (svenskan versaliserar det bara först). Positionen läses ur `parts`-ordningen.
-  kind: z.enum(["Named", "Remote"]),
-  text: z.string().nullable(),
-  moreCount: z.number().int().nonnegative(),
-});
+// Diskriminerad union, inte ett löst objekt: DTO:ns kontrakt säger att `text` är null EXAKT
+// när delen är `Remote`, och en spegel som är lösare än originalet på just den villkorade
+// punkten speglar inte kontraktet (ADR 0060 Beslut 9). Utan unionen parsar en `Named` utan
+// text grönt och renderas som en tom sträng mitt i labeln — samma tysta fel som `parts`-
+// refine:n nedan finns för att stoppa.
+export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("Named"),
+    text: z.string(),
+    moreCount: z.number().int().nonnegative(),
+  }),
+  // "Remote" bär inget namn: den är ett ORD, och vilket ord beror på locale OCH position.
+  // Positionen läses ur `parts`-ordningen, så delen behöver ingen egen flagga.
+  z.object({
+    kind: z.literal("Remote"),
+    text: z.null(),
+    moreCount: z.literal(0),
+  }),
+]);
 
 export const recentSearchLabelSchema = z
   .object({
@@ -63,6 +75,13 @@ export const recentSearchLabelSchema = z
   .refine((label) => label.kind === "All" || label.parts.length > 0, {
     message: "En label som inte är 'All' måste bära minst en del",
     path: ["parts"],
+  })
+  // `None` betyder att ingenting fogas. Släpps den igenom med flera delar faller de till
+  // konjunktionsgrenen och renderas som om axlarna hölle samtidigt — ett falskt påstående om
+  // sökpredikatet, alltså exakt den felklass `Join` infördes för att förhindra.
+  .refine((label) => label.join !== "None" || label.parts.length <= 1, {
+    message: "Join 'None' fogar ingenting och är oförenlig med flera delar",
+    path: ["join"],
   });
 export type RecentSearchLabel = z.infer<typeof recentSearchLabelSchema>;
 export type RecentSearchLabelPart = z.infer<typeof recentSearchLabelPartSchema>;

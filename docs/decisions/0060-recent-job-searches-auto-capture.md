@@ -231,10 +231,11 @@ overflow-antal. `RecentJobSearchDto.Label` byter därmed typ från `string` till
 **Varför precisering och inte supersession.** Beslut 8 uttalar sig inte om vilket språk labeln
 härleds på, och ADR 0067:s E2g-notat klassar utfallet som `Label förblir read-model-presentation`.
 Det finns alltså inget beslut som säger att labeln ska komponeras server-side på svenska, och
-därmed inget att reversera. Precedensen är uttrycklig:
-`docs/reviews/2026-08-20-1413-dotnet-architect.md` friade en större label-semantikändring utan
-ADR-ändring — men vilade då på att `Label är fortfarande string, wire-schemat orört`. Den här
-ändringen gör inte det, och det är exakt vad detta amendment täcker.
+därmed inget att reversera. Precedensen är uttrycklig: ett `dotnet-architect`-verdikt 2026-08-20
+på #1413 friade en större label-semantikändring utan ADR-ändring — men vilade då på att **`Label`
+fortfarande var `string` och wire-schemat orört**. Den här ändringen gör inte det, och det är
+exakt vad detta amendment täcker. (Verdiktets rapport ligger under `docs/reviews/`, som är
+gitignorerad, så det bärande fragmentet är återgivet här i stället för att pekas på.)
 
 **Grunden.** Klas-beslut 2026-08-22: allt UI ska finnas på både svenska och engelska. Före
 ändringen bar `DeriveLabel` sex svenskbärande literaler som nådde varje engelsk användare

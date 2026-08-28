@@ -418,11 +418,13 @@ användare på `/jobb`, `/sokningar` och `/oversikt`, värst inne i en **översa
 
 ⚠ **Rättelse av en felattribuering, skriven ner för att den upprepats tre gånger.** Tre
 session-close-outs har påstått att en sådan här ändring kräver *"ADR 0060/0067 E2g-supersession"*.
-**E2g-principen handlar inte om labels.** Den är hero-öns state-synk-regel (`URL = ENDA sanningen,
-ingen useState-kopia`, raderna 216 och 228 i det här dokumentet). Labels råkade skeppas i samma
-fas — commit-loggens rad lyder *"Fas E2g — hero-ö-state-synk (useOptimistic) + recent-search-labels"* —
-och de två har konflaterats sedan dess. Ingen supersession krävdes, av vare sig ADR 0060 eller
-ADR 0067.
+**E2g-PRINCIPEN är inte labelregeln.** Principen är hero-öns state-synk-regel (`URL = ENDA
+sanningen, ingen useState-kopia`, rad 216 i det här dokumentet). Labelregeln är E2g-NOTATETS egen
+punkt på rad 208 — den som stycket *"Vad som INTE ändras"* ovan citerar. De två skeppades i samma
+fas, i commit `49cb5787` (*"fix(web): Platsbanken sök-paritet Fas E2g — hero-ö-state-synk +
+recent-search-labels (#50)"*), och har konflaterats sedan dess: det är principen close-outerna har
+åberopat, medan det är notatets regel de rört. Ingen supersession krävdes, av vare sig ADR 0060
+eller ADR 0067.
 
 ---
 

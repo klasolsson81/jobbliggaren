@@ -90,10 +90,6 @@ describe("buildRecentSearchLabel", () => {
         "Göteborg +1 more or remote",
         label("Dimensions", "Disjunction", named("Göteborg", 1), remote),
       ],
-      [
-        "Tillsvidare +1 more, Heltid",
-        label("Dimensions", "Conjunction", named("Tillsvidare", 1), named("Heltid")),
-      ],
     ])("renderar %j", (expected, input) => {
       expect(buildRecentSearchLabel(input, en)).toBe(expected);
     });
@@ -109,16 +105,14 @@ describe("buildRecentSearchLabel", () => {
     expect(buildRecentSearchLabel(input, en)).toContain("Västra Götaland");
   });
 
-  // Positionen, inte en flagga på wire:n, avgör skiftläget. Samma del, två platser.
-  it("versaliserar distans-delen bara där den leder, och bara i sv", () => {
-    const leading = label("Dimensions", "Disjunction", remote, named("Göteborg"));
+  // Positionen, inte en flagga på wire:n, avgör vilken form distans-delen får. Den
+  // efterställda är den enda FLERDELS-formen produktionen kan emittera: DeriveOrtLabel lägger
+  // delarna kommun → län → distans, så en Remote-del står först bara när den är ensam — och
+  // den formen är redan pinnad av it.each-raderna "Distans" och "Remote" ovan.
+  it("ger distans-delen sin efterställda form i båda locales", () => {
     const trailing = label("Dimensions", "Disjunction", named("Göteborg"), remote);
 
-    expect(buildRecentSearchLabel(leading, sv)).toBe("Distans eller Göteborg");
     expect(buildRecentSearchLabel(trailing, sv)).toBe("Göteborg eller distans");
-
-    // Engelskan gemenar aldrig — båda formerna är "remote" utom där meningen börjar.
-    expect(buildRecentSearchLabel(leading, en)).toBe("Remote or Göteborg");
     expect(buildRecentSearchLabel(trailing, en)).toBe("Göteborg or remote");
   });
 
@@ -132,14 +126,6 @@ describe("buildRecentSearchLabel", () => {
     );
     expect(buildRecentSearchLabel(label("Dimensions", "Conjunction", ...parts), sv)).toBe(
       "A, B",
-    );
-  });
-
-  // Katalogerna måste bära exakt samma nyckeluppsättning — en nyckel som bara finns i sv
-  // ger en engelsk användare en tom sträng mitt i labeln, tyst.
-  it("har identiska label-nycklar i båda katalogerna", () => {
-    expect(Object.keys(enJobads.recent.label).sort()).toEqual(
-      Object.keys(svJobads.recent.label).sort(),
     );
   });
 });

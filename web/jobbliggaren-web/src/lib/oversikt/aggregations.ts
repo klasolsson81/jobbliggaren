@@ -3,6 +3,7 @@ import type {
   PipelineGroupDto,
 } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
+import { formatDateTime, type JpFormatter } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
 
 // Relative-time helpers live in `lib/i18n/relative-time` now (#336 DRY
@@ -216,18 +217,25 @@ export function findFollowUpCandidates(
 }
 
 /**
- * Formaterar notis-panelens "senast uppdaterad"-stämpel som
- * `YYYY-MM-DD · HH:mm` (UTC, konsekvent med sidans övriga UTC-datumhantering —
- * `daysSince`-trunkering, sammanfattnings-stämpeln). #384: ersätter den stale
- * mock-stämpeln. Översikt-sidan är `force-dynamic` och beräknar notiserna LIVE
- * per request, så render-tiden ÄR den ärliga "senast uppdaterad"-tidpunkten.
- * Ren helper (injicerat datum) → deterministiskt testbar. Returnerar "–" vid
- * ogiltig input i stället för att kasta.
+ * Formaterar notis-panelens "senast uppdaterad"-stämpel som `YYYY-MM-DD · HH:mm` i
+ * LÄSARENS tidszon. Översikt-sidan är `force-dynamic` och beräknar notiserna LIVE per
+ * request, så render-tiden ÄR den ärliga tidpunkten.
+ *
+ * Den skrev tidigare UTC:s väggklocka och presenterade den som lokal tid, så stämpeln låg
+ * alltid två timmar efter en svensk läsares klocka under CEST — omöjligt att skilja från en
+ * frusen och gammal siffra (#1549). Motiveringen som stod här var att UTC var konsekvent
+ * med `daysSince`-trunkeringen, men de två är olika saker: `daysSince` räknar
+ * kalenderdagars SKILLNAD och trunkerar i UTC för DST-stabilitet, medan den här stämpeln är
+ * en absolut väggklocka som läsaren jämför med sin egen. Tidszonen ägs nu av next-intls
+ * formaterare, som resten av appen (AGENTS.md §10).
+ *
+ * Formen delas med `formatDateTime` i stället för att komponeras om här — den bär
+ * ISO-omordningen som `en` kräver, och två hem för den driftar isär.
+ * Returnerar "–" vid ogiltig input i stället för att kasta.
  */
-export function formatNoticesStamp(date: Date): string {
+export function formatNoticesStamp(format: JpFormatter, date: Date): string {
   if (Number.isNaN(date.getTime())) return "–";
-  const iso = date.toISOString();
-  return `${iso.slice(0, 10)} · ${iso.slice(11, 16)}`;
+  return formatDateTime(format, date.toISOString(), " · ") ?? "–";
 }
 
 /**

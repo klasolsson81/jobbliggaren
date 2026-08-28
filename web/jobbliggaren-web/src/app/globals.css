@@ -5176,6 +5176,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
 }
+/* Stämpeln och uppdatera-kontrollen som EN vänstergrupp, så förälderns
+   space-between fortsatt håller "Markera alla" till höger (#1549). */
+.jp-oversikt-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
 /* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
 .jp-callout-block { margin-top: 24px; }

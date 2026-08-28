@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
@@ -87,6 +87,7 @@ export function OversiktPage({
   const tRelativeTime = useTranslations("oversikt.relativeTime");
   // Recent-sökningens label bor i jobads-katalogen, inte i oversikt (#1430).
   const tRecentLabel = useTranslations("jobads.recent");
+  const format = useFormatter();
   const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   const today = new Date();
@@ -336,7 +337,7 @@ export function OversiktPage({
         {/* #384 — notiserna beräknas LIVE per request (force-dynamic), så
             "senast uppdaterad" är render-tiden, inte en stale mock-stämpel. */}
         <NoticeToolbar
-          lastUpdated={formatNoticesStamp(today)}
+          lastUpdated={formatNoticesStamp(format, today)}
           notices={allNotices}
         />
 

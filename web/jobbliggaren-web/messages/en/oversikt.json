@@ -13,6 +13,8 @@
   "notices": {
     "title": "Notices",
     "lastUpdated": "last updated <mono>{date}</mono>",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
     "markAllRead": "Mark all as read",
     "emptyTitle": "No unread notices",
     "emptyBody": "The inbox is empty. You will be notified as soon as something happens in your case.",

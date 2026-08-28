@@ -38,6 +38,7 @@ import {
   removeChipFromState,
   type SearchChip,
 } from "@/lib/job-ads/chip-models";
+import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
 
@@ -410,8 +411,15 @@ export function JobbResultsToolbar({
   // (hero-fältet är best-effort, C′-modellen).
   const chips = buildChipModels(
     urlState,
-    (_axis, conceptId) =>
-      resolvedLabels[conceptId] ?? t("toolbar.unknownCode", { code: conceptId }),
+    (_axis, conceptId) => {
+      const resolved = resolvedLabels[conceptId];
+      if (resolved === undefined) {
+        return t("toolbar.unknownCode", { code: conceptId });
+      }
+      // Anställningsform och omfattning är allmänsubstantiv och byter språk med
+      // locale:n; ort och yrkesgrupp är egennamn och passerar orörda (#1537).
+      return codedTaxonomyName(tEnum, conceptId, resolved);
+    },
     { includeQ: true },
   );
 

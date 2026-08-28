@@ -141,6 +141,18 @@
       "ExpiresAtAsc": "Closing soon",
       "Relevance": "Most relevant",
       "MatchDesc": "Sort by match"
+    },
+    "codedTaxonomy": {
+      "PFZr_Syz_cUq": "Regular employment",
+      "kpPX_CNN_gDU": "Permanent employment (including any trial employment)",
+      "1paU_aCR_nGn": "On-call employment",
+      "sTu5_NBQ_udq": "Limited-time employment",
+      "Jh8f_q9J_pbJ": "Summer job / holiday job",
+      "EBhX_Qm2_8eX": "Seasonal work",
+      "gro4_cWF_6D7": "Substitute position",
+      "9Wuo_2Yb_36E": "Work abroad",
+      "6YE1_gAC_R2G": "Full time",
+      "947z_JGS_Uk2": "Part time"
     }
   },
   "ui": {

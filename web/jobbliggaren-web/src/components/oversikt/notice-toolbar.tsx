@@ -59,6 +59,13 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
   // klicket muterar dismiss-store:n → effekten (keyad på `dismissed`) körs
   // efter re-rendern; ref-nollning där är lint-säker
   // (react-hooks/set-state-in-effect).
+  const moveFocusRef = useRef(false);
+  useEffect(() => {
+    if (!moveFocusRef.current) return;
+    moveFocusRef.current = false;
+    document.querySelector<HTMLButtonElement>(".jp-section__gear")?.focus();
+  }, [dismissed]);
+
   // Kvittot tänds på flanken pending -> klar. Ref:en, inte state, är villkoret — annars
   // skulle effekten tända kvittot vid mount.
   const wasRefreshingRef = useRef(false);
@@ -74,13 +81,6 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
     return () => clearTimeout(timer);
   }, [isRefreshing]);
 
-  const moveFocusRef = useRef(false);
-  useEffect(() => {
-    if (!moveFocusRef.current) return;
-    moveFocusRef.current = false;
-    document.querySelector<HTMLButtonElement>(".jp-section__gear")?.focus();
-  }, [dismissed]);
-
   return (
     <div className="jp-oversikt-toolbar">
       <div className="jp-oversikt-toolbar__left">
@@ -93,7 +93,7 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
         <button
           type="button"
           className="jp-btn jp-btn--ghost jp-btn--sm jp-oversikt-toolbar__refresh"
-          aria-busy={isRefreshing}
+          aria-busy={isRefreshing || undefined}
           onClick={() => {
             if (isRefreshing) return;
             startRefresh(() => router.refresh());

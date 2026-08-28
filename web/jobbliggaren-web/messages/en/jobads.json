@@ -95,6 +95,14 @@
     "hits": "<b>{currentCount, number}</b> hits",
     "runAgain": "Run again",
     "removeSearch": "Remove the search: {label}",
+    "label": {
+      "all": "All job ads",
+      "remoteLeading": "Remote",
+      "remoteInline": "remote",
+      "or": " or ",
+      "separator": ", ",
+      "more": "+{count} more"
+    },
     "chip": {
       "label": "Recent searches",
       "empty": "No recent searches yet. Search under Jobs and they are saved here.",

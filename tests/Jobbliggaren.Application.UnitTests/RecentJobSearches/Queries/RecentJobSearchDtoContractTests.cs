@@ -47,8 +47,10 @@ public class RecentJobSearchDtoContractTests
             .PropertyType.ShouldBe(typeof(IReadOnlyList<TaxonomyLabelDto>));
         t.GetProperty(nameof(RecentJobSearchDto.SortBy))!
             .PropertyType.ShouldBe(typeof(JobAdSortBy));
+        // #1430 — labeln är STRUKTUR, inte prosa: en färdig sträng kunde bara vara på ett
+        // språk, och den nådde en engelsk användare ordagrant på tre ytor.
         t.GetProperty(nameof(RecentJobSearchDto.Label))!
-            .PropertyType.ShouldBe(typeof(string));
+            .PropertyType.ShouldBe(typeof(RecentSearchLabelDto));
         t.GetProperty(nameof(RecentJobSearchDto.CurrentCount))!
             .PropertyType.ShouldBe(typeof(int));
         t.GetProperty(nameof(RecentJobSearchDto.NewCount))!

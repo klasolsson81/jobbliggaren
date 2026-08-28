@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecentSearchRow } from "./recent-search-row";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import { queryLabel } from "@/test/recent-search-label";
 
 const pushMock = vi.fn();
 const deleteActionMock = vi.fn();
@@ -31,7 +32,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     municipalityLabels: [],
     regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
     sortBy: "PublishedAtDesc",
-    label: "backend i Mjukvaruutveckling, Stockholms län",
+    label: queryLabel("backend"),
     currentCount: 42,
     newCount: 0,
     lastViewedAt: "2026-05-20T19:00:00Z",
@@ -45,6 +46,36 @@ beforeEach(() => {
 });
 
 describe("RecentSearchRow", () => {
+  // #1430 — hela vägen genom next-intl mot den riktiga sv-katalogen: fogningsordet, ICU-
+  // räknaren och distans-delens gemena form där den inte leder. Och att rubriken och
+  // knappens accessible name är SAMMA sträng: två renderingar av samma label divergerar,
+  // och den divergensen ÄR WCAG 2.5.3 Label in Name.
+  it("composes a multi-part label through the catalogue, and the remove button names the same one", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto({
+          q: null,
+          label: {
+            kind: "Dimensions",
+            join: "Disjunction",
+            parts: [
+              { kind: "Named", text: "Göteborg", moreCount: 1 },
+              { kind: "Remote", text: null, moreCount: 0 },
+            ],
+          },
+        })}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+
+    const expected = "Göteborg +1 till eller distans";
+    expect(screen.getByRole("heading", { name: expected })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Ta bort sökningen: ${expected}` }),
+    ).toBeInTheDocument();
+  });
+
   it("renders NO match-count meta when count prop is absent (lazy — not yet fetched / timeout / error)", () => {
     render(
       <RecentSearchRow
@@ -54,7 +85,7 @@ describe("RecentSearchRow", () => {
       />,
     );
     expect(
-      screen.getByRole("heading", { name: /backend i Mjukvaruutveckling/ }),
+      screen.getByRole("heading", { name: /backend/ }),
     ).toBeInTheDocument();
     // currentCount on the DTO is ignored — no count prop → no meta, never "(0)".
     expect(screen.queryByText(/träffar/)).not.toBeInTheDocument();

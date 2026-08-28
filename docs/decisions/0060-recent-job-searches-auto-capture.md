@@ -206,3 +206,43 @@ Commit-gaten är inte bara en UX-fix utan en materiell data-minimerings-förstä
 **FE-mekanik (utanför denna ADR:s domän, dokumenterad i ADR 0067 impl-notat E2j):** `commit` hålls strikt utanför `JobbUrlState`/`sameUrlState`/`buildJobbHref` (signal, inte tillstånd — Martin 2017 kap. 7); commit-punkterna adderar `?commit=true` som transient suffix på `router.push`/`replace`; live-`router.replace` utelämnar; no-JS-formet bär statiskt hidden `commit=true` (no-JS-submit ÄR per definition en commit); FE strippar `?commit=true` efter mount så en delad/bokmärkt länk inte re-capture:ar.
 
 **Wire-värdet är `true`, inte `1`** (CI-fångad regression 2026-06-12): ASP.NET Core minimal-API:s `bool`-binding använder `bool.TryParse`, som tolkar `"true"`/`"false"` men INTE `"1"`/`"0"` — `?commit=1` hade fått list-queryn att returnera 400 (och därmed brutit söket i UI:t, inte bara tappat capturen). Integration-testerna (`RecentSearchesTests`) vaktar detta end-to-end.
+
+---
+
+# Amendment 2026-08-28 — Beslut 8 + 9 preciseras: label-berikningen levererar struktur, inte prosa (#1430)
+
+**Status:** Accepted. **Beslutsunderlag:** `senior-cto-advisor` (decision-maker, 2026-08-28) på
+Klas-satt skop; engelsk copy Klas-satt samma dag. Additivt notat — Beslut 8:s och Beslut 9:s
+brödtext är orörd.
+
+**Vad Beslut 8 sa och fortsatt säger.** `GET /` returnerar en `label-berikad` projektion via
+`ITaxonomyReadModel`. Det ratificerar **att** servern härleder labeln, och det står kvar: vilken
+dimension som namnger raden är en härledning över sökkriteriet och taxonomiträdet, inte
+presentation. `GeoUnionLabelParityTests` mäter den invarianten och skulle inte kunna mäta den i
+TypeScript.
+
+**Vad som preciseras.** Berikningen levererar från och med nu de **delar** labeln består av i
+stället för en färdig mening: grenval, fogningens semantik (`Disjunction` för geo-unionen,
+`Conjunction` för de ortogonala förfiningsaxlarna) och per del ett resolvat taxonomi-namn plus
+overflow-antal. `RecentJobSearchDto.Label` byter därmed typ från `string` till
+`RecentSearchLabelDto`, och Beslut 9:s zod-spegel speglar den formen. Enums når wire:n som **namn**
+(`JsonStringEnumConverter`), aldrig som ordinaler — pinnat ände-till-ände i `RecentSearchesTests`.
+
+**Varför precisering och inte supersession.** Beslut 8 uttalar sig inte om vilket språk labeln
+härleds på, och ADR 0067:s E2g-notat klassar utfallet som `Label förblir read-model-presentation`.
+Det finns alltså inget beslut som säger att labeln ska komponeras server-side på svenska, och
+därmed inget att reversera. Precedensen är uttrycklig: ett `dotnet-architect`-verdikt 2026-08-20
+på #1413 friade en större label-semantikändring utan ADR-ändring — men vilade då på att **`Label`
+fortfarande var `string` och wire-schemat orört**. Den här ändringen gör inte det, och det är
+exakt vad detta amendment täcker. (Verdiktets rapport ligger under `docs/reviews/`, som är
+gitignorerad, så det bärande fragmentet är återgivet här i stället för att pekas på.)
+
+**Grunden.** Klas-beslut 2026-08-22: allt UI ska finnas på både svenska och engelska. Före
+ändringen bar `DeriveLabel` sex svenskbärande literaler som nådde varje engelsk användare
+ordagrant på tre ytor. Svensk rendering är bevarad byte-för-byte — pinnat per gren i
+`recent-search-label.test.ts`.
+
+⚠ **Öppen och orörd av detta amendment:** i18n-täckningsregeln (*"en är en produkt-locale; all
+UI-copy finns i båda katalogerna"*) bärs i dag av **ingen ADR** och motsägs av `BUILD.md` §10.6,
+som fortfarande säger *"UI på svenska"*. ADR 0078 äger i18n-**mekaniken** och har `Scope: Frontend`
+— den binder ingen täckning. Detta är en dokumenterad lucka, inte en ändring som görs här.

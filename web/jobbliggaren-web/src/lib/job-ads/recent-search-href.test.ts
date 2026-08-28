@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildRecentSearchHref } from "./recent-search-href";
 import { DEFAULT_SORT_BY } from "./search-params";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import { queryLabel } from "@/test/recent-search-label";
 
 function makeRecent(
   overrides: Partial<RecentJobSearchDto> = {},
@@ -19,7 +20,7 @@ function makeRecent(
     municipalityLabels: [],
     regionLabels: [],
     sortBy: DEFAULT_SORT_BY,
-    label: "Backend Stockholm",
+    label: queryLabel("Backend Stockholm"),
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",

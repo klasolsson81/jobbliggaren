@@ -65,10 +65,15 @@ export function formatDate(
  * presentation, so it reads identically in sv and en. The next-intl formatter
  * is still the timezone authority (resolves the configured Europe/Stockholm
  * zone deterministically across SSR and client). `hour12` is pinned false.
+ *
+ * `separator` exists because the overview's notice stamp renders the same shape with a
+ * middot instead of a space. Only the separator differs, so it is a parameter rather than a
+ * second function — the ISO reordering below is the subtle part, and two copies of it drift.
  */
 export function formatDateTime(
   format: JpFormatter,
   value: string | null | undefined,
+  separator = " ",
 ): string | null {
   if (!value) return null;
   const date = new Date(value);
@@ -90,7 +95,7 @@ export function formatDateTime(
   const iso = /^\d{4}-\d{2}-\d{2}$/.test(day)
     ? day
     : day.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, "$3-$1-$2");
-  return `${iso} ${time}`;
+  return `${iso}${separator}${time}`;
 }
 
 /**

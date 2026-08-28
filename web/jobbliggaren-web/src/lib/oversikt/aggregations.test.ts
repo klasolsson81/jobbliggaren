@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTranslator } from "next-intl";
+import { createTranslator, createFormatter } from "next-intl";
 import {
   computeApplicationCounts,
   daysSince,
@@ -303,20 +303,41 @@ describe("OVERSIKT_FOLLOW_UP_DAYS / followUpText drift-guard", () => {
   });
 });
 
+// Riktiga next-intl-formaterare — samma objekt `useFormatter()` returnerar, med samma
+// timeZone som `i18n/request.ts` pinnar. En stub hade mätt stubben, inte tidszonen.
+const svFormat = createFormatter({ locale: "sv", timeZone: "Europe/Stockholm" });
+const enFormat = createFormatter({ locale: "en", timeZone: "Europe/Stockholm" });
+
 describe("formatNoticesStamp", () => {
-  it("formaterar känt UTC-datum som 'YYYY-MM-DD · HH:mm'", () => {
-    const out = formatNoticesStamp(new Date("2026-06-29T13:52:30Z"));
-    expect(out).toBe("2026-06-29 · 13:52");
+  it("renderar i LÄSARENS tidszon, inte i UTC (#1549)", () => {
+    // 13:52Z är 15:52 i Europe/Stockholm under CEST. Det POSITIVA påståendet.
+    const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
+    expect(out).toBe("2026-06-29 · 15:52");
+  });
+
+  it("visar ALDRIG UTC:s väggklocka — den halvan fäller en återgång", () => {
+    // Den gamla implementationen skivade `toISOString()` och gav exakt den här strängen.
+    // Utan det här påståendet kan en regression tillbaka dit gå grön på allt annat.
+    const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
+    expect(out).not.toBe("2026-06-29 · 13:52");
+  });
+
+  it("håller formen YYYY-MM-DD · HH:mm i båda locale", () => {
+    // Ledger-formen är avsiktligt locale-STABIL (se formatDateTime): `en` får inte
+    // rendera MM/DD/YYYY eller 12-timmars.
+    const d = new Date("2026-01-15T07:05:00Z");
+    expect(formatNoticesStamp(svFormat, d)).toBe("2026-01-15 · 08:05");
+    expect(formatNoticesStamp(enFormat, d)).toBe("2026-01-15 · 08:05");
   });
 
   it("är INTE den gamla hårdkodade mock-stämpeln (#384)", () => {
-    const out = formatNoticesStamp(new Date("2026-06-29T13:52:30Z"));
+    const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
     // Tidigare visades en stale mock "2026-05-23 · 08:42"; nu är stämpeln live.
     expect(out).not.toBe("2026-05-23 · 08:42");
   });
 
   it("returnerar streck för ogiltigt datum", () => {
-    expect(formatNoticesStamp(new Date("invalid"))).toBe("–");
+    expect(formatNoticesStamp(svFormat, new Date("invalid"))).toBe("–");
   });
 });
 

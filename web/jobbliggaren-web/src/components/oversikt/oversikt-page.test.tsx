@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { OversiktPage } from "./oversikt-page";
+
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
@@ -10,6 +11,11 @@ import type {
 } from "@/lib/dto/saved-job-ads";
 import { DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { queryLabel } from "@/test/recent-search-label";
+// Sidan renderar NoticeToolbar, vars uppdatera-kontroll kallar `useRouter()` (#1549).
+// Utan mock kastar next/navigation "invariant expected app router to be mounted".
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 //

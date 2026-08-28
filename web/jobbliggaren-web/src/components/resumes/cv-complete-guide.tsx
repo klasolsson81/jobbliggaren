@@ -29,6 +29,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { makePromoteParsedResumeSchema } from "@/lib/actions/resume-schemas";
@@ -1508,8 +1509,10 @@ export function CvCompleteGuide({
       {/* Stäng-bekräftelse (honesty bind 2): visas bara när formen är ändrad. */}
       <Dialog open={confirmClose} onOpenChange={setConfirmClose}>
         <DialogContent>
-          <DialogTitle>{tr("closeConfirmTitle")}</DialogTitle>
-          <DialogDescription>{tr("closeConfirmBody")}</DialogDescription>
+          <DialogHeader>
+            <DialogTitle>{tr("closeConfirmTitle")}</DialogTitle>
+            <DialogDescription>{tr("closeConfirmBody")}</DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button
               type="button"

@@ -7,6 +7,10 @@ import { useTranslations } from "next-intl";
 import { Clock, Search, Trash2 } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
+import {
+  buildRecentSearchLabel,
+  recentSearchLabelCopy,
+} from "@/lib/job-ads/recent-search-label";
 import { deleteRecentSearchAction } from "@/lib/actions/recent-searches";
 import type { RecentSearchCount } from "@/lib/hooks/use-recent-search-counts";
 
@@ -66,6 +70,10 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
   const t = useTranslations("jobads.recent");
   const [isPending, startTransition] = useTransition();
   const href = buildRecentSearchHref(item);
+  // One const, read by BOTH the heading and the remove button's accessible name. Two
+  // renderings of the same label would diverge, and WCAG 2.5.3 Label in Name is exactly
+  // that divergence (design-reviewer, PR #1533).
+  const label = buildRecentSearchLabel(item.label, recentSearchLabelCopy(t));
 
   function handleRowClick(e: React.MouseEvent<HTMLElement>) {
     // Skippa när klick var på en knapp/länk inuti raden — de bär egna handlers.
@@ -99,7 +107,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
           <Clock size={20} />
         </div>
         <div className="jp-job__body">
-          <h3 className="jp-job__title">{item.label}</h3>
+          <h3 className="jp-job__title">{label}</h3>
           {count !== undefined && (
             <CountMeta currentCount={count.currentCount} newCount={count.newCount} t={t} />
           )}
@@ -111,7 +119,7 @@ export function RecentSearchRow({ item, count, onDeleted, onDeleteFailed }: Rece
           <button
             type="button"
             className="jp-icon-btn"
-            aria-label={t("removeSearch", { label: item.label })}
+            aria-label={t("removeSearch", { label })}
             onClick={handleDelete}
             disabled={isPending}
           >

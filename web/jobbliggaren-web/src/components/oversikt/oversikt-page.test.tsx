@@ -9,6 +9,7 @@ import type {
   SavedJobAdDto,
 } from "@/lib/dto/saved-job-ads";
 import { DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
+import { queryLabel } from "@/test/recent-search-label";
 
 // next/link renderas som <a> i jsdom utan extra mock (Next client Link).
 //
@@ -89,7 +90,7 @@ function makeRecent(
     municipalityLabels: [],
     regionLabels: [],
     sortBy: DEFAULT_SORT_BY,
-    label: "Backend Stockholm",
+    label: queryLabel("Backend Stockholm"),
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",
@@ -262,7 +263,7 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
       matchCount: null, // utelämna match-notisen så CTA-namnen inte krockar
       recentSearches: {
         kind: "ok",
-        data: [makeRecent({ label: "Backend Stockholm", q: "backend" })],
+        data: [makeRecent({ label: queryLabel("Backend Stockholm"), q: "backend" })],
       },
     });
 

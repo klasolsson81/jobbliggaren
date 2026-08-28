@@ -178,14 +178,154 @@ describe("NewApplicationForm", () => {
     const url = field.url();
     expect(url).toHaveAttribute("aria-invalid", "true");
     // The hint states the very constraint the refusal is about, so it is kept alongside the message
-    // rather than replaced by it.
-    expect(url.getAttribute("aria-describedby")).toBe(`url-hint ${alert.id}`);
+    // rather than replaced by it. The message id is the field's own and is asserted literally:
+    // since #1514 each refused field carries its own message node, so naming "whatever the single
+    // alert is" would no longer be a meaningful pin.
+    expect(url.getAttribute("aria-describedby")).toBe("url-hint url-error");
+    expect(alert.id).toBe("url-error");
     await waitFor(() => expect(url).toHaveFocus());
 
     // No other field is implicated, and nothing the user typed is lost.
     expect(field.title()).not.toHaveAttribute("aria-invalid");
     expect(field.title()).toHaveValue(TYPED.title);
     expect(field.company()).toHaveValue(TYPED.company);
+  });
+
+  it("surfaces a bad link and an over-long cover letter in the SAME pass", async () => {
+    // #1514 defect 1. The refusal used to read `parsed.error.issues[0]`, so these two took two
+    // submits: the cover letter's cap only appeared once the link had been fixed. WCAG 3.3.1
+    // expects every detected error to be identified in the same pass.
+    //
+    // Both halves are reachable in a browser, which is why this pair and not another: `ftp://` is a
+    // well-formed absolute URL so the native `type="url"` gate passes it, and a textarea has no
+    // native length gate. The two `required` fields are filled because THEIR native bubble does
+    // fire first, by design, and would stop the submit before zod ever ran.
+    const user = userEvent.setup();
+    render(<NewApplicationForm />);
+
+    await user.type(field.title(), TYPED.title);
+    await user.type(field.company(), TYPED.company);
+    await user.type(field.url(), "ftp://example.com/jobb");
+    await user.click(field.coverLetter());
+    await user.paste("x".repeat(5001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((a) => a.textContent)).toEqual([
+      "Annonslänken måste börja med http:// eller https://.",
+      "Personligt brev får vara max 5 000 tecken.",
+    ]);
+    expect(createApplicationActionMock).not.toHaveBeenCalled();
+
+    // Every named field is marked, and each is described by ITS OWN message — not by a shared row
+    // that would read the other field's complaint out on this control.
+    const url = field.url();
+    const coverLetter = field.coverLetter();
+    expect(url).toHaveAttribute("aria-invalid", "true");
+    expect(url.getAttribute("aria-describedby")).toBe("url-hint url-error");
+    expect(coverLetter).toHaveAttribute("aria-invalid", "true");
+    expect(coverLetter.getAttribute("aria-describedby")).toBe(
+      "cover-letter-hint cover-letter-error"
+    );
+
+    // Focus goes to the FIRST refused field in document order, not the last.
+    await waitFor(() => expect(url).toHaveFocus());
+
+    // The fields that are fine stay unmarked.
+    expect(field.title()).not.toHaveAttribute("aria-invalid");
+    expect(field.expiresAt()).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("drops a field's refusal as soon as that field is corrected, and leaves the others", async () => {
+    // #1514 defect 2. The refusal used to live in `useState` and was cleared only by the next
+    // submit, so a user correcting the link kept `aria-invalid="true"` on it while typing. It is
+    // RHF's `reValidateMode: "onChange"` that clears it now.
+    const user = userEvent.setup();
+    render(<NewApplicationForm />);
+
+    await user.type(field.title(), TYPED.title);
+    await user.type(field.company(), TYPED.company);
+    await user.type(field.url(), "ftp://example.com/jobb");
+    await user.click(field.coverLetter());
+    await user.paste("x".repeat(5001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(field.url()).toHaveAttribute("aria-invalid", "true")
+    );
+
+    await user.clear(field.url());
+    await user.type(field.url(), TYPED.url);
+
+    // The corrected field is released — mark, description and message all go.
+    await waitFor(() => expect(field.url()).not.toHaveAttribute("aria-invalid"));
+    expect(field.url().getAttribute("aria-describedby")).toBe("url-hint");
+    expect(
+      screen.queryByText("Annonslänken måste börja med http:// eller https://.")
+    ).not.toBeInTheDocument();
+
+    // The cover letter was not corrected, so its refusal stands. Clearing is per field, not per
+    // form.
+    expect(field.coverLetter()).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByText("Personligt brev får vara max 5 000 tecken.")
+    ).toBeInTheDocument();
+  });
+
+  it("leaves a field the refusal did not name alone while the user types in it", async () => {
+    // With a resolver RHF re-validates EVERY field on each keystroke once a submit has failed, not
+    // only the ones that were refused. Measured 2026-08-27: with the display gated on `errors`
+    // alone, a cover-letter refusal made the untouched link field raise "Annonslänken måste vara en
+    // giltig webbadress." on the FIRST character and hold it for six more — and `role="alert"` is
+    // assertive, so a screen reader is interrupted once per keystroke while the user types an
+    // ordinary link.
+    const user = userEvent.setup();
+    render(<NewApplicationForm />);
+
+    await user.type(field.title(), TYPED.title);
+    await user.type(field.company(), TYPED.company);
+    await user.click(field.coverLetter());
+    await user.paste("x".repeat(5001));
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(field.coverLetter()).toHaveAttribute("aria-invalid", "true")
+    );
+
+    // The link field was empty and valid, so the submit did not refuse it. Half-typed it is not a
+    // valid URL, but the user has not been told anything about it yet.
+    await user.type(field.url(), "http://");
+
+    expect(field.url()).not.toHaveAttribute("aria-invalid");
+    expect(
+      screen.queryByText("Annonslänken måste vara en giltig webbadress.")
+    ).not.toBeInTheDocument();
+    expect(field.url().getAttribute("aria-describedby")).toBe("url-hint");
+
+    // The field that WAS refused keeps its refusal — the gate is on what the submit named, not on
+    // silence for everyone.
+    expect(field.coverLetter()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("posts empty optional fields as empty strings", async () => {
+    // The wire value for an untouched optional field is the empty string — never the
+    // four-character string "undefined" that `formData.set(k, undefined)` would post.
+    createApplicationActionMock.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    render(<NewApplicationForm />);
+
+    await user.type(field.title(), TYPED.title);
+    await user.type(field.company(), TYPED.company);
+    await user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(createApplicationActionMock).toHaveBeenCalledTimes(1)
+    );
+    const sent = createApplicationActionMock.mock.calls[0]?.[0];
+    if (!sent) throw new Error("createApplicationAction was not invoked");
+    expect(sent.get("url")).toBe("");
+    expect(sent.get("expiresAt")).toBe("");
+    expect(sent.get("coverLetter")).toBe("");
   });
 
   it("does not render a success as an error when the action redirects", async () => {

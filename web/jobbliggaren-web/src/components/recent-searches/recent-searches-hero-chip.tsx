@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
+import {
+  buildRecentSearchLabel,
+  recentSearchLabelCopy,
+} from "@/lib/job-ads/recent-search-label";
 import { HeroChip } from "@/components/job-ads/hero-chip";
 import { useRecentSearchCounts } from "@/lib/hooks/use-recent-search-counts";
 
@@ -27,6 +31,7 @@ interface RecentSearchesHeroChipProps {
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
   const t = useTranslations("jobads.recent");
+  const labelCopy = recentSearchLabelCopy(t);
   const [open, setOpen] = useState(false);
   // Lat hämtning: counten beräknas först när panelen öppnas (slow N+1 undviks
   // på /jobb-laddningar där användaren aldrig öppnar chippen).
@@ -40,7 +45,7 @@ export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
       items={items}
       getKey={(it) => it.id}
       getHref={buildRecentSearchHref}
-      getLabel={(it) => it.label}
+      getLabel={(it) => buildRecentSearchLabel(it.label, labelCopy)}
       emptyText={t("chip.empty")}
       footerHref="/sokningar"
       footerLabel={t("chip.footer")}

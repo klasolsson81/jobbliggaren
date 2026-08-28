@@ -19,7 +19,13 @@ const wireBase = {
   municipalityLabels: [{ conceptId: "zHxw_uJZ_NNh", label: "Solna" }],
   regionLabels: [{ conceptId: "CifL_Rzy_Mku", label: "Stockholms län" }],
   sortBy: 0,
-  label: "backend",
+  // #1430 — labeln är struktur på wire:n, och enums kommer som NAMN (backend
+  // JsonStringEnumConverter). Formen här är exakt vad DeriveLabel:s q-gren emitterar.
+  label: {
+    kind: "Query",
+    join: "None",
+    parts: [{ kind: "Named", text: "backend", moreCount: 0 }],
+  },
   currentCount: 42,
   newCount: 7,
   lastViewedAt: "2026-05-20T19:00:00Z",
@@ -33,6 +39,46 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.sortBy).toBe("PublishedAtDesc");
     expect(parsed.currentCount).toBe(42);
     expect(parsed.newCount).toBe(7);
+  });
+
+  it("parses the label as structure, keeping the enums as names", () => {
+    const parsed = recentJobSearchDtoSchema.parse(wireBase);
+
+    expect(parsed.label.kind).toBe("Query");
+    expect(parsed.label.join).toBe("None");
+    expect(parsed.label.parts).toEqual([
+      { kind: "Named", text: "backend", moreCount: 0 },
+    ]);
+  });
+
+  it("accepts the All label, which is the one kind that carries no parts", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      label: { kind: "All", join: "None", parts: [] },
+    });
+
+    expect(parsed.label.kind).toBe("All");
+  });
+
+  // Högljutt före tyst fel: varje gren utom All skjuter minst en del, så en tom `parts` är
+  // ett kontraktsbrott. Utan grinden hade komponeraren fått välja mellan en tom rubrik och
+  // att påstå "alla annonser" om ett tillstånd den inte känner — ett falskt påstående.
+  it("refuses a non-All label with no parts", () => {
+    const result = recentJobSearchDtoSchema.safeParse({
+      ...wireBase,
+      label: { kind: "Dimensions", join: "None", parts: [] },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("refuses an ordinal where the label enum expects a name", () => {
+    const result = recentJobSearchDtoSchema.safeParse({
+      ...wireBase,
+      label: { kind: 0, join: "None", parts: [{ kind: "Named", text: "x", moreCount: 0 }] },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("accepts null q (only occupationGroup/region filter)", () => {

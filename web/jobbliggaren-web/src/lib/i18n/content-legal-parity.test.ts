@@ -363,7 +363,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
   /**
    * #183 — INBOUND-BITRÄDETS TRIPWIRE (code-reviewer Major 5, 2026-08-28).
    *
-   * STRATO GmbH är tredje namngivna mottagaren i `Mottagare av uppgifter` och var den enda utan
+   * STRATO GmbH är namngiven mottagare i `Mottagare av uppgifter` och var den enda utan
    * egen spärr. Systrarna skriver ut varför strukturtestet inte räcker: *"Strukturtestet överst
    * fäller en ENSIDIG radering via array-längder, men två språk raderade i takt passerar det. Ett
    * räknat golv är det enda som fäller en tystnad."*
@@ -402,6 +402,32 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
 
     // Paritet per LOKALISERING, inte antal — 1 === 1 passerar medan språken tappar olika löv.
     expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    // FAIL-FAST mot SAMNÄMNING, samma form och samma skäl som värdspärrens snittassertion.
+    // Docblocket ovan förbjuder att TERMEN viks in i en annan spärr; det här fäller det andra
+    // fallet, som förbudet inte täcker: ett LÖV som namnger både `STRATO GmbH` och en part vars
+    // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` i den levande grenen.
+    // Den här spärren kräver markören positivt på samma löv, så sviten blir osatisfierbar, varvid
+    // den "uppenbara" utvägen är att försvaga en av spärrarna. Assertionen fäller i stället vid den
+    // commit som skriver lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är
+    // en mottagare per stycke. Skopa INTE bort täckning för att lösa det.
+    // `consentGated` bor inne i e-post-spärrens block; predikatet återskapas här ur samma
+    // modulnivå-hjälpare (`sectionHeadingOf`) i stället för att hissas — en hissning hade gjort
+    // e-post-spärrens diskriminator till ett delat hem utan att någon läsare krävde det.
+    const marks = (catalogue: unknown, leaves: [string, string][]) =>
+      leaves
+        .filter(([path]) => !/samtycke|consent/i.test(sectionHeadingOf(catalogue, path)))
+        .map(([path]) => path);
+    const forbidsMarkerSv = new Set([
+      ...matchingLeaves(svLegal, /netcup GmbH/).map(([path]) => path),
+      ...marks(svLegal, matchingLeaves(svLegal, EMAIL_PROVIDER_ANY)),
+    ]);
+    const forbidsMarkerEn = new Set([
+      ...matchingLeaves(enLegal, /netcup GmbH/).map(([path]) => path),
+      ...marks(enLegal, matchingLeaves(enLegal, EMAIL_PROVIDER_ANY)),
+    ]);
+    expect(sv.map(([path]) => path).filter((path) => forbidsMarkerSv.has(path))).toEqual([]);
+    expect(en.map(([path]) => path).filter((path) => forbidsMarkerEn.has(path))).toEqual([]);
 
     // Invariant 2, POSITIV pinne: behandlingen är mörk, så varje omnämnande bär markörmeningen.
     // Presens här hade hävdat en behandling som inte sker (ADR 0090 D3, spegelvänt).

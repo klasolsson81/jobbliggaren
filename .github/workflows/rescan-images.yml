@@ -1,0 +1,165 @@
+# Rescans the five PUBLISHED images against today's advisory database (#1519).
+#
+# THE DEFECT THIS CLOSES. `release-images.yml` skips Build, Trivy AND Push whenever the current
+# `main` SHA is already published under both tags with a readable attestation. That skip is
+# deliberate, well argued, and NOT CHANGED BY THIS FILE. Its unnamed consequence was that a
+# published image is never rescanned: no GitHub Actions event fires on a published advisory
+# (measured 2026-08-28 — neither `security_advisory`, `repository_advisory` nor
+# `repository_vulnerability_alert` is an `on:` event), Dependabot has nothing to propose for a
+# floating base tag such as `caddy:2-alpine` or `node:22-alpine` (it says so itself in
+# `.github/dependabot.yml`), and so the only event that ever produced a new image was a merge to
+# `main` for some unrelated reason. Patch latency on the only internet-facing process in the
+# stack had no ceiling, and merge cadence is not a security control.
+#
+# DETECT, DO NOT REPAIR (senior-cto-advisor, 2026-08-28). The repair lever already exists and
+# always did: a merge yields a new SHA, the release predicate goes false, the image is rebuilt
+# and scanned and pushed, and the box pulls it within the hour. What was missing was never the
+# repair, it was the KNOWLEDGE. A detection defect is repaired with a detector.
+#
+# THE THREE ALTERNATIVES WERE MEASURED AND REFUSED, and they are written out so this is not
+# re-litigated from scratch. (1) An AGE TERM that rebuilds a stale-but-unchanged SHA re-points
+# `sha-<short>`, which `release-images.yml` defines as the rollback handle the box pins in its
+# `.env` — a handle that means two digests at two times is a rollback that does not roll back —
+# and it turns the hourly timer into an unattended production deploy of an image no human asked
+# for. (2) ALWAYS BUILD AND SCAN, PUSH ON CHANGE scans a freshly built image rather than the
+# published artefact, so a green scan says nothing about what the box actually runs. (3) The
+# HYBRID (scan, and let a red scan force a rebuild) inherits both of (1)'s worst properties and
+# adds a loop: after such a rebuild `latest` no longer equals `sha-<short>`, so the next hourly
+# run sees `already=false` and rebuilds again, forever, until a new tag scheme is designed.
+#
+# WHY ITS OWN FILE RATHER THAN A STEP IN `release-images.yml`, and the first reason is the one
+# that matters: PRIVILEGE. This workflow can read the registry and nothing else. A detector that
+# cannot push cannot be edited into a publisher, and that property is structurally impossible for
+# a job that shares a file with the publish path. The second is failure isolation — inside
+# `release-images.yml` a red scan of the OLD published digest would fail the job before its Push
+# step, so an old advisory would block exactly the merge that was going to fix it.
+#
+# THE READER IS THE SCHEDULED-RUN NOTIFICATION. "Notifications for scheduled workflows are sent
+# to the user who initially created the workflow", and on a cron-syntax change to whoever changed
+# it (GitHub Docs, read 2026-08-28). That is the one reader this mechanism has; #1175 records that
+# the box's journal has none. It is also why the cadence below is DAILY and not hourly: the floor
+# is Trivy's database, which is rebuilt every six hours (trivy-db README, read 2026-08-28), but
+# the binding constraint is the reader's tolerance. Twenty-four red mails a day destroys the only
+# reader this file has.
+#
+# THIS WORKFLOW IS NEVER ADDED TO `ci`'s `needs`. It grades repo state that the diff under review
+# did not create, so blocking a PR on it is the deadlock the design keeps out of CI. A red run
+# here is a mail and a red square, deliberately, and a later session should not drive it into the
+# required set.
+name: rescan-images
+
+on:
+  schedule:
+    # Daily. Minute 5 rather than 17 so it never races `release-images.yml` on the registry, and
+    # not 0 because the top of the hour is the busiest slot on shared runners.
+    - cron: "5 5 * * *"
+  workflow_dispatch:
+
+# READ ONLY, AND THE ABSENCES ARE THE POINT. No `packages: write`, no `id-token: write`, no
+# `attestations: write` — this workflow cannot publish, tag, or attest anything, by construction
+# rather than by intent. (The packages are public today, measured 2026-08-28 with an anonymous
+# probe, so `packages: read` is belt over braces; anonymous readability is a measurement of the
+# current setting, not a contract.)
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: rescan-images
+  cancel-in-progress: false
+
+jobs:
+  # WHAT IS SCANNED IS RESOLVED ONCE, FROM `release-images.yml`'s OWN MATRIX. The five image
+  # names already exist in `build.yml`, `release-images.yml`, `deploy/docker-compose.yml` and the
+  # reconcile allowlist; a sixth copy here would be a sixth thing to keep in step. So this job
+  # declares nothing and asks the script, whose fixture suite runs in the blocking `scripts` job
+  # of `build.yml` — including a case that reads the REAL `release-images.yml`, so a respelling
+  # of that matrix turns red at PR time rather than by silently shortening this matrix at 05:05.
+  resolve:
+    name: resolve published digests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve
+        id: resolve
+        run: |
+          set -euo pipefail
+          # The script's three outcomes are the gate: 0 resolved everything, 1 the matrix lost
+          # legs, 2 it could not answer. Anything but 0 fails this job and SKIPS the scan, which
+          # is the intended behaviour — "could not answer" must never read as "nothing to scan",
+          # and a partially resolved list is a shorter scan matrix that still looks complete.
+          # `bash <path>`, not `./<path>`, and that is deliberate. Eighteen of the twenty scripts
+          # under `.github/scripts/` are committed 100644 and every caller invokes them this way,
+          # which is mode-blind. Nothing gates the exec bit in that directory the way
+          # `build.yml` gates it for `deploy/systemd`, so depending on it here would be a
+          # 126/Permission-denied waiting for the first checkout that did not preserve it.
+          bash .github/scripts/resolve-published-digests.sh | tee rows.tsv
+
+          # `jq -Rn` with `inputs` reads each line as a raw string; without -R the tab-separated
+          # rows would be parsed as JSON and every line would fail.
+          matrix=$(jq -Rn -c '[inputs | split("\t") | {name: .[0], ref: .[1], created: .[2]}]' < rows.tsv)
+
+          # An empty array reaches `fail-fast` as a matrix with no vectors, which GitHub reports
+          # as a confusing setup error rather than as "there was nothing to scan". The script
+          # already refuses before this, so this is the second of two guards and it says so.
+          [ "$(printf '%s' "$matrix" | jq 'length')" -gt 0 ] \
+            || { echo "::error::resolver produced an empty matrix"; exit 1; }
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: rescan ${{ matrix.image.name }}
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # One vulnerable image must not hide the state of the other four.
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.resolve.outputs.matrix) }}
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # THE AGE IS REPORTED AND IS NEVER A PREDICATE. An image is not stale because it is old,
+      # it is stale because an advisory with a published fix now matches it — which is what the
+      # step below measures directly. This line exists so a red run reads "this artefact was
+      # built on <date> and now carries CVE-X", the sentence that makes the notification
+      # actionable, instead of leaving the reader to work out which image is being complained
+      # about and how long it has been running.
+      - name: What is being scanned
+        run: |
+          echo "image:   ${{ matrix.image.name }}"
+          echo "ref:     ${{ matrix.image.ref }}"
+          echo "built:   ${{ matrix.image.created }}"
+          echo "This is the PUBLISHED artefact, pinned by digest, not a rebuild of it."
+
+      # THE PARAMETERS ARE IDENTICAL TO BOTH EXISTING SCANS, and the parity IS the claim: this
+      # artefact would not pass today the gate it passed when it was built. Changing `severity`
+      # or `ignore-unfixed` here without changing them in `build.yml` and `release-images.yml`
+      # would make that sentence false. `format: table` deliberately — `sarif` ignores
+      # `exit-code` silently. No `continue-on-error`: a detector that cannot go red is not one.
+      #
+      # The ref is digest-pinned, which also closes the TOCTOU between resolving and scanning —
+      # the same argument `jobbliggaren-reconcile.sh` makes for its own `--pull never`.
+      - name: Trivy ${{ matrix.image.name }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.image.ref }}
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true

@@ -199,8 +199,10 @@
       "confirmCta": "Markera {status}",
       "confirming": "Markerar…"
     },
+    "counts": {
+      "totalWithActive": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}"
+    },
     "board": {
-      "toolbarCount": "{count, plural, one {# ansökan} other {# ansökningar}} · {active, plural, one {# aktiv} other {# aktiva}}",
       "toolbarHint": "Dra ett kort till ett annat steg. Klicka på ett kort för detaljer.",
       "showMore": "Visa {count} fler",
       "showFewer": "Visa färre",

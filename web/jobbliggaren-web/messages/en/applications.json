@@ -199,8 +199,10 @@
       "confirmCta": "Mark {status}",
       "confirming": "Marking…"
     },
+    "counts": {
+      "totalWithActive": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}"
+    },
     "board": {
-      "toolbarCount": "{count, plural, one {# application} other {# applications}} · {active, plural, one {# active} other {# active}}",
       "toolbarHint": "Drag a card to another step. Click a card for details.",
       "showMore": "Show {count} more",
       "showFewer": "Show fewer",

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Settings } from "lucide-react";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
@@ -45,6 +52,13 @@ interface NoticeSectionProps {
   readonly emptyBody: string;
   /** Typer som listas i kugghjuls-popovern (inkl. förberedda typer utan notiser). */
   readonly prefTypes: ReadonlyArray<NoticePrefType>;
+  /**
+   * Stående tillstånd över notislistan (#1548) — render-only. AVSIKTLIGT en
+   * ReactNode och inte en datastruktur: sektionen är källagnostisk, och en
+   * `summaryData`-prop hade dragit in applikationskunskap i en komponent som
+   * också bär jobbannonser och företagsbevakning.
+   */
+  readonly summary?: ReactNode;
 }
 
 // Åtgärdsnotiser (warning/success) sorteras först, info/brand därefter — övrigt
@@ -76,6 +90,7 @@ export function NoticeSection({
   notices,
   emptyBody,
   prefTypes,
+  summary,
 }: NoticeSectionProps) {
   const t = useTranslations("oversikt");
   const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
@@ -212,6 +227,8 @@ export function NoticeSection({
           )}
         </div>
       </div>
+
+      {summary}
 
       <ul className="jp-notice-list">
         {unread.length > 0 ? (

@@ -5015,6 +5015,78 @@ a.jp-adminnav__link[aria-current="page"]::after {
   .jp-oversikt__today { width: 100%; }
 }
 
+/* Ansöknings-sammanfattning på Översikt (#1548) — stående tillstånd över
+   notislistan. Platt rad avskild med hårlinje, ALDRIG ett kort: DESIGN.md §6
+   ("inga stats-kort runt enstaka värden, visa siffran direkt i rad/tabell
+   ovanför listan"). */
+.jp-appsummary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jp-border-soft);
+  font-size: var(--text-body);
+}
+.jp-appsummary__anchor {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+}
+.jp-appsummary__totals {
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-appsummary__link {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-bold);
+  text-decoration: none;
+}
+.jp-appsummary__link:hover { text-decoration: underline; }
+.jp-appsummary__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.jp-appsummary__step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.jp-appsummary__name { color: var(--jp-ink-2); }
+.jp-appsummary__num {
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+/* Nollsteg skiljs med VIKT, aldrig med opacity. Stegrailens 0.55-dimning är
+   kontrast-undantagen bara för att dess cell är `disabled`; den här listan är
+   icke-interaktiv, så samma dimning hade fällt WCAG 1.4.3. */
+.jp-appsummary__step[data-empty="true"] .jp-appsummary__num {
+  font-weight: var(--jp-fw-regular);
+}
+/* Skiljelinje före den terminala posten — speglar stegrailens data-divider. */
+.jp-appsummary__step[data-terminal="true"] {
+  padding-left: 18px;
+  border-left: 1px solid var(--jp-border-strong);
+}
+.jp-appsummary__emptytitle {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-appsummary__emptybody {
+  margin: 0;
+  color: var(--jp-ink-2);
+}
+.jp-appsummary--empty .jp-appsummary__link { align-self: flex-start; }
+.jp-appsummary--unavailable { color: var(--jp-ink-2); }
+
 /* Notiser */
 .jp-notice-list {
   list-style: none;

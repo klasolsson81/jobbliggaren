@@ -18,6 +18,7 @@ import {
   OVERSIKT_DEADLINE_WINDOW_DAYS,
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
+import { ApplicationSummary } from "./application-summary";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import {
@@ -350,6 +351,7 @@ export function OversiktPage({
           notices={applicationNotices}
           emptyBody={t("notices.emptyApplications")}
           prefTypes={prefTypesFor("applications")}
+          summary={<ApplicationSummary pipeline={pipeline} />}
         />
         <NoticeSection
           source="jobads"

@@ -1488,7 +1488,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         en klass. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
         **en användare slår på sitt eget reglage.** ⚠ **Klassen säger ingenting om styckets
         sanningsstatus** — den ägs av `security-auditor` och avgörs inte av en triage-etikett.
-        Mekanisk läsare: e-post-tripwirens levande gren i `content-legal-parity.test.ts`.
+        Mekanisk läsare: e-post-tripwirens mörka gren i `content-legal-parity.test.ts`.
       ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DET ÄR INTE EN TEMPUSFRÅGA**
       (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att §2.5-grinden
       passerades, och den publicerade copyn bär **en affirmativ presensförnekelse av en utlämning som

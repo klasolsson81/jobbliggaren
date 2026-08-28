@@ -1,0 +1,67 @@
+[Unit]
+# #1170 — the age bound Docker's json-file driver does not have.
+#
+# WHY IT EXISTS. ADR 0024 D7 policy 1 commits app-log retention to a fixed window. Its CloudWatch
+# mechanism was torn down by ADR 0066. The other two layers holding the same events carry that
+# commitment by their own mechanisms — what each currently holds is a live box state, measured
+# with a date in log-sink.md §4 and deliberately not asserted here. Docker's `json-file` layer is
+# the third, and the one with no age axis at all.
+# Its entire option set is volume-shaped, so effective retention is budget over write rate —
+# INVERSELY proportional to traffic, which is backwards from a storage-limitation guarantee.
+#
+# WHAT IT DOES NOT DO, STATED HERE BECAUSE A UNIT NAME READS LIKE A PROMISE. It prunes ROTATED
+# segments only. The live segment is never touched, so the honest commitment is "no app-log data
+# older than 30 days, except at most one non-rotated live segment per container, capped by
+# max-size". That residual is where the PROJECTED breach lives, and the word is exact: no app
+# container on this box has yet lived 30 days, so nothing has exceeded the window — what was
+# measured on 2026-08-28 is the ABSENCE of a bound (`web` and `caddy` had never rotated at all).
+# It is why #1170 does not close on this unit. The script
+# header carries the measurement and the rejected alternatives.
+Description=Jobbliggaren: prune rotated container log segments past the retention window
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
+# Ordered, NOT Requires=: a docker that is down is a state this script must REPORT, not one that
+# should suppress the unit — the same split jobbliggaren-logship.service documents. It matters
+# here because Persistent=true means the catch-up run fires at boot, which is exactly when docker
+# may not be up yet.
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-logprune.sh
+# NO leading `-`. Unlike the heartbeat, this script has no always-exit-0 contract: it exits
+# non-zero only on states an operator must see (a docker id that is not 64 hex, a failed unlink),
+# and a retention mechanism that fails silently is the defect this unit exists to repair. A
+# failed run must reach `systemctl --failed`, which is the surface the heartbeat's P-checks read.
+#
+# The script reads and unlinks under /var/lib/docker/containers, so it runs as root like its
+# siblings. It never writes there and never touches the live segment.
+TimeoutStartSec=120
+RemainAfterExit=no
+
+# THE DELETION BOUNDARY GETS A SECOND, INDEPENDENT ENFORCER. Everything above it is argument-
+# enforced: a 64-hex id check and a glob that cannot match the live segment, both inside a shell
+# script. These four lines make the same boundary kernel-enforced, so a future edit that widened
+# the glob still could not unlink outside the container log root. No sibling unit carries these
+# — this is the only one whose job IS `rm` as root, which is the whole reason it does.
+#
+# ⚠ ReadWritePaths must list the docker socket as well as the log root: ProtectSystem=strict
+# makes /run read-only too, and the script talks to the daemon through it (`/var/run` is a symlink
+# to `/run` on this host, so the CLI's default path resolves here).
+#
+# MEASURED ON THE BOX 2026-08-28, NOT ASSUMED — because whether a read-only /run still permits a
+# unix-socket connect() is exactly the kind of thing a unit ships broken on. These four properties
+# were run through `systemd-run --property=…` as a transient unit: the daemon answered and
+# /var/lib/docker/containers was readable, with an unsandboxed control taken in the same session.
+# The instrument and its date live in log-sink.md §4.
+ProtectSystem=strict
+# The `-` on the socket is load-bearing, not tidiness: without it a MISSING path fails the unit
+# at namespace setup, before ExecStart — so a box where docker is down AND its socket is gone
+# would never reach the daemon probe, reinstating the very coupling `After=`-without-`Requires=`
+# was chosen to avoid. Measured on the box 2026-08-28 with a sentinel ExecStart: without `-` the
+# sentinel never printed; with `-` it did; and with `-` and the real socket present the daemon
+# still answered, so the prefix costs no access when the path exists.
+ReadWritePaths=/var/lib/docker/containers -/run/docker.sock
+NoNewPrivileges=yes
+ProtectHome=yes
+
+# NO [Install] SECTION — the timer enables this pair, matching every other unit in this repo.

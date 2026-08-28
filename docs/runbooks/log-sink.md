@@ -508,16 +508,34 @@ integration coverage from `ci`, and the install happens once.
 | **The seq container has a healthcheck** | `docker inspect -f '{{.State.Health.Status}}'` | **Not shipped.** The compose file omits it deliberately rather than shipping an unverified probe that would paint a permanent "unhealthy"; whether this image carries a client to call Seq's health endpoint was not measured. This row closes that | |
 | **`logship` runs, and its cost is bounded** | `systemd-analyze` on the unit; artefact size per run | **Half of this row is measured and the other half cannot be yet, and they are not the same claim.** *Runs:* both services were started by hand at the arming and both reached their condition and **skipped** — `Result=success`, `ExecMainStatus=0`, `ConditionResult=no`, journal `unmet condition check ConditionPathExists=…/host-secrets/Backup__RcloneConfigBase64`, `systemctl --failed` empty. *Cost:* **not measured and not measurable here** — a skipped run executes no script, ships no artefact and writes no cursor, so there is no size and no duration to bound. This cell is owed again at the first run with #197's credential present, which is also the run the third precondition in §2 governs | 2026-08-18 (runs only) |
 | **The pair is armed AND on an alarm surface** | `systemctl is-enabled` + `is-active` on both timers; then that both names appear in `FLOOR_TIMERS` | **Two halves on two axes, and BOTH are now box measurements.** *Armed:* both `enabled`/`active` on the box 2026-08-18. *On the surface:* **live on the box since the pull later the same day.** `jobbliggaren-heartbeat.service` runs the script straight out of `/opt/jobbliggaren`, so the floor row reached the box only at that `git pull --ff-only` — which §2 owns and which is itself a deploy, and which is why this row was recorded as *owed* for the hours in between. `grep FLOOR_TIMERS /opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh` returns the five-name constant there. **And the floor is satisfied rather than merely enlarged** — `journalctl -u jobbliggaren-heartbeat` after a hand run on the box reads **`heartbeat: all predicates hold`**, which is the measurement that separates "P3 now names them" from "P3 now fails on them". ⚠ **Do not substitute the unit's exit status or an empty `systemctl --failed` for that line.** The script declares `THIS SCRIPT ALWAYS EXITS 0`, so `Result=success` is guaranteed whatever the verdict — `jobbliggaren-heartbeat.test.sh`'s P3 case asserts exactly that — and a disabled timer never becomes a failed unit, so `systemctl --failed` is blind to P3 by construction. An earlier revision of this row cited both of them. ⚠ **And arming was safe for a reason that EXPIRES.** `jobbliggaren-logship-fresh.service` carries the same `ConditionPathExists` as the shipping unit and therefore skips; `jobbliggaren-backup-fresh.service` carries none — measured 2026-08-18, and that difference is the whole asymmetry with the pair `host-detection.md` §7 declines to arm. The shield lifts the moment #197's credential is injected: `--check` then dies on the absent stamp (`shipping has never succeeded`) and latches until the first successful ship, with `-fresh` firing at `:00` **before** the shipping timer's `*:17`. `master-key-ops.md` §3's `systemctl start jobbliggaren-logship.service` is what bounds that window and is MANDATORY at injection, not tidiness. **Arming without the floor row would have been the weaker half of a pair, not a smaller version of the whole:** the shipping service SKIPS without the upload credential, and a skip is inactive rather than failed, so an armed-but-unnamed timer that later stopped would still have been on no surface. `check_floor_timers` measures `is-enabled` AND `is-active`, which is why the repo edit follows the `enable` and never the install | 2026-08-18 |
+| **The prune resolves the real container layout, and removes nothing it may not** | pipe `jobbliggaren-logprune.sh --dry-run` to the box over stdin (`ssh … 'sudo bash -s -- --dry-run' < …`) so no file is created and nothing is deleted; read the per-container lines | **Measured 2026-08-28 21:25 UTC against the delivered nine-container set, and it is the half the fixtures cannot reach.** Eight of nine names resolved; `jobbliggaren-migrate-rewrap` answered **no such container** — measured absent, because it completes and is removed — and `jobbliggaren-migrate` resolved while **exited**, which is the state a running-only set never exercises. The run reported `pruned=0 kept=2 unreadable=0`. **The two kept segments are `postgres`'s**, which is why it prints no line of its own: a container whose segments are all inside the window produces no per-container output. ⚠ **An earlier revision of this cell reported `kept=0` against a four-container set and concluded the run could not prove the glob.** Against nine it does, and in both directions: `postgres` held **three** files and the glob matched exactly **two**, so it selected the rotated segments and **excluded the live one on a real host** — not only in a fixture. What the run still does not prove is a prune, because nothing on this box is yet old enough; that is the row below | 2026-08-28 | | 2026-08-28 |
+| **The prune REMOVES an aged rotated segment, measured as an effect** | let a segment rotate, then list the directory after it passes the window | **Not measured.** This cell is scheduling, not a claim — it comes due at the first rotation plus the window, and a green unit run is not a substitute for it | |
+| **The LIVE segment survives a real (non-dry) run** | §6 step 6, immediately after §6 step 5 | **Owed at install.** This is the property the whole design is built around: `docker logs` serves the live file and `jobbliggaren-logship.sh` dies when it exits non-zero. `jobbliggaren-logprune.test.sh` asserts the absence in every fixture case that prunes, but a fixture is not this box | |
+| **The prune timer is on P3's floor** | `grep FLOOR_TIMERS /opt/jobbliggaren/deploy/systemd/jobbliggaren-heartbeat.sh` on the box | **Owed, and deliberately AFTER the arming (§6 step 7).** Until it lands, P2 covers the timer — its set comes from a `jobbliggaren-*.timer` wildcard, so an enabled-but-inactive timer is caught — while P3 does not, so a `disable` is invisible. The repo edit follows the `enable` and never the install, or the heartbeat fails on the next pull; same ordering the logship pair followed 2026-08-18 | |
+| **The prune unit's sandbox does not break the thing it sandboxes** | the four properties run as a transient unit: `systemd-run --wait --collect --pipe --property=ProtectSystem=strict --property="ReadWritePaths=/var/lib/docker/containers /run/docker.sock" --property=NoNewPrivileges=yes --property=ProtectHome=yes /bin/sh -c '…'`, with an UNSANDBOXED control in the same session | **Measured 2026-08-28: the daemon answered (server version returned) and `/var/lib/docker/containers` was readable under the sandbox; the control answered identically.** The question worth measuring was whether a read-only `/run` still permits a unix-socket `connect()` — `ProtectSystem=strict` covers `/run`, and the docker CLI reaches the daemon through it (`/var/run` is a symlink to `/run` here). It does, with the socket named in `ReadWritePaths`. A transient unit leaves nothing behind, so this is a reading rather than an install | 2026-08-28 |
 
 ---
 
 ## 5. What this runbook does not own
 
-- **The `json-file` layer's age bound** — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170).
+- **The `json-file` layer's `max-size`** — [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170).
   (B) demotes `json-file` from *the* store to a last-resort buffer, which is what finally makes a
   smaller `max-size` defensible — but the number needs a write rate, and no write rate exists
   until there are users. **Do not use the archive's ~220 bytes/event as a proxy:** that is Seq's
   storage format, not console text.
+
+  ⚠ **This bullet said "the layer's age bound" until 2026-08-28, and the split is the point rather
+  than a rewording.** The write-rate premise binds a VOLUME number and only a volume number: a
+  `max-size` has to be divided by a rate before it means an age, so it cannot be chosen without
+  one. An AGE bound reads no rate at all — it compares a line's timestamp to a cutoff — so the
+  premise never applied to it, and the age bound is **owned by §6 as of 2026-08-28** rather than
+  deferred here. The `max-size` half is unchanged and still waits for real users.
+
+  **The residual that replaces it, named and bounded:** §6 prunes rotated segments only, so **one
+  non-rotated live segment per app container reaches no age bound**, capped only by `max-size`.
+  Binding that needs either a log-driver change (an ADR 0128 Streams-table decision) or truncation
+  of a file the daemon holds open, which is unsupported and would fell logship's app leg. **That
+  residual is what keeps #1170 open**, and it is not the same thing this bullet used to say.
 - **Application-level alarms** (5xx rate, DB CPU) — [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172).
 - **Row 27d's `Deny` policy**, the OVH Art. 28 agreement, and the retention numbers for journald
   and auditd. All Klas's, all open, all named in ADR 0128 §5.
@@ -526,3 +544,94 @@ integration coverage from `ci`, and the install happens once.
 - **Whether `deploy/.env` is an acceptable home for the Seq credential.** ADR 0128 records that
   the bind expands one of the two plaintext-on-disk surfaces #198 was opened against, and that
   `security-auditor` owns the severity.
+
+---
+
+## 6. Install — (C), the json-file age bound (#1170)
+
+**This section is owed because §5's first bullet no longer defers it.** (A) and (B) are age-bounded;
+Docker's `json-file` layer is the third holder of the same events and its driver has **no time axis
+at all** — the whole option set (`max-size`, `max-file`, `labels`, `labels-regex`, `env`,
+`env-regex`, `compress`; docs.docker.com, read 2026-08-28) is volume-shaped, and removal happens by
+file COUNT. Effective retention is therefore budget over write rate, i.e. **inversely proportional
+to traffic**: the quieter a container, the longer it retains.
+
+⛔ **READ THE BOUND BEFORE INSTALLING, BECAUSE THE UNIT NAME PROMISES MORE THAN THE UNIT DELIVERS.**
+`jobbliggaren-logprune` removes **rotated** segments (`*-json.log.N`) whose newest line has aged
+out. It never touches the **live** segment. The commitment it can honestly carry is:
+
+> no app-log data older than 30 days, **except at most one non-rotated live segment per app
+> container**, itself capped by `max-size` (10 MB).
+
+**That residual is not academic — it is where the PROJECTED breach lives.** The word is exact: no container on this box has yet lived 30 days, so nothing has *exceeded* the window — what was measured is the absence of a bound. On 2026-08-28 `web` had
+written five lines, all at container start, and `caddy` twenty-two within ten seconds of start;
+neither had ever rotated, so neither owned a single segment this unit is permitted to touch. **#1170
+stays open on the residual**, not on the mechanism.
+
+**Why the live segment is left alone** (CTO 2026-08-28, on a coupling rather than on taste): Docker
+owns that file's rotation, `jobbliggaren-logship.sh` reads the same stream through
+`docker logs --timestamps --since`, and it **dies** when `docker logs` exits non-zero — withholding
+its stamp and latching `logship-fresh`. A retention mechanism able to fell the off-box archive's
+freshness signal is the cross-coupling ADR 0128 split #1175 to avoid.
+
+⚠ **AND IT DELIBERATELY CARRIES NO `Condition*`, UNLIKE TWO OF ITS SIBLINGS** (CTO 2026-08-28). Theirs gate on a credential the script needs in order to run at all; this one needs none. Gating the prune on the archive having shipped would make the GDPR position **worse, not better**: with no stamp `jobbliggaren-logship.sh` opens its window at `app_since=""` and reads the whole layer, so the first successful ship would copy data already past the window off the box — into `hostlogs/app/`, whose lifecycle rule is measured **not applied** and whose clock runs on object age rather than event age. That trades local over-retention for off-box over-retention on a fresh clock. It would also leave the age bound inert until #197 lands, with no date.
+
+**The window is 30 days and is parity, not a new number** — ADR 0024 D7 policy 1 (tied to the
+Art. 17 restore window, D5/D6) and Seq's `retentionpolicy-36`. A separate number here would give one
+personal datum three retention numbers across three layers.
+
+### Steps
+
+```bash
+# 1. Bring the clone forward. NOT a blind pull — on this box a pull is a DEPLOY that
+#    jobbliggaren-reconcile.timer applies within the hour. Read what it brings first.
+cd /opt/jobbliggaren && sudo git fetch origin && sudo git log --oneline HEAD..origin/main
+sudo git pull --ff-only
+
+# 2. DRY RUN FIRST, ALWAYS. It reports what it would remove and removes nothing.
+#    On a box whose app containers have never rotated this correctly prints pruned=0.
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-logprune.sh --dry-run
+# expect: a "logprune: window=30d cutoff=… dry_run=1" line, then "logprune: pruned=N kept=N
+#         unreadable=N". Any "WOULD PRUNE" line names a file.
+#         ⚠ NOT one line per container: a container whose rotated segments are ALL inside the
+#         window prints nothing of its own and is visible only in the `kept` total, and a
+#         container that does not exist prints "no such container". Measured 2026-08-28: eight
+#         of nine names resolved, `migrate-rewrap` absent, and `postgres` silent behind kept=2.
+
+# 3. Install the unit pair.
+sudo cp /opt/jobbliggaren/deploy/systemd/jobbliggaren-logprune.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 4. Arm it.
+sudo systemctl enable --now jobbliggaren-logprune.timer
+systemctl is-enabled jobbliggaren-logprune.timer && systemctl is-active jobbliggaren-logprune.timer
+# expect: enabled   then   active
+
+# 5. Prove it RUNS, not merely that it is scheduled.
+sudo systemctl start jobbliggaren-logprune.service
+journalctl -u jobbliggaren-logprune -n 20 --no-pager
+# expect: the same shape as step 2 with dry_run=0, and `systemctl --failed` still empty.
+
+# 6. Prove the LIVE segments survived the run — the property the whole design is built around.
+for c in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+  id=$(sudo docker inspect -f '{{.Id}}' "$c" 2>/dev/null) || continue
+  printf '%-24s live=%s\n' "$c" \
+    "$(sudo test -f /var/lib/docker/containers/$id/$id-json.log && echo present || echo MISSING)"
+done
+# expect: present for every container that exists. A MISSING here is a stop-everything result:
+#         docker logs is the
+#         input jobbliggaren-logship.sh dies on.
+```
+
+### Step 7 — and it is deliberately LAST, after the arming
+
+⚠ **Add `jobbliggaren-logprune.timer` to `FLOOR_TIMERS` in
+`deploy/systemd/jobbliggaren-heartbeat.sh` only once steps 4–5 have succeeded on the box.** That is
+the same ordering the logship pair followed: it joined the floor on 2026-08-18, *the day it was
+enabled*, and not on its install. `check_floor_timers` measures `is-enabled` **and** `is-active`, so
+a name landing in the repo before the timer is armed makes the heartbeat fail on the next pull — an
+alarm reporting the arming sequence rather than the box. Until step 7 lands, this timer is on P2's surface —
+`check_enabled_timers_active` derives its set from a `jobbliggaren-*.timer` wildcard, so an enabled
+timer that stops is caught the moment it is armed — but **not on P3's floor**, so a `disable` is
+invisible. That is the same gap the logship pair carried for three days, and it is a known cost of
+the ordering rather than an oversight.

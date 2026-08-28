@@ -589,15 +589,10 @@ jobs:
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
       # #1314. `latest` is what the box pulls, and the box refuses the whole apply when what it
-      # pulled does not carry an attestation from our workflow. On 2026-08-11 the `migrate` leg
-      # pushed BOTH tags and then failed at `Attest`, so `latest` named an unattested image and
-      # the reconcile unit failed hourly for 56 minutes on our own publication. The repair is
-      # the step ORDER — push `sha-<short>`, attest it, then move `latest` — and its whole
-      # correctness lives in one `if:` expression and the position of one step. Nothing in
-      # Actions, buildx or cosign checks that, so a `docker push …:latest` moved back into the
-      # push step restores the defect with every job still green. Two of the suite's cases read
-      # the REAL `release-images.yml`; the rest are workflows the suite writes itself, so it
-      # needs no daemon, registry or network.
+      # pulled carries no attestation from our workflow. The repair is the step ORDER, and its
+      # whole correctness lives in one `if:` expression and the position of one step — nothing
+      # in Actions, buildx or cosign checks either. The incident that measured it, and what the
+      # guard refuses, are in `attestation-publish-order-guard.sh`'s own header.
       - name: attestation-publish-order-guard (fixturer + det riktiga workflowet)
         run: bash .github/scripts/attestation-publish-order-guard.test.sh
 

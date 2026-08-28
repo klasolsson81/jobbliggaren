@@ -42,9 +42,15 @@ out="$TMPROOT/out"
 
 # Emits a workflow shaped like release-images.yml's publish tail. Knobs, all defaulting to the
 # correct shape, so each case names ONLY what it breaks:
-#   PUSH_LATEST=1        the push step publishes :latest itself (the 2026-08-11 regression)
-#   PUBLISH=0            no :latest publisher at all
-#   PUBLISH_TWICE=1      a second, unguarded publisher
+#   PUSH_LATEST=1        the push step publishes the mutable tag itself (the 2026-08-11
+#                        regression). PUSH_LATEST_STYLE picks HOW it is written: plain, a
+#                        trailing shell comment, a backslash continuation, or an untagged
+#                        reference whose tag defaults to latest. The last three were all
+#                        measured passing with exit 0 before review.
+#   PUBLISH=0            no publisher at all
+#   PUBLISH_TWICE=1      a SECOND PUBLISH COMMAND inside the same, correctly gated step —
+#                        not a second step and not ungated. SECOND_STEP=1 is that one.
+#   SECOND_STEP=1        a real second publisher step, after the guarded one, with no if:
 #   PUBLISH_IF=<expr>    the publisher's guard expression; "OMIT" writes no if: at all
 #   ATTEST_ID=0          the attest step carries no id:
 #   ORDER=reversed       the publisher is emitted BEFORE the attest step
@@ -77,12 +83,23 @@ emit() {
     echo "        id: push"
     echo "        run: |"
     echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"'
-    [ "$push_latest" = "1" ] && echo '          docker push "${{ steps.tag.outputs.image }}:latest"'
+    if [ "$push_latest" = "1" ]; then
+      case "${PUSH_LATEST_STYLE:-plain}" in
+      comment) echo '          docker push "${{ steps.tag.outputs.image }}:latest"  # keep latest moving' ;;
+      continuation)
+        echo '          docker push '
+        echo '            "${{ steps.tag.outputs.image }}:latest"'
+        ;;
+      implicit) echo '          docker push "${{ steps.tag.outputs.image }}"' ;;
+      *) echo '          docker push "${{ steps.tag.outputs.image }}:latest"' ;;
+      esac
+    fi
     if [ "$order" = "reversed" ] && [ "$publish" = "1" ]; then emit_publisher "$publish_if" "$publish_twice"; fi
     echo "${ind}- name: Attest api"
     [ "$attest_id" = "1" ] && echo "        id: attest"
     echo "        uses: actions/attest-build-provenance@v4"
     if [ "$order" != "reversed" ] && [ "$publish" = "1" ]; then emit_publisher "$publish_if" "$publish_twice"; fi
+    if [ "${SECOND_STEP:-0}" = "1" ]; then emit_publisher "OMIT" "0"; fi
   } >"$path"
 }
 
@@ -129,6 +146,20 @@ echo "-- the regression this guard exists for"
 (PUSH_LATEST=1 emit "$TMPROOT/regress.yml")
 expect 1 "publishes \`:latest\` itself" "the push step publishing :latest is refused BY NAME" "$TMPROOT/regress.yml"
 
+# THREE SPELLINGS THAT ALL PASSED WITH EXIT 0 BEFORE REVIEW, each measured. The detector
+# excluded any line containing a `#` ANYWHERE, matched single lines only, and tested for the
+# literal `:latest` — so a trailing comment, a line break, or an untagged reference each hid
+# the regression completely. The rule is inverted now: every `docker push` that is not the
+# immutable `:sha-<short>` tag is a mutable publish.
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment emit "$TMPROOT/regress-comment.yml")
+expect 1 "publishes \`:latest\` itself" "a trailing shell comment does not hide the regression" "$TMPROOT/regress-comment.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=continuation emit "$TMPROOT/regress-cont.yml")
+expect 1 "publishes \`:latest\` itself" "nor does a backslash continuation — this file's own house style" "$TMPROOT/regress-cont.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=implicit emit "$TMPROOT/regress-implicit.yml")
+expect 1 "publishes \`:latest\` itself" "nor an untagged reference, whose tag DEFAULTS to latest" "$TMPROOT/regress-implicit.yml"
+
 echo "-- the guard expression"
 (PUBLISH_IF="success()" emit "$TMPROOT/bare.yml")
 expect 1 "not gated on the attestation" "a bare success() is refused — it is TRUE when push was SKIPPED" "$TMPROOT/bare.yml"
@@ -146,7 +177,13 @@ echo "-- how many publishers"
 expect 1 "no step publishes" "a pipeline that never moves latest can never ship, and is refused" "$TMPROOT/none.yml"
 
 (PUBLISH_TWICE=1 emit "$TMPROOT/two.yml")
-expect 1 "steps publish a \`:latest\` tag" "a second publisher is refused" "$TMPROOT/two.yml"
+expect 1 "mutable publishes found" "a second publish command inside the guarded step is refused" "$TMPROOT/two.yml"
+
+# The shape check 1's own rationale names — "two publishers means one of them is unguarded" —
+# and which had no fixture at all until review: a real second step, after the guarded one,
+# carrying no if: whatsoever.
+(SECOND_STEP=1 emit "$TMPROOT/twostep.yml")
+expect 1 "mutable publishes found" "a second, UNGATED publisher step is refused" "$TMPROOT/twostep.yml"
 
 echo "-- order, not merely presence"
 # steps.attest.outcome read before that step has run is the empty string, so a publisher above
@@ -159,7 +196,7 @@ echo "-- what it declines to judge, rather than passing"
 expect 2 "id: attest" "an attest step with no id: is UNANSWERABLE, never a pass" "$TMPROOT/noid.yml"
 
 (INDENT=4 emit "$TMPROOT/indent.yml")
-expect 2 "could not answer" "a shape the reader cannot parse is UNANSWERABLE, never a pass" "$TMPROOT/indent.yml"
+expect 2 "read no steps at all" "a shape the reader cannot parse is UNANSWERABLE, never a pass" "$TMPROOT/indent.yml"
 
 expect 2 "no such workflow" "a missing workflow is UNANSWERABLE, never a pass" "$TMPROOT/does-not-exist.yml"
 

@@ -297,10 +297,9 @@ jobs:
       # and refuses the whole apply if it does not verify — so a `latest` that can point at an
       # unattested image is a self-inflicted outage, not a caught intrusion.
       #
-      # THE GUARD NAMES THE ATTEST STEP RATHER THAN RELYING ON THE JOB'S STATUS. A bare `if:`
-      # would inherit the implicit `success()`, which holds when `Attest` FAILED the job — but
-      # a skipped `Push` (a dry-run dispatch, or a skipped publish) leaves the job successful
-      # too, and would then publish `latest` from a build that was deliberately not pushed.
+      # THE GUARD NAMES THE ATTEST STEP RATHER THAN RELYING ON THE JOB'S STATUS. A skipped
+      # `Push` (a dry-run dispatch) leaves the job successful, so a bare `if:` — which inherits
+      # the implicit `success()` — would publish `latest` from a build deliberately not pushed.
       # `steps.attest.outcome == 'success'` is true in exactly one case: the attestation ran and
       # succeeded. Failure and skip both leave `latest` where it was.
       #

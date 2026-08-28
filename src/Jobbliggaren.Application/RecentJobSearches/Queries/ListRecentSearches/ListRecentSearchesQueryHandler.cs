@@ -71,14 +71,11 @@ public sealed class ListRecentSearchesQueryHandler(
                 r.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
                 r.Region, cancellationToken);
-            // #1418 — Klass 2-labels. Reverse-lookupen är kind-agnostisk, så de här resolvar mot
-            // samma cachade snapshot som de tre ovan utan port-ändring. Ovillkorligt, inte bakom
-            // en grind som upprepar DeriveLabels precedens: ett andra hem för samma predikat
-            // driftar isär.
-            var employmentTypeLabels = await taxonomy.ResolveLabelsAsync(
-                r.EmploymentType, cancellationToken);
-            var worktimeExtentLabels = await taxonomy.ResolveLabelsAsync(
-                r.WorktimeExtent, cancellationToken);
+            // #1418 resolvade klass 2 mot samma snapshot som de tre ovan. Sedan #1537 bär
+            // deskriptorn koden i stället för namnet, så etiketten hade ingen läsare kvar —
+            // resolven producerade en sträng bara för att id:t skulle läsas tillbaka ur den
+            // (ResolveLabelsAsync är 1:1 och ordningsbevarande). Två uppslag per rad mot en
+            // cap-20-lista, och en onödig väg genom TaxonomyLabels.Unknown.
 
             // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
@@ -130,7 +127,7 @@ public sealed class ListRecentSearchesQueryHandler(
             var label = DeriveLabel(
                 r.Q, r.OccupationGroup, occupationGroupLabels,
                 municipalityLabels, regionLabels, r.Remote,
-                employmentTypeLabels, worktimeExtentLabels,
+                r.EmploymentType, r.WorktimeExtent,
                 occupationFields);
 
             dtos.Add(new RecentJobSearchDto(
@@ -176,8 +173,8 @@ public sealed class ListRecentSearchesQueryHandler(
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
         bool remote,
-        IReadOnlyList<TaxonomyLabelDto> employmentTypeLabels,
-        IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels,
+        IReadOnlyList<string> employmentTypeIds,
+        IReadOnlyList<string> worktimeExtentIds,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(q))
@@ -197,8 +194,8 @@ public sealed class ListRecentSearchesQueryHandler(
         }
         if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || remote)
             return DeriveOrtLabel(municipalityLabels, regionLabels, remote);
-        if (employmentTypeLabels.Count > 0 || worktimeExtentLabels.Count > 0)
-            return DeriveRefinementLabel(employmentTypeLabels, worktimeExtentLabels);
+        if (employmentTypeIds.Count > 0 || worktimeExtentIds.Count > 0)
+            return DeriveRefinementLabel(employmentTypeIds, worktimeExtentIds);
         return new RecentSearchLabelDto(RecentSearchLabelKind.All, RecentSearchLabelJoin.None, []);
     }
 
@@ -221,17 +218,17 @@ public sealed class ListRecentSearchesQueryHandler(
     // kör, spegelbilden av det ort-fall DeriveOrtLabel finns för. Anropas bara när minst en
     // del är satt — samma call-site-invariant som WithMoreCount.
     private static RecentSearchLabelDto DeriveRefinementLabel(
-        IReadOnlyList<TaxonomyLabelDto> employmentTypeLabels,
-        IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels)
+        IReadOnlyList<string> employmentTypeIds,
+        IReadOnlyList<string> worktimeExtentIds)
     {
         // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning.
         // Per axel före fogningen — en hopslagen lista bryter "+N":s enhet, samma skäl som i
         // DeriveOrtLabel.
         var parts = new List<RecentSearchLabelPartDto>(2);
-        if (employmentTypeLabels.Count > 0)
-            parts.Add(CodedWithMoreCount(employmentTypeLabels));
-        if (worktimeExtentLabels.Count > 0)
-            parts.Add(CodedWithMoreCount(worktimeExtentLabels));
+        if (employmentTypeIds.Count > 0)
+            parts.Add(CodedWithMoreCount(employmentTypeIds));
+        if (worktimeExtentIds.Count > 0)
+            parts.Add(CodedWithMoreCount(worktimeExtentIds));
 
         return new RecentSearchLabelDto(
             RecentSearchLabelKind.Dimensions,
@@ -276,8 +273,8 @@ public sealed class ListRecentSearchesQueryHandler(
         new(RecentSearchLabelPartKind.Named, labels[0].Label, ConceptId: null, labels.Count - 1);
 
     // Samma form, men koden i stället för namnet: klass 2-termerna är allmänsubstantiv och
-    // deras ord ägs av katalogen (#1537). Id:t läses ur SAMMA TaxonomyLabelDto som WithMoreCount
-    // läser sitt namn ur, så ingen parning behöver härledas på klientsidan.
-    private static RecentSearchLabelPartDto CodedWithMoreCount(IReadOnlyList<TaxonomyLabelDto> labels) =>
-        new(RecentSearchLabelPartKind.Coded, Text: null, labels[0].ConceptId, labels.Count - 1);
+    // deras ord ägs av katalogen (#1537). Tar id:na direkt ur kriteriet — de ÄR det som ska
+    // på wire:n, så ingen etikett behöver hämtas och kastas.
+    private static RecentSearchLabelPartDto CodedWithMoreCount(IReadOnlyList<string> conceptIds) =>
+        new(RecentSearchLabelPartKind.Coded, Text: null, conceptIds[0], conceptIds.Count - 1);
 }

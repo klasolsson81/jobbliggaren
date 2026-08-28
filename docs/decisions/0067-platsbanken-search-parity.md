@@ -388,4 +388,42 @@ Punkt 4).
 
 ---
 
+# Amendment 2026-08-28 — E2g-notatets label-regel behålls, men produceras som struktur i stället för svensk prosa (#1430)
+
+**Status:** Accepted. **Beslutsunderlag:** `senior-cto-advisor` (decision-maker, 2026-08-28) på
+Klas-satt skop och Klas-satt engelsk copy. Additivt notat — E2g-notatets brödtext
+(`Implementerings-notat 2026-06-11`) är **orörd** per ADR-immutabiliteten.
+
+**Vad som INTE ändras.** Regeln står ordagrant: (i) mängd-likhet mot yrkesområdesträdet →
+områdets namn, (ii) ett val → namnet, (iii) annars `{första} +{N−1}`. Blandfall, taxonomi-drift
+och determinismen i `{första}` likaså. Trädet hämtas fortfarande **en gång per Handle**, gated på
+`>1`-grupps-rader — `wholeField`-kollapsen stannar alltså i Application, och `/sokningar` behöver
+ingen taxonomi-hämtning. `"till"` är fortsatt `design-reviewer`-dömt över "andra"/"fler"; ordet
+flyttar oförändrat till `messages/sv/jobads.json`.
+
+**Vad som ändras.** `DeriveLabel` returnerar inte längre en färdig mening utan de delar meningen
+består av: vilken gren som namngav raden, hur delarna hänger ihop, och per del ett resolvat namn
+plus hur många fler val det står för. Fogningen bärs som **semantik, inte som tecken** —
+`Disjunction` för geo-unionen (kommun ∨ län ∨ distans) och `Conjunction` för de ortogonala
+förfiningsaxlarna. Att ordet skiljer sig mellan grenarna är en sanning om sökpredikatet, inte ett
+stilval, och stannar därför i lagret som äger `JobAdFilterCriteria`. Orden ligger i
+`messages/{sv,en}/jobads.json` och fogas av `buildRecentSearchLabel`.
+
+**Grunden.** Beslut 8:s `label-berikad via ITaxonomyReadModel` ratificerar *att* servern härleder,
+aldrig *vilket språk* den härleder på. E2g-notatets egen slutmening klassar utfallet som
+`Label förblir read-model-presentation` — kategorin som får flytta. Klas-beslut 2026-08-22: allt UI
+ska finnas på både svenska och engelska. Före ändringen nådde fyra svenska UI-ord varje engelsk
+användare på `/jobb`, `/sokningar` och `/oversikt`, värst inne i en **översatt** ram:
+`"Remove the search: Göteborg eller distans"`.
+
+⚠ **Rättelse av en felattribuering, skriven ner för att den upprepats tre gånger.** Tre
+session-close-outs har påstått att en sådan här ändring kräver *"ADR 0060/0067 E2g-supersession"*.
+**E2g-principen handlar inte om labels.** Den är hero-öns state-synk-regel (`URL = ENDA sanningen,
+ingen useState-kopia`, raderna 216 och 228 i det här dokumentet). Labels råkade skeppas i samma
+fas — commit-loggens rad lyder *"Fas E2g — hero-ö-state-synk (useOptimistic) + recent-search-labels"* —
+och de två har konflaterats sedan dess. Ingen supersession krävdes, av vare sig ADR 0060 eller
+ADR 0067.
+
+---
+
 *ADR-index underhålls av docs-keeper. ADR 0067 fastställer Platsbanken-sök-paritets-initiativets design: yrke-filter-nivåskifte till ssyk-level-4 (occupation-name-substrat bevarat), nya STORED-dimensioner (kommun/yrkesgrupp/anställningsform/omfattning) i Klass 1/Klass 2-sekvens, distans-defer, facet-counts via port-metod, typeahead-chip-sök med residual-FTS, VO-expansion, och fas-uppdelning A–E. Kompletteras av ADR 0043-amendment 2026-06-08 (kommun-dimension + yrkesgrupp-nivå).*

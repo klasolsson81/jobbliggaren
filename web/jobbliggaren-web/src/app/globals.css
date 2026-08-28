@@ -5109,7 +5109,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 0;
   margin: 0;
   /* Sektionens avslutande räls. Lättare än huvudets 2px-regel: tung = sektionen
-     börjar, lätt = den slutar. Precedens: .jp-table:s topp/botten-linjer. */
+     börjar, lätt = den slutar. */
   border-bottom: 1px solid var(--jp-border);
 }
 .jp-notice {
@@ -5232,9 +5232,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
    i full kontrast (design-reviewer Blocker #726 — gäller även mockens 04-dimning;
    WCAG AA kan inte ADR:as bort). Endast presentationella delar dämpas: text/
    label/tid → ink-3 (≥4.5:1 mot canvas). X byts mot RotateCcw i NoticeRow.
-   Selektorerna nedan vinner över kind-
-   färgerna (.jp-notice--warning .jp-notice__label m.fl., samma specificitet)
-   på källordning — detta block ligger efter dem. */
+   Selektorerna nedan vinner över kind-färgerna (.jp-notice--warning
+   .jp-notice__label m.fl., samma specificitet) på källordning — detta block
+   ligger efter dem. */
 .jp-notice--read .jp-notice__label,
 .jp-notice--read .jp-notice__text,
 .jp-notice--read .jp-notice__time {

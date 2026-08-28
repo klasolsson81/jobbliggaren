@@ -152,7 +152,7 @@ describe("NoticeToolbar", () => {
     const button = screen.getByRole("button", { name: "Uppdatera" });
     expect(button).toHaveAttribute("aria-label", "Uppdatera");
     expect(button).toHaveAttribute("title", "Uppdatera");
-    expect(button).toHaveTextContent("");
+    expect(button.textContent).toBe("");
   });
 
   it("klick begär en ny render av sidan", async () => {
@@ -192,7 +192,7 @@ describe("NoticeToolbar", () => {
     // Villkorad rendering av spannet skulle alltså tysta kvittot för en skärmläsare.
     renderToolbar("08:05");
     const region = screen.getByRole("status");
-    expect(region).toHaveTextContent("");
+    expect(region.textContent).toBe("");
   });
 
   it("kvittot hamnar i live-regionen efter en uppdatering (#1549, #1556)", async () => {

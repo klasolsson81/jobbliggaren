@@ -38,7 +38,7 @@ export default function Loading() {
         {/* Notice toolbar: the time-only stamp, the icon-only refresh control and its
             receipt region on the left (#1556), mark-all on the right. */}
         <div className="mb-3 flex items-center justify-between gap-4">
-          <span className="jp-skeleton block h-4 w-44" />
+          <span className="jp-skeleton block h-4 w-48" />
           <span className="jp-skeleton block h-4 w-36" />
         </div>
 

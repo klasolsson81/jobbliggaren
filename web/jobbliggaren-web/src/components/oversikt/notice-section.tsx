@@ -242,15 +242,13 @@ export function NoticeSection({
 
       {summary}
 
-      {/* När sammanfattningen bär sektionens tillstånd och det inte finns någon
-          rad alls skulle listan rendera som en 2 px hög tom ramremsa. */}
       {(unread.length > 0 || read.length > 0 || !summaryOwns) && (
         <ul className="jp-notice-list">
           {unread.length > 0 ? (
             unread.map((n) => (
               <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
             ))
-          ) : summaryOwns ? null : (
+          ) : summaryOwns || read.length > 0 ? null : (
             <li className="jp-notice-empty">{emptyBody}</li>
           )}
           {showRead &&

@@ -76,6 +76,19 @@ describe("NoticeSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("tomt-raden uteblir när sektionen har lästa notiser", async () => {
+    // Annars står "inget har hänt" som jämbördig rad ovanför läst-foten, som säger
+    // att något hänt. Före plattningen skildes de av ett kortinre och en tonad fot
+    // (design-reviewer Major, #1556); ingen av dem finns kvar.
+    const user = userEvent.setup();
+    renderSection([n("a", "matches")]);
+    await user.click(screen.getByRole("button", { name: "Markera som läst" }));
+    expect(screen.getByText("1 läst notis")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Nya matchningar och deadlines dyker upp här."),
+    ).toBeNull();
+  });
+
   it("dismiss flyttar notisen till läst-läge; foten dyker upp och räknaren nollas", async () => {
     const user = userEvent.setup();
     renderSection([n("a", "matches")]);

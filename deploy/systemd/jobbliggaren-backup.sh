@@ -266,17 +266,12 @@ log "main artefact -> ${main_object}"
 # --exclude-table-data, NOT --exclude-table: the table's DEFINITION must be restored (empty) so
 # the DEK artefact has somewhere to land and so the schema is complete.
 set +e
-# `hangfire` lives in the SAME database (docker-compose.yml points
-# ConnectionStrings__HangfireStorage at it with SchemaName=hangfire) and is not EF-mapped, so it
-# sits outside MappedPlaintextExposureRegistry entirely while carrying "job arguments -- user-IDs,
-# aggregat-IDs, business-data" and "stack-traces -- potentially PII in exception messages"
-# (hangfire-schema.md:195-197). #1285; security-auditor Major 1 on PR #1530.
+# `hangfire` is in the SAME database, is not EF-mapped, and so sits outside
+# MappedPlaintextExposureRegistry entirely (#1285; security-auditor Major 1 on PR #1530).
 #
-# --exclude-schema AND NOT --schema=public --schema=identity. Measured 2026-08-28: `--schema` drops
-# objects the selected schemas depend on, so the dump lost `CREATE EXTENSION pg_trgm` while still
-# emitting the two GIN indexes that need it -- restore exit 1, three ignored errors. The set of
-# schemas this must exclude is asserted in Jobbliggaren.Architecture.Tests, against the schemas
-# Jobbliggaren.Migrate provisions: a fourth schema breaks that build rather than this backup.
+# NEVER --schema, which is the one thing the line below cannot show: the allow-list form drops
+# objects the selected schemas depend on. BackupDumpScopeParityTests holds both the reason and the
+# set this must exclude.
 #
 # The DEK dump below needs no schema flag at all: its --table already restricts it to one table.
 docker exec "$PG_CONTAINER" \

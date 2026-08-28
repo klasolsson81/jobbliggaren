@@ -588,6 +588,17 @@ jobs:
       - name: nocache-stage-guard (fixturer + den riktiga matrisen)
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
+      # #1519. `rescan-images.yml` skannar de PUBLICERADE imagesarna, och det den skannar löses
+      # upp av det här skriptet ur `release-images.yml`s EGEN matris — ingen sjätte kopia av
+      # bildnamnen. Fixturerna stubbar `docker`, så sviten behöver varken daemon, registry eller
+      # nätverk, och en av dem läser den RIKTIGA `release-images.yml`: skrivs den matrisen om så
+      # att ankaret slutar matcha, faller det här vid PR-tid i stället för att tyst korta
+      # skanningsmatrisen 05:05 UTC. Skälet till att upplösningen alls är ett skript: om en
+      # referens faller igenom tom skannar `trivy image ghcr.io/...@` ingenting och kan avsluta
+      # 0 — en grön no-op som läses som täckning, samma klass som vakten ovanför stänger.
+      - name: resolve-published-digests (fixturer + den riktiga matrisen)
+        run: bash .github/scripts/resolve-published-digests.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

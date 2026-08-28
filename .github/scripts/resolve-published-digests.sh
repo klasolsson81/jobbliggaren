@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 #
 # resolve-published-digests.sh — resolve every published image's `latest` tag to an immutable
-# digest reference, so something can scan THE ARTEFACT THE BOX RUNS rather than a rebuild of it.
+# digest reference, so something can scan THE PUBLISHED ARTEFACT rather than a rebuild of it.
+#
+# NOT necessarily the artefact the box is running, and an earlier version of this line claimed it
+# was. `deploy/docker-compose.yml` reads `${IMAGE_TAG:-latest}` and the deploy runbook prescribes
+# `IMAGE_TAG=sha-<short>` as the rollback procedure, so under a pinned rollback the box runs an
+# OLDER image than the one resolved here — and a green scan of `latest` would then be
+# indistinguishable from having measured the running one.
 #
 # WHY THIS EXISTS (#1519). `release-images.yml` skips Build, Trivy AND Push whenever the current
 # `main` SHA is already published under both tags with a readable attestation. That skip is
@@ -27,6 +33,10 @@
 # the rescan workflow would be a sixth thing to keep in step, so the workflow declares nothing:
 # it asks this script, and this script reads `release-images.yml`'s own matrix. Adding an image
 # there is picked up here with no second edit.
+#
+# There is no sixth copy IN PRODUCTION CONFIGURATION. The fixture suite does name the five, and
+# that is not an oversight either: an oracle independent of the thing it measures is the only kind
+# that measures anything.
 #
 # THREE OUTCOMES, NEVER COLLAPSED — the house rule (cf. nocache-stage-guard.sh,
 # verify-image-attestation.sh, jobbliggaren-reconcile.sh):
@@ -59,9 +69,12 @@ readonly EXIT_OK=0
 readonly EXIT_VIOLATION=1
 readonly EXIT_REFUSE=2
 
-# The floor is a FLOOR and not an equality, so adding a sixth image does not fail for the wrong
-# reason — but a matrix that has lost legs is a real defect in repo state rather than something
-# this script could not read, which is why it is a violation and not a refusal.
+# The floor is a FLOOR and not an equality — a matrix that has lost legs is a real defect in repo
+# state rather than something this script could not read, which is why it is a violation and not
+# a refusal. A SIXTH IMAGE STILL FAILS, though, and not here: the fixture suite pins the five
+# names it expects to read from the real workflow, so adding one turns that case red at PR time.
+# Two artefacts, two contracts, deliberately — this one is a floor, that one makes a new image a
+# conscious acknowledgement rather than something a scan matrix picks up unannounced.
 readonly MIN_LEGS=5
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -93,9 +106,19 @@ declared=$(awk '
   END { print n + 0 }
 ' "$WORKFLOW")
 
+# THE WHOLE TOKEN, NEVER A PREFIX OF IT. An earlier version matched `name: [A-Za-z0-9_-]+`, which
+# is a legal-name class that stops at a dot — so `name: api.v2` was read as `api`, the row still
+# counted as matched, the duplicate check stayed quiet, and the resolver scanned a DIFFERENT image
+# from the one `release-images.yml` publishes, green (measured 2026-08-28). A truncating matcher is
+# the one respelling the count check cannot see, because the count is right. The field is cut at
+# its delimiter instead, and whatever comes out is then required to be a whole legal name.
 names=$(awk '
   /^          - \{ name: / {
-    if (match($0, /name: [A-Za-z0-9_-]+/)) { print substr($0, RSTART + 6, RLENGTH - 6) }
+    line = $0
+    sub(/^ *- \{ name: /, "", line)
+    sub(/[,}].*$/, "", line)
+    gsub(/[[:space:]]/, "", line)
+    print line
   }
 ' "$WORKFLOW")
 
@@ -106,6 +129,13 @@ matched=0
   || refuse "no matrix sequence entries found in $WORKFLOW — the shape changed, and a zero-row sweep passes vacuously"
 [ "$matched" = "$declared" ] \
   || refuse "matrix declares $declared entries but the reader matched $matched — a row is spelled in a way this anchor does not read, and a partially-read matrix reports coverage it does not have"
+
+# Every name must be a whole, legal OCI path component. This is what makes the reader above
+# fail LOUDLY rather than truncate: anything the cut produced that is not a name refuses here,
+# so an unreadable spelling can never become a shorter-but-plausible image reference.
+bad_names=$(printf '%s\n' "$names" | grep -vE '^[a-z0-9]+([._-][a-z0-9]+)*$' || true)
+[ -z "$bad_names" ] \
+  || refuse "matrix image name(s) this reader cannot vouch for: $(printf '%s' "$bad_names" | tr '\n' ' ')— expected lowercase OCI path components"
 
 # Duplicate names would emit two rows for one image and make the scan matrix disagree with
 # itself; the count above cannot see it because both rows parse.
@@ -125,6 +155,12 @@ command -v docker >/dev/null 2>&1 \
 # Rows are accumulated and printed only on FULL success. A partial list on stdout would be a
 # shorter scan matrix that still looks like a complete one, which is the same vacuous-coverage
 # failure the count check above exists for.
+#
+# THIS IS THE OPPOSITE POLICY TO `fail-fast: false` ONE LEVEL DOWN, and the asymmetry is the
+# point rather than an oversight. Down there a red leg is an ANSWER, and four other answers must
+# not be hidden by it. Up here an unresolved leg is the ABSENCE of an answer, and there is no way
+# to report "these four are clean, and about the fifth I know nothing" as a scan result — so it
+# refuses whole, and the run goes red with the reason on stderr.
 rows=""
 
 while IFS= read -r name; do
@@ -150,7 +186,7 @@ while IFS= read -r name; do
   created=$(printf '%s' "$out" | awk '{print $2}' | tr -d '"')
 
   # ONE check, not two. An earlier version carried a `case "$digest" in sha256:*)` guard ahead of
-  # this line; mutation 2026-08-28 deleted that guard and the suite stayed 24/0, because the
+  # this line; mutation 2026-08-28 deleted that guard and the suite stayed green, because the
   # anchored pattern below strictly dominates it. An assertion that cannot fall is the defect
   # class this file exists to close, so it went rather than being explained.
   printf '%s' "$digest" | grep -qE '^sha256:[0-9a-f]{64}$' \
@@ -160,8 +196,17 @@ while IFS= read -r name; do
   # CVE-X", which is the sentence that makes the notification actionable. IT IS NEVER A
   # PREDICATE: an image is not stale because it is old, it is stale because an advisory with a
   # published fix now matches it, and that is what the scanner measures directly.
-  [ -n "$created" ] && [ "$created" != "null" ] \
-    || refuse "$img@$digest carries no image-config creation timestamp — the config could not be read, and a row with an empty field would shift every later field left"
+  #
+  # AND ITS SHAPE IS CHECKED LIKE EVERY OTHER FIELD'S. This was the one value in the row that was
+  # only tested for emptiness, and it is the only one whose content comes from outside the repo.
+  # The consumer interpolates the row into a workflow, so an unconstrained value here is a
+  # GitHub Actions script-injection source and a `$(...)` in it executes; a TAB in it would also
+  # split the row into a fourth field that nothing downstream expects. An anchored timestamp
+  # admits neither. Reported independently by `security-auditor` (Minor), `dotnet-architect`
+  # (Viktigt) and `code-reviewer` (Major), 2026-08-28; the consumer's `env:` mapping is the
+  # second half of the same repair.
+  printf '%s' "$created" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' \
+    || refuse "$img@$digest carries no readable image-config creation timestamp: [$created] — the config could not be read, or it is not a shape this row may carry"
 
   rows="${rows}${name}	${img}@${digest}	${created}
 "

@@ -25,9 +25,9 @@
 # script over an inline `run:` block is that such a thing is a red run instead of a green one,
 # and that value is exactly as real as these fixtures are.
 #
-# WHAT THIS SUITE DOES NOT PIN, MEASURED BY MUTATION 2026-08-28. Eight mutations were applied to
+# WHAT THIS SUITE DOES NOT PIN, MEASURED BY MUTATION 2026-08-28. Eleven mutations were applied to
 # the SUT, each verified to have LANDED (anchor present exactly once before, gone after, file
-# bytes actually changed, mutant still parses) before its result was read. Seven were killed.
+# bytes actually changed, mutant still parses) before its result was read. Ten were killed.
 # The survivor is the closing `[ "$emitted" = "$declared" ]` check, and its survival is correct
 # rather than a gap: it can only fire when the matrix reader's own count check upstream has
 # already been defeated, so no fixture can reach it while the file is intact. It is not
@@ -96,6 +96,12 @@ case "$mode" in
   null_created)
     printf '"%s" null' "$D1"
     ;;
+  one_field)
+    # NO second field at all. Before the timestamp was shape-checked this was caught only by a
+    # `[ -n "$created" ]` conjunct that no stub ever exercised -- deleting it left the suite green
+    # (measured 2026-08-28), so the arm exists to make that half reachable.
+    printf '"%s"' "$D1"
+    ;;
 esac
 exit 0
 STUB
@@ -115,13 +121,21 @@ write_workflow() {
 }
 
 # Runs the SUT with ONLY the stub directory plus the real coreutils on PATH.
+#
+# `env -u GITHUB_REPOSITORY` IS LOAD-BEARING, NOT TIDINESS. The SUT reads
+# `${RESOLVE_DIGESTS_REPO:-${GITHUB_REPOSITORY:-}}`, and `:-` treats SET-BUT-EMPTY as unset — so
+# the empty-slug case below fell straight through to `GITHUB_REPOSITORY`, which every Actions
+# runner sets. Locally that variable is absent and the case passed; in CI it resolved five real
+# digests and exited 0 where 2 was wanted (measured 2026-08-28: `passed: 26   failed: 1`). Same
+# defect class as the docker-free case further down — a fixture ASSUMING an environment property
+# instead of constructing it.
 run_sut() {
   local wf="$1"
   set +e
   PATH="$BIN:/usr/bin:/bin" \
   RESOLVE_DIGESTS_WORKFLOW="$wf" \
   RESOLVE_DIGESTS_REPO="${SLUG_OVERRIDE-klasolsson81/jobbliggaren}" \
-    bash "$SUT" >"$TMPROOT/out" 2>"$TMPROOT/err"
+    env -u GITHUB_REPOSITORY bash "$SUT" >"$TMPROOT/out" 2>"$TMPROOT/err"
   local rc=$?
   set -e
   return $rc
@@ -223,7 +237,7 @@ assert_stdout_empty "a failed lookup emits no rows at all"
 # reaching the live registry rather than testing anything. This suite's header promises no
 # network; that promise was false for exactly one case.
 #
-# So the absence is CONSTRUCTED instead of assumed: a PATH containing symlinks to the externals
+# So the absence is CONSTRUCTED instead of assumed: a PATH containing wrappers for the externals
 # the SUT actually uses, and nothing else. That doubles as the only written record of what those
 # externals are.
 #
@@ -253,9 +267,14 @@ fi
 # docker-free PATH above and exit 127 — a missing shell, not a missing docker. That is a non-zero
 # exit that would have let this case pass while proving nothing about the SUT (measured: it did,
 # on the first attempt at this repair).
+# `unset` in a subshell rather than `env -u`: `env` is an external too, and it is deliberately not
+# in the farm — reaching for it here would fail with 127 exactly like `env bash` did.
 nodocker_rc=0
-PATH="$NODOCKER" RESOLVE_DIGESTS_WORKFLOW="$WF5" RESOLVE_DIGESTS_REPO="klasolsson81/jobbliggaren" \
-  "$bash_bin" "$SUT" >"$TMPROOT/out" 2>"$TMPROOT/err" || nodocker_rc=$?
+(
+  unset GITHUB_REPOSITORY
+  PATH="$NODOCKER" RESOLVE_DIGESTS_WORKFLOW="$WF5" RESOLVE_DIGESTS_REPO="klasolsson81/jobbliggaren" \
+    "$bash_bin" "$SUT"
+) >"$TMPROOT/out" 2>"$TMPROOT/err" || nodocker_rc=$?
 if [ "$nodocker_rc" -eq 2 ]; then
   pass=$((pass + 1)); echo "  ok   docker missing is unanswerable, never 'nothing to scan' (exit 2)"
 else
@@ -290,7 +309,10 @@ stub_docker uppercase_digest
 expect_exit 2 "an upper-case digest is refused rather than normalised" "$WF5"
 
 stub_docker null_created
-expect_exit 2 "a null creation timestamp is refused (an empty field shifts every later one)" "$WF5"
+expect_exit 2 "a null creation timestamp is refused" "$WF5"
+
+stub_docker one_field
+expect_exit 2 "a one-field answer is refused (the timestamp is absent, not empty)" "$WF5"
 
 echo "-- 4. the matrix reader"
 stub_docker ok
@@ -312,12 +334,36 @@ readonly WFDUP="$TMPROOT/wf/dup.yml"
 write_workflow "$WFDUP" api api migrate web caddy
 expect_exit 2 "a duplicated leg name is refused" "$WFDUP"
 
+# THE TRUNCATION CASE, and it is the one respelling the count check cannot see. The first version
+# of the reader matched `name: [A-Za-z0-9_-]+`, so `api.v2` was read as `api`: the row still
+# counted as matched, the duplicate check stayed quiet, and the resolver scanned a DIFFERENT image
+# from the one the workflow publishes, exit 0 and silent. Found by `security-auditor` with a probe,
+# 2026-08-28. A dot is legal in an OCI path component, so the right answer is to read it WHOLE.
+readonly WFDOT="$TMPROOT/wf/dot.yml"
+write_workflow "$WFDOT" api.v2 worker migrate web caddy
+expect_exit 0 "a legal dotted name is read whole, never truncated to a prefix" "$WFDOT"
+dotted=$(awk -F'\t' 'NR == 1 { print $1 }' "$TMPROOT/out")
+if [ "$dotted" = "api.v2" ]; then
+  pass=$((pass + 1)); echo "  ok   and it resolves as api.v2, not as api"
+else
+  fail=$((fail + 1)); echo "  FAIL the dotted name resolved as [$dotted] — a prefix of the declared image" >&2
+fi
+
+# And a name that is not a legal component must REFUSE rather than be silently cut down to one.
+readonly WFBAD="$TMPROOT/wf/bad.yml"
+write_workflow "$WFBAD" 'api$(id)' worker migrate web caddy
+expect_exit 2 "a name that is not a legal OCI component is refused, not trimmed into one" "$WFBAD"
+
 readonly WFEMPTY="$TMPROOT/wf/empty.yml"
 mkdir -p "$(dirname "$WFEMPTY")"
 printf 'jobs:\n  release:\n    steps:\n      - run: echo no matrix here\n' >"$WFEMPTY"
 expect_exit 2 "a matrix that cannot be found at all is refused, never a zero-row pass" "$WFEMPTY"
 
 expect_exit 2 "a missing workflow file is refused" "$TMPROOT/wf/does-not-exist.yml"
+# THE DIAGNOSTIC, because the exit code alone does not reach the guard. Deleting
+# `[ -f "$WORKFLOW" ] || refuse` left the suite green: awk fails to open the file and dies with
+# its own fatal exit 2, which is the same number for a different reason (measured 2026-08-28).
+assert_stderr_names "workflow not found" "and it is the guard that says so, not awk dying on its own"
 
 echo "-- 5. the namespace"
 SLUG_OVERRIDE="" expect_exit 2 "an empty repository slug is refused before it builds ghcr.io/-api" "$WF5"
@@ -334,6 +380,40 @@ if [ "$real_names" = "api worker migrate web caddy " ]; then
 else
   fail=$((fail + 1)); echo "  FAIL the real matrix read as [$real_names]" >&2
 fi
+
+echo "-- 7. the consumer, and the parity its whole claim rests on"
+# THE ANTI-VACUITY DISCIPLINE DID NOT REACH PAST THE RESOLVER'S FILE BOUNDARY, and that was the
+# gap (`dotnet-architect`, 2026-08-28). Two holes, both closed here. (1) Delete
+# `rescan-images.yml` and every case above stays green: all this coverage would be measuring a
+# script nothing calls. (2) `rescan-images.yml` asserts in its own header that its scan
+# parameters are identical to the two build-time gates, and that identity IS its claim — "this
+# artefact would not pass today the gate it passed when it was built". Change `severity` in
+# `build.yml` and that sentence goes quietly false. A comment cannot hold an invariant; this can.
+RESCAN="$REPO_ROOT/.github/workflows/rescan-images.yml"
+if [ -f "$RESCAN" ]; then
+  pass=$((pass + 1)); echo "  ok   the consumer exists (this suite is not measuring a script nothing calls)"
+else
+  fail=$((fail + 1)); echo "  FAIL $RESCAN is missing — the resolver has no consumer" >&2
+fi
+
+if grep -qF 'resolve-published-digests.sh' "$RESCAN" 2>/dev/null; then
+  pass=$((pass + 1)); echo "  ok   and it is the consumer OF THIS SCRIPT"
+else
+  fail=$((fail + 1)); echo "  FAIL $RESCAN does not call resolve-published-digests.sh" >&2
+fi
+
+for gate in rescan-images build release-images; do
+  gf="$REPO_ROOT/.github/workflows/$gate.yml"
+  missing=""
+  for needle in 'severity: HIGH,CRITICAL' 'ignore-unfixed: true' 'exit-code: "1"' 'format: table'; do
+    grep -qF -- "$needle" "$gf" 2>/dev/null || missing="$missing [$needle]"
+  done
+  if [ -z "$missing" ]; then
+    pass=$((pass + 1)); echo "  ok   $gate.yml carries the agreed scan parameters"
+  else
+    fail=$((fail + 1)); echo "  FAIL $gate.yml is missing:$missing — the parity claim in rescan-images.yml is now false" >&2
+  fi
+done
 
 echo
 echo "passed: $pass   failed: $fail"

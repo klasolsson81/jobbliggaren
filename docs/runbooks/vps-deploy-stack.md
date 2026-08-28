@@ -1012,14 +1012,17 @@ instrument under-reaches its own property reads as coverage it does not have.
   never rescanned: no GitHub Actions event fires on a published advisory, Dependabot proposes
   nothing for a floating base tag, and the only thing producing a new image was a merge for some
   unrelated reason. `.github/workflows/rescan-images.yml` runs daily at 05:05 UTC and scans the
-  **published digests** — the artefacts this box actually pulls — with the same parameters
+  **published digests** — what an *unpinned* reconcile pulls — with the same parameters
   (`HIGH,CRITICAL`, `ignore-unfixed`), so the claim it makes is *"this artefact would not pass
-  today the gate it passed when it was built"*. It **detects and does not repair**: the repair is
-  a merge, which yields a new SHA and sends the image down the existing publish path. A red run
-  mails whoever created that workflow (GitHub sends scheduled-run notifications to the workflow's
-  creator, or to whoever last changed its cron) — that notification is the only reader this has,
-  which is why the cadence is daily rather than hourly. It carries **no** write permission of any
-  kind and is deliberately **not** in `ci`'s required set.
+  today the gate it passed when it was built"*. **Under a pinned `IMAGE_TAG` it is not scanning
+  what you are running**: the rollback procedure above sets `IMAGE_TAG=sha-<short>`, and the
+  rescan still measures `latest`, which is then a *newer* image than the one on the box. There is
+  no fix for that in CI, which cannot read this box's `.env` — so during a pinned rollback, treat
+  a green rescan as saying nothing about the running containers. It **detects and does not
+  repair**: the repair is a merge, which yields a new SHA and sends the image down the existing
+  publish path. It carries **no** write permission of any kind and is deliberately **not** in
+  `ci`'s required set. Its intended reader is the scheduled-run failure notification; that link
+  is not yet measured, and the workflow's own header says so.
 - **`infra/terraform/`** — a record of what once ran on AWS, not a starting point. Do not
   repair its names toward the current application: it injects options #802 removed, injects
   no master key (so a re-apply hard-fails at startup), and names Dockerfile paths that do

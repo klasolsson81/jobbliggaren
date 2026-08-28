@@ -588,15 +588,17 @@ jobs:
       - name: nocache-stage-guard (fixturer + den riktiga matrisen)
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
-      # #1519. `rescan-images.yml` skannar de PUBLICERADE imagesarna, och det den skannar löses
-      # upp av det här skriptet ur `release-images.yml`s EGEN matris — ingen sjätte kopia av
-      # bildnamnen. Fixturerna stubbar `docker`, så sviten behöver varken daemon, registry eller
-      # nätverk, och en av dem läser den RIKTIGA `release-images.yml`: skrivs den matrisen om så
-      # att ankaret slutar matcha, faller det här vid PR-tid i stället för att tyst korta
-      # skanningsmatrisen 05:05 UTC. Skälet till att upplösningen alls är ett skript: om en
-      # referens faller igenom tom skannar `trivy image ghcr.io/...@` ingenting och kan avsluta
-      # 0 — en grön no-op som läses som täckning, samma klass som vakten ovanför stänger.
-      - name: resolve-published-digests (fixturer + den riktiga matrisen)
+      # #1519. `rescan-images.yml` scans the PUBLISHED images, and what it scans is resolved by
+      # this script out of `release-images.yml`'s OWN matrix — no sixth copy of the image names.
+      # The fixtures stub `docker`, so the suite needs no daemon, registry or network, and two of
+      # them read the REAL files: one the `release-images.yml` matrix, one the consumer workflow
+      # and the scan parameters all three gates must agree on. A respelling of either turns red
+      # here, at PR time, instead of silently shortening the scan matrix at 05:05 UTC.
+      #
+      # Why the resolution is a script at all: if a reference falls through empty,
+      # `trivy image ghcr.io/...@` scans nothing and can exit 0 — a green no-op that reads as
+      # coverage, the same class the guard above closes.
+      - name: resolve-published-digests (fixturer + de riktiga filerna)
         run: bash .github/scripts/resolve-published-digests.test.sh
 
   # ---------------------------------------------------------------------------

@@ -6,10 +6,11 @@
 # published image is never rescanned: no GitHub Actions event fires on a published advisory
 # (measured 2026-08-28 — neither `security_advisory`, `repository_advisory` nor
 # `repository_vulnerability_alert` is an `on:` event), Dependabot has nothing to propose for a
-# floating base tag such as `caddy:2-alpine` or `node:22-alpine` (it says so itself in
-# `.github/dependabot.yml`), and so the only event that ever produced a new image was a merge to
-# `main` for some unrelated reason. Patch latency on the only internet-facing process in the
-# stack had no ceiling, and merge cadence is not a security control.
+# floating base tag such as `caddy:2-alpine` or `node:22-alpine` (`.github/dependabot.yml`
+# records that those tags carry no version to compare, and separately that GitHub runs no
+# security updates for the docker ecosystem at all), and so the only event producing a new image
+# was a merge to `main` for some unrelated reason. Patch latency on the only internet-facing
+# process in the stack had no ceiling, and merge cadence is not a security control.
 #
 # DETECT, DO NOT REPAIR (senior-cto-advisor, 2026-08-28). The repair lever already exists and
 # always did: a merge yields a new SHA, the release predicate goes false, the image is rebuilt
@@ -34,24 +35,33 @@
 # `release-images.yml` a red scan of the OLD published digest would fail the job before its Push
 # step, so an old advisory would block exactly the merge that was going to fix it.
 #
-# THE READER IS THE SCHEDULED-RUN NOTIFICATION. "Notifications for scheduled workflows are sent
-# to the user who initially created the workflow", and on a cron-syntax change to whoever changed
-# it (GitHub Docs, read 2026-08-28). That is the one reader this mechanism has; #1175 records that
-# the box's journal has none. It is also why the cadence below is DAILY and not hourly: the floor
-# is Trivy's database, which is rebuilt every six hours (trivy-db README, read 2026-08-28), but
-# the binding constraint is the reader's tolerance. Twenty-four red mails a day destroys the only
-# reader this file has.
+# THE INTENDED READER IS THE SCHEDULED-RUN NOTIFICATION, AND THAT LAST LINK IS NOT YET MEASURED.
+# "Notifications for scheduled workflows are sent to the user who initially created the workflow",
+# and on a cron-syntax change to whoever changed it (GitHub Docs, read 2026-08-28). Who that
+# resolves to here is open: automerge lands this file on `main` as a GitHub App squash commit
+# (`release-images.yml`'s header carries the measurement that app-triggered events start no
+# workflow runs at all), the author is preserved as the repository owner while the committer is
+# the App, and GitHub does not document which of the two it attributes. `permissions: contents:
+# read` means no other step can raise an alarm if the mail goes nowhere, so a detector nobody
+# reads would be the green-silent-inert shape one level up from the one this file closes.
+# Owed: one red run, observed. Until then this paragraph states an intent, not a fact.
 #
-# THIS WORKFLOW IS NEVER ADDED TO `ci`'s `needs`. It grades repo state that the diff under review
-# did not create, so blocking a PR on it is the deadlock the design keeps out of CI. A red run
-# here is a mail and a red square, deliberately, and a later session should not drive it into the
-# required set.
+# The cadence below is DAILY and not hourly for the same reader: the floor is Trivy's database,
+# rebuilt every six hours (trivy-db README, read 2026-08-28), but the binding constraint is
+# tolerance. Twenty-four red mails a day destroys whatever reader there turns out to be.
+#
+# THIS WORKFLOW IS NEVER ADDED TO `ci`'s `needs`, AND IT STRUCTURALLY CANNOT BE. `needs:` does not
+# reach across workflow files, so the only route into the required set is branch protection — and
+# a scheduled workflow never runs on a pull request, so that required check would block every PR
+# forever within the hour. The deadlock would be immediate and visible rather than quiet. Written
+# out because it is a stronger guarantee than an instruction not to do it.
 name: rescan-images
 
 on:
   schedule:
-    # Daily. Minute 5 rather than 17 so it never races `release-images.yml` on the registry, and
-    # not 0 because the top of the hour is the busiest slot on shared runners.
+    # Daily. Minute 5 rather than 17 so this does not start in the same minute as
+    # `release-images.yml`, and not 0 because the top of the hour is the busiest slot on shared
+    # runners.
     - cron: "5 5 * * *"
   workflow_dispatch:
 
@@ -94,26 +104,41 @@ jobs:
         id: resolve
         run: |
           set -euo pipefail
-          # The script's three outcomes are the gate: 0 resolved everything, 1 the matrix lost
-          # legs, 2 it could not answer. Anything but 0 fails this job and SKIPS the scan, which
-          # is the intended behaviour — "could not answer" must never read as "nothing to scan",
-          # and a partially resolved list is a shorter scan matrix that still looks complete.
-          # `bash <path>`, not `./<path>`, and that is deliberate. Eighteen of the twenty scripts
-          # under `.github/scripts/` are committed 100644 and every caller invokes them this way,
-          # which is mode-blind. Nothing gates the exec bit in that directory the way
-          # `build.yml` gates it for `deploy/systemd`, so depending on it here would be a
-          # 126/Permission-denied waiting for the first checkout that did not preserve it.
-          bash .github/scripts/resolve-published-digests.sh | tee rows.tsv
+          # `bash <path>`, not `./<path>`, and that is deliberate. Most scripts under
+          # `.github/scripts/` are committed 100644 and every caller invokes them this way, which
+          # is mode-blind. Nothing gates the exec bit in that directory the way `build.yml` gates
+          # it for `deploy/systemd`, so depending on it here would be a 126/Permission-denied
+          # waiting for the first checkout that did not preserve it. Count them with
+          # `git ls-files -s .github/scripts/` rather than trusting a number written here.
+          #
+          # THE STATUS IS CAPTURED, NOT PIPED. An earlier version ended `| tee rows.tsv`, which
+          # makes `$?` the status of `tee` — the exact class this repo has measured twice (see
+          # `release-images.yml`'s note on reading a pipe's status as a tool's). It also collapsed
+          # the script's two failure modes into one silent job failure.
+          rc=0
+          bash .github/scripts/resolve-published-digests.sh >rows.tsv || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            # The distinction survives only if something carries it: stderr has the reason, but
+            # the annotation is what reaches the run summary, and the run summary is what the one
+            # reader sees. `release-images.yml` applies the same rule to its own 1-vs-2 branch.
+            echo "::error::resolver exited $rc (1: the matrix lost legs, 2: could not answer). Nothing was scanned — this is NOT 'the images are clean'."
+            exit "$rc"
+          fi
 
           # `jq -Rn` with `inputs` reads each line as a raw string; without -R the tab-separated
           # rows would be parsed as JSON and every line would fail.
           matrix=$(jq -Rn -c '[inputs | split("\t") | {name: .[0], ref: .[1], created: .[2]}]' < rows.tsv)
 
-          # An empty array reaches `fail-fast` as a matrix with no vectors, which GitHub reports
-          # as a confusing setup error rather than as "there was nothing to scan". The script
-          # already refuses before this, so this is the second of two guards and it says so.
-          [ "$(printf '%s' "$matrix" | jq 'length')" -gt 0 ] \
-            || { echo "::error::resolver produced an empty matrix"; exit 1; }
+          # THE CONSUMER CHECKS THE SHAPE TOO, because the contract crosses a serialisation
+          # boundary and a producer trusted across one is how drift goes quiet. A null `.ref`
+          # renders as an empty `image-ref`, and `trivy image ""` is not reliably red — the same
+          # green no-op the resolver exists to prevent, reintroduced one file later.
+          printf '%s' "$matrix" | jq -e '
+            length > 0
+            and all(.[]; .name and .created
+                         and ((.ref // "") | test("^ghcr\\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")))
+          ' >/dev/null \
+            || { echo "::error::the resolved matrix is empty or its rows are not the agreed shape"; exit 1; }
 
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
@@ -140,11 +165,23 @@ jobs:
       # built on <date> and now carries CVE-X", the sentence that makes the notification
       # actionable, instead of leaving the reader to work out which image is being complained
       # about and how long it has been running.
+      #
+      # THE VALUES ARRIVE AS `env:`, NEVER AS `${{ }}` INSIDE THE SCRIPT. Expression
+      # interpolation is textual and happens before bash sees the line, so registry-supplied
+      # content in a `run:` block is a script-injection source — a `$(...)` in it executes, with
+      # `GITHUB_TOKEN` already in `~/.docker/config.json` from the login above. `created` is the
+      # only value in this workflow that originates outside the repository. It is now
+      # shape-checked at the producer as well; this is the other half of the same repair, and
+      # either half alone would leave the pattern here for the next value to reuse.
       - name: What is being scanned
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+          IMAGE_REF: ${{ matrix.image.ref }}
+          IMAGE_CREATED: ${{ matrix.image.created }}
         run: |
-          echo "image:   ${{ matrix.image.name }}"
-          echo "ref:     ${{ matrix.image.ref }}"
-          echo "built:   ${{ matrix.image.created }}"
+          echo "image:   $IMAGE_NAME"
+          echo "ref:     $IMAGE_REF"
+          echo "built:   $IMAGE_CREATED"
           echo "This is the PUBLISHED artefact, pinned by digest, not a rebuild of it."
 
       # THE PARAMETERS ARE IDENTICAL TO BOTH EXISTING SCANS, and the parity IS the claim: this

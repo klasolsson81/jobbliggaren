@@ -24,59 +24,6 @@ export {
  * speglar CLAUDE.md §10.2 (datum "14 apr 2026", tid 24h).
  */
 
-export interface ApplicationCounts {
-  /** status ∉ {Rejected, Withdrawn, Accepted} */
-  readonly active: number;
-  /** Draft */
-  readonly drafts: number;
-  /** InterviewScheduled + Interviewing */
-  readonly interviews: number;
-  /** OfferReceived */
-  readonly offers: number;
-  /** Rejected */
-  readonly rejected: number;
-  /** Ghosted */
-  readonly ghosted: number;
-  /** Submitted (för Uppföljning-notis) */
-  readonly submitted: number;
-  /** Acknowledged (för Uppföljning-notis) */
-  readonly acknowledged: number;
-}
-
-const INACTIVE_STATUSES = new Set(["Rejected", "Withdrawn", "Accepted"]);
-
-/**
- * Räknar ansökningar per Översikt-kategori från pipeline-grupperna.
- * `PipelineGroupDto.count` är auktoritativt per status — vi summerar dem
- * istället för att räkna `.applications.length` (groups kan vara trimmade
- * vid stor volym; `count` är total-räknat backend-side per ADR 0048).
- */
-export function computeApplicationCounts(
-  pipeline: ReadonlyArray<PipelineGroupDto>
-): ApplicationCounts {
-  const byStatus = new Map<string, number>();
-  for (const group of pipeline) {
-    byStatus.set(group.status, group.count);
-  }
-  const get = (s: string): number => byStatus.get(s) ?? 0;
-
-  let active = 0;
-  for (const [status, count] of byStatus) {
-    if (!INACTIVE_STATUSES.has(status)) active += count;
-  }
-
-  return {
-    active,
-    drafts: get("Draft"),
-    interviews: get("InterviewScheduled") + get("Interviewing"),
-    offers: get("OfferReceived"),
-    rejected: get("Rejected"),
-    ghosted: get("Ghosted"),
-    submitted: get("Submitted"),
-    acknowledged: get("Acknowledged"),
-  };
-}
-
 /**
  * Samlar alla ansökningar från pipeline-grupper i en platt array. Behövs
  * för datum-filter (uppföljnings-fönstret {@link OVERSIKT_FOLLOW_UP_DAYS},

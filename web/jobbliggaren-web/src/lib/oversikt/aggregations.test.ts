@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTranslator, createFormatter } from "next-intl";
 import {
-  computeApplicationCounts,
   daysSince,
   findFollowUpCandidates,
   findLatestOffer,
@@ -62,62 +61,6 @@ function makeGroup(
 ): PipelineGroupDto {
   return { status, count, applications: apps };
 }
-
-describe("computeApplicationCounts", () => {
-  it("returnerar nollor för tom pipeline", () => {
-    expect(computeApplicationCounts([])).toEqual({
-      active: 0,
-      drafts: 0,
-      interviews: 0,
-      offers: 0,
-      rejected: 0,
-      ghosted: 0,
-      submitted: 0,
-      acknowledged: 0,
-    });
-  });
-
-  it("räknar aktiva = alla statusar ∉ {Rejected, Withdrawn, Accepted}", () => {
-    const pipeline: PipelineGroupDto[] = [
-      makeGroup("Draft", 2),
-      makeGroup("Submitted", 3),
-      makeGroup("Acknowledged", 1),
-      makeGroup("InterviewScheduled", 1),
-      makeGroup("Interviewing", 2),
-      makeGroup("OfferReceived", 1),
-      makeGroup("Rejected", 5),
-      makeGroup("Withdrawn", 2),
-      makeGroup("Accepted", 1),
-      makeGroup("Ghosted", 4),
-    ];
-    const c = computeApplicationCounts(pipeline);
-    // 2+3+1+1+2+1+4 = 14 aktiva (rejected+withdrawn+accepted exkluderas)
-    expect(c.active).toBe(14);
-    expect(c.drafts).toBe(2);
-    expect(c.submitted).toBe(3);
-    expect(c.acknowledged).toBe(1);
-    // InterviewScheduled + Interviewing
-    expect(c.interviews).toBe(3);
-    expect(c.offers).toBe(1);
-    expect(c.rejected).toBe(5);
-    expect(c.ghosted).toBe(4);
-  });
-
-  it("aggregerar interviews från båda statusarna även om bara en finns", () => {
-    const c = computeApplicationCounts([makeGroup("Interviewing", 4)]);
-    expect(c.interviews).toBe(4);
-    expect(c.active).toBe(4);
-  });
-
-  it("hanterar pipeline med samma status duplicerat — sista vinner", () => {
-    // backend bör inte skicka dupletter men vi failar inte
-    const c = computeApplicationCounts([
-      makeGroup("Draft", 2),
-      makeGroup("Draft", 5),
-    ]);
-    expect(c.drafts).toBe(5);
-  });
-});
 
 describe("flattenPipeline", () => {
   it("flattar applications från alla grupper", () => {

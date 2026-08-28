@@ -573,8 +573,7 @@ public class ListRecentSearchesQueryHandlerTests
     private static string Shape(RecentSearchLabelDto label)
     {
         // Ingen tidig retur för All: den hade kastat bort Kind och Parts, och då hade en All
-        // MED delar gått grön här. Zod-refinementet släpper medvetet igenom just den formen
-        // (kind === "All" || parts.length > 0), så ingen av de två grindarna hade fällt den.
+        // MED delar gått grön här.
         var parts = label.Parts.Select(p => p.Kind == RecentSearchLabelPartKind.Remote
             ? "<remote>"
             : p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text);

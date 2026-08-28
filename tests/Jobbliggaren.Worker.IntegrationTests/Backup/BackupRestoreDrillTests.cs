@@ -127,6 +127,29 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
     /// </summary>
     private const string ReversedPairingDatabaseName = "jobbliggaren_restore_reversed";
 
+    /// <summary>
+    /// The mechanism's own dump scope, mirrored from <c>deploy/systemd/jobbliggaren-backup.sh</c>
+    /// so this drill restores the artefact production actually produces.
+    ///
+    /// <para>
+    /// <b>Why it is a constant and not a literal at each call site:</b> the same reason
+    /// <c>RestoreDrillRunbookParityTests</c> gives for the ciphertext pattern — the runbook is text
+    /// an operator types and must carry the literal, but the drill is code, and a copy in code is a
+    /// second truth that drifts. <c>BackupDumpScopeParityTests</c> binds this declaration to the
+    /// script's own flag, so a divergence fails the build.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Why the drill was blind without it.</b> Until #1532 both dump lines here were
+    /// schema-wide and so was the script, so the parity held by accident. The moment the script
+    /// narrowed, this drill kept restoring a WIDER artefact than the box produces — and the
+    /// oracle two screens down (<c>errors ignored on restore</c>) is precisely the assertion that
+    /// would have caught the allow-list form dropping <c>CREATE EXTENSION pg_trgm</c> while still
+    /// emitting the two GIN indexes that need it. It was aimed at the wrong command, not absent.
+    /// </para>
+    /// </summary>
+    private const string BackupDumpScope = "--exclude-schema=hangfire";
+
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
@@ -156,7 +179,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
         // artefact has somewhere to land. The polarity itself is pinned in the script's own
         // fixture suite; what is proved here is what the pair RESTORES to.
         await ExecOkAsync(_fixture.Source,
-            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges --exclude-table-data=user_data_keys > /tmp/main.dump",
+            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} --exclude-table-data=user_data_keys > /tmp/main.dump",
             "the main artefact", ct);
 
         // ── THE ERASURE, produced by the production actor ──────────────────────────────────────
@@ -430,7 +453,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
         // A main artefact NEWER than the DEK artefact already on the target. This is the reversal.
         await ExecOkAsync(_fixture.Source,
-            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges --exclude-table-data=user_data_keys > /tmp/main-newer.dump",
+            $"pg_dump -U {pgUser} -d {pgDatabase} -Fc --no-owner --no-privileges {BackupDumpScope} --exclude-table-data=user_data_keys > /tmp/main-newer.dump",
             "a main artefact newer than the DEK generation", ct);
         await TransportAsync("/tmp/main-newer.dump", ct);
 

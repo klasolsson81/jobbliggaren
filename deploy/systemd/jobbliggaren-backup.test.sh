@@ -326,6 +326,14 @@ check "the staged DEK object exists too" [ -f "$(stored "jbl-backup:jobbliggaren
 # everywhere except in the argv the container was handed.
 check "the main dump excludes user_data_keys DATA (not the table)" \
   grep -q -- '--exclude-table-data=user_data_keys' "$CALLS/docker"
+# The dump scope is the OTHER invisible decision in the same argv. --exclude-schema and NOT
+# --schema: the allow-list form drops objects the selected schemas depend on, which cost the
+# artefact `CREATE EXTENSION pg_trgm` while it kept the two GIN indexes needing it (measured
+# 2026-08-28, restore exit 1). Both arms are pinned, because only the pair fails a swap back.
+check "the main dump excludes the hangfire schema" \
+  grep -q -- '--exclude-schema=hangfire' "$CALLS/docker"
+check "the main dump does not SELECT schemas (an allow-list drops their dependencies)" \
+  bash -c '! grep -q -- "--schema=" "'"$CALLS"'/docker"'
 check "the main dump does not exclude the table definition" \
   bash -c '! grep -q -- "--exclude-table=user_data_keys" "'"$CALLS"'/docker"'
 check "the DEK dump is data-only and scoped to user_data_keys" \

@@ -16,11 +16,12 @@
     "emptyTitle": "You have no applications yet",
     "emptyBody": "Add an application to see status and follow-ups here.",
     "emptyCta": "New application",
-    "unavailable": "The application count could not be loaded. Use Refresh to try again."
+    "unavailable": "The application count could not be loaded. Reload the page to try again."
   },
   "notices": {
     "title": "Notices",
     "lastUpdated": "last updated <mono>{date}</mono>",
+    "lastUpdatedTime": "Last updated <stamp>{time}</stamp>",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "refreshed": "Refreshed",

@@ -255,28 +255,38 @@ describe("formatNoticesStamp", () => {
   it("renderar i LÄSARENS tidszon, inte i UTC (#1549)", () => {
     // 13:52Z är 15:52 i Europe/Stockholm under CEST. Det POSITIVA påståendet.
     const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
-    expect(out).toBe("2026-06-29 · 15:52");
+    expect(out).toBe("15:52");
   });
 
   it("visar ALDRIG UTC:s väggklocka — den halvan fäller en återgång", () => {
-    // Den gamla implementationen skivade `toISOString()` och gav exakt den här strängen.
-    // Utan det här påståendet kan en regression tillbaka dit gå grön på allt annat.
+    // Den gamla implementationen skivade `toISOString()` och gav UTC-timmen rakt av.
+    // Ankaret är UTC-timmen i DEN HÄR formen: mot den gamla ledger-strängen hade
+    // påståendet blivit sant av sig självt och slutat mäta något.
     const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
-    expect(out).not.toBe("2026-06-29 · 13:52");
+    expect(out).not.toBe("13:52");
   });
 
-  it("håller formen YYYY-MM-DD · HH:mm i båda locale", () => {
-    // Ledger-formen är avsiktligt locale-STABIL (se formatDateTime): `en` får inte
-    // rendera MM/DD/YYYY eller 12-timmars.
+  it("håller formen HH:mm i båda locale (#1556)", () => {
+    // 24-timmarsklockan är avsiktligt locale-STABIL (AGENTS.md §10): `en` får inte
+    // rendera 12-timmars med AM/PM.
     const d = new Date("2026-01-15T07:05:00Z");
-    expect(formatNoticesStamp(svFormat, d)).toBe("2026-01-15 · 08:05");
-    expect(formatNoticesStamp(enFormat, d)).toBe("2026-01-15 · 08:05");
+    expect(formatNoticesStamp(svFormat, d)).toBe("08:05");
+    expect(formatNoticesStamp(enFormat, d)).toBe("08:05");
   });
 
-  it("är INTE den gamla hårdkodade mock-stämpeln (#384)", () => {
+  it("bär inget datum — det lever i toolbarens <time dateTime> (#1556)", () => {
     const out = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
-    // Tidigare visades en stale mock "2026-05-23 · 08:42"; nu är stämpeln live.
-    expect(out).not.toBe("2026-05-23 · 08:42");
+    expect(out).not.toContain("2026");
+    expect(out).not.toContain("·");
+  });
+
+  it("följer inmatningen — en frusen literal fälls (#384)", () => {
+    // Stämpeln var en gång en stale mock-sträng. Ett olikhets-påstående mot just den
+    // strängen kan inte falla i den nya formen, så guarden mäter i stället att två
+    // olika instanter ger två olika stämplar.
+    const a = formatNoticesStamp(svFormat, new Date("2026-06-29T13:52:30Z"));
+    const b = formatNoticesStamp(svFormat, new Date("2026-06-29T14:52:30Z"));
+    expect(a).not.toBe(b);
   });
 
   it("returnerar streck för ogiltigt datum", () => {

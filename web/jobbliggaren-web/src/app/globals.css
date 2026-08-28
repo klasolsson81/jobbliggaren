@@ -5254,6 +5254,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-oversikt-toolbar__stamp {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
+  /* Informationsbärande siffra: sans + tabular-nums, aldrig mono (DESIGN.md §4). */
+  font-variant-numeric: tabular-nums;
 }
 /* Stämpeln och uppdatera-kontrollen som EN vänstergrupp, så förälderns
    space-between fortsatt håller "Markera alla" till höger (#1549). */
@@ -5262,11 +5264,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 12px;
 }
-/* Kontrollen byter mellan tre etiketter (Uppdatera / Uppdaterar… / Uppdaterad).
-   Reserverad bredd så raden inte hoppar vid varje interaktion (DESIGN.md §6). */
-.jp-oversikt-toolbar__refresh {
-  min-width: 9.5rem;
-  justify-content: center;
+/* Kvittot (#1549) bor bredvid kontrollen sedan den blev ikon-only (#1556) och inte
+   längre kan bära det i sin etikett. Regionen är alltid monterad och växer in i tom
+   yta till höger om ikonen, så ingen bredd behöver reserveras. */
+.jp-oversikt-toolbar__receipt {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
 }
 
 /* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
@@ -5331,13 +5334,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   }
 }
 
-/* Kugghjulsknapp i sektionshuvudet — samma dimensioner/hover som .jp-notice__dismiss. */
+/* Sidans ikon-only-form: kugghjulet i sektionshuvudet och toolbarens uppdatera-kontroll
+   (#1556) — samma dimensioner/hover som .jp-notice__dismiss. Ingen `outline` här: den
+   kommer från globala *:focus-visible, och en olagrad .jp-*-deklaration slår den tyst. */
 .jp-notice-prefs-anchor {
   position: relative;
   align-self: center;
   flex: 0 0 auto;
 }
-.jp-section__gear {
+.jp-section__gear,
+.jp-oversikt-toolbar__refresh {
   width: 32px;
   height: 32px;
   border: 0;
@@ -5349,14 +5355,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-3);
   cursor: pointer;
 }
-.jp-section__gear:hover {
+.jp-section__gear:hover,
+.jp-oversikt-toolbar__refresh:hover {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
 /* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. Only the hit area grows. */
 @media (max-width: 768px) {
   .jp-section__gear,
-  .jp-notice__dismiss {
+  .jp-notice__dismiss,
+  .jp-oversikt-toolbar__refresh {
     min-width: 44px;
     min-height: 44px;
   }

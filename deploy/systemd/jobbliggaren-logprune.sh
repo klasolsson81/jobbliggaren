@@ -138,7 +138,7 @@ command -v /usr/bin/docker >/dev/null 2>&1 || die "/usr/bin/docker is not presen
 # ⚠ THE BINARY IS NOT THE DAEMON, AND THE DIFFERENCE IS A SILENT NO-OP.
 # `docker inspect` against a down daemon fails exactly like a container that does not exist, and
 # the loop below is written to treat a missing container as a normal skip. Without this probe the
-# whole pass reports four skips and `pruned=0` and exits 0 — BYTE-IDENTICAL to a healthy run on a
+# whole pass reports a skip per container and `pruned=0` and exits 0 — BYTE-IDENTICAL to a healthy run on a
 # box with nothing to prune, which is this box's normal output today. A retention mechanism that
 # fails silently is the defect this unit exists to repair, so the failure has to be loud enough to
 # reach `systemctl --failed`, which is the surface the heartbeat's P1 reads.
@@ -199,7 +199,7 @@ for container in "${RETENTION_BOUND_CONTAINERS[@]}"; do
   # `docker logs` and therefore logship read; deleting it is the failure mode this whole script
   # is written around. Do not relax this pattern.
   shopt -s nullglob
-  segments=("${dir}/${id}-json.log."[0-9]*)
+  segments=("${dir}/${id}-json.log"*)
   shopt -u nullglob
 
   if [[ ${#segments[@]} -eq 0 ]]; then

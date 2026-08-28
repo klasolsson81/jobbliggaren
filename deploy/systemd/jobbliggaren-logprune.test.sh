@@ -245,7 +245,7 @@ done
 
 echo "== case 12: a DOWN docker daemon fails loudly, never as a vacuous pruned=0 =="
 # The defect this pins: `docker inspect` against a down daemon fails exactly like a missing
-# container, so without the daemon probe the run reports four skips and `pruned=0` and exits 0 —
+# container, so without the daemon probe the run reports a skip per container and `pruned=0` and exits 0 —
 # byte-identical to a healthy pass on a box with nothing to prune.
 reset_world
 d=$(mk_container jobbliggaren-api "$ID_API")

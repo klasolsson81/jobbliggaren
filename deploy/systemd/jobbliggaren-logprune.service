@@ -54,7 +54,13 @@ RemainAfterExit=no
 # /var/lib/docker/containers was readable, with an unsandboxed control taken in the same session.
 # The instrument and its date live in log-sink.md §4.
 ProtectSystem=strict
-ReadWritePaths=/var/lib/docker/containers /run/docker.sock
+# The `-` on the socket is load-bearing, not tidiness: without it a MISSING path fails the unit
+# at namespace setup, before ExecStart — so a box where docker is down AND its socket is gone
+# would never reach the daemon probe, reinstating the very coupling `After=`-without-`Requires=`
+# was chosen to avoid. Measured on the box 2026-08-28 with a sentinel ExecStart: without `-` the
+# sentinel never printed; with `-` it did; and with `-` and the real socket present the daemon
+# still answered, so the prefix costs no access when the path exists.
+ReadWritePaths=/var/lib/docker/containers -/run/docker.sock
 NoNewPrivileges=yes
 ProtectHome=yes
 

@@ -263,6 +263,32 @@ check "names the daemon, not the container" "$(echo "$out" | grep -q 'daemon is 
 check "no summary line is printed"         "$(echo "$out" | grep -q '^logprune: pruned=' && echo 0 || echo 1)"
 check "aged segment left untouched"        "$([ -f "$d/$ID_API-json.log.1" ] && echo 1 || echo 0)"
 
+echo "== case 13: the set matches deploy/docker-compose.yml, or a tenth service ages out silently =="
+# security-auditor Minor 4: the array's authority used to be ADR 0128 §2's Streams table, which
+# carried a written change-rule. The prune's criterion is its own now, which is correct — but it
+# left the SET as a hand-held literal with nothing binding it to the compose file. A tenth service
+# would then reach no age bound at all, silently, and both literals would drift together.
+compose="$script_dir/../docker-compose.yml"
+if [ -f "$compose" ]; then
+  compose_names=$(grep -oE '^[[:space:]]*container_name:[[:space:]]*[A-Za-z0-9_.-]+' "$compose" |
+    awk '{print $2}' | sort -u)
+  sut_names=$(sed -n '/^readonly -a RETENTION_BOUND_CONTAINERS=(/,/^)/p' "$SUT" |
+    grep -oE '^[[:space:]]+[A-Za-z0-9_.-]+' | awk '{print $1}' | sort -u)
+  check "array == compose container_name set"     "$([ "$compose_names" = "$sut_names" ] && echo 1 || echo 0)"
+  if [ "$compose_names" != "$sut_names" ]; then
+    echo "    only in compose: $(comm -23 <(echo "$compose_names") <(echo "$sut_names") | tr '
+' ' ')" >&2
+    echo "    only in script : $(comm -13 <(echo "$compose_names") <(echo "$sut_names") | tr '
+' ' ')" >&2
+  fi
+  # The comparison is only worth anything if both sides are non-empty — an empty-vs-empty match
+  # would pass vacuously if either extraction broke.
+  check "both sides non-empty"               "$([ -n "$compose_names" ] && [ -n "$sut_names" ] && echo 1 || echo 0)"
+else
+  echo "  SKIP — compose file not found at $compose" >&2
+  fail=$((fail + 1))
+fi
+
 echo
 echo "passed: $pass  failed: $fail"
 [ "$fail" -eq 0 ] || exit 1

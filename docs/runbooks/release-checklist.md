@@ -1299,18 +1299,21 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       samma PR: sökhistorik-sektionen på `privacy.sections[4]` (18 rader) och dess retentionsrad i
       `Hur länge vi sparar uppgifter` (1 rad, hamnade på rad 113). Rad 37 och 50 ligger ovanför
       båda och står stilla; 64 och 74 ligger emellan och flyttade **+18**; 96, 97 och 132 ligger
-      under båda och flyttade **+19**. ⚠ **Notisraden flyttade 64 → 82, och den har TOLV egna hem** —
-      elva i den här runbooken och ett i paritetssvitens egen docblock
+      under båda och flyttade **+19**. ⚠ **Notisraden flyttade 64 → 82, och den har flera egna hem** —
+      i den här runbooken och i paritetssvitens egen docblock
       (`content-legal-parity.test.ts`), samtliga presens-påståenden eller körinstruktioner, inte
-      historik. Alla tolv är ommätta i samma PR, **ett kommando per locale eftersom strängen skiljer
+      historik. **Antalet räknas inte här:** mängden regenereras ur egenskapen, aldrig ur ett
+      nedskrivet tal. De ommäts i samma PR, **ett kommando per locale eftersom strängen skiljer
       sig** — `grep -n "Notiserna planeras att skickas med e-post" …/sv/content-legal.json` och
       `grep -n "The notifications are planned to be sent by email" …/en/content-legal.json`, båda →
       **82**. (Ett enda svenskt kommando med slutsatsen "båda locales" ger noll på den engelska
       filen: samma halvmätning som §2.6 finns för att förbjuda.) **Egenskapen är "levande radnummer-pekare in i
-      `content-legal.json`", och §2.6-mängden är bara ett av tretton hem.** ⚠ Den här noten fick
-      räknas om en gång: första sveget täckte bara runbooken, och `code-reviewer` mätte
-      filsystemsvitt och hittade det tolfte — **i just den fil §2.6 utpekar som radens mekaniska
-      läsare**, så runbooken sa 82 medan dess egen citerade läsare sa 64. Svep på egenskapen, inte
+      `content-legal.json`", och §2.6-mängden är bara ett av hemmen.** ⚠ Den här noten fick
+      räknas om en gång: första svepet täckte bara runbooken, och `code-reviewer` mätte bredare
+      och hittade ett till — **i just den fil §2.6 utpekar som radens mekaniska
+      läsare**, så runbooken sa 82 medan dess egen citerade läsare sa 64.
+      ⚠ **Läs inget svep här som uttömmande.** Ett senare svep nådde en yta bortom både
+      runbooken och sviten. Svep på egenskapen, inte
       på filen du råkar ha öppen. En enda offset applicerad på hela den gamla mängden hade
       alltså gett tre fel rader. Sökhistorik-sektionen bär avsiktligt **ingen** markör:
       behandlingen är i drift, och en markör där hade förnekat en levande behandling.
@@ -1406,7 +1409,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
       retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
       kategorilistan drift medan retentionsavsnittet säger planerat.
-- [ ] **2. Avgör vad releasen faktiskt aktiverar** — **tre** olika klasser, blanda dem
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — klasserna nedan, blanda dem
       inte:
       - **Kod-aktiverad:** ansökningshistorik/företagsöversikt — kategorilistans
         ansökningshistorik-punkt, BÅDA retentionsposterna och stycket i "Inga automatiserade
@@ -1470,9 +1473,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         kontrollpanel** — ingen release, ingen tagg, ingen konfigurationsnyckel i repot, ingen
         deploy, alltså inget repo-event att haka i. Varken §2.5:s predikat (*en providerarm
         som når en extern processor*) eller §2.6:s egen trigger (*första `v*`, eller en release
-        som aktiverar en behandling copyn kallar planerad*) fyrar på den, och förutsättning 5:s
-        fyra Blocker-triggrar är **uteslutande användarnycklade**. Stycket landade 2026-08-28
-        och blev **tyst oklassat**, därför att de två klasserna ovan uttömde taxonomin.
+        som aktiverar en behandling copyn kallar planerad*) fyrar på den. Stycket landade
+        2026-08-28 och blev **tyst oklassat**.
         ⚠ **Klassen bockas därför ALDRIG av att releasen inte aktiverar något** — dess händelse
         är inte en release, så punkt 2:s vanliga utfall (*bocka hela sektionen och sluta*) är
         blint för den. **Proceduren bor i `vps-deploy-stack.md` rad 36:s MX-ben**, som är där
@@ -1480,6 +1482,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         den bär inte proceduren**. Den mekaniska läsaren för just det stycket är STRATO-spärren
         i `content-legal-parity.test.ts`, och den fäller **bara** en copy-flip utan MX-flytt —
         aldrig det omvända, eftersom det inte finns något repo-event att fälla på.
+      - **Användar-aktiverad — NY KLASS 2026-08-28, i samma ändring som den tredje.** Notisernas
+        stycke, som bulleten om konfigurations-grindade ovan redan namnger och uttryckligen
+        utesluter (*"grindas av ett användarreglage, inte av den här punkten"*) utan att ge det
+        en klass. Aktiveringshändelsen är varken kod, en repo-nyckel eller en leverantörspanel:
+        **en användare slår på sitt eget reglage.** ⚠ **Klassen säger ingenting om styckets
+        sanningsstatus** — den ägs av `security-auditor` och avgörs inte av en triage-etikett.
+        Mekanisk läsare: e-post-tripwirens levande gren i `content-legal-parity.test.ts`.
       ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DET ÄR INTE EN TEMPUSFRÅGA**
       (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att §2.5-grinden
       passerades, och den publicerade copyn bär **en affirmativ presensförnekelse av en utlämning som

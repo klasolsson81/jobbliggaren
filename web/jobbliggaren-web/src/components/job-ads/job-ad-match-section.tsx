@@ -432,11 +432,12 @@ export function JobAdMatchSection({
   // `employmentFit` skickar koder, inte namn (#1537) — dess ord ägs av katalogen. Att namnge
   // dem här behåller EN radrenderare för alla sju dimensioner i stället för en andra som
   // skiljer sig bara i var dess strängar kom ifrån.
+  const { grade: _grade, ...dimensions } = match;
   const rows: Record<
     keyof Omit<JobAdMatchDetail, "grade">,
     MatchDimensionDetail
   > = {
-    ...match,
+    ...dimensions,
     employmentFit: {
       verdict: match.employmentFit.verdict,
       matched: match.employmentFit.matchedConceptIds.map(codedName),

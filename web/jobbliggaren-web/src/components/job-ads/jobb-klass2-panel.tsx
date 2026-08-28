@@ -1,10 +1,10 @@
 "use client";
 
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { Check } from "lucide-react";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
 import { formatNumber } from "@/lib/i18n/format";
-import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
+import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { usePanelPosition } from "@/lib/hooks/use-panel-position";
 
@@ -23,9 +23,10 @@ import { usePanelPosition } from "@/lib/hooks/use-panel-position";
  *   ("honest 8" — ingen kurering/om-etikettering/utelämning).
  *   ⚠ Låset gäller Platsbanken-pariteten, alltså `sv`: ingen option utelämnas,
  *   ingen slås ihop, och ingen döps om till en snyggare svensk term. Det binder
- *   INTE vilket språk etiketten visas på — `en` är en yta låset aldrig omfattade,
- *   och svensk rendering är byte-identisk med källan efteråt. Den engelska formen
- *   bor i `messages/en/jobads.json` (Klas-beslut 2026-08-28, #1537).
+ *   INTE vilket språk etiketten visas på: Klas avgjorde 2026-08-28 att låset inte
+ *   binder språket. Svensk rendering är byte-identisk med källan efteråt, mekaniskt
+ *   pinnat i `src/lib/i18n/coded-taxonomy.test.ts`. Den engelska formen bor i
+ *   `messages/en/jobads.json` (#1537).
  *
  * Facet-counts (PR-3): per-option-antal ("Heltid (29 427)") via debouncade
  * `useFacetCounts`-hooks (föräldern äger). null → inga tal renderas (degraderad/
@@ -97,6 +98,7 @@ export function JobbKlass2Panel({
 }: JobbKlass2PanelProps) {
   const t = useTranslations("jobads.ui");
   const tEnum = useTranslations("jobads.enums");
+  const collator = new Intl.Collator(useLocale());
   const format = useFormatter();
   const ref = useDismissable<HTMLDivElement>(open, onClose, triggerRef);
   const pos = usePanelPosition(open, triggerRef);
@@ -109,19 +111,23 @@ export function JobbKlass2Panel({
 
   // Aktivt radio-värde: första (enda) valda conceptId eller "Alla"-sentinel.
   const activeWorktime = worktimeExtent[0] ?? WORKTIME_ALL;
-  // "Alla" först, därefter options i backendens ordning (Label Ordinal → Deltid
-  // före Heltid). ORDNINGEN är as-is per Klas-constraint och härleds ur den
-  // svenska etiketten, så under `en` står "Part time" före "Full time" — en
-  // ordning ur ett annat språk än den som visas. Namnet är däremot en
-  // locale-fråga (#1537).
+  // "Alla" först, därefter options ordnade efter det NAMN som visas (Klas-beslut
+  // 2026-08-28). Backend ordnar på den svenska etiketten, så före #1537 kom namn och
+  // ordning ur samma språk; att bara översätta namnen hade lämnat `en` utan ordning alls.
+  // Mätt no-op i `sv` — se `codedTaxonomyOptions`.
   const worktimeRadioOptions: ReadonlyArray<{ value: string; label: string }> =
     [
       { value: WORKTIME_ALL, label: t("klass2.worktimeAll") },
-      ...worktimeExtentOptions.map((o) => ({
+      ...codedTaxonomyOptions(tEnum, collator, worktimeExtentOptions).map((o) => ({
         value: o.conceptId,
-        label: codedTaxonomyName(tEnum, o.conceptId, o.label),
+        label: o.label,
       })),
     ];
+  const employmentCheckOptions = codedTaxonomyOptions(
+    tEnum,
+    collator,
+    employmentTypeOptions,
+  );
 
   const noOptions =
     employmentTypeOptions.length === 0 && worktimeExtentOptions.length === 0;
@@ -240,7 +246,7 @@ export function JobbKlass2Panel({
               )}
             </div>
             <div role="group" aria-label={t("klass2.employmentHeading")}>
-              {employmentTypeOptions.map((opt) => {
+              {employmentCheckOptions.map((opt) => {
                 const checked = employmentType.includes(opt.conceptId);
                 return (
                   <div
@@ -270,7 +276,7 @@ export function JobbKlass2Panel({
                     <span className="jp-checkitem__box">
                       {checked && <Check size={14} aria-hidden="true" />}
                     </span>
-                    {codedTaxonomyName(tEnum, opt.conceptId, opt.label)}
+                    {opt.label}
                     {employmentTypeCounts && (
                       <span className="jp-checkitem__count">
                         ({formatNumber(format, employmentTypeCounts[opt.conceptId] ?? 0)})

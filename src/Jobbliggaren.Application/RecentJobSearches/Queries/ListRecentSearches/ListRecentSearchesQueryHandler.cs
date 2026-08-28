@@ -71,11 +71,6 @@ public sealed class ListRecentSearchesQueryHandler(
                 r.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
                 r.Region, cancellationToken);
-            // #1418 resolvade klass 2 mot samma snapshot som de tre ovan. Sedan #1537 bär
-            // deskriptorn koden i stället för namnet, så etiketten hade ingen läsare kvar —
-            // resolven producerade en sträng bara för att id:t skulle läsas tillbaka ur den
-            // (ResolveLabelsAsync är 1:1 och ordningsbevarande). Två uppslag per rad mot en
-            // cap-20-lista, och en onödig väg genom TaxonomyLabels.Unknown.
 
             // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20

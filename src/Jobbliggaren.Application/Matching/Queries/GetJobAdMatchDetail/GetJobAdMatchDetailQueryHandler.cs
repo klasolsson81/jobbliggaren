@@ -110,7 +110,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         // on the wire and the client names it (#1537) — the id still never reaches the user,
         // it just stops being named in this layer. The skill/title dimensions already carry
         // Display labels / lexemes, so they are passed through unchanged.
-        var labels = await ResolveMembershipLabelsAsync(score.Fast, cancellationToken);
+        var labels = await ResolveRegisterLabelsAsync(score.Fast, cancellationToken);
 
         return Result.Success<JobAdMatchDetailDto?>(new JobAdMatchDetailDto(
             Grade: grade,
@@ -123,7 +123,7 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage)));
     }
 
-    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveMembershipLabelsAsync(
+    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveRegisterLabelsAsync(
         MatchScore fast, CancellationToken cancellationToken)
     {
         var conceptIds = new[] { fast.SsykOverlap, fast.RegionFit }

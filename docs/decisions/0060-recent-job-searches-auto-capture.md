@@ -266,7 +266,10 @@ Anställningsform och omfattning (klass 2, tio frusna värden) är **allmänsubs
 `Heltid`, `Vikariat`, `Behovsanställning` — och `klass2-taxonomy.json:5` klassar sin egen
 ometikettering som *"an FE presentation concern (PR-2), not a data-layer concern (ACL stays
 honest, Evans 2003 ch. 14)"*. De reste förresolvade på svenska och nådde varje `en`-användare
-ordagrant på `/sokningar`, i `/jobb`-hero-chippet, i `/oversikt`-notisen och i matchdetaljen.
+ordagrant. Ytorna räknas inte upp uttömmande här — de ändras i samma PR och skulle drifta —
+men de spänner minst recent-sökningens fyra renderingar (`/sokningar`, `/jobb`-hero-chippet,
+`/oversikt`-notisen, radens `aria-label`), `/jobb`s klass 2-panel och dess filterchips,
+matchdetaljens `employmentFit`, samt matchningsinställningarna och onboarding-guiden.
 
 **Formen.** `RecentSearchLabelPartKind` får en tredje medlem `Coded`, och
 `RecentSearchLabelPartDto` en `ConceptId`. `Coded` bär koden och **`Text: null`** —

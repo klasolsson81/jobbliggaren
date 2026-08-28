@@ -256,7 +256,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["Systemutvecklare"]),
                 TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
                 RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["Stockholm"]),
-                EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["Tillsvidare"])),
+                EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["kpPX_CNN_gDU"])),
             SkillOverlap: Dim(MatchDimensionVerdict.Match, matched: ["C#", "SQL"], missing: ["Kubernetes"]),
             MustHaveCoverage: Dim(MatchDimensionVerdict.Match, matched: ["C#"], missing: []),
             NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));

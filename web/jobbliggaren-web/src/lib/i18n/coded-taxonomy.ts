@@ -15,6 +15,19 @@
  * detail's `employmentFit`, and `buildTaxonomyLabelResolver`'s mixed map — so an
  * axis-split key set would force them to guess an axis or try both (CTO 2026-08-28).
  *
+ * The English wording is authored, not sourced: JobTech publishes no English labels for these
+ * concepts (measured against `taxonomy.api.jobtechdev.se/v1/taxonomy/main/concepts?type=
+ * employment-type`, 2026-08-28). Where Arbetsförmedlingen's own English pages name a form,
+ * that wording is used rather than a fresh invention — read 2026-08-28 at
+ * `arbetsformedlingen.se/other-languages/english-engelska/working-in-sweden/forms-of-
+ * employment`: permanent employment, trial employment, **limited-time employment**,
+ * substitute position, seasonal work, summer jobs, full time, part time. `Limited-time`
+ * rather than the EU directive's `fixed-term` is that page's own rendering of
+ * `tidsbegränsad anställning`, and it is a deliberate choice of the civic register over the
+ * HR convention (design-reviewer Minor, 2026-08-28). `Full-time`/`Part-time` are hyphenated
+ * against that page, because as LABELS they sit beside `On-call employment` and
+ * `Limited-time employment`; the page's own use is adverbial.
+ *
  * The id set is FROZEN and hand-curated. `coded-taxonomy.test.ts` reads
  * `src/Jobbliggaren.Infrastructure/Taxonomy/klass2-taxonomy.json` directly and fails on any
  * disagreement between it, this union, and either catalogue — including a Swedish value that
@@ -79,4 +92,36 @@ export function codedTaxonomyName(
   fallback: string,
 ): string {
   return isCodedTaxonomyId(conceptId) ? t(`codedTaxonomy.${conceptId}`) : fallback;
+}
+
+/** A taxonomy option as the picker surfaces carry it. */
+export interface CodedTaxonomyOption {
+  readonly conceptId: string;
+  readonly label: string;
+}
+
+/**
+ * Names every option in the reader's locale AND orders them by the name it just gave them.
+ *
+ * The backend orders klass 2 by the Swedish label's ordinal. Before this module, name and
+ * order came out of the same language — the wrong one for an English reader, but a list that
+ * scanned. Translating the names alone would have separated them, leaving `en` with no order
+ * at all: not alphabetical, not semantic, not frequency (design-reviewer Major, 2026-08-28).
+ * Klas decided 2026-08-28 that the order follows the name shown.
+ *
+ * Measured no-op in Swedish: for exactly these ten strings `Intl.Collator("sv")` yields the
+ * same sequence as the backend's `StringComparer.Ordinal`, so no Swedish rendering moves.
+ * That equivalence is asserted in `coded-taxonomy.test.ts`, not assumed.
+ */
+export function codedTaxonomyOptions(
+  t: (key: CodedTaxonomyKey) => string,
+  collator: Intl.Collator,
+  options: readonly CodedTaxonomyOption[],
+): CodedTaxonomyOption[] {
+  return options
+    .map((o) => ({
+      conceptId: o.conceptId,
+      label: codedTaxonomyName(t, o.conceptId, o.label),
+    }))
+    .sort((a, b) => collator.compare(a.label, b.label));
 }

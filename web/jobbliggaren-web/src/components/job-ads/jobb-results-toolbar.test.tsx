@@ -13,6 +13,9 @@ const resolvedLabels: Record<string, string> = {
   CifL_Rzy_Mku: "Stockholms län",
   MVqp_eS8_kDZ: "Systemutvecklare",
   zHxw_uJZ_NNh: "Solna",
+  // Klass 2 — servern resolvar dem fortfarande via /taxonomy/labels, men chipet
+  // namnger dem ur katalogen på conceptId (#1537).
+  gro4_cWF_6D7: "Vikariat",
 };
 
 // Gemensam bas så varje test slipper räkna upp alla props (matchActive lades i
@@ -91,6 +94,22 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend&commit=true",
     );
+  });
+
+  it("klass 2-chipet namnges ur katalogen; ort och yrke passerar oöversatta (#1537)", () => {
+    // Renderas under `sv`, där katalogvärdet är byte-identiskt med serverns etikett —
+    // det positiva är alltså att grenen ALLS går genom katalogen. Att den byter ord
+    // under `en` pinnas där resolvern bor (coded-taxonomy.test.ts).
+    renderToolbar({
+      totalCount: 2,
+      employmentType: ["gro4_cWF_6D7"],
+      region: ["CifL_Rzy_Mku"],
+      resolvedLabels,
+    });
+    expect(screen.getByText("Vikariat")).toBeInTheDocument();
+    expect(screen.getByText("Stockholms län")).toBeInTheDocument();
+    // Negativt: ett id får aldrig nå chipet.
+    expect(screen.queryByText(/gro4_cWF_6D7/)).toBeNull();
   });
 
   it("kommun-chip renderas och × tar bort rätt axel (E2b)", async () => {

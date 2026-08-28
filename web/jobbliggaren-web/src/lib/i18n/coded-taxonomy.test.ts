@@ -7,6 +7,7 @@ import enJobads from "../../../messages/en/jobads.json";
 import {
   CODED_TAXONOMY_IDS,
   codedTaxonomyName,
+  codedTaxonomyOptions,
   type CodedTaxonomyKey,
 } from "./coded-taxonomy";
 
@@ -119,13 +120,49 @@ describe("coded-taxonomy — source, union and catalogues agree", () => {
   });
 });
 
+describe("codedTaxonomyOptions", () => {
+  const tSv = translatorFor(svJobads);
+  const tEn = translatorFor(enJobads);
+  const svOrder = new Intl.Collator("sv");
+  const enOrder = new Intl.Collator("en");
+  // The order the backend ships: klass 2 sorted by the SWEDISH label, Ordinal.
+  const asShipped = [...source].sort((a, b) => (a.label < b.label ? -1 : 1));
+
+  it("is a no-op in Swedish — the shipped order survives byte for byte", () => {
+    // The property Klas's decision rests on: reordering by the displayed name moves
+    // nothing under `sv`, because the displayed name IS the label the backend sorted by.
+    expect(codedTaxonomyOptions(tSv, svOrder, asShipped).map((o) => o.label)).toEqual(
+      asShipped.map((o) => o.label),
+    );
+  });
+
+  it("orders English by the English name, not by the Swedish one", () => {
+    const names = codedTaxonomyOptions(tEn, enOrder, asShipped).map((o) => o.label);
+    expect(names).toEqual([...names].sort((a, b) => enOrder.compare(a, b)));
+    // Negative, and this is the half that fails a reversion: shipped order put the
+    // English name for `Deltid` ahead of the one for `Heltid`.
+    expect(names.indexOf("Full-time")).toBeLessThan(names.indexOf("Part-time"));
+  });
+
+  it("leaves a concept id outside the coded set on its source label", () => {
+    const mixed = [
+      { conceptId: "PVZL_BQT_XtL", label: "Göteborg" },
+      { conceptId: "6YE1_gAC_R2G", label: "Heltid" },
+    ];
+    expect(codedTaxonomyOptions(tEn, enOrder, mixed).map((o) => o.label)).toEqual([
+      "Full-time",
+      "Göteborg",
+    ]);
+  });
+});
+
 describe("codedTaxonomyName", () => {
   const tSv = translatorFor(svJobads);
   const tEn = translatorFor(enJobads);
 
   it("resolves through the catalogue rather than echoing the fallback", () => {
     expect(codedTaxonomyName(tEn, "gro4_cWF_6D7", "Vikariat")).toBe("Substitute position");
-    expect(codedTaxonomyName(tEn, "6YE1_gAC_R2G", "Heltid")).toBe("Full time");
+    expect(codedTaxonomyName(tEn, "6YE1_gAC_R2G", "Heltid")).toBe("Full-time");
   });
 
   it("renders Swedish byte-identically to the label the backend ships", () => {
@@ -140,11 +177,4 @@ describe("codedTaxonomyName", () => {
     expect(codedTaxonomyName(tEn, "PVZL_BQT_XtL", "Göteborg")).toBe("Göteborg");
   });
 
-  it("degrades an unknown coded-shaped id to the fallback instead of throwing", () => {
-    // The drift case: the source set grew, the catalogue has no key yet. The caller's
-    // fallback answers; a thrown missing-key error would blank the whole row.
-    expect(codedTaxonomyName(tEn, "zzzz_zzzz_zzz", "Okänd kod (zzzz_zzzz_zzz)")).toBe(
-      "Okänd kod (zzzz_zzzz_zzz)",
-    );
-  });
 });

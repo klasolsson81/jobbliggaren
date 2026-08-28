@@ -1006,6 +1006,20 @@ instrument under-reaches its own property reads as coverage it does not have.
   revision of this bullet said it was "not built yet" and that a `docker compose pull`
   would find no tags — false since #1225, and a reader acting on it would conclude §3
   cannot run.
+- **That Trivy gate speaks once, at build time, and a second workflow is what speaks after**
+  (#1519). `release-images.yml` skips build, scan and push entirely when the current `main` SHA
+  is already published under both tags with a readable attestation, so a published image was
+  never rescanned: no GitHub Actions event fires on a published advisory, Dependabot proposes
+  nothing for a floating base tag, and the only thing producing a new image was a merge for some
+  unrelated reason. `.github/workflows/rescan-images.yml` runs daily at 05:05 UTC and scans the
+  **published digests** — the artefacts this box actually pulls — with the same parameters
+  (`HIGH,CRITICAL`, `ignore-unfixed`), so the claim it makes is *"this artefact would not pass
+  today the gate it passed when it was built"*. It **detects and does not repair**: the repair is
+  a merge, which yields a new SHA and sends the image down the existing publish path. A red run
+  mails whoever created that workflow (GitHub sends scheduled-run notifications to the workflow's
+  creator, or to whoever last changed its cron) — that notification is the only reader this has,
+  which is why the cadence is daily rather than hourly. It carries **no** write permission of any
+  kind and is deliberately **not** in `ci`'s required set.
 - **`infra/terraform/`** — a record of what once ran on AWS, not a starting point. Do not
   repair its names toward the current application: it injects options #802 removed, injects
   no master key (so a re-apply hard-fails at startup), and names Dockerfile paths that do

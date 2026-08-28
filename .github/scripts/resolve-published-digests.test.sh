@@ -215,8 +215,53 @@ expect_exit 2 "a failed lookup is UNANSWERABLE, never 'clean'" "$WF5"
 assert_stderr_names "jobbliggaren-caddy" "the failed lookup names which image"
 assert_stdout_empty "a failed lookup emits no rows at all"
 
-rm -f "$BIN/docker"
-expect_exit 2 "docker missing is unanswerable, never 'nothing to scan'" "$WF5"
+# DELETING THE STUB IS NOT ENOUGH, AND THAT IS MEASURED. An earlier version of this case did
+# `rm -f "$BIN/docker"` and ran with `PATH="$BIN:/usr/bin:/bin"`. On a developer machine that
+# removes docker from the search path; ON THE GITHUB RUNNER IT DOES NOT, because the runner ships
+# a real docker at /usr/bin/docker. So the SUT found it, inspected the real GHCR images, resolved
+# five real digests and exited 0 — the case failed in CI on run 33167528101, and it had been
+# reaching the live registry rather than testing anything. This suite's header promises no
+# network; that promise was false for exactly one case.
+#
+# So the absence is CONSTRUCTED instead of assumed: a PATH containing symlinks to the externals
+# the SUT actually uses, and nothing else. That doubles as the only written record of what those
+# externals are.
+#
+# The farm holds WRAPPERS, not symlinks, and that is not a stylistic choice. A symlink into
+# /usr/bin works on the Linux runner and breaks under MSYS/Git Bash, where a relocated coreutil
+# can no longer find msys-2.0.dll and dies with "error while loading shared libraries" — which
+# is a non-zero exit that would have let this case pass for the wrong reason on the runner while
+# failing noisily for a developer. A wrapper invokes the tool by ABSOLUTE path, so the loader
+# still resolves, and it names its interpreter absolutely for the same reason.
+readonly NODOCKER="$TMPROOT/nodocker"
+mkdir -p "$NODOCKER"
+bash_bin=$(command -v bash)
+for t in dirname tr awk grep sort uniq head; do
+  src=$(command -v "$t") || { echo "  FAIL cannot build the docker-free PATH: $t not found" >&2; exit 1; }
+  printf '#!%s\nexec "%s" "$@"\n' "$bash_bin" "$src" >"$NODOCKER/$t"
+  chmod +x "$NODOCKER/$t"
+done
+if PATH="$NODOCKER" command -v docker >/dev/null 2>&1; then
+  fail=$((fail + 1))
+  echo "  FAIL the docker-free PATH still resolves docker — this case would prove nothing" >&2
+else
+  pass=$((pass + 1))
+  echo "  ok   the docker-free PATH really has no docker (the case is not vacuous)"
+fi
+
+# The INTERPRETER is resolved by absolute path. `env bash` would look `bash` up through the
+# docker-free PATH above and exit 127 — a missing shell, not a missing docker. That is a non-zero
+# exit that would have let this case pass while proving nothing about the SUT (measured: it did,
+# on the first attempt at this repair).
+nodocker_rc=0
+PATH="$NODOCKER" RESOLVE_DIGESTS_WORKFLOW="$WF5" RESOLVE_DIGESTS_REPO="klasolsson81/jobbliggaren" \
+  "$bash_bin" "$SUT" >"$TMPROOT/out" 2>"$TMPROOT/err" || nodocker_rc=$?
+if [ "$nodocker_rc" -eq 2 ]; then
+  pass=$((pass + 1)); echo "  ok   docker missing is unanswerable, never 'nothing to scan' (exit 2)"
+else
+  fail=$((fail + 1)); echo "  FAIL docker missing — wanted exit 2, got $nodocker_rc" >&2; sed 's/^/       /' "$TMPROOT/err" >&2
+fi
+assert_stderr_names "docker is not on PATH" "and it names the missing tool rather than blaming the registry"
 
 echo "-- 3. the output shape is checked, not trusted"
 # Docker 29's bare-template fallback, reproduced from the real CLI 2026-08-28 (29.0.1 /

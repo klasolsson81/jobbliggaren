@@ -385,6 +385,15 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * utan PR, utan CI och utan deploy — den är den första aktiveringshändelsen i huset som ingen
    * release grindar. Copyns markör är då det enda som håller policyn ärlig. Stryk markör-halvan i
    * samma ändring som flippar copyn, och **behåll golvet och path-pariteten**.
+   *
+   * ⚠ **DEN OPERATIVA YTAN ÄR `docs/runbooks/vps-deploy-stack.md` RAD 36:s MX-BEN, INTE DEN
+   * HÄR FILEN** (#183 led 5, 2026-08-28). Docblocket ovan talar till den som kör CI. Raden
+   * talar till den som står i STRATO:s panel och är på väg att ändra posten. Ett test är fel
+   * hem för en instruktion till någon som inte öppnar testfiler.
+   * **Förfinas slutsatsen ska BÅDA ytorna ändras — en fix på en av två är ingen fix, i endera
+   * riktningen — och ingenting länkar dem.** Samma avvägning som `deploy/caddy/Caddyfile`:s
+   * `basic_auth`-block bär mot `release-checklist.md` §2.5 punkt 1 led (e) förutsättning 5.
+   * **Raden bär ordningen och vad flytten kostar. Läs den där; ämnena återges inte här.**
    */
   it("inbound-biträdet STRATO är namngivet i policyn och bär markören tills MX flyttas (#183)", () => {
     // Den PART-BÄRANDE formen, aldrig varumärket: Art. 13(1)(e) kräver den juridiska personen,

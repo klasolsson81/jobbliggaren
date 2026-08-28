@@ -1244,7 +1244,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    uppgifter **per konstruktion**, och en accept vidgad med en enda icke-ansvarig registrerad är
 >    en accept av någon annans rättigheter. En **manuell** retentionsrutin är däremot fullt laglig
 >    under Art. 5(1)(e) jämförd med Art. 24(1)
->    (`security-auditor`, `docs/reviews/2026-08-28-183-led5-security-auditor-recheck.md`,
+>    (`security-auditor`, `docs/reviews/2026-08-28-183-led5-security-auditor.md`,
 >    eskaleringspunkt 3 — gitignorerad, huvudkopian).
 >
 >    **RETENTIONSTRIGGRARNA `R1`–`R4` — uppräknade, aldrig en grundmening.** En enda mening är ingen
@@ -1264,14 +1264,14 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    **`R4` varje ändring av apex-MX eller av brevlådans mottagande** — flytten själv inkluderad.
 >
 >    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS**
->    (`security-auditor` 2026-08-28). I lågtrafikläget — det förväntade — är `R1` tyst och varken
+>    I lågtrafikläget — det förväntade — är `R1` tyst och varken
 >    `R3` eller `R4` fyrar, så bara `R2` återstår: en post som förfaller vid tolv månader raderas då
 >    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym, som är noll inkommande. **Det
 >    gör det inte till tolv.**
 >
 >    ⛔ **INGEN PÅMINNARE ÄR BYGGD, och den meningen får aldrig strykas av att åtgärden godkänts.**
->    Ingenting pagar någon, och **ingenting mäter att genomgången skett**. Det är recordet av vad som
->    **inte** finns.
+>    Ingenting pagar någon, **ingenting mäter att genomgången skett**, och en kalenderförpliktelse
+>    utan påminnare körs inte. Det är recordet av vad som **inte** finns.
 >    ⚠ **`#1267 AC 2` är INTE hemmet för den här kontrollen**, och den här raden lägger ingen
 >    förpliktelse där — en issue-AC rider varken §6:s PR-flöde eller §9.2:s agenter, har ingen
 >    läsarplikt och inget svep som tittar där. Hemmet är den här raden, **trackad med flit**: led 6:s

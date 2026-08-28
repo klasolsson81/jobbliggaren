@@ -318,6 +318,21 @@ jobs:
       - name: Publish latest ${{ matrix.name }}
         if: steps.attest.outcome == 'success'
         run: |
+          # A NON-BLOCKING PROBE, deliberately not a gate. `steps.attest.outcome` says the
+          # attest action reported success; it does not say the bundle is readable from GHCR's
+          # referrers, which is where the box reads it. Gating on that would put an UNMEASURED
+          # dependency on referrer propagation into the publish path — #1314 measured
+          # push-to-attest at 3-5 s but never measured attest-to-readable, and that unknown is
+          # the whole reason this PR exists. So it is measured rather than enforced: every
+          # publish records whether the producer can already read what the consumer will read.
+          # If these warnings never appear the gate is safe to add; if they do, the window's
+          # size comes from data instead of a guess. It never fails the step.
+          probe_status=0
+          deploy/systemd/verify-image-attestation.sh \
+            "${{ steps.tag.outputs.image }}@${{ steps.push.outputs.digest }}" >/dev/null 2>&1 || probe_status=$?
+          if [ "$probe_status" -ne 0 ]; then
+            echo "::warning::attestation for ${{ steps.push.outputs.digest }} is not yet readable from the registry (verifier exit $probe_status). Publishing latest anyway; the box re-verifies on every reconcile."
+          fi
           docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
                      "${{ steps.tag.outputs.image }}:latest"
           docker push "${{ steps.tag.outputs.image }}:latest"

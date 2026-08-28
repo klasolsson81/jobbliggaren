@@ -43,12 +43,12 @@ out="$TMPROOT/out"
 # Emits a workflow shaped like release-images.yml's publish tail. Knobs, all defaulting to the
 # correct shape, so each case names ONLY what it breaks:
 #   PUSH_LATEST=1        the push step publishes the mutable tag itself (the 2026-08-11
-#                        regression). PUSH_LATEST_STYLE picks HOW it is written: plain, a
-#                        trailing shell comment, a backslash continuation, or an untagged
-#                        reference whose tag defaults to latest. The last three were all
-#                        measured passing with exit 0 before review.
-#   PUBLISH=0            no publisher at all
-#   PUBLISH_TWICE=1      a SECOND PUBLISH COMMAND inside the same, correctly gated step —
+#                        regression). PUSH_LATEST_STYLE picks HOW it is written: plain,
+#                        a trailing shell comment, a backslash continuation, an untagged
+#                        reference, an && chain (one line or split), a `;` chain, a
+#                        trailing comment that merely MENTIONS :sha-, or a comment line
+#                        ending in a backslash. Every one of them was measured passing
+#                        with exit 0 at some point in this PR's review.
 #                        not a second step and not ungated. SECOND_STEP=1 is that one.
 #   SECOND_STEP=1        a real second publisher step, after the guarded one, with no if:
 #   PUBLISH_IF=<expr>    the publisher's guard expression; "OMIT" writes no if: at all
@@ -87,8 +87,25 @@ emit() {
       case "${PUSH_LATEST_STYLE:-plain}" in
       comment) echo '          docker push "${{ steps.tag.outputs.image }}:latest"  # keep latest moving' ;;
       continuation)
-        echo '          docker push '
-        echo '            "${{ steps.tag.outputs.image }}:latest"'
+        printf '%s
+' '          docker push \'
+        printf '%s
+' '            "${{ steps.tag.outputs.image }}:latest"'
+        ;;
+      and-oneline) echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" && docker push "${{ steps.tag.outputs.image }}:latest"' ;;
+      and-split)
+        printf '%s
+' '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" && \'
+        printf '%s
+' '          docker push "${{ steps.tag.outputs.image }}:latest"'
+        ;;
+      semicolon) echo '          docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"; docker push "${{ steps.tag.outputs.image }}:latest"' ;;
+      comment-sha) echo '          docker push "${{ steps.tag.outputs.image }}:latest"  # mirrors the :sha- push' ;;
+      comment-cont)
+        printf '%s
+' '          # quick fix \'
+        printf '%s
+' '          docker push "${{ steps.tag.outputs.image }}:latest"'
         ;;
       implicit) echo '          docker push "${{ steps.tag.outputs.image }}"' ;;
       *) echo '          docker push "${{ steps.tag.outputs.image }}:latest"' ;;
@@ -159,6 +176,26 @@ expect 1 "publishes \`:latest\` itself" "nor does a backslash continuation — t
 
 (PUSH_LATEST=1 PUSH_LATEST_STYLE=implicit emit "$TMPROOT/regress-implicit.yml")
 expect 1 "publishes \`:latest\` itself" "nor an untagged reference, whose tag DEFAULTS to latest" "$TMPROOT/regress-implicit.yml"
+
+# FIVE MORE, ALL FOUND IN THE SCOPED RE-CHECK OF THE FIX ABOVE. Inverting the rule was right,
+# but the exemption was tested against the whole LINE while it belongs to a COMMAND: one
+# immutable push then vouched for a mutable one beside it. And the comment test ran AFTER the
+# continuation accumulator, so a comment ending in a backslash swallowed the command below it.
+# Each of these was measured exit 0 before the predicate was made per-segment.
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=and-oneline emit "$TMPROOT/regress-and1.yml")
+expect 1 "publishes \`:latest\` itself" "an && chain does not let the sha- push vouch for the mutable one" "$TMPROOT/regress-and1.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=and-split emit "$TMPROOT/regress-and2.yml")
+expect 1 "publishes \`:latest\` itself" "nor an && chain split across a real backslash continuation" "$TMPROOT/regress-and2.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=semicolon emit "$TMPROOT/regress-semi.yml")
+expect 1 "publishes \`:latest\` itself" "nor a semicolon chain" "$TMPROOT/regress-semi.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment-sha emit "$TMPROOT/regress-csha.yml")
+expect 1 "publishes \`:latest\` itself" "nor a trailing comment that merely MENTIONS :sha-" "$TMPROOT/regress-csha.yml"
+
+(PUSH_LATEST=1 PUSH_LATEST_STYLE=comment-cont emit "$TMPROOT/regress-ccont.yml")
+expect 1 "publishes \`:latest\` itself" "nor a comment line ending in a backslash, which used to swallow the next command" "$TMPROOT/regress-ccont.yml"
 
 echo "-- the guard expression"
 (PUBLISH_IF="success()" emit "$TMPROOT/bare.yml")

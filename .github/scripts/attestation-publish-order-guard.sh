@@ -44,15 +44,19 @@
 # different indentation, a flow mapping) is not read as a step; the count then disagrees or the
 # required ids go missing, and the guard refuses rather than passing.
 #
-# WHAT DEFEATS THIS READER, stated because the first version of this paragraph claimed a
-# blanket "fails closed" that was measured false twice in review. What is now closed: a trailing
-# comment on the publish line, a publish split across a backslash continuation, and an untagged
-# `docker push "$img"` whose tag defaults to `latest` — the first two passed with exit 0, and
-# all three are pinned in the suite. What remains open, and is not modelled: a push invoked
-# other than by the literal words `docker push` (an alias, a variable holding the binary, a
-# `docker` wrapper action), and a publish performed by a marketplace action rather than a `run:`
-# step. Neither occurs in this workflow today. A guard cannot prove the absence of a shape it
-# cannot name, so the list is the honest claim rather than the blanket one.
+# WHAT DEFEATS THIS READER, enumerated because two earlier versions of this paragraph made a
+# blanket claim instead, and review measured each one false. Every shape below was observed
+# passing with exit 0 at some point in this PR and is now refused, each with its own case in
+# the suite: a trailing comment on the publish line; a comment whose text merely MENTIONS
+# `:sha-`; a comment line ending in a backslash; an untagged `docker push "$img"` whose tag
+# defaults to `latest`; and an immutable and a mutable push sharing one line through `&&`,
+# `||`, `;` or `|`, in one piece or split across a continuation.
+#
+# WHAT REMAINS OPEN, and is not modelled: a push invoked other than by the literal words
+# `docker push` (an alias, a variable holding the binary, a `docker` wrapper action), and a
+# publish performed by a marketplace action rather than a `run:` step. Neither occurs in this
+# workflow today. A guard cannot prove the absence of a shape it cannot name, so this is the
+# honest claim rather than a blanket one — and the blanket one is what kept being wrong.
 #
 # CRLF IS HANDLED EXPLICITLY. The repo default is `core.autocrlf=true`, so this workflow is
 # CRLF in a Windows worktree and LF on a CI checkout. A trailing `\r` breaks every `case` and
@@ -88,7 +92,6 @@ cannot_answer() {
 cur_id=""
 cur_if=""
 cur_name=""
-joined=""
 step_index=0
 attest_index=-1
 push_index=-1
@@ -122,49 +125,62 @@ while IFS= read -r raw; do
     ;;
   esac
 
-  # A command may be split across lines with a trailing backslash, and this file's own house
-  # style splits exactly that shape three lines below (`docker tag "…:sha-…" \`). Joining them
-  # is not cosmetic: the first version of this reader matched single lines only, so re-adding
-  # the publish with a line break passed the guard with exit 0.
-  case "$line" in
-  *\\)
-    joined="$joined${line%\\} "
-    continue
-    ;;
-  esac
-  cmd="$joined$line"
-  joined=""
-
-  # A comment is a line whose FIRST non-blank character is `#` — never a line that merely
-  # CONTAINS one. The first version excluded any line with a `#` anywhere, so a publish
-  # carrying a trailing comment was invisible to every check below and the guard reported
-  # `order holds` over the exact 2026-08-11 regression.
-  trimmed=${cmd#"${cmd%%[![:space:]]*}"}
+  # A COMMENT IS TESTED BEFORE THE CONTINUATION ACCUMULATOR, not after. A comment line ending
+  # in a backslash would otherwise swallow the next line into the accumulator and take the
+  # command on it out of the guard's sight entirely.
+  trimmed=${line#"${line%%[![:space:]]*}"}
   case "$trimmed" in
   "#"*) continue ;;
   esac
 
-  # WHAT COUNTS AS A MUTABLE PUBLISH, and why the test is not `:latest`. Docker tags an
-  # untagged reference `latest` implicitly, so `docker push "$img"` publishes the mutable tag
-  # while containing neither the word nor a colon. Matching the literal missed it. The rule is
-  # inverted instead: the ONLY push this workflow may make outside the guarded step is the
-  # immutable, digest-bearing `:sha-<short>` tag. Every other `docker push` — `:latest`, an
-  # untagged reference, or some future third tag — is a mutable publish and must sit in the
-  # step gated on the attestation. Unknown shapes therefore fail CLOSED.
-  case "$cmd" in
-  *"docker push"*)
-    case "$cmd" in
-    *":sha-"*) ;;
-    *)
-      publish_count=$((publish_count + 1))
-      publish_index=$step_index
-      publish_guard=$cur_if
-      publish_name=$cur_name
-      if [ "$step_index" = "$push_index" ]; then push_publishes_latest=1; fi
+  # NO CONTINUATION JOINING, and its absence is the decision. An earlier version accumulated
+  # backslash-continued lines before matching. It closed nothing the per-segment rule below
+  # does not already close line by line, and it opened a hole of its own: a continued line
+  # carrying the immutable push swept the mutable one below it into one string, and the
+  # `:sha-` exemption then covered both. Measured during review by disabling the branch: every
+  # case in the suite kept its verdict, so it was carrying no coverage either.
+  cmd=$line
+
+  # WHAT COUNTS AS A MUTABLE PUBLISH, and why the test is neither `:latest` nor per line.
+  #
+  # Not `:latest`: docker tags an untagged reference `latest` implicitly, so
+  # `docker push "$img"` publishes the mutable tag while containing neither the word nor a
+  # colon. The rule is inverted instead — the ONLY push this workflow may make outside the
+  # guarded step is the immutable, digest-bearing `:sha-<short>` tag, and every other
+  # `docker push` is a mutable publish that must sit in the step gated on the attestation.
+  #
+  # AND NOT PER LINE, because the exemption belongs to a COMMAND. Testing the whole line let
+  # one immutable push amnesty a mutable one beside it: `docker push "$img:sha-X" && docker
+  # push "$img:latest"` contains `:sha-`, so the line was exempted whole and the guard reported
+  # `order holds` over the 2026-08-11 regression — measured, exit 0, in three separators. The
+  # line is therefore split on `&&`, `||`, `;` and `|` and each segment judged alone.
+  #
+  # A TRAILING COMMENT IS CUT BEFORE THE EXEMPTION IS TESTED, for the same reason in miniature:
+  # `docker push "$img:latest"  # mirrors the :sha- push` carries `:sha-` in prose only, and
+  # that also passed. The exemption may only be earned by the command, never by a comment
+  # about it. Cutting at `#` can only ever make a segment look MORE like a mutable publish, so
+  # the direction of any misreading is refusal.
+  seg_stream=${cmd//&&/$'\n'}
+  seg_stream=${seg_stream//||/$'\n'}
+  seg_stream=${seg_stream//;/$'\n'}
+  seg_stream=${seg_stream//|/$'\n'}
+  while IFS= read -r seg; do
+    seg_cmd=${seg%%#*}
+    case "$seg_cmd" in
+    *"docker push"*)
+      case "$seg_cmd" in
+      *":sha-"*) ;;
+      *)
+        publish_count=$((publish_count + 1))
+        publish_index=$step_index
+        publish_guard=$cur_if
+        publish_name=$cur_name
+        if [ "$step_index" = "$push_index" ]; then push_publishes_latest=1; fi
+        ;;
+      esac
       ;;
     esac
-    ;;
-  esac
+  done <<<"$seg_stream"
 done <"$WORKFLOW"
 
 [ "$step_index" -gt 0 ] || cannot_answer "read no steps at all from $WORKFLOW — the reader's anchoring no longer matches the file"

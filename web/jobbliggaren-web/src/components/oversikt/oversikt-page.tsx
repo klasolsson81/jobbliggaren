@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
@@ -86,6 +87,7 @@ export function OversiktPage({
   const tRelativeTime = useTranslations("oversikt.relativeTime");
   // Recent-sökningens label bor i jobads-katalogen, inte i oversikt (#1430).
   const tRecentLabel = useTranslations("jobads.recent");
+  const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   const today = new Date();
   // Datum-suffix på notice-IDs så en dismissad notis återkommer när data ändras
@@ -260,7 +262,7 @@ export function OversiktPage({
       text: (
         <SavedSearchNoticeText
           searchId={lastSearch.id}
-          name={buildRecentSearchLabel(lastSearch.label, recentSearchLabelCopy(tRecentLabel))}
+          name={buildRecentSearchLabel(lastSearch.label, recentSearchLabelCopy(tRecentLabel, codedName))}
         />
       ),
       cta: t("notices.savedSearchCta"),

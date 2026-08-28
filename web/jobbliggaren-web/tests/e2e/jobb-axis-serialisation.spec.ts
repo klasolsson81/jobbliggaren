@@ -48,10 +48,16 @@ const RUN_ID = Date.now();
  * The pairing is safe to hard-code precisely here: `klass2-taxonomy.json` is
  * FROZEN and hand-curated by construction (its own note — employment-type and
  * worktime-extent are flat, parentless, legally-stable sets, deliberately not
- * generated), unlike the regenerated snapshots. The label is needed because the
- * rendered rows carry no conceptId attribute, and the panel renders in taxonomy
- * order, NOT the order the codes appear in the URL — so picking a row by index
- * would silently exercise a different transition than the one named.
+ * generated), unlike the regenerated snapshots. Since #1537 the rendered label
+ * comes from `messages/sv/jobads.json` rather than from that file directly, and
+ * `src/lib/i18n/coded-taxonomy.test.ts` holds the two byte-identical — so the
+ * pairing above still holds, by that gate.
+ *
+ * The label is needed because the rendered rows carry no conceptId attribute, and
+ * the panel renders in the collation order of the DISPLAYED name, NOT the order the
+ * codes appear in the URL — so picking a row by index would silently exercise a
+ * different transition than the one named. This spec runs under `sv`, where that
+ * order is the same sequence the taxonomy ships (measured, `coded-taxonomy.test.ts`).
  */
 const EMPLOYMENT_A = { id: "PFZr_Syz_cUq", label: "Vanlig anställning" };
 const EMPLOYMENT_B = {

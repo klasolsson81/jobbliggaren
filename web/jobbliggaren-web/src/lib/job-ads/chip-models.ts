@@ -123,13 +123,30 @@ export function removeChipFromState(
 }
 
 /**
+ * De locale-beroende orden resolvern behöver, injicerade som all annan copy i
+ * huset (jfr `RecentSearchLabelCopy`) — funktionen förblir ren och testbar
+ * utan översättare, och bär ingen egen svenska.
+ */
+export interface TaxonomyLabelCopy {
+  /**
+   * Locale-namnet för ett kodat taxonomi-id (anställningsform/omfattning).
+   * Registerdata — ort, län, yrkesgrupp — är egennamn och faller igenom till
+   * `fallback`, som är etiketten backend redan skickat.
+   */
+  readonly coded: (conceptId: string, fallback: string) => string;
+  /** Vad ett id utanför trädet renderar som, t.ex. "Okänd kod (X)". */
+  readonly unknownCode: (conceptId: string) => string;
+}
+
+/**
  * Label-resolver ur FE-taxonomy-trädet (fält-sidan; toolbaren injicerar
  * sina server-resolverade labels i stället). Okänt id (stale URL/snapshot)
- * → "Okänd kod (<id>)" — samma graceful-fallback-text som ADR 0043
- * Beslut B/toolbaren, aldrig throw.
+ * → `copy.unknownCode` — samma graceful-fallback som ADR 0043 Beslut B/
+ * toolbaren, aldrig throw.
  */
 export function buildTaxonomyLabelResolver(
   taxonomy: TaxonomyTree | null,
+  copy: TaxonomyLabelCopy,
 ): ConceptLabelResolver {
   const map = new Map<string, string>();
   for (const r of taxonomy?.regions ?? []) {
@@ -140,12 +157,18 @@ export function buildTaxonomyLabelResolver(
     map.set(f.conceptId, f.label);
     for (const g of f.occupationGroups) map.set(g.conceptId, g.label);
   }
-  // Klass 2 — platta listor (anställningsform/omfattning). Råa JobTech-labels
-  // (Klas "honest 8" — ingen kurering). Fält-sidans resolver; toolbaren
-  // injicerar i stället sina server-resolverade labels (/taxonomy/labels är
-  // kind-agnostisk sedan PR-1).
-  for (const e of taxonomy?.employmentTypes ?? []) map.set(e.conceptId, e.label);
-  for (const w of taxonomy?.worktimeExtents ?? []) map.set(w.conceptId, w.label);
-  return (_axis, conceptId) =>
-    map.get(conceptId) ?? `Okänd kod (${conceptId})`;
+  // Klass 2 — platta listor (anställningsform/omfattning). Fält-sidans resolver;
+  // toolbaren injicerar i stället sina server-resolverade labels
+  // (/taxonomy/labels är kind-agnostisk sedan PR-1).
+  //
+  // Till skillnad från ort och yrke ovan är de här allmänsubstantiv, inte
+  // egennamn, så de passerar `copy.coded` (#1537). Källetiketten skickas med som
+  // fallback — den är svaret för varje id katalogen inte känner.
+  for (const e of taxonomy?.employmentTypes ?? []) {
+    map.set(e.conceptId, copy.coded(e.conceptId, e.label));
+  }
+  for (const w of taxonomy?.worktimeExtents ?? []) {
+    map.set(w.conceptId, copy.coded(w.conceptId, w.label));
+  }
+  return (_axis, conceptId) => map.get(conceptId) ?? copy.unknownCode(conceptId);
 }

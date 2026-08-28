@@ -28,6 +28,7 @@ import {
 } from "@/lib/job-ads/search-params";
 import { composeSuggestionChip } from "@/lib/job-ads/chip-composition";
 import { buildTaxonomyLabelResolver } from "@/lib/job-ads/chip-models";
+import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import {
   applyClaimsDelta,
   buildLabelIndex,
@@ -141,6 +142,7 @@ export function JobbHeroSearch({
 }: JobbHeroSearchProps) {
   const router = useRouter();
   const t = useTranslations("jobads.ui");
+  const tEnum = useTranslations("jobads.enums");
   const [, startTransition] = useTransition();
   const helpId = useId();
   const noticeId = useId();
@@ -153,8 +155,12 @@ export function JobbHeroSearch({
 
   const labelIndex = useMemo(() => buildLabelIndex(taxonomy), [taxonomy]);
   const resolveLabel = useMemo(
-    () => buildTaxonomyLabelResolver(taxonomy),
-    [taxonomy],
+    () =>
+      buildTaxonomyLabelResolver(taxonomy, {
+        coded: (conceptId, fallback) => codedTaxonomyName(tEnum, conceptId, fallback),
+        unknownCode: (code) => t("toolbar.unknownCode", { code }),
+      }),
+    [taxonomy, t, tEnum],
   );
 
   const base = useMemo<JobbUrlState>(

@@ -49,7 +49,15 @@ const taxonomy: TaxonomyTree = {
 };
 
 const index = buildLabelIndex(taxonomy);
-const resolve = buildTaxonomyLabelResolver(taxonomy);
+// Kopian resolvern behöver. `coded` speglar vad den riktiga gör för ett id UTANFÖR den
+// kodade mängden — fixturens id:n är påhittade, så de faller till källetiketten — och
+// `unknownCode` speglar `ui.toolbar.unknownCode` i sv-katalogen ordagrant.
+const labelCopy = {
+  coded: (_conceptId: string, fallback: string) => fallback,
+  unknownCode: (code: string) => `Okänd kod (${code})`,
+};
+
+const resolve = buildTaxonomyLabelResolver(taxonomy, labelCopy);
 
 const empty: JobbUrlState = {
   q: "",

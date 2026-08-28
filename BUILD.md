@@ -1160,10 +1160,32 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 
 ### 10.6 Språk
 
-- UI på svenska
-- Admin-UI på svenska
-- Inga hårdkodade strängar — alla via `messages/sv/` (next-intl)
-- Engelska som fallback för teknikorienterade fel ("Internal server error") men primärt "Ett fel uppstod, försök igen"
+**`sv` OCH `en` är båda produkt-locales, och all UI-copy finns i båda katalogerna**
+(Klas-beslut 2026-08-22, nedskrivet 2026-08-28: *"Allt på sidan måste översättas just nu
+till både svenska och engelska. Appen riktar sig till Sverige och svenska arbetsmarknaden,
+men alla kanske inte förstår svenska."*). `en` är nåbar för varje inloggad användare —
+`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i footern och i `/installningar` —
+så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hypotes.
+
+- **Svenska är standardspråket** (`defaultLocale`) och tonen sätts på svenska; engelskan är
+  en översättning av den, aldrig en egen produkt.
+- Admin-UI på svenska.
+- Inga hårdkodade strängar — alla via `messages/{sv,en}/` (next-intl). En sträng som bara
+  finns i `sv` är inte översatt; paritetstesterna i `src/lib/i18n/*-parity.test.ts` fäller
+  en nyckel som saknas i endera katalogen.
+- Engelska som fallback för teknikorienterade fel ("Internal server error") men primärt
+  "Ett fel uppstod, försök igen".
+
+**Avgränsningen är REGISTERDATA, inte taxonomi-medlemskap.** Ortnamn, länsnamn och
+yrkesgruppsnamn är egennamn och förblir svenska i varje locale — de namnger något som heter
+så. **Anställningsform och omfattning (klass 2) gör det inte:** `Heltid`, `Vikariat`,
+`Behovsanställning` är allmänsubstantiv, och `klass2-taxonomy.json` klassar sin egen
+ometikettering som en FE-presentationsfråga. De reser därför som **kod** på wire:n och får
+sitt ord ur `messages/{sv,en}/jobads.json` (`enums.codedTaxonomy`). Gränsen går mellan
+egennamn och allmänsubstantiv, inte mellan data och UI.
+
+*Härledning och beslutsunderlag: ADR 0137 (lokal per ADR 0072) och ADR 0060:s amendment
+2026-08-28 (2). Regeln ovan är fullständig i sig — den ska aldrig behöva läsas ur någon av dem.*
 
 ---
 

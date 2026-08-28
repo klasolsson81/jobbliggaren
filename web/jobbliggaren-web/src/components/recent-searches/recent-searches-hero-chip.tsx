@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import { Clock } from "lucide-react";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
@@ -31,7 +32,8 @@ interface RecentSearchesHeroChipProps {
  */
 export function RecentSearchesHeroChip({ items }: RecentSearchesHeroChipProps) {
   const t = useTranslations("jobads.recent");
-  const labelCopy = recentSearchLabelCopy(t);
+  const coded = useCodedTaxonomyName();
+  const labelCopy = recentSearchLabelCopy(t, coded);
   const [open, setOpen] = useState(false);
   // Lat hämtning: counten beräknas först när panelen öppnas (slow N+1 undviks
   // på /jobb-laddningar där användaren aldrig öppnar chippen).

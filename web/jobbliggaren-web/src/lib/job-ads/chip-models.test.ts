@@ -42,7 +42,15 @@ const state: JobbUrlState = {
   sortBy: "PublishedAtDesc",
 };
 
-const resolve = buildTaxonomyLabelResolver(taxonomy);
+// Kopian resolvern behöver. `coded` speglar vad den riktiga gör för ett id UTANFÖR den
+// kodade mängden — fixturens id:n är påhittade, så de faller till källetiketten — och
+// `unknownCode` speglar `ui.toolbar.unknownCode` i sv-katalogen ordagrant.
+const labelCopy = {
+  coded: (_conceptId: string, fallback: string) => fallback,
+  unknownCode: (code: string) => `Okänd kod (${code})`,
+};
+
+const resolve = buildTaxonomyLabelResolver(taxonomy, labelCopy);
 
 describe("buildChipModels (E2h SPOT)", () => {
   it("ordning: region → municipality → occupationGroup → employmentType → worktimeExtent → q-ord", () => {
@@ -153,6 +161,25 @@ describe("buildTaxonomyLabelResolver Klass 2", () => {
 
   it("okänt Klass-2-id → 'Okänd kod' (graceful, ADR 0043)", () => {
     expect(resolve("employmentType", "STALE")).toBe("Okänd kod (STALE)");
+  });
+
+  it("klass 2 går genom copy.coded — ort och yrke gör det inte (#1537)", () => {
+    // Muterar kopian i stället för att assertera på copyns retur: det som ska mätas är
+    // VILKA id resolvern skickar dit, inte vad översättaren svarar.
+    const seen: string[] = [];
+    const spy = buildTaxonomyLabelResolver(taxonomy, {
+      coded: (conceptId, fallback) => {
+        seen.push(conceptId);
+        return `EN(${fallback})`;
+      },
+      unknownCode: labelCopy.unknownCode,
+    });
+
+    expect(spy("employmentType", "et_vikariat")).toBe("EN(Vikariat)");
+    expect(spy("worktimeExtent", "wt_heltid")).toBe("EN(Heltid)");
+    // Ort och yrkesgrupp är egennamnsdata och passerar oöversatta.
+    expect(spy("region", "CifL_Rzy_Mku")).toBe("Stockholms län");
+    expect(seen).toEqual(["et_vikariat", "wt_heltid"]);
   });
 });
 

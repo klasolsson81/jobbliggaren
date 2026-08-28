@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
 import userEvent from "@testing-library/user-event";
 import type {
   TaxonomyOccupationField,
@@ -64,8 +67,11 @@ const regions: ReadonlyArray<TaxonomyRegion> = [
 ];
 
 const employmentTypes: ReadonlyArray<TaxonomyOption> = [
-  { conceptId: "et_fast", label: "Tillsvidareanställning" },
-  { conceptId: "et_vikariat", label: "Vikariat" },
+  {
+    conceptId: "kpPX_CNN_gDU",
+    label: "Tillsvidareanställning (inkl. eventuell provanställning)",
+  },
+  { conceptId: "gro4_cWF_6D7", label: "Vikariat" },
 ];
 
 function renderCard(
@@ -262,7 +268,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
     renderCard({
       initialOccupationGroups: ["grp_backend", "grp_frontend"],
       initialRegions: ["region_sthlm"],
-      initialEmploymentTypes: ["et_fast"],
+      initialEmploymentTypes: ["kpPX_CNN_gDU"],
     });
 
     await user.click(
@@ -280,7 +286,7 @@ describe("MatchPreferencesCard — optimistisk borttagning + auto-save", () => {
       preferredRegions: ["region_sthlm"],
       preferredMunicipalities: [],
       preferredRemote: false,
-      preferredEmploymentTypes: ["et_fast"],
+      preferredEmploymentTypes: ["kpPX_CNN_gDU"],
       preferredSkills: [],
       experienceYears: null,
       preferredOccupationExperience: [],
@@ -377,10 +383,10 @@ describe("MatchPreferencesCard — tangentbord", () => {
 
   it("borttagning av den sista chippen flyttar fokus till 'Lägg till'", async () => {
     const user = userEvent.setup();
-    renderCard({ initialEmploymentTypes: ["et_fast"] });
+    renderCard({ initialEmploymentTypes: ["kpPX_CNN_gDU"] });
 
     const only = screen.getByRole("button", {
-      name: "Ta bort Tillsvidareanställning",
+      name: "Ta bort Tillsvidareanställning (inkl. eventuell provanställning)",
     });
     only.focus();
     await user.keyboard("{Delete}");
@@ -456,5 +462,46 @@ describe("Distans-chippen (#551 punkt 4)", () => {
     expect(updateMock.mock.calls.at(-1)![0]).toMatchObject({
       preferredRemote: false,
     });
+  });
+});
+
+describe("MatchPreferencesCard — locale en (#1537)", () => {
+  it("namnger anställningsformen ur katalogen, inte ur propens källetikett", () => {
+    // `render` går genom shimen som hårdkodar locale="sv", där katalogvärdet är
+    // byte-identiskt med propen — ett sv-test kan därför inte skilja katalogvägen
+    // från en genomsläppning. Under `en` skiljer de sig.
+    rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <MatchPreferencesCard
+          occupationFields={occupationFields}
+          regions={regions}
+          employmentTypes={employmentTypes}
+          initialOccupationGroups={[]}
+          initialRegions={[]}
+          initialMunicipalities={[]}
+          initialRemote={false}
+          initialEmploymentTypes={["kpPX_CNN_gDU"]}
+          initialSkills={[]}
+          initialSkillGroups={[]}
+          initialExperienceYears={null}
+          initialOccupationExperience={[]}
+          degraded={false}
+        />
+      </NextIntlClientProvider>
+    );
+
+    expect(
+      screen.getByText(/Permanent employment \(including any trial employment\)/)
+    ).toBeInTheDocument();
+    // Källetiketten får inte nå skärmen — den halvan fäller en genomsläppning.
+    expect(
+      screen.queryByText(
+        /Tillsvidareanställning \(inkl\. eventuell provanställning\)/
+      )
+    ).toBeNull();
   });
 });

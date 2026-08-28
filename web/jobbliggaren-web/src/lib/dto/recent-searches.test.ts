@@ -24,7 +24,7 @@ const wireBase = {
   label: {
     kind: "Query",
     join: "None",
-    parts: [{ kind: "Named", text: "backend", moreCount: 0 }],
+    parts: [{ kind: "Named", text: "backend", conceptId: null, moreCount: 0 }],
   },
   currentCount: 42,
   newCount: 7,
@@ -47,8 +47,48 @@ describe("recentJobSearchDtoSchema", () => {
     expect(parsed.label.kind).toBe("Query");
     expect(parsed.label.join).toBe("None");
     expect(parsed.label.parts).toEqual([
-      { kind: "Named", text: "backend", moreCount: 0 },
+      { kind: "Named", text: "backend", conceptId: null, moreCount: 0 },
     ]);
+  });
+
+  it("parses a Coded part, which carries the code and no text (#1537)", () => {
+    const parsed = recentJobSearchDtoSchema.parse({
+      ...wireBase,
+      label: {
+        kind: "Dimensions",
+        join: "None",
+        parts: [{ kind: "Coded", text: null, conceptId: "6YE1_gAC_R2G", moreCount: 0 }],
+      },
+    });
+
+    expect(parsed.label.parts).toEqual([
+      { kind: "Coded", text: null, conceptId: "6YE1_gAC_R2G", moreCount: 0 },
+    ]);
+  });
+
+  it("refuses a Coded part that carries text, or one with no code", () => {
+    // Spegeln är exakt så snäv som kontraktet: `text` hör Named till och `conceptId`
+    // hör Coded till. En del som bär båda, eller ingendera, är ett kontraktsbrott och
+    // ska falla här hellre än att rendera något halvt på sidan.
+    const withText = {
+      ...wireBase,
+      label: {
+        kind: "Dimensions",
+        join: "None",
+        parts: [{ kind: "Coded", text: "Heltid", conceptId: "6YE1_gAC_R2G", moreCount: 0 }],
+      },
+    };
+    const withoutCode = {
+      ...wireBase,
+      label: {
+        kind: "Dimensions",
+        join: "None",
+        parts: [{ kind: "Coded", text: null, conceptId: "", moreCount: 0 }],
+      },
+    };
+
+    expect(recentJobSearchDtoSchema.safeParse(withText).success).toBe(false);
+    expect(recentJobSearchDtoSchema.safeParse(withoutCode).success).toBe(false);
   });
 
   it("accepts the All label, which is the one kind that carries no parts", () => {
@@ -75,7 +115,11 @@ describe("recentJobSearchDtoSchema", () => {
   it("refuses an ordinal where the label enum expects a name", () => {
     const result = recentJobSearchDtoSchema.safeParse({
       ...wireBase,
-      label: { kind: 0, join: "None", parts: [{ kind: "Named", text: "x", moreCount: 0 }] },
+      label: {
+        kind: 0,
+        join: "None",
+        parts: [{ kind: "Named", text: "x", conceptId: null, moreCount: 0 }],
+      },
     });
 
     expect(result.success).toBe(false);

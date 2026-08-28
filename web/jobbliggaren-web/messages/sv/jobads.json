@@ -141,6 +141,18 @@
       "ExpiresAtAsc": "Stänger snart",
       "Relevance": "Mest relevant",
       "MatchDesc": "Sortera efter matchning"
+    },
+    "codedTaxonomy": {
+      "PFZr_Syz_cUq": "Vanlig anställning",
+      "kpPX_CNN_gDU": "Tillsvidareanställning (inkl. eventuell provanställning)",
+      "1paU_aCR_nGn": "Behovsanställning",
+      "sTu5_NBQ_udq": "Tidsbegränsad anställning",
+      "Jh8f_q9J_pbJ": "Sommarjobb / feriejobb",
+      "EBhX_Qm2_8eX": "Säsongsanställning",
+      "gro4_cWF_6D7": "Vikariat",
+      "9Wuo_2Yb_36E": "Arbete utomlands",
+      "6YE1_gAC_R2G": "Heltid",
+      "947z_JGS_Uk2": "Deltid"
     }
   },
   "ui": {

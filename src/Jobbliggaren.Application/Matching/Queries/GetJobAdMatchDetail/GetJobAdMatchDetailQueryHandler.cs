@@ -100,28 +100,33 @@ public sealed class GetJobAdMatchDetailQueryHandler(
 
         // The three membership dimensions (SSYK / region / employment) carry RAW
         // taxonomy concept-ids in their evidence (MatchScorer.ScoreSsykMembership/ScoreOrtUnion/ScoreEmploymentMembership). A
-        // concept-id must never reach the user — it is the external system's ubiquitous
+        // concept-id must never reach the USER — it is the external system's ubiquitous
         // language (ADR 0043 ACL) and an opaque id is the opposite of explainable
-        // (CLAUDE.md §5). Resolve them to human labels via the taxonomy read-model
-        // (graceful fallback on drift). The skill/title dimensions already carry Display
-        // labels / lexemes, so they are passed through unchanged.
-        var labels = await ResolveMembershipLabelsAsync(score.Fast, cancellationToken);
+        // (CLAUDE.md §5).
+        //
+        // TWO of the three are resolved here: SSYK and region name occupation groups and
+        // regions, which are proper-noun register data and stay Swedish in every locale.
+        // Employment type is a common noun whose word the catalogue owns, so it stays coded
+        // on the wire and the client names it (#1537) — the id still never reaches the user,
+        // it just stops being named in this layer. The skill/title dimensions already carry
+        // Display labels / lexemes, so they are passed through unchanged.
+        var labels = await ResolveRegisterLabelsAsync(score.Fast, cancellationToken);
 
         return Result.Success<JobAdMatchDetailDto?>(new JobAdMatchDetailDto(
             Grade: grade,
             SsykOverlap: ToLabelledRow(score.Fast.SsykOverlap, labels),
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
             RegionFit: ToLabelledRow(score.Fast.RegionFit, labels),
-            EmploymentFit: ToLabelledRow(score.Fast.EmploymentFit, labels),
+            EmploymentFit: ToCodedRow(score.Fast.EmploymentFit),
             SkillOverlap: ToRow(score.SkillOverlap),
             MustHaveCoverage: ToRow(score.MustHaveCoverage),
             NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage)));
     }
 
-    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveMembershipLabelsAsync(
+    private async ValueTask<IReadOnlyDictionary<string, string>> ResolveRegisterLabelsAsync(
         MatchScore fast, CancellationToken cancellationToken)
     {
-        var conceptIds = new[] { fast.SsykOverlap, fast.RegionFit, fast.EmploymentFit }
+        var conceptIds = new[] { fast.SsykOverlap, fast.RegionFit }
             .SelectMany(d => d.Matched.Concat(d.Missing))
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -137,6 +142,12 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         new Dictionary<string, string>(StringComparer.Ordinal);
 
     private static MatchDimensionDetailDto ToRow(MatchDimension dimension) =>
+        new(dimension.Verdict, dimension.Matched, dimension.Missing);
+
+    // Employment type stays CODED on the wire: its concepts are common nouns whose words
+    // the catalogue owns, so resolving them here would put Swedish in front of an English
+    // reader (#1537). Ssyk and region keep resolving — those names are register data.
+    private static MatchCodedDimensionDetailDto ToCodedRow(MatchDimension dimension) =>
         new(dimension.Verdict, dimension.Matched, dimension.Missing);
 
     private static MatchDimensionDetailDto ToLabelledRow(

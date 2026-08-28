@@ -34,7 +34,7 @@ public sealed record JobAdMatchDetailDto(
     MatchDimensionDetailDto SsykOverlap,
     MatchDimensionDetailDto TitleSimilarity,
     MatchDimensionDetailDto RegionFit,
-    MatchDimensionDetailDto EmploymentFit,
+    MatchCodedDimensionDetailDto EmploymentFit,
     MatchDimensionDetailDto SkillOverlap,
     MatchDimensionDetailDto MustHaveCoverage,
     MatchDimensionDetailDto NiceToHaveCoverage);
@@ -51,3 +51,26 @@ public sealed record MatchDimensionDetailDto(
     MatchDimensionVerdict Verdict,
     IReadOnlyList<string> Matched,
     IReadOnlyList<string> Missing);
+
+/// <summary>
+/// The same row for a dimension whose evidence is CODED rather than named: employment type
+/// (klass 2). It carries concept ids, and the client resolves each to locale copy.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A separate type rather than concept ids inside <see cref="MatchDimensionDetailDto"/>,
+/// whose <see cref="MatchDimensionDetailDto.Matched"/> is documented as display labels. Six
+/// of the seven dimensions really do carry display text; letting one of them mean something
+/// else would make that type lie, and would push per-property knowledge onto the client that
+/// this layer owns (CTO 2026-08-28).
+/// </para>
+/// <para>
+/// Employment type is the only coded dimension: <c>SsykOverlap</c> and <c>RegionFit</c>
+/// resolve to occupation-group and region names, which are proper-noun register data and stay
+/// Swedish in every locale (#1430). Employment type is a common noun and does not (#1537).
+/// </para>
+/// </remarks>
+public sealed record MatchCodedDimensionDetailDto(
+    MatchDimensionVerdict Verdict,
+    IReadOnlyList<string> MatchedConceptIds,
+    IReadOnlyList<string> MissingConceptIds);

@@ -361,6 +361,81 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
   });
 
   /**
+   * #183 — INBOUND-BITRÄDETS TRIPWIRE (code-reviewer Major 5, 2026-08-28).
+   *
+   * STRATO GmbH är namngiven mottagare i `Mottagare av uppgifter` och var den enda utan
+   * egen spärr. Systrarna skriver ut varför strukturtestet inte räcker: *"Strukturtestet överst
+   * fäller en ENSIDIG radering via array-längder, men två språk raderade i takt passerar det. Ett
+   * räknat golv är det enda som fäller en tystnad."*
+   *
+   * ⚠ **TERMEN FÅR ALDRIG VIKAS IN I `EMAIL_PROVIDER_ANY`.** Den unionen driver den LEVANDE
+   * grenens negativa pinne, och den här behandlingen är genuint mörk: apex-MX är
+   * `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8 2026-08-28), så STRATO tar inte emot något för
+   * domänen. En invikning gör sviten **osatisfierbar** — samma löv skulle behöva både bära och
+   * inte bära markören. Samma skäl förbjuder invikning i värdspärrens negativa loop.
+   *
+   * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE, och e-postspärrens docblock förutsåg fallet**
+   * (*"en sektion som någon gång blandar en mörk och en levande behandling får bara EN
+   * polaritet"*). `Mottagare av uppgifter` rymmer netcup (levande), Scaleway ×2 (levande), SCB
+   * (mörk) och STRATO (mörk), medan `consentGated` klassar hela sektionen som levande på
+   * rubriken. Det är ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt
+   * sedan 2026-08-28 och är därmed inte längre en hypotes i en kommentar (code-reviewer Minor 7).
+   *
+   * **Testet ska FALLA vid MX-flytten, och det är hela poängen.** Flytten sker i STRATO:s panel
+   * utan PR, utan CI och utan deploy — den är den första aktiveringshändelsen i huset som ingen
+   * release grindar. Copyns markör är då det enda som håller policyn ärlig. Stryk markör-halvan i
+   * samma ändring som flippar copyn, och **behåll golvet och path-pariteten**.
+   */
+  it("inbound-biträdet STRATO är namngivet i policyn och bär markören tills MX flyttas (#183)", () => {
+    // Den PART-BÄRANDE formen, aldrig varumärket: Art. 13(1)(e) kräver den juridiska personen,
+    // och repot bar `STRATO AG` i en tracked runbook till 2026-08-28. Mätt mot avtalsdokumentet
+    // självt (DPA v3.6, tecknat 2026-01-29): STRATO GmbH, Otto-Ostrowski-Straße 7, Berlin.
+    // Samma precisionsstandard som `netcup GmbH` och `Scaleway SAS` ovan.
+    const INBOUND_PROVIDER_PARTY = /STRATO GmbH/;
+    const sv = matchingLeaves(svLegal, INBOUND_PROVIDER_PARTY);
+    const en = matchingLeaves(enLegal, INBOUND_PROVIDER_PARTY);
+
+    // Vakuositetsgolv + invariant 1 (mottagaren ÄR namngiven). ETT känt löv i dag, i
+    // `Mottagare av uppgifter`. Golv, inte likhet — ett tillagt omnämnande ska inte röda CI.
+    expect(sv.length).toBeGreaterThanOrEqual(1);
+    expect(en.length).toBeGreaterThanOrEqual(1);
+
+    // Paritet per LOKALISERING, inte antal — 1 === 1 passerar medan språken tappar olika löv.
+    expect(en.map(([path]) => path)).toEqual(sv.map(([path]) => path));
+
+    // FAIL-FAST mot SAMNÄMNING, samma form och samma skäl som värdspärrens snittassertion.
+    // Docblocket ovan förbjuder att TERMEN viks in i en annan spärr; det här fäller det andra
+    // fallet, som förbudet inte täcker: ett LÖV som namnger både `STRATO GmbH` och en part vars
+    // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` i den levande grenen.
+    // Den här spärren kräver markören positivt på samma löv, så sviten blir osatisfierbar, varvid
+    // den "uppenbara" utvägen är att försvaga en av spärrarna. Assertionen fäller i stället vid den
+    // commit som skriver lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är
+    // en mottagare per stycke. Skopa INTE bort täckning för att lösa det.
+    // `consentGated` bor inne i e-post-spärrens block; predikatet återskapas här ur samma
+    // modulnivå-hjälpare (`sectionHeadingOf`) i stället för att hissas — en hissning hade gjort
+    // e-post-spärrens diskriminator till ett delat hem utan att någon läsare krävde det.
+    const marks = (catalogue: unknown, leaves: [string, string][]) =>
+      leaves
+        .filter(([path]) => !/samtycke|consent/i.test(sectionHeadingOf(catalogue, path)))
+        .map(([path]) => path);
+    const forbidsMarkerSv = new Set([
+      ...matchingLeaves(svLegal, /netcup GmbH/).map(([path]) => path),
+      ...marks(svLegal, matchingLeaves(svLegal, EMAIL_PROVIDER_ANY)),
+    ]);
+    const forbidsMarkerEn = new Set([
+      ...matchingLeaves(enLegal, /netcup GmbH/).map(([path]) => path),
+      ...marks(enLegal, matchingLeaves(enLegal, EMAIL_PROVIDER_ANY)),
+    ]);
+    expect(sv.map(([path]) => path).filter((path) => forbidsMarkerSv.has(path))).toEqual([]);
+    expect(en.map(([path]) => path).filter((path) => forbidsMarkerEn.has(path))).toEqual([]);
+
+    // Invariant 2, POSITIV pinne: behandlingen är mörk, så varje omnämnande bär markörmeningen.
+    // Presens här hade hävdat en behandling som inte sker (ADR 0090 D3, spegelvänt).
+    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(SV_STATUS_MARKER);
+    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(EN_STATUS_MARKER);
+  });
+
+  /**
    * #1199 — VÄRDLEVERANTÖRS-TRIPWIRE (security-auditor, bindande 2026-08-09).
    *
    * Systerspärr till de två ovan, med en avgörande skillnad: **raden bär medvetet INGEN

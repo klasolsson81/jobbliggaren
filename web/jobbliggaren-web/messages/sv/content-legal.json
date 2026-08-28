@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-08-19",
+    "updated": "Senast uppdaterad: 2026-08-28",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -91,7 +91,8 @@
           "Arbetsförmedlingens JobTech (Platsbanken) är vår källa för öppna data om lediga jobb, inte en mottagare av dina personuppgifter. Vi skickar inga uppgifter om dig till JobTech.",
           "Statistiska centralbyrån (SCB) planeras att ta emot de organisationsnummer som slås upp i företagssöket: när du söker på ett organisationsnummer skickas det till SCB:s företagsregister för att hämta företagets namn. SCB är en självständig myndighet med eget personuppgiftsansvar för sitt register och är inte vårt personuppgiftsbiträde. Detta är planerat och ännu inte i drift.",
           "Scaleway SAS (e-postleverantör, Frankrike) levererar all e-post från tjänsten via Scaleway Transactional Email. Det gäller både de notiser du själv slår på och e-post om ditt konto, till exempel för att bekräfta din e-postadress eller meddela att adressen har ändrats. E-posten behandlas i leverantörens region fr-par, och leverantören utfäster i personuppgiftsbiträdesavtalet att behandlingen sker inom EU.",
-          "De uppgifter som lämnas till Scaleway SAS är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Byter du e-postadress går aviseringen om bytet till din tidigare adress, som därmed också lämnas till leverantören."
+          "De uppgifter som lämnas till Scaleway SAS är din e-postadress och meddelandets innehåll, som för en bevakningsnotis innehåller jobbtiteln, företagsnamnet och hur stark matchningen är. Att du får notisen visar samtidigt att du har slagit på bevakningen. Byter du e-postadress går aviseringen om bytet till din tidigare adress, som därmed också lämnas till leverantören.",
+          "STRATO GmbH (leverantör för inkommande e-post, Tyskland) planeras ta emot och lagra den e-post du skickar till vår kontaktadress kontakt@jobbliggaren.se, till exempel när du vill utöva dina rättigheter. De uppgifter som lämnas är din e-postadress och det du själv skriver i meddelandet. Vi behåller sådan korrespondens i tolv månader efter att ärendet har avslutats. Detta är planerat och ännu inte i drift."
         ]
       },
       {

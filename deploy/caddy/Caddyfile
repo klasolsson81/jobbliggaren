@@ -111,11 +111,19 @@
 		# and the copy was flipped to be true. Removing this block no longer publishes
 		# anything false.
 		#
-		# What survives is the row that was always true and must stay marked: row 64, the
-		# consent-gated watch notifications, which are still dark. If it ever goes false while
-		# this block is still here, the second conclusion comes back and BOTH surfaces get it
+		# What survives is the row that was always true and must stay marked: the consent-gated
+		# watch notifications, which are still dark. If it ever goes false while this block is
+		# still here, the second conclusion comes back and BOTH surfaces get it
 		# again — this one and release-checklist.md §2.5 point 1 precondition 5, which owns the
 		# grading. A fix on one of the two is no fix, in either direction.
+		#
+		# NAMED BY ITS TEXT AND NOT BY A LINE NUMBER, AND THAT IS THE REPAIR (#183, 2026-08-28).
+		# release-checklist.md section 2.6 point 1 already owns the rule that was broken: sweep
+		# on the property, never on the file you happen to have open. Regenerate with one
+		# command PER LOCALE, because the two strings differ and a single Swedish command
+		# returns zero on the English file:
+		#   grep -n "Notiserna planeras att skickas med e-post" web/jobbliggaren-web/messages/sv/content-legal.json
+		#   grep -n "The notifications are planned to be sent by email" web/jobbliggaren-web/messages/en/content-legal.json
 		basic_auth {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}

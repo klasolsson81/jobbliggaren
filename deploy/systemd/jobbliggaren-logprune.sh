@@ -199,7 +199,7 @@ for container in "${RETENTION_BOUND_CONTAINERS[@]}"; do
   # `docker logs` and therefore logship read; deleting it is the failure mode this whole script
   # is written around. Do not relax this pattern.
   shopt -s nullglob
-  segments=("${dir}/${id}-json.log"*)
+  segments=("${dir}/${id}-json.log."[0-9]*)
   shopt -u nullglob
 
   if [[ ${#segments[@]} -eq 0 ]]; then

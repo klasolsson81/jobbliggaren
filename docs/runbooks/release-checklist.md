@@ -1263,7 +1263,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    **`R3` varje körning av §2.5 eller §2.6** — checklistan är en yta som faktiskt läses;
 >    **`R4` varje ändring av apex-MX eller av brevlådans mottagande** — flytten själv inkluderad.
 >
->    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS**
+>    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS.**
 >    I lågtrafikläget — det förväntade — är `R1` tyst och varken
 >    `R3` eller `R4` fyrar, så bara `R2` återstår: en post som förfaller vid tolv månader raderas då
 >    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym, som är noll inkommande. **Det

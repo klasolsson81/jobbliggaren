@@ -59,8 +59,8 @@ describe("RecentSearchRow", () => {
             kind: "Dimensions",
             join: "Disjunction",
             parts: [
-              { kind: "Named", text: "Göteborg", moreCount: 1 },
-              { kind: "Remote", text: null, moreCount: 0 },
+              { kind: "Named", text: "Göteborg", conceptId: null, moreCount: 1 },
+              { kind: "Remote", text: null, conceptId: null, moreCount: 0 },
             ],
           },
         })}

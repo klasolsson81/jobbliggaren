@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
 import { JobAdMatchSection } from "./job-ad-match-section";
 import type {
   JobAdMatchDetail,
+  MatchCodedDimensionDetail,
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
@@ -15,13 +19,23 @@ function row(
   return { verdict, matched, missing };
 }
 
+// Anställningsform bär conceptId, inte visningstext (#1537) — komponenten namnger dem via
+// katalogen. "kpPX_CNN_gDU" är Tillsvidareanställning i klass2-taxonomin.
+function codedRow(
+  verdict: MatchVerdict,
+  matchedConceptIds: string[] = [],
+  missingConceptIds: string[] = []
+): MatchCodedDimensionDetail {
+  return { verdict, matchedConceptIds, missingConceptIds };
+}
+
 function detail(over: Partial<JobAdMatchDetail> = {}): JobAdMatchDetail {
   return {
     grade: "Top",
     ssykOverlap: row("Match", ["Systemutvecklare"]),
     titleSimilarity: row("NotAssessed"),
     regionFit: row("Match", ["Göteborg"]),
-    employmentFit: row("Match", ["Tillsvidare"]),
+    employmentFit: codedRow("Match", ["kpPX_CNN_gDU"]),
     skillOverlap: row("Partial", ["Java", "SQL"], ["Kubernetes", "AWS"]),
     mustHaveCoverage: row("Match", ["B-körkort"]),
     niceToHaveCoverage: row("NoMatch", [], ["Franska"]),
@@ -458,9 +472,40 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       expect(verdict).not.toBeNull();
     });
 
+    it("EmploymentFit namnger sina koder ur katalogen, inte som råa id (#1537)", () => {
+      render(<JobAdMatchSection match={detail()} />);
+      expect(
+        screen.getByText(
+          /Tillsvidareanställning \(inkl\. eventuell provanställning\)/
+        )
+      ).toBeInTheDocument();
+      // Negativt, och det är den halvan som fäller en regression som tappar
+      // `.map(codedName)`: id:t typkontrollerar grönt men får aldrig nå raden.
+      expect(screen.queryByText(/kpPX_CNN_gDU/)).toBeNull();
+    });
+
+    it("EmploymentFit namnger dem på engelska under locale en (#1537)", () => {
+      // `render` går genom shimen som hårdkodar locale="sv"; det engelska fallet
+      // renderas via `/pure`, som alias-ankaret lämnar oomskrivet.
+      rawRender(
+        <NextIntlClientProvider
+          locale="en"
+          messages={enMessages}
+          timeZone="Europe/Stockholm"
+        >
+          <JobAdMatchSection match={detail()} />
+        </NextIntlClientProvider>
+      );
+      expect(
+        screen.getByText(
+          /Permanent employment \(including any trial employment\)/
+        )
+      ).toBeInTheDocument();
+    });
+
     it("EmploymentFit NoMatch utan evidens → 'Annonsen anger ingen anställningsform.'", () => {
       render(
-        <JobAdMatchSection match={detail({ employmentFit: row("NoMatch") })} />
+        <JobAdMatchSection match={detail({ employmentFit: codedRow("NoMatch") })} />
       );
       expect(
         screen.getByText("Annonsen anger ingen anställningsform.")

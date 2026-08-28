@@ -18,7 +18,8 @@
 // globals.css (.jp-wizard--rail ...), aldrig genom att ändra sektionerna.
 
 import { useRef, useState, useTransition, type ReactNode } from "react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
+import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { Check, Info } from "lucide-react";
 import {
   Dialog,
@@ -168,6 +169,8 @@ export function MatchSetupRailModal({
   initialStep = STEP_START,
 }: MatchSetupRailModalProps) {
   const t = useTranslations("matchsetup");
+  const tEnum = useTranslations("jobads.enums");
+  const collator = new Intl.Collator(useLocale());
   // The counter is an ordinary presented number, not an operator value, so it
   // follows the active locale through next-intl rather than a hardcoded `sv-SE`
   // instance. (`formatDateTime`'s locale-stability is the opposite case: a
@@ -183,10 +186,12 @@ export function MatchSetupRailModal({
   const municipalityOptions: ReadonlyArray<Option> = regions.flatMap((r) =>
     r.municipalities.map((m) => ({ conceptId: m.conceptId, label: m.label }))
   );
-  const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
-    conceptId: e.conceptId,
-    label: e.label,
-  }));
+  // Allmänsubstantiv, alltså locale-copy (#1537).
+  const employmentOptions: ReadonlyArray<Option> = codedTaxonomyOptions(
+    tEnum,
+    collator,
+    employmentTypes,
+  );
 
   const [step, setStep] = useState(initialStep);
 

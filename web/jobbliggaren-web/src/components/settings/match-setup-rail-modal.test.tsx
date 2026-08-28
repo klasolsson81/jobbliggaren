@@ -65,8 +65,13 @@ const occupationFields: ReadonlyArray<TaxonomyOccupationField> = [
 const regions: ReadonlyArray<TaxonomyRegion> = [
   { conceptId: "region_sthlm", label: "Stockholms län", municipalities: [] },
 ];
+// Det RIKTIGA conceptId:t och den riktiga källetiketten ur klass2-taxonomy.json —
+// ett påhittat id hade bara motionerat fallback-grenen, aldrig översättningen (#1537).
 const employmentTypes: ReadonlyArray<TaxonomyOption> = [
-  { conceptId: "et_fast", label: "Tillsvidareanställning" },
+  {
+    conceptId: "kpPX_CNN_gDU",
+    label: "Tillsvidareanställning (inkl. eventuell provanställning)",
+  },
 ];
 
 // Shared required props. Every field is mandatory in the component's signature,
@@ -227,7 +232,9 @@ describe("MatchSetupRailModal — live räknare", () => {
 // Swedish grouping would break silently on an ICU bump, and this is the assertion
 // that would catch it.
 describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
-  function renderWithEnglishLocale() {
+  function renderWithEnglishLocale(
+    extra: Partial<React.ComponentProps<typeof MatchSetupRailModal>> = {},
+  ) {
     rawRender(
       <NextIntlClientProvider
         locale="en"
@@ -237,10 +244,25 @@ describe("MatchSetupRailModal — räknarens tal följer aktiv locale", () => {
         {/* Own `onOpenChange`, like `renderModal` — so `modalProps`' default
             mock is never actually called and cannot accumulate calls across
             tests (`beforeEach` resets the named mocks, not every mock). */}
-        <MatchSetupRailModal {...modalProps} onOpenChange={vi.fn()} />
+        <MatchSetupRailModal {...modalProps} {...extra} onOpenChange={vi.fn()} />
       </NextIntlClientProvider>,
     );
   }
+
+  it("visar anställningsformen på engelska under locale en (#1537)", () => {
+    // Steg 4 är Anställningsform. Etiketten kommer INTE ur props längre: backend skickar
+    // den ärliga svenska källetiketten, och ordet hämtas ur katalogen på conceptId.
+    renderWithEnglishLocale({ initialStep: 4 });
+
+    expect(
+      screen.getByText("Permanent employment (including any trial employment)"),
+    ).toBeInTheDocument();
+    // Negativt, och det är den halvan som fäller en regression: källetiketten som
+    // fortfarande ligger i props får inte nå skärmen under en.
+    expect(
+      screen.queryByText("Tillsvidareanställning (inkl. eventuell provanställning)"),
+    ).toBeNull();
+  });
 
   it("grupperar tusental med hårt mellanslag i sv (CLAUDE.md §10)", () => {
     countMock.mockReturnValue({ count: 1234, loading: false });

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
 import userEvent from "@testing-library/user-event";
 import type {
   TaxonomyOccupationField,
@@ -45,7 +48,10 @@ const regions: ReadonlyArray<TaxonomyRegion> = [
   { conceptId: "region_sthlm", label: "Stockholms län", municipalities: [] },
 ];
 const employmentTypes: ReadonlyArray<TaxonomyOption> = [
-  { conceptId: "et_fast", label: "Tillsvidareanställning" },
+  {
+    conceptId: "kpPX_CNN_gDU",
+    label: "Tillsvidareanställning (inkl. eventuell provanställning)",
+  },
 ];
 
 function renderDialog(
@@ -115,7 +121,7 @@ describe("MatchPreferencesDialog — shell + draft", () => {
   it("seedar draften från den persisterade mängden vid öppning (pinnade chips)", () => {
     renderDialog({
       persistedRegions: ["region_sthlm"],
-      persistedEmploymentTypes: ["et_fast"],
+      persistedEmploymentTypes: ["kpPX_CNN_gDU"],
     });
     const ortGroup = screen.getByRole("group", { name: "Orter" });
     expect(
@@ -490,5 +496,47 @@ describe("MatchPreferencesDialog — a11y (Radix description-wiring)", () => {
     expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
     warnSpy.mockRestore();
     errorSpy.mockRestore();
+  });
+});
+
+describe("MatchPreferencesDialog — locale en (#1537)", () => {
+  it("namnger anställningsformen ur katalogen, inte ur propens källetikett", () => {
+    // Dialogen bygger sina egna options (den delar inte kortets), så den behöver sin
+    // egen pinne. Under `sv` är katalogvärdet byte-identiskt med propen och kan därför
+    // inte skilja katalogvägen från en genomsläppning.
+    rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <MatchPreferencesDialog
+          open
+          onOpenChange={vi.fn()}
+          occupationFields={occupationFields}
+          regions={regions}
+          employmentTypes={employmentTypes}
+          persistedOccupationGroups={[]}
+          persistedRegions={[]}
+          persistedMunicipalities={[]}
+          persistedRemote={false}
+          persistedEmploymentTypes={[]}
+          persistedSkills={[]}
+          persistedExperienceYears={null}
+          persistedOccupationExperience={[]}
+          onSaved={vi.fn()}
+          importCvHref="/cv/importera"
+        />
+      </NextIntlClientProvider>
+    );
+
+    expect(
+      screen.getByText(/Permanent employment \(including any trial employment\)/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Tillsvidareanställning \(inkl\. eventuell provanställning\)/
+      )
+    ).toBeNull();
   });
 });

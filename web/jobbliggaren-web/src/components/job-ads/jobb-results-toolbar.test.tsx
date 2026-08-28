@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
 import userEvent from "@testing-library/user-event";
 import { JobbResultsToolbar } from "./jobb-results-toolbar";
 
@@ -13,6 +16,9 @@ const resolvedLabels: Record<string, string> = {
   CifL_Rzy_Mku: "Stockholms län",
   MVqp_eS8_kDZ: "Systemutvecklare",
   zHxw_uJZ_NNh: "Solna",
+  // Klass 2 — servern resolvar dem fortfarande via /taxonomy/labels, men chipet
+  // namnger dem ur katalogen på conceptId (#1537).
+  gro4_cWF_6D7: "Vikariat",
 };
 
 // Gemensam bas så varje test slipper räkna upp alla props (matchActive lades i
@@ -22,8 +28,8 @@ type ToolbarOverrides = Partial<
   React.ComponentProps<typeof JobbResultsToolbar>
 >;
 
-function renderToolbar(over: ToolbarOverrides = {}) {
-  return render(
+function toolbar(over: ToolbarOverrides = {}) {
+  return (
     <JobbResultsToolbar
       totalCount={5}
       occupationGroup={[]}
@@ -44,7 +50,25 @@ function renderToolbar(over: ToolbarOverrides = {}) {
       hasStatedDesiredOccupation
       matchActive
       {...over}
-    />,
+    />
+  );
+}
+
+function renderToolbar(over: ToolbarOverrides = {}) {
+  return render(toolbar(over));
+}
+
+// `render` går genom shimen som hårdkodar locale="sv"; det engelska fallet renderas
+// via `/pure`, som alias-ankaret lämnar oomskrivet.
+function renderToolbarInEnglish(over: ToolbarOverrides = {}) {
+  return rawRender(
+    <NextIntlClientProvider
+      locale="en"
+      messages={enMessages}
+      timeZone="Europe/Stockholm"
+    >
+      {toolbar(over)}
+    </NextIntlClientProvider>,
   );
 }
 
@@ -91,6 +115,27 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
     expect(pushMock).toHaveBeenCalledWith(
       "/jobb?occupationGroup=MVqp_eS8_kDZ&q=backend&commit=true",
     );
+  });
+
+  it("klass 2-chipet namnges ur katalogen; ort och yrke passerar oöversatta (#1537)", () => {
+    // Renderas under `en`, inte `sv`: där är katalogvärdet BYTE-IDENTISKT med serverns
+    // etikett, så ett test under `sv` passerar även om raden reduceras till
+    // `return resolved` — det diskriminerar inte grenen det namnger (code-reviewer,
+    // omkontroll 2026-08-28). Under `en` skiljer de sig, och då fäller det.
+    renderToolbarInEnglish({
+      totalCount: 2,
+      employmentType: ["gro4_cWF_6D7"],
+      region: ["CifL_Rzy_Mku"],
+      resolvedLabels,
+    });
+
+    expect(screen.getByText("Substitute position")).toBeInTheDocument();
+    // Serverns etikett får inte nå chipet — det är den halvan som fäller
+    // `return resolved`.
+    expect(screen.queryByText("Vikariat")).toBeNull();
+    // Ort är registerdata och passerar oöversatt i varje locale.
+    expect(screen.getByText("Stockholms län")).toBeInTheDocument();
+    expect(screen.queryByText(/gro4_cWF_6D7/)).toBeNull();
   });
 
   it("kommun-chip renderas och × tar bort rätt axel (E2b)", async () => {

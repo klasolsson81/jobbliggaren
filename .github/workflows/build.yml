@@ -355,15 +355,16 @@ jobs:
         run: |
           # A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY, so the count is checked first: a
           # renamed directory would otherwise turn this gate into a green no-op that reads as
-          # coverage. FOURTEEN scripts, measured 2026-08-12 with `git ls-files` (was eight until
+          # coverage. SIXTEEN scripts, measured 2026-08-28 with `git ls-files` (was eight until
           # #1201 added the heartbeat and its fixture suite, then ten until #1175 added logship
-          # and its own, then twelve until #1295 added the runtime-id helper and its own); the
+          # and its own, then twelve until #1295 added the runtime-id helper and its own, then
+          # fourteen until #1170 added the log prune and its own); the
           # floor is a floor and not an equality, so adding one does not fail the build for the
           # wrong reason — but it is RAISED when scripts land, or the gate silently stops
           # noticing that some went missing.
           n=$(git ls-files 'deploy/systemd/*.sh' | wc -l)
-          if [ "$n" -lt 14 ]; then
-            echo "::error::found only $n scripts under deploy/systemd — expected at least 14."
+          if [ "$n" -lt 16 ]; then
+            echo "::error::found only $n scripts under deploy/systemd — expected at least 16."
             echo "If one was legitimately removed, lower the floor in this step deliberately."
             exit 1
           fi
@@ -422,6 +423,16 @@ jobs:
       # skript utan som ett id.
       - name: jobbliggaren-runtime-ids (fixturer)
         run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
+
+      # Åldersgränsen på json-file-lagret (#1170). Egenskapen sviten finns för är en FRÅNVARO:
+      # skriptet får aldrig radera det LEVANDE segmentet, som är det `docker logs` serverar och
+      # som `jobbliggaren-logship.sh` dör på om det försvinner — varvid stämpeln hålls inne och
+      # `logship-fresh` latchar. En retentionsmekanism som kan fälla arkivets färskhetssignal är
+      # sämre än ingen, så "den levande filen finns kvar efteråt" asserteras i varje fall som
+      # rensar något. Stubbar `docker` och omdirigerar containerroten till ett temp-träd, så
+      # varken daemon, root eller nätverk krävs.
+      - name: jobbliggaren-logprune (fixturer)
+        run: bash deploy/systemd/jobbliggaren-logprune.test.sh
 
       # Wrapperns tre rena predikat: klassificeraren (okänd image → REFUSE), digest-regeln, och
       # sedan #1295 ägarskapsgrinden (den inkommande imagen måste kunna läsa de injicerade

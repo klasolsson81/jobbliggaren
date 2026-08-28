@@ -1,0 +1,33 @@
+[Unit]
+# #1170 — the age bound Docker's json-file driver does not have.
+#
+# WHY IT EXISTS. ADR 0024 D7 policy 1 commits app-log retention to a fixed window. Its CloudWatch
+# mechanism was torn down by ADR 0066. Seq carries that commitment for its own store by a policy
+# set on the box, and the off-box archive carries it by lifecycle rule; Docker's `json-file`
+# layer is the third holder of the same events and the one with no age axis at all.
+# Its entire option set is volume-shaped, so effective retention is budget over write rate —
+# INVERSELY proportional to traffic, which is backwards from a storage-limitation guarantee.
+#
+# WHAT IT DOES NOT DO, STATED HERE BECAUSE A UNIT NAME READS LIKE A PROMISE. It prunes ROTATED
+# segments only. The live segment is never touched, so the honest commitment is "no app-log data
+# older than 30 days, except at most one non-rotated live segment per container, capped by
+# max-size". That residual is where the measured breach actually lives (2026-08-28: `web` and
+# `caddy` had never rotated at all), and it is why #1170 does not close on this unit. The script
+# header carries the measurement and the rejected alternatives.
+Description=Jobbliggaren: prune rotated container log segments past the retention window
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
+
+[Service]
+Type=oneshot
+ExecStart=/opt/jobbliggaren/deploy/systemd/jobbliggaren-logprune.sh
+# NO leading `-`. Unlike the heartbeat, this script has no always-exit-0 contract: it exits
+# non-zero only on states an operator must see (a docker id that is not 64 hex, a failed unlink),
+# and a retention mechanism that fails silently is the defect this unit exists to repair. A
+# failed run must reach `systemctl --failed`, which is the surface the heartbeat's P-checks read.
+#
+# The script reads and unlinks under /var/lib/docker/containers, so it runs as root like its
+# siblings. It never writes there and never touches the live segment.
+TimeoutStartSec=120
+RemainAfterExit=no
+
+# NO [Install] SECTION — the timer enables this pair, matching every other unit in this repo.

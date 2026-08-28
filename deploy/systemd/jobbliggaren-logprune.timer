@@ -1,0 +1,31 @@
+[Unit]
+# #1170 — drives the log prune (see jobbliggaren-logprune.service).
+Description=Jobbliggaren: daily prune of rotated container log segments
+Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runbooks/log-sink.md
+
+[Timer]
+# Daily at 03:40, clear of every other unit on this box: backup 02:15, logship *:17, reconcile
+# *:47, heartbeat *:0/15, secrets *:0/10. A retention pass has no reason to contend with the
+# archive it is a backstop for.
+#
+# OnCalendar, NOT OnUnitActiveSec: a Type=oneshot unit never becomes active, so OnUnitActiveSec
+# would neither re-fire nor clear (systemd#21600 — the defect this repo has already repaired in
+# four sibling timers).
+#
+# DAILY IS A CADENCE, NOT THE WINDOW. The window is 30 days and lives in the script. A daily pass
+# means a segment can outlive the window by at most one day before the pass that removes it —
+# stated here because "daily" and "30 days" are two numbers that must not be read as one.
+OnCalendar=*-*-* 03:40:00
+AccuracySec=1m
+RandomizedDelaySec=300
+
+# Persistent=true, and DELIBERATELY UNLIKE the heartbeat and the two -fresh timers, which
+# document the opposite choice. Their question is "is the box well RIGHT NOW", which has no
+# missed-run semantics. This one's is a standing obligation: a pass skipped because the box was
+# down is a day on which data past the window was not removed, and the catch-up is the repair
+# rather than a duplicate. Nothing here reports health, so a catch-up firing cannot falsely clear
+# an alert the way the heartbeat's would.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

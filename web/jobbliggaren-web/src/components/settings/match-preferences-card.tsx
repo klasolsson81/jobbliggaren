@@ -123,7 +123,10 @@ export function MatchPreferencesCard({
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
   const tEnum = useTranslations("jobads.enums");
-  const collator = new Intl.Collator(useLocale());
+  const locale = useLocale();
+  // Stabil identitet: en ny collator per render hade legat i memons deps nedan och
+  // gjort den till en garanterad miss.
+  const collator = useMemo(() => new Intl.Collator(locale), [locale]);
   const format = useFormatter();
   // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
   const facetLabel: Record<Facet, string> = {

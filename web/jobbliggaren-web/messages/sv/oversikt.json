@@ -16,11 +16,12 @@
     "emptyTitle": "Du har inga ansökningar än",
     "emptyBody": "Lägg till en ansökan, så ser du status och uppföljningar här.",
     "emptyCta": "Ny ansökan",
-    "unavailable": "Antalet ansökningar kunde inte hämtas. Använd Uppdatera för att försöka igen."
+    "unavailable": "Antalet ansökningar kunde inte hämtas. Uppdatera sidan för att försöka igen."
   },
   "notices": {
     "title": "Notiser",
     "lastUpdated": "senast uppdaterad <mono>{date}</mono>",
+    "lastUpdatedTime": "Senast uppdaterad <stamp>{time}</stamp>",
     "refresh": "Uppdatera",
     "refreshing": "Uppdaterar…",
     "refreshed": "Uppdaterad",
@@ -38,7 +39,6 @@
     "sectionJobAds": "Jobbannonser",
     "sectionCompanies": "Företagsbevakning",
     "unreadCount": "{count, plural, =0 {inga olästa} one {# oläst} other {# olästa}}",
-    "emptySectionTitle": "Inget nytt just nu",
     "emptyApplications": "Vi säger till när något händer i dina ärenden.",
     "emptyJobAds": "Nya matchningar och deadlines dyker upp här.",
     "emptyCompanies": "Händelser från dina bevakade företag samlas här.",

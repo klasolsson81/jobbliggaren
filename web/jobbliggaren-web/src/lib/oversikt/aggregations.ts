@@ -3,7 +3,7 @@ import type {
   PipelineGroupDto,
 } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
-import { formatDateTime, type JpFormatter } from "@/lib/i18n/format";
+import { formatTime, type JpFormatter } from "@/lib/i18n/format";
 import { daysSince } from "@/lib/i18n/relative-time";
 
 // Relative-time helpers live in `lib/i18n/relative-time` now (#336 DRY
@@ -164,7 +164,7 @@ export function findFollowUpCandidates(
 }
 
 /**
- * Formaterar notis-panelens "senast uppdaterad"-stämpel som `YYYY-MM-DD · HH:mm` i
+ * Formaterar notis-panelens "senast uppdaterad"-stämpel som `HH:mm` i
  * LÄSARENS tidszon. Översikt-sidan är `force-dynamic` och beräknar notiserna LIVE per
  * request, så render-tiden ÄR den ärliga tidpunkten.
  *
@@ -176,13 +176,16 @@ export function findFollowUpCandidates(
  * en absolut väggklocka som läsaren jämför med sin egen. Tidszonen ägs nu av next-intls
  * formaterare, som resten av appen (AGENTS.md §10).
  *
- * Formen delas med `formatDateTime` i stället för att komponeras om här — den bär
- * ISO-omordningen som `en` kräver, och två hem för den driftar isär.
+ * Datumdelen utgick med #1556: den bär information bara det dygn en flik står öppen över
+ * midnatt, och raden konkurrerade med sidans innehåll om bredden. Toolbaren behåller hela
+ * tidpunkten i ett `<time dateTime>`, så inget går förlorat i DOM:en. Formen delas med
+ * `formatTime` i stället för att komponeras om här — den är husets 24-timmarsform
+ * (AGENTS.md §10) och samma tidszonsauktoritet, och två hem för den driftar isär.
  * Returnerar "–" vid ogiltig input i stället för att kasta.
  */
 export function formatNoticesStamp(format: JpFormatter, date: Date): string {
   if (Number.isNaN(date.getTime())) return "–";
-  return formatDateTime(format, date.toISOString(), " · ") ?? "–";
+  return formatTime(format, date);
 }
 
 /**

@@ -352,6 +352,7 @@ export function OversiktPage({
             "senast uppdaterad" är render-tiden, inte en stale mock-stämpel. */}
         <NoticeToolbar
           lastUpdated={formatNoticesStamp(format, today)}
+          lastUpdatedIso={today.toISOString()}
           notices={allNotices}
         />
 

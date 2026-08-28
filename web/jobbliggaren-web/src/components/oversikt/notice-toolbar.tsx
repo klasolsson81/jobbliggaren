@@ -9,7 +9,10 @@ import { useNoticePrefs } from "./use-notice-prefs";
 import type { SectionNoticeData } from "./notice-section";
 
 interface NoticeToolbarProps {
+  /** Klockslag i läsarens tidszon (`formatNoticesStamp`). */
   readonly lastUpdated: string;
+  /** Samma tidpunkt som ISO-8601, för `<time dateTime>`. */
+  readonly lastUpdatedIso: string;
   /** ALLA sektioners notiser — "Markera alla" avfärdar tvärs över sektionerna. */
   readonly notices: ReadonlyArray<SectionNoticeData>;
 }
@@ -29,15 +32,26 @@ interface NoticeToolbarProps {
  * Den blir ALDRIG `disabled`. `router.refresh()` är idempotent, och husets form för just den
  * klassen är att inte disabla (`company-follow-button.tsx`, Klas PR5) — en fokuserad knapp
  * som disablas blurras av webbläsaren, så tangentbordsanvändaren kastas till dokumentets
- * början och skärmläsaren hör inget namnbyte. Väntan bärs av `aria-busy` och av knappens
- * eget namn, som förblir fokuserat.
+ * början. Väntan bärs av `aria-busy` och av kvitto-regionen.
  *
  * Stämpeln har minutupplösning medan en refresh går på under en sekund, så två klick i samma
  * minut lämnar den oförändrad. Utan kvitto ser kontrollen verkningslös ut — precis det
- * tillstånd Klas villkor pekar ut. Knappen bär därför kvittot själv: `Uppdaterad` en kort
- * stund innan den återgår.
+ * tillstånd Klas villkor pekar ut. #1556 gjorde kontrollen ikon-only, så kvittot kan inte
+ * längre bo i knappens etikett; det ligger i en egen `role="status"`-region intill den.
+ * Regionen renderas ALLTID, även tom: en live-region som monteras samtidigt som sitt
+ * innehåll annonseras opålitligt. `aria-label` är statisk och namnger vad kontrollen gör
+ * (DESIGN.md §6 kräver den på en ikon-only-kontroll); tillståndet bärs av `aria-busy` och
+ * regionen, inte av namnet.
+ *
+ * Stämpeln visar bara klockslag (#1556) — datumet är nästan alltid i dag, eftersom sidan
+ * räknar om det per request. Hela tidpunkten finns kvar i `<time dateTime>`, så en flik som
+ * stått öppen över midnatt fortfarande går att adjudicera.
  */
-export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
+export function NoticeToolbar({
+  lastUpdated,
+  lastUpdatedIso,
+  notices,
+}: NoticeToolbarProps) {
   const t = useTranslations("oversikt");
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
@@ -85,27 +99,37 @@ export function NoticeToolbar({ lastUpdated, notices }: NoticeToolbarProps) {
     <div className="jp-oversikt-toolbar">
       <div className="jp-oversikt-toolbar__left">
         <span className="jp-oversikt-toolbar__stamp">
-          {t.rich("notices.lastUpdated", {
-            date: lastUpdated,
-            mono: (chunks) => <span className="jp-mono">{chunks}</span>,
+          {t.rich("notices.lastUpdatedTime", {
+            time: lastUpdated,
+            // Taggen heter inte `time`: värdet gör redan det, och next-intl slår
+            // ihop värden och taggar i samma namnrymd.
+            stamp: (chunks) => <time dateTime={lastUpdatedIso}>{chunks}</time>,
           })}
         </span>
         <button
           type="button"
-          className="jp-btn jp-btn--ghost jp-btn--sm jp-oversikt-toolbar__refresh"
+          className="jp-oversikt-toolbar__refresh"
+          aria-label={t("notices.refresh")}
+          title={t("notices.refresh")}
           aria-busy={isRefreshing || undefined}
           onClick={() => {
             if (isRefreshing) return;
             startRefresh(() => router.refresh());
           }}
         >
-          <RotateCw size={14} aria-hidden="true" />{" "}
+          <RotateCw size={16} aria-hidden="true" />
+        </button>
+        <span
+          className="jp-oversikt-toolbar__receipt"
+          role="status"
+          aria-live="polite"
+        >
           {isRefreshing
             ? t("notices.refreshing")
             : justRefreshed
               ? t("notices.refreshed")
-              : t("notices.refresh")}
-        </button>
+              : ""}
+        </span>
       </div>
       {dismissibleVisible.length > 0 && (
         <button

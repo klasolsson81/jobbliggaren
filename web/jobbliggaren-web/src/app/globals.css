@@ -5023,9 +5023,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 0 0 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--jp-border-soft);
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--jp-border);
   font-size: var(--text-body);
 }
 .jp-appsummary__anchor {
@@ -5108,30 +5108,23 @@ a.jp-adminnav__link[aria-current="page"]::after {
   list-style: none;
   padding: 0;
   margin: 0;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  overflow: hidden;
+  /* Sektionens avslutande räls. Lättare än huvudets 2px-regel: tung = sektionen
+     börjar, lätt = den slutar. */
+  border-bottom: 1px solid var(--jp-border);
 }
 .jp-notice {
   display: grid;
-  grid-template-columns: 4px 130px 1fr auto 120px 36px;
+  grid-template-columns: 130px 1fr auto 120px 36px;
   align-items: center;
   gap: 18px;
-  padding: 0 14px 0 0;
+  padding: 0;
   min-height: 64px;
-  border-top: 1px solid var(--jp-border-soft);
+  /* --jp-border, inte --jp-border-soft: raden ligger nu på --jp-canvas i stället
+     för --jp-surface, och den mjuka tonen bär för lite mot canvas för att läsas
+     som en linje. Samma token som .jp-table tbody td. */
+  border-top: 1px solid var(--jp-border);
 }
 .jp-notice:first-child { border-top: 0; }
-.jp-notice__strip {
-  align-self: stretch;
-  width: 4px;
-  background: var(--jp-border);
-}
-.jp-notice--info .jp-notice__strip    { background: var(--jp-info); }
-.jp-notice--warning .jp-notice__strip { background: var(--jp-warning); }
-.jp-notice--brand .jp-notice__strip   { background: var(--jp-accent-700); }
-.jp-notice--success .jp-notice__strip { background: var(--jp-success); }
 
 .jp-notice__label {
   font-family: var(--jp-font-mono);
@@ -5140,7 +5133,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--jp-ink-2);
-  padding: 14px 0 14px 8px;
+  padding: 14px 0;
 }
 .jp-notice--info .jp-notice__label    { color: var(--jp-info); }
 .jp-notice--warning .jp-notice__label { color: var(--jp-warning); }
@@ -5212,20 +5205,19 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 @media (max-width: 880px) {
   .jp-notice {
-    grid-template-columns: 4px 1fr 32px;
+    grid-template-columns: 1fr 32px;
     grid-template-areas:
-      "strip label   dismiss"
-      "strip text    text"
-      "strip cta     time";
+      "label   dismiss"
+      "text    text"
+      "cta     time";
     column-gap: 14px;
     row-gap: 4px;
-    padding: 12px 14px 14px 0;
+    padding: 12px 0 14px;
   }
-  .jp-notice__strip { grid-area: strip; }
-  .jp-notice__label { grid-area: label; padding: 14px 0 0 4px; }
-  .jp-notice__text  { grid-area: text; padding: 0 4px; }
-  .jp-notice__cta   { grid-area: cta; padding: 6px 4px 14px; }
-  .jp-notice__time  { grid-area: time; justify-self: end; padding: 0 4px 14px; align-self: end; }
+  .jp-notice__label { grid-area: label; padding: 14px 0 0; }
+  .jp-notice__text  { grid-area: text; padding: 0; }
+  .jp-notice__cta   { grid-area: cta; padding: 6px 4px 14px 0; }
+  .jp-notice__time  { grid-area: time; justify-self: end; padding: 0 0 14px; align-self: end; }
   .jp-notice__dismiss { grid-area: dismiss; align-self: start; margin-top: 8px; }
 }
 
@@ -5239,17 +5231,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
    kontroller (CTA-länken + återställ-knappen) som måste klara WCAG 1.4.3/1.4.11
    i full kontrast (design-reviewer Blocker #726 — gäller även mockens 04-dimning;
    WCAG AA kan inte ADR:as bort). Endast presentationella delar dämpas: text/
-   label/tid → ink-3 (≥4.5:1 mot surface); strippen är dekorativ och får dämpas.
-   X byts mot RotateCcw i NoticeRow. Selektorerna nedan vinner över kind-
-   färgerna (.jp-notice--warning .jp-notice__label m.fl., samma specificitet)
-   på källordning — detta block ligger efter dem. */
+   label/tid → ink-3 (≥4.5:1 mot canvas). X byts mot RotateCcw i NoticeRow.
+   Selektorerna nedan vinner över kind-färgerna (.jp-notice--warning
+   .jp-notice__label m.fl., samma specificitet) på källordning — detta block
+   ligger efter dem. */
 .jp-notice--read .jp-notice__label,
 .jp-notice--read .jp-notice__text,
 .jp-notice--read .jp-notice__time {
   color: var(--jp-ink-3);
 }
 .jp-notice--read .jp-notice__text b { color: inherit; }
-.jp-notice--read .jp-notice__strip { opacity: 0.45; }
 
 /* Sid-toolbar: "senast uppdaterad"-stämpel vänster, "Markera alla" höger. */
 .jp-oversikt-toolbar {
@@ -5263,6 +5254,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-oversikt-toolbar__stamp {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
+  /* Informationsbärande siffra: sans + tabular-nums, aldrig mono (DESIGN.md §4). */
+  font-variant-numeric: tabular-nums;
 }
 /* Stämpeln och uppdatera-kontrollen som EN vänstergrupp, så förälderns
    space-between fortsatt håller "Markera alla" till höger (#1549). */
@@ -5271,11 +5264,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 12px;
 }
-/* Kontrollen byter mellan tre etiketter (Uppdatera / Uppdaterar… / Uppdaterad).
-   Reserverad bredd så raden inte hoppar vid varje interaktion (DESIGN.md §6). */
-.jp-oversikt-toolbar__refresh {
-  min-width: 9.5rem;
-  justify-content: center;
+/* Kvittot (#1549) bor bredvid kontrollen sedan den blev ikon-only (#1556) och inte
+   längre kan bära det i sin etikett. Regionen är alltid monterad och växer in i tom
+   yta till höger om ikonen, så ingen bredd behöver reserveras. */
+.jp-oversikt-toolbar__receipt {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
 }
 
 /* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
@@ -5340,13 +5334,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   }
 }
 
-/* Kugghjulsknapp i sektionshuvudet — samma dimensioner/hover som .jp-notice__dismiss. */
+/* Sidans ikon-only-form: kugghjulet i sektionshuvudet och toolbarens uppdatera-kontroll
+   (#1556) — samma dimensioner/hover som .jp-notice__dismiss. Ingen `outline` här: den
+   kommer från globala *:focus-visible, och en olagrad .jp-*-deklaration slår den tyst. */
 .jp-notice-prefs-anchor {
   position: relative;
   align-self: center;
   flex: 0 0 auto;
 }
-.jp-section__gear {
+.jp-section__gear,
+.jp-oversikt-toolbar__refresh {
   width: 32px;
   height: 32px;
   border: 0;
@@ -5358,20 +5355,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-3);
   cursor: pointer;
 }
-.jp-section__gear:hover {
+.jp-section__gear:hover,
+.jp-oversikt-toolbar__refresh:hover {
   background: var(--jp-surface-3);
   color: var(--jp-ink-1);
 }
 /* Touch floor (#1384) — same spec line and breakpoint as .jp-btn--sm. Only the hit area grows. */
 @media (max-width: 768px) {
   .jp-section__gear,
-  .jp-notice__dismiss {
+  .jp-notice__dismiss,
+  .jp-oversikt-toolbar__refresh {
     min-width: 44px;
     min-height: 44px;
   }
   /* The <=880 grid gives `dismiss` a 32px column; widen it or the 44px button overflows. */
   .jp-notice {
-    grid-template-columns: 4px 1fr 44px;
+    grid-template-columns: 1fr 44px;
   }
 }
 
@@ -5436,15 +5435,20 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-underline-offset: 3px;
 }
 
-/* Läst-läge-fot inuti listkortet (visas när sektionen har lästa notiser). */
+/* Läst-läge-fot sist i ledgern (visas när sektionen har lästa notiser).
+   Ingen ton: --jp-surface-2 och --jp-canvas är samma värde i ljust läge, så en
+   bakgrund hade varit osynlig snarare än dämpad. Hårlinjen bär avdelningen. */
 .jp-notice-foot {
   display: flex;
   align-items: center;
   gap: 10px;
-  border-top: 1px solid var(--jp-border-soft);
-  background: var(--jp-surface-2);
-  padding: 9px 14px;
+  border-top: 1px solid var(--jp-border);
+  padding: 10px 0;
 }
+/* Speglar .jp-notice:first-child. Sedan tomt-raden viker för läst-bandet kan foten
+   vara listans första barn, och dess linje hamnade då strax under sammanfattningens
+   egen med ingenting emellan. */
+.jp-notice-foot:first-child { border-top: 0; }
 .jp-notice-foot__count {
   font-size: var(--text-caption);
   color: var(--jp-ink-3);
@@ -5464,20 +5468,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   text-underline-offset: 3px;
 }
 
-/* Tomt-läge inuti listkortet — sektionen döljs aldrig. */
+/* Tomt-läge som en rad i ledgern — sektionen döljs aldrig. Centrerad text
+   läses bara rätt inuti en låda, och ink-1 för att raden är innehåll och inte
+   metadata (DESIGN.md §4). */
 .jp-notice-empty {
-  padding: 24px;
-  text-align: center;
-}
-.jp-notice-empty__title {
-  font-size: var(--text-body-sm);
-  font-weight: var(--jp-fw-semibold);
+  padding: 14px 0;
+  font-size: var(--text-body);
   color: var(--jp-ink-1);
-}
-.jp-notice-empty__body {
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
-  margin-top: 2px;
 }
 
 /* Sammanfattning — dossier-tabell */

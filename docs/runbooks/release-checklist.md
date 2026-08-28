@@ -1243,30 +1243,47 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    här och behövs inte: föremålet är inkommande rättighetskorrespondens, alltså tredje parts
 >    uppgifter **per konstruktion**, och en accept vidgad med en enda icke-ansvarig registrerad är
 >    en accept av någon annans rättigheter. En **manuell** retentionsrutin är däremot fullt laglig
->    under Art. 5(1)(e) jämförd med Art. 24(1) (`security-auditor`, 2026-08-28).
+>    under Art. 5(1)(e) jämförd med Art. 24(1)
+>    (`security-auditor`, `docs/reviews/2026-08-28-183-led5-security-auditor-recheck.md`,
+>    eskaleringspunkt 3 — gitignorerad, huvudkopian).
 >
->    **Triggermängden — uppräknad, aldrig en grundmening.** En enda mening är ingen triggermängd;
->    den formen graderades under-triggering (`security-auditor` M-1, ADR 0133). Genomgången görs vid
->    **vilken som helst** av:
->    **(a) varje avslutat ärende** — det är då tolvmånadersklockan startar, och ingen annan trigger
+>    **RETENTIONSTRIGGRARNA `R1`–`R4` — uppräknade, aldrig en grundmening.** En enda mening är ingen
+>    triggermängd; den formen graderades under-triggering (`security-auditor` M-1, ADR 0133).
+>    ⚠ **Egna etiketter med flit, och förväxlingen de förhindrar är verklig:** §2.5 punkt 1 led (e)
+>    förutsättning 5 äger en **annan** fyrmedlemsmängd som också heter (a)–(d), och §2.6 citerar den
+>    på tre ställen. **`R`-prefixet gör en framtida hänvisning till "trigger (d)" entydig igen.**
+>    De två mängderna mäter olika saker — förutsättning 5:s eskalerar en GRAD, dessa utlöser en
+>    GENOMGÅNG — och ingen av dem får någonsin läsas in i den andra.
+>    Genomgången görs vid **vilken som helst** av:
+>    **`R1` varje avslutat ärende** — det är då tolvmånadersklockan startar, och ingen annan trigger
 >    ser den händelsen;
->    **(b) halvårsvis** (Klas-beslut 2026-08-28), samordnat med den halvårsvisa
->    underbiträdesläsningen ovan så att två obevakade kalenderförpliktelser blir ett tillfälle;
->    **(c) varje körning av §2.5 eller §2.6**;
->    **(d) varje ändring av apex-MX eller av brevlådans mottagande** — flytten själv inkluderad.
+>    **`R2` halvårsvis** (Klas-beslut 2026-08-28), samordnat med underbiträdesläsningen ovan så att
+>    två obevakade kalenderförpliktelser blir ett tillfälle — **kadensens hem är ROPA:n, och den
+>    återges inte här**;
+>    **`R3` varje körning av §2.5 eller §2.6** — checklistan är en yta som faktiskt läses;
+>    **`R4` varje ändring av apex-MX eller av brevlådans mottagande** — flytten själv inkluderad.
+>
+>    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS**
+>    (`security-auditor` 2026-08-28). I lågtrafikläget — det förväntade — är `R1` tyst och varken
+>    `R3` eller `R4` fyrar, så bara `R2` återstår: en post som förfaller vid tolv månader raderas då
+>    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym, som är noll inkommande. **Det
+>    gör det inte till tolv.**
 >
 >    ⛔ **INGEN PÅMINNARE ÄR BYGGD, och den meningen får aldrig strykas av att åtgärden godkänts.**
->    Ingenting pagar någon, ingenting mäter att genomgången skett, och en kalenderförpliktelse utan
->    påminnare körs inte. Det är recordet av vad som **inte** finns; #1267 AC 2 är påminnarhalvans
->    hem, och den är obyggd. **`#1267 AC 2` är däremot INTE hemmet för den här kontrollen** — en
->    issue-AC har ingen §13-uppdateringsprocess, ingen läsarplikt och inget svep som tittar där.
->    Hemmet är den här raden, och den är trackad med flit: led 6:s hela poäng är en mänsklig läsare
->    som inte har det gitignorerade registret.
+>    Ingenting pagar någon, och **ingenting mäter att genomgången skett**. Det är recordet av vad som
+>    **inte** finns.
+>    ⚠ **`#1267 AC 2` är INTE hemmet för den här kontrollen**, och den här raden lägger ingen
+>    förpliktelse där — en issue-AC rider varken §6:s PR-flöde eller §9.2:s agenter, har ingen
+>    läsarplikt och inget svep som tittar där. Hemmet är den här raden, **trackad med flit**: led 6:s
+>    hela poäng är en mänsklig läsare som inte har det gitignorerade registret.
 >
->    **Mätt 2026-08-28, tre ytor, samma svar — ingen åldersbaserad radering finns att hänga den på:**
->    OX:s regelmotor kan bara jämföra `Aktuellt datum` mot ett **fast** `YYYY-M-D` och agerar vid
->    **leverans** (åtgärderna är arkivera/omdirigera/kasta/avslå/behåll), alltså varken
->    meddelandeålder eller ett svep över lagrad post · STRATO:s FAQ för E-postadministrationen
+>    **Mätt 2026-08-28, samma svar på varje yta — ingen åldersbaserad radering finns att hänga den
+>    på:** Open-Xchange-regelmotorn i STRATO:s webmail kan bara jämföra `Aktuellt datum` mot ett
+>    **fast** `YYYY-M-D` och agerar vid **leverans** (åtgärderna är
+>    arkivera/omdirigera/kasta/avslå/behåll), alltså varken meddelandeålder eller ett svep över
+>    lagrad post. ⚠ **Den avläsningen kan bara personuppgiftsansvarig ta om** — raden förbjuder CC
+>    brevlådeåtkomst — till skillnad från de två nedan, som vem som helst kan ommäta ·
+>    STRATO:s FAQ för E-postadministrationen
 >    räknar upp vad som går att ställa in per konto (namn, lösenord, postfackstorlek, filterregler,
 >    alias, spamskydd) och **ingen retention** · den svenska produktsidan beskriver ingen
 >    bevarandetid. ⚠ **Gränsen: "beskrivs inte" är inte "existerar inte".** En odokumenterad

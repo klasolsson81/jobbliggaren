@@ -58,10 +58,15 @@ public enum RecentSearchLabelJoin
 public enum RecentSearchLabelPartKind
 {
     /// <summary>
-    /// A resolved taxonomy name, carried in <see cref="RecentSearchLabelPartDto.Text"/>. Place
+    /// A resolved REGISTER name, carried in <see cref="RecentSearchLabelPartDto.Text"/>. Place
     /// names, region names and occupation-group names are proper-noun data and stay Swedish in
     /// every locale.
     /// </summary>
+    /// <remarks>
+    /// Not every taxonomy name is one of these — the klass 2 terms are common nouns and travel
+    /// as <see cref="Coded"/> instead (#1537). The carve-out is register data, not taxonomy
+    /// membership.
+    /// </remarks>
     Named,
 
     /// <summary>
@@ -70,15 +75,32 @@ public enum RecentSearchLabelPartKind
     /// part's position (Swedish capitalises it only where it leads).
     /// </summary>
     Remote,
+
+    /// <summary>
+    /// A taxonomy concept whose NAME is locale copy: employment type and worktime extent
+    /// (klass 2). It carries <see cref="RecentSearchLabelPartDto.ConceptId"/> and no
+    /// <see cref="RecentSearchLabelPartDto.Text"/> — the mirror image of <see cref="Named"/>.
+    /// </summary>
+    /// <remarks>
+    /// <c>Heltid</c>, <c>Vikariat</c> and <c>Behovsanställning</c> are common nouns, so shipping
+    /// them resolved put Swedish in front of an English reader (#1537). Sending the code instead
+    /// of the name is what makes a missing catalogue key impossible to satisfy silently in
+    /// Swedish: there is no Swedish to fall back TO on this part.
+    /// </remarks>
+    Coded,
 }
 
 /// <summary>
-/// One part of the label: a resolved name, plus how many further selections it stands for.
+/// One part of the label: what names it, plus how many further selections it stands for.
 /// </summary>
-/// <param name="Kind">Whether <paramref name="Text"/> carries a name at all.</param>
+/// <param name="Kind">Which of <paramref name="Text"/> and <paramref name="ConceptId"/> is set.</param>
 /// <param name="Text">
-/// The resolved taxonomy label. <c>null</c> exactly when <paramref name="Kind"/> is
-/// <see cref="RecentSearchLabelPartKind.Remote"/>.
+/// The resolved register label. Set exactly when <paramref name="Kind"/> is
+/// <see cref="RecentSearchLabelPartKind.Named"/>.
+/// </param>
+/// <param name="ConceptId">
+/// The taxonomy concept the client looks the name up by. Set exactly when
+/// <paramref name="Kind"/> is <see cref="RecentSearchLabelPartKind.Coded"/>.
 /// </param>
 /// <param name="MoreCount">
 /// Selections beyond the named one, <c>0</c> when the name covers them all. Counts the same
@@ -87,6 +109,7 @@ public enum RecentSearchLabelPartKind
 public sealed record RecentSearchLabelPartDto(
     RecentSearchLabelPartKind Kind,
     string? Text,
+    string? ConceptId,
     int MoreCount);
 
 /// <summary>

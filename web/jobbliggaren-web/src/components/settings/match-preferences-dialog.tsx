@@ -8,7 +8,8 @@
 // Server Component.
 
 import { useState, useTransition } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
@@ -121,10 +122,14 @@ export function MatchPreferencesDialog({
   onCloseAutoFocus,
 }: MatchPreferencesDialogProps) {
   const t = useTranslations("settings");
-  const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
-    conceptId: e.conceptId,
-    label: e.label,
-  }));
+  const tEnum = useTranslations("jobads.enums");
+  const collator = new Intl.Collator(useLocale());
+  // Allmänsubstantiv, alltså locale-copy (#1537).
+  const employmentOptions: ReadonlyArray<Option> = codedTaxonomyOptions(
+    tEnum,
+    collator,
+    employmentTypes,
+  );
 
   // ── DRAFT-state. Seedas från den persisterade mängden VID ÖPPNING via en
   // seed-nyckel — när `open` flippar till true återställs drafterna till SSOT.

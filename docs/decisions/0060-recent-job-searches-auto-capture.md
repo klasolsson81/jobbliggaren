@@ -246,3 +246,68 @@ ordagrant på tre ytor. Svensk rendering är bevarad byte-för-byte — pinnat p
 UI-copy finns i båda katalogerna"*) bärs i dag av **ingen ADR** och motsägs av `BUILD.md` §10.6,
 som fortfarande säger *"UI på svenska"*. ADR 0078 äger i18n-**mekaniken** och har `Scope: Frontend`
 — den binder ingen täckning. Detta är en dokumenterad lucka, inte en ändring som görs här.
+
+---
+
+# Amendment 2026-08-28 (2) — Beslut 8 + 9 smalnas: `Named` är REGISTERdata, klass 2 blir `Coded` (#1537)
+
+**Status:** Accepted. **Beslutsunderlag:** `senior-cto-advisor` (decision-maker, 2026-08-28) på
+Klas-satt produktbeslut samma dag. Additivt notat — Beslut 8:s och Beslut 9:s brödtext är orörd,
+och amendmentet tidigare samma dag står kvar i allt utom den generalisering det här stycket
+smalnar.
+
+**Varför två amendments på ett dygn.** Det förra skrev en generalisering för brett. Det
+klassade `Named` som *"a resolved taxonomy name … proper-noun data and stay Swedish in every
+locale"* — sant för ort, län och yrkesgrupp, falskt för klass 2. Detta är konvergens på ett
+beslut, inte churn: en generalisering smalnas till det den faktiskt bär.
+
+**Vad som smalnas.** Carve-outen är **registerdata**, inte taxonomi-medlemskap.
+Anställningsform och omfattning (klass 2, tio frusna värden) är **allmänsubstantiv** —
+`Heltid`, `Vikariat`, `Behovsanställning` — och `klass2-taxonomy.json:5` klassar sin egen
+ometikettering som *"an FE presentation concern (PR-2), not a data-layer concern (ACL stays
+honest, Evans 2003 ch. 14)"*. De reste förresolvade på svenska och nådde varje `en`-användare
+ordagrant. Ytorna räknas inte upp uttömmande här — de ändras i samma PR och skulle drifta —
+men de spänner minst recent-sökningens fyra renderingar (`/sokningar`, `/jobb`-hero-chippet,
+`/oversikt`-notisen, radens `aria-label`), `/jobb`s klass 2-panel och dess filterchips,
+matchdetaljens `employmentFit`, samt matchningsinställningarna och onboarding-guiden.
+
+**Formen.** `RecentSearchLabelPartKind` får en tredje medlem `Coded`, och
+`RecentSearchLabelPartDto` en `ConceptId`. `Coded` bär koden och **`Text: null`** —
+spegelvänt mot `Named`, och samma konstruktion `Remote` redan använder. Det är inte kosmetik:
+med `Text: null` finns **ingen svenska att tyst falla tillbaka på**, så en saknad katalognyckel
+blir synlig i stället för att bli svensk. Avvisat var ett `conceptId` bredvid `text` på
+`Named` — det hade gjort `Named`s doc-kommentar falsk för en delmängd i stället för att göra
+formen självbeskrivande (SRP, Martin 2017 kap. 7).
+
+Grenvalet ändras **inte**: vilken dimension som namnger raden och hur delarna hänger ihop
+härleds fortsatt i Application, och `GeoUnionLabelParityTests` mäter den invarianten oförändrad.
+Bara `DeriveRefinementLabel` rörs; geo- och yrkesgrensgrenarna är orörda och
+`RecentJobSearchDto`s medlemsmängd är oförändrad (`RecentJobSearchProjectionParityTests`).
+
+**Beslut 9:s spegel** får en tredje zod-arm och speglar båda villkoren exakt: `text` satt precis
+när delen är `Named`, `conceptId` satt precis när den är `Coded`.
+
+**Samma beslut, andra platsen.** `GET /api/v1/me/job-ad-match-tags/{id}` bar samma fel:
+`employmentFit.matched/missing` skickade resolverade svenska etiketter. Dimensionen byter typ
+till `MatchCodedDimensionDetailDto` (`MatchedConceptIds`/`MissingConceptIds`).
+`MatchDimensionDetailDto` är **orörd** — dess `Matched` är dokumenterad som visningsetiketter,
+och sex av sju dimensioner bär verkligen sådana. Att låta en av dem betyda något annat hade
+gjort den typen till en lögn; en synlig typförorening är bättre än en osynlig
+betydelseförorening. `SsykOverlap` och `RegionFit` fortsätter resolvas: de namnger yrkesgrupper
+och regioner, som är registerdata.
+
+**Grinden.** `web/jobbliggaren-web/src/lib/i18n/coded-taxonomy.test.ts` läser
+`src/Jobbliggaren.Infrastructure/Taxonomy/klass2-taxonomy.json` direkt — den enda FE-testen som
+korsar gränsen — och fäller på att ett conceptId saknar nyckel i endera locale, på en
+föräldralös katalognyckel, och på att ett `sv`-värde **inte är byte-identiskt med
+källetiketten**. Den sista är den bärande: den gör `honest 8`-låset **mekaniskt** i stället för
+konventionellt, och den är beviset för att den här ändringen inte flyttade någon svensk
+rendering. Gränsöverskridandet är motiverat av att felläget annars är tyst — resolvern faller
+tillbaka i stället för att kasta.
+
+**Luckan det förra amendmentet deklarerade är stängd i samma PR som detta.** Regeln — att `sv`
+och `en` båda är produkt-locales och att all UI-copy finns i båda katalogerna — bar ingen ADR
+och motsades av `BUILD.md` §10.6 (*"UI på svenska"*). Klas-beslut 2026-08-28: regeln skrivs ned.
+**Dess hem är `BUILD.md` §10.6**, som är spårad och därför läsbar för var och en; ADR 0137 bär
+härledningen men hålls lokal per ADR 0072, så den citeras här som proveniens och aldrig som
+den plats regeln ska läsas på.

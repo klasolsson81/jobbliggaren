@@ -256,7 +256,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
                 SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["Systemutvecklare"]),
                 TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
                 RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["Stockholm"]),
-                EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["Tillsvidare"])),
+                EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["kpPX_CNN_gDU"])),
             SkillOverlap: Dim(MatchDimensionVerdict.Match, matched: ["C#", "SQL"], missing: ["Kubernetes"]),
             MustHaveCoverage: Dim(MatchDimensionVerdict.Match, matched: ["C#"], missing: []),
             NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
@@ -295,14 +295,22 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
     // =================================================================
     // The three membership dimensions (SSYK / region / employment) carry RAW taxonomy
-    // concept-ids in their evidence; the handler MUST resolve them to human labels (ADR
-    // 0043 ACL — a concept-id never reaches the user; CLAUDE.md §5 — an opaque id is the
-    // opposite of explainable). The skill/title dimensions already carry Display labels /
-    // lexemes and MUST pass through unchanged (never re-resolved).
+    // concept-ids in their evidence. TWO of them — SSYK and region — MUST be resolved to
+    // human labels here (ADR 0043 ACL; CLAUDE.md §5 — an opaque id is the opposite of
+    // explainable): they name occupation groups and regions, which are proper-noun
+    // register data and stay Swedish in every locale.
+    //
+    // Employment type MUST NOT be resolved here (#1537). Its concepts are common nouns
+    // whose words the catalogue owns, so resolving them server-side put Swedish in front
+    // of an English reader. It ships as MatchCodedDimensionDetailDto and the client names
+    // it — the id still never reaches the user, it just stops being named in this layer.
+    //
+    // The skill/title dimensions already carry Display labels / lexemes and MUST pass
+    // through unchanged (never re-resolved).
     // =================================================================
 
     [Fact]
-    public async Task Handle_ShouldResolveMembershipConceptIdsToLabels_LeavingSkillEvidenceUntouched()
+    public async Task Handle_ShouldResolveRegisterConceptIdsToLabels_LeavingCodedAndSkillEvidenceUntouched()
     {
         var ct = TestContext.Current.CancellationToken;
         var score = new FullMatchScore(
@@ -327,10 +335,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldNotBeNull();
-        // Membership dims: concept-ids resolved to human labels (matched AND missing).
+        // Register dims: concept-ids resolved to human labels (matched AND missing).
         result!.SsykOverlap.Matched.ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
         result.RegionFit.Matched.ShouldBe(["Stockholms län"]);
-        result.EmploymentFit.Missing.ShouldBe(["Tillsvidareanställning"]);
+        // Coded dim: the id survives to the wire even though the fake taxonomy COULD have
+        // named it — the resolver is never asked, which is the property under test.
+        result.EmploymentFit.MissingConceptIds.ShouldBe(["emp_999"]);
         // Skill dim already carries a Display label → passed through, never re-resolved.
         result.SkillOverlap.Matched.ShouldBe(["C#"]);
     }

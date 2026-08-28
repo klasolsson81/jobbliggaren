@@ -496,8 +496,10 @@ public class ListRecentSearchesQueryHandlerTests
             ["OccupationGroup"] = (Axis(occupationGroup: ["grp_77777"]), "Dimensions/None:Label-grp_77777"),
             ["Municipality"] = (Axis(municipality: ["gbg_kn"]), "Dimensions/None:Label-gbg_kn"),
             ["Region"] = (Axis(region: ["stockholm"]), "Dimensions/None:Label-stockholm"),
-            ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Dimensions/None:Label-tillsvidare"),
-            ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Dimensions/None:Label-heltid"),
+            // Klass 2 namnger raden med sin KOD, inte sin etikett: orden är allmänsubstantiv
+            // och ägs av katalogen (#1537). Ort och yrkesgrupp ovan är egennamn och bär namn.
+            ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Dimensions/None:<code:tillsvidare>"),
+            ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Dimensions/None:<code:heltid>"),
             ["Remote"] = (Axis(remote: true), "Dimensions/None:<remote>"),
         };
 
@@ -563,8 +565,12 @@ public class ListRecentSearchesQueryHandlerTests
 
     // #1430 — labeln är struktur, inte prosa, så pinnarna assertar på strukturen. Shape är en
     // FÖRLUSTFRI, läsbar projektion av deskriptorn: "Kind/Join:del|del", där en Named-del är
-    // sitt namn plus "+N" när den står för fler val, och distans-delen är "<remote>" (den bär
-    // inget namn — vilket ord den renderas som ägs av locale:n).
+    // sitt namn plus "+N" när den står för fler val, distans-delen är "<remote>" (den bär
+    // inget namn — vilket ord den renderas som ägs av locale:n), och en Coded-del är
+    // "<code:id>" (den bär koden, och ordet ägs likaså av locale:n, #1537).
+    //
+    // Coded får en EGEN form i stället för att rendera sitt id naket: annars hade en
+    // regression tillbaka till Named, med en text som råkar vara lika, gått grön här.
     //
     // Medvetet INTE en prosa-rendering: att återskapa "Göteborg eller distans" här hade
     // asserterat mot en sträng produktionen inte längre producerar, och pinnen hade mätt
@@ -574,9 +580,14 @@ public class ListRecentSearchesQueryHandlerTests
     {
         // Ingen tidig retur för All: den hade kastat bort Kind och Parts, och då hade en All
         // MED delar gått grön här.
-        var parts = label.Parts.Select(p => p.Kind == RecentSearchLabelPartKind.Remote
-            ? "<remote>"
-            : p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text);
+        var parts = label.Parts.Select(p => p.Kind switch
+        {
+            RecentSearchLabelPartKind.Remote => "<remote>",
+            RecentSearchLabelPartKind.Coded => p.MoreCount > 0
+                ? $"<code:{p.ConceptId}>+{p.MoreCount}"
+                : $"<code:{p.ConceptId}>",
+            _ => p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text,
+        });
 
         return $"{label.Kind}/{label.Join}:{string.Join("|", parts)}";
     }
@@ -715,7 +726,7 @@ public class ListRecentSearchesQueryHandlerTests
         var label = await LabelOfAsync(
             Axis(employmentType: ["tillsvidare", "vikariat"], worktimeExtent: ["heltid"]));
 
-        label.ShouldBe("Dimensions/Conjunction:Label-tillsvidare+1|Label-heltid");
+        label.ShouldBe("Dimensions/Conjunction:<code:tillsvidare>+1|<code:heltid>");
     }
 
     // Org.nr:et får aldrig nå labeln — den ÄR svarstext, och RecentSearchesTests assertar på

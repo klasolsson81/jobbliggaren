@@ -156,6 +156,23 @@ export const matchDimensionDetailSchema = z.object({
 export type MatchDimensionDetail = z.infer<typeof matchDimensionDetailSchema>;
 
 /**
+ * Samma rad för en dimension vars bevis är KODAT i stället för namngivet: anställningsform
+ * (klass 2). Den bär conceptId, och klienten resolvar varje till locale-copy (#1537).
+ *
+ * Egen typ, inte conceptId inuti `matchDimensionDetailSchema`, vars `matched` är
+ * dokumenterad som visningsetiketter. Sex av sju dimensioner bär verkligen visningstext;
+ * att låta en av dem betyda något annat hade gjort den typen till en lögn.
+ */
+export const matchCodedDimensionDetailSchema = z.object({
+  verdict: matchVerdictSchema,
+  matchedConceptIds: z.array(z.string()),
+  missingConceptIds: z.array(z.string()),
+});
+export type MatchCodedDimensionDetail = z.infer<
+  typeof matchCodedDimensionDetailSchema
+>;
+
+/**
  * Modal-/fullsida-detaljsvaret. `grade` är `null` när annonsen inte tjänar in
  * en positiv tagg (yrket matchade inte) — raderna finns ändå (ärlig
  * nedbrytning). Hela svaret kan vara `null` (200 med `null`-body =
@@ -166,7 +183,7 @@ export const jobAdMatchDetailSchema = z.object({
   ssykOverlap: matchDimensionDetailSchema,
   titleSimilarity: matchDimensionDetailSchema,
   regionFit: matchDimensionDetailSchema,
-  employmentFit: matchDimensionDetailSchema,
+  employmentFit: matchCodedDimensionDetailSchema,
   skillOverlap: matchDimensionDetailSchema,
   mustHaveCoverage: matchDimensionDetailSchema,
   niceToHaveCoverage: matchDimensionDetailSchema,

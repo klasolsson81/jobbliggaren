@@ -1,20 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createRef } from "react";
 import { render, screen, within } from "@testing-library/react";
+import { render as rawRender } from "@testing-library/react/pure";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "../../../messages/en";
 import userEvent from "@testing-library/user-event";
 import { JobbKlass2Panel } from "./jobb-klass2-panel";
 import type { TaxonomyOption } from "@/lib/dto/taxonomy";
 
-// "honest 8"-utdrag (Klas — råa JobTech-labels, ingen kurering).
+// "honest 8"-utdrag med de RIKTIGA conceptId:na ur klass2-taxonomy.json. Påhittade id
+// faller utanför den kodade mängden, så de hade motionerat fallback-grenen och aldrig
+// översättningen — panelen matas i produktion av exakt de tio frusna id:na (#1537,
+// code-reviewer Blocker 2026-08-28).
 const employmentTypeOptions: ReadonlyArray<TaxonomyOption> = [
-  { conceptId: "et_vanlig", label: "Vanlig anställning" },
-  { conceptId: "et_vikariat", label: "Vikariat" },
-  { conceptId: "et_sommar", label: "Sommarjobb / feriejobb" },
+  { conceptId: "PFZr_Syz_cUq", label: "Vanlig anställning" },
+  { conceptId: "gro4_cWF_6D7", label: "Vikariat" },
+  { conceptId: "Jh8f_q9J_pbJ", label: "Sommarjobb / feriejobb" },
 ];
-// Backend sorterar Label Ordinal → Deltid före Heltid (as-is rendering).
 const worktimeExtentOptions: ReadonlyArray<TaxonomyOption> = [
-  { conceptId: "wt_deltid", label: "Deltid" },
-  { conceptId: "wt_heltid", label: "Heltid" },
+  { conceptId: "947z_JGS_Uk2", label: "Deltid" },
+  { conceptId: "6YE1_gAC_R2G", label: "Heltid" },
 ];
 
 function setup(
@@ -51,7 +56,7 @@ beforeEach(() => {
 });
 
 describe("JobbKlass2Panel — Omfattning (radio single-select)", () => {
-  it("renderar 'Alla' först, därefter options as-is (Deltid/Heltid)", () => {
+  it("renderar 'Alla' först, därefter options ordnade på visat namn (Deltid/Heltid)", () => {
     setup();
     const group = screen.getByRole("radiogroup", { name: "Omfattning" });
     const labels = within(group)
@@ -71,19 +76,19 @@ describe("JobbKlass2Panel — Omfattning (radio single-select)", () => {
     const user = userEvent.setup();
     const { onWorktimeExtentChange } = setup();
     await user.click(screen.getByRole("radio", { name: "Heltid" }));
-    expect(onWorktimeExtentChange).toHaveBeenCalledWith(["wt_heltid"]);
+    expect(onWorktimeExtentChange).toHaveBeenCalledWith(["6YE1_gAC_R2G"]);
   });
 
   it("val av 'Alla' emitterar en TOM array (inget filter)", async () => {
     const user = userEvent.setup();
-    const { onWorktimeExtentChange } = setup({ worktimeExtent: ["wt_heltid"] });
+    const { onWorktimeExtentChange } = setup({ worktimeExtent: ["6YE1_gAC_R2G"] });
     await user.click(screen.getByRole("radio", { name: "Alla" }));
     expect(onWorktimeExtentChange).toHaveBeenCalledWith([]);
   });
 
   it("Rensa i Omfattning-sektionen nollar valet (tom array)", async () => {
     const user = userEvent.setup();
-    const { onWorktimeExtentChange } = setup({ worktimeExtent: ["wt_heltid"] });
+    const { onWorktimeExtentChange } = setup({ worktimeExtent: ["6YE1_gAC_R2G"] });
     const head = screen
       .getByRole("radiogroup", { name: "Omfattning" })
       .parentElement!.querySelector(".jp-panel__sectionhead")!;
@@ -93,46 +98,47 @@ describe("JobbKlass2Panel — Omfattning (radio single-select)", () => {
 });
 
 describe("JobbKlass2Panel — Anställningsform (checkbox multi-select)", () => {
-  it("renderar ALLA options med råa JobTech-labels (honest, inkl. 'Vanlig anställning')", () => {
+  it("renderar ALLA options, ingen utelämnad eller hopslagen (honest 8)", () => {
     setup();
     const group = screen.getByRole("group", { name: "Anställningsform" });
     const labels = within(group)
       .getAllByRole("checkbox")
       .map((c) => c.textContent);
+    // Ordnat på det visade namnet (Klas 2026-08-28), inte på fixturens ordning.
     expect(labels).toEqual([
+      "Sommarjobb / feriejobb",
       "Vanlig anställning",
       "Vikariat",
-      "Sommarjobb / feriejobb",
     ]);
   });
 
   it("kryssa en option lägger till dess conceptId (multi)", async () => {
     const user = userEvent.setup();
     const { onEmploymentTypeChange } = setup({
-      employmentType: ["et_vikariat"],
+      employmentType: ["gro4_cWF_6D7"],
     });
     await user.click(
       screen.getByRole("checkbox", { name: "Vanlig anställning" }),
     );
     expect(onEmploymentTypeChange).toHaveBeenCalledWith([
-      "et_vikariat",
-      "et_vanlig",
+      "gro4_cWF_6D7",
+      "PFZr_Syz_cUq",
     ]);
   });
 
   it("avkryssa en redan vald option tar bort den", async () => {
     const user = userEvent.setup();
     const { onEmploymentTypeChange } = setup({
-      employmentType: ["et_vikariat", "et_vanlig"],
+      employmentType: ["gro4_cWF_6D7", "PFZr_Syz_cUq"],
     });
     await user.click(screen.getByRole("checkbox", { name: "Vikariat" }));
-    expect(onEmploymentTypeChange).toHaveBeenCalledWith(["et_vanlig"]);
+    expect(onEmploymentTypeChange).toHaveBeenCalledWith(["PFZr_Syz_cUq"]);
   });
 
   it("Rensa i Anställningsform-sektionen nollar alla val", async () => {
     const user = userEvent.setup();
     const { onEmploymentTypeChange } = setup({
-      employmentType: ["et_vikariat", "et_vanlig"],
+      employmentType: ["gro4_cWF_6D7", "PFZr_Syz_cUq"],
     });
     const head = screen
       .getByRole("group", { name: "Anställningsform" })
@@ -144,7 +150,7 @@ describe("JobbKlass2Panel — Anställningsform (checkbox multi-select)", () => 
 
 describe("JobbKlass2Panel — facet-counts (PR-3)", () => {
   it("renderar per-option-tal på Heltid/Deltid men INTE på 'Alla'", () => {
-    setup({ worktimeExtentCounts: { wt_heltid: 100, wt_deltid: 25 } });
+    setup({ worktimeExtentCounts: { "6YE1_gAC_R2G": 100, "947z_JGS_Uk2": 25 } });
     expect(
       screen.getByRole("radio", { name: /Heltid/ }).textContent,
     ).toContain("(100)");
@@ -158,7 +164,7 @@ describe("JobbKlass2Panel — facet-counts (PR-3)", () => {
   });
 
   it("renderar per-option-tal på anställningsform-checkboxar", () => {
-    setup({ employmentTypeCounts: { et_vanlig: 24, et_vikariat: 7 } });
+    setup({ employmentTypeCounts: { PFZr_Syz_cUq: 24, gro4_cWF_6D7: 7 } });
     expect(
       screen.getByRole("checkbox", { name: /Vanlig anställning/ }).textContent,
     ).toContain("(24)");
@@ -168,7 +174,7 @@ describe("JobbKlass2Panel — facet-counts (PR-3)", () => {
   });
 
   it("saknad nyckel i count-dicten → 0 (degraderar inte raden)", () => {
-    setup({ employmentTypeCounts: { et_vanlig: 24 } });
+    setup({ employmentTypeCounts: { PFZr_Syz_cUq: 24 } });
     expect(
       screen.getByRole("checkbox", { name: /Sommarjobb/ }).textContent,
     ).toContain("(0)");
@@ -204,5 +210,58 @@ describe("JobbKlass2Panel — a11y + degradering", () => {
     expect(
       screen.queryByRole("group", { name: "Anställningsform" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("JobbKlass2Panel — locale en (#1537)", () => {
+  // `render` går genom shimen som hårdkodar locale="sv", så det engelska fallet
+  // renderas via `/pure` — samma väg som `match-setup-rail-modal.test.tsx`.
+  function renderEnglish() {
+    const triggerRef = createRef<HTMLButtonElement>();
+    rawRender(
+      <NextIntlClientProvider locale="en" messages={enMessages} timeZone="Europe/Stockholm">
+        <button ref={triggerRef} type="button">
+          Filter
+        </button>
+        <JobbKlass2Panel
+          open
+          employmentTypeOptions={employmentTypeOptions}
+          worktimeExtentOptions={worktimeExtentOptions}
+          employmentType={[]}
+          worktimeExtent={[]}
+          onEmploymentTypeChange={vi.fn()}
+          onWorktimeExtentChange={vi.fn()}
+          onClose={vi.fn()}
+          triggerRef={triggerRef}
+          emptyText="Filters could not be loaded right now."
+        />
+      </NextIntlClientProvider>,
+    );
+  }
+
+  it("namnger anställningsformerna på engelska, ordnade på det visade namnet", () => {
+    renderEnglish();
+    const group = screen.getByRole("group", { name: "Employment type" });
+    const labels = within(group)
+      .getAllByRole("checkbox")
+      .map((c) => c.textContent);
+
+    expect(labels).toEqual([
+      "Regular employment",
+      "Substitute position",
+      "Summer job / holiday job",
+    ]);
+  });
+
+  it("vänder omfattningens ordning, eftersom engelskan sorterar på sina egna ord", () => {
+    // Backend skickar Deltid före Heltid (svensk ordinal). Under `en` är det
+    // Full-time före Part-time — den halvan fäller en regression till backend-ordning.
+    renderEnglish();
+    const group = screen.getByRole("radiogroup", { name: "Scope" });
+    const labels = within(group)
+      .getAllByRole("radio")
+      .map((r) => r.textContent);
+
+    expect(labels).toEqual(["All", "Full-time", "Part-time"]);
   });
 });

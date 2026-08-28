@@ -41,15 +41,18 @@ const sortByFromWire = z
  * Enums når wire:n som NAMN (backend `JsonStringEnumConverter`), aldrig som ordinaler —
  * pinnat ände-till-ände i `RecentSearchesTests`.
  */
-// Diskriminerad union, inte ett löst objekt: DTO:ns kontrakt säger att `text` är null EXAKT
-// när delen är `Remote`, och en spegel som är lösare än originalet på just den villkorade
-// punkten speglar inte kontraktet (ADR 0060 Beslut 9). Utan unionen parsar en `Named` utan
-// text grönt och renderas som en tom sträng mitt i labeln — samma tysta fel som `parts`-
-// refine:n nedan finns för att stoppa.
+// Diskriminerad union, inte ett löst objekt: DTO:ns kontrakt säger att `text` är satt EXAKT
+// när delen är `Named` och att `conceptId` är satt EXAKT när den är `Coded`, och en spegel
+// som är lösare än originalet på just de villkorade punkterna speglar inte kontraktet
+// (ADR 0060 Beslut 9). Utan unionen parsar en `Named` utan text grönt och renderas som en tom
+// sträng mitt i labeln — samma tysta fel som `parts`-refine:n nedan finns för att stoppa.
 export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
+  // "Named" bär REGISTERdata — ort, län, yrkesgrupp. Egennamn, alltså svenska i varje
+  // locale, och därför resolvade redan på wire:n.
   z.object({
     kind: z.literal("Named"),
     text: z.string(),
+    conceptId: z.null(),
     moreCount: z.number().int().nonnegative(),
   }),
   // "Remote" bär inget namn: den är ett ORD, och vilket ord beror på locale OCH position.
@@ -57,7 +60,18 @@ export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("Remote"),
     text: z.null(),
+    conceptId: z.null(),
     moreCount: z.literal(0),
+  }),
+  // "Coded" är spegelvänd mot "Named": wire:n bär koden, katalogen bär ordet. Klass 2 —
+  // anställningsform och omfattning — är allmänsubstantiv och byter språk med locale:n
+  // (#1537). Att `text` är null är poängen: det finns ingen svenska att tyst falla tillbaka
+  // på, så en saknad katalognyckel blir synlig i stället för att bli svensk.
+  z.object({
+    kind: z.literal("Coded"),
+    text: z.null(),
+    conceptId: z.string().min(1),
+    moreCount: z.number().int().nonnegative(),
   }),
 ]);
 

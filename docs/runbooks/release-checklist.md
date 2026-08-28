@@ -1238,7 +1238,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    uppfyllt på grundval av att beslutet är fattat.
 > 2. AVV-ledet sa *"som är Klas-åtgärd och aldrig CC:s"* i presens, som om det vore ogjort.
 >    **Avtalet är tecknat 2026-01-29 21:15** — *Data Processing Agreement according to Art. 28(3)*,
->    version 3.6, kundnummer 78284084. Att teckna förblir Klas, men handlingen är utförd.
+>    version 3.6. Att teckna förblir Klas, men handlingen är utförd.
 > 3. Entiteten stod som **STRATO AG**. Avtalsdokumentet säger **STRATO GmbH**,
 >    Otto-Ostrowski-Straße 7, 10249 Berlin. ⚠ **Formen är den part-bärande, samma precisionsstandard
 >    som `netcup GmbH` och `Scaleway SAS`,** och den publiceras nu under Art. 13(1)(e) —

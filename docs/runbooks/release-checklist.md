@@ -1939,9 +1939,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - **Art. 14(5)(b):s mitigering kräver att notisen är *allmänt tillgänglig*** — och §2.5:s egen
         mätning 2026-08-16 säger att den **inte** är det (apex svarar `000`, dev `401 Basic` på varje
         väg). En blackholad `recruiterNotice` bär alltså inte undantaget.
-      - **§2.5 förutsättning 5:s Blocker-triggrar (a)–(d) är uteslutande ANVÄNDARnycklade**, så
-        **ingen av dem fyrar på 532 rekryterare.** Premissen *"den publicerade rättighetskanalen har
-        därmed ingen läsare"* skrevs 2026-08-16 och ändrades dagen efter.
+      - **Ingen av §2.5 förutsättning 5:s Blocker-triggrar (a)–(d) fyrar på 532 rekryterare.**
+        Premissen *"den publicerade rättighetskanalen har därmed ingen läsare"* skrevs 2026-08-16
+        och ändrades dagen efter.
       **Klas väljer väg** — direkt tillhandahållande, 14(5)(b) med notisen gjord allmänt tillgänglig
       före fristen, eller ett dokumenterat beslut på annan grund. **Beslutet är hans; datumet är
       förordningens.** Konverterar till Blocker **2026-09-17**, eller tidigare om copyn blir publik

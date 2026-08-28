@@ -30,6 +30,11 @@ export default function Loading() {
       <PageHeroSkeleton kicker aside={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">
+        {/* The "Kräver åtgärd" card between the toolbar and the first section is
+            DELIBERATELY not reserved. It renders only while the account has
+            stated no desired occupation, so a fallback cannot know whether it is
+            coming; reserving its ~140px would over-reserve for every account
+            that has. An unreserved conditional block is the lesser shift. */}
         {/* Notice toolbar: stamp + refresh on the left, mark-all on the right. */}
         <div className="mb-3 flex items-center justify-between gap-4">
           <span className="jp-skeleton block h-4 w-56" />
@@ -45,10 +50,10 @@ export default function Loading() {
           </div>
           <div className="jp-appsummary">
             <div className="jp-appsummary__anchor">
-              <span className="jp-skeleton block h-4 w-48" />
-              <span className="jp-skeleton block h-4 w-40" />
+              <span className="jp-skeleton block h-6 w-48" />
+              <span className="jp-skeleton block h-6 w-40" />
             </div>
-            <span className="jp-skeleton block h-4 w-full max-w-xl" />
+            <span className="jp-skeleton block h-6 w-full max-w-3xl" />
           </div>
           <div className="flex flex-col gap-3">
             {[0, 1].map((row) => (

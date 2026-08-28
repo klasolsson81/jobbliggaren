@@ -5070,10 +5070,25 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary__step[data-empty="true"] .jp-appsummary__num {
   font-weight: var(--jp-fw-regular);
 }
-/* Skiljelinje före den terminala posten — speglar stegrailens data-divider. */
+/* Skiljelinje före den terminala posten. Stegrailens data-divider är förebilden
+   för FÄRGEN, inte för mekaniken: dess celler är en 10-kolumnsgrid som inte kan
+   radbryta, medan den här raden kan. */
 .jp-appsummary__step[data-terminal="true"] {
   padding-left: 18px;
   border-left: 1px solid var(--jp-border-strong);
+}
+/* Under den bredd där posten kan hamna först på en ny rad läses en vänsterkant
+   som ett inledande streck i stället för en avdelare — och det är just den
+   aktiv/terminal-partition som "N aktiva" vilar på. En horisontell hårlinje är
+   entydig oavsett brytning. Brytpunkten mäts mot en-strängarna, som är längre. */
+@media (max-width: 1000px) {
+  .jp-appsummary__step[data-terminal="true"] {
+    flex-basis: 100%;
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--jp-border-strong);
+    padding-top: 6px;
+  }
 }
 .jp-appsummary__emptytitle {
   margin: 0;
@@ -5085,7 +5100,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 .jp-appsummary--empty .jp-appsummary__link { align-self: flex-start; }
-.jp-appsummary--unavailable { color: var(--jp-ink-2); }
+/* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
+.jp-appsummary--unavailable { color: var(--jp-ink-1); }
 
 /* Notiser */
 .jp-notice-list {

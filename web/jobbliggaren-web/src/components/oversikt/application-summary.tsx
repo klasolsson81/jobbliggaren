@@ -61,7 +61,10 @@ export function ApplicationSummary({ pipeline }: ApplicationSummaryProps) {
       <div className="jp-appsummary jp-appsummary--empty">
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
         <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
-        <Link className="jp-appsummary__link" href="/ny-ansokan">
+        {/* Betonad men INTE solid: en-primär-per-skärm är redan spenderad på
+            sektionens åtgärdskort. `--emphasis` är husets ratificerade nivå
+            under den (DESIGN.md §6, #1373). */}
+        <Link className="jp-btn jp-btn--emphasis" href="/ny-ansokan">
           {t("emptyCta")}
         </Link>
       </div>
@@ -106,7 +109,7 @@ export function ApplicationSummary({ pipeline }: ApplicationSummaryProps) {
           data-empty={terminal === 0 ? "true" : undefined}
         >
           <span className="jp-appsummary__name">
-            {tCounts("all.terminalKicker")}
+            {tCounts("counts.terminalGroup")}
           </span>
           <span className="jp-appsummary__num tabular-nums">{terminal}</span>
         </li>

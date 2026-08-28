@@ -19,6 +19,10 @@ import {
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
 import { ApplicationSummary } from "./application-summary";
+import {
+  countByStatus,
+  totalCount,
+} from "@/lib/applications/pipeline-counts";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
 import {
@@ -102,6 +106,15 @@ export function OversiktPage({
       : (email.split("@")[0] ?? email);
 
   const pipelineData = pipeline.kind === "ok" ? pipeline.data : [];
+  // Vad sammanfattningen redan säger om sektionen, så notislistan inte
+  // upprepar det i en andra form. Vid en misslyckad hämtning är även
+  // "inga olästa" ett påstående om data som aldrig lästes.
+  const summaryOwns =
+    pipeline.kind !== "ok"
+      ? ("unreadable" as const)
+      : totalCount(countByStatus(pipeline.data)) === 0
+        ? ("empty" as const)
+        : undefined;
   const allApps = flattenPipeline(pipelineData);
 
   const followUps = findFollowUpCandidates(allApps, today);
@@ -352,6 +365,7 @@ export function OversiktPage({
           emptyBody={t("notices.emptyApplications")}
           prefTypes={prefTypesFor("applications")}
           summary={<ApplicationSummary pipeline={pipeline} />}
+          summaryOwns={summaryOwns}
         />
         <NoticeSection
           source="jobads"

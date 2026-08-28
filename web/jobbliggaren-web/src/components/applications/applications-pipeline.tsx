@@ -223,7 +223,7 @@ export function ApplicationsPipeline({
                 <Fragment key={section.status}>
                   {section.status === firstTerminalStatus && (
                     <p className="jp-allapps__restkicker jp-mono">
-                      {tUi("all.terminalKicker")}
+                      {tUi("counts.terminalGroup")}
                     </p>
                   )}
                   <StatusSection

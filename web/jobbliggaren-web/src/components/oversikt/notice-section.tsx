@@ -59,6 +59,16 @@ interface NoticeSectionProps {
    * också bär jobbannonser och företagsbevakning.
    */
   readonly summary?: ReactNode;
+  /**
+   * Vad {@link summary} redan säger om sektionen, när den säger något.
+   * "unreadable" = källan kunde inte läsas, så även oläst-räknaren vore ett
+   * påstående om odata. "empty" = källan lästes och höll inget.
+   * Frånvarande = sektionen bär sitt eget tomt-läge som förut.
+   *
+   * En renderingsfakta om sektionen, aldrig applikationsdata: sektionen bär
+   * också jobbannonser och företagsbevakning.
+   */
+  readonly summaryOwns?: "unreadable" | "empty";
 }
 
 // Åtgärdsnotiser (warning/success) sorteras först, info/brand därefter — övrigt
@@ -81,7 +91,7 @@ function actionFirst(
  * En notissektion per källa (Mina ansökningar / Jobbannonser / Företagsbevakning).
  * Client Component — äger läst-läge (dismiss/restore via delad store),
  * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln. Sektionen döljs
- * aldrig: saknar den synliga olästa notiser visas ett tomt-läge i listkortet.
+ * aldrig: saknär den synliga olästa notiser visas ett tomt-läge i listkortet.
  */
 export function NoticeSection({
   source,
@@ -91,6 +101,7 @@ export function NoticeSection({
   emptyBody,
   prefTypes,
   summary,
+  summaryOwns,
 }: NoticeSectionProps) {
   const t = useTranslations("oversikt");
   const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
@@ -175,9 +186,11 @@ export function NoticeSection({
         <h2 className="jp-section__title" id={titleId}>
           {title}
         </h2>
-        <span className="jp-section__count">
-          {t("notices.unreadCount", { count: unread.length })}
-        </span>
+        {summaryOwns !== "unreadable" && (
+          <span className="jp-section__count">
+            {t("notices.unreadCount", { count: unread.length })}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <div className="jp-notice-prefs-anchor">
           <button
@@ -230,12 +243,15 @@ export function NoticeSection({
 
       {summary}
 
+      {/* När sammanfattningen bär sektionens tillstånd och det inte finns någon
+          rad alls skulle listan rendera som en 2 px hög tom ramremsa. */}
+      {(unread.length > 0 || read.length > 0 || !summaryOwns) && (
       <ul className="jp-notice-list">
         {unread.length > 0 ? (
           unread.map((n) => (
             <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
           ))
-        ) : (
+        ) : summaryOwns ? null : (
           <li className="jp-notice-empty">
             <div className="jp-notice-empty__title">
               {t("notices.emptySectionTitle")}
@@ -264,6 +280,7 @@ export function NoticeSection({
           </li>
         )}
       </ul>
+      )}
     </section>
   );
 }

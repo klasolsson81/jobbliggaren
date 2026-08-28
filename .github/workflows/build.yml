@@ -588,6 +588,14 @@ jobs:
       - name: nocache-stage-guard (fixturer + den riktiga matrisen)
         run: bash .github/scripts/nocache-stage-guard.test.sh
 
+      # #1314. `latest` is what the box pulls, and the box refuses the whole apply when what it
+      # pulled carries no attestation from our workflow. The repair is the step ORDER, and its
+      # whole correctness lives in one `if:` expression and the position of one step — nothing
+      # in Actions, buildx or cosign checks either. The incident that measured it, and what the
+      # guard refuses, are in `attestation-publish-order-guard.sh`'s own header.
+      - name: attestation-publish-order-guard (fixturer + det riktiga workflowet)
+        run: bash .github/scripts/attestation-publish-order-guard.test.sh
+
       # #1519. `rescan-images.yml` scans the PUBLISHED images, and what it scans is resolved by
       # this script out of `release-images.yml`'s OWN matrix — no sixth copy of the image names.
       # The fixtures stub `docker`, so the suite needs no daemon, registry or network, and two of

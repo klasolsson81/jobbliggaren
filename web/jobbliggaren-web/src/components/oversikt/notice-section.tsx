@@ -90,8 +90,7 @@ function actionFirst(
 /**
  * En notissektion per källa (Mina ansökningar / Jobbannonser / Företagsbevakning).
  * Client Component — äger läst-läge (dismiss/restore via delad store),
- * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln. Sektionen döljs
- * aldrig: saknär den synliga olästa notiser visas ett tomt-läge i listkortet.
+ * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln.
  */
 export function NoticeSection({
   source,
@@ -246,40 +245,40 @@ export function NoticeSection({
       {/* När sammanfattningen bär sektionens tillstånd och det inte finns någon
           rad alls skulle listan rendera som en 2 px hög tom ramremsa. */}
       {(unread.length > 0 || read.length > 0 || !summaryOwns) && (
-      <ul className="jp-notice-list">
-        {unread.length > 0 ? (
-          unread.map((n) => (
-            <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
-          ))
-        ) : summaryOwns ? null : (
-          <li className="jp-notice-empty">
-            <div className="jp-notice-empty__title">
-              {t("notices.emptySectionTitle")}
-            </div>
-            <div className="jp-notice-empty__body">{emptyBody}</div>
-          </li>
-        )}
-        {showRead &&
-          read.map((n) => (
-            <NoticeRow key={n.id} notice={n} read onRestore={handleRestore} />
-          ))}
-        {read.length > 0 && (
-          <li className="jp-notice-foot">
-            <span className="jp-notice-foot__count">
-              {t("notices.readCount", { count: read.length })}
-            </span>
-            <button
-              ref={footToggleRef}
-              type="button"
-              className="jp-notice-foot__toggle"
-              aria-expanded={showRead}
-              onClick={() => setShowRead((v) => !v)}
-            >
-              {showRead ? t("notices.hideRead") : t("notices.showRead")}
-            </button>
-          </li>
-        )}
-      </ul>
+        <ul className="jp-notice-list">
+          {unread.length > 0 ? (
+            unread.map((n) => (
+              <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
+            ))
+          ) : summaryOwns ? null : (
+            <li className="jp-notice-empty">
+              <div className="jp-notice-empty__title">
+                {t("notices.emptySectionTitle")}
+              </div>
+              <div className="jp-notice-empty__body">{emptyBody}</div>
+            </li>
+          )}
+          {showRead &&
+            read.map((n) => (
+              <NoticeRow key={n.id} notice={n} read onRestore={handleRestore} />
+            ))}
+          {read.length > 0 && (
+            <li className="jp-notice-foot">
+              <span className="jp-notice-foot__count">
+                {t("notices.readCount", { count: read.length })}
+              </span>
+              <button
+                ref={footToggleRef}
+                type="button"
+                className="jp-notice-foot__toggle"
+                aria-expanded={showRead}
+                onClick={() => setShowRead((v) => !v)}
+              >
+                {showRead ? t("notices.hideRead") : t("notices.showRead")}
+              </button>
+            </li>
+          )}
+        </ul>
       )}
     </section>
   );

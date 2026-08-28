@@ -70,7 +70,7 @@ describe("ApplicationSummary", () => {
     const terminal = screen.getByText("Avslut och vilande").closest("li");
     expect(terminal).not.toBeNull();
     expect(within(terminal as HTMLElement).getByText("7")).toBeInTheDocument();
-    // Ett konto med enbart avslutade ansökningar far INTE läsa som tomt.
+    // Ett konto med enbart avslutade ansökningar får INTE läsa som tomt.
     expect(screen.getByText("7 ansökningar · 0 aktiva")).toBeInTheDocument();
   });
 
@@ -95,7 +95,7 @@ describe("ApplicationSummary", () => {
         "Antalet ansökningar kunde inte hämtas. Använd Uppdatera för att försöka igen.",
       ),
     ).toBeInTheDocument();
-    // Fabrikation: en degraderad hämtning far aldrig rendera en siffra.
+    // Fabrikation: en degraderad hämtning får aldrig rendera en siffra.
     expect(screen.queryByText(/ansökningar ·/)).toBeNull();
     expect(screen.queryByRole("list")).toBeNull();
   });

@@ -5099,7 +5099,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   color: var(--jp-ink-2);
 }
-.jp-appsummary--empty .jp-appsummary__link { align-self: flex-start; }
+.jp-appsummary--empty .jp-btn { align-self: flex-start; }
 /* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
 .jp-appsummary--unavailable { color: var(--jp-ink-1); }
 

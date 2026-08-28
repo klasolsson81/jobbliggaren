@@ -251,12 +251,7 @@ export function NoticeSection({
               <NoticeRow key={n.id} notice={n} onDismiss={handleDismiss} />
             ))
           ) : summaryOwns ? null : (
-            <li className="jp-notice-empty">
-              <div className="jp-notice-empty__title">
-                {t("notices.emptySectionTitle")}
-              </div>
-              <div className="jp-notice-empty__body">{emptyBody}</div>
-            </li>
+            <li className="jp-notice-empty">{emptyBody}</li>
           )}
           {showRead &&
             read.map((n) => (

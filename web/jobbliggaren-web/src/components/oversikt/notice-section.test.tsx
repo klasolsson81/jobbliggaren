@@ -71,7 +71,6 @@ describe("NoticeSection", () => {
   it("tomt-läge när inga notiser finns — sektionen döljs aldrig", () => {
     renderSection([]);
     expect(screen.getByText("inga olästa")).toBeInTheDocument();
-    expect(screen.getByText("Inget nytt just nu")).toBeInTheDocument();
     expect(
       screen.getByText("Nya matchningar och deadlines dyker upp här."),
     ).toBeInTheDocument();

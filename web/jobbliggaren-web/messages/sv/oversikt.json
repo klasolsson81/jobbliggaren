@@ -38,7 +38,6 @@
     "sectionJobAds": "Jobbannonser",
     "sectionCompanies": "Företagsbevakning",
     "unreadCount": "{count, plural, =0 {inga olästa} one {# oläst} other {# olästa}}",
-    "emptySectionTitle": "Inget nytt just nu",
     "emptyApplications": "Vi säger till när något händer i dina ärenden.",
     "emptyJobAds": "Nya matchningar och deadlines dyker upp här.",
     "emptyCompanies": "Händelser från dina bevakade företag samlas här.",

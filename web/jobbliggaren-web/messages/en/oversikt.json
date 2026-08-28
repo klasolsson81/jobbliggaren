@@ -38,7 +38,6 @@
     "sectionJobAds": "Job ads",
     "sectionCompanies": "Company watch",
     "unreadCount": "{count, plural, =0 {none unread} one {# unread} other {# unread}}",
-    "emptySectionTitle": "Nothing new right now",
     "emptyApplications": "We will let you know when something happens in your cases.",
     "emptyJobAds": "New matches and deadlines show up here.",
     "emptyCompanies": "Events from the companies you watch are gathered here.",

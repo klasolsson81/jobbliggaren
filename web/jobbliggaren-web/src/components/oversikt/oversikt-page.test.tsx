@@ -325,24 +325,28 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
   // design-reviewer Major 1+2: sektionen får inte säga två saker om samma
   // olästa data. När sammanfattningen bär sektionens tillstånd ska notislistans
-  // eget tomt-kort utebli — och vid en misslyckad hämtning även oläst-räknaren,
+  // eget tomt-läge utebli — och vid en misslyckad hämtning även oläst-räknaren,
   // som annars räknar notiser som aldrig lästes.
-  it("degraderad pipeline: varken oläst-räknare eller tomt-kort i sektionen", () => {
+  it("degraderad pipeline: varken oläst-räknare eller tomt-läge i sektionen", () => {
     renderOversikt(true, { matchCount: null });
 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
     expect(within(section).queryByText(/olästa/)).toBeNull();
-    expect(within(section).queryByText("Inget nytt just nu")).toBeNull();
+    expect(
+      within(section).queryByText(/Vi säger till när något händer/),
+    ).toBeNull();
     expect(within(section).getByText(/kunde inte hämtas/)).toBeInTheDocument();
-    // En tom <ul> renderar som en 2 px hög tom ramremsa; den ska inte finnas.
+    // En tom <ul> renderar som en naken hårlinje; den ska inte finnas.
     expect(section.querySelector("ul.jp-notice-list")).toBeNull();
   });
 
-  it("tomt konto: tomt-kortet utelämnas, men oläst-räknaren står kvar", () => {
+  it("tomt konto: tomt-läget utelämnas, men oläst-räknaren står kvar", () => {
     renderOversikt(true, { matchCount: null, pipeline: { kind: "ok", data: [] } });
 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(within(section).queryByText("Inget nytt just nu")).toBeNull();
+    expect(
+      within(section).queryByText(/Vi säger till när något händer/),
+    ).toBeNull();
     expect(within(section).getByText("Du har inga ansökningar än")).toBeInTheDocument();
     // Källan lästes och höll inget, så noll olästa är ett MÄTT påstående.
     expect(within(section).getByText(/olästa/)).toBeInTheDocument();
@@ -358,7 +362,9 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     });
 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
-    expect(within(section).getByText("Inget nytt just nu")).toBeInTheDocument();
+    expect(
+      within(section).getByText(/Vi säger till när något händer/),
+    ).toBeInTheDocument();
   });
 
   it("ingen recent-search → ingen senaste-sök-notis", () => {

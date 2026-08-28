@@ -199,12 +199,16 @@ while IFS= read -r name; do
   #
   # AND ITS SHAPE IS CHECKED LIKE EVERY OTHER FIELD'S. This was the one value in the row that was
   # only tested for emptiness, and it is the only one whose content comes from outside the repo.
-  # The consumer interpolates the row into a workflow, so an unconstrained value here is a
-  # GitHub Actions script-injection source and a `$(...)` in it executes; a TAB in it would also
-  # split the row into a fourth field that nothing downstream expects. An anchored timestamp
-  # admits neither. Reported independently by `security-auditor` (Minor), `dotnet-architect`
-  # (Viktigt) and `code-reviewer` (Major), 2026-08-28; the consumer's `env:` mapping is the
-  # second half of the same repair.
+  # The consumer interpolates the row into a workflow, so an unconstrained value here is a GitHub
+  # Actions script-injection source. Reported independently by security-auditor (Minor),
+  # dotnet-architect (Viktigt) and code-reviewer (Major), 2026-08-28; the consumer's `env:`
+  # mapping is the second half of the same repair.
+  #
+  # THREE GUARDS, NOT ONE, AND THIS LINE IS ONLY THE THIRD. An earlier version of this comment
+  # credited the anchored pattern with stopping all of it, which is wrong: a multi-line value dies
+  # at the `lines = 1` refusal above, a TAB is discarded by `awk '{print $2}'` splitting on
+  # whitespace before the value ever reaches here, and what this line adds is refusing the rest --
+  # a command substitution, a trailing CR, anything that is not a timestamp.
   printf '%s' "$created" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' \
     || refuse "$img@$digest carries no readable image-config creation timestamp: [$created] — the config could not be read, or it is not a shape this row may carry"
 

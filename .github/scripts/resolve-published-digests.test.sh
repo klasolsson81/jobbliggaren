@@ -97,9 +97,6 @@ case "$mode" in
     printf '"%s" null' "$D1"
     ;;
   one_field)
-    # NO second field at all. Before the timestamp was shape-checked this was caught only by a
-    # `[ -n "$created" ]` conjunct that no stub ever exercised -- deleting it left the suite green
-    # (measured 2026-08-28), so the arm exists to make that half reachable.
     printf '"%s"' "$D1"
     ;;
 esac
@@ -389,6 +386,11 @@ echo "-- 7. the consumer, and the parity its whole claim rests on"
 # parameters are identical to the two build-time gates, and that identity IS its claim — "this
 # artefact would not pass today the gate it passed when it was built". Change `severity` in
 # `build.yml` and that sentence goes quietly false. A comment cannot hold an invariant; this can.
+#
+# WHAT IT DOES NOT PIN, so that "parity holds" stays an honest sentence: it is a PRESENCE check
+# over four settings. It does not pin the action SHA the three steps share, it does not pin the
+# ABSENCE of `continue-on-error` that `rescan-images.yml` calls load-bearing, and it would not
+# notice a second, weaker scan step added beside a correct one (security-auditor, 2026-08-28).
 RESCAN="$REPO_ROOT/.github/workflows/rescan-images.yml"
 if [ -f "$RESCAN" ]; then
   pass=$((pass + 1)); echo "  ok   the consumer exists (this suite is not measuring a script nothing calls)"
@@ -405,8 +407,22 @@ fi
 for gate in rescan-images build release-images; do
   gf="$REPO_ROOT/.github/workflows/$gate.yml"
   missing=""
+  # ANCHORED TO A SETTING LINE, NEVER A SUBSTRING. An unanchored `grep -F` was satisfied by these
+  # same strings appearing as PROSE: two of the three files explain in a comment that
+  # "format: table deliberately, sarif ignores exit-code silently", so flipping the real setting
+  # to sarif left this guard green on the strength of the comment describing why it must not be.
+  # And that is the one parameter whose drift is silent -- a sarif scan cannot go red at all --
+  # which is precisely what this guard was added to make loud. Found independently by
+  # dotnet-architect and code-reviewer, 2026-08-28. None of the four needles contains an ERE
+  # metacharacter, so they need no escaping; the leading-whitespace anchor excludes comment lines
+  # because a comment puts # before the payload.
   for needle in 'severity: HIGH,CRITICAL' 'ignore-unfixed: true' 'exit-code: "1"' 'format: table'; do
-    grep -qF -- "$needle" "$gf" 2>/dev/null || missing="$missing [$needle]"
+    # The trailing `[[:space:]]*` is for CR, not for tidiness: these files check out with CRLF on
+    # Windows, where a bare `$` anchor then matches nothing and this guard failed for every needle
+    # in two of three files while the same run passed under Git Bash. A guard whose verdict
+    # depends on the checkout's line endings is not one (measured 2026-08-28, ubuntu container
+    # over the Windows working tree).
+    grep -qE -- "^[[:space:]]+${needle}[[:space:]]*$" "$gf" 2>/dev/null || missing="$missing [$needle]"
   done
   if [ -z "$missing" ]; then
     pass=$((pass + 1)); echo "  ok   $gate.yml carries the agreed scan parameters"

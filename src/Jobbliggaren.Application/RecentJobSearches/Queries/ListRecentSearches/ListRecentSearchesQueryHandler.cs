@@ -164,7 +164,12 @@ public sealed class ListRecentSearchesQueryHandler(
     // område + extra grupper) → (iii) räknat på grupper. Taxonomi-drift →
     // (i)-matchen faller gracefully till (iii). "{första}" är deterministisk
     // (resolvad label-ordning = persisterad sorterad id-ordning).
-    private static string DeriveLabel(
+    //
+    // #1430: reglerna är oförändrade, formen är det inte. Metoden härleder VILKEN
+    // dimension som namnger raden och HUR delarna hänger ihop; orden som renderar
+    // det är locale-copy och ligger i messages/{sv,en}/jobads.json. Grenen namnges
+    // explicit i deskriptorn — även q-grenen — så FE aldrig härleder om den.
+    private static RecentSearchLabelDto DeriveLabel(
         string? q,
         IReadOnlyList<string> occupationGroupIds,
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
@@ -176,7 +181,7 @@ public sealed class ListRecentSearchesQueryHandler(
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
         if (!string.IsNullOrWhiteSpace(q))
-            return q;
+            return Single(RecentSearchLabelKind.Query, Named(q));
         if (occupationGroupLabels.Count > 0)
         {
             if (occupationGroupIds.Count > 1 && occupationFields is not null)
@@ -186,41 +191,52 @@ public sealed class ListRecentSearchesQueryHandler(
                     f.OccupationGroups.Count == selected.Count
                     && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
                 if (wholeField is not null)
-                    return wholeField.Label;
+                    return Single(RecentSearchLabelKind.OccupationField, Named(wholeField.Label));
             }
-            return WithMoreSuffix(occupationGroupLabels);
+            return Single(RecentSearchLabelKind.Dimensions, WithMoreCount(occupationGroupLabels));
         }
         if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || remote)
             return DeriveOrtLabel(municipalityLabels, regionLabels, remote);
         if (employmentTypeLabels.Count > 0 || worktimeExtentLabels.Count > 0)
             return DeriveRefinementLabel(employmentTypeLabels, worktimeExtentLabels);
-        return "Alla annonser";
+        return new RecentSearchLabelDto(RecentSearchLabelKind.All, RecentSearchLabelJoin.None, []);
     }
+
+    private static RecentSearchLabelPartDto Named(string text) =>
+        new(RecentSearchLabelPartKind.Named, text, MoreCount: 0);
+
+    private static RecentSearchLabelDto Single(
+        RecentSearchLabelKind kind,
+        RecentSearchLabelPartDto part) =>
+        new(kind, RecentSearchLabelJoin.None, [part]);
 
     // #1418 — förfiningsaxlarna namnger raden när ingen primär dimension gör det. Grenen nås
     // bara därifrån, så ordningen q → yrkesgrupp → ort är orörd för varje rad som HAR en
     // primär dimension.
     //
-    // Ort är EN dimension i tre granulariteter och unioneras, därav "eller" i DeriveOrtLabel.
-    // De här är ortogonala AND-axlar (JobAdSearchComposition) — "eller" vore semantiskt
-    // falskt, så fogningen är komma (Klas-beslut 2026-08-23). Varje satt axel räknas upp: att
-    // namnge bara en av dem beskriver en äkta ÖVERMÄNGD av vad klicket kör, spegelbilden av
-    // det ort-fall DeriveOrtLabel finns för. Anropas bara när minst en del är satt — samma
-    // call-site-invariant som WithMoreSuffix.
-    private static string DeriveRefinementLabel(
+    // Ort är EN dimension i tre granulariteter och unioneras, därav Disjunction i
+    // DeriveOrtLabel. De här är ortogonala AND-axlar (JobAdSearchComposition) — en disjunktion
+    // vore semantiskt falsk, så fogningen är Conjunction (Klas-beslut 2026-08-23). Varje satt
+    // axel räknas upp: att namnge bara en av dem beskriver en äkta ÖVERMÄNGD av vad klicket
+    // kör, spegelbilden av det ort-fall DeriveOrtLabel finns för. Anropas bara när minst en
+    // del är satt — samma call-site-invariant som WithMoreCount.
+    private static RecentSearchLabelDto DeriveRefinementLabel(
         IReadOnlyList<TaxonomyLabelDto> employmentTypeLabels,
         IReadOnlyList<TaxonomyLabelDto> worktimeExtentLabels)
     {
         // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning.
         // Per axel före fogningen — en hopslagen lista bryter "+N":s enhet, samma skäl som i
         // DeriveOrtLabel.
-        var parts = new List<string>(2);
+        var parts = new List<RecentSearchLabelPartDto>(2);
         if (employmentTypeLabels.Count > 0)
-            parts.Add(WithMoreSuffix(employmentTypeLabels));
+            parts.Add(WithMoreCount(employmentTypeLabels));
         if (worktimeExtentLabels.Count > 0)
-            parts.Add(WithMoreSuffix(worktimeExtentLabels));
+            parts.Add(WithMoreCount(worktimeExtentLabels));
 
-        return string.Join(", ", parts);
+        return new RecentSearchLabelDto(
+            RecentSearchLabelKind.Dimensions,
+            parts.Count == 1 ? RecentSearchLabelJoin.None : RecentSearchLabelJoin.Conjunction,
+            parts);
     }
 
     // Ort är EN dimension: län ⊃ kommun, plus distans som boolesk sub-axel. Geo-
@@ -229,32 +245,33 @@ public sealed class ListRecentSearchesQueryHandler(
     // den första: en rad med kommun+distans som heter "Stockholm" namnger en
     // strikt delmängd av vad klicket kör. Fogningsformen är ett Klas-beslut
     // 2026-08-19. Anropas bara när minst en del är satt — samma call-site-
-    // invariant som WithMoreSuffix.
-    private static string DeriveOrtLabel(
+    // invariant som WithMoreCount.
+    //
+    // Distans-delen bär inget namn: den är ett ORD, inte taxonomidata, och vilket
+    // ord beror på både locale och position (svenskan versaliserar det bara först).
+    // Positionen är läsbar ur Parts-ordningen, så FE behöver ingen egen flagga.
+    private static RecentSearchLabelDto DeriveOrtLabel(
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
         bool remote)
     {
         // Per del, före fogningen — en hopslagen lista bryter "+N":s enhet.
-        var parts = new List<string>(3);
+        var parts = new List<RecentSearchLabelPartDto>(3);
         if (municipalityLabels.Count > 0)
-            parts.Add(WithMoreSuffix(municipalityLabels));
+            parts.Add(WithMoreCount(municipalityLabels));
         if (regionLabels.Count > 0)
-            parts.Add(WithMoreSuffix(regionLabels));
+            parts.Add(WithMoreCount(regionLabels));
         if (remote)
-            parts.Add(parts.Count == 0 ? "Distans" : "distans");
+            parts.Add(new RecentSearchLabelPartDto(
+                RecentSearchLabelPartKind.Remote, Text: null, MoreCount: 0));
 
-        return parts.Count switch
-        {
-            1 => parts[0],
-            2 => $"{parts[0]} eller {parts[1]}",
-            _ => $"{string.Join(", ", parts[..^1])} eller {parts[^1]}",
-        };
+        return new RecentSearchLabelDto(
+            RecentSearchLabelKind.Dimensions,
+            parts.Count == 1 ? RecentSearchLabelJoin.None : RecentSearchLabelJoin.Disjunction,
+            parts);
     }
 
-    // "{första} +{N−1} till" — +N räknar samma enhet som första namnet anger.
-    private static string WithMoreSuffix(IReadOnlyList<TaxonomyLabelDto> labels) =>
-        labels.Count == 1
-            ? labels[0].Label
-            : $"{labels[0].Label} +{labels.Count - 1} till";
+    // "{första} +{N−1}" — +N räknar samma enhet som första namnet anger.
+    private static RecentSearchLabelPartDto WithMoreCount(IReadOnlyList<TaxonomyLabelDto> labels) =>
+        new(RecentSearchLabelPartKind.Named, labels[0].Label, labels.Count - 1);
 }

@@ -1,5 +1,6 @@
 import { useFormatter, useTranslations } from "next-intl";
 import { formatNumber } from "@/lib/i18n/format";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
 import {
   GUEST_MOCK,
   GUEST_MOCK_REF_DATE,
@@ -33,6 +34,7 @@ export function GuestOversiktPage() {
   // Synchronous next-intl translator — keeps this a non-async RSC.
   const t = useTranslations("guest");
   const format = useFormatter();
+  const tRelativeTime = useTranslations("guest.relativeTime");
   const { applications, resumes, summary } = GUEST_MOCK;
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
@@ -208,7 +210,15 @@ export function GuestOversiktPage() {
               />
               <SummaryRow
                 label={t("oversikt.rowLatestResume")}
-                value={resumes[0]?.updatedAtLabel ?? t("oversikt.valueDash")}
+                value={
+                  resumes[0]
+                    ? formatDaysAgo(
+                        tRelativeTime,
+                        resumes[0].updatedAtIso,
+                        GUEST_MOCK_REF_DATE
+                      )
+                    : t("oversikt.valueDash")
+                }
               />
               <SummaryRow
                 label={t("oversikt.rowDemoActiveSince")}

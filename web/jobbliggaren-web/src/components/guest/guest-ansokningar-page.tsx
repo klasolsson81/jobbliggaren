@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { applicationSourceLabel } from "@/lib/applications/status";
-import { buildGuestPipeline } from "@/lib/guest/mock-data";
+import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import {
+  buildGuestPipeline,
+  GUEST_MOCK_REF_DATE,
+} from "@/lib/guest/mock-data";
 
 // F-Pre Punkt 5 — Gäst-ansökningar-pipeline. Mockdata-driven, ingen
 // "Ny ansökan"-knapp (muterande action — Klas-direktiv §F). Samma applications
@@ -14,6 +18,9 @@ export function GuestAnsokningarPage() {
   // `t` bär enum-etiketter (applicationSourceLabel), `tg` bär gäst-sidans copy.
   const t = useTranslations("applications.enums");
   const tg = useTranslations("guest");
+  // Scoped translator for the relative-time helper, same shape as
+  // `oversikt-page.tsx`. The mock's frozen "now" is the clock.
+  const tRelativeTime = useTranslations("guest.relativeTime");
   const groups = buildGuestPipeline();
   const total = groups.reduce((sum, g) => sum + g.count, 0);
 
@@ -53,30 +60,45 @@ export function GuestAnsokningarPage() {
                   {tg("ansokningar.emptyStatus")}
                 </p>
               ) : (
-                group.applications.map((app) => (
-                  // F-Pre Punkt 5b: rader är `<Link>` så soft-nav fångas av
-                  // `@modal/(.)ansokningar/[id]` → modal (ADR 0053-paritet).
-                  <Link
-                    key={app.id}
-                    href={`/gast/ansokningar/${app.id}`}
-                    className="jp-app"
-                    aria-label={tg("ansokningar.rowAriaLabel", {
-                      role: app.role,
-                      company: app.company,
-                      statusLabel: group.statusLabel,
-                    })}
-                  >
-                    <div className="jp-job__body">
-                      <h3 className="jp-app__title">{app.role}</h3>
-                      <div className="jp-app__company">{app.company}</div>
-                      <div className="jp-app__meta">
-                        <span>{applicationSourceLabel(t, app.source)}</span>
-                        <span aria-hidden="true"> · </span>
-                        <span>{app.updatedAtLabel}</span>
+                group.applications.map((app) => {
+                  // Derived once per row and read by BOTH the visible meta line
+                  // and the accessible name. Computing them twice is the same
+                  // divergence class this PR closes, one storey down
+                  // (design-reviewer, 2026-08-27).
+                  const source = applicationSourceLabel(t, app.source);
+                  const updated = formatDaysAgo(
+                    tRelativeTime,
+                    app.updatedAtIso,
+                    GUEST_MOCK_REF_DATE
+                  );
+
+                  return (
+                    // F-Pre Punkt 5b: rader är `<Link>` så soft-nav fångas av
+                    // `@modal/(.)ansokningar/[id]` → modal (ADR 0053-paritet).
+                    <Link
+                      key={app.id}
+                      href={`/gast/ansokningar/${app.id}`}
+                      className="jp-app"
+                      aria-label={tg("ansokningar.rowAriaLabel", {
+                        role: app.role,
+                        company: app.company,
+                        statusLabel: group.statusLabel,
+                        source,
+                        updated,
+                      })}
+                    >
+                      <div className="jp-job__body">
+                        <h3 className="jp-app__title">{app.role}</h3>
+                        <div className="jp-app__company">{app.company}</div>
+                        <div className="jp-app__meta">
+                          <span>{source}</span>
+                          <span aria-hidden="true"> · </span>
+                          <span>{updated}</span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))
+                    </Link>
+                  );
+                })
               )}
             </div>
           </section>

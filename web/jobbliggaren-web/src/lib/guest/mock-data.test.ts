@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { daysSince } from "@/lib/i18n/relative-time";
 import {
   buildGuestPipeline,
   GUEST_MOCK,
+  GUEST_MOCK_REF_DATE,
   OVERSIKT_MOCK,
   type GuestApplicationStatus,
 } from "./mock-data";
@@ -47,6 +49,46 @@ describe("GUEST_MOCK", () => {
 
   it("har realistisk activeJobAdsTotal (mock-värde av dev-korpus-storlek)", () => {
     expect(GUEST_MOCK.activeJobAdsTotal).toBeGreaterThan(10_000);
+  });
+});
+
+// #1516: tidsetiketterna renderas inte längre ur mocken, de HÄRLEDS ur
+// `updatedAtIso` genom produktens `formatDaysAgo`. Det flyttar felmöjligheten
+// från stavning till datum, och den nya felmöjligheten är tyst: `formatDaysAgo`
+// svarar `today` för allt med `days <= 0`, så ett datum efter referensen
+// renderar `idag` utan att något går sönder. Dessa assertions är den enda
+// grinden mot det.
+describe("GUEST_MOCK relativa tider (#1516)", () => {
+  const dated = [
+    ...GUEST_MOCK.applications.map((a) => ({
+      id: a.id,
+      iso: a.updatedAtIso,
+    })),
+    ...GUEST_MOCK.resumes.map((r) => ({ id: r.id, iso: r.updatedAtIso })),
+  ];
+
+  it("varje updatedAtIso är ett parsebart datum", () => {
+    // `daysSince` sväljer skräp genom att svara 0, så ogiltiga datum måste
+    // fångas här och inte via dagsskillnaden.
+    for (const { id, iso } of dated) {
+      expect(Number.isNaN(new Date(iso).getTime()), id).toBe(false);
+    }
+  });
+
+  it("inget datum ligger efter mockens frusna referens", () => {
+    for (const { id, iso } of dated) {
+      expect(daysSince(iso, GUEST_MOCK_REF_DATE), id).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("spänner alla tre frasarmarna så demot visar idag, igår OCH N dagar sedan", () => {
+    // Det är den här spännvidden som gör demot till ett demo: alla tre formerna
+    // står i samma kolumn på /gast/ansokningar. Faller den blir demot enformigt
+    // utan att något test annars märker det.
+    const diffs = dated.map(({ iso }) => daysSince(iso, GUEST_MOCK_REF_DATE));
+    expect(diffs).toContain(0);
+    expect(diffs).toContain(1);
+    expect(diffs.some((d) => d >= 2)).toBe(true);
   });
 });
 

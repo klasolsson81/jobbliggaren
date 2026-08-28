@@ -19,6 +19,10 @@ import {
 } from "@/lib/oversikt/aggregations";
 import { buildJobbHref, DEFAULT_SORT_BY } from "@/lib/job-ads/search-params";
 import { buildRecentSearchHref } from "@/lib/job-ads/recent-search-href";
+import {
+  buildRecentSearchLabel,
+  recentSearchLabelCopy,
+} from "@/lib/job-ads/recent-search-label";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";
 import { SetupCallout } from "./setup-callout";
 import { NoticeToolbar } from "./notice-toolbar";
@@ -80,6 +84,8 @@ export function OversiktPage({
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
   const tRelativeTime = useTranslations("oversikt.relativeTime");
+  // Recent-sökningens label bor i jobads-katalogen, inte i oversikt (#1430).
+  const tRecentLabel = useTranslations("jobads.recent");
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   const today = new Date();
   // Datum-suffix på notice-IDs så en dismissad notis återkommer när data ändras
@@ -252,7 +258,10 @@ export function OversiktPage({
       kind: "info",
       label: t("notices.savedSearchLabel"),
       text: (
-        <SavedSearchNoticeText searchId={lastSearch.id} name={lastSearch.label} />
+        <SavedSearchNoticeText
+          searchId={lastSearch.id}
+          name={buildRecentSearchLabel(lastSearch.label, recentSearchLabelCopy(tRecentLabel))}
+        />
       ),
       cta: t("notices.savedSearchCta"),
       href: buildRecentSearchHref(lastSearch),

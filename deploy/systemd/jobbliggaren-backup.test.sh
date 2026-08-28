@@ -326,6 +326,21 @@ check "the staged DEK object exists too" [ -f "$(stored "jbl-backup:jobbliggaren
 # everywhere except in the argv the container was handed.
 check "the main dump excludes user_data_keys DATA (not the table)" \
   grep -q -- '--exclude-table-data=user_data_keys' "$CALLS/docker"
+# The dump scope is the OTHER invisible decision in the same argv, and both arms are pinned because
+# only the pair fails a swap back to the allow-list form.
+#
+# BOTH ARE SCOPED TO THE MAIN CALL'S OWN LINE, and that is not tidiness. File-wide, a scope flag
+# MOVED from the main dump to the DEK dump leaves both checks green while the main artefact carries
+# hangfire again -- #1285 reinstated under a green gate. The main call is identified by the polarity
+# flag only it carries, not by position. The negative arm matches --schema in any spelling pg_dump
+# accepts, `-n` included, which is safe HERE and would not be file-wide: `journalctl -n` and
+# `flock -n` both appear elsewhere in the script under review.
+check "the main dump excludes the hangfire schema" bash -c \
+  'm=$(grep -- "--exclude-table-data=user_data_keys" "'"$CALLS"'/docker");
+   [ -n "$m" ] && printf "%s" "$m" | grep -q -- "--exclude-schema=hangfire"'
+check "the main dump does not SELECT schemas (an allow-list drops their dependencies)" bash -c \
+  'm=$(grep -- "--exclude-table-data=user_data_keys" "'"$CALLS"'/docker");
+   [ -n "$m" ] && ! printf "%s" "$m" | grep -qE -- "(^| )(--schema|-n)"'
 check "the main dump does not exclude the table definition" \
   bash -c '! grep -q -- "--exclude-table=user_data_keys" "'"$CALLS"'/docker"'
 check "the DEK dump is data-only and scoped to user_data_keys" \

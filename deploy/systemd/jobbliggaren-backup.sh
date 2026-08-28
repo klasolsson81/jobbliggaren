@@ -266,8 +266,17 @@ log "main artefact -> ${main_object}"
 # --exclude-table-data, NOT --exclude-table: the table's DEFINITION must be restored (empty) so
 # the DEK artefact has somewhere to land and so the schema is complete.
 set +e
+# `hangfire` is in the SAME database, is not EF-mapped, and so sits outside
+# MappedPlaintextExposureRegistry entirely (#1285; security-auditor Major 1 on PR #1530).
+#
+# NEVER --schema, which is the one thing the line below cannot show: the allow-list form drops
+# objects the selected schemas depend on. BackupDumpScopeParityTests holds both the reason and the
+# set this must exclude.
+#
+# The DEK dump below needs no schema flag at all: its --table already restricts it to one table.
 docker exec "$PG_CONTAINER" \
   pg_dump -U "$PG_USER" -d "$PG_DATABASE" -Fc --no-owner --no-privileges \
+    --exclude-schema=hangfire \
     --exclude-table-data="$DEK_TABLE" \
   | age -r "$recipient" \
   | rclone rcat "${RCLONE_FLAGS[@]}" "$main_object"

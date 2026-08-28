@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { JobAdMatchSection } from "./job-ad-match-section";
 import type {
   JobAdMatchDetail,
+  MatchCodedDimensionDetail,
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
@@ -15,13 +16,23 @@ function row(
   return { verdict, matched, missing };
 }
 
+// Anställningsform bär conceptId, inte visningstext (#1537) — komponenten namnger dem via
+// katalogen. "kpPX_CNN_gDU" är Tillsvidareanställning i klass2-taxonomin.
+function codedRow(
+  verdict: MatchVerdict,
+  matchedConceptIds: string[] = [],
+  missingConceptIds: string[] = []
+): MatchCodedDimensionDetail {
+  return { verdict, matchedConceptIds, missingConceptIds };
+}
+
 function detail(over: Partial<JobAdMatchDetail> = {}): JobAdMatchDetail {
   return {
     grade: "Top",
     ssykOverlap: row("Match", ["Systemutvecklare"]),
     titleSimilarity: row("NotAssessed"),
     regionFit: row("Match", ["Göteborg"]),
-    employmentFit: row("Match", ["Tillsvidare"]),
+    employmentFit: codedRow("Match", ["kpPX_CNN_gDU"]),
     skillOverlap: row("Partial", ["Java", "SQL"], ["Kubernetes", "AWS"]),
     mustHaveCoverage: row("Match", ["B-körkort"]),
     niceToHaveCoverage: row("NoMatch", [], ["Franska"]),
@@ -460,7 +471,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
 
     it("EmploymentFit NoMatch utan evidens → 'Annonsen anger ingen anställningsform.'", () => {
       render(
-        <JobAdMatchSection match={detail({ employmentFit: row("NoMatch") })} />
+        <JobAdMatchSection match={detail({ employmentFit: codedRow("NoMatch") })} />
       );
       expect(
         screen.getByText("Annonsen anger ingen anställningsform.")

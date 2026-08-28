@@ -180,12 +180,18 @@ function detailRow(verdict: string) {
   return { verdict, matched: [], missing: [] };
 }
 
+// Anställningsform är den enda KODADE dimensionen: dess ord ägs av katalogen, så wire:n
+// bär conceptId i stället för visningstext (#1537).
+function codedDetailRow(verdict: string) {
+  return { verdict, matchedConceptIds: [], missingConceptIds: [] };
+}
+
 const validDetail = {
   grade: "Top",
   ssykOverlap: detailRow("Match"),
   titleSimilarity: detailRow("NotAssessed"),
   regionFit: detailRow("Match"),
-  employmentFit: detailRow("Match"),
+  employmentFit: codedDetailRow("Match"),
   skillOverlap: { verdict: "Partial", matched: ["Java"], missing: ["AWS"] },
   mustHaveCoverage: detailRow("Match"),
   niceToHaveCoverage: detailRow("NotAssessed"),

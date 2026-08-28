@@ -7,6 +7,7 @@ import type {
   MatchDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
+import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import {
   classifyOrtLabel,
   type OrtGranularity,
@@ -406,6 +407,7 @@ export function JobAdMatchSection({
   // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC
   // (shared by the modal + full page as a serialized slot, with sync tests).
   const t = useTranslations("jobads.ui.match");
+  const codedName = useCodedTaxonomyName();
 
   // Inloggad användare UTAN angivet yrke (yrket kan inte bedömas): visa EN
   // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
@@ -427,6 +429,21 @@ export function JobAdMatchSection({
     );
   }
 
+  // `employmentFit` skickar koder, inte namn (#1537) — dess ord ägs av katalogen. Att namnge
+  // dem här behåller EN radrenderare för alla sju dimensioner i stället för en andra som
+  // skiljer sig bara i var dess strängar kom ifrån.
+  const rows: Record<
+    keyof Omit<JobAdMatchDetail, "grade">,
+    MatchDimensionDetail
+  > = {
+    ...match,
+    employmentFit: {
+      verdict: match.employmentFit.verdict,
+      matched: match.employmentFit.matchedConceptIds.map(codedName),
+      missing: match.employmentFit.missingConceptIds.map(codedName),
+    },
+  };
+
   return (
     <section className="jp-modal__matchsection" aria-label={t("heading")}>
       <MatchSectionHeading t={t}>
@@ -438,7 +455,7 @@ export function JobAdMatchSection({
             key={key}
             label={t(`dimension.${key}`)}
             dimensionKey={key}
-            detail={match[key]}
+            detail={rows[key]}
             t={t}
             // Granularitets-uppdelning bara för Region-raden (kommun vs län).
             granularityByLabel={

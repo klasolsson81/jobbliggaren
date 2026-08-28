@@ -82,7 +82,7 @@ export function FinishDraftDialog({
 
         {/* Annons-sammanfattning (§9) — det list-datat faktiskt bär: roll,
             företag, ev. sista ansökningsdag. */}
-        <div className="mt-2 rounded-md border border-border bg-surface-secondary p-3">
+        <div className="rounded-md border border-border bg-surface-secondary p-3">
           <p className="text-body font-semibold text-text-primary">{title}</p>
           {jobAd?.company && (
             <p className="text-body-sm text-text-primary">{jobAd.company}</p>
@@ -100,7 +100,7 @@ export function FinishDraftDialog({
           </p>
         )}
 
-        <DialogFooter className="mt-4">
+        <DialogFooter>
           <Button
             type="button"
             variant="ghost"

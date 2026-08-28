@@ -6,8 +6,10 @@ namespace Jobbliggaren.Application.RecentJobSearches.Queries;
 /// <summary>
 /// ADR 0060 — read-projection för /sokningar-listan + Senaste-hero-chip.
 /// Server-side label-resolve via <see cref="ITaxonomyReadModel"/> (paritet
-/// med SavedSearchDto). <see cref="Label"/> server-härleds från Q eller
-/// första label för UI-affordance utan FE-logik. <see cref="CurrentCount"/>
+/// med SavedSearchDto). <see cref="Label"/> bär den STRUKTUR som namnger
+/// raden — vilken dimension som vann och hur delarna hänger ihop — medan
+/// orden som renderar den är locale-copy (#1430, ADR 0067-amendment
+/// 2026-08-28). <see cref="CurrentCount"/>
 /// är live-räknat per row (cap=20 håller N+1 under kontroll, CTO Variant A).
 /// <see cref="NewCount"/> = <c>max(0, CurrentCount - LastSeenCount)</c>.
 ///
@@ -40,7 +42,7 @@ public sealed record RecentJobSearchDto(
     IReadOnlyList<TaxonomyLabelDto> MunicipalityLabels,
     IReadOnlyList<TaxonomyLabelDto> RegionLabels,
     JobAdSortBy SortBy,
-    string Label,
+    RecentSearchLabelDto Label,
     int CurrentCount,
     int NewCount,
     DateTimeOffset LastViewedAt);

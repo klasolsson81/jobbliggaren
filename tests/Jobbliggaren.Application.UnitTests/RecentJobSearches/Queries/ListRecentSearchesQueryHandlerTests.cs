@@ -2,6 +2,7 @@ using System.Reflection;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
+using Jobbliggaren.Application.RecentJobSearches.Queries;
 using Jobbliggaren.Application.RecentJobSearches.Queries.ListRecentSearches;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobAds;
@@ -299,7 +300,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("backend dev");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Query/None:backend dev");
     }
 
     [Fact]
@@ -324,7 +325,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_77777");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-grp_77777");
     }
 
     // Kommun och län är samma dimension i två granulariteter och unioneras i
@@ -351,7 +352,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn eller Label-goteborg");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-gbg_kn|Label-goteborg");
     }
 
     [Fact]
@@ -375,7 +376,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-gbg_kn");
     }
 
     // #1413 — distans ensam bar tidigare fallbacken "Alla annonser", som är
@@ -401,7 +402,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Distans");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:<remote>");
     }
 
     [Fact]
@@ -425,7 +426,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn eller distans");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-gbg_kn|<remote>");
     }
 
     [Fact]
@@ -449,8 +450,8 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label
-            .ShouldBe("Label-gbg_kn, Label-goteborg eller distans");
+        Shape(result.ShouldHaveSingleItem().Label)
+            .ShouldBe("Dimensions/Disjunction:Label-gbg_kn|Label-goteborg|<remote>");
     }
 
     [Fact]
@@ -474,7 +475,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-gbg_kn +1 till eller distans");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/Disjunction:Label-gbg_kn+1|<remote>");
     }
 
     // #1418 — en rad som saknar primär dimension namnges av sina förfiningsfilter i stället
@@ -491,13 +492,13 @@ public class ListRecentSearchesQueryHandlerTests
     private static readonly IReadOnlyDictionary<string, (SearchCriteria Criteria, string Label)>
         AxisCases = new Dictionary<string, (SearchCriteria, string)>(StringComparer.Ordinal)
         {
-            ["Q"] = (Axis(q: "backend dev"), "backend dev"),
-            ["OccupationGroup"] = (Axis(occupationGroup: ["grp_77777"]), "Label-grp_77777"),
-            ["Municipality"] = (Axis(municipality: ["gbg_kn"]), "Label-gbg_kn"),
-            ["Region"] = (Axis(region: ["stockholm"]), "Label-stockholm"),
-            ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Label-tillsvidare"),
-            ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Label-heltid"),
-            ["Remote"] = (Axis(remote: true), "Distans"),
+            ["Q"] = (Axis(q: "backend dev"), "Query/None:backend dev"),
+            ["OccupationGroup"] = (Axis(occupationGroup: ["grp_77777"]), "Dimensions/None:Label-grp_77777"),
+            ["Municipality"] = (Axis(municipality: ["gbg_kn"]), "Dimensions/None:Label-gbg_kn"),
+            ["Region"] = (Axis(region: ["stockholm"]), "Dimensions/None:Label-stockholm"),
+            ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Dimensions/None:Label-tillsvidare"),
+            ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Dimensions/None:Label-heltid"),
+            ["Remote"] = (Axis(remote: true), "Dimensions/None:<remote>"),
         };
 
     // SortBy SMALNAR inte: två rader som skiljer sig bara i sortering kör samma filter mot
@@ -557,7 +558,28 @@ public class ListRecentSearchesQueryHandlerTests
 
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
-        return result.ShouldHaveSingleItem().Label;
+        return Shape(result.ShouldHaveSingleItem().Label);
+    }
+
+    // #1430 — labeln är struktur, inte prosa, så pinnarna assertar på strukturen. Shape är en
+    // FÖRLUSTFRI, läsbar projektion av deskriptorn: "Kind/Join:del|del", där en Named-del är
+    // sitt namn plus "+N" när den står för fler val, och distans-delen är "<remote>" (den bär
+    // inget namn — vilket ord den renderas som ägs av locale:n).
+    //
+    // Medvetet INTE en prosa-rendering: att återskapa "Göteborg eller distans" här hade
+    // asserterat mot en sträng produktionen inte längre producerar, och pinnen hade mätt
+    // testets egen renderare i stället för handlern (§5 Tests:). FE:ns rendering pinnas där
+    // den bor, i recent-search-label.test.ts.
+    private static string Shape(RecentSearchLabelDto label)
+    {
+        if (label.Kind == RecentSearchLabelKind.All)
+            return nameof(RecentSearchLabelKind.All);
+
+        var parts = label.Parts.Select(p => p.Kind == RecentSearchLabelPartKind.Remote
+            ? "<remote>"
+            : p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text);
+
+        return $"{label.Kind}/{label.Join}:{string.Join("|", parts)}";
     }
 
     public static TheoryData<string> NarrowingAxes()
@@ -594,7 +616,7 @@ public class ListRecentSearchesQueryHandlerTests
     {
         var (criteria, ground) = NotReplayed[axis];
 
-        (await LabelOfAsync(criteria)).ShouldBe("Alla annonser", ground);
+        (await LabelOfAsync(criteria)).ShouldBe("All", ground);
     }
 
     [Fact]
@@ -685,15 +707,16 @@ public class ListRecentSearchesQueryHandlerTests
 
     // Varje satt förfiningsaxel räknas upp. Att namnge bara en av dem beskriver en äkta
     // ÖVERMÄNGD av vad klicket kör — spegelbilden av #1413:s ort-fall, där "Stockholm"
-    // namngav en strikt delmängd. Kommat är fogningen (Klas-beslut 2026-08-23); ort-unionens
-    // "eller" vore semantiskt falskt här, eftersom axlarna AND:as (JobAdSearchComposition).
+    // namngav en strikt delmängd. Fogningen är Conjunction (Klas-beslut 2026-08-23);
+    // ort-unionens Disjunction vore semantiskt falsk här, eftersom axlarna AND:as
+    // (JobAdSearchComposition).
     [Fact]
     public async Task Handle_EnumeratesEveryRefinementAxis_WhenSeveralAreSet()
     {
         var label = await LabelOfAsync(
             Axis(employmentType: ["tillsvidare", "vikariat"], worktimeExtent: ["heltid"]));
 
-        label.ShouldBe("Label-tillsvidare +1 till, Label-heltid");
+        label.ShouldBe("Dimensions/Conjunction:Label-tillsvidare+1|Label-heltid");
     }
 
     // Org.nr:et får aldrig nå labeln — den ÄR svarstext, och RecentSearchesTests assertar på
@@ -719,7 +742,7 @@ public class ListRecentSearchesQueryHandlerTests
                 employmentType: ["tillsvidare"],
                 worktimeExtent: ["heltid"]));
 
-        label.ShouldBe("Label-gbg_kn");
+        label.ShouldBe("Dimensions/None:Label-gbg_kn");
     }
 
     [Fact]
@@ -743,7 +766,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-stockholm");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-stockholm");
     }
 
     // ---------------------------------------------------------------
@@ -804,7 +827,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Data/IT");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("OccupationField/None:Data/IT");
     }
 
     [Fact]
@@ -821,7 +844,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_a +1 till");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-grp_a+1");
     }
 
     [Fact]
@@ -841,7 +864,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_a +2 till");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-grp_a+2");
     }
 
     [Fact]
@@ -866,7 +889,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-kn_a +2 till");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-kn_a+2");
     }
 
     [Fact]
@@ -887,7 +910,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-grp_a +1 till");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-grp_a+1");
     }
 
     [Fact]
@@ -913,7 +936,7 @@ public class ListRecentSearchesQueryHandlerTests
         var handler = new ListRecentSearchesQueryHandler(db, _currentUser, _taxonomy, _search);
         var result = await handler.Handle(new ListRecentSearchesQuery(), CancellationToken.None);
 
-        result.ShouldHaveSingleItem().Label.ShouldBe("Label-reg_a +1 till");
+        Shape(result.ShouldHaveSingleItem().Label).ShouldBe("Dimensions/None:Label-reg_a+1");
     }
 
     [Fact]

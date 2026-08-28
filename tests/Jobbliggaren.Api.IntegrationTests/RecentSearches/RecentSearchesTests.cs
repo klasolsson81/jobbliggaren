@@ -62,7 +62,20 @@ public class RecentSearchesTests(ApiFactory factory)
 
         var row = items[0];
         row.GetProperty("q").GetString().ShouldBe("backend");
-        row.GetProperty("label").GetString().ShouldBe("backend");
+
+        // #1430 — labeln är struktur, och dess enums når wire:n som NAMN, inte ordinaler.
+        // Det är hela vägen ut, och det enda stället serialiseringsformen mäts: utan
+        // JsonStringEnumConverter skickar System.Text.Json heltal, och då hade en omordning
+        // inuti en enum tyst bytt betydelse på ett kontrakt zod-spegeln läser vid namn.
+        var label = row.GetProperty("label");
+        label.GetProperty("kind").GetString().ShouldBe("Query");
+        label.GetProperty("join").GetString().ShouldBe("None");
+
+        var parts = label.GetProperty("parts");
+        parts.GetArrayLength().ShouldBe(1);
+        parts[0].GetProperty("kind").GetString().ShouldBe("Named");
+        parts[0].GetProperty("text").GetString().ShouldBe("backend");
+        parts[0].GetProperty("moreCount").GetInt32().ShouldBe(0);
     }
 
     [Fact]

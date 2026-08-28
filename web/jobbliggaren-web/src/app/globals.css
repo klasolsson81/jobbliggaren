@@ -5445,6 +5445,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-top: 1px solid var(--jp-border);
   padding: 10px 0;
 }
+/* Speglar .jp-notice:first-child. Sedan tomt-raden viker för läst-bandet kan foten
+   vara listans första barn, och dess linje hamnade då strax under sammanfattningens
+   egen med ingenting emellan. */
+.jp-notice-foot:first-child { border-top: 0; }
 .jp-notice-foot__count {
   font-size: var(--text-caption);
   color: var(--jp-ink-3);

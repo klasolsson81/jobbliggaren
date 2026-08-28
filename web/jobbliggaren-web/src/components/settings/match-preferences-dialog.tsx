@@ -9,6 +9,7 @@
 
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
@@ -121,9 +122,11 @@ export function MatchPreferencesDialog({
   onCloseAutoFocus,
 }: MatchPreferencesDialogProps) {
   const t = useTranslations("settings");
+  const tEnum = useTranslations("jobads.enums");
+  // Allmänsubstantiv, alltså locale-copy (#1537).
   const employmentOptions: ReadonlyArray<Option> = employmentTypes.map((e) => ({
     conceptId: e.conceptId,
-    label: e.label,
+    label: codedTaxonomyName(tEnum, e.conceptId, e.label),
   }));
 
   // ── DRAFT-state. Seedas från den persisterade mängden VID ÖPPNING via en

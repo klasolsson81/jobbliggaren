@@ -8,6 +8,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import { DISTANS_CHIP_ID } from "@/lib/job-ads/ort-selection";
 import { formatTime } from "@/lib/i18n/format";
 import type {
@@ -121,6 +122,7 @@ export function MatchPreferencesCard({
   degraded,
 }: MatchPreferencesCardProps) {
   const t = useTranslations("settings");
+  const tEnum = useTranslations("jobads.enums");
   const format = useFormatter();
   // Facet-rubriker och tom-state-texter per dimension (svenska via katalogen).
   const facetLabel: Record<Facet, string> = {
@@ -151,10 +153,15 @@ export function MatchPreferencesCard({
       ),
     [regions]
   );
+  // Anställningsform är allmänsubstantiv och byter språk med locale:n (#1537); ort och
+  // yrkesgrupp ovan är egennamn och passerar oöversatta.
   const employmentOptions = useMemo<ReadonlyArray<Option>>(
     () =>
-      employmentTypes.map((e) => ({ conceptId: e.conceptId, label: e.label })),
-    [employmentTypes]
+      employmentTypes.map((e) => ({
+        conceptId: e.conceptId,
+        label: codedTaxonomyName(tEnum, e.conceptId, e.label),
+      })),
+    [employmentTypes, tEnum]
   );
 
   const [occupationGroups, setOccupationGroups] = useState<

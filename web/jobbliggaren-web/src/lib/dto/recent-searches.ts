@@ -32,6 +32,41 @@ const sortByFromWire = z
     return z.NEVER;
   });
 
+/**
+ * #1430 — labeln är STRUKTUR, inte prosa. Backend härleder VILKEN dimension som namnger
+ * raden och HUR delarna hänger ihop; orden ligger i `messages/{sv,en}/jobads.json` och
+ * fogas av `buildRecentSearchLabel`. En färdig sträng kunde bara vara på ett språk, och
+ * den nådde en engelsk användare ordagrant på tre ytor.
+ *
+ * Enums når wire:n som NAMN (backend `JsonStringEnumConverter`), aldrig som ordinaler —
+ * pinnat ände-till-ände i `RecentSearchesTests`.
+ */
+export const recentSearchLabelPartSchema = z.object({
+  // "Remote" bär inget namn: den är ett ORD, och vilket ord beror på locale OCH position
+  // (svenskan versaliserar det bara först). Positionen läses ur `parts`-ordningen.
+  kind: z.enum(["Named", "Remote"]),
+  text: z.string().nullable(),
+  moreCount: z.number().int().nonnegative(),
+});
+
+export const recentSearchLabelSchema = z
+  .object({
+    kind: z.enum(["Query", "OccupationField", "Dimensions", "All"]),
+    join: z.enum(["None", "Disjunction", "Conjunction"]),
+    parts: z.array(recentSearchLabelPartSchema),
+  })
+  // Högljutt före tyst fel, samma doktrin som `remote` nedan: varje gren utom `All` skjuter
+  // minst en del, så en tom `parts` är ett kontraktsbrott och inte ett tomt läge. Utan den
+  // här grinden hade komponeraren tvingats välja mellan en tom rubrik och att påstå "alla
+  // annonser" om ett tillstånd den inte känner — ett falskt påstående. Nu faller parsen i
+  // stället och ytan degraderar till `{kind:"error"}`.
+  .refine((label) => label.kind === "All" || label.parts.length > 0, {
+    message: "En label som inte är 'All' måste bära minst en del",
+    path: ["parts"],
+  });
+export type RecentSearchLabel = z.infer<typeof recentSearchLabelSchema>;
+export type RecentSearchLabelPart = z.infer<typeof recentSearchLabelPartSchema>;
+
 export const recentJobSearchDtoSchema = z.object({
   id: z.string(),
   q: z.string().nullable(),
@@ -65,7 +100,7 @@ export const recentJobSearchDtoSchema = z.object({
   municipalityLabels: z.array(taxonomyLabelSchema).default([]),
   regionLabels: z.array(taxonomyLabelSchema).default([]),
   sortBy: sortByFromWire,
-  label: z.string(),
+  label: recentSearchLabelSchema,
   currentCount: z.number().int().nonnegative(),
   newCount: z.number().int().nonnegative(),
   lastViewedAt: z.string(),

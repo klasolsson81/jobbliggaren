@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecentSearchesHeroChip } from "./recent-searches-hero-chip";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import { queryLabel } from "@/test/recent-search-label";
 
 const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
   () => null,
@@ -26,7 +27,7 @@ function makeDto(extra: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     municipalityLabels: [],
     regionLabels: [],
     sortBy: "PublishedAtDesc",
-    label: "default",
+    label: queryLabel("default"),
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-05-20T19:00:00Z",
@@ -44,8 +45,8 @@ describe("RecentSearchesHeroChip", () => {
     render(
       <RecentSearchesHeroChip
         items={[
-          makeDto({ id: "a1", label: "backend", currentCount: 42 }),
-          makeDto({ id: "a2", label: "designer", currentCount: 8 }),
+          makeDto({ id: "a1", label: queryLabel("backend"), currentCount: 42 }),
+          makeDto({ id: "a2", label: queryLabel("designer"), currentCount: 8 }),
         ]}
       />,
     );
@@ -61,8 +62,8 @@ describe("RecentSearchesHeroChip", () => {
     render(
       <RecentSearchesHeroChip
         items={[
-          makeDto({ id: "a1", label: "backend", currentCount: 42, newCount: 0 }),
-          makeDto({ id: "a2", label: "designer", currentCount: 8, newCount: 3 }),
+          makeDto({ id: "a1", label: queryLabel("backend"), currentCount: 42, newCount: 0 }),
+          makeDto({ id: "a2", label: queryLabel("designer"), currentCount: 8, newCount: 3 }),
         ]}
       />,
     );
@@ -86,8 +87,8 @@ describe("RecentSearchesHeroChip", () => {
     render(
       <RecentSearchesHeroChip
         items={[
-          makeDto({ id: "a1", label: "backend" }),
-          makeDto({ id: "a2", label: "designer" }),
+          makeDto({ id: "a1", label: queryLabel("backend") }),
+          makeDto({ id: "a2", label: queryLabel("designer") }),
         ]}
       />,
     );
@@ -100,7 +101,7 @@ describe("RecentSearchesHeroChip", () => {
     const user = userEvent.setup();
     const { container } = render(
       <RecentSearchesHeroChip
-        items={[makeDto({ id: "a1", label: "backend", newCount: 5 })]}
+        items={[makeDto({ id: "a1", label: queryLabel("backend"), newCount: 5 })]}
       />,
     );
     await user.click(screen.getByRole("button", { name: /Senaste sökningar/ }));
@@ -116,7 +117,7 @@ describe("RecentSearchesHeroChip", () => {
         items={[
           makeDto({
             id: "a1",
-            label: "backend",
+            label: queryLabel("backend"),
             q: "backend",
             occupationGroupList: ["MVqp_eS8_kDZ"],
           }),

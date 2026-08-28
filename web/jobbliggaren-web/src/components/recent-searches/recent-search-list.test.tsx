@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RecentSearchList } from "./recent-search-list";
 import type { RecentJobSearchDto } from "@/lib/dto/recent-searches";
+import { queryLabel } from "@/test/recent-search-label";
 
 const deleteActionMock = vi.fn();
 const countsMock = vi.fn<() => ReadonlyMap<string, { currentCount: number; newCount: number }> | null>(
@@ -36,7 +37,7 @@ function makeDto(id: string, label: string, newCount = 0): RecentJobSearchDto {
     municipalityLabels: [],
     regionLabels: [],
     sortBy: "PublishedAtDesc",
-    label,
+    label: queryLabel(label),
     currentCount: 10,
     newCount,
     lastViewedAt: "2026-05-20T19:00:00Z",

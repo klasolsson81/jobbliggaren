@@ -95,6 +95,14 @@
     "hits": "<b>{currentCount, number}</b> träffar",
     "runAgain": "Kör igen",
     "removeSearch": "Ta bort sökningen: {label}",
+    "label": {
+      "all": "Alla annonser",
+      "remoteLeading": "Distans",
+      "remoteInline": "distans",
+      "or": " eller ",
+      "separator": ", ",
+      "more": "+{count} till"
+    },
     "chip": {
       "label": "Senaste sökningar",
       "empty": "Inga senaste sökningar än. Sök under Jobb så sparas de här.",

@@ -70,6 +70,13 @@ grep -qF -- "/var/lib/docker/containers" "$FIXTURE_SUT" && {
 # which is exactly what the real `docker inspect` does for a container that does not exist.
 cat >"$BIN/docker" <<'STUB'
 #!/usr/bin/env bash
+# A down daemon fails EVERY subcommand, `inspect` included — and it fails `inspect` in exactly the
+# shape a missing container does. That indistinguishability is the defect case 12 pins.
+if [ -n "${DOCKER_STUB_DAEMON_DOWN:-}" ]; then
+  echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock." >&2
+  exit 1
+fi
+if [ "$1" = "version" ]; then echo "28.5.1"; exit 0; fi
 if [ "$1" = "inspect" ] && [ "$2" = "-f" ] && [ "$3" = "{{.Id}}" ]; then
   name=$4
   if [ -f "$DOCKER_STUB_MAP/$name" ]; then cat "$DOCKER_STUB_MAP/$name"; exit 0; fi
@@ -157,7 +164,12 @@ check "counted as unreadable=2"            "$(echo "$out" | grep -q 'unreadable=
 
 echo "== case 5: an absent container is skipped, not a failure =="
 reset_world
+# `set +e` is NOT decoration: under the suite's own `set -euo pipefail` a non-zero run would kill
+# the suite at this line, with no label, no failing-case name and no `passed:` summary. The
+# property stays gated either way, but the diagnostic is what tells you WHICH case broke.
+set +e
 out=$(run_sut); rc=$?
+set -e
 check "exit 0 with no containers present"  "$([ "$rc" -eq 0 ] && echo 1 || echo 0)"
 check "names the skip"                     "$(echo "$out" | grep -q 'no such container' && echo 1 || echo 0)"
 
@@ -203,10 +215,53 @@ d=$(mk_container jobbliggaren-api "$ID_API")
 out=$(run_sut) || true
 check "mixed-age segment kept"             "$([ -f "$d/$ID_API-json.log.1" ] && echo 1 || echo 0)"
 
-echo "== case 11: all four ADR 0128 app-stream containers are covered =="
-for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy; do
-  check "APP_CONTAINERS names $n"          "$(grep -qF "  $n" "$SUT" && echo 1 || echo 0)"
+echo "== case 11: all NINE retention-bound containers are covered, BEHAVIOURALLY =="
+# ⚠ THIS CASE USED TO GREP THE SUT'S SOURCE TEXT, AND THAT WAS NOT COVERAGE. A grep for the array
+# literal cannot see whether the LOOP reads the array: replacing
+# `for container in "${APP_CONTAINERS[@]}"` with two hard-coded names left the literal untouched
+# and the whole suite green, while `worker` and `caddy` silently stopped being processed — one of
+# which is a container this change exists for. Every name below is now exercised through the real
+# path: its own container, its own aged segment, its own live segment that must survive.
+#
+# NINE, not the app stream's four (CTO 2026-08-28): the prune's set is keyed to personal data,
+# not to app events, so it deliberately diverges from `jobbliggaren-logship.sh`'s array. A case
+# that iterated four would pass while five containers silently reached no age bound.
+reset_world
+for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+  # A distinct 64-hex id per container, so a path collision cannot make one stand in for another.
+  id=$(printf '%s' "$n" | md5sum | cut -c1-32)$(printf '0%.0s' {1..32})
+  d=$(mk_container "$n" "$id")
+  jline "$(ts_days_ago 40)" "old" >"$d/$id-json.log.1"
+  jline "$(ts_days_ago 1)"  "live" >"$d/$id-json.log"
+  eval "D_${n//-/_}=$d"; eval "I_${n//-/_}=$id"
 done
+out=$(run_sut) || true
+check "all nine aged segments pruned"      "$(echo "$out" | grep -q 'pruned=9' && echo 1 || echo 0)"
+for n in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+  d=$(eval "echo \$D_${n//-/_}"); id=$(eval "echo \$I_${n//-/_}")
+  check "$n: rotated segment removed"      "$([ ! -f "$d/$id-json.log.1" ] && echo 1 || echo 0)"
+  check "$n: LIVE segment survives"        "$([ -f "$d/$id-json.log" ] && echo 1 || echo 0)"
+done
+
+echo "== case 12: a DOWN docker daemon fails loudly, never as a vacuous pruned=0 =="
+# The defect this pins: `docker inspect` against a down daemon fails exactly like a missing
+# container, so without the daemon probe the run reports four skips and `pruned=0` and exits 0 —
+# byte-identical to a healthy pass on a box with nothing to prune.
+reset_world
+d=$(mk_container jobbliggaren-api "$ID_API")
+jline "$(ts_days_ago 40)" "old" >"$d/$ID_API-json.log.1"
+set +e
+out=$(DOCKER_STUB_DAEMON_DOWN=1 run_sut); rc=$?
+set -e
+check "exits non-zero"                     "$([ "$rc" -ne 0 ] && echo 1 || echo 0)"
+check "says it refuses"                    "$(echo "$out" | grep -q 'REFUSING' && echo 1 || echo 0)"
+check "names the daemon, not the container" "$(echo "$out" | grep -q 'daemon is not reachable' && echo 1 || echo 0)"
+# ⚠ ANCHORED TO THE SUMMARY LINE, NOT THE SUBSTRING. The first form of this assertion grepped
+# for `pruned=0` and failed against a correct SUT — because the die message itself ends
+# "refusing to report a vacuous pruned=0". The assertion was matching its own diagnostic. What
+# must be absent is the run's SUMMARY, which only prints when the loop completed.
+check "no summary line is printed"         "$(echo "$out" | grep -q '^logprune: pruned=' && echo 0 || echo 1)"
+check "aged segment left untouched"        "$([ -f "$d/$ID_API-json.log.1" ] && echo 1 || echo 0)"
 
 echo
 echo "passed: $pass  failed: $fail"

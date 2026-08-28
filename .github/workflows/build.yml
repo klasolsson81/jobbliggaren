@@ -424,13 +424,13 @@ jobs:
       - name: jobbliggaren-runtime-ids (fixturer)
         run: bash deploy/systemd/jobbliggaren-runtime-ids.test.sh
 
-      # Åldersgränsen på json-file-lagret (#1170). Egenskapen sviten finns för är en FRÅNVARO:
-      # skriptet får aldrig radera det LEVANDE segmentet, som är det `docker logs` serverar och
-      # som `jobbliggaren-logship.sh` dör på om det försvinner — varvid stämpeln hålls inne och
-      # `logship-fresh` latchar. En retentionsmekanism som kan fälla arkivets färskhetssignal är
-      # sämre än ingen, så "den levande filen finns kvar efteråt" asserteras i varje fall som
-      # rensar något. Stubbar `docker` och omdirigerar containerroten till ett temp-träd, så
-      # varken daemon, root eller nätverk krävs.
+      # The age bound on the json-file layer (#1170). The property this suite exists for is an
+      # ABSENCE: the script must never delete the LIVE segment, which is what `docker logs` serves
+      # and what `jobbliggaren-logship.sh` dies on if it disappears — withholding its stamp and
+      # latching `logship-fresh`. A retention mechanism that can fell the archive's freshness
+      # signal is worse than none, so "the live file is still there afterwards" is asserted in
+      # every case that prunes anything. Stubs `docker` and redirects the container root into a
+      # temp tree, so neither daemon, root nor network is required.
       - name: jobbliggaren-logprune (fixturer)
         run: bash deploy/systemd/jobbliggaren-logprune.test.sh
 

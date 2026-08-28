@@ -2,15 +2,16 @@
 # jobbliggaren-logprune — give Docker's json-file layer the AGE bound its driver has none of.
 #
 # usage:  jobbliggaren-logprune.sh [--dry-run]
-# stdout: nothing (see below)
+# stdout: nothing — every diagnostic goes to stderr, so a caller may capture stdout safely
 # stderr: every diagnostic
 # exit:   0 on success, non-zero on any failure
 #
 # WHY THIS FILE EXISTS. ADR 0024 D7 policy 1 commits app-log retention to 30 days. Its original
 # mechanism (a CloudWatch LogGroup) was torn down by ADR 0066. Two of the three layers that hold
-# app events today are age-bounded — Seq by `retentionpolicy-36`, the off-box `hostlogs/` archive
-# by a lifecycle rule. Docker's `json-file` is the third, and it is the one with no age bound at
-# all (#1170).
+# app events today carry that commitment by their own mechanisms. Docker's `json-file` is the
+# third, and it is the one with no age bound at all (#1170). What each of the other two currently
+# holds is a live box state and is deliberately not asserted here — `docs/runbooks/log-sink.md`
+# §4 is where that is measured, with a date.
 #
 # THE DRIVER HAS NO TIME AXIS, AND THAT IS A VENDOR FACT RATHER THAN AN OVERSIGHT. The whole
 # option set is `max-size`, `max-file`, `labels`, `labels-regex`, `env`, `env-regex`, `compress`
@@ -21,7 +22,8 @@
 # guarantee and is why no volume number can be translated into an age.
 #
 # WHAT THIS SCRIPT DOES: deletes ROTATED segments (`*-json.log.N`) whose NEWEST line is older
-# than the retention window, for ADR 0128's four app-stream containers.
+# than the retention window, for every container whose json-file layer can hold data the window
+# governs — see the set below for why that is not the same as the app stream.
 #
 # ⚠ WHAT IT DELIBERATELY DOES NOT DO, AND THE RESIDUAL IS NAMED RATHER THAN IMPLIED. It never
 # touches the LIVE segment (`*-json.log`). So the commitment this mechanism can honestly make is
@@ -30,10 +32,12 @@
 #     no app-log data older than 30 days, EXCEPT at most one non-rotated live segment per
 #     container, itself capped by `max-size` (10 MB).
 #
-# That residual is not hypothetical — it is where the measured breach actually lives. Measured on
-# the box 2026-08-28: `web` had written 5 lines, ALL at container start, and `caddy` 22 lines
-# within 10 seconds of start; neither has ever rotated, so neither has a single segment this
-# script is allowed to touch. For those two the residual IS the finding, and #1170 stays open on
+# That residual is not hypothetical — it is where the PROJECTED breach lives, and the word is
+# exact: nothing on this box has yet held app-log data past 30 days, because no app container has
+# lived that long. What was measured on 2026-08-28 is the ABSENCE OF A BOUND, not an exceeded
+# one — `web` had written 5 lines, ALL at container start, and `caddy` 22 lines within 10 seconds
+# of start; neither has ever rotated, so neither has a single segment this script is allowed to
+# touch. For those two the residual IS the finding, and #1170 stays open on
 # it. Closing it needs either a log-driver change (an ADR 0128 Streams-table decision) or
 # truncation of a file the daemon holds open.
 #
@@ -52,7 +56,7 @@
 # the app stream from `docker logs`, which is how logship reads it.
 #
 # WHY NOT logrotate `maxage`. It acts on already-rotated files, so against the two containers
-# that measurably breach — which have no rotated files — it is INERT, not merely risky. Anything
+# whose bound is missing — which have no rotated files — it is INERT, not merely risky. Anything
 # it would add lives in its `copytruncate` half, which is the unsupported half, and it puts two
 # rotation owners on one file set.
 #
@@ -73,20 +77,52 @@ die() { log "REFUSING: $*"; exit 1; }
 # Parity, not a new choice — see the header. Changing it is an ADR 0024 D7 amendment.
 readonly RETENTION_DAYS=30
 
-# ADR 0128 §2's Streams table fixes the app stream at these four, and names the five it leaves
-# out with a reason for each. `jobbliggaren-logship.sh` carries the same array for the same
-# reason. Adding one here is a change to that table, not to this array alone.
+# ⚠ THIS IS NOT `jobbliggaren-logship.sh`'s ARRAY, AND THE DIFFERENCE IS THE WHOLE POINT.
+# That one carries ADR 0128 §2's Streams table — FOUR containers — and answers *which stream is
+# archived*, whose exclusion reason is operability: `postgres` and `redis` were left out as
+# carrying "connection and authentication traces rather than app events". This array answers a
+# different question — *which local log surface is bound by the retention window* — and that one
+# is keyed to PERSONAL DATA, not to app events. The two sets are not the same set, and reusing
+# the app stream here would silently swap the criterion (security-auditor, 2026-08-28).
 #
-# THE SET IS THE COMMITMENT'S, NOT TODAY'S MEASUREMENT'S. On 2026-08-28 only `web` and `caddy`
-# measurably exceeded 30 days; `api` sat under it by 10 % and `worker` by its 88 MB/day burn.
-# Both of those margins are write rates, and a write rate is not a bound — `worker`'s falls
-# toward zero the moment Hangfire goes idle. A scope tracking today's rates would carry an
-# expiry date; this one does not.
-readonly -a APP_CONTAINERS=(
+# WHY THE OPERABILITY CRITERION CANNOT BE BORROWED — measured on the box 2026-08-28, not assumed.
+# `postgres` runs with no `log_*` override, so Postgres defaults apply and a unique-violation is
+# logged as `DETAIL: Key (...)=(<value>) already exists.` — the key's VALUES, not just its column
+# names. That was read off this box's own log, not off the documentation. The schema carries a
+# unique index on `(UserId, OrganizationNumber)` and four more on `UserId` pairs, so such a line
+# carries a user id and an organisation number — and for an enskild firma the organisation
+# number IS the holder's personnummer (#841). A container excluded for not emitting *app events*
+# can therefore still hold personal data the window governs.
+#
+# EXPANDING THIS ARRAY IS NOT A CHANGE TO ADR 0128's TABLE (CTO 2026-08-28). logship's note that
+# adding a name is a Streams-table change is true OF LOGSHIP, which adds a stream, an archive
+# object and a personal-data flow. This script is SUBTRACTIVE: it ships nothing, reads nothing
+# out, and creates no object, so it cannot widen exposure and changes no row in that table.
+#
+# NOR IS IT A FOURTH RETENTION NUMBER. The window follows the DATA, not the container: D7
+# policy 1 derives it from the Art. 17 restore window (D5/D6), and a row bearing a user id is
+# governed by that window wherever it is written. A separate number for these five would be the
+# fourth; the same number is the rule.
+#
+# THE SET IS THE COMMITMENT'S, NOT TODAY'S MEASUREMENT'S. Some of these sit inside the window
+# today and some do not, but every one of those margins is a WRITE RATE, and a write rate is not
+# a bound — a busy container's falls toward zero the moment its work stops. A scope tracking
+# today's rates would carry an expiry date; this one does not. The per-container figures are
+# deliberately not repeated here: they decay, and ADR 0024's Amendment 2026-08-28 rejects that
+# form explicitly.
+#
+# ⚠ ONE COST, NAMED RATHER THAN DISCOVERED: `seq`'s container log is the only place an ingestion
+# refusal appears (ADR 0128 §2), and it is age-bounded here like everything else.
+readonly -a RETENTION_BOUND_CONTAINERS=(
   jobbliggaren-api
   jobbliggaren-worker
   jobbliggaren-web
   jobbliggaren-caddy
+  jobbliggaren-postgres
+  jobbliggaren-redis
+  jobbliggaren-seq
+  jobbliggaren-migrate
+  jobbliggaren-migrate-rewrap
 )
 
 DRY_RUN=0
@@ -98,6 +134,19 @@ esac
 readonly DRY_RUN
 
 command -v /usr/bin/docker >/dev/null 2>&1 || die "/usr/bin/docker is not present"
+
+# ⚠ THE BINARY IS NOT THE DAEMON, AND THE DIFFERENCE IS A SILENT NO-OP.
+# `docker inspect` against a down daemon fails exactly like a container that does not exist, and
+# the loop below is written to treat a missing container as a normal skip. Without this probe the
+# whole pass reports four skips and `pruned=0` and exits 0 — BYTE-IDENTICAL to a healthy run on a
+# box with nothing to prune, which is this box's normal output today. A retention mechanism that
+# fails silently is the defect this unit exists to repair, so the failure has to be loud enough to
+# reach `systemctl --failed`, which is the surface the heartbeat's P1 reads.
+#
+# The unit also carries `After=docker.service`, but ordering alone is not enough: it does not hold
+# for a hand run, and it does not survive a daemon that is ordered-up but not yet accepting.
+/usr/bin/docker version --format '{{.Server.Version}}' >/dev/null 2>&1 ||
+  die "the docker daemon is not reachable — refusing to report a vacuous pruned=0"
 
 # The cutoff is computed ONCE. Computing it per file would let a long run straddle a second
 # boundary and apply two different windows inside one pass.
@@ -126,7 +175,7 @@ pruned=0
 kept=0
 skipped=0
 
-for container in "${APP_CONTAINERS[@]}"; do
+for container in "${RETENTION_BOUND_CONTAINERS[@]}"; do
   # A container that is not running is not an error. Reconcile recreates these on every image
   # change, so a pass landing inside that window must not fail the unit.
   if ! id=$(/usr/bin/docker inspect -f '{{.Id}}' "$container" 2>/dev/null); then

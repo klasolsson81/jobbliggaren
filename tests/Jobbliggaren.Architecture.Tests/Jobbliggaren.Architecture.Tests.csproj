@@ -46,6 +46,11 @@
     <ProjectReference Include="..\..\src\Jobbliggaren.Api\Jobbliggaren.Api.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Worker\Jobbliggaren.Worker.csproj" />
     <ProjectReference Include="..\..\src\Jobbliggaren.Migrate\Jobbliggaren.Migrate.csproj" />
+    <!-- BackupDumpScopeParityTests reads PhaseASchemaGrants. It lives in Provisioning, not in the
+         Migrate composition root that was carrying it here transitively — and Provisioning's own
+         csproj says why that matters: Migrate "is a composition root (CLAUDE.md §2.1) rather than a
+         library to reference". The edge existed; only the declaration was missing. -->
+    <ProjectReference Include="..\..\src\Jobbliggaren.Migrate.Provisioning\Jobbliggaren.Migrate.Provisioning.csproj" />
   </ItemGroup>
 
 </Project>

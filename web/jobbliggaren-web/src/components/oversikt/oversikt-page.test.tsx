@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { OversiktPage } from "./oversikt-page";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
+import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type {
   ListSavedJobAdsResult,
   SavedJobAdDto,
@@ -50,6 +51,7 @@ interface RenderOpts {
   readonly savedJobAds?: ApiResult<ListSavedJobAdsResult>;
   readonly newFollowedCompanyAdCount?: number;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
+  readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
 
 function renderOversikt(
@@ -60,6 +62,7 @@ function renderOversikt(
     savedJobAds = errored,
     newFollowedCompanyAdCount = 0,
     profileOverrides = {},
+    pipeline = errored,
   }: RenderOpts = {},
 ) {
   const profile: ApiResult<JobSeekerProfileDto> = {
@@ -71,7 +74,7 @@ function renderOversikt(
       email="anna@example.se"
       displayName="Anna"
       profile={profile}
-      pipeline={errored}
+      pipeline={pipeline}
       savedJobAds={savedJobAds}
       recentSearches={recentSearches}
       matchCount={matchCount}
@@ -283,6 +286,41 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
         selector: ".jp-notice__text b",
       }),
     ).toBeInTheDocument();
+  });
+
+  // #1548 var en KOMPOSITIONSdefekt: sammanfattningen fanns inte på sidan alls.
+  // application-summary.test.tsx målar komponenten isolerat och skulle förblir
+  // grön om summary-propen togs bort här eller om NoticeSection slutade rendera
+  // sloten. Dessa två asserterar inkopplingen, inne i rätt sektion.
+  it("ansökningssammanfattningen renderas inuti Mina ansökningar", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      pipeline: {
+        kind: "ok",
+        data: [
+          { status: "Submitted", count: 2, applications: [] },
+          { status: "Rejected", count: 1, applications: [] },
+        ],
+      },
+    });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(
+      within(section).getByText("3 ansökningar · 2 aktiva"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("list", { name: "Ansökningar per steg" }),
+    ).toBeInTheDocument();
+  });
+
+  it("degraderad pipeline ger ingen siffra i sammanfattningen", () => {
+    renderOversikt(true, { matchCount: null });
+
+    const section = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(
+      within(section).getByText(/kunde inte hämtas/),
+    ).toBeInTheDocument();
+    expect(within(section).queryByText(/ansökningar ·/)).toBeNull();
   });
 
   it("ingen recent-search → ingen senaste-sök-notis", () => {

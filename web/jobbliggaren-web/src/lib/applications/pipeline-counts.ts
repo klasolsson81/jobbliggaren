@@ -12,9 +12,6 @@ import type {
  * ⚠ Backend grupperar med GroupBy(Status) och utelämnar därför tomma statusar
  * HELT — en status utan ansökningar har ingen grupp, inte en grupp med noll.
  * Läs alltid via statusCount, aldrig med en direkt Map-uppslagning.
- *
- * Antalet läses ur group.count (backend-sanning) och aldrig ur
- * group.applications.length, som kan vara trimmad.
  */
 export type PipelineCounts = ReadonlyMap<ApplicationStatus, number>;
 

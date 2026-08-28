@@ -100,16 +100,14 @@ describe("ApplicationSummary", () => {
     expect(screen.queryByRole("list")).toBeNull();
   });
 
-  it("markerar nollsteg utan att sanka kontrasten", () => {
+  it("markerar nollsteg med data-empty", () => {
+    // Kontrastgarantin bor i CSS-regeln och verifieras renderat, inte här:
+    // vitest laddar aldrig globals.css. Detta test mäter bara markeringen.
     const { container } = render(
       <ApplicationSummary pipeline={ok([group("Submitted", 2)])} />,
     );
 
-    const empties = container.querySelectorAll('[data-empty="true"]');
     // Fem tomma aktiva steg + den terminala posten.
-    expect(empties).toHaveLength(6);
-    for (const el of empties) {
-      expect((el as HTMLElement).style.opacity).toBe("");
-    }
+    expect(container.querySelectorAll('[data-empty="true"]')).toHaveLength(6);
   });
 });

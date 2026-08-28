@@ -15,7 +15,7 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  *
  * ⚠ **No pagehero aside.** The authenticated Översikt hero has none — the
  * TodayCard it used to mirror was removed in #726 — and `PageHeroSkeleton`
- * omits the `__aside` element entirely when the prop is absent, which is what
+ * omits the `__aside` element entirely for `aside={null}`, which is what
  * keeps the band from over-reserving a wrapped row at narrow widths (#1385).
  */
 export default function Loading() {

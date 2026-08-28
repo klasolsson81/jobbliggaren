@@ -1406,7 +1406,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       uppgift (Art. 13(2)(a)) och ADR 0090 D3 räknar uttryckligen upp
       retentionsraden som del av samma leverans. Flippar du 6 och lämnar 1 säger
       kategorilistan drift medan retentionsavsnittet säger planerat.
-- [ ] **2. Avgör vad releasen faktiskt aktiverar** — två olika klasser, blanda dem
+- [ ] **2. Avgör vad releasen faktiskt aktiverar** — **tre** olika klasser, blanda dem
       inte:
       - **Kod-aktiverad:** ansökningshistorik/företagsöversikt — kategorilistans
         ansökningshistorik-punkt, BÅDA retentionsposterna och stycket i "Inga automatiserade
@@ -1464,6 +1464,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         stycket) är **struken med sin grund**, så e-posten bär nu **tre** markörbärande stycken per
         språk, inte fyra. Också detta var en motpartskorrigering och **ingen flip** — markörmeningen
         står kvar i alla tre styckena i båda språken, och armen är fortfarande mörk.
+      - **Panel-aktiverad (utanför repot) — NY KLASS 2026-08-28 (#183 led 5).** Mottagar-
+        avsnittets **STRATO GmbH**-stycke om inkommande post till `kontakt@jobbliggaren.se`,
+        i dag klassens enda medlem. **Aktiveringshändelsen är att apex-MX flyttas i STRATO:s
+        kontrollpanel** — ingen release, ingen tagg, ingen konfigurationsnyckel i repot, ingen
+        deploy, alltså inget repo-event att haka i. Varken §2.5:s predikat (*en providerarm
+        som når en extern processor*) eller §2.6:s egen trigger (*första `v*`, eller en release
+        som aktiverar en behandling copyn kallar planerad*) fyrar på den, och förutsättning 5:s
+        fyra Blocker-triggrar är **uteslutande användarnycklade**. Stycket landade 2026-08-28
+        och blev **tyst oklassat**, därför att de två klasserna ovan uttömde taxonomin.
+        ⚠ **Klassen bockas därför ALDRIG av att releasen inte aktiverar något** — dess händelse
+        är inte en release, så punkt 2:s vanliga utfall (*bocka hela sektionen och sluta*) är
+        blint för den. **Proceduren bor i `vps-deploy-stack.md` rad 36:s MX-ben**, som är där
+        operatören står i det ögonblick handlingen utförs; den här bulleten **klassificerar,
+        den bär inte proceduren**. Den mekaniska läsaren för just det stycket är STRATO-spärren
+        i `content-legal-parity.test.ts`, och den fäller **bara** en copy-flip utan MX-flytt —
+        aldrig det omvända, eftersom det inte finns något repo-event att fälla på.
       ⚠ **"ARMEN ÄR FORTFARANDE MÖRK" ÄR FALSKT SEDAN 2026-08-16, OCH DET ÄR INTE EN TEMPUSFRÅGA**
       (`security-auditor` N-1, 2026-08-16). Armen aktiverades 2026-08-16 utan att §2.5-grinden
       passerades, och den publicerade copyn bär **en affirmativ presensförnekelse av en utlämning som

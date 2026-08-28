@@ -35,9 +35,10 @@ export default function Loading() {
             stated no desired occupation, so a fallback cannot know whether it is
             coming; reserving its ~140px would over-reserve for every account
             that has. An unreserved conditional block is the lesser shift. */}
-        {/* Notice toolbar: stamp + refresh on the left, mark-all on the right. */}
+        {/* Notice toolbar: the time-only stamp, the icon-only refresh control and its
+            receipt region on the left (#1556), mark-all on the right. */}
         <div className="mb-3 flex items-center justify-between gap-4">
-          <span className="jp-skeleton block h-4 w-56" />
+          <span className="jp-skeleton block h-4 w-44" />
           <span className="jp-skeleton block h-4 w-36" />
         </div>
 

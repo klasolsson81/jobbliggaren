@@ -340,7 +340,7 @@ check "the main dump excludes the hangfire schema" bash -c \
    [ -n "$m" ] && printf "%s" "$m" | grep -q -- "--exclude-schema=hangfire"'
 check "the main dump does not SELECT schemas (an allow-list drops their dependencies)" bash -c \
   'm=$(grep -- "--exclude-table-data=user_data_keys" "'"$CALLS"'/docker");
-   [ -n "$m" ] && ! printf "%s" "$m" | grep -qE -- "(^| )(--schema|-n)([= ]|$)"'
+   [ -n "$m" ] && ! printf "%s" "$m" | grep -qE -- "(^| )(--schema|-n)"'
 check "the main dump does not exclude the table definition" \
   bash -c '! grep -q -- "--exclude-table=user_data_keys" "'"$CALLS"'/docker"'
 check "the DEK dump is data-only and scoped to user_data_keys" \

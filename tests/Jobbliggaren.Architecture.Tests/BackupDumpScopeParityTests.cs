@@ -125,9 +125,23 @@ public class BackupDumpScopeParityTests
             "no migration files found under src/ — the layout moved and this half of the " +
             "derivation measured nothing, which would let a migration-created schema pass.");
 
-        return [.. files
-            .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"EnsureSchema\s*\(\s*name:\s*""(\w+)""")
-                .Select(m => m.Groups[1].Value))];
+        // Both call shapes: EF emits `EnsureSchema(name: "x")`, but MigrationBuilder also has a
+        // positional overload, and a hand-written `EnsureSchema("audit")` must not read as absence.
+        var schemas = files
+            .SelectMany(f => Regex
+                .Matches(File.ReadAllText(f), @"EnsureSchema\s*\(\s*(?:name:\s*)?""(\w+)""")
+                .Select(m => m.Groups[1].Value))
+            .ToHashSet(StringComparer.Ordinal);
+
+        // The RESULT is guarded, not just the file list. This actor's whole value is
+        // forward-facing — `ProvisionerSchemas()` already yields `identity` — so a regex that
+        // stopped matching would go unnoticed precisely until the day it mattered.
+        schemas.ShouldContain("identity",
+            "the EnsureSchema derivation matched nothing recognisable — `identity` arrived through " +
+            "this actor and must still be readable from it. The call shape moved, and this half of " +
+            "the derivation is now blind.");
+
+        return schemas;
     }
 
     /// <summary>
@@ -239,7 +253,12 @@ public class BackupDumpScopeParityTests
     [Fact]
     public void TheMainDumpExcludesSchemas_RatherThanSelectingThem()
     {
-        var selecting = Regex.Matches(MainDumpInvocation(), @"(?<![\w-])(?:--schema\b|-n\b)")
+        // No \b after -n: pg_dump accepts the ATTACHED short form too, and `-npublic` would walk
+        // past a word-boundary anchor. Dropping it is safe only because of the scoping above —
+        // inside the main argv the lookbehind blocks `--no-owner` and `--no-privileges` (the
+        // character before their `-n` is `-`), and no other `-n` token is in there. File-wide it
+        // would match `journalctl -n 50` and `flock -n 9`.
+        var selecting = Regex.Matches(MainDumpInvocation(), @"(?<![\w-])(?:--schema\b|-n)")
             .Select(m => m.Value)
             .ToList();
 

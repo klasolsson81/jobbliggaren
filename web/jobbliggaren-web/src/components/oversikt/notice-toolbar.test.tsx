@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { NoticeData } from "./notice-row";
 import { NoticeToolbar } from "./notice-toolbar";
@@ -141,11 +141,50 @@ describe("NoticeToolbar", () => {
     expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
-  it("uppdatera-kontrollen och 'Markera alla' samexisterar", () => {
-    // Föräldern är space-between med två barn; vänstergruppen får inte svälja knappen
-    // till höger eller tvärtom.
-    render(<NoticeToolbar lastUpdated="x" notices={[notice()]} />);
-    expect(screen.getByRole("button", { name: /Uppdatera/ })).toBeInTheDocument();
+  it("vänstergruppen bär stämpeln och Uppdatera — men inte Markera alla", () => {
+    // Föräldern är space-between med två barn. Assertionen är STRUKTURELL, inte bara
+    // närvaro: hamnar Markera alla i vänstergruppen kollapsar radens layout, och ett
+    // närvarotest hade inte sett det.
+    const { container } = render(
+      <NoticeToolbar lastUpdated="2026-07-19 · 08:05" notices={[notice()]} />,
+    );
+    const left = container.querySelector<HTMLElement>(
+      ".jp-oversikt-toolbar__left",
+    );
+    expect(left).not.toBeNull();
+
+    expect(within(left!).getByRole("button", { name: /Uppdatera/ })).toBeInTheDocument();
+    expect(within(left!).getByText(/2026-07-19/)).toBeInTheDocument();
+    expect(within(left!).queryByRole("button", { name: /Markera alla/ })).toBeNull();
     expect(screen.getByRole("button", { name: /Markera alla/ })).toBeInTheDocument();
+  });
+
+  it("bär kvittot själv efter en uppdatering (#1549)", async () => {
+    // Stämpeln har minutupplösning och en refresh går på under en sekund, så två klick
+    // i samma minut lämnar den oförändrad. Utan kvitto ser kontrollen verkningslös ut
+    // (design-reviewer Major). Kvittot ligger på knappen, som är fokuserad — därför
+    // hörs det också av en skärmläsare utan live-region.
+    const user = userEvent.setup();
+    render(<NoticeToolbar lastUpdated="x" notices={[]} />);
+
+    await user.click(screen.getByRole("button", { name: /Uppdatera/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Uppdaterad/ })).toBeInTheDocument(),
+    );
+  });
+
+  it("blir ALDRIG disabled — den är idempotent och får inte tappa fokus", async () => {
+    // design-reviewer mätte i Chromium att `disabled` på den just aktiverade knappen
+    // kastar fokus till <body> och aldrig ger tillbaka det. Husets form för idempotenta
+    // kontroller är att inte disabla alls (company-follow-button.tsx, Klas PR5).
+    const user = userEvent.setup();
+    render(<NoticeToolbar lastUpdated="x" notices={[]} />);
+    const button = screen.getByRole("button", { name: /Uppdatera/ });
+
+    await user.click(button);
+
+    expect(button).not.toBeDisabled();
+    expect(document.activeElement).toBe(button);
   });
 });

@@ -15,6 +15,7 @@
     "lastUpdated": "senast uppdaterad <mono>{date}</mono>",
     "refresh": "Uppdatera",
     "refreshing": "Uppdaterar…",
+    "refreshed": "Uppdaterad",
     "markAllRead": "Markera alla som lästa",
     "emptyTitle": "Inga olästa notiser",
     "emptyBody": "Inkorgen är tom. Du får besked så snart det händer något i ditt ärende.",

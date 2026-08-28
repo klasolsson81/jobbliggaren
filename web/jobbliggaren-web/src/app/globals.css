@@ -5183,6 +5183,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   align-items: center;
   gap: 12px;
 }
+/* Kontrollen byter mellan tre etiketter (Uppdatera / Uppdaterar… / Uppdaterad).
+   Reserverad bredd så raden inte hoppar vid varje interaktion (DESIGN.md §6). */
+.jp-oversikt-toolbar__refresh {
+  min-width: 9.5rem;
+  justify-content: center;
+}
 
 /* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
 .jp-callout-block { margin-top: 24px; }

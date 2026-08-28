@@ -336,7 +336,7 @@ Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fön
 
 Tre policyer:
 
-**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23 och 2026-08-23 (2): mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23, 2026-08-23 (2) och 2026-08-28: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
 
 Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
 
@@ -368,7 +368,7 @@ Både `RequestContextProvider` och `AuthAuditLogger` injicerar `IIpAnonymizer`. 
 
 Defense-in-depth-motivering: retention-policy (1) skyddar inte mot logg-läckage *under* retention-fönstret. Ops-personal med CloudWatch-access kan korrelera under 30 dagar utan maskningen.
 
-**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.** — *se Amendment 2026-08-23 och 2026-08-23 (2): deferralens motivering nedan vilar på policy 1. Deferralen återöppnas inte där, men beroendet är inte längre outtalat.*
+**3. EmailHash → HMAC med roterande nyckel: defererat till Fas 2.** — *se Amendment 2026-08-23, 2026-08-23 (2) och 2026-08-28: deferralens motivering nedan vilar på policy 1. Deferralen återöppnas inte där, men beroendet är inte längre outtalat.*
 
 `LoginCommandHandler.HashEmail` använder rå SHA-256 (deterministic). Samma email → samma hash över tid → korrelerbar. HMAC med roterande nyckel hade brutit korrelationen, men kräver KMS-integration + nyckel-arkiv för att verifiera historiska hashar (audit-paritet vid restore). Inte trivialt i Fas 1 — 30-dagars retention minimerar korrelations-fönstret tillräckligt.
 
@@ -863,3 +863,61 @@ as scope (ADR 0065) — no docs-only PR. The gate's own measurement is dated and
 `docs/runbooks/log-sink.md` §4, not here.
 **Referenser:** #1170, [PR #1486](https://github.com/klasolsson81/jobbliggaren/pull/1486),
 `docs/runbooks/log-sink.md` §3 step 8 and §4.
+
+---
+
+## Amendment 2026-08-28 — D7 policy 1's json-file leg gets an age bound, and the write-rate premise is split (#1170)
+
+**Datum:** 2026-08-28
+**Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); production-box measurement 2026-08-28, read-only (reading needs no GO — Klas-direktiv 2026-08-20); `docs/runbooks/log-sink.md` §5/§6; `deploy/systemd/jobbliggaren-logprune.sh`
+**Beslutsfattare:** N/A — mechanism addition, not a decision change. D7's 30-day number, its rejected alternatives and its Art. 5(1)(c) rationale are unchanged for a third time. **Detta är inte en supersession.**
+
+### 1. Drift, not supersession — the third mechanism for the same number
+
+D7 policy 1 has now had three mechanisms and one number:
+
+| Mechanism | Set | Status as of 2026-08-28 |
+|---|---|---|
+| CloudWatch LogGroup `retention_in_days = 30` | 2026-05-08 (original) | Torn down by ADR 0066; preserved in `infra/terraform/` as a record of what ran, never repaired toward a successor |
+| Seq `retentionpolicy-36`, `RetentionTime 30.00:00:00` | 2026-08-23 | Verified still in force on the box 2026-08-28 (unchanged since Amendment 2026-08-23 (2)) |
+| `jobbliggaren-logprune` (json-file layer) | 2026-08-28 (this amendment) | Delivered as a repo artefact; **not yet applied on the box** — §4 below |
+
+Each swap is drift in the mechanism, never in the decision. The 30-day figure has not moved since 2026-05-08.
+
+### 2. Two written sentences, restated by name rather than inherited
+
+**ADR 0128 §4, Negative:** *"That number still requires a write-rate measurement that does not exist until there are users."* The pronoun's antecedent sits in the same sentence's own clause — *"a smaller `max-size`"* — and nowhere else in that paragraph. A volume figure (`max-size`) becomes an age only once it is divided by a write rate; a time figure reads no rate at all, since it compares a timestamp against a cutoff directly. **The premise never reached an age bound, so it stands unchanged for the `max-size` half** — that number still waits for real users — **and it never blocked the age half**, which this amendment delivers without touching it.
+
+**`docs/runbooks/log-sink.md` §5, first bullet:** carried the same undivided premise under the heading *"the layer's age bound"* until 2026-08-28. It is rewritten in the same PR that adds this amendment — the heading now reads *"the `json-file` layer's `max-size`"*, the split is recorded inline, and the age half is reassigned to the new §6. This amendment is that rewrite's ADR-side record; the runbook carries the operative text, not this one.
+
+### 3. Measurement, 2026-08-28, production box, read-only
+
+- All 7 containers on the box run the `json-file` driver at `max-size=10m`, `max-file=3` — no exceptions.
+- The driver's entire option set is `max-size`, `max-file`, `labels`, `labels-regex`, `env`, `env-regex`, `compress` (docs.docker.com, read 2026-08-28). **No time or age option exists anywhere in it.** Removal happens by file COUNT, never by file age.
+- Effective retention is therefore budget divided by write rate — **inversely proportional to traffic**: the quieter a container, the longer its data survives.
+- **The stable form of the defect:** for a container whose output is a startup burst that never triggers rotation, the `max-size` cap never binds at all, so the age of its retained data equals the container's own lifetime — bound by nothing. Measured: `web` had written 5 lines, all at container start; `caddy` 22 lines, all within 10 seconds of start; neither had ever rotated a segment. Box container lifetimes already reach at least 23 days (`postgres`, created 2026-08-05) — well past the 30-day window this ADR sets.
+- ⚠ **An earlier form of this same measurement is deliberately not carried forward.** It expressed the defect as "days to fill 30 MB" (`web` ≈ 3 182, `caddy` ≈ 300), and that form is rejected here: it understates every container that has already rotated at least once, and for a startup burst the figure grows without bound as uptime grows — a number with no ceiling is not a measurement of anything stable. That form is a live figure and does not belong in a tracked file; this paragraph states the conclusion instead.
+- `journald-jobbliggaren-retention.conf` (gate M-7) bounds only the host journal and does not reach the containers: `journalctl CONTAINER_NAME=jobbliggaren-api --since -24h` returns **0 rows**, and `MaxRetentionSec` is commented out in that unit — the journal carries no time axis for this data at all. It cannot be D7's successor for the `json-file` leg.
+- Personal-data content in the app log today: **zero**. `api`'s current log (460 lines) has no match for an IPv4 address, a `UserAgent` string, an `EmailHash` value, or a GUID. `job_seekers` holds 2 rows, both created 2026-08-16 within a two-minute window — the auditor's own test accounts, not real users. **The exposure this amendment closes is latent, and arms at the first real test user**, which is exactly why D7 policy 1 is being finished ahead of that date rather than after it.
+
+### 4. The mechanism that lands
+
+`jobbliggaren-logprune` — a service/timer pair plus `.test.sh` — runs daily at 03:40 against a **30-day window: parity with D7 policy 1 and with `retentionpolicy-36`, never a new number.** Its scope is ADR 0128 §2's full app stream — `api`, `worker`, `web`, `caddy` — not only the two containers measured breaching today, because `api`'s and `worker`'s current margins are write rates, and a write rate is not a bound; the set is the commitment's, not today's traffic. It is delivered as a repo artefact and an operator runbook step (`log-sink.md` §6); **it has not been applied on the box in this session** — installing and arming a systemd unit pair is a write and needs Klas GO under §9.2, which the standing read-only exception for box measurement does not extend to.
+
+### 5. The non-closure this amendment writes, replacing the one it supersedes
+
+**#1170 still does not close, and the reason has moved again — named here so the next reader inherits the current one, not an earlier one.** One non-rotated live segment per app container, capped only by `max-size`, reaches no age bound at all; closing that needs either a log-driver change (an ADR 0128 Streams-table decision) or truncation of a file the daemon holds open, which is unsupported.
+
+**Why the live segment was left alone is a measured coupling, not a preference** (CTO 2026-08-28): Docker owns rotation of that file; `jobbliggaren-logship.sh` reads the same stream through `docker logs --timestamps --since` and **dies** on a non-zero exit, withholding its freshness stamp and latching `logship-fresh`. A retention mechanism able to fell the off-box archive's freshness signal is exactly the cross-coupling ADR 0128 split #1175 to avoid, and truncating a file the daemon holds open would risk precisely that.
+
+**And the residual is where the breach was actually measured, not an edge case beside it.** `web` and `caddy` — the two containers that measurably breach 30 days today — had no rotated segment at all, so `jobbliggaren-logprune` cannot touch either of them yet. The mechanism this amendment lands does not reach today's worst case; it reaches every case that rotates at least once, which is not the same claim.
+
+### 6. D7 policy 3's dependency is unchanged
+
+Amendment 2026-08-23 and Amendment 2026-08-23 (2) record that policy 3's HMAC deferral rests on policy 1, and that the dependency is recorded rather than settled. That stands here without change — **the deferral is not reopened by this amendment.** What changes is only that policy 1 is now partially implemented for the `json-file` leg, with the residual named in §5 above; the Seq leg's support for the deferral (Amendment 2026-08-23 (2), §3) is untouched.
+
+### Discipline
+
+Additive amendment. The original text and every prior amendment stand unaltered, the three in this #1170 chain (2026-08-23, 2026-08-23 (2), 2026-08-24) included. Two forward pointers — at policy 1 and policy 3 — gain `och 2026-08-28` in this same PR, following the precedent the first 2026-08-23 amendment set for editing the driven row alongside the amendment that drives it. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. The measurement in §3 is dated and stands as provenance; the live question — whether the timer is armed on the box — has one home, `docs/runbooks/log-sink.md` §6, not here.
+
+**Referenser:** #1170, ADR 0066, ADR 0128 §2/§4, `docs/runbooks/log-sink.md` §5/§6, `deploy/systemd/jobbliggaren-logprune.sh`.

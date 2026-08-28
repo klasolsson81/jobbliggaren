@@ -113,7 +113,7 @@ describe("buildRecentSearchLabel", () => {
       // #1537 — the row this issue was filed for. Before the coded part it rendered
       // "Tillsvidareanställning (inkl. eventuell provanställning) +1 more, Heltid".
       [
-        "Permanent employment (including any trial employment) +1 more, Full time",
+        "Permanent employment (including any trial employment) +1 more, Full-time",
         label("Dimensions", "Conjunction", coded(PERMANENT, 1), coded(FULL_TIME)),
       ],
     ])("renderar %j", (expected, input) => {

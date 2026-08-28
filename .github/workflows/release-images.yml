@@ -152,10 +152,10 @@ jobs:
           cosign-release: "v2.5.0"
 
       # A THIRD CONDITION SINCE #196's ATTESTATION REPAIR: the attestation must exist too.
-      # Without it, a run where `docker push` succeeded and the attest step then failed is
-      # unrecoverable — every later run sees both tags agreeing, skips, and never attests, while
-      # the box refuses that digest hourly for as long as it stays on `latest`. No merge, no new
-      # SHA, no repair, and nothing surfaces it (#1175: there is no log sink).
+      # What it catches is an attestation that was readable when it was published and is not
+      # readable now — deleted, expired, or unreachable in GHCR's referrers. It no longer has
+      # to catch a failed attest step: `latest` is published after `Attest` succeeds, so that
+      # run leaves the two tags disagreeing and the next run rebuilds on the first condition.
       #
       # AND IT IS MEASURED IN THE REGISTRY, NOT THROUGH THE ATTESTATIONS API. The box reads the
       # bundle from GHCR's referrers; an attestation that exists in the API but not in the
@@ -245,8 +245,12 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
 
-      # Two tags, and `sha-<short>` is the one that matters: it is the rollback handle the
-      # box pins in its `.env`. `latest` is what an unpinned reconcile pulls.
+      # ONE TAG HERE, AND THAT IS THE WHOLE POINT OF THE SPLIT. `sha-<short>` is the rollback
+      # handle the box pins in its `.env`; `latest` is what an unpinned reconcile pulls, and it
+      # is published further down, only once the attestation exists. Publishing both here is
+      # what put an unattested image on `latest` for 56 minutes on 2026-08-11 (#1314): the
+      # `Attest` step failed after this step had already moved the tag, so the box pulled an
+      # image it then refused, hourly, until a later run rebuilt it.
       # THE REF CONDITION IS A SECURITY GATE, NOT TIDINESS. Without it a `workflow_dispatch`
       # with `ref: <some-branch>` builds that branch's tree, pushes it as `latest`, and — since
       # the attestation below binds WHO built the image, never WHICH TREE was built — attests it
@@ -257,10 +261,7 @@ jobs:
         id: push
         if: steps.published.outputs.already == 'false' && (github.event_name != 'workflow_dispatch' || (inputs.push && (inputs.ref == 'main' || inputs.ref == '')))
         run: |
-          docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
-                     "${{ steps.tag.outputs.image }}:latest"
           docker push "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}"
-          docker push "${{ steps.tag.outputs.image }}:latest"
           # The registry manifest digest, which only exists after the push — `load: true` means
           # build-push-action never produced one. `{{json .Manifest.Digest}}` deliberately: the
           # bare template silently falls back to the full pretty output on Docker 29 (measured
@@ -278,10 +279,60 @@ jobs:
       # under the referrers tag scheme, which is where both the box and the skip predicate above
       # read it from; GHCR does not implement the OCI referrers API endpoint, and the tag scheme
       # is what makes discovery work anyway.
+      #
+      # The attestation binds to the DIGEST, so moving `latest` onto that digest afterwards
+      # neither invalidates it nor needs a second attestation: the tag is a name for the same
+      # manifest the bundle already covers.
       - name: Attest ${{ matrix.name }}
+        id: attest
         if: steps.push.outcome == 'success' && steps.push.outputs.digest != ''
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-name: ${{ steps.tag.outputs.image }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+      # `latest` MOVES LAST, AND ONLY OVER AN ATTESTED DIGEST. This is the ordering the box's
+      # trust chain assumes and did not have: the reconcile unit pulls `latest`, verifies it,
+      # and refuses the whole apply if it does not verify — so a `latest` that can point at an
+      # unattested image is a self-inflicted outage, not a caught intrusion.
+      #
+      # THE GUARD NAMES THE ATTEST STEP RATHER THAN RELYING ON THE JOB'S STATUS. A skipped
+      # `Push` (a dry-run dispatch) leaves the job successful, so a bare `if:` — which inherits
+      # the implicit `success()` — would publish `latest` from a build deliberately not pushed.
+      # `steps.attest.outcome == 'success'` is true in exactly one case: the attestation ran and
+      # succeeded. Failure and skip both leave `latest` where it was.
+      #
+      # WHEN THIS STEP DOES NOT RUN, `latest` KEEPS POINTING AT THE PREVIOUS ATTESTED DIGEST.
+      # The box pulls that, verifies it, and applies it — stale but serving, and silent, which
+      # is the right shape for a fault that lies with the publisher rather than the image.
+      # The next run sees the two tags disagree and rebuilds; the repair path is unchanged.
+      #
+      # THE RESIDUAL IS REAL AND IS NAMED HERE RATHER THAN PRETENDED AWAY. `sha-<short>` is
+      # published before the attestation exists, so between the push above and the attest above
+      # — and permanently, if the attest fails — that tag can resolve to a publicly pullable
+      # image carrying no attestation. It is fail-closed at the consumer: the box verifies
+      # whatever it pulls, so even a rollback that pins such a `sha-` tag is refused rather than
+      # applied. Closing it entirely would need a staging repository, which buys nothing the
+      # consumer-side gate does not already provide.
+      - name: Publish latest ${{ matrix.name }}
+        if: steps.attest.outcome == 'success'
+        run: |
+          # A NON-BLOCKING PROBE, deliberately not a gate. `steps.attest.outcome` says the
+          # attest action reported success; it does not say the bundle is readable from GHCR's
+          # referrers, which is where the box reads it. Gating on that would put an UNMEASURED
+          # dependency on referrer propagation into the publish path — #1314 measured
+          # push-to-attest at 3-5 s but never measured attest-to-readable, and that unknown is
+          # the whole reason this PR exists. So it is measured rather than enforced: every
+          # publish records whether the producer can already read what the consumer will read.
+          # If these warnings never appear the gate is safe to add; if they do, the window's
+          # size comes from data instead of a guess. It never fails the step.
+          probe_status=0
+          deploy/systemd/verify-image-attestation.sh \
+            "${{ steps.tag.outputs.image }}@${{ steps.push.outputs.digest }}" >/dev/null 2>&1 || probe_status=$?
+          if [ "$probe_status" -ne 0 ]; then
+            echo "::warning::attestation for ${{ steps.push.outputs.digest }} is not yet readable from the registry (verifier exit $probe_status). Publishing latest anyway; the box re-verifies on every reconcile."
+          fi
+          docker tag "${{ steps.tag.outputs.image }}:sha-${{ steps.tag.outputs.sha }}" \
+                     "${{ steps.tag.outputs.image }}:latest"
+          docker push "${{ steps.tag.outputs.image }}:latest"

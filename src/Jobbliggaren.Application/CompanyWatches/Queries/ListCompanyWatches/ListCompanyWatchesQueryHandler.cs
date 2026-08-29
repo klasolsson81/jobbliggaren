@@ -57,8 +57,7 @@ public sealed class ListCompanyWatchesQueryHandler(
     /// two disjuncts, or dropping the <c>Length</c> guard as "redundant" each break the proof
     /// SILENTLY — same rows, every semantic test green, and the scan cost back to growing with
     /// <c>job_ads</c>. The <c>Contains</c> case is CONDITIONAL rather than automatic: the prover
-    /// expands a <c>ScalarArrayOpExpr</c> only when its array is a Const, so a <c>Contains</c> over
-    /// a value EF parameterises breaks the proof while one it folds to a literal does not.
+    /// expands a <c>ScalarArrayOpExpr</c> only when its array is a Const.
     /// Measured 2026-08-29: <c>Contains</c> over a <c>static readonly string[]</c> kept the pin
     /// green; dropping the <c>Length</c> guard fell to a Seq Scan. Trust the pin, not this list.
     /// </para>

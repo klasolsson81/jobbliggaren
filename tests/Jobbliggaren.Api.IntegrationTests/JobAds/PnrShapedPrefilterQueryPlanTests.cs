@@ -24,7 +24,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 ///
 /// <para>
 /// <b>The two assertions carry different halves, and BOTH are required.</b> The positive
-/// <c>using &lt;index&gt;</c> proves the planner reaches the index. The absent <c>Filter:</c> proves the
+/// <c>&lt;index&gt;</c> proves the planner reaches the index. The absent <c>Filter:</c> proves the
 /// implication was PROVEN rather than merely survivable: if the index is chosen but the predicate is
 /// re-applied per row, the partial form bought a smaller heap and nothing else. It is the same shape as
 /// the sibling's <c>ShouldContain("using " + IndexName)</c> + <c>ShouldNotContain("Sort Key:")</c> — a

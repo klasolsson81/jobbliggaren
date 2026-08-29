@@ -54,9 +54,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// dropping the <c>Length == 10</c> guard as "redundant" each produce the identical row set
     /// while silently breaking the proof — same answers, every semantic test green, and the scan
     /// cost back to growing with the table. The <c>Contains</c> case is the subtle one and it is
-    /// CONDITIONAL: the prover expands a <c>ScalarArrayOpExpr</c> only when its array is a Const, so
-    /// a <c>Contains</c> over a value EF parameterises (<c>= ANY(@p)</c>) breaks the proof while one
-    /// EF folds to a literal does not. Measured 2026-08-29: mutating the handler to
+    /// CONDITIONAL: the prover expands a <c>ScalarArrayOpExpr</c> only when its array is a Const.
+    /// Measured 2026-08-29: mutating the handler to
     /// <c>Contains</c> over a <c>static readonly string[]</c> kept the plan pin GREEN — that shape
     /// still proved. Dropping the <c>Length == 10</c> guard did NOT: it fell to a Seq Scan. Do not
     /// read "a Contains breaks it" as unconditional; read the pin.

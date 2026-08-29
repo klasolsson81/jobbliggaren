@@ -143,8 +143,8 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         //
         // No HasMaxLength (they are `text`; varchar(n) would force a table rewrite) and no
         // HasIndex: the seven partial `WHERE … IS NOT NULL` indexes are raw-SQL/migration-owned
-        // and EF's model snapshot is blind to them (the fluent API cannot express a partial
-        // index). Those predicates are NULL-SPARSITY, not lifecycle-derived, and they stay —
+        // and EF's model snapshot is blind to them. Those predicates are NULL-SPARSITY, not
+        // lifecycle-derived, and they stay —
         // #821 Q2 bans lifecycle-derived predicates on job_ads indexes, nothing else.
         builder.Property(j => j.SsykConceptId)
             .HasColumnName("ssyk_concept_id")
@@ -176,7 +176,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // is nothing in raw_payload to derive from, and deriving durable state from raw_payload is the
         // #841 data-loss trap regardless. `bool` (not `bool?`) → `boolean NOT NULL`; the migration adds it
         // with DEFAULT false so existing rows backfill safe-false (the #552-gated conservative direction).
-        // A partial index `WHERE remote` is raw-SQL/migration-owned (EF cannot express partial indexes). It
+        // A partial index `WHERE remote` is raw-SQL/migration-owned. It
         // is provisioned for PR-B's Distans FACET FILTER (a `WHERE remote = true` predicate over the sparse
         // ~1.4 % of remote ads). PR-A's grade override does NOT use it — it reads `remote` inside a CASE in
         // GradeRankExpression over the whole candidate set, never a `WHERE remote` predicate — so the index

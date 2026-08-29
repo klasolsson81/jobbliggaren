@@ -1,105 +1,210 @@
+import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { formatNumber } from "@/lib/i18n/format";
 import { formatDaysAgo } from "@/lib/i18n/relative-time";
+import { formatNoticesStamp } from "@/lib/oversikt/aggregations";
 import {
+  countByStatus,
+  totalCount,
+} from "@/lib/applications/pipeline-counts";
+import type { ApiResult } from "@/lib/dto/_helpers";
+import type { PipelineGroupDto } from "@/lib/dto/applications";
+import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
+import {
+  buildGuestPipeline,
+  GUEST_COMPANY_WATCHES,
   GUEST_MOCK,
   GUEST_MOCK_REF_DATE,
+  GUEST_NEW_FOLLOWED_COMPANY_AD_COUNT,
   OVERSIKT_MOCK,
 } from "@/lib/guest/mock-data";
-import { SummaryRow } from "@/components/oversikt/summary-row";
-import { TodayCard } from "@/components/oversikt/today-card";
-import { NoticeList } from "@/components/oversikt/notice-list";
-import type { NoticeData } from "@/components/oversikt/notice-row";
+import {
+  toCompanyWatches,
+  toPipelineGroups,
+} from "@/lib/guest/mock-adapters";
+import { ApplicationSummary } from "@/components/oversikt/application-summary";
+import { CompanySummary } from "@/components/oversikt/company-summary";
+import { MarkAllReadRow } from "@/components/oversikt/mark-all-read-row";
+import { InertNoticePrefsProvider } from "@/components/oversikt/notice-prefs-provider";
+import { NoticeToolbar } from "@/components/oversikt/notice-toolbar";
+import {
+  NoticeSection,
+  type SectionNoticeData,
+} from "@/components/oversikt/notice-section";
 
 // F-Pre Punkt 5 — Gäst-översikt-sida (CTO-dom 2026-05-24 Beslut 1).
-// F-Pre Punkt 5b 2026-05-24 (CTO Beslut 5, Variant α): Klas-feedback "för
-// liten" adresserad genom återanvändning av `<TodayCard>` (presentational
-// RSC), utökad summary (4 rader per grupp), och fler notiser (4 i stället
-// för 3).
 //
-// F-Pre Punkt 5b in-block-fix 2026-05-24 (design-reviewer M3):
-// notiser-strukturen renderas nu via `<NoticeList>` + `<NoticeData[]>` så
-// markup, ARIA, grupp-rubriker ("Kräver åtgärd" / "Information") och
-// 6-kolumn-grid (inkl. dismiss-knapp) speglar live `(app)/oversikt` exakt.
-// `<NoticeList>` dismiss-state är client-only localStorage — ingen BE-
-// mutation (gäst-tree-disciplin OK).
+// #1572 — omkomponerad på appens nuvarande Översikt (#726 → #1548 → #1556 →
+// #1557 → #1558). Sidan var den sista konsumenten av den layout appen lämnade:
+// `<TodayCard>` i hero-asiden, en platt `<NoticeList>` med "Kräver åtgärd"/
+// "Information", och ett `.jp-summary`-rutnät av `<SummaryRow>`. Nu: hero utan
+// aside, tre `<NoticeSection>` per källa med stående sammanfattningar, och
+// `<MarkAllReadRow>` sist på sidan.
 //
-// design-reviewer m5: STAMP_DATE härleds från frozen `GUEST_MOCK_REF_DATE`
-// så hela demoöversikten är konsekvent frozen (mockdata åldras inte mellan
-// renderings).
-
-const STAMP_DATE = GUEST_MOCK_REF_DATE.toISOString().slice(0, 10);
+// Tre saker skiljer sig från appen, var och en av ett mätt skäl:
+//
+// 1. INGEN `<SetupCallout>`. Dess CTA går till `/oversikt?matchsetup=1`, och
+//    demot har ingen profil att ställa in.
+// 2. INGA NOTIS-PREFERENSER ÖVER HUVUD TAGET. Kugghjulet utelämnas (`prefTypes`
+//    osatt) per Klas-direktiv 2026-08-29, och notis-regionen omsluts av
+//    `<InertNoticePrefsProvider>` så även LÄSNINGEN slås av. Båda behövs: nyckeln
+//    `jp-oversikt-notice-prefs` har formen `"<källa>:<typ>"` och DELAS med den
+//    inloggade appen i samma webbläsare — till skillnad från notis-id:na, som är
+//    disjunkta — så enbart dölja kugghjulet hade lämnat en publik yta filtrerad av
+//    en preferens besökaren varken kan se eller ångra där (CTO-dom 2026-08-29).
+// 3. INGA LÄNKAR IN I DEN SKYDDADE APPEN. `/ansokningar`, `/ny-ansokan`,
+//    `/foretag/bevakade` och `/foretag/sok` ligger alla i `PROTECTED_PREFIXES`, så
+//    proxyn hade skickat besökaren till `/logga-in`. Ansöknings-sammanfattningen
+//    pekar på gästens egen spegel; företags-sammanfattningen renderar ingen länk
+//    alls, eftersom ETIKETTEN ("Visa bevakade företag") inte har någon sann
+//    destination här — sektionens notis bär konverteringsvägen i stället.
+//
+// Två translatorer: `guest` för demo-röstad copy, `oversikt` för den strukturella
+// (sektionsrubriker, tomt-lägen) — samma delning `<NoticeList>` gjorde, och det
+// som hindrar "Mina ansökningar" från att drifta mellan ytorna.
 
 export function GuestOversiktPage() {
-  // Synchronous next-intl translator — keeps this a non-async RSC.
+  // Synchronous next-intl translators — keeps this a non-async RSC.
   const t = useTranslations("guest");
-  const format = useFormatter();
+  const tOversikt = useTranslations("oversikt");
   const tRelativeTime = useTranslations("guest.relativeTime");
-  const { applications, resumes, summary } = GUEST_MOCK;
+  const format = useFormatter();
+
+  const { applications } = GUEST_MOCK;
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
 
-  const actionNotices: NoticeData[] = [];
+  // Stämpeln är RENDER-tiden, som på appytan — inte mockens frysdatum. Sidan är
+  // `force-dynamic`, så uppdatera-kontrollen ger en ny render och därmed en ny
+  // stämpel; en fryst stämpel hade gjort kontrollen till en synlig no-op vars
+  // kvitto ändå säger "Uppdaterad". Att innehållet är exempeldata säger
+  // `<GuestDemoBanner>` och heroets lede, inte den här raden.
+  const now = new Date();
+
+  // Sammanfattningarna kan inte degradera här: demot gör ingen hämtning, så det
+  // finns ingen läsning som kan falla. `ok` är alltså inte en optimism utan den
+  // enda nåbara grenen.
+  const pipeline: ApiResult<PipelineGroupDto[]> = {
+    kind: "ok",
+    data: toPipelineGroups(buildGuestPipeline()),
+  };
+  const companyWatches: ApiResult<ListCompanyWatchesResult> = {
+    kind: "ok",
+    data: toCompanyWatches(GUEST_COMPANY_WATCHES),
+  };
+
+  // Härledda, inte hårdkodade: skulle mocken någon gång tömmas ska sektionen
+  // sluta räkna olästa i stället för att påstå ett tillstånd sammanfattningen
+  // motsäger. Samma form som appen (`oversikt-page.tsx:123-141`).
+  const summaryOwns =
+    totalCount(countByStatus(pipeline.data)) === 0 ? ("empty" as const) : undefined;
+  const companySummaryOwns =
+    companyWatches.data.length === 0 ? ("empty" as const) : undefined;
+
+  const bold = (chunks: ReactNode) => <b>{chunks}</b>;
+
+  // ── Mina ansökningar ──────────────────────────────────────────────────────
+  //
+  // Utkasts-notisen är BORTTAGEN. Ingen typ i `NOTICE_TYPES.applications`
+  // beskriver ett osänt utkast — `followup` betyder uteblivet svar på något som
+  // ÄR skickat — och faktumet gick inte förlorat: `<ApplicationSummary>` renderar
+  // "Utkast 2" som ett eget steg, vilket är där stående tillstånd bor sedan
+  // #1548, och dess ankarlänk bär samma väg till `/gast/ansokningar` som notisen
+  // gjorde.
+  const applicationNotices: SectionNoticeData[] = [];
   if (latestOffer) {
-    actionNotices.push({
+    applicationNotices.push({
       id: "guest-n-offer",
+      source: "applications",
+      type: "offers",
       kind: "success",
       label: t("oversikt.noticeOfferLabel"),
       text: t.rich("oversikt.noticeOfferText", {
         company: latestOffer.company,
         role: latestOffer.role,
-        b: (chunks) => <b>{chunks}</b>,
+        b: bold,
       }),
       cta: t("oversikt.noticeOfferCta"),
       href: "/registrera",
-      time: t("oversikt.timeToday"),
+      // Härledd ur mocken, som appen gör (`oversikt-page.tsx:194`), inte ett valt
+      // ord: så bär demot samma relativtids-form som produkten (#1516).
+      time: formatDaysAgo(
+        tRelativeTime,
+        latestOffer.updatedAtIso,
+        GUEST_MOCK_REF_DATE,
+      ),
     });
   }
-  actionNotices.push({
-    id: "guest-n-drafts",
-    kind: "warning",
-    label: t("oversikt.noticeDraftsLabel"),
-    text: t.rich("oversikt.noticeDraftsText", {
-      count: summary.applicationsByStatus.Draft,
-      b: (chunks) => <b>{chunks}</b>,
-    }),
-    cta: t("oversikt.noticeDraftsCta"),
-    href: "/gast/ansokningar",
-    time: t("oversikt.timeToday"),
-  });
-
-  const infoNotices: NoticeData[] = [];
   if (latestInterview) {
-    infoNotices.push({
+    applicationNotices.push({
       id: "guest-n-interview",
+      source: "applications",
+      type: "interviews",
       kind: "brand",
       label: t("oversikt.noticeInterviewLabel"),
       text: t.rich("oversikt.noticeInterviewText", {
         company: latestInterview.company,
-        b: (chunks) => <b>{chunks}</b>,
+        b: bold,
       }),
       cta: t("oversikt.noticeInterviewCta"),
       href: "/registrera",
-      time: t("oversikt.timeYesterday"),
+      time: formatDaysAgo(
+        tRelativeTime,
+        latestInterview.updatedAtIso,
+        GUEST_MOCK_REF_DATE,
+      ),
     });
   }
-  infoNotices.push({
-    id: "guest-n-match",
-    kind: "info",
-    label: t("oversikt.noticeMatchLabel"),
-    text: t.rich("oversikt.noticeMatchText", {
-      count: OVERSIKT_MOCK.matchCountThisWeek,
-      segment: OVERSIKT_MOCK.matchSegmentLabel,
-      b: (chunks) => <b>{chunks}</b>,
-      em: (chunks) => <em>{chunks}</em>,
-    }),
-    cta: t("oversikt.noticeMatchCta"),
-    href: "/gast/jobb",
-    time: t("oversikt.timeToday"),
-  });
+
+  // ── Jobbannonser ──────────────────────────────────────────────────────────
+  const jobAdNotices: SectionNoticeData[] = [
+    {
+      id: "guest-n-match",
+      source: "jobads",
+      type: "matches",
+      kind: "info",
+      label: t("oversikt.noticeMatchLabel"),
+      text: t.rich("oversikt.noticeMatchText", {
+        count: OVERSIKT_MOCK.matchCountThisWeek,
+        segment: OVERSIKT_MOCK.matchSegmentLabel,
+        b: bold,
+        em: (chunks) => <em>{chunks}</em>,
+      }),
+      cta: t("oversikt.noticeMatchCta"),
+      href: "/gast/jobb",
+      // Valt ord, inte härlett: bakom talet finns ingen tidsstämpel att räkna
+      // från — samma MOCK-not som appens matchnings-notis bär.
+      time: t("oversikt.timeToday"),
+    },
+  ];
+
+  // ── Företagsbevakning ─────────────────────────────────────────────────────
+  const companyNotices: SectionNoticeData[] = [
+    {
+      id: "guest-n-followed-ads",
+      source: "companies",
+      type: "followedads",
+      kind: "info",
+      label: t("oversikt.noticeCompaniesLabel"),
+      text: t.rich("oversikt.noticeCompaniesText", {
+        count: GUEST_NEW_FOLLOWED_COMPANY_AD_COUNT,
+        b: bold,
+      }),
+      cta: t("oversikt.noticeCompaniesCta"),
+      href: "/registrera",
+      time: t("oversikt.timeToday"),
+    },
+  ];
+
+  const allNotices: SectionNoticeData[] = [
+    ...applicationNotices,
+    ...jobAdNotices,
+    ...companyNotices,
+  ];
 
   return (
     <>
+      {/* Page-hero utan aside — paritet med appens Översikt, där I dag-kortet
+          togs bort i #726. */}
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
@@ -107,127 +212,54 @@ export function GuestOversiktPage() {
             <h1 className="jp-pagehero__title">{t("oversikt.title")}</h1>
             <p className="jp-pagehero__lede">{t("oversikt.lede")}</p>
           </div>
-          <div className="jp-pagehero__aside">
-            <TodayCard
-              today={GUEST_MOCK_REF_DATE}
-              events={OVERSIKT_MOCK.todaysEvents}
-              googleSynced={false}
-            />
-          </div>
         </div>
       </section>
 
       <div className="jp-container jp-page">
-        <NoticeList
-          actionNotices={actionNotices}
-          infoNotices={infoNotices}
-          lastUpdated={t("oversikt.lastUpdated", { date: STAMP_DATE })}
+        <NoticeToolbar
+          lastUpdated={formatNoticesStamp(format, now)}
+          lastUpdatedIso={now.toISOString()}
         />
 
-        <section className="jp-section" aria-labelledby="guest-sammanfattning">
-          <div className="jp-section__head">
-            <h2 className="jp-section__title" id="guest-sammanfattning">
-              {t("oversikt.summaryTitle")}
-            </h2>
-            <span className="jp-section__count">
-              {t.rich("oversikt.summaryStamp", {
-                date: STAMP_DATE,
-                mono: (chunks) => <span className="jp-mono">{chunks}</span>,
-              })}
-            </span>
-          </div>
+        <InertNoticePrefsProvider>
+        <NoticeSection
+          source="applications"
+          titleId="gast-oversikt-applications"
+          title={tOversikt("notices.sectionApplications")}
+          notices={applicationNotices}
+          emptyBody={tOversikt("notices.emptyApplications")}
+          summary={
+            <ApplicationSummary
+              pipeline={pipeline}
+              linkHref="/gast/ansokningar"
+            />
+          }
+          summaryOwns={summaryOwns}
+        />
+        <NoticeSection
+          source="jobads"
+          titleId="gast-oversikt-jobads"
+          title={tOversikt("notices.sectionJobAds")}
+          notices={jobAdNotices}
+          emptyBody={tOversikt("notices.emptyJobAds")}
+        />
+        <NoticeSection
+          source="companies"
+          titleId="gast-oversikt-companies"
+          title={tOversikt("notices.sectionCompanies")}
+          notices={companyNotices}
+          emptyBody={tOversikt("notices.emptyCompanies")}
+          summary={
+            <CompanySummary watches={companyWatches} linkHref={null} />
+          }
+          summaryOwns={companySummaryOwns}
+        />
 
-          <div className="jp-summary">
-            <div className="jp-summary__group">
-              <div className="jp-summary__group__title">
-                {t("oversikt.groupApplications")}
-              </div>
-              <SummaryRow
-                label={t("oversikt.rowApplicationsTotal")}
-                value={summary.applicationsTotal}
-              />
-              <SummaryRow
-                label={t("oversikt.rowDrafts")}
-                value={summary.applicationsByStatus.Draft}
-              />
-              <SummaryRow
-                label={t("oversikt.rowSubmitted")}
-                value={summary.applicationsByStatus.Submitted}
-              />
-              <SummaryRow
-                label={t("oversikt.rowInterviews")}
-                value={summary.applicationsByStatus.Interview}
-                highlight
-              />
-              <SummaryRow
-                label={t("oversikt.rowOffers")}
-                value={summary.applicationsByStatus.Offer}
-                highlight
-              />
-              <SummaryRow
-                label={t("oversikt.rowRejected")}
-                value={summary.applicationsByStatus.Rejected}
-              />
-            </div>
-
-            <div className="jp-summary__group">
-              <div className="jp-summary__group__title">
-                {t("oversikt.groupWatch")}
-              </div>
-              <SummaryRow
-                label={t("oversikt.rowSavedSearches")}
-                value={OVERSIKT_MOCK.savedSearchHitsLast.newHits}
-                hint={t("oversikt.hintNewHits")}
-              />
-              <SummaryRow
-                label={t("oversikt.rowNewMatchesToday")}
-                value={OVERSIKT_MOCK.matchCountToday}
-                hint={t("oversikt.hintProfile")}
-              />
-              <SummaryRow
-                label={t("oversikt.rowActiveJobAdsTotal")}
-                value={formatNumber(format, GUEST_MOCK.activeJobAdsTotal)}
-              />
-              <SummaryRow
-                label={t("oversikt.rowDemoJobAds")}
-                value={GUEST_MOCK.summary.jobAdsTotal}
-                href="/gast/jobb"
-              />
-            </div>
-
-            <div className="jp-summary__group">
-              <div className="jp-summary__group__title">
-                {t("oversikt.groupMaterial")}
-              </div>
-              <SummaryRow
-                label={t("oversikt.rowResumeVariants")}
-                value={summary.resumesTotal}
-                href="/gast/cv"
-              />
-              <SummaryRow
-                label={t("oversikt.rowCoverLetters")}
-                value={OVERSIKT_MOCK.personalLettersCount}
-              />
-              <SummaryRow
-                label={t("oversikt.rowLatestResume")}
-                value={
-                  resumes[0]
-                    ? formatDaysAgo(
-                        tRelativeTime,
-                        resumes[0].updatedAtIso,
-                        GUEST_MOCK_REF_DATE
-                      )
-                    : t("oversikt.valueDash")
-                }
-              />
-              <SummaryRow
-                label={t("oversikt.rowDemoActiveSince")}
-                value={t("oversikt.timeToday")}
-                hint={t("oversikt.hintNotSaved")}
-              />
-            </div>
-          </div>
-        </section>
+        {/* Sist på sidan, efter det den verkar på (#1557). `noticeIdsRotate` är
+            falskt här: gästens notis-id är statiska literaler utan datumdel, så
+            appens "till i morgon" hade varit ett falskt påstående (#1572). */}
+        <MarkAllReadRow notices={allNotices} noticeIdsRotate={false} />
+        </InertNoticePrefsProvider>
       </div>
     </>
   );

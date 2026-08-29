@@ -364,3 +364,65 @@ export function buildGuestPipeline(): ReadonlyArray<GuestPipelineGroup> {
     };
   });
 }
+
+// #1572 — bevakade företag för Företagsbevaknings stående tillstånd på
+// /gast/oversikt. Egen konstant och inte en del av `GUEST_MOCK`: den konsumeras
+// bara via `mock-adapters.ts` (som `CompanyWatch[]`), medan `GuestMockData` är
+// gäst-tree:ts egna former.
+//
+// `organizationNumber` bär tio siffror som FALLER PÅ LUHN och alltså inte kan
+// vara ett verkligt org.nr (repot är publikt). Formen är ändå den producerbara:
+// en juridisk person, `isProtectedIdentity: false`. Ett `null` hade i stället
+// påstått skyddad identitet, som dto:n reserverar för personnummer-formade
+// org.nr. Värdena renderas aldrig — `CompanySummary` bevisar det i markup i sitt
+// eget test — så de finns bara för att formen ska vara hel.
+export interface GuestMockCompanyWatch {
+  readonly id: string;
+  readonly organizationNumber: string;
+  readonly companyName: string;
+  readonly followedAt: string;
+  readonly activeAdCount: number;
+  readonly matchingAdCount: number;
+  readonly hasFilter: boolean;
+}
+
+const COMPANY_WATCHES: ReadonlyArray<GuestMockCompanyWatch> = [
+  {
+    id: "gw-1",
+    organizationNumber: "5590000001",
+    companyName: "Klarna",
+    followedAt: "2026-05-18T09:00:00Z",
+    activeAdCount: 14,
+    matchingAdCount: 3,
+    hasFilter: false,
+  },
+  {
+    id: "gw-2",
+    organizationNumber: "5560000002",
+    companyName: "Skatteverket",
+    followedAt: "2026-05-20T13:30:00Z",
+    activeAdCount: 9,
+    matchingAdCount: 2,
+    hasFilter: true,
+  },
+  {
+    id: "gw-3",
+    organizationNumber: "5561000003",
+    companyName: "Region Stockholm",
+    followedAt: "2026-05-22T07:45:00Z",
+    activeAdCount: 0,
+    matchingAdCount: 0,
+    hasFilter: false,
+  },
+];
+
+/** Bevakade företag i demot. Se `toCompanyWatches` i `mock-adapters.ts`. */
+export const GUEST_COMPANY_WATCHES = COMPANY_WATCHES;
+
+/**
+ * Nya annonser från bevakade företag sedan "senaste besöket" — driver
+ * Företagsbevaknings-notisen. Ett tal och inte en härledning: appens motsvarighet
+ * är ett delta mot en watermark som demot inte har, så ett summerat
+ * `activeAdCount` hade påstått en annan storhet än den notisen namnger.
+ */
+export const GUEST_NEW_FOLLOWED_COMPANY_AD_COUNT = 4;

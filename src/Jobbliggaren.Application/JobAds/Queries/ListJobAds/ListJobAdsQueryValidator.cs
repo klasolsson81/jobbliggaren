@@ -155,19 +155,19 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
             .WithMessage("Relevans-sortering kräver att du anger en söktext.");
 
         // ADR 0079 STEG 5 + #300 PR-4 (ADR 0084 §F4) — grad-filtret är Fast-bandet
-        // (Grund/Relaterat/Bra/Stark). Cap = 4 (de fyra filtrerbara graderna; defense-in-depth-
+        // (Grund/Relaterat/Bra/Stark). Cap = bandets storlek, inte en literal (defense-in-depth-
         // tak — Related infogad mellan Basic och Good, ADR 0084 §F2). Related ÄR Fast-beräkningsbar
         // (en kategorisk exact-vs-related-split på shadow-kolumnen, GradeRankExpression rank 2),
         // till skillnad från Topp som AVVISAS wire-side: listfiltret kan inte beräkna must-have-
         // täckning i SQL (G3-OPT-A), så en Topp-grad skulle tyst matcha noll → en label-lie. Detta
         // är den strukturella ärlighets-grinden (CTO-bind 2026-06-23). Tom/null = inget grad-filter.
         RuleFor(q => q.MatchGrades!)
-            .Must(g => g.Count <= 4)
+            .Must(g => g.Count <= MatchGradeBands.Filterable.Count)
             .When(q => q.MatchGrades is not null)
             .WithMessage("Max 4 matchningsgrader (Grund/Relaterat/Bra/Stark) per filter.");
 
         RuleForEach(q => q.MatchGrades)
-            .Must(g => g is MatchGrade.Basic or MatchGrade.Related or MatchGrade.Good or MatchGrade.Strong)
+            .Must(MatchGradeBands.Filterable.Contains)
             .When(q => q.MatchGrades is not null)
             .WithMessage(
                 "Endast Grund/Relaterat/Bra/Stark kan filtreras — Topp kräver CV-styrkt "

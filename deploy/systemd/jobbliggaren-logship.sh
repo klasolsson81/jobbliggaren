@@ -65,6 +65,11 @@ readonly LOCK_FILE=/var/lock/jobbliggaren-logship.lock
 
 readonly AUDIT_LOG=/var/log/audit/audit.log
 
+# The app leg's window floor. Parity with jobbliggaren-logprune.sh, both following ADR 0024 D7
+# policy 1 — this file does not decide the number and must not derive it. Changing it is a D7
+# amendment, not an edit here.
+readonly RETENTION_DAYS=30
+
 # Freshness threshold for --check. The timer runs hourly; 150 min tolerates one entirely missed
 # run plus jitter before the box's alarm surface lights — jobbliggaren-logship-fresh.timer is
 # what lights it. The pair was enabled 2026-08-18, but this threshold is still UNREAD: the probe
@@ -325,13 +330,14 @@ fi
 #
 # WALL-CLOCK, AND THAT IS A REAL WEAKNESS RATHER THAN A CHOICE. Docker exposes no cursor, so this
 # leg cannot have the property `--cursor-file` gives the journal leg. It is anchored to the
-# PREVIOUS RUN'S STAMP rather than to a fixed "1 hour ago", which handles a missed run correctly
-# (a three-hour gap ships three hours). Two residuals stay, named:
+# PREVIOUS RUN'S STAMP, floored at the window (see the anchor below), rather than to a fixed
+# "1 hour ago", which handles a missed run correctly (a three-hour gap ships three hours). Two
+# residuals stay, named:
 #   · entries written between the stamp and the read can be shipped twice;
 #   · a container restarting mid-window can interleave such that ordering is not preserved.
-# Duplicates in a forensic archive are benign; a hole is not, so the anchor is deliberately
-# biased toward re-shipping. If this leg becomes permanent (see above), replacing it with a
-# journald logging driver is the repair — and it is NOT free: ADR 0126 Decision 4 pinned
+# Duplicates in a forensic archive are benign; a hole is not. If this leg becomes permanent (see
+# above), replacing it with a journald logging driver is the repair — and it is NOT free:
+# ADR 0126 Decision 4 pinned
 # `SystemKeepFree=2G` to widen the journal's evidence window, and app volume competes with it.
 #
 # THIS IS THE ONLY LEG CARRYING DATA-SUBJECT PERSONAL DATA. The journal carries the operator's
@@ -359,14 +365,23 @@ readonly -a APP_CONTAINERS=(
 )
 
 if command -v docker >/dev/null 2>&1; then
-  # The anchor. On a first run there is no stamp, so the window opens at the container's start —
-  # `--since 0` is rejected by docker, and an empty `--since` would mean "everything", which on a
-  # long-running container is a large one-off but is the correct first window.
+  # The anchor, floored: max(stamp, now - RETENTION_DAYS), and the floor is in BOTH branches
+  # rather than only the stamp-less one. A stamp older than the window anchors exactly as far
+  # back as no stamp at all — a box that was down, or a leg that withheld its stamp on purpose —
+  # so a floor living in one branch leaves the same read reachable through the other. What this
+  # leg can state is therefore unconditional: it never reads a line older than the window. The
+  # number is ADR 0024 D7 policy 1's, parity with jobbliggaren-logprune.sh (#1561).
+  floor_epoch=$(date -u -d "${RETENTION_DAYS} days ago" +%s) ||
+    die "could not compute the app-leg window floor (needs GNU date)"
+  app_epoch="$floor_epoch"
   if [[ -f "$STAMP_FILE" ]]; then
-    app_since=$(date -u -d "@$(stat -c '%Y' "$STAMP_FILE")" +%Y-%m-%dT%H:%M:%SZ)
-  else
-    app_since=""
+    stamp_epoch=$(stat -c '%Y' "$STAMP_FILE") ||
+      die "could not read the stamp's mtime at ${STAMP_FILE}"
+    if [[ "$stamp_epoch" -gt "$floor_epoch" ]]; then
+      app_epoch="$stamp_epoch"
+    fi
   fi
+  app_since=$(date -u -d "@${app_epoch}" +%Y-%m-%dT%H:%M:%SZ)
 
   app_extract="${WORKDIR}/app-${run_stamp}.log"
   : > "$app_extract"
@@ -379,9 +394,10 @@ if command -v docker >/dev/null 2>&1; then
   # read again by anything. The one thing this leg has no cursor for is exactly what silently
   # goes missing.
   #
-  # The anchor IS the stamp, so the symmetric cure is to withhold the stamp: the next run re-reads
-  # this window, and duplicates in a forensic archive are benign while a hole is not (this file's
-  # own doctrine, stated twice). What has already been promoted stays promoted — the journal
+  # The anchor is the stamp, floored at the window (see the anchor above), so the symmetric cure
+  # is to withhold the stamp: the next run re-reads this window, and duplicates
+  # in a forensic archive are benign while a hole is not (this file's own doctrine, stated twice).
+  # What has already been promoted stays promoted — the journal
   # cursor and the audit offset are separate state and their windows did ship.
   app_rc=0
   for container in "${APP_CONTAINERS[@]}"; do
@@ -390,11 +406,7 @@ if command -v docker >/dev/null 2>&1; then
     docker inspect "$container" >/dev/null 2>&1 || continue
     {
       printf '===== %s =====\n' "$container"
-      if [[ -n "$app_since" ]]; then
-        docker logs --timestamps --since "$app_since" "$container" 2>&1 || app_rc=$?
-      else
-        docker logs --timestamps "$container" 2>&1 || app_rc=$?
-      fi
+      docker logs --timestamps --since "$app_since" "$container" 2>&1 || app_rc=$?
     } >> "$app_extract"
   done
 

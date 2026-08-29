@@ -574,7 +574,7 @@ owns that file's rotation, `jobbliggaren-logship.sh` reads the same stream throu
 its stamp and latching `logship-fresh`. A retention mechanism able to fell the off-box archive's
 freshness signal is the cross-coupling ADR 0128 split #1175 to avoid.
 
-⚠ **AND IT DELIBERATELY CARRIES NO `Condition*`, UNLIKE TWO OF ITS SIBLINGS** (CTO 2026-08-28). Theirs gate on a credential the script needs in order to run at all; this one needs none. Gating the prune on the archive having shipped would make the GDPR position **worse, not better**: with no stamp `jobbliggaren-logship.sh` opens its window at `app_since=""` and reads the whole layer, so the first successful ship would copy data already past the window off the box — into `hostlogs/app/`, whose lifecycle rule is measured **not applied** and whose clock runs on object age rather than event age. That trades local over-retention for off-box over-retention on a fresh clock. It would also leave the age bound inert until #197 lands, with no date.
+⚠ **AND IT DELIBERATELY CARRIES NO `Condition*`, UNLIKE TWO OF ITS SIBLINGS** (CTO 2026-08-28). Theirs gate on a credential the script needs in order to run at all; this one needs none.
 
 **The window is 30 days and is parity, not a new number** — ADR 0024 D7 policy 1 (tied to the
 Art. 17 restore window, D5/D6) and Seq's `retentionpolicy-36`. A separate number here would give one

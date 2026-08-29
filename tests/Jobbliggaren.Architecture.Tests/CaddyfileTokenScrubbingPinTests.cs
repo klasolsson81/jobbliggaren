@@ -20,7 +20,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// <b>Placement is load-bearing, not incidental.</b> A <c>log</c> block in the GLOBAL options
-/// configures the default logger — the one that writes <c>http.log.error</c>. The same twelve lines
+/// configures the default logger — the one that writes <c>http.log.error</c>. The same lines
 /// moved inside the site block configure a separate access logger instead, leaving the default
 /// logger unconfigured and the request line unscrubbed again, while logging every request rather
 /// than only 5xx. Both were raised independently by <c>code-reviewer</c> and

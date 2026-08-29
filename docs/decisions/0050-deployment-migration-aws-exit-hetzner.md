@@ -1512,8 +1512,7 @@ i filterblocket säger det till nästa läsare.
 **Skiftlägeskänsligheten, och pinnen som binder den.** En param stavad `TOKEN` passerade orörd ett
 filter som raderar `token`. Grinden håller alltså bara så länge de tre generatorerna stavar sina
 parametrar som Caddyfilen gör, och ingen av de två filerna kan se den andra.
-`CaddyfileTokenScrubbingPinTests` (i `Jobbliggaren.Architecture.Tests`, hos de fem övriga
-`deploy/`-källtextpinnarna) härleder namnen ur de riktiga `EmailTemplates`-metoderna och kräver att
+`CaddyfileTokenScrubbingPinTests` (i `Jobbliggaren.Architecture.Tests`) härleder namnen ur de riktiga `EmailTemplates`-metoderna och kräver att
 var och en antingen filtreras eller är namngiven som avsiktligt behållen. Den binder dessutom
 **placeringen**: fakta läser enbart det globala options-blocket, och ett femte faktum håller
 `deploy/caddy/` till exakt **ett** `log`-direktiv över Caddyfilen och de importerade

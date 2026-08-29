@@ -143,8 +143,8 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         //
         // No HasMaxLength (they are `text`; varchar(n) would force a table rewrite) and no
         // HasIndex: the seven partial `WHERE … IS NOT NULL` indexes are raw-SQL/migration-owned
-        // and EF's model snapshot is blind to them (the fluent API cannot express a partial
-        // index). Those predicates are NULL-SPARSITY, not lifecycle-derived, and they stay —
+        // and EF's model snapshot is blind to them. Those predicates are NULL-SPARSITY, not
+        // lifecycle-derived, and they stay —
         // #821 Q2 bans lifecycle-derived predicates on job_ads indexes, nothing else.
         builder.Property(j => j.SsykConceptId)
             .HasColumnName("ssyk_concept_id")
@@ -176,7 +176,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         // is nothing in raw_payload to derive from, and deriving durable state from raw_payload is the
         // #841 data-loss trap regardless. `bool` (not `bool?`) → `boolean NOT NULL`; the migration adds it
         // with DEFAULT false so existing rows backfill safe-false (the #552-gated conservative direction).
-        // A partial index `WHERE remote` is raw-SQL/migration-owned (EF cannot express partial indexes). It
+        // A partial index `WHERE remote` is raw-SQL/migration-owned. It
         // is provisioned for PR-B's Distans FACET FILTER (a `WHERE remote = true` predicate over the sparse
         // ~1.4 % of remote ads). PR-A's grade override does NOT use it — it reads `remote` inside a CASE in
         // GradeRankExpression over the whole candidate set, never a `WHERE remote` predicate — so the index
@@ -212,6 +212,26 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
         builder.Property(j => j.OrganizationNumber)
             .HasColumnName("organization_number")
             .ValueGeneratedNever();
+
+        // #1558 follow-up — the PARTIAL index that keeps the enskild-firma token resolution off a
+        // full scan of this table. Declared HERE rather than only in raw migration SQL so the model
+        // snapshot knows it exists: a rebuild of job_ads regenerates it, and a later
+        // HasIndex(j => j.OrganizationNumber) cannot be scaffolded as a silent duplicate. EF models
+        // a partial index fine — HasFilter takes raw SQL and is never parsed; only an expression
+        // KEY (ix_company_register_company_name_lower's lower(company_name)) is outside its reach,
+        // and this index's key is a plain column.
+        //
+        // ⚠ The filter text and ListCompanyWatchesQueryHandler.PnrShapedAdPredicate must stay in
+        // lockstep: PostgreSQL uses a partial index only while it can PROVE the query predicate
+        // implies this one, and that proof is structural. PnrShapedPrefilterQueryPlanTests is the
+        // only thing that sees the break. The migration creates it CONCURRENTLY (job_ads is under
+        // continuous ingest), so the migration's SQL is raw rather than the scaffolded CreateIndex.
+        builder.HasIndex(j => j.OrganizationNumber)
+            .HasDatabaseName("ix_job_ads_org_nr_pnr_shaped")
+            .HasFilter(
+                "organization_number IS NOT NULL "
+                + "AND length(organization_number) = 10 "
+                + "AND substring(organization_number, 3, 1) IN ('0', '1')");
 
         // F6 P4 (ADR 0062) — FTS search_vector. STORED tsvector generated column,
         // härledd från title + description av PostgreSQL ('swedish'-config för

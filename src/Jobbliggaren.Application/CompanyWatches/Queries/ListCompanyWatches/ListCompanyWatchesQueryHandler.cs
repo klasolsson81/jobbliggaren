@@ -110,6 +110,13 @@ public sealed class ListCompanyWatchesQueryHandler(
             // for an archived-only enskild firma; the #447/#452 counts apply their OWN Active gate. HMAC
             // each so an enskild watch token resolves to the public plaintext org.nr. Server-side only —
             // the raw org.nr is never surfaced/logged; the plaintext-key arm covers the backfill window.
+            // ⚠ SHAPE-BOUND to the PARTIAL index ix_job_ads_org_nr_pnr_shaped (#1558 follow-up). The
+            // index carries this exact predicate, and PostgreSQL only uses a partial index when it can
+            // PROVE the query predicate implies the index one. Reordering the conjuncts is safe;
+            // changing a conjunct's SHAPE is not — a LIKE instead of Substring, a Contains over an
+            // array instead of the two disjuncts, or dropping the Length guard as "redundant" all
+            // break the proof SILENTLY: same rows, same tests green, and the scan cost goes back to
+            // growing with job_ads. PnrShapedPrefilterQueryPlanTests is the only thing that sees it.
             var pnrShapedAdOrgNrs = await db.JobAds
                 .AsNoTracking()
                 .Where(j => j.OrganizationNumber != null

@@ -59,10 +59,7 @@ public sealed class MatchGradeBandPinTests
     }
 
     /// <summary>
-    /// The rank projection must be strictly increasing over the band, because
-    /// <see cref="MatchGradeBands.GoodOrBetter"/> is derived with <c>&gt;=</c> on the enum while the
-    /// SQL filter selects on the RANK. Were the two orders to disagree, ">= Good" would mean one set
-    /// in C# and another in Postgres.
+    /// The rank projection must be strictly increasing over the band.
     /// </summary>
     [Fact]
     public void The_rank_projection_agrees_with_the_enum_order()

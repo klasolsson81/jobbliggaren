@@ -50,8 +50,17 @@ interface NoticeSectionProps {
   readonly notices: ReadonlyArray<SectionNoticeData>;
   /** Underrad i tomt-läget — vad sektionen kommer att visa. */
   readonly emptyBody: string;
-  /** Typer som listas i kugghjuls-popovern (inkl. förberedda typer utan notiser). */
-  readonly prefTypes: ReadonlyArray<NoticePrefType>;
+  /**
+   * Typer som listas i kugghjuls-popovern (inkl. förberedda typer utan notiser).
+   *
+   * UTELÄMNAD (eller tom) = ytan har ingen preferens-yta: inget kugghjul, ingen
+   * popover. Gäst-demon (#1572) skickar ingen, för popovern skriver till
+   * localStorage-nyckeln `jp-oversikt-notice-prefs`, vars `"<källa>:<typ>"`-nycklar
+   * DELAS med den inloggade appen i samma webbläsare — till skillnad från notis-id:na
+   * i systerstoren, som är disjunkta. En utloggad besökare ska inte kunna släcka
+   * notiser i ett konto hen ännu inte har (Klas-direktiv 2026-08-29).
+   */
+  readonly prefTypes?: ReadonlyArray<NoticePrefType>;
   /**
    * Stående tillstånd över notislistan (#1548) — render-only. AVSIKTLIGT en
    * ReactNode och inte en datastruktur: sektionen är källagnostisk, och en
@@ -105,6 +114,8 @@ export function NoticeSection({
   const t = useTranslations("oversikt");
   const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
   const { isEnabled, toggle } = useNoticePrefs();
+
+  const hasPrefs = (prefTypes?.length ?? 0) > 0;
 
   const [showRead, setShowRead] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -193,6 +204,7 @@ export function NoticeSection({
           </span>
         )}
         <span style={{ flex: 1 }} />
+        {hasPrefs && (
         <div className="jp-notice-prefs-anchor">
           <button
             ref={gearRef}
@@ -216,7 +228,7 @@ export function NoticeSection({
               <div className="jp-notice-prefs__heading">
                 {t("notices.settingsHeading")}
               </div>
-              {prefTypes.map((pt) => (
+              {(prefTypes ?? []).map((pt) => (
                 <label key={pt.id} className="jp-notice-prefs__row">
                   <input
                     type="checkbox"
@@ -240,6 +252,7 @@ export function NoticeSection({
             </div>
           )}
         </div>
+        )}
       </div>
 
       {summary}

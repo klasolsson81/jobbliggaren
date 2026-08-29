@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 
 /**
  * Delad notis-inställnings-store för Översikt-notiscentret (#726) — vilka
@@ -82,7 +88,25 @@ export interface NoticePrefsStore {
   readonly toggle: (source: string, type: string) => void;
 }
 
+/**
+ * Överskriver modul-storen för det träd den omsluter (CTO-dom 2026-08-29, #1572).
+ *
+ * Injektionssömmen finns för att `oversikt-page.tsx` är en Server Component: prefs-
+ * läsningen är därför tvingad ut i klient-löven (`notice-section`, `mark-all-read-row`),
+ * och en yta utan preferenser kan inte uttryckas där utan att varje löv bär en egen
+ * flagga. En store-variant i stället för en flagga per konsument: `null` = använd
+ * modul-storen (app-ytan, oförändrad).
+ *
+ * Providern bor i `notice-prefs-provider.tsx` — värdet MÅSTE konstrueras på
+ * klientsidan, eftersom ett funktionsbärande `value` inte kan passera RSC-gränsen.
+ */
+export const NoticePrefsContext = createContext<NoticePrefsStore | null>(null);
+
 export function useNoticePrefs(): NoticePrefsStore {
+  // Modul-storen prenumereras ALLTID, även när contexten vinner. Att hoppa över
+  // `useSyncExternalStore` bakom ett villkor vore ett Rules-of-Hooks-brott; priset är
+  // en `Set`-insättning och en `storage`-lyssnare. Optimera inte bort det.
+  const injected = useContext(NoticePrefsContext);
   const raw = useSyncExternalStore(subscribe, readRaw, getServerSnapshot);
   const prefs = useMemo(() => parsePrefs(raw), [raw]);
 
@@ -98,5 +122,5 @@ export function useNoticePrefs(): NoticePrefsStore {
     writePrefs({ ...current, [key]: !enabled });
   }, []);
 
-  return { isEnabled, toggle };
+  return injected ?? { isEnabled, toggle };
 }

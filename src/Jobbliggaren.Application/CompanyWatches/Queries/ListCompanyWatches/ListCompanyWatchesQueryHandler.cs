@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -43,6 +44,38 @@ public sealed class ListCompanyWatchesQueryHandler(
     ICompanyRegisterNameReader registerNames)
     : IQueryHandler<ListCompanyWatchesQuery, IReadOnlyList<CompanyWatchDto>>
 {
+    /// <summary>
+    /// ⚠ SHAPE-BOUND to the PARTIAL index <c>ix_job_ads_org_nr_pnr_shaped</c> (#1558 follow-up), and
+    /// hoisted to a field for exactly one reason: <c>PnrShapedPrefilterQueryPlanTests</c> EXPLAINs
+    /// THIS expression tree rather than a hand-copied SQL string, so the pin cannot drift away from
+    /// the query it claims to guard.
+    ///
+    /// <para>
+    /// A partial index is usable only while PostgreSQL can PROVE the query predicate implies the
+    /// index one. Reordering the conjuncts is safe; changing a conjunct's SHAPE is not. A
+    /// <c>LIKE</c> instead of <c>Substring</c>, a <c>Contains</c> over a collection instead of the
+    /// two disjuncts, or dropping the <c>Length</c> guard as "redundant" each break the proof
+    /// SILENTLY — same rows, every semantic test green, and the scan cost back to growing with
+    /// <c>job_ads</c>. The <c>Contains</c> case is CONDITIONAL rather than automatic: the prover
+    /// expands a <c>ScalarArrayOpExpr</c> only when its array is a Const, so a <c>Contains</c> over
+    /// a value EF parameterises breaks the proof while one it folds to a literal does not.
+    /// Measured 2026-08-29: <c>Contains</c> over a <c>static readonly string[]</c> kept the pin
+    /// green; dropping the <c>Length</c> guard fell to a Seq Scan. Trust the pin, not this list.
+    /// </para>
+    ///
+    /// <para>
+    /// This single-sources the LIST handler's copy ONLY. <c>CompanyWatchScanJob</c> keeps its own
+    /// verbatim copy: its arm sits inside an <c>OR</c>, and sharing it would force the predicate
+    /// combinator declined 2026-07-18 (LinqKit is off the BUILD.md §3.1 allowlist). Two copies, not
+    /// three — the pin now derives from this one instead of being a third.
+    /// </para>
+    /// </summary>
+    internal static readonly Expression<Func<JobAd, bool>> PnrShapedAdPredicate =
+        j => j.OrganizationNumber != null
+             && j.OrganizationNumber!.Length == 10
+             && (j.OrganizationNumber!.Substring(2, 1) == "0"
+                 || j.OrganizationNumber!.Substring(2, 1) == "1");
+
     // #994 — the empty register-name map for the fast path (no unnamed employer to resolve), so the
     // reader is never touched when job_ads already named every followed employer.
     private static readonly IReadOnlyDictionary<string, string> NoRegisterNames =
@@ -110,19 +143,9 @@ public sealed class ListCompanyWatchesQueryHandler(
             // for an archived-only enskild firma; the #447/#452 counts apply their OWN Active gate. HMAC
             // each so an enskild watch token resolves to the public plaintext org.nr. Server-side only —
             // the raw org.nr is never surfaced/logged; the plaintext-key arm covers the backfill window.
-            // ⚠ SHAPE-BOUND to the PARTIAL index ix_job_ads_org_nr_pnr_shaped (#1558 follow-up). The
-            // index carries this exact predicate, and PostgreSQL only uses a partial index when it can
-            // PROVE the query predicate implies the index one. Reordering the conjuncts is safe;
-            // changing a conjunct's SHAPE is not — a LIKE instead of Substring, a Contains over an
-            // array instead of the two disjuncts, or dropping the Length guard as "redundant" all
-            // break the proof SILENTLY: same rows, same tests green, and the scan cost goes back to
-            // growing with job_ads. PnrShapedPrefilterQueryPlanTests is the only thing that sees it.
             var pnrShapedAdOrgNrs = await db.JobAds
                 .AsNoTracking()
-                .Where(j => j.OrganizationNumber != null
-                            && j.OrganizationNumber!.Length == 10
-                            && (j.OrganizationNumber!.Substring(2, 1) == "0"
-                                || j.OrganizationNumber!.Substring(2, 1) == "1"))
+                .Where(PnrShapedAdPredicate)
                 .Select(j => j.OrganizationNumber)
                 .Distinct()
                 .ToListAsync(cancellationToken);

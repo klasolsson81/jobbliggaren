@@ -539,6 +539,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_job_ads");
 
+                    b.HasIndex("OrganizationNumber")
+                        .HasDatabaseName("ix_job_ads_org_nr_pnr_shaped")
+                        .HasFilter("organization_number IS NOT NULL AND length(organization_number) = 10 AND substring(organization_number, 3, 1) IN ('0', '1')");
+
                     b.HasIndex("Status", "PublishedAt", "Id")
                         .IsDescending(false, true, false)
                         .HasDatabaseName("ix_job_ads_status_published_at_id");

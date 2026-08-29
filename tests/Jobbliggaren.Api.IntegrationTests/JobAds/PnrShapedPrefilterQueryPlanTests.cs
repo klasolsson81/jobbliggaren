@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatches;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,15 +33,13 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// </para>
 ///
 /// <para>
-/// <b>What this test does NOT catch, stated plainly.</b> The SQL below is a hand-written THIRD copy of a
-/// predicate that already exists twice in LINQ (<c>ListCompanyWatchesQueryHandler</c> and
-/// <c>CompanyWatchScanJob</c>, duplicated deliberately — single-sourcing was declined 2026-07-18 because
-/// it would force a predicate combinator off the BUILD.md §3.1 allowlist). Only the FIRST of those is
-/// pinned here: the scan job's copy sits inside an OR and cannot use this index at all. If the handler's
-/// copy drifts and this constant does not, the pin keeps passing against a shape production no longer
-/// emits. That is the
-/// <c>explain-search</c> cautionary tale the sibling suite names, and it is inherited here rather than
-/// solved. The migration's docblock carries the same warning from the third side.
+/// <b>The oracle EXPLAINs production's own expression tree, not a copy of it.</b> The SQL comes from
+/// <c>ListCompanyWatchesQueryHandler.PnrShapedAdPredicate</c> through <c>ToQueryString()</c> — the same
+/// field the handler passes to <c>.Where(...)</c>. A hand-written SQL constant would have been a THIRD
+/// copy of the predicate, and a pin that can drift away from the query it guards is the
+/// <c>explain-search</c> cautionary tale the sibling suite names: green forever against a shape
+/// production no longer emits. <c>CompanyWatchScanJob</c> keeps its own verbatim copy and is out of
+/// scope here — its arm sits inside an OR, so its predicate cannot imply this index's predicate at all.
 /// </para>
 ///
 /// <para>
@@ -65,19 +64,19 @@ public class PnrShapedPrefilterQueryPlanTests(JobAdBrowsePlanFixture fixture)
     private const int PnrShapedRows = 20;
 
     /// <summary>
-    /// Truth-synced to the prefilter in <c>ListCompanyWatchesQueryHandler</c> — that handler ONLY. The
-    /// scan job writes the same three conjuncts but as one arm of an OR under a status/recency guard, so
-    /// its predicate does not imply the index predicate and it is out of this pin's scope entirely.
-    /// STATUS-AGNOSTIC on purpose — a followed company keeps its name whether
-    /// or not its ads are Active, so the token must still resolve for an archived-only enskild firma. A
-    /// status predicate here would EXPLAIN a query production does not run.
+    /// The production query, built from the handler's own predicate field. STATUS-AGNOSTIC because the
+    /// handler is: a followed company keeps its name whether or not its ads are Active, so the token
+    /// must still resolve for an archived-only enskild firma. The projection and DISTINCT mirror the
+    /// handler's, because a bare <c>SELECT organization_number</c> would EXPLAIN a cheaper query than
+    /// the one production runs.
     /// </summary>
-    private const string PrefilterSql =
-        "SELECT DISTINCT j.organization_number "
-        + "FROM job_ads AS j "
-        + "WHERE j.organization_number IS NOT NULL "
-        + "AND length(j.organization_number) = 10 "
-        + "AND substring(j.organization_number, 3, 1) IN ('0', '1')";
+    private static string PrefilterSql(AppDbContext db) =>
+        db.JobAds
+            .AsNoTracking()
+            .Where(ListCompanyWatchesQueryHandler.PnrShapedAdPredicate)
+            .Select(j => j.OrganizationNumber)
+            .Distinct()
+            .ToQueryString();
 
     [Fact]
     public async Task PnrShapedPrefilter_IsServedByThePartialIndex_WithThePredicateAbsorbed()
@@ -88,9 +87,11 @@ public class PnrShapedPrefilterQueryPlanTests(JobAdBrowsePlanFixture fixture)
 
         await SeedProductionRegimeAsync(db, ct);
 
-        var plan = await ExplainAsync(db, PrefilterSql, ct);
+        var plan = await ExplainAsync(db, PrefilterSql(db), ct);
 
-        plan.ShouldContain("using " + IndexName, Case.Insensitive, NotUsedMessage(plan));
+        // The index NAME, not "using <name>": a Bitmap Index Scan prints "on <name>" and would
+        // fail an access-method-coupled assertion while the index is in fact being used.
+        plan.ShouldContain(IndexName, Case.Insensitive, NotUsedMessage(plan));
         plan.ShouldNotContain("Filter:", Case.Insensitive, FilterSurvivedMessage(plan));
     }
 
@@ -170,10 +171,10 @@ public class PnrShapedPrefilterQueryPlanTests(JobAdBrowsePlanFixture fixture)
     }
 
     private static string NotUsedMessage(string plan) =>
-        $"The personnummer-shape prefilter no longer reaches {IndexName}. Either the index is gone, or a "
-        + "LINQ copy of the predicate drifted from the shape the index was built for and this constant was "
-        + "not updated with it. The enskild-firma token resolution is scanning job_ads again, so its cost "
-        + "grows with the table rather than with the user's watch set."
+        $"The personnummer-shape prefilter no longer reaches {IndexName}. Either the index is gone, or "
+        + "ListCompanyWatchesQueryHandler.PnrShapedAdPredicate changed shape so PostgreSQL can no longer "
+        + "prove it implies the index predicate. The enskild-firma token resolution is scanning job_ads "
+        + "again, so its cost grows with the table."
         + Environment.NewLine + "Plan:" + Environment.NewLine + plan;
 
     private static string FilterSurvivedMessage(string plan) =>

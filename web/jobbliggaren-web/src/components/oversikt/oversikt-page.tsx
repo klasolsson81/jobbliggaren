@@ -323,7 +323,7 @@ export function OversiktPage({
         b: bold,
       }),
       cta: t("notices.companiesCta"),
-      href: "/foretag",
+      href: "/foretag/bevakade",
       time: t("notices.timeToday"),
     });
   }

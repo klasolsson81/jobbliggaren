@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
+import { swedishDateSlug } from "@/lib/time/swedish-calendar";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
@@ -105,10 +106,10 @@ export function OversiktPage({
   const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
   const today = new Date();
-  // Datum-suffix på notice-IDs så en dismissad notis återkommer när data ändras
-  // (nästa dag = ny render). När unified notification-port finns: byt slug+datum
-  // mot riktigt notificationId per backend-instans.
-  const dateSlug = today.toISOString().slice(0, 10);
+  // Datum-suffix på notice-IDs så en dismissad notis återkommer. När unified
+  // notification-port finns: byt slug+datum mot riktigt notificationId per
+  // backend-instans.
+  const dateSlug = swedishDateSlug(today);
   const kickerName =
     displayName && displayName.trim().length > 0
       ? displayName

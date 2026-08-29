@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { OversiktPage } from "./oversikt-page";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
@@ -473,5 +474,43 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     expect(
       screen.queryByRole("link", { name: /Kör sökning/ }),
     ).toBeNull();
+  });
+});
+
+describe("OversiktPage — notis-id:ts dygnsgräns (#1557)", () => {
+  it("stämplar notis-id med LÄSARENS dygn, inte UTC:s", async () => {
+    // 2026-08-29T22:30:00Z är 2026-08-30 00:30 i Sverige (CEST): läsarens dygn har
+    // vänt, UTC:s inte. Utan den här mätningen är ANROPSSTÄLLET omätt — alla sju
+    // enhetstesterna för `swedishDateSlug` går gröna även om den här filen aldrig
+    // anropar den. Det är inte hypotetiskt: `swedish-calendar.ts` bokför att en
+    // revert till `getUTCMonth()` en gång "survived the entire suite" av exakt det
+    // skälet, därför att anropsstället läste klockan ambient.
+    //
+    // Id:t når inget DOM-attribut (det används som React-`key` och som argument till
+    // `onDismiss`), så avfärdandets rundtur genom localStorage är enda observabeln —
+    // klicket går alltså inte att undvika.
+    //
+    // Fake timers är skopade till det här testet: deadline-testerna i samma fil
+    // bygger sina fixturer ur riktig `Date.now()`, och en filbred frusen klocka
+    // hade tyst ändrat vad de mäter. `shouldAdvanceTime` låter userEvents egna
+    // timers ticka.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.setSystemTime(new Date("2026-08-29T22:30:00Z"));
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      // Allt utom matchningen är errored/noll i defaulterna, så match-notisen är
+      // sidans enda avfärdbara rad och kontrollen är entydig.
+      renderOversikt(true, { matchCount: 42 });
+
+      await user.click(screen.getByRole("button", { name: "Markera som läst" }));
+
+      const stored = JSON.parse(
+        window.localStorage.getItem("jp-oversikt-dismissed-notices") ?? "[]",
+      ) as string[];
+      expect(stored).toContain("n-match-2026-08-30");
+      expect(stored).not.toContain("n-match-2026-08-29");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

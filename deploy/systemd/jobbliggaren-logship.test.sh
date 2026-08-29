@@ -87,6 +87,7 @@ reset_fixture() {
   : >"$TMPROOT/rclone-fail"
   : >"$TMPROOT/journal-fail"
   : >"$TMPROOT/docker-fail"
+  : >"$TMPROOT/docker-argv"
 }
 
 # --- stubs -------------------------------------------------------------------------------------
@@ -154,6 +155,9 @@ case "\$verb" in
   inspect)
     [ -f "$TMPROOT/containers/\$1" ] && exit 0 || exit 1 ;;
   logs)
+    # THE ARGV IS THE MEASUREMENT. Without recording it the suite cannot see --since at all, and
+    # T20's floor would be asserted against a stub that discards exactly the argument under test.
+    printf '%s\n' "\$*" >>"$TMPROOT/docker-argv"
     name=""
     for a in "\$@"; do name="\$a"; done
     [ -f "$TMPROOT/containers/\$name" ] && cat "$TMPROOT/containers/\$name"
@@ -440,6 +444,86 @@ check "T19b the failure names docker rather than passing as an empty window" \
 # all — which would be a different defect (a hole) wearing the same exit code.
 check "T19c what WAS collected still shipped before the run failed" \
   "$(ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
+# --- T20: the app leg's window is FLOORED at the retention window, in both branches --------------
+# #1561. With no stamp the leg used to read the container's entire json-file layer and ship it
+# off-box inside an `age` envelope this box cannot decrypt to erase selectively. The floor is
+# ADR 0024 D7 policy 1's window, parity with jobbliggaren-logprune.sh.
+#
+# WHY THE STAMP IS BACKDATED RATHER THAN HAND-INVENTED (§5 `Tests:`). Production sets the stamp's
+# mtime itself — `touch -d "@${run_epoch}"` at the end of every successful run — so "a stamp whose
+# mtime is older than the window" is a state src/ produces, reached here through the same property:
+# a box that was down, or a leg that withheld its stamp, for longer than the window.
+since_epoch_of_last_logs_call() {
+  local ts
+  ts=$(grep -- '--since' "$TMPROOT/docker-argv" 2>/dev/null | tail -1 \
+       | sed -n 's/.*--since \([^ ]*\).*/\1/p')
+  [ -n "$ts" ] || { echo ""; return; }
+  date -u -d "$ts" +%s 2>/dev/null
+}
+
+# Tolerance, not equality: the script computes its own floor a moment after the case computes the
+# reference. 120 s is far tighter than the 15 days separating T20c's two candidate answers, so it
+# cannot let the wrong branch pass.
+within() {
+  local got="$1" want="$2" slack=120 delta
+  [ -n "$got" ] || return 1
+  delta=$(( got - want )); [ "$delta" -lt 0 ] && delta=$(( -delta ))
+  [ "$delta" -le "$slack" ]
+}
+
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+run_sut >/dev/null 2>&1
+now=$(date -u +%s)
+got=$(since_epoch_of_last_logs_call)
+check "T20  with NO stamp the window opens at the floor, not at the container's start" \
+  "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+
+# The unchanged arm. Without it T20 would also pass against a script that had replaced the stamp
+# anchor with a fixed 30-day window — which would ship 30 days every hour, forever.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+stamp_epoch=$(( $(date -u +%s) - 7200 ))
+printf '20260101T000000Z\n' >"$TMPROOT/state/last-successful-logship"
+touch -d "@${stamp_epoch}" "$TMPROOT/state/last-successful-logship"
+run_sut >/dev/null 2>&1
+got=$(since_epoch_of_last_logs_call)
+check "T20b a stamp INSIDE the window still anchors the window, unchanged" \
+  "$(within "$got" "$stamp_epoch" && echo 0 || echo 1)"
+
+# THE CONTROL THAT CROSSES THE THRESHOLD, and the reason the floor is in both branches rather than
+# only the stamp-less one. Without this case the suite cannot tell a floor from a first-run
+# special case: a script that floored only when the stamp is absent passes T20 and T20b and fails
+# only here.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+stale_epoch=$(( $(date -u +%s) - 45 * 86400 ))
+printf '20260101T000000Z\n' >"$TMPROOT/state/last-successful-logship"
+touch -d "@${stale_epoch}" "$TMPROOT/state/last-successful-logship"
+run_sut >/dev/null 2>&1
+now=$(date -u +%s)
+got=$(since_epoch_of_last_logs_call)
+check "T20c a stamp OLDER than the window is clamped to the floor, not honoured" \
+  "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+# --- T21: the floor's number is PARITY, and a KEEP-IN-SYNC note is not an instrument ------------
+# jobbliggaren-logship.sh declares RETENTION_DAYS as parity with jobbliggaren-logprune.sh, both
+# following ADR 0024 D7 policy 1. That note is prose; this is the instrument — T12's form, for the
+# same reason. If D7 moves and only the prune follows, this leg keeps reading 30 days back and
+# ships past-window lines off-box into objects this box cannot decrypt, with nothing red.
+prune_sut="$script_dir/jobbliggaren-logprune.sh"
+if [ -f "$prune_sut" ]; then
+  a=$(grep -E "^readonly RETENTION_DAYS=" "$SUT" | head -1 | sed 's/.*=//')
+  b=$(grep -E "^readonly RETENTION_DAYS=" "$prune_sut" | head -1 | sed 's/.*=//')
+  check "T21 RETENTION_DAYS matches jobbliggaren-logprune.sh" \
+    "$([ -n "$a" ] && [ "$a" = "$b" ] && echo 0 || echo 1)"
+elif [ -n "${JBL_REQUIRE_SIBLING_SCRIPTS:-}" ]; then
+  # An announced skip is not a measurement — T12's own reason, and it holds here for the same one:
+  # the moment this check matters is the moment the sibling is renamed or moved.
+  check "T21 jobbliggaren-logprune.sh is present (JBL_REQUIRE_SIBLING_SCRIPTS)" 1
+else
+  echo "  SKIP  T21 jobbliggaren-logprune.sh not found"
+fi
 
 # --- T18: --check has a CONSUMER, and that is what makes it a control ----------------------------
 # T1-T4 measure the probe's behaviour and say nothing about whether anything calls it. It was

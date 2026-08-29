@@ -35,6 +35,28 @@ const applicationsNotice: SectionNoticeData = {
   time: "idag",
 };
 
+describe("MarkAllReadRow — hinten följer id:ns rotation (#1572)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("noticeIdsRotate={false} stryker dygnspåståendet och behåller resten", () => {
+    // På en yta vars notis-id ALDRIG roterar — gästdemots statiska literaler — vore
+    // "till i morgon" ett falskt påstående. Bara den satsen ska falla bort;
+    // konsekvensen och kopplingen står kvar.
+    const { container } = render(
+      <MarkAllReadRow notices={[notice({ id: "a" })]} noticeIdsRotate={false} />,
+    );
+
+    const button = screen.getByRole("button", { name: /Markera alla som lästa/ });
+    const hint = container.querySelector(`#${button.getAttribute("aria-describedby")}`);
+
+    expect(hint).not.toBeNull();
+    expect(hint).not.toHaveTextContent(/till i morgon/);
+    expect(hint).toHaveTextContent(/Ingenting tas bort/);
+    // Kvittot gör inget dygnspåstående och delas därför oförändrat mellan ytorna.
+    expect(within(container).getByRole("status")).toBeInTheDocument();
+  });
+});
+
 describe("MarkAllReadRow", () => {
   beforeEach(() => window.localStorage.clear());
 

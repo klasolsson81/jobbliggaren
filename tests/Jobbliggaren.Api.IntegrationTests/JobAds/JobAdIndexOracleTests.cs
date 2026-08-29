@@ -12,9 +12,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// <para>
 /// <b>Why this file exists.</b> Five <c>job_ads</c> indexes embedded <c>deleted_at</c> in their
 /// partial predicate, and EVERY ONE of them was created with raw <c>migrationBuilder.Sql</c> — the
-/// Npgsql fluent API cannot express partial / functional / shadow-property indexes. Consequence:
-/// <b>EF's <c>AppDbContextModelSnapshot</c> does not know these indexes exist.</b> Grep it: the only
-/// <c>job_ads</c> index it carries is the fluent <c>ix_job_ads_external_source_external_id</c>.
+/// Npgsql fluent API cannot express functional / shadow-property indexes. Consequence:
+/// <b>EF's <c>AppDbContextModelSnapshot</c> does not know these indexes exist.</b>
 /// </para>
 /// <para>
 /// PostgreSQL's <c>ALTER TABLE ... DROP COLUMN</c> states plainly: <i>"Indexes and table constraints

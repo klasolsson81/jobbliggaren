@@ -3,7 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
 using Shouldly;
 
-namespace Jobbliggaren.Application.UnitTests.Email;
+namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// #706 / ADR 0050 gate N-1 — binds the edge's query-string scrubbing to the parameter names the

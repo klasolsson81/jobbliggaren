@@ -179,6 +179,8 @@ export function NoticeSection({
     restoreMany(read.map((n) => n.id));
   }, [read, restoreMany]);
 
+  const listRendered = unread.length > 0 || read.length > 0 || !summaryOwns;
+
   return (
     <section className="jp-section" aria-labelledby={titleId}>
       <div className="jp-section__head">
@@ -242,7 +244,7 @@ export function NoticeSection({
 
       {summary}
 
-      {(unread.length > 0 || read.length > 0 || !summaryOwns) && (
+      {listRendered && (
         <ul className="jp-notice-list">
           {unread.length > 0 ? (
             unread.map((n) => (

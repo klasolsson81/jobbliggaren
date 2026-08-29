@@ -105,7 +105,10 @@ describe("CompanyWatchList (#311 #448, ADR 0087 D2/D8(c))", () => {
     ).toBeInTheDocument();
     // Inget "Org.nr"-prefix, och ingen 10-siffrig org.nr/personnummer-sekvens i DOM.
     expect(screen.queryByText(/Org\.nr/)).toBeNull();
-    expect(container.textContent ?? "").not.toMatch(/\d{6}-?\d{4}/);
+    // Mot markup, inte mot text: `textContent` konkatenerar textnoder och ser varken
+    // `href`, `title`, `aria-label` eller `data-*`, så ett org.nr som läcker via ett
+    // attribut hade passerat (security-auditor, PR #1565).
+    expect(container.innerHTML).not.toMatch(/\d{6}-?\d{4}/);
   });
 
   it("companyName null → civic fallback-namn (aldrig tom rubrik)", () => {

@@ -6,6 +6,7 @@ import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
+import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
 import {
   findFollowUpCandidates,
   findLatestOffer,
@@ -19,6 +20,7 @@ import {
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
 import { ApplicationSummary } from "./application-summary";
+import { CompanySummary } from "./company-summary";
 import {
   countByStatus,
   totalCount,
@@ -63,6 +65,12 @@ interface OversiktPageProps {
    * `0` ⇒ notisen utelämnas (honest tomt-läge). Degraderar till `0` vid fetch-fel.
    */
   readonly newFollowedCompanyAdCount: number;
+  /**
+   * #1558 — de bevakade företagen, som Result. Driver Företagsbevaknings stående
+   * tillstånd. Ett Result och inte en array: sammanfattningen måste kunna skilja noll
+   * bevakningar från en hämtning som föll, och bara ett Result bär den skillnaden.
+   */
+  readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
 }
 
 /**
@@ -86,6 +94,7 @@ export function OversiktPage({
   recentSearches,
   matchCount,
   newFollowedCompanyAdCount,
+  companyWatches,
 }: OversiktPageProps) {
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
@@ -116,6 +125,18 @@ export function OversiktPage({
         ? ("empty" as const)
         : undefined;
   const allApps = flattenPipeline(pipelineData);
+
+  // Företagsbevakningens motsvarighet, och den har MEDVETET bara den ena grenen.
+  // `summaryOwns` får sättas när sammanfattningens tillstånd MEDFÖR notisernas: noll
+  // bevakningar medför noll händelser, för ett företag man inte följer kan inte
+  // publicera något nytt. En misslyckad bevakningshämtning medför däremot ingenting om
+  // händelseantalet — till skillnad från ansökningarna läser de två halvorna här skilda
+  // källor (notiserna `newFollowedCompanyAdCount`, sammanfattningen `companyWatches`),
+  // så "unreadable" hade dolt en oläst-räknare som fortfarande är ett mätt påstående.
+  const companySummaryOwns =
+    companyWatches.kind === "ok" && companyWatches.data.length === 0
+      ? ("empty" as const)
+      : undefined;
 
   const followUps = findFollowUpCandidates(allApps, today);
   const recentInterviews = findRecentInterviews(allApps, today);
@@ -383,6 +404,8 @@ export function OversiktPage({
           notices={companyNotices}
           emptyBody={t("notices.emptyCompanies")}
           prefTypes={prefTypesFor("companies")}
+          summary={<CompanySummary watches={companyWatches} />}
+          summaryOwns={companySummaryOwns}
         />
       </div>
     </>

@@ -7,6 +7,10 @@ import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type {
+  CompanyWatch,
+  ListCompanyWatchesResult,
+} from "@/lib/dto/company-follows";
+import type {
   ListSavedJobAdsResult,
   SavedJobAdDto,
 } from "@/lib/dto/saved-job-ads";
@@ -50,6 +54,7 @@ interface RenderOpts {
   readonly recentSearches?: ApiResult<ListRecentSearchesResult>;
   readonly savedJobAds?: ApiResult<ListSavedJobAdsResult>;
   readonly newFollowedCompanyAdCount?: number;
+  readonly companyWatches?: ApiResult<ListCompanyWatchesResult>;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
   readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
@@ -61,6 +66,7 @@ function renderOversikt(
     recentSearches = errored,
     savedJobAds = errored,
     newFollowedCompanyAdCount = 0,
+    companyWatches = errored,
     profileOverrides = {},
     pipeline = errored,
   }: RenderOpts = {},
@@ -79,6 +85,7 @@ function renderOversikt(
       recentSearches={recentSearches}
       matchCount={matchCount}
       newFollowedCompanyAdCount={newFollowedCompanyAdCount}
+      companyWatches={companyWatches}
     />,
   );
 }
@@ -103,6 +110,20 @@ function makeRecent(
     currentCount: 0,
     newCount: 0,
     lastViewedAt: "2026-06-27T10:00:00Z",
+    ...overrides,
+  };
+}
+
+function makeWatch(overrides: Partial<CompanyWatch> = {}): CompanyWatch {
+  return {
+    id: "44444444-4444-4444-4444-444444444444",
+    organizationNumber: "5566524301",
+    isProtectedIdentity: false,
+    companyName: "Friday Väst AB",
+    followedAt: "2026-07-01T10:00:00Z",
+    activeAdCount: 136,
+    matchingAdCount: 9,
+    filter: null,
     ...overrides,
   };
 }
@@ -364,6 +385,83 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
     expect(
       within(section).getByText(/Vi säger till när något händer/),
+    ).toBeInTheDocument();
+  });
+
+  // #1558, samma kompositionsdefekt som #1548: company-summary.test.tsx målar
+  // komponenten isolerat och förblir grön om `summary`-propen tas bort här. Dessa
+  // asserterar inkopplingen, inne i rätt sektion.
+  // Egen brytpunkt mot testet nedan: HÄR finns det en riktig notis (delta 5), så det här
+  // mäter att sammanfattningen står TILLSAMMANS med en notisrad. Testet nedan mäter det
+  // motsatta fallet (delta 0). Utan den skillnaden vore det ena en delmängd av det andra
+  // och kunde inte falla av eget skäl (code-reviewer Minor 2).
+  it("sammanfattningen står tillsammans med en notisrad, inte i stället för den", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      newFollowedCompanyAdCount: 5,
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+    });
+
+    const section = screen.getByRole("region", { name: "Företagsbevakning" });
+    expect(
+      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
+    ).toBeInTheDocument();
+    expect(within(section).getByText(/publicerat/)).toBeInTheDocument();
+    expect(within(section).getByText(/1 oläst/)).toBeInTheDocument();
+  });
+
+  // Defekten issuet stänger, mätt på sidan: watermarken är avancerad (delta 0) men
+  // kontot bevakar ett företag med 136 aktiva annonser. Före #1558 var sektionens enda
+  // innehåll tomt-läget.
+  it("delta 0 men levande bevakning: sektionen påstår inte längre att inget finns", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      newFollowedCompanyAdCount: 0,
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+    });
+
+    const section = screen.getByRole("region", { name: "Företagsbevakning" });
+    expect(
+      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).getByRole("link", { name: "Visa bevakade företag" }),
+    ).toBeInTheDocument();
+  });
+
+  it("noll bevakningar: sammanfattningen äger tomt-läget, notislistans utelämnas", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      companyWatches: { kind: "ok", data: [] },
+    });
+
+    const section = screen.getByRole("region", { name: "Företagsbevakning" });
+    expect(
+      within(section).getByText("Du bevakar inga företag än"),
+    ).toBeInTheDocument();
+    expect(
+      within(section).queryByText(/Händelser från dina bevakade företag/),
+    ).toBeNull();
+    // Källan lästes och höll inget, så noll olästa är ett mätt påstående.
+    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+  });
+
+  // Skillnaden mot ansökningssektionen, och den är avsiktlig: notiserna och
+  // sammanfattningen läser SKILDA källor här, så en fallen bevakningshämtning får inte
+  // dölja oläst-räknaren — den räknar notiser vars egen källa lästes.
+  it("oläsbara bevakningar: oläst-räknaren står kvar och notislistan behåller sitt tomt-läge", () => {
+    renderOversikt(true, {
+      matchCount: null,
+      companyWatches: { kind: "error" },
+    });
+
+    const section = screen.getByRole("region", { name: "Företagsbevakning" });
+    expect(
+      within(section).getByText(/Bevakade företag kunde inte hämtas/),
+    ).toBeInTheDocument();
+    expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+    expect(
+      within(section).getByText(/Händelser från dina bevakade företag/),
     ).toBeInTheDocument();
   });
 

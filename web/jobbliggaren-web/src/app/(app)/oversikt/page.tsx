@@ -5,7 +5,10 @@ import { getPipeline } from "@/lib/api/applications";
 import { getSavedJobAds } from "@/lib/api/saved-job-ads";
 import { getRecentSearches } from "@/lib/api/recent-searches";
 import { getMatchCount } from "@/lib/api/match-count";
-import { getNewFollowedCompanyAdCount } from "@/lib/api/company-follows";
+import {
+  getCompanyWatches,
+  getNewFollowedCompanyAdCount,
+} from "@/lib/api/company-follows";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
@@ -60,6 +63,7 @@ export default async function OversiktRoute({
     recentSearches,
     matchCount,
     newFollowedCompanyAdCount,
+    companyWatches,
   ] = await Promise.all([
     getMyProfile(),
     getPipeline(),
@@ -83,6 +87,15 @@ export default async function OversiktRoute({
     // Degraderar CIVILT och OBEROENDE precis som `getMatchCount`: ett fel får
     // aldrig reject:a Promise.all eller redirecta — det löses till 0 nedan.
     getNewFollowedCompanyAdCount(),
+    // #1558 — the followed-company list, for Foretagsbevakning's standing summary. The section's
+    // only other source is the watermark delta above, which the visit to /foretag/bevakade
+    // advances itself, so after that visit it is 0 and the section rendered as empty for an
+    // account that follows companies with active ads. The Result travels WHOLE to the component
+    // (never degraded to a count like the row above): only a Result can tell "you follow nothing"
+    // from "the list could not be read", and the summary must say different things in those two
+    // cases. A CTO decision (2026-08-29): this is initial data for a section, so it is fetched
+    // here in the fan-out, never lazily client-side.
+    getCompanyWatches(),
   ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
@@ -154,6 +167,7 @@ export default async function OversiktRoute({
         recentSearches={recentSearches}
         matchCount={matchCountValue}
         newFollowedCompanyAdCount={newFollowedCompanyAdCountValue}
+        companyWatches={companyWatches}
       />
       {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (
         <MatchSetupLauncher

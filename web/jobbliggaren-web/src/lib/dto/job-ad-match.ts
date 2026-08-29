@@ -93,6 +93,31 @@ export function isListMatchGrade(value: string): value is ListMatchGrade {
 }
 
 /**
+ * The grade set a watched company's "X matchande annonser" count is computed at (#452):
+ * `MatchingGrades = [Good, Strong]` in
+ * `src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs:56-57`,
+ * with an identical private copy in `LookupCompanyQueryHandler.cs:41-44`.
+ *
+ * Backend expresses it as a RANK THRESHOLD, not as a hand-picked pair: the shared
+ * `GradeRankExpression` ranks Basic=1, Related=2, Good=3, Strong=4, and the count keeps
+ * rank >= Good. `Top` is absent because the Fast band cannot produce it, and the list
+ * validator rejects it outright (`ListJobAdsQueryValidator.cs:169-175`). Filtering `/jobb`
+ * on this exact subset therefore reproduces the count: a specific subset WINS over
+ * `onlyMatched` in `ListJobAdsQueryHandler.cs:122-125`.
+ *
+ * ⚠ The pin in `job-ad-match.test.ts` is ONE-DIRECTIONAL, and nothing here widens it. It ties this
+ * constant to `LIST_MATCH_GRADES`, so the frontend cannot silently disagree with its own
+ * ordinality. It says NOTHING about the backend: change `MatchingGrades` to `[Strong]` and
+ * every frontend gate stays green while the link quietly stops expressing the count. There
+ * is no generated client and no cross-language contract file — only the wire enum name
+ * crosses. Closing that loop needs a backend test, not a frontend one.
+ */
+export const WATCH_MATCHING_GRADES = [
+  "Good",
+  "Strong",
+] as const satisfies ReadonlyArray<ListMatchGrade>;
+
+/**
  * Ordinalt delverdikt per matchnings-dimension. `NotAssessed` = CV-sidan saknas
  * (inget CV) → kunde inte bedömas. `Vacuous` (ADR 0076 amendment 2026-06-20) =
  * ad-sidan saknar termer av den här sorten MEN CV finns ("annonsen anger inga") —

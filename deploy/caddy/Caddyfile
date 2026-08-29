@@ -35,52 +35,44 @@
 
 	# GATE N-1 (ADR 0050 Amendment 2026-08-11, #706): a mailed secret must never reach a
 	# stored log post. THIS CONFIGURES THE DEFAULT LOGGER, AND THE DEFAULT LOGGER IS THE
-	# ONE THAT LEAKS. There is no `log` directive on the site below, so no access log
-	# exists — but the default logger runs unconfigured and writes `http.log.error` on
-	# every 5xx carrying the whole request line, and the reverse_proxy comment below
-	# documents a boot-race 5xx at each hourly reconcile. The path is exercised, not
-	# theoretical.
+	# ONE THAT LEAKS. No `log` directive exists on the site below, so there is no access
+	# log — but the default logger runs unconfigured and writes `http.log.error` with the
+	# whole request line on every 5xx. The two-arm measurement behind this block, and why
+	# `uid` is deleted rather than kept, both live in ADR 0050 `Amendment 2026-08-29`.
 	#
-	# Measured 2026-08-29 on caddy 2.11.4 — the version the Dockerfile pins and compiles —
-	# running THIS file against an absent upstream, in two arms differing only by this
-	# block. Both arms produced an identical count of `http.log.error` entries, so nothing
-	# is suppressed; occurrences of the token and of the address fell from that same count
-	# to zero, and the scrubbed entry reads uri=/bekrafta-epost?uid=U1 with no Referer at
-	# all. Entries carrying no request object came out byte-identical between the arms, so
-	# the filter is inert rather than lossy where the fields are absent.
+	# THE QUERY KEYS ARE CASE-SENSITIVE — a probe param spelled TOKEN survived untouched.
+	# The gate therefore holds only while the mail templates keep spelling their
+	# parameters the way this file spells them, and neither file can see the other.
+	# CaddyfileTokenScrubbingPinTests binds the two, and owns the parameter inventory.
 	#
-	# THE KEYS ARE CASE-SENSITIVE — a probe param spelled TOKEN survived untouched — and
-	# the three generators emit lower case only: EmailTemplates renders /bekrafta-epost
-	# with uid+email+token, /bekrafta-konto and /aterstall-losenord with uid+token.
-	# CaddyfileTokenScrubbingPinTests binds this list to what those three methods actually
-	# render, so a renamed or added parameter fails a test instead of silently escaping
-	# the filter. uid stays: it is the only handle left for correlating a failed
-	# confirmation with an account, and it carries no secret.
-	#
-	# REFERER IS THE HALF NO ROUTE-SCOPED FILTER CAN REACH. A same-origin navigation from
-	# a token-bearing page sends the full URL in `Referer` on requests to OTHER routes —
-	# measured in the same run, a request for /_next/static/chunk.js carried the entire
-	# /bekrafta-epost URL. Caddy's default credential redaction covers Cookie, Set-Cookie,
-	# Authorization and Proxy-Authorization and nothing else: in one and the same entry
-	# `Authorization` came out REDACTED with `Referer` in cleartext beside it. Hence a
-	# global drop rather than a per-route filter.
+	# THE WHOLE HEADER MAP GOES, NOT A LIST OF NAMES. `Referer` carries the token-bearing
+	# URL onto requests for OTHER routes, so no route-scoped filter reaches it — and
+	# Caddy's own credential redaction is a deny-list that was measured failing right
+	# beside it: `Authorization` came out REDACTED with `Referer` in cleartext in one and
+	# the same entry. A deny-list cannot satisfy a requirement written as a result, which
+	# is the case-sensitivity failure above one field over.
 	#
 	# `wrap json` names the encoding this container already produces — no tty is set, so
 	# json is the effective default — rather than changing what an operator reads.
 	#
 	# A `log` DIRECTIVE ADDED TO THE SITE BELOW WOULD BE A SEPARATE LOGGER that inherits
-	# none of this and logs EVERY request rather than only 5xx. Give it its own
-	# `format filter` carrying these same two fields, or this gate reopens wider than it
-	# has ever been.
+	# none of this and logs EVERY request rather than only 5xx. The pin holds this file
+	# and `challenge/*.caddy` to exactly one `log` directive, inside these global options.
 	log {
 		format filter {
 			wrap json
 			fields {
 				request>uri query {
+					# NOT `hash`. Measured 2026-08-29 on caddy 2.11.4, the version the
+					# Dockerfile pins and compiles: `hash <key>` here emits e3b0c442 for
+					# every input — the first bytes of SHA-256 of the EMPTY string — so it
+					# pseudonymises nothing and correlates nothing, while reading as
+					# though it did both.
 					delete token
 					delete email
+					delete uid
 				}
-				request>headers>Referer delete
+				request>headers delete
 			}
 		}
 	}

@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
 /// #706 / ADR 0050 gate N-1 — binds the edge's query-string scrubbing to the parameter names the
-/// mail templates actually render.
+/// mail templates actually render, and to the block the scrubbing has to live in.
 ///
 /// <para>
 /// <b>The mechanism this exists for is case-sensitive and silent.</b> Caddy's <c>query</c> log
@@ -15,18 +15,36 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <c>?TOKEN=...</c> passed a filter configured to delete <c>token</c> and was logged verbatim. So
 /// the scrubbing in <c>deploy/caddy/Caddyfile</c> holds only while the three link generators keep
 /// spelling their parameters the way that file spells them, and nothing in either file can see the
-/// other. Rename <c>token</c> to <c>t</c>, add an <c>otp</c> parameter, or upper-case a key, and the
-/// edge keeps reporting success while a single-use account-takeover primitive resumes reaching
-/// <c>http.log.error</c>.
+/// other.
+/// </para>
+///
+/// <para>
+/// <b>Placement is load-bearing, not incidental.</b> A <c>log</c> block in the GLOBAL options
+/// configures the default logger — the one that writes <c>http.log.error</c>. The same twelve lines
+/// moved inside the site block configure a separate access logger instead, leaving the default
+/// logger unconfigured and the request line unscrubbed again, while logging every request rather
+/// than only 5xx. Both were raised independently by <c>code-reviewer</c> and
+/// <c>security-auditor</c> against an earlier, position-blind version of this class. Every fact
+/// below therefore reads <see cref="GlobalOptionsLines"/> rather than the whole file, and
+/// <see cref="TheCaddyfile_CarriesExactlyOneLogDirective"/> closes the other half: a SECOND
+/// <c>log</c> block would not be seen by a parser that stops at the first. Measured 2026-08-29:
+/// moving the block into the site block fails four of these five facts, and a second <c>log</c>
+/// directive fails the fifth.
 /// </para>
 ///
 /// <para>
 /// <b>What is asserted is the pair, never one side.</b> A test that only read the Caddyfile would
 /// pass against a generator that had moved on; one that only read the generators would pass against
-/// an edge that scrubs nothing. The facts below therefore derive the parameter names from the real
-/// <see cref="EmailTemplates"/> methods and require every one of them to be either scrubbed or
+/// an edge that scrubs nothing. The facts below derive the parameter names from the real
+/// <see cref="EmailTemplates"/> methods and require every one of them to be either filtered or
 /// named as deliberately kept — so a NEW parameter fails until someone decides which it is, rather
 /// than defaulting to exposed.
+/// </para>
+///
+/// <para>
+/// <b>The mechanism is deliberately not pinned.</b> G2 says "mekanismen är i övrigt fri; kravet är
+/// resultatet" and names <c>delete</c>, <c>replace</c> and <c>hash</c>. Accepting all three keeps
+/// this class measuring the requirement rather than one legal spelling of it.
 /// </para>
 ///
 /// <para>
@@ -34,13 +52,6 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// but nothing asserted here rests on their values: the parameter names are literals in the
 /// generators and are identical for every input. The state under assertion is one <c>src/</c>
 /// produces on every send.
-/// </para>
-///
-/// <para>
-/// <b>Referer is pinned in the same place because it carries the same secret.</b> The header
-/// transports a token-bearing URL onto requests for OTHER routes, so it is dropped globally rather
-/// than filtered per route; the Caddyfile's own comment owns that reasoning. Here it is only held
-/// present, so removing the line fails a test rather than a review.
 /// </para>
 /// </summary>
 public class CaddyfileTokenScrubbingPinTests
@@ -57,19 +68,23 @@ public class CaddyfileTokenScrubbingPinTests
     private static readonly string[] ScrubbedParameters = ["token", "email"];
 
     /// <summary>
-    /// Deliberately logged. <c>uid</c> is the only handle left for correlating a failed
-    /// confirmation with an account, and it carries no secret.
+    /// Parameters allowed to reach a log post unfiltered. Deliberately EMPTY: every parameter the
+    /// three links render is filtered at the edge. A future parameter goes here only with a written
+    /// reason, and adding one is the decision this array exists to make visible.
     /// </summary>
-    private static readonly string[] KeptParameters = ["uid"];
+    private static readonly string[] KeptParameters = [];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",
         RegexOptions.Compiled);
 
+    /// <summary>A line opening a <c>log</c> directive, at any indentation.</summary>
+    private static readonly Regex LogDirective = new(@"^log\b", RegexOptions.Compiled);
+
     /// <summary>
-    /// Every query parameter the three token-bearing links render, as the generators spell it.
+    /// The three token-bearing links, as the real generators render them into the plain-text part.
     /// </summary>
-    private static List<string> RenderedParameterNames()
+    private static List<string> RenderedLinks()
     {
         var bodies = new[]
         {
@@ -88,44 +103,52 @@ public class CaddyfileTokenScrubbingPinTests
         return bodies
             .Select(body => TokenLink.Match(body))
             .Where(match => match.Success)
-            .Select(match => match.Value[(match.Value.IndexOf('?') + 1)..])
+            .Select(match => match.Value)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every query parameter those links render, as the generators spell it.
+    /// </summary>
+    private static List<string> RenderedParameterNames()
+        => RenderedLinks()
+            .Select(link => link[(link.IndexOf('?') + 1)..])
             .SelectMany(query => query.Split('&'))
             .Select(pair => pair.Split('=')[0])
             .Distinct(StringComparer.Ordinal)
             .ToList();
-    }
 
     [Fact]
-    public void EveryRenderedQueryParameter_IsEitherScrubbedAtTheEdge_OrNamedAsDeliberatelyKept()
+    public void EveryRenderedQueryParameter_IsEitherFilteredAtTheEdge_OrNamedAsDeliberatelyKept()
     {
-        var scrubbed = CaddyfileScrubbedParameters();
+        var filtered = CaddyfileFilteredParameters();
 
         foreach (var name in RenderedParameterNames())
         {
-            var handled = scrubbed.Contains(name, StringComparer.Ordinal)
+            var handled = filtered.Contains(name, StringComparer.Ordinal)
                 || KeptParameters.Contains(name, StringComparer.Ordinal);
 
             handled.ShouldBeTrue(
                 $"the mail templates render a query parameter '{name}' that "
-                + "deploy/caddy/Caddyfile neither scrubs nor is documented here as kept. "
+                + "deploy/caddy/Caddyfile neither filters nor is documented here as kept. "
                 + "Decide which it is: add it to the Caddyfile's query filter, or to "
                 + $"{nameof(KeptParameters)} with the reason. ADR 0050 gate N-1 / #706.");
         }
     }
 
     [Fact]
-    public void TheCaddyfile_ScrubsEveryParameterTheGateNames_SpelledAsTheGeneratorsSpellIt()
+    public void TheCaddyfile_FiltersEveryParameterTheGateNames_SpelledAsTheGeneratorsSpellIt()
     {
-        var scrubbed = CaddyfileScrubbedParameters();
+        var filtered = CaddyfileFilteredParameters();
         var rendered = RenderedParameterNames();
 
         foreach (var name in ScrubbedParameters)
         {
             // Byte-exact, because Caddy's query filter is. A Caddyfile saying `delete Token`
             // against a generator rendering `token` scrubs nothing and reports nothing.
-            scrubbed.ShouldContain(
+            filtered.ShouldContain(
                 name,
-                $"deploy/caddy/Caddyfile does not delete '{name}' from the logged query string.");
+                $"deploy/caddy/Caddyfile does not filter '{name}' out of the logged query string.");
 
             // And the gate's name must be one something actually renders — otherwise the filter
             // protects a parameter that no longer exists while the real one flows past it.
@@ -137,39 +160,58 @@ public class CaddyfileTokenScrubbingPinTests
     }
 
     [Fact]
-    public void TheCaddyfile_DropsTheRefererHeader()
+    public void TheCaddyfile_DropsTheWholeRequestHeaderMap()
     {
-        // A same-origin navigation from a token-bearing page puts the whole URL on requests for
-        // other routes, where no route-scoped filter reaches it.
-        CaddyfileLines()
+        // Not a list of header names. `Referer` carries the token-bearing URL onto requests for
+        // OTHER routes, and Caddy's own credential redaction — itself a deny-list — was measured
+        // leaving it in cleartext beside a REDACTED `Authorization`. A deny-list cannot satisfy a
+        // requirement written as a result.
+        GlobalOptionsLines()
             .Select(line => line.Trim())
-            .ShouldContain("request>headers>Referer delete");
+            .ShouldContain("request>headers delete");
     }
 
     [Fact]
-    public void TheOracle_ActuallyReadsThreeLinksAndANonEmptyFilter()
+    public void TheCaddyfile_CarriesExactlyOneLogDirective()
     {
-        // Guards the shape the facts above assume. Without this, a regex that stopped matching, or
-        // a Caddyfile whose filter block was renamed, would make both of them pass over empty
-        // sets — green because nothing was found rather than because everything was right.
-        var rendered = RenderedParameterNames();
+        // A second `log` block beside the global one is valid Caddy and would be invisible to a
+        // parser that stops at the first. The challenge snippets are imported INTO the site block,
+        // so they can carry one too.
+        var everyLine = CaddyfileLines()
+            .Concat(ChallengeFiles().SelectMany(File.ReadAllLines));
 
-        rendered.ShouldContain("uid");
-        rendered.Count.ShouldBeGreaterThanOrEqualTo(3);
-        CaddyfileScrubbedParameters().ShouldNotBeEmpty();
+        everyLine.Count(line => LogDirective.IsMatch(line.Trim())).ShouldBe(
+            1,
+            "deploy/caddy/ must carry exactly one `log` directive. A second one is a separate "
+            + "logger that inherits none of the global block's filters, and gate N-1 reopens.");
+    }
+
+    [Fact]
+    public void TheOracle_ReadsAllThreeLinks_AndANonEmptyFilterInsideGlobalOptions()
+    {
+        // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, and
+        // /bekrafta-epost alone renders the whole union {uid, email, token} — so counting NAMES
+        // cannot tell three matched links from one. Count the links.
+        RenderedLinks().Count.ShouldBe(
+            3,
+            "a token-bearing link stopped matching TokenLink, so the pin silently reads fewer "
+            + "generators than it claims.");
+
+        CaddyfileFilteredParameters().ShouldNotBeEmpty();
+        GlobalOptionsLines().Length.ShouldBeLessThan(CaddyfileLines().Length);
     }
 
     /// <summary>
-    /// The parameter names deleted inside the Caddyfile's <c>request&gt;uri query</c> filter, read
-    /// as source text. Line-based on purpose: the file is the artefact that ships, and a parser
-    /// clever enough to normalise it could hide the very spelling this class exists to compare.
+    /// The parameter names the Caddyfile's <c>request&gt;uri query</c> filter acts on, read as
+    /// source text. Line-based on purpose: the file is the artefact that ships, and a parser clever
+    /// enough to normalise it could hide the very spelling this class exists to compare.
     /// </summary>
-    private static List<string> CaddyfileScrubbedParameters()
+    private static List<string> CaddyfileFilteredParameters()
     {
         var names = new List<string>();
         var inQueryFilter = false;
 
-        foreach (var raw in CaddyfileLines())
+        foreach (var raw in GlobalOptionsLines())
         {
             var line = raw.Trim();
 
@@ -182,16 +224,33 @@ public class CaddyfileTokenScrubbingPinTests
             if (!inQueryFilter) continue;
             if (line == "}") break;
 
-            if (line.StartsWith("delete ", StringComparison.Ordinal))
+            // G2 leaves the mechanism free and names all three of these.
+            foreach (var action in new[] { "delete ", "replace ", "hash " })
             {
-                names.Add(line["delete ".Length..].Trim());
+                if (!line.StartsWith(action, StringComparison.Ordinal)) continue;
+
+                names.Add(line[action.Length..].Split(' ')[0].Trim());
+                break;
             }
         }
 
         return names;
     }
 
+    /// <summary>
+    /// The Caddyfile's global options block — everything before the site block opens. A filter
+    /// found below that line configures a different logger and does not close gate N-1.
+    /// </summary>
+    private static string[] GlobalOptionsLines()
+        => CaddyfileLines()
+            .TakeWhile(line => !line.TrimStart().StartsWith("{$SITE_HOST}", StringComparison.Ordinal))
+            .ToArray();
+
     private static string[] CaddyfileLines() => File.ReadAllLines(CaddyfilePath());
+
+    private static string[] ChallengeFiles()
+        => Directory.GetFiles(
+            Path.Combine(Path.GetDirectoryName(CaddyfilePath())!, "challenge"), "*.caddy");
 
     /// <summary>
     /// Walks up from the test binary until the repo root is found, so the test project's own depth

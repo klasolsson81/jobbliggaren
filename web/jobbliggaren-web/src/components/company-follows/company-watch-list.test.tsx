@@ -458,3 +458,187 @@ describe("CompanyWatchList — 'Filtrera'-knappen öppnar filter-dialogen", () =
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
+
+// Brand-group watch: the counts are summed over member org.nrs the wire never carries, so the row
+// arrives with organizationNumber null and the protected flag FALSE. That combination is what makes
+// the `organizationNumber &&` half of the gate falsifiable — soleProp cannot test it, because its
+// number is null too. #1566 owns giving the client a way to tell the two apart.
+const brandGroupWatch: CompanyWatch = {
+  id: "33333333-3333-3333-3333-333333333333",
+  organizationNumber: null,
+  isProtectedIdentity: false,
+  companyName: "Volvokoncernen",
+  followedAt: "2026-06-12T08:00:00+00:00",
+  activeAdCount: 7,
+  matchingAdCount: 4,
+  filter: null,
+};
+
+// Contract-impossible today (the backend nulls the number whenever it sets the flag), and that is
+// exactly why it is here: without it the `!isProtectedIdentity` half of the gate is never exercised
+// and cannot fail for its own reason. Defence in depth, tested as such.
+const flaggedButNumbered: CompanyWatch = {
+  ...legalEntity,
+  id: "44444444-4444-4444-4444-444444444444",
+  isProtectedIdentity: true,
+};
+
+describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", () => {
+  const ALL_ADS_HREF = "/jobb?employer=5592804784";
+  const MATCHING_ADS_HREF = "/jobb?employer=5592804784&matchGrades=Good.Strong";
+
+  it("legal entity i matchande-läge → två länkar med exakta mål", () => {
+    renderList([legalEntity]);
+
+    expect(
+      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+    ).toHaveAttribute("href", ALL_ADS_HREF);
+    expect(
+      screen.getByRole("link", { name: "Visa matchande annonser från Skatteverket" })
+    ).toHaveAttribute("href", MATCHING_ADS_HREF);
+  });
+
+  it("matchande-länken bär grad-delmängden, aldrig baraMatchade", () => {
+    // baraMatchade=on maps to onlyMatched, which the backend expands to the whole filterable band
+    // [Basic, Related, Good, Strong] — wider than the [Good, Strong] the row's 2 is counted at. The
+    // deleted originator (company-lookup.tsx, aca39970) linked exactly that way.
+    const { container } = renderList([legalEntity]);
+    expect(container.innerHTML).not.toContain("baraMatchade");
+    expect(container.innerHTML).not.toContain("matchning=off");
+  });
+
+  it("skyddad identitet → ingen annons-länk, och inget tiosiffrigt tal i markup", () => {
+    // innerHTML, not textContent: a leaking href is invisible to a text-level assertion.
+    const { container } = renderList([soleProp]);
+
+    expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
+    expect(container.innerHTML).not.toMatch(/\d{10}/);
+    expect(container.innerHTML).not.toContain("employer=");
+  });
+
+  it("varumärkesgrupp (org.nr null, flaggan false) → ingen annons-länk", () => {
+    const { container } = renderList([brandGroupWatch]);
+
+    expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("employer=");
+    // The counts themselves are public and keep rendering.
+    expect(screen.getByText(/7 aktiva annonser just nu/)).toBeInTheDocument();
+    expect(screen.getByText(/4 matchande annonser just nu/)).toBeInTheDocument();
+  });
+
+  it("org.nr närvarande MEN flaggan satt → ingen annons-länk", () => {
+    const { container } = renderList([flaggedButNumbered]);
+
+    expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("employer=");
+  });
+
+  it("matchingAdCount === null → nudge, ingen matchande-länk, men aktiv-länken finns", () => {
+    // Measured, so the claim matches what the test does: the `matchingAdCount !== null` half of the
+    // href gate is TypeScript narrowing, not a guard — the JSX branch above it already decides, and
+    // mutating that half away leaves this suite green. What this case does kill: gating the ACTIVE
+    // link on the matching count, and hoisting the matching link out of the mode branch (both
+    // mutation-verified). The stake is real — matchGrades reaches the API ungated
+    // (jobb-results.tsx), the backend gates on a stated occupation, so for exactly this cohort the
+    // grade filter degrades to the UNFILTERED employer list and a link labelled "matchande" would
+    // deliver everything.
+    renderList([{ ...legalEntity, matchingAdCount: null }]);
+
+    expect(
+      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+    ).toHaveAttribute("href", ALL_ADS_HREF);
+    expect(screen.getByText(/Ställ in matchning/)).toBeInTheDocument();
+  });
+
+  it("läge 'Alla annonser' → matchande-länken försvinner med sin räknare, aktiv-länken står kvar", async () => {
+    renderList([legalEntity]);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
+    expect(
+      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+    ).toHaveAttribute("href", ALL_ADS_HREF);
+
+    await user.click(screen.getByRole("radio", { name: "Matchande" }));
+    expect(
+      screen.getByRole("link", { name: "Visa matchande annonser från Skatteverket" })
+    ).toHaveAttribute("href", MATCHING_ADS_HREF);
+  });
+
+  it("noll i ett antal → ingen länk för det antalet, men talet skrivs ut", () => {
+    // 0 is a negation ("Inga aktiva annonser just nu"), so an offer to open the list contradicts
+    // the sentence next to it. The two gates are independent — this row proves it.
+    renderList([{ ...legalEntity, activeAdCount: 0, matchingAdCount: 0 }]);
+
+    expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
+    expect(screen.getByText(/Inga aktiva annonser just nu/)).toBeInTheDocument();
+    expect(screen.getByText(/Inga matchande annonser just nu/)).toBeInTheDocument();
+  });
+
+  it("en räknare kan vara noll medan den andra länkar", () => {
+    renderList([{ ...legalEntity, matchingAdCount: 0 }]);
+
+    expect(
+      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+    ).toHaveAttribute("href", ALL_ADS_HREF);
+    expect(
+      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+    ).toBeNull();
+  });
+
+  it("länkarnas tillgängliga namn bär företaget och innehåller den synliga etiketten (WCAG 2.5.3)", () => {
+    renderList([legalEntity]);
+
+    for (const name of [
+      "Visa annonserna från Skatteverket",
+      "Visa matchande annonser från Skatteverket",
+    ]) {
+      const link = screen.getByRole("link", { name });
+      expect(name).toContain(link.textContent?.trim());
+      expect(name).toContain("Skatteverket");
+    }
+  });
+
+  it("maskad rad med annonser → en synlig rad förklarar varför länken saknas", () => {
+    // The sr-only protectedIdentityHint explains the missing NUMBER, not the missing LINK, and only
+    // to a screen reader. Without this line a sighted user cannot tell "unavailable" from "broken".
+    renderList([soleProp]);
+
+    expect(
+      screen.getByText(
+        "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("maskad rad UTAN annonser tiger — förklaringen gäller en länk som annars hade funnits", () => {
+    renderList([{ ...soleProp, activeAdCount: 0, matchingAdCount: 0 }]);
+
+    expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
+  });
+
+  it("legal entity får ingen sådan förklaring — den har ju länkarna", () => {
+    renderList([legalEntity]);
+
+    expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
+  });
+
+  it("talet självt är inte länken", () => {
+    // globals.css:2663-2669 — "talet är information, inte interaktion". The obvious-but-wrong
+    // implementation wraps the count in the Link; nothing else in this suite forbids it.
+    renderList([legalEntity]);
+
+    expect(
+      screen.getByText(/3 aktiva annonser just nu/).closest("a")
+    ).toBeNull();
+    expect(
+      screen.getByText(/2 matchande annonser just nu/).closest("a")
+    ).toBeNull();
+  });
+});

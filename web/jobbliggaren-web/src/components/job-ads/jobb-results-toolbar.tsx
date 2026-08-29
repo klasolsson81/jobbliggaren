@@ -366,7 +366,7 @@ export function JobbResultsToolbar({
   //
   // ⚠ Detta är andra omskrivningen. Båda de tidigare skälen var falska, mätta 2026-08-19.
   // Det första sa att employer är "runtime-view-state satt av företagskortets länk" — den
-  // länken finns inte sedan `aca39970` (#997/#1030). Det andra sa att en committad sökning
+  // länken fanns inte mellan `aca39970` (#997/#1030) och #1547. Det andra sa att en committad sökning
   // inte ska auto-capturas — men `commit()`:s egen docblock i den här filen säger
   // motsatsen som ett Klas-val (E2j, 2026-06-12): ta bort chip / Rensa / byt sort ÄR
   // avsiktliga sökningar som fångas, och `removeChip` anropar `commit`. För varje chip utom

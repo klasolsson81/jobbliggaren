@@ -111,10 +111,12 @@ export interface JobbUrlState {
   // toolbaren.
   //
   // ⚠ Här stod "FE emitterar ALDRIG en pnr-shaped employer-param (länk-producenten gatar
-  // på IsProtectedIdentity — ADR 0087 D8(c))". Grinden vaktar en tom mängd: producenten
-  // var `company-lookup.tsx`, raderad i `aca39970` (#997/#1030). Mätt 2026-08-19. Det som
-  // faktiskt skyddar är persistens-grinden i `RecentJobSearchCaptureBehavior` (A2); se
-  // `parseEmployerParam` nedan för hela mätningen.
+  // på IsProtectedIdentity — ADR 0087 D8(c))". Grinden vaktade en tom mängd mellan
+  // `aca39970` (`company-lookup.tsx` raderad, #997/#1030) och #1547, som gör
+  // `company-jobs-href.ts` till producent igen. Grinden ligger hos ANROPAREN
+  // (`company-watch-row.tsx`), inte i byggaren, och vaktar en verklig mängd.
+  // Persistens-grinden i `RecentJobSearchCaptureBehavior` (A2) är fortfarande det andra
+  // ledet; se `parseEmployerParam` nedan för hela mätningen.
   employer?: string;
   sortBy: JobAdSortBy;
   pageSize?: string;
@@ -329,8 +331,10 @@ export function withCommitFlag(href: string): string {
  * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
  * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)
  * och backend-maskningen". Den producenten var `company-lookup.tsx:204/:210`, raderad i
- * `aca39970` (#997/#1030) — grinden vaktar en tom mängd. Det finns fortfarande noll
- * ORIGINATORER av ett employer-värde, men `buildJobbHref`, `buildPageHref` och toolbarens
+ * `aca39970` (#997/#1030) — grinden vaktade en tom mängd fram till #1547. Producenten är
+ * nu `buildCompanyJobsHref` (`company-jobs-href.ts`), anropad från bevakningsraden, som
+ * gatar på `!isProtectedIdentity && organizationNumber`. Utöver den round-trippar
+ * `buildJobbHref`, `buildPageHref` och toolbarens
  * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje
  * toolbar-handling som bär commit-intent. Vilka de är avgörs av `commit()` mot `navigate()` i
  * `jobb-results-toolbar.tsx`, inte av en lista här — i skrivande stund navigerar arbetsgivarens

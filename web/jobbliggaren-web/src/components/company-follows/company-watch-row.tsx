@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { Filter, ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
+import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
@@ -106,6 +107,27 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
     });
   }
 
+  // #1547 — the app's only originator of an `?employer=` value. BOTH halves of the gate are
+  // load-bearing. `organizationNumber === null` covers two different rows that the wire cannot
+  // tell apart: a masked sole-prop, and a BRAND_GROUP watch whose counts are summed over member
+  // org.nrs the DTO never carries (`companyWatchSchema` has neither `targetType` nor
+  // `brandGroupId` — #1566 owns that). `!isProtectedIdentity` is the second half: it is the gate
+  // `search-params.ts` describes as guarding an empty set, and it guards a real set again here.
+  const linkableOrgNr =
+    !item.isProtectedIdentity && item.organizationNumber ? item.organizationNumber : null;
+
+  // A count of 0 is a negation, not a number ("Inga aktiva annonser just nu"), so it gets no link:
+  // an offer to open an empty list beside a sentence saying the list is empty contradicts itself.
+  // The two gates are independent — 136 active with 0 matching is an ordinary row.
+  const activeAdsHref =
+    linkableOrgNr !== null && item.activeAdCount > 0
+      ? buildCompanyJobsHref(linkableOrgNr, "all")
+      : null;
+  const matchingAdsHref =
+    linkableOrgNr !== null && item.matchingAdCount !== null && item.matchingAdCount > 0
+      ? buildCompanyJobsHref(linkableOrgNr, "matching")
+      : null;
+
   return (
     <li>
       {/* `jp-job--static`: raden bär ett chassi som delas med /jobb, där kortet ÄR klickbart. Här är det
@@ -133,6 +155,18 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
               // tabular-nums for stable digits (#448), NEVER a score/percentage/meter (ADR 0071).
               <p className="jp-matchline tabular-nums">
                 {t("matchingAds", { count: item.matchingAdCount })}
+                {matchingAdsHref && (
+                  <>
+                    {" "}
+                    <Link
+                      href={matchingAdsHref}
+                      className="jp-nudgelink"
+                      aria-label={t("viewMatchingAdsAria", { company: displayName })}
+                    >
+                      {t("viewMatchingAds")}
+                    </Link>
+                  </>
+                )}
               </p>
             ))}
           <div className="jp-job__meta">
@@ -158,11 +192,44 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                 <span>{t("orgNr", { orgNr: formatOrgNr(item.organizationNumber) })}</span>
               )
             )}
+            {/* The link lives INSIDE the count's own element, never as a sibling in the meta
+                strip: `.jp-job__meta` wraps with a 6px/16px gap, so a sibling would break away
+                from the number it refers to and read as a third, unrelated fact. */}
             <span className="tabular-nums">
               {t("activeAds", { count: item.activeAdCount })}
+              {activeAdsHref && (
+                <>
+                  {" "}
+                  <Link
+                    href={activeAdsHref}
+                    className="jp-nudgelink"
+                    aria-label={t("viewAdsAria", { company: displayName })}
+                  >
+                    {t("viewAds")}
+                  </Link>
+                </>
+              )}
             </span>
             {followedSince && <span>{t("followedSince", { date: followedSince })}</span>}
           </div>
+          {/* #1547 — the masked row is the ONE row where the org.nr route is closed, and silence
+              here is worse than a sentence: its neighbour has both a number and a link, this row has
+              neither, and the only existing explanation (`protectedIdentityHint`) is sr-only — so a
+              sighted user is told less than a screen-reader user. Shown only where a link would
+              otherwise have rendered, so a 0-ad masked row stays quiet.
+              ⚠ The copy deliberately offers NO next step. "Search the company name under Jobb" was
+              the obvious remedy and it is measured FALSE: `search_vector` is title + description only
+              (20260521090234_F6P4FtsSearchVector.cs:23) and `SuggestionKind` has no `Employer`, so
+              that path returns zero hits — issue #1546. If #1546 lands a name-reachable employer
+              route, this sentence goes stale and nothing detects that automatically; the closing PR
+              should read it. */}
+          {item.isProtectedIdentity &&
+            (item.activeAdCount > 0 || (item.matchingAdCount ?? 0) > 0) && (
+              <p className="jp-transparency-note jp-transparency-note--compact mt-2">
+                <ShieldAlert size={14} aria-hidden="true" />
+                <span>{t("adsNotLinkable")}</span>
+              </p>
+            )}
           {/* BC-9′ — the resting-state disclosure. Visible without opening anything, because it is the
               only surface that can tell the user their notifications are narrowed when no email is sent
               at all. The InfoDialog is a SIBLING of the text (never a child of a control) and explains

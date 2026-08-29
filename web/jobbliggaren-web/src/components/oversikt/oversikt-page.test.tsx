@@ -260,21 +260,56 @@ describe("OversiktPage — deadline-notis (riktig expiresAt, #726)", () => {
   });
 });
 
-describe("OversiktPage — företagsbevaknings-notis (#726)", () => {
-  it("newFollowedCompanyAdCount > 0 → notis med CTA till /foretag", () => {
+describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)", () => {
+  it("newFollowedCompanyAdCount > 0 → notis med CTA till /foretag/bevakade", () => {
+    // #1547: the CTA used to read "Visa annonser" and land on a company list, and /foretag is not
+    // even a 3xx -- its redirect() runs after the layout streams, so it serves a 200 meta-refresh
+    // document. There is no /jobb axis for "new since your last visit" (none of the seventeen is
+    // date-bearing), so the honest destination is the watch list, named as such.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
-    const cta = screen.getByRole("link", { name: /Visa annonser/ });
-    expect(cta).toHaveAttribute("href", "/foretag");
+    const cta = screen.getByRole("link", { name: /Visa bevakade företag/ });
+    expect(cta).toHaveAttribute("href", "/foretag/bevakade");
     const row = cta.closest("li");
     expect(row).toHaveTextContent("5");
     expect(row).toHaveTextContent(/nya annonser/);
   });
 
+  it("CTA:n lovar inte längre annonser — det ordet tillhör match-notisen, som håller det", () => {
+    // Guards the rename in the direction that matters: "Visa annonser" is still the matchCta in the
+    // same namespace, and that one DOES link to /jobb. Reverting the copy alone would put an ad
+    // promise back on a company-list link, and the href assertion above would not see it.
+    renderOversikt(false, { newFollowedCompanyAdCount: 5 });
+
+    const row = screen
+      .getByRole("link", { name: /Visa bevakade företag/ })
+      .closest("li")!;
+    expect(within(row).queryByRole("link", { name: /Visa annonser/ })).toBeNull();
+  });
+
+  it("notisen bär inget org.nr och ingen employer-axel", () => {
+    // Scoped to the row, not the page: the notice carries a scalar count only (ADR 0087 D8), and
+    // #1547 is exactly the issue that would tempt threading an org.nr in here so it COULD link to
+    // ads. The counts that may carry one live on /foretag/bevakade, never on Oversikt.
+    renderOversikt(false, { newFollowedCompanyAdCount: 5 });
+
+    const row = screen
+      .getByRole("link", { name: /Visa bevakade företag/ })
+      .closest("li")!;
+    expect(row.innerHTML).not.toContain("employer=");
+    expect(row.innerHTML).not.toMatch(/\d{10}/);
+  });
+
   it("newFollowedCompanyAdCount === 0 → ingen företagsbevaknings-notis", () => {
+    // Anchored on the notice's OWN sentence, not on its CTA copy: a CTA-name query goes green the
+    // moment the copy is renamed again, whether or not the notice renders, and this case is about
+    // the notice existing at all.
     renderOversikt(false, { newFollowedCompanyAdCount: 0 });
     expect(
-      screen.queryByRole("link", { name: /Visa annonser/ }),
+      screen.queryByText(/Dina bevakade företag har publicerat/),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: /Visa bevakade företag/ }),
     ).toBeNull();
   });
 });

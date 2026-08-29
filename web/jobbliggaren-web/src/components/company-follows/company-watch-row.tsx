@@ -3,8 +3,12 @@
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { Filter, ShieldAlert, Trash2 } from "lucide-react";
+import { Filter, Info, ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
+import {
+  buildCompanyJobsHref,
+  isLinkableOrgNr,
+} from "@/lib/job-ads/company-jobs-href";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
@@ -106,6 +110,39 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
     });
   }
 
+  // #1547 — the app's only originator of an `?employer=` value.
+  //
+  // `!isProtectedIdentity` is the gate `search-params.ts` describes as guarding an empty set, and
+  // it guards a real set again here. `organizationNumber === null` covers two rows the FE SCHEMA
+  // cannot tell apart — a masked sole-prop, and a BRAND_GROUP watch whose counts are summed over
+  // member org.nrs. The backend DTO does carry `targetType` and `brandGroupId`; it is
+  // `companyWatchSchema` that stops short, which is what #1566 owns.
+  //
+  // `isLinkableOrgNr` is shared with the href builder so this gate and that one read ONE value.
+  // Without it the two could disagree — the row asking "is the field non-null", the builder
+  // asking "is it ten digits" — and a row could carry a count with neither a link nor the note
+  // that explains its absence. The state is contract-impossible (`OrganizationNumber.Create`
+  // enforces the shape; the one other on-wire form is an HMAC token the handler masks), which is
+  // why closing it by construction costs nothing rather than why it can be skipped.
+  const linkableOrgNr =
+    !item.isProtectedIdentity &&
+    item.organizationNumber &&
+    isLinkableOrgNr(item.organizationNumber)
+      ? item.organizationNumber
+      : null;
+
+  // A count of 0 is a negation, not a number ("Inga aktiva annonser just nu"), so it gets no link:
+  // an offer to open an empty list beside a sentence saying the list is empty contradicts itself.
+  // The two gates are independent — 136 active with 0 matching is an ordinary row.
+  const activeAdsHref =
+    linkableOrgNr !== null && item.activeAdCount > 0
+      ? buildCompanyJobsHref(linkableOrgNr, "all")
+      : null;
+  const matchingAdsHref =
+    linkableOrgNr !== null && item.matchingAdCount !== null && item.matchingAdCount > 0
+      ? buildCompanyJobsHref(linkableOrgNr, "matching")
+      : null;
+
   return (
     <li>
       {/* `jp-job--static`: raden bär ett chassi som delas med /jobb, där kortet ÄR klickbart. Här är det
@@ -133,13 +170,33 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
               // tabular-nums for stable digits (#448), NEVER a score/percentage/meter (ADR 0071).
               <p className="jp-matchline tabular-nums">
                 {t("matchingAds", { count: item.matchingAdCount })}
+                {matchingAdsHref && (
+                  <>
+                    {" "}
+                    <Link
+                      href={matchingAdsHref}
+                      className="jp-nudgelink"
+                      aria-label={t("viewMatchingAdsAria", { company: displayName })}
+                    >
+                      {t("viewMatchingAds")}
+                    </Link>
+                  </>
+                )}
               </p>
             ))}
           <div className="jp-job__meta">
             {item.isProtectedIdentity ? (
               <>
-                <span aria-describedby={hintId}>
-                  <ShieldAlert size={14} aria-hidden="true" /> {t("protectedIdentity")}
+                {/* Preflight's `svg { display: block }` put the glyph on a line of its own and
+                    pushed the label down. The parent `.jp-job__meta` is a flex row, so this child
+                    blockifies and computes to `flex` rather than `inline-flex` — either resolves
+                    it; `gap-1` carries the spacing the JSX space no longer can. */}
+                <span
+                  className="inline-flex items-center gap-1"
+                  aria-describedby={hintId}
+                >
+                  <ShieldAlert size={14} aria-hidden="true" />
+                  {t("protectedIdentity")}
                 </span>
                 {/* The reason the org.nr is hidden, reachable by screen readers
                     (a non-focusable `title` is not) — keeps the meta visually compact. */}
@@ -158,11 +215,52 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                 <span>{t("orgNr", { orgNr: formatOrgNr(item.organizationNumber) })}</span>
               )
             )}
+            {/* The link lives INSIDE the count's own element, never as a sibling in the meta
+                strip: `.jp-job__meta` wraps with a 6px/16px gap, so a sibling would break away
+                from the number it refers to and read as a third, unrelated fact. */}
             <span className="tabular-nums">
               {t("activeAds", { count: item.activeAdCount })}
+              {activeAdsHref && (
+                <>
+                  {" "}
+                  <Link
+                    href={activeAdsHref}
+                    className="jp-nudgelink"
+                    aria-label={t("viewAdsAria", { company: displayName })}
+                  >
+                    {t("viewAds")}
+                  </Link>
+                </>
+              )}
             </span>
             {followedSince && <span>{t("followedSince", { date: followedSince })}</span>}
           </div>
+          {/* #1547 — EVERY row without a linkable org.nr says so, not just the masked one. Before
+              this delta all four rows were equally silent; the links create the asymmetry, and a
+              missing affordance with no visible reason reads as a defect rather than a rule. The
+              two branches are one treatment: the masked row can name its cause (the badge above
+              already shows it), the brand-group row cannot — the FE schema cannot even tell that
+              is what it is — so its sentence claims nothing about why.
+              Shown only where a link would otherwise have rendered, so a 0-ad row stays quiet.
+              ⚠ The masked copy deliberately offers NO next step. "Search the company name under
+              Jobb" was the obvious remedy and it is measured FALSE: `search_vector` is title +
+              description only (20260521090234_F6P4FtsSearchVector.cs:23) and `SuggestionKind` has
+              no `Employer`, so that path returns zero hits — issue #1546. If #1546 lands a
+              name-reachable employer route, that sentence goes stale and nothing detects it
+              automatically; #1546 carries a comment naming this key for its closing PR. */}
+          {linkableOrgNr === null &&
+            (item.activeAdCount > 0 || (item.matchingAdCount ?? 0) > 0) && (
+              <p className="jp-transparency-note jp-transparency-note--compact mt-2">
+                {item.isProtectedIdentity ? (
+                  <ShieldAlert size={14} aria-hidden="true" />
+                ) : (
+                  <Info size={14} aria-hidden="true" />
+                )}
+                <span>
+                  {item.isProtectedIdentity ? t("adsNotLinkable") : t("adsNotLinkableUnknown")}
+                </span>
+              </p>
+            )}
           {/* BC-9′ — the resting-state disclosure. Visible without opening anything, because it is the
               only surface that can tell the user their notifications are narrowed when no email is sent
               at all. The InfoDialog is a SIBLING of the text (never a child of a control) and explains

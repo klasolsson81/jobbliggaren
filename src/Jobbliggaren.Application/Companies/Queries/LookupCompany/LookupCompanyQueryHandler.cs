@@ -38,11 +38,6 @@ public sealed class LookupCompanyQueryHandler(
     IPerUserJobAdSearchQuery perUserSearch)
     : IQueryHandler<LookupCompanyQuery, Result<CompanyLookupDto>>
 {
-    // #452 parity — "matchande annonser" = grade >= Good in the Fast band (Fast==Full oracle for a
-    // >= Good COUNT, ADR 0087 D5-tillägg; see ListCompanyWatchesQueryHandler.MatchingGrades).
-    private static readonly IReadOnlyList<MatchGrade> MatchingGrades =
-        [MatchGrade.Good, MatchGrade.Strong];
-
     public async ValueTask<Result<CompanyLookupDto>> Handle(
         LookupCompanyQuery query, CancellationToken cancellationToken)
     {
@@ -93,7 +88,7 @@ public sealed class LookupCompanyQueryHandler(
         if (profile.Fast.SsykGroupConceptIds.Count > 0)
         {
             var matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
-                [orgNr.Value], profile, MatchingGrades, cancellationToken);
+                [orgNr.Value], profile, MatchGradeBands.GoodOrBetter, cancellationToken);
             matchingAdCount = matchingByOrgNr.GetValueOrDefault(orgNr.Value);
         }
 

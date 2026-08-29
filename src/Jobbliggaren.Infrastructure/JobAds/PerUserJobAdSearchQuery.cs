@@ -370,7 +370,7 @@ internal sealed class PerUserJobAdSearchQuery(
             fast.PreferredEmploymentTypeConceptIds,
             ortStated,
             employmentStated);
-        var goodOrBetterRanks = new[] { GradeToRank(MatchGrade.Good), GradeToRank(MatchGrade.Strong) };
+        var goodOrBetterRanks = MatchGradeBands.GoodOrBetter.Select(GradeToRank).ToArray();
 
         // ONE round-trip via parameterized `= ANY` (the canonical strongly-typed-id-set pattern
         // from MatchScorer.ScoreBatchAsync — Contains() over JobAdId does not translate;
@@ -604,7 +604,11 @@ internal sealed class PerUserJobAdSearchQuery(
     // väljer grad-WHERE fel rank-hink). Top är inte Fast-beräkningsbar (G3-OPT-A) och avvisas av
     // ListJobAdsQueryValidator wire-side; skulle den ändå nå hit är det ett programmeringsfel →
     // fail-fast (parity ApplySort).
-    private static int GradeToRank(MatchGrade grade) => grade switch
+    // Test-only seam (parity OccupationCodeDeriver): widened from private so
+    // MatchGradeBandPinTests can assert that this switch's domain and
+    // MatchGradeBands.Filterable are the same set -- the one identity that crosses the layer
+    // boundary, and until now held by a prose comment alone.
+    internal static int GradeToRank(MatchGrade grade) => grade switch
     {
         MatchGrade.Basic => 1,
         MatchGrade.Related => 2,

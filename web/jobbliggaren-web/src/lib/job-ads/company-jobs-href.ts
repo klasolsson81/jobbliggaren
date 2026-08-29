@@ -5,6 +5,20 @@ import { DEFAULT_SORT_BY, buildJobbHref } from "./search-params";
 export type CompanyJobsScope = "all" | "matching";
 
 /**
+ * Whether an org.nr can be carried by the `?employer=` axis at all — the same shape
+ * `parseEmployerParam` requires on the read path, which drops a mismatch SILENTLY.
+ *
+ * Exported so the row's link gate and this builder read ONE value. Before it, the row asked
+ * "is the field non-null" while the builder asked "is it ten digits", and a row could have
+ * ended up with a count, no link and no explanation. That state is contract-impossible today
+ * (`OrganizationNumber.Create` enforces the same shape, and the one other on-wire form is an
+ * HMAC token the handler masks to null) — which is exactly why closing it costs nothing.
+ */
+export function isLinkableOrgNr(organizationNumber: string): boolean {
+  return /^\d{10}$/.test(organizationNumber);
+}
+
+/**
  * Builds the `/jobb` href that shows one watched company's ads (#1547). Sibling of
  * {@link buildRecentSearchHref} — one source of truth for "a watched company → /jobb URL",
  * so the two links a watch row renders cannot drift from each other or from the counts
@@ -37,12 +51,11 @@ export function buildCompanyJobsHref(
   organizationNumber: string,
   scope: CompanyJobsScope
 ): string | null {
-  // Writer/reader symmetry: the same 10-digit floor `parseEmployerParam` applies on the read path,
-  // where a mismatch is dropped SILENTLY — so a formatted number would otherwise produce a link
-  // that looks right and shows every ad. Deliberately NOT a personnummer discriminator: that would
-  // give `IsPersonnummerShaped` a second home, which the house rejected once (#844). This is the
-  // URL contract's own shape and duplicates no knowledge.
-  if (!/^\d{10}$/.test(organizationNumber)) return null;
+  // The producer keeps its own floor even though the only caller now shares the predicate: a
+  // second line of defence at the seam that emits the value, which is where `security-auditor`
+  // asked for it. Deliberately NOT a personnummer discriminator — that would give
+  // `IsPersonnummerShaped` a second home, which the house rejected once (#844).
+  if (!isLinkableOrgNr(organizationNumber)) return null;
 
   return buildJobbHref({
     q: "",

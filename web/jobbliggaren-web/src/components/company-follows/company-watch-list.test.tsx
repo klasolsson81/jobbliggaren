@@ -643,6 +643,24 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     expect(screen.queryByText(/kan inte visa/)).toBeNull();
   });
 
+  it("org.nr som inte är tio siffror → ingen länk OCH förklaringen, inte tystnad", () => {
+    // Contract-impossible today: `OrganizationNumber.Create` enforces the same shape, and the one
+    // other on-wire form is an HMAC token the handler masks to null -- so every non-null value on
+    // the wire is exactly ten digits. Declared as such, and the assertion is confined to the read
+    // side degrading safely (§5 `Tests:`). It exists because the row gate and the href builder used
+    // to answer this question separately: the row asked "non-null", the builder "ten digits", and
+    // between them sat a row with a count, no link and no note. They read one predicate now, and
+    // this is the case that fails if they are pulled apart again.
+    renderList([{ ...legalEntity, organizationNumber: "559280-4784" }]);
+
+    expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
+    expect(
+      screen.getByText(
+        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
+      )
+    ).toBeInTheDocument();
+  });
+
   it("legal entity får ingen sådan förklaring — den har ju länkarna", () => {
     renderList([legalEntity]);
 

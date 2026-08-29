@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { Filter, Info, ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
-import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
+import {
+  buildCompanyJobsHref,
+  isLinkableOrgNr,
+} from "@/lib/job-ads/company-jobs-href";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
@@ -115,12 +118,18 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
   // member org.nrs. The backend DTO does carry `targetType` and `brandGroupId`; it is
   // `companyWatchSchema` that stops short, which is what #1566 owns.
   //
-  // The `item.organizationNumber &&` conjunct is NOT what stops a brand-group link — mutation-
-  // verified, the suite stays green without it, because `linkableOrgNr !== null` below already
-  // does. What it guards is `organizationNumber: ""`: falsy, `!== null`, admitted by
-  // `z.string().nullable()`, contract-impossible. Defence in depth, and untested as such.
+  // `isLinkableOrgNr` is shared with the href builder so this gate and that one read ONE value.
+  // Without it the two could disagree — the row asking "is the field non-null", the builder
+  // asking "is it ten digits" — and a row could carry a count with neither a link nor the note
+  // that explains its absence. The state is contract-impossible (`OrganizationNumber.Create`
+  // enforces the shape; the one other on-wire form is an HMAC token the handler masks), which is
+  // why closing it by construction costs nothing rather than why it can be skipped.
   const linkableOrgNr =
-    !item.isProtectedIdentity && item.organizationNumber ? item.organizationNumber : null;
+    !item.isProtectedIdentity &&
+    item.organizationNumber &&
+    isLinkableOrgNr(item.organizationNumber)
+      ? item.organizationNumber
+      : null;
 
   // A count of 0 is a negation, not a number ("Inga aktiva annonser just nu"), so it gets no link:
   // an offer to open an empty list beside a sentence saying the list is empty contradicts itself.
@@ -178,8 +187,16 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           <div className="jp-job__meta">
             {item.isProtectedIdentity ? (
               <>
-                <span aria-describedby={hintId}>
-                  <ShieldAlert size={14} aria-hidden="true" /> {t("protectedIdentity")}
+                {/* Preflight's `svg { display: block }` put the glyph on a line of its own and
+                    pushed the label down. The parent `.jp-job__meta` is a flex row, so this child
+                    blockifies and computes to `flex` rather than `inline-flex` — either resolves
+                    it; `gap-1` carries the spacing the JSX space no longer can. */}
+                <span
+                  className="inline-flex items-center gap-1"
+                  aria-describedby={hintId}
+                >
+                  <ShieldAlert size={14} aria-hidden="true" />
+                  {t("protectedIdentity")}
                 </span>
                 {/* The reason the org.nr is hidden, reachable by screen readers
                     (a non-focusable `title` is not) — keeps the meta visually compact. */}

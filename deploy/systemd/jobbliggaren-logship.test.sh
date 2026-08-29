@@ -150,8 +150,20 @@ STUB
   # rewriting the stub.
   cat >"$BIN/docker" <<STUB
 #!/usr/bin/env bash
+# AN UNREACHABLE DAEMON FAILS EVERY SUBCOMMAND, inspect INCLUDED — and it fails inspect in exactly
+# the shape a missing container does. That indistinguishability is the defect T22 pins. Same env
+# var and same message as jobbliggaren-logprune.test.sh's arm, because it is the same daemon.
+if [ -n "\${DOCKER_STUB_DAEMON_DOWN:-}" ]; then
+  echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock." >&2
+  exit 1
+fi
 verb="\$1"; shift
 case "\$verb" in
+  version)
+    # ANSWERED EXPLICITLY rather than left to the catch-all exit 0 at the bottom. The daemon probe
+    # passes either way, so this changes no verdict — it stops the arm T22 turns on from resting
+    # on a fallthrough that a later edit could remove without meaning to.
+    echo "28.5.1" ;;
   inspect)
     [ -f "$TMPROOT/containers/\$1" ] && exit 0 || exit 1 ;;
   logs)
@@ -506,6 +518,84 @@ now=$(date -u +%s)
 got=$(since_epoch_of_last_logs_call)
 check "T20c a stamp OLDER than the window is clamped to the floor, not honoured" \
   "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+
+# --- T22: an UNREACHABLE daemon is not a quiet skip ----------------------------------------------
+# #1316, the third door into the loss `429c1e69` repaired. `docker inspect` exits 1 against an
+# unreachable daemon in exactly the shape it uses for a container that does not exist, and the loop
+# reads that shape as a normal skip. Every container is skipped, the extract stays empty, `app_rc`
+# is never set — and the stamp is written, anchoring the next run past a window nothing read.
+#
+# Three assertions, T19's shape. The third is not decoration: "container missing" is the diagnosis
+# an operator would otherwise act on, and it sends them to the wrong box entirely.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+out=$(DOCKER_STUB_DAEMON_DOWN=1 run_sut); rc=$?
+check "T22 an unreachable docker daemon fails the run and writes NO stamp" \
+  "$([ "$rc" -ne 0 ] && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
+check "T22b the failure names the DAEMON rather than a missing container" \
+  "$(echo "$out" | grep -q 'daemon is not reachable' && echo 0 || echo 1)"
+
+# CROSSES THE CONTROL: without this, T22 also passes against a script that died on every failed
+# `inspect` — which would break the case the loop's `|| continue` exists for. Three of the four
+# containers are absent here by construction, and the run must still succeed and still ship what
+# the fourth gave.
+#
+# IT ALSO CARRIES T22's POSITIVE COUNTERFACTUAL. T22 asserts that a dead daemon writes NO stamp,
+# and without the `-f` below that half would pass just as well against a script that never wrote
+# the stamp at all — the inert-guarantee shape T6/T7 exist to cross on the journal cursor, which
+# T17's and T19's `[ ! -f ]` halves inherit from here.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+out=$(run_sut); rc=$?
+check "T22c a MISSING container is a skip, the stamp IS written, and the run succeeds" \
+  "$([ "$rc" -eq 0 ] && [ -f "$TMPROOT/state/last-successful-logship" ] \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
+# --- T22d: the probe's PLACEMENT, which is what keeps `Requires=` refused --------------------------
+# The ordering was asserted in three places — the unit header, the probe's own comment and the PR
+# body — and instrumented in none. It is the whole reason a dead daemon may fail this run at all:
+# the two legs carrying the forensic obligation have already had their turn by then, so failing
+# here does not suppress the archive of the journal that would explain the docker fault.
+#
+# Measured before this case existed: hoisting the probe into the precondition block — where this
+# file already keeps its `command -v` checks, which is what makes the move plausible as a future
+# tidy-up — left every other case in this suite passing.
+reset_fixture
+printf 'journal line one\n' >"$TMPROOT/journal-entries"
+printf 'audit line one\n'   >"$TMPROOT/audit/audit.log"
+printf 'api line one\n'     >"$TMPROOT/containers/jobbliggaren-api"
+out=$(DOCKER_STUB_DAEMON_DOWN=1 run_sut); rc=$?
+check "T22d a dead daemon fails the run only AFTER journal and audit have had their turn" \
+  "$([ "$rc" -ne 0 ] \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^journal-' \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^audit-' && echo 0 || echo 1)"
+
+# --- T23: a stamp dated in the FUTURE anchors nothing --------------------------------------------
+# #1316's second door, security-auditor's Minor 3 on PR #1567. #1561's floor clamps DOWNWARD only,
+# so a future stamp passed through and became `--since <future>` — which docker accepts silently
+# (rc=0, empty output), unlike a malformed date, which exits 1. Header-only extract, ship
+# suppressed, `app_rc` 0, stamp written, next run anchored past the window.
+#
+# §5 `Tests:` — THE ACTOR IS NAMED, because production cannot produce this state. Every successful
+# run ends `touch -d "@${run_epoch}"`, so no path in this repo writes an mtime ahead of its own
+# run's start. What does: a clock that ran backwards, a file restored from a later backup, or
+# tampering. None of the three is callable from here, so naming them is the whole obligation.
+# Whether any is reachable on the box is UNMEASURED and this case asserts nothing about it.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+future_epoch=$(( $(date -u +%s) + 7200 ))
+printf '20260101T000000Z\n' >"$TMPROOT/state/last-successful-logship"
+touch -d "@${future_epoch}" "$TMPROOT/state/last-successful-logship"
+out=$(run_sut); rc=$?
+now=$(date -u +%s)
+got=$(since_epoch_of_last_logs_call)
+check "T23 a stamp dated in the FUTURE is refused, and the window opens at the floor" \
+  "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+# The refusal is SAID. T4's counterpart on the shipping side: a silent fallback would leave an
+# operator reading a 30-day re-ship with nothing naming why.
+check "T23b the refusal is logged rather than silent" \
+  "$(echo "$out" | grep -q 'dated after this run started' && echo 0 || echo 1)"
+
 # --- T21: the floor's number is PARITY, and a KEEP-IN-SYNC note is not an instrument ------------
 # jobbliggaren-logship.sh declares RETENTION_DAYS as parity with jobbliggaren-logprune.sh, both
 # following ADR 0024 D7 policy 1. That note is prose; this is the instrument — T12's form, for the

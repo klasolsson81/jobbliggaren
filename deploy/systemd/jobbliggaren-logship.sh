@@ -365,8 +365,26 @@ readonly -a APP_CONTAINERS=(
 )
 
 if command -v docker >/dev/null 2>&1; then
-  # The anchor, floored: max(stamp, now - RETENTION_DAYS), and the floor is in BOTH branches
-  # rather than only the stamp-less one. A stamp older than the window anchors exactly as far
+  # ⚠ THE BINARY IS NOT THE DAEMON, AND `inspect` CANNOT TELL THEM APART. Against an unreachable
+  # daemon `docker inspect` exits 1 in exactly the shape a missing container does, and the loop
+  # below is written to read that shape as a normal skip. Without this probe every container is
+  # skipped, the extract stays empty, `app_rc` is never set — and the stamp is written, anchoring
+  # the next run past a window nothing read. That is the loss `429c1e69` repaired, arriving
+  # through a third door (#1316). `After=docker.service` does not cover it: ordering does not hold
+  # for a hand run, and it does not survive a daemon that is ordered-up but not yet accepting.
+  #
+  # REPORTING HERE DOES NOT CONTRADICT THE UNIT'S `Requires=` ARGUMENT, and the placement is what
+  # makes that true: the journal and audit legs — the two carrying the forensic obligation — have
+  # already run by this line, so a dead daemon fails the run without suppressing the archive of
+  # the journal that would explain it. T22d is what holds the probe here; the ordering was stated
+  # in three places and instrumented in none until it existed. Same instrument and same reason as
+  # jobbliggaren-logprune.sh's, which is where this probe comes from.
+  docker version --format '{{.Server.Version}}' >/dev/null 2>&1 ||
+    die "the docker daemon is not reachable — refusing to write a stamp for an app window no leg
+read. The journal and audit legs above have run; withholding the stamp is what makes the next run
+re-read this window rather than anchor past it."
+
+  # The anchor, floored. A stamp older than the window anchors exactly as far
   # back as no stamp at all — a box that was down, or a leg that withheld its stamp on purpose —
   # so a floor living in one branch leaves the same read reachable through the other. What this
   # leg can state is therefore unconditional: it never reads a line older than the window. The
@@ -377,7 +395,20 @@ if command -v docker >/dev/null 2>&1; then
   if [[ -f "$STAMP_FILE" ]]; then
     stamp_epoch=$(stat -c '%Y' "$STAMP_FILE") ||
       die "could not read the stamp's mtime at ${STAMP_FILE}"
-    if [[ "$stamp_epoch" -gt "$floor_epoch" ]]; then
+    # THE WINDOW IS BOUNDED ON BOTH SIDES, and the ceiling is this run's start. A stamp dated after
+    # it is not a window boundary at all — every successful run stamps its own start, so nothing
+    # here writes one ahead of that. A clock that ran backwards, a restored file or tampering does.
+    # `--since <future>` is the one wrong-looking value docker takes SILENTLY (rc=0, empty output;
+    # a malformed date exits 1), so the header-only extract would suppress the ship, leave `app_rc`
+    # at 0, and let the stamp be written — losing the window in the same shape this leg's other
+    # #1316 door loses it. `--check` already refuses this state; the shipping path did not.
+    #
+    # AN UNTRUSTWORTHY STAMP THEREFORE ANCHORS NOTHING and `app_epoch` stays at the floor, which is
+    # the audit leg's own answer to the same class of state: its malformed offset "resets to a full
+    # ship rather than guessing". Re-reading is the side this file's doctrine already picks, above.
+    if [[ "$stamp_epoch" -gt "$run_epoch" ]]; then
+      log "app: the stamp is dated after this run started; reading from the window floor instead"
+    elif [[ "$stamp_epoch" -gt "$floor_epoch" ]]; then
       app_epoch="$stamp_epoch"
     fi
   fi

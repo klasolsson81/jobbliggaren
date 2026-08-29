@@ -355,6 +355,20 @@ api and worker recover on their own restart backoff (`restart: unless-stopped`).
 > standing when the condition actually comes due — the same reason the host-timer enable step is
 > repeated below.
 
+**First bring the clone forward, or the start below runs whatever revision the box is standing
+on.** `jobbliggaren-logship.service`'s `ExecStart` points straight into `/opt/jobbliggaren`, and
+nothing advances that clone on its own: `jobbliggaren-reconcile.sh` invokes `git` zero times
+(measured 2026-08-29), so it moves images and never the working tree. A logship repair merged to
+main therefore reaches this box only at a pull, and nothing schedules one — which is why the step
+belongs at this visit rather than being left to be remembered. Take it in `log-sink.md` §2's
+deliberate form, which carries the reason it is never blind and is not repeated here:
+
+```bash
+git -C /opt/jobbliggaren fetch origin
+git -C /opt/jobbliggaren log --oneline HEAD..origin/main -- deploy/
+sudo git -C /opt/jobbliggaren pull --ff-only
+```
+
 **Then start the archive by hand, once — MANDATORY, not tidiness, whenever
 `jobbliggaren-logship.timer` is ENABLED** (#1175; it has been since 2026-08-18):
 

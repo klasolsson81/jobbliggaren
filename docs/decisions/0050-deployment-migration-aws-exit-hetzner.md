@@ -590,7 +590,7 @@ operativt av TD-102 (master-nyckel), TD-106 (stack/härdning), TD-107 (backup).
 | **M-7** | **Detektionsförmåga** — grinden ställs på **skyldighet, inte mekanism**. Rättslig grund (satt av security-auditor, som äger fyndet — en tidigare version av denna rad skrev om grunden och försvagade den): **Art. 32(1)(b) + Art. 33 läst med Recital 87**, som uttryckligen kräver åtgärder för att *"establish immediately whether a personal data breach has taken place"* — detektionsplikten läses alltså in i anmälningsregimen, Art. 33 är inte bara följden. **Art. 5(2)** (accountability) bär kravet att förmågan ska vara **visbar**. *(Art. 32(1)(d) gäller återkommande testning och utvärdering av åtgärderna — pentest och kontrollutvärdering — och är inte grunden för detektionsförmågan.)* Utan den är ADR 0123:s scope-gräns overkställbar (lokal ADR; `Amendment 2026-08-04` §6b bär skälet i sin helhet) | **Major** (satt av security-auditor 2026-08-04) — **blir Blocker om ADR 0123 fortfarande är obeviljad eller omitigerad vid första riktiga data**: acceptansens utgångsvillkor vilar då på en detektionsförmåga som inte finns ⛔ **DOM 2026-08-17 (`security-auditor`, hennes att sätta): M-7 KONVERTERAR** vid första riktiga användardata — `unmitigated` är mätt sann, och beviljandet 2026-08-16 täcker bara tillståndet UTAN riktig användardata medan M-7 utvärderas VID den. **Att bygga mitigeringarna räcker inte:** det krävs också ett NYTT beviljande som täcker det tillståndet, plus båda M-7-benen levererade och verifierade på `host-detection.md`:s verifikationsrader. Härled inte disjunktionen själv — läs domen. | [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) — **värd-detektion + alerting ägs av [#196](https://github.com/klasolsson81/jobbliggaren/issues/196), nyckelåtkomst-detektion av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)** |
 | M-1 | ADR 0050 KMS-blocker-prosa amenderad → TD-102-omframing | Major | **Åtgärdad denna amendment** |
 | M-2 | ADR 0049-amendment: self-managed master-nyckels prod-skyddsmodell + accepterad minne-restrisk + namngiven skala-trigger för extern KV/HSM | Major | [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102, ADR 0049-amendment-scope) |
-| **N-1** | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas; **grunden korrigerad av security-auditor 2026-08-11** i PR #1313:s omkontroll) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim). Sink-disjunktionen läses per led: **residens-disjunkten är mätt FALSK** (båda hoppen EU — Netcup Nürnberg per `Amendment 2026-08-04` §1; OVH `eu-west-par` per `vps-deploy-stack.md` rad 27c, mätt 2026-08-09), men **over-retention-disjunkten är INTE falsifierad** — det lokala `json-file`-lagret är åldersobundet och `http.log.error` skriver redan i det (OVH `hostlogs/` tillkommer som andra åldersobundna lager när #1312:s skeppning installeras), och en odefinierad gräns är ett Art. 5(1)(e)-fel i sig, så det benet räknas som UPPFYLLT. **(Andra grunden föll 2026-08-12 när G3 fick sina tal — men benet står kvar på den FÖRSTA: lagren är fortfarande åldersobundna, eftersom ingen regel är applicerad. En satt siffra är inte en verkande regel.)** **Det som håller raden Minor i dag är frånvaron av verkligt datasubjekt i capture-och-retain-benen — inte residensen — och ARM (1) FYRAR INTE, mätt 2026-08-12 — men premissen bärs inte av greppet. GRUNDEN ÄR NOLL DATASUBJEKT, INTE GREPPET. Mätt 2026-08-12 på lådan: `identity."AspNetUsers"` = 0, `job_seekers` = 0, registreringen stängd — och citatet är `AuthOptions.RegistrationsOpen`, en oinitierad `bool` vars default är `false`, satt till `true` enbart i `appsettings.Development.json` och av ingenting i `deploy/` (mätt 2026-08-12). `AuthOptionsValidator` är INTE grunden: den är villkorlig och förbjuder bara öppen registrering *utan* e-postbekräftelse, alltså tillåter den öppen registrering med en levererande provider — vilket SES gjorde uppfyllbart den här veckan. Läs stängningen som en DEFAULT och inte en garanti: en env-flagga i lådans `.env` vänder den, och det är därför triggern nedan är `AspNetUsers > 0` och inte validatorn, och `basic_auth` är hela admission control i Caddyfile. Med noll registrerade kan ingen verklig registrerad ha fått en token-länk, oavsett vad loggen fångar. Boxgrepet är korroboration och kan inte bära slutsatsen ensamt: mätt samma dag har `deploy/caddy/` noll `log`-direktiv, så Caddy skriver ingen per-site-accesslogg — enda capture-vägen är default-loggerns `http.log.error` vid 5xx, och 4xx ligger under default-nivån. En lyckad token-klick (200/302) lämnar därför ingen rad alls, och grepet är strukturellt blint för hela framgångsvägen. `http.log.error`-rader i bufferten: 0. Containern startades `2026-08-12T16:49:20Z`, så fönstret är timmar och inte dygn. Vad grepet visar är alltså: ingen 5xx-loggad token-rad i den här instansens buffert — sant, men smalt. Regenerera: `grep -rcE '^[[:space:]]*log\b' deploy/caddy/Caddyfile`, `sudo docker logs jobbliggaren-caddy 2>&1 | grep -c 'http.log.error'`, `sudo docker inspect -f '{{.State.StartedAt}}' jobbliggaren-caddy`. OMPRÖVAS NÄR `AspNetUsers > 0` eller registreringen öppnas — det är villkoret som har en avläsare, till skillnad från "om lådan betjänat riktiga användare". Arm (2) står kvar oförändrad: obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data.** Två omgraderingsarmar: **(1)** raden flippar till Blocker OMEDELBART om eskaleringspunkt 1:s mätning på lådan (PR #1313) ger > 0 riktiga token-bärande rader — utan att invänta någon granskning; **(2)** obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data (M-5b-klausulen) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) · **G2 LEVERERAD I KANTEN 2026-08-29** (globalt `log`-block i `deploy/caddy/Caddyfile`, tvåarmad mätning i `Amendment 2026-08-29`); raden står kvar på **G3** — `hostlogs/`-lifecyclen är oapplicerad — och på flip-till-Blocker-villkorets hem |
+| **N-1** | **Access-loggning för token-bärande e-postlänk-rutter** (`/bekrafta-epost`, `/bekrafta-konto`, `/aterstall-losenord`): EU-residens + query-string-scrubbing + definierad retention, inkl. Referer-ledet — normativ spec i `Amendment 2026-08-11` | **Minor** (ärvd: security-auditor 2026-07-06, #679 FE-granskningen, eskalerad till Klas; **grunden korrigerad av security-auditor 2026-08-11** i PR #1313:s omkontroll) — **blir Blocker om:** *"prod access-logging for this route captures AND retains the query-string in a non-EU or over-retention sink"* (#706, verbatim). Sink-disjunktionen läses per led: **residens-disjunkten är mätt FALSK** (båda hoppen EU — Netcup Nürnberg per `Amendment 2026-08-04` §1; OVH `eu-west-par` per `vps-deploy-stack.md` rad 27c, mätt 2026-08-09), men **over-retention-disjunkten är INTE falsifierad** — det lokala `json-file`-lagret är åldersobundet och `http.log.error` skriver redan i det (OVH `hostlogs/` tillkommer som andra åldersobundna lager när #1312:s skeppning installeras), och en odefinierad gräns är ett Art. 5(1)(e)-fel i sig, så det benet räknas som UPPFYLLT. **(Andra grunden föll 2026-08-12 när G3 fick sina tal — men benet står kvar på den FÖRSTA: lagren är fortfarande åldersobundna, eftersom ingen regel är applicerad. En satt siffra är inte en verkande regel.)** **Det som håller raden Minor i dag är frånvaron av verkligt datasubjekt i capture-och-retain-benen — inte residensen — och ARM (1) FYRAR INTE, mätt 2026-08-12 — men premissen bärs inte av greppet. GRUNDEN ÄR NOLL DATASUBJEKT, INTE GREPPET. Mätt 2026-08-12 på lådan: `identity."AspNetUsers"` = 0, `job_seekers` = 0, registreringen stängd — och citatet är `AuthOptions.RegistrationsOpen`, en oinitierad `bool` vars default är `false`, satt till `true` enbart i `appsettings.Development.json` och av ingenting i `deploy/` (mätt 2026-08-12). `AuthOptionsValidator` är INTE grunden: den är villkorlig och förbjuder bara öppen registrering *utan* e-postbekräftelse, alltså tillåter den öppen registrering med en levererande provider — vilket SES gjorde uppfyllbart den här veckan. Läs stängningen som en DEFAULT och inte en garanti: en env-flagga i lådans `.env` vänder den, och det är därför triggern nedan är `AspNetUsers > 0` och inte validatorn, och `basic_auth` är hela admission control i Caddyfile. Med noll registrerade kan ingen verklig registrerad ha fått en token-länk, oavsett vad loggen fångar. Boxgrepet är korroboration och kan inte bära slutsatsen ensamt: enda capture-vägen är default-loggerns `http.log.error` vid 5xx, och 4xx ligger under default-nivån. En lyckad token-klick (200/302) lämnar därför ingen rad alls, och grepet är strukturellt blint för hela framgångsvägen. `http.log.error`-rader i bufferten: 0. Containern startades `2026-08-12T16:49:20Z`, så fönstret är timmar och inte dygn. Vad grepet visar är alltså: ingen 5xx-loggad token-rad i den här instansens buffert — sant, men smalt. Regenerera: `sudo docker logs jobbliggaren-caddy 2>&1 | grep -c 'http.log.error'`, `sudo docker inspect -f '{{.State.StartedAt}}' jobbliggaren-caddy`. OMPRÖVAS NÄR `AspNetUsers > 0` eller registreringen öppnas — det är villkoret som har en avläsare, till skillnad från "om lådan betjänat riktiga användare". Arm (2) står kvar oförändrad: obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data.** Två omgraderingsarmar: **(1)** raden flippar till Blocker OMEDELBART om eskaleringspunkt 1:s mätning på lådan (PR #1313) ger > 0 riktiga token-bärande rader — utan att invänta någon granskning; **(2)** obligatorisk omgradering vid den andra security-auditor-granskningen före första beta-data (M-5b-klausulen) | [#706](https://github.com/klasolsson81/jobbliggaren/issues/706) — **kvarstår ÖPPEN tills en accesslogg som uppfyller specen finns** (spec levererad = schemaläggning, inte stängbart faktum) · **G2 LEVERERAD I KANTKONFIGURATIONEN 2026-08-29** (globalt `log`-block i `deploy/caddy/Caddyfile`, tvåarmad mätning i `Amendment 2026-08-29`) |
 
 > **ID-prefixet bär graden:** `B-` = Blocker, `M-` = Major, `N-` = Minor (miNor; `M-` var
 > upptaget). Graden i prefixet är den **vid gradering satta** — en rad som bär ett villkorat
@@ -1453,62 +1453,94 @@ pekar på numret, och flip-till-Blocker-villkoret behöver ett öppet hem); DPIA
 ROPA-posten är lokala följeslagare (ADR 0072), där ROPA-posten uttryckligen är
 schemaläggning av en behandling som inte pågår.
 
-## Amendment 2026-08-29 — #706 Part 3: G2 är levererad i kanten
+## Amendment 2026-08-29 — #706 Part 3: G2 är levererad i kantkonfigurationen
 
 **Vad som landade.** `deploy/caddy/Caddyfile` har ett globalt `log`-block. Det är den enda
 konfigurationsytan som når default-loggern, och default-loggern är den som läckte:
-`Amendment 2026-08-11` mätte att `http.log.error` skriver hela request-raden vid varje 5xx
-utan att något `log`-direktiv behöver finnas, och Caddyfilens egen `reverse_proxy`-kommentar
-dokumenterar boot-race-5xx vid varje timvis reconcile. Blocket raderar `token` och `email`
-ur `request>uri` och släpper `request>headers>Referer` helt.
+`Amendment 2026-08-11` mätte att `http.log.error` skriver hela request-raden vid varje 5xx utan
+att något `log`-direktiv behöver finnas. Blocket raderar `token`, `email` och `uid` ur
+`request>uri`, och släpper **hela `request>headers`-mappen**.
 
-**Mätt 2026-08-29, två armar som skiljer sig ENBART i det blocket**, på caddy 2.11.4 —
-versionen `deploy/caddy/Dockerfile` pinnar och kompilerar — och mot den **skeppade** filen,
-inte mot en förenklad kopia. Utfallet: samma antal `http.log.error`-poster i båda armarna,
-så ingenting undertrycks; förekomsterna av token och adress föll från det antalet till
-**noll**; den skrubbade posten läser `uri=/bekrafta-epost?uid=U1` utan `Referer`. Poster
-utan `request`-objekt kom ut byte-identiska mellan armarna, så filtret är inert snarare än
-lossy där fälten saknas. Regenerera genom att bygga en image `FROM caddy:2.11.4-alpine` med
-denna Caddyfile plus `challenge/`, köra den med `SITE_HOST=localhost` och giltig
-basic-auth, och begära `/bekrafta-epost?uid=&email=&token=` med en `Referer` som bär samma
-URL: upstream `web:3000` saknas, svaret blir 5xx och posten hamnar i containerloggen.
+**Mätt 2026-08-29, två armar som skiljer sig ENBART i det blocket**, på caddy 2.11.4 — versionen
+`deploy/caddy/Dockerfile` pinnar och kompilerar — och mot den **skeppade** filen. Utfallet: samma
+antal `http.log.error`-poster i båda armarna, så ingenting undertrycks; token, adress och uid
+föll från det antalet till **noll**; och den skrubbade posten läser
 
-**Referer-ledets kant-sida är därmed stängd.** `Amendment 2026-08-11` höll den som ett eget
-ben eftersom en same-origin-navigering bär hela URL:en på requests mot ANDRA rutter. Ommätt
-2026-08-29 i samma körning: en request mot `/_next/static/chunk.js` bar hela
-`/bekrafta-epost`-URL:en i `Referer`, och Caddys default-redaktion lämnade den i klartext
-bredvid ett `Authorization` som kom ut `REDACTED`. **Sid-benets restrisk står oförändrad**
-(metadata-taggen verkar först när parsern nått den).
+    "uri":"/bekrafta-epost"
 
-**En ny mätning, och den gör fixen bräcklig om den lämnas oskriven: `query`-filtret är
-skiftlägeskänsligt.** En param stavad `TOKEN` passerade orörd ett filter som raderar
-`token`. Grinden håller alltså bara så länge de tre generatorerna stavar sina parametrar
-som Caddyfilen gör, och ingen av de två filerna kan se den andra.
-`CaddyfileTokenScrubbingPinTests` binder ihop dem: den härleder parameternamnen ur de
-riktiga `EmailTemplates`-metoderna och kräver att var och en antingen skrubbas eller är
-namngiven som avsiktligt behållen — så en NY parameter fäller ett test i stället för att
-tyst bli exponerad. Mutationsverifierad: skiftlägesbytet fäller två fakta, en struken
-`delete`-rad två, en struken Referer-rad en, ett omdöpt filterblock tre.
+alltså **ingen query-data alls**, med `headers`-nyckeln helt frånvarande — posten går från `uri`
+direkt till `tls`. Poster utan `request`-objekt kom ut byte-identiska mellan armarna, så filtret
+är inert snarare än lossy där fälten saknas.
+
+**Regenerera:** bygg en image med denna Caddyfile plus `challenge/`, kör den med
+`SITE_HOST=localhost` och giltig basic-auth, och begär `/bekrafta-epost?uid=&email=&token=` med en
+`Referer` som bär samma URL — upstream `web:3000` saknas, svaret blir 5xx och posten hamnar i
+containerloggen. ⚠ Ett recept som utgår från `caddy:2.11.4-alpine` reproducerar **upstreams**
+binär, inte den `xcaddy build v2.11.4` som faktiskt skeppas (`deploy/caddy/Dockerfile`). Det är
+immateriellt för en encoder-mätning och skrivs ut så att ingen läser receptet som en reproduktion
+av den skeppade binären.
+
+**Header-ledet stängs genom konstruktion, inte genom uppräkning.** `Amendment 2026-08-11` höll
+`Referer` som ett eget ben eftersom en same-origin-navigering bär hela URL:en på requests mot
+ANDRA rutter — ommätt 2026-08-29: en request mot `/_next/static/chunk.js` bar hela
+`/bekrafta-epost`-URL:en, och Caddys default-redaktion lämnade den i klartext bredvid ett
+`Authorization` som kom ut `REDACTED`. Att radera **ett headernamn** vore samma form som den
+redaktionsmängd som just mätts fallera, och G2 är skrivet som ett resultatkrav, vilket en deny-list
+per konstruktion inte kan uppfylla. Därför går hela mappen.
+Kandidaten som reste frågan — Next `Next-Url` på prefetchade RSC-requests — är **mätt att inte**
+bära query-strängen: `create-initial-router-state.js` tilldelar `location.pathname`, aldrig
+`.href`. ⚠ Mätningen togs mot installerad `next` **16.2.9** medan `package.json` pinnar **16.3.0**.
+Den tar bort en medlem ur en öppen mängd; den gör ingen uppräkning riktig, och helmapps-raderingen
+gör versionsförbehållet immateriellt. **Sid-benets restrisk står oförändrad** (metadata-taggen
+verkar först när parsern nått den).
+
+**`uid` raderas, och grunden är Art. 5(1)(c).** `uid` är kontots Guid, alltså personuppgift
+(Recital 26), och det landar i två åldersobundna lager. Ingen dokumenterad 5xx-klass har någon
+**uppmätt** diagnostisk användning av det. Utan ändamål finns ingen minimeringsgrund att behålla
+det på. *(Tre tidigare motiveringar bär inte och har strukits: att det bevarar korrelation mellan
+loggposter — falsifierad, se nedan; att det "inte bär någon hemlighet" — besvarar Art. 5(1)(f) och
+inte 5(1)(c); och att det är enda handtaget mot ett konto — ett ändamål ingen mätning stöder.)*
+
+**⚠ Caddys `hash` är urladdad på query-nycklar, och det avgjorde `uid`-formen.** Mätt 2026-08-29
+på 2.11.4: `hash <key>` inuti ett query-filter emitterar `e3b0c442` för **varje** indata — de
+första byten av SHA-256 av den **tomma** strängen (`printf '' | sha256sum` → `e3b0c44298fc1c14`).
+Tre distinkta uid gav samma värde. Den pseudonymiserar alltså ingenting och korrelerar ingenting,
+medan den *läser* som om den gjorde bådadera. Om det är en bugg snarare än en syntaxmiss kan en
+patch-bump ändra beteendet tyst, vilket är skälet att `hash` inte används här alls; en daterad rad
+i filterblocket säger det till nästa läsare.
+
+**Skiftlägeskänsligheten, och pinnen som binder den.** En param stavad `TOKEN` passerade orörd ett
+filter som raderar `token`. Grinden håller alltså bara så länge de tre generatorerna stavar sina
+parametrar som Caddyfilen gör, och ingen av de två filerna kan se den andra.
+`CaddyfileTokenScrubbingPinTests` (i `Jobbliggaren.Architecture.Tests`, hos de fem övriga
+`deploy/`-källtextpinnarna) härleder namnen ur de riktiga `EmailTemplates`-metoderna och kräver att
+var och en antingen filtreras eller är namngiven som avsiktligt behållen. Den binder dessutom
+**placeringen**: fakta läser enbart det globala options-blocket, och ett femte faktum håller
+`deploy/caddy/` till exakt **ett** `log`-direktiv över Caddyfilen och de importerade
+`challenge/*.caddy`. Utan den bindningen kunde blocket flyttas in i site-blocket — vilket gör
+default-loggern okonfigurerad igen och lägger till en accesslogg över *varje* request — med allt
+grönt. Mutationsverifierat: flytten fäller fyra av fem fakta, ett andra `log`-direktiv det femte,
+skiftlägesbytet två, en struken `request>headers delete` ett, en struken `delete uid` ett, och en
+omdöpt rutt fäller oraklet.
 
 **Namngiven uppföljning DISCHARGED.** `Amendment 2026-08-11` la enrads-kommentaren i
-`deploy/caddy/Caddyfile` på **nästa session som rör `deploy/`**. Den är levererad: blockets
-egen rubrik citerar grind N-1 och #706.
+`deploy/caddy/Caddyfile` på **nästa session som rör `deploy/`**. Den är levererad: blockets egen
+rubrik citerar grind N-1 och #706.
 
 **Vad detta INTE gör — och #706 stängs inte här.**
 
-1. Mätningen gäller **kant-containerns** stdout. `logship` skeppar varje containers stdout,
-   och huruvida Next skriver en token-bärande URL till sin egen stdout vid ett ohanterat fel
-   är **omätt**. Appens egen kod gör det inte — de tre rutternas Server Actions bär inget
-   `console.*` — men ramverkets beteende är inte prövat här, och en oprövad väg är inte en
-   stängd väg.
+1. Mätningen gäller **kant-containerns** stdout. `logship` skeppar varje containers stdout, och
+   huruvida Next skriver en token-bärande URL till sin egen stdout vid ett ohanterat fel är
+   **omätt**. Appens egen kod gör det inte — de tre rutternas Server Actions bär inget `console.*`
+   — men ramverkets beteende är inte prövat här, och en oprövad väg är inte en stängd väg.
 2. **G3:s lifecycle-regler för OVH-prefixet `hostlogs/` är fortfarande oapplicerade**, och
    `Amendment 2026-08-11` kräver dem före första objektet.
 3. Flip-till-Blocker-villkoret och dess två omgraderingsarmar står oförändrade, och behöver
    fortfarande ett öppet hem.
 
 **Denna amendment rör inte lådan.** Caddyfilen bakas in i imagen, så ändringen når
-`dev.jobbliggaren.se` först när en ny tagg byggs och reconcile drar den — inget här påstår
-att kanten redan skrubbar i drift.
+`dev.jobbliggaren.se` först när en ny tagg byggs och reconcile drar den — inget här påstår att
+kanten redan skrubbar i drift.
 
 ## Relaterade beslut
 

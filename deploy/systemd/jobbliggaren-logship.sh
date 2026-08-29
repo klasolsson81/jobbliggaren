@@ -65,9 +65,9 @@ readonly LOCK_FILE=/var/lock/jobbliggaren-logship.lock
 
 readonly AUDIT_LOG=/var/log/audit/audit.log
 
-# The app leg's window floor. Parity with jobbliggaren-logprune.sh and Seq's retention policy,
-# all three following ADR 0024 D7 policy 1 — this file does not decide the number and must not
-# derive it. Changing it is a D7 amendment, not an edit here.
+# The app leg's window floor. Parity with jobbliggaren-logprune.sh, both following ADR 0024 D7
+# policy 1 — this file does not decide the number and must not derive it. Changing it is a D7
+# amendment, not an edit here.
 readonly RETENTION_DAYS=30
 
 # Freshness threshold for --check. The timer runs hourly; 150 min tolerates one entirely missed
@@ -335,9 +335,9 @@ fi
 # residuals stay, named:
 #   · entries written between the stamp and the read can be shipped twice;
 #   · a container restarting mid-window can interleave such that ordering is not preserved.
-# Duplicates in a forensic archive are benign; a hole is not, so the anchor is deliberately
-# biased toward re-shipping. If this leg becomes permanent (see above), replacing it with a
-# journald logging driver is the repair — and it is NOT free: ADR 0126 Decision 4 pinned
+# Duplicates in a forensic archive are benign; a hole is not. If this leg becomes permanent (see
+# above), replacing it with a journald logging driver is the repair — and it is NOT free:
+# ADR 0126 Decision 4 pinned
 # `SystemKeepFree=2G` to widen the journal's evidence window, and app volume competes with it.
 #
 # THIS IS THE ONLY LEG CARRYING DATA-SUBJECT PERSONAL DATA. The journal carries the operator's
@@ -394,9 +394,10 @@ if command -v docker >/dev/null 2>&1; then
   # read again by anything. The one thing this leg has no cursor for is exactly what silently
   # goes missing.
   #
-  # The anchor IS the stamp, so the symmetric cure is to withhold the stamp: the next run re-reads
-  # this window, and duplicates in a forensic archive are benign while a hole is not (this file's
-  # own doctrine, stated twice). What has already been promoted stays promoted — the journal
+  # The anchor is the stamp, floored at the window (see the anchor above), so the symmetric cure
+  # is to withhold the stamp: the next run re-reads this window back to the floor, and duplicates
+  # in a forensic archive are benign while a hole is not (this file's own doctrine, stated twice).
+  # What has already been promoted stays promoted — the journal
   # cursor and the audit offset are separate state and their windows did ship.
   app_rc=0
   for container in "${APP_CONTAINERS[@]}"; do

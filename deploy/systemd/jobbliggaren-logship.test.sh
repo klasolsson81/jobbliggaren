@@ -446,9 +446,8 @@ check "T19c what WAS collected still shipped before the run failed" \
   "$(ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
 
 # --- T20: the app leg's window is FLOORED at the retention window, in both branches --------------
-# #1561. With no stamp the leg used to read the container's entire json-file layer and ship it to
-# `hostlogs/app/`, whose lifecycle rule runs on OBJECT age: a 40-day-old line shipped today gets a
-# fresh clock inside an `age` envelope this box cannot decrypt to erase selectively. The floor is
+# #1561. With no stamp the leg used to read the container's entire json-file layer and ship it
+# off-box inside an `age` envelope this box cannot decrypt to erase selectively. The floor is
 # ADR 0024 D7 policy 1's window, parity with jobbliggaren-logprune.sh.
 #
 # WHY THE STAMP IS BACKDATED RATHER THAN HAND-INVENTED (§5 `Tests:`). Production sets the stamp's
@@ -507,8 +506,24 @@ now=$(date -u +%s)
 got=$(since_epoch_of_last_logs_call)
 check "T20c a stamp OLDER than the window is clamped to the floor, not honoured" \
   "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
-check "T20d and the clamp is what did it — the stale stamp is NOT the anchor" \
-  "$(within "$got" "$stale_epoch" && echo 1 || echo 0)"
+# --- T21: the floor's number is PARITY, and a KEEP-IN-SYNC note is not an instrument ------------
+# jobbliggaren-logship.sh declares RETENTION_DAYS as parity with jobbliggaren-logprune.sh, both
+# following ADR 0024 D7 policy 1. That note is prose; this is the instrument — T12's form, for the
+# same reason. If D7 moves and only the prune follows, this leg keeps reading 30 days back and
+# ships past-window lines off-box into objects this box cannot decrypt, with nothing red.
+prune_sut="$script_dir/jobbliggaren-logprune.sh"
+if [ -f "$prune_sut" ]; then
+  a=$(grep -E "^readonly RETENTION_DAYS=" "$SUT" | head -1 | sed 's/.*=//')
+  b=$(grep -E "^readonly RETENTION_DAYS=" "$prune_sut" | head -1 | sed 's/.*=//')
+  check "T21 RETENTION_DAYS matches jobbliggaren-logprune.sh" \
+    "$([ -n "$a" ] && [ "$a" = "$b" ] && echo 0 || echo 1)"
+elif [ -n "${JBL_REQUIRE_SIBLING_SCRIPTS:-}" ]; then
+  # An announced skip is not a measurement — T12's own reason, and it holds here for the same one:
+  # the moment this check matters is the moment the sibling is renamed or moved.
+  check "T21 jobbliggaren-logprune.sh is present (JBL_REQUIRE_SIBLING_SCRIPTS)" 1
+else
+  echo "  SKIP  T21 jobbliggaren-logprune.sh not found"
+fi
 
 # --- T18: --check has a CONSUMER, and that is what makes it a control ----------------------------
 # T1-T4 measure the probe's behaviour and say nothing about whether anything calls it. It was

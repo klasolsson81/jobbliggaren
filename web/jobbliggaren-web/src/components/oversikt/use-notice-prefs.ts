@@ -102,12 +102,30 @@ export interface NoticePrefsStore {
  */
 export const NoticePrefsContext = createContext<NoticePrefsStore | null>(null);
 
+/**
+ * Inert prenumeration + ögonblicksbild för ett träd som har en injicerad store.
+ *
+ * Modul-konstanter, inte inline-closures: `useSyncExternalStore` jämför referenser, och
+ * en ny funktion per render hade gett en prenumerationscykel per render. `"{}"` är en
+ * primitiv, alltså referens-stabil mellan anrop.
+ */
+const inertSubscribe = (): (() => void) => () => {};
+const inertSnapshot = (): string => "{}";
+
 export function useNoticePrefs(): NoticePrefsStore {
-  // Modul-storen prenumereras ALLTID, även när contexten vinner. Att hoppa över
-  // `useSyncExternalStore` bakom ett villkor vore ett Rules-of-Hooks-brott; priset är
-  // en `Set`-insättning och en `storage`-lyssnare. Optimera inte bort det.
+  // Hookarna kallas ovillkorligt och i fast ordning — att hoppa över
+  // `useSyncExternalStore` bakom ett villkor vore ett Rules-of-Hooks-brott. Det som
+  // väljs på contexten är store-FUNKTIONERNA, inte returvärdet: en injicerad store ska
+  // inte bara göra läsningen verkningslös, den ska låta bli att läsa. ePrivacy Art. 5(3)
+  // täcker åtkomst till redan lagrad information separat från lagringen, och en
+  // gäst-yta som kastar resultatet kan inte kalla åtkomsten nödvändig
+  // (`security-auditor` Minor 1, 2026-08-29).
   const injected = useContext(NoticePrefsContext);
-  const raw = useSyncExternalStore(subscribe, readRaw, getServerSnapshot);
+  const raw = useSyncExternalStore(
+    injected ? inertSubscribe : subscribe,
+    injected ? inertSnapshot : readRaw,
+    getServerSnapshot,
+  );
   const prefs = useMemo(() => parsePrefs(raw), [raw]);
 
   const isEnabled = useCallback(

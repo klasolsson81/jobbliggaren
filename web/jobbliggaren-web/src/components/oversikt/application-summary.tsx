@@ -21,8 +21,12 @@ interface ApplicationSummaryProps {
    */
   readonly pipeline: ApiResult<PipelineGroupDto[]>;
   /**
-   * Vart ankarradens länk pekar. Default `/ansokningar` (app-ytan). `null` = rendera
-   * ingen länk alls.
+   * Vart ankarradens länk pekar. `null` = rendera ingen länk alls.
+   *
+   * Obligatorisk och utan default: en utelämnad prop hade tyst löst till `/ansokningar`,
+   * som ligger i `PROTECTED_PREFIXES` — på en publik yta är det en resa till
+   * `/logga-in`, inte "ingen länk". Med två anropsställen totalt kostar det ingenting
+   * att säga målet högt, och misstaget blir ett typfel.
    *
    * Gäst-demon (#1572) behöver båda grenarna: den har en egen ansökningsvy, men en
    * hårdkodad `/ansokningar` hade skickat en utloggad besökare till `/logga-in` via
@@ -34,7 +38,7 @@ interface ApplicationSummaryProps {
    * framkalla vore otestbar per konstruktion. Töms mocken någon gång faller den
    * pinnen först.
    */
-  readonly linkHref?: string | null;
+  readonly linkHref: string | null;
 }
 
 /**
@@ -57,7 +61,7 @@ interface ApplicationSummaryProps {
  */
 export function ApplicationSummary({
   pipeline,
-  linkHref = "/ansokningar",
+  linkHref,
 }: ApplicationSummaryProps) {
   const t = useTranslations("oversikt.summary");
   const tEnum = useTranslations("applications.enums");

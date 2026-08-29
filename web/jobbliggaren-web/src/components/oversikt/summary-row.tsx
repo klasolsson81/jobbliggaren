@@ -1,6 +1,6 @@
-// GUEST-ONLY (efter #726 notiscenter-refaktoreringen): denna rad-komponent lever
-// kvar enbart för den publika gäst-förhandsvisningen (`guest-oversikt-page.tsx`,
-// som bygger en egen sammanfattnings-tabell), en avsiktlig demo-yta.
+// INGEN ROUTE RENDERAR DEN HÄR RADEN. Sammanfattnings-tabellen den satt i ströks i
+// #1572; behållarklasserna gick med den, `.jp-summary__row*` står kvar med filen tills
+// den pensioneras (egen change-reason).
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 

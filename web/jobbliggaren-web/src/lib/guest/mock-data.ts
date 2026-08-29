@@ -15,9 +15,8 @@ export { OVERSIKT_MOCK };
 // Single source of truth för gäst-mockens "nu"-referens (code-reviewer Minor 2
 // + design-reviewer m5 2026-05-24). Tidigare duplicerad i
 // `guest-oversikt-page.tsx` (GUEST_DEMO_TODAY) och `mock-adapters.ts`
-// (REF_NOW) — drift-risk vid demo-refresh. Frozen ISO så vitest-snapshots
-// inte driftar och TodayCard/STAMP_DATE/isWithinDays inte ändras mellan
-// renderings. Uppdatera vid demo-refresh på en plats.
+// (REF_NOW) — drift-risk vid demo-refresh. Frozen ISO så vitest-snapshots inte
+// driftar. Uppdatera vid demo-refresh på en plats.
 export const GUEST_MOCK_REF_DATE_ISO = "2026-05-24T08:00:00Z";
 export const GUEST_MOCK_REF_DATE = new Date(GUEST_MOCK_REF_DATE_ISO);
 export const GUEST_MOCK_REF_NOW_MS = GUEST_MOCK_REF_DATE.getTime();
@@ -403,7 +402,10 @@ const COMPANY_WATCHES: ReadonlyArray<GuestMockCompanyWatch> = [
     followedAt: "2026-05-20T13:30:00Z",
     activeAdCount: 9,
     matchingAdCount: 2,
-    hasFilter: true,
+    // Inget filter i demot. Sammanfattningens filter-brasklapp löses på appytan av
+    // "Visa bevakade företag"; gästytan renderar ingen länk, så raden hade pekat på
+    // en inställning besökaren varken kan se eller nå (`design-reviewer` Minor 3).
+    hasFilter: false,
   },
   {
     id: "gw-3",

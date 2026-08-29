@@ -153,9 +153,17 @@ describe("GuestOversiktPage — ytan skriver inte i den inloggade appen (#1572)"
     // Utan `<InertNoticePrefsProvider>` hade den här seedningen tagit bort
     // erbjudande-notisen från en publik yta där besökaren varken kan se eller
     // ångra filtreringen (CTO-dom 2026-08-29).
+    // ALLA fyra typerna, inte en: det är det läge CTO:n namngav. Med bara en avstängd
+    // har `MarkAllReadRow` fortfarande synliga notiser, så en borttagen provider runt
+    // ENBART bulk-raden hade överlevt (`code-reviewer` Minor 5).
     window.localStorage.setItem(
       PREFS_KEY,
-      JSON.stringify({ "applications:offers": false }),
+      JSON.stringify({
+        "applications:offers": false,
+        "applications:interviews": false,
+        "jobads:matches": false,
+        "companies:followedads": false,
+      }),
     );
 
     const { container } = render(<GuestOversiktPage />);
@@ -163,6 +171,11 @@ describe("GuestOversiktPage — ytan skriver inte i den inloggade appen (#1572)"
     expect(container.querySelector(".jp-notice--success")).not.toBeNull();
     const apps = screen.getByRole("region", { name: "Mina ansökningar" });
     expect(within(apps).getByText("2 olästa")).toBeInTheDocument();
+    // Utan providern hade varje sektion stått tom och bulk-kontrollen avmonterat sig.
+    expect(container.querySelector(".jp-notice-bulk")).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Markera alla som lästa/ }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -180,6 +193,47 @@ describe("GuestOversiktPage — inga länkar in i den skyddade appen (#1572)", (
 
     expect(internal.length).toBeGreaterThan(0);
     expect(internal.filter((href) => isProtectedPath(href))).toEqual([]);
+  });
+});
+
+describe("GuestOversiktPage — stämpeln (#1572)", () => {
+  it("stämplar sidladdningen, inte datafärskhet", () => {
+    // KOPPLINGS-test, inte ett enhetstest: `notice-toolbar.test.tsx` bevisar redan att
+    // propen väljer rätt nyckel, och den bevisningen överlevde HELT medan sidan aldrig
+    // skickade propen. Renderingen fann det; sviten kunde inte.
+    render(<GuestOversiktPage />);
+
+    expect(screen.getByText(/Sidan laddades/)).toBeInTheDocument();
+    expect(screen.queryByText(/Senast uppdaterad/)).toBeNull();
+  });
+});
+
+describe("GuestOversiktPage — notisernas CTA (#1572)", () => {
+  it("notisraderna bär radens åtgärd, och exakt EN bär Skapa konto", () => {
+    // Demot ska demonstrera, inte värva i varje rad. Ansökningsnotiserna pekar in i
+    // gästens egen vy; bara företagsnotisen — den enda sektion utan gästdestination —
+    // bär konverteringsvägen (`design-reviewer` Major 2, 2026-08-29).
+    const { container } = render(<GuestOversiktPage />);
+
+    const ctas = [...container.querySelectorAll<HTMLAnchorElement>(".jp-notice__cta")];
+    expect(ctas).toHaveLength(4);
+
+    const toRegister = ctas.filter((a) => a.getAttribute("href") === "/registrera");
+    expect(toRegister).toHaveLength(1);
+
+    // Och den enda är företagsnotisens, inte vilken som helst.
+    expect(toRegister[0]!.closest("li")?.className).toContain("jp-notice--info");
+    expect(toRegister[0]!.closest("li")?.textContent).toContain(
+      "Dina bevakade företag",
+    );
+
+    for (const sel of [".jp-notice--success", ".jp-notice--brand"]) {
+      const href = container
+        .querySelector(sel)
+        ?.querySelector(".jp-notice__cta")
+        ?.getAttribute("href");
+      expect(href, sel).toMatch(/^\/gast\/ansokningar\/ga-\d+$/);
+    }
   });
 });
 

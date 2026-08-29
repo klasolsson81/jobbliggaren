@@ -21,7 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 // rad i tabellen är `ƒ`). Raden nedan är alltså redundant i dag, och står ändå: det som
 // gör stämpeln sann är en egenskap hos DEN HÄR sidan, och utan deklarationen skulle en
 // framtida i18n-omläggning frysa den vid byggtid utan att något här säger emot. Samma
-// deklaration, av samma skäl och med samma redundans, som `(app)/oversikt/page.tsx:36`.
+// deklaration och samma redundans som `(app)/oversikt/page.tsx:36` — den filens egen
+// motivering är en annan (per-user-data, ingen delad cache).
 export const dynamic = "force-dynamic";
 
 export default function GuestOversiktRoute() {

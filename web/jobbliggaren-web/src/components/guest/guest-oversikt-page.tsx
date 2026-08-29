@@ -53,14 +53,19 @@ import {
 //    en preferens besökaren varken kan se eller ångra där (CTO-dom 2026-08-29).
 // 3. INGA LÄNKAR IN I DEN SKYDDADE APPEN. `/ansokningar`, `/ny-ansokan`,
 //    `/foretag/bevakade` och `/foretag/sok` ligger alla i `PROTECTED_PREFIXES`, så
-//    proxyn hade skickat besökaren till `/logga-in`. Ansöknings-sammanfattningen
-//    pekar på gästens egen spegel; företags-sammanfattningen renderar ingen länk
-//    alls, eftersom ETIKETTEN ("Visa bevakade företag") inte har någon sann
-//    destination här — sektionens notis bär konverteringsvägen i stället.
+//    proxyn hade skickat besökaren till `/logga-in`. Ansöknings-sammanfattningen och
+//    de två ansökningsnotiserna pekar på gästens egen spegel;
+//    företags-sammanfattningen renderar ingen länk alls, eftersom ETIKETTEN ("Visa
+//    bevakade företag") inte har någon sann destination här.
 //
-// Två translatorer: `guest` för demo-röstad copy, `oversikt` för den strukturella
-// (sektionsrubriker, tomt-lägen) — samma delning `<NoticeList>` gjorde, och det
-// som hindrar "Mina ansökningar" från att drifta mellan ytorna.
+//    Därför bär exakt EN notis "Skapa konto" — företagsnotisen, den enda sektion som
+//    saknar gästdestination. Övriga notis-CTA:er är radens åtgärd på sitt objekt, som
+//    på appytan; ett demo som skickar dig till registreringen slutar demonstrera
+//    (`design-reviewer` Major 2, 2026-08-29).
+//
+// Copyn delas på namnrymd: `guest` bär det demo-röstade, `oversikt` det strukturella
+// (sektionsrubriker, tomt-lägen, notis-CTA:er). Det är delningen som hindrar "Mina
+// ansökningar" från att drifta mellan ytorna.
 
 export function GuestOversiktPage() {
   // Synchronous next-intl translators — keeps this a non-async RSC.
@@ -73,11 +78,14 @@ export function GuestOversiktPage() {
   const latestOffer = applications.find((a) => a.status === "Offer");
   const latestInterview = applications.find((a) => a.status === "Interview");
 
-  // Stämpeln är RENDER-tiden, som på appytan — inte mockens frysdatum. Sidan är
-  // `force-dynamic`, så uppdatera-kontrollen ger en ny render och därmed en ny
-  // stämpel; en fryst stämpel hade gjort kontrollen till en synlig no-op vars
-  // kvitto ändå säger "Uppdaterad". Att innehållet är exempeldata säger
-  // `<GuestDemoBanner>` och heroets lede, inte den här raden.
+  // Stämpeln är RENDER-tiden, inte mockens frysdatum — sidan är `force-dynamic`, så
+  // uppdatera-kontrollen ger en ny render och därmed en ny stämpel.
+  //
+  // Men den stämplar SIDLADDNINGEN, inte datafärskhet (`contentCanChange={false}`):
+  // innehållet här kan inte skilja sig mellan två renderingar, så "Senast uppdaterad"
+  // hade varit ett påstående ingen render kan leverera — och den gamla gäststämpeln bar
+  // kvalifikationen i sig själv ("exempeldata · {datum}")
+  // (`design-reviewer` Major 1, 2026-08-29).
   const now = new Date();
 
   // Sammanfattningarna kan inte degradera här: demot gör ingen hämtning, så det
@@ -123,8 +131,10 @@ export function GuestOversiktPage() {
         role: latestOffer.role,
         b: bold,
       }),
-      cta: t("oversikt.noticeOfferCta"),
-      href: "/registrera",
+      // Radens åtgärd på sitt eget objekt, med appens egen etikett — inte en global
+      // konverteringsknapp. Demot har en egen ansökningsvy att peka in i.
+      cta: tOversikt("notices.offerCta"),
+      href: `/gast/ansokningar/${latestOffer.id}`,
       // Härledd ur mocken, som appen gör (`oversikt-page.tsx:194`), inte ett valt
       // ord: så bär demot samma relativtids-form som produkten (#1516).
       time: formatDaysAgo(
@@ -145,8 +155,8 @@ export function GuestOversiktPage() {
         company: latestInterview.company,
         b: bold,
       }),
-      cta: t("oversikt.noticeInterviewCta"),
-      href: "/registrera",
+      cta: tOversikt("notices.interviewCta"),
+      href: `/gast/ansokningar/${latestInterview.id}`,
       time: formatDaysAgo(
         tRelativeTime,
         latestInterview.updatedAtIso,
@@ -219,46 +229,47 @@ export function GuestOversiktPage() {
         <NoticeToolbar
           lastUpdated={formatNoticesStamp(format, now)}
           lastUpdatedIso={now.toISOString()}
+          contentCanChange={false}
         />
 
         <InertNoticePrefsProvider>
-        <NoticeSection
-          source="applications"
-          titleId="gast-oversikt-applications"
-          title={tOversikt("notices.sectionApplications")}
-          notices={applicationNotices}
-          emptyBody={tOversikt("notices.emptyApplications")}
-          summary={
-            <ApplicationSummary
-              pipeline={pipeline}
-              linkHref="/gast/ansokningar"
-            />
-          }
-          summaryOwns={summaryOwns}
-        />
-        <NoticeSection
-          source="jobads"
-          titleId="gast-oversikt-jobads"
-          title={tOversikt("notices.sectionJobAds")}
-          notices={jobAdNotices}
-          emptyBody={tOversikt("notices.emptyJobAds")}
-        />
-        <NoticeSection
-          source="companies"
-          titleId="gast-oversikt-companies"
-          title={tOversikt("notices.sectionCompanies")}
-          notices={companyNotices}
-          emptyBody={tOversikt("notices.emptyCompanies")}
-          summary={
-            <CompanySummary watches={companyWatches} linkHref={null} />
-          }
-          summaryOwns={companySummaryOwns}
-        />
+          <NoticeSection
+            source="applications"
+            titleId="gast-oversikt-applications"
+            title={tOversikt("notices.sectionApplications")}
+            notices={applicationNotices}
+            emptyBody={tOversikt("notices.emptyApplications")}
+            summary={
+              <ApplicationSummary
+                pipeline={pipeline}
+                linkHref="/gast/ansokningar"
+              />
+            }
+            summaryOwns={summaryOwns}
+          />
+          <NoticeSection
+            source="jobads"
+            titleId="gast-oversikt-jobads"
+            title={tOversikt("notices.sectionJobAds")}
+            notices={jobAdNotices}
+            emptyBody={tOversikt("notices.emptyJobAds")}
+          />
+          <NoticeSection
+            source="companies"
+            titleId="gast-oversikt-companies"
+            title={tOversikt("notices.sectionCompanies")}
+            notices={companyNotices}
+            emptyBody={tOversikt("notices.emptyCompanies")}
+            summary={
+              <CompanySummary watches={companyWatches} linkHref={null} />
+            }
+            summaryOwns={companySummaryOwns}
+          />
 
-        {/* Sist på sidan, efter det den verkar på (#1557). `noticeIdsRotate` är
-            falskt här: gästens notis-id är statiska literaler utan datumdel, så
-            appens "till i morgon" hade varit ett falskt påstående (#1572). */}
-        <MarkAllReadRow notices={allNotices} noticeIdsRotate={false} />
+          {/* Sist på sidan, efter det den verkar på (#1557). `noticeIdsRotate` är
+              falskt här: gästens notis-id är statiska literaler utan datumdel, så
+              appens "till i morgon" hade varit ett falskt påstående (#1572). */}
+          <MarkAllReadRow notices={allNotices} noticeIdsRotate={false} />
         </InertNoticePrefsProvider>
       </div>
     </>

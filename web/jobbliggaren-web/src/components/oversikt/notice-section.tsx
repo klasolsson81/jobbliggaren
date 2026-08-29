@@ -53,8 +53,11 @@ interface NoticeSectionProps {
   /**
    * Typer som listas i kugghjuls-popovern (inkl. förberedda typer utan notiser).
    *
-   * UTELÄMNAD (eller tom) = ytan har ingen preferens-yta: inget kugghjul, ingen
-   * popover. Gäst-demon (#1572) skickar ingen, för popovern skriver till
+   * UTELÄMNAD (eller tom) = inget kugghjul, ingen popover — och ALLTSÅ INGEN VÄG ATT
+   * ÄNDRA en preferens. Den här propen stänger bara SKRIVNINGEN. Sektionen filtrerar
+   * fortfarande på `isEnabled`, så en yta som utelämnar propen UTAN att också omslutas
+   * av `<InertNoticePrefsProvider>` blir filtrerad av en preferens besökaren inte kan
+   * se — exakt det läget CTO-domen 2026-08-29 avvisade. De två hör ihop. Gäst-demon (#1572) skickar ingen, för popovern skriver till
    * localStorage-nyckeln `jp-oversikt-notice-prefs`, vars `"<källa>:<typ>"`-nycklar
    * DELAS med den inloggade appen i samma webbläsare — till skillnad från notis-id:na
    * i systerstoren, som är disjunkta. En utloggad besökare ska inte kunna släcka
@@ -205,53 +208,53 @@ export function NoticeSection({
         )}
         <span style={{ flex: 1 }} />
         {hasPrefs && (
-        <div className="jp-notice-prefs-anchor">
-          <button
-            ref={gearRef}
-            type="button"
-            className="jp-section__gear"
-            aria-label={t("notices.settingsAria")}
-            title={t("notices.settingsAria")}
-            aria-haspopup="true"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((v) => !v)}
-          >
-            <Settings size={16} aria-hidden="true" />
-          </button>
-          {settingsOpen && (
-            <div
-              ref={panelRef}
-              className="jp-notice-prefs"
-              role="group"
+          <div className="jp-notice-prefs-anchor">
+            <button
+              ref={gearRef}
+              type="button"
+              className="jp-section__gear"
               aria-label={t("notices.settingsAria")}
+              title={t("notices.settingsAria")}
+              aria-haspopup="true"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((v) => !v)}
             >
-              <div className="jp-notice-prefs__heading">
-                {t("notices.settingsHeading")}
-              </div>
-              {(prefTypes ?? []).map((pt) => (
-                <label key={pt.id} className="jp-notice-prefs__row">
-                  <input
-                    type="checkbox"
-                    checked={isEnabled(source, pt.id)}
-                    onChange={() => toggle(source, pt.id)}
-                  />
-                  <span>{pt.label}</span>
-                </label>
-              ))}
-              {read.length > 0 && (
-                <div className="jp-notice-prefs__foot">
-                  <button
-                    type="button"
-                    className="jp-notice-prefs__reset"
-                    onClick={resetRead}
-                  >
-                    {t("notices.resetRead", { count: read.length })}
-                  </button>
+              <Settings size={16} aria-hidden="true" />
+            </button>
+            {settingsOpen && (
+              <div
+                ref={panelRef}
+                className="jp-notice-prefs"
+                role="group"
+                aria-label={t("notices.settingsAria")}
+              >
+                <div className="jp-notice-prefs__heading">
+                  {t("notices.settingsHeading")}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+                {(prefTypes ?? []).map((pt) => (
+                  <label key={pt.id} className="jp-notice-prefs__row">
+                    <input
+                      type="checkbox"
+                      checked={isEnabled(source, pt.id)}
+                      onChange={() => toggle(source, pt.id)}
+                    />
+                    <span>{pt.label}</span>
+                  </label>
+                ))}
+                {read.length > 0 && (
+                  <div className="jp-notice-prefs__foot">
+                    <button
+                      type="button"
+                      className="jp-notice-prefs__reset"
+                      onClick={resetRead}
+                    >
+                      {t("notices.resetRead", { count: read.length })}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

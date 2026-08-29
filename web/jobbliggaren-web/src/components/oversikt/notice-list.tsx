@@ -1,14 +1,11 @@
 "use client";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GUEST-ONLY (efter #726 notiscenter-refaktoreringen). Den autentiserade
-// `/oversikt` bygger nu notiser per källa via `notice-section.tsx` +
-// `notice-toolbar.tsx`. Den här platta "Kräver åtgärd / Information"-listan lever
-// kvar ENBART för den publika gäst-förhandsvisningen
-// (`components/guest/guest-oversikt-page.tsx`), som är en avsiktlig demo-yta.
-// Dismiss-state delas numera via `use-dismissed-notices` (samma store som det
-// autentiserade centret) så kunskapen bor på en plats. Observerbart beteende är
-// oförändrat — gäst-testerna förblir gröna.
+// INGEN ROUTE RENDERAR DEN HÄR KOMPONENTEN. Den autentiserade `/oversikt` bygger
+// notiser per källa via `notice-section.tsx` sedan #726, och `/gast/oversikt` gjorde
+// detsamma i #1572. Filen står kvar tills den pensioneras med `today-card.tsx` och
+// `summary-row.tsx` — en egen change-reason, som också måste ta deras CSS.
+// Dismiss-state delas via `use-dismissed-notices` (samma store som notiscentret).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useMemo } from "react";

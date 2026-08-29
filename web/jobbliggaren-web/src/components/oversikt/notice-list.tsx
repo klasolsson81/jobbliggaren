@@ -3,8 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // INGEN ROUTE RENDERAR DEN HÄR KOMPONENTEN. Den autentiserade `/oversikt` bygger
 // notiser per källa via `notice-section.tsx` sedan #726, och `/gast/oversikt` gjorde
-// detsamma i #1572. Filen står kvar tills den pensioneras med `today-card.tsx` och
-// `summary-row.tsx` — en egen change-reason, som också måste ta deras CSS.
+// detsamma i #1572. Pensioneras med `today-card.tsx` och `summary-row.tsx` i #1582,
+// som också måste ta deras CSS.
 // Dismiss-state delas via `use-dismissed-notices` (samma store som notiscentret).
 // ─────────────────────────────────────────────────────────────────────────────
 

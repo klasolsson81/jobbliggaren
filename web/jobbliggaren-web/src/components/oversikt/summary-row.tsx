@@ -1,6 +1,6 @@
 // INGEN ROUTE RENDERAR DEN HÄR RADEN. Sammanfattnings-tabellen den satt i ströks i
 // #1572; behållarklasserna gick med den, `.jp-summary__row*` står kvar med filen tills
-// den pensioneras (egen change-reason).
+// den pensioneras (#1582).
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 

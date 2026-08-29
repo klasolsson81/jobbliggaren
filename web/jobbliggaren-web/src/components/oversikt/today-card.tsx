@@ -1,5 +1,5 @@
 // INGEN ROUTE RENDERAR DET HÄR KORTET. `/oversikt`-heron tappade sin aside i #726 och
-// `/gast/oversikt` i #1572. Filen står kvar tills den pensioneras (egen change-reason).
+// `/gast/oversikt` i #1572. Filen står kvar tills den pensioneras (#1582).
 import { Calendar } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { formatSwedishLongDate } from "@/lib/oversikt/aggregations";

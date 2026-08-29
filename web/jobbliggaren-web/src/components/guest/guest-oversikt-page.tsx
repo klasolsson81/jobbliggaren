@@ -64,8 +64,8 @@ import {
 //    (`design-reviewer` Major 2, 2026-08-29).
 //
 // Copyn delas på namnrymd: `guest` bär det demo-röstade, `oversikt` det strukturella
-// (sektionsrubriker, tomt-lägen, notis-CTA:er). Det är delningen som hindrar "Mina
-// ansökningar" från att drifta mellan ytorna.
+// (sektionsrubriker, tomt-lägen). Det är delningen som hindrar "Mina ansökningar"
+// från att drifta mellan ytorna.
 
 export function GuestOversiktPage() {
   // Synchronous next-intl translators — keeps this a non-async RSC.

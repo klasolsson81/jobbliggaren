@@ -25,7 +25,7 @@ Documentation=https://github.com/klasolsson81/jobbliggaren/blob/main/docs/runboo
 # docker failure suppress the archive of the very journal that would explain the docker failure.
 # An unreachable daemon is a state this script must REPORT, not one that should suppress the unit
 # — the same split jobbliggaren-logprune.service documents; it reports only after the journal and
-# audit legs have shipped (#1316).
+# audit legs have run (#1316).
 After=docker.service network-online.target
 # Without this `Wants=`, the `After=` above is inert: ordering against network-online.target does
 # nothing unless something pulls the target into the transaction, and this unit uploads.

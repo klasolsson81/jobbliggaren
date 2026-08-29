@@ -538,14 +538,37 @@ check "T22b the failure names the DAEMON rather than a missing container" \
 # CROSSES THE CONTROL: without this, T22 also passes against a script that died on every failed
 # `inspect` — which would break the case the loop's `|| continue` exists for. Three of the four
 # containers are absent here by construction, and the run must still succeed and still ship what
-# the fourth gave. It is also what would catch DOCKER_STUB_DAEMON_DOWN leaking out of T22: bash
-# leaves a var assigned this way set after a FUNCTION returns, and only the command substitution
-# above confines it.
+# the fourth gave.
+#
+# IT ALSO CARRIES T22's POSITIVE COUNTERFACTUAL. T22 asserts that a dead daemon writes NO stamp,
+# and without the `-f` below that half would pass just as well against a script that never wrote
+# the stamp at all — the inert-guarantee shape T6/T7 exist to cross on the journal cursor, which
+# T17's and T19's `[ ! -f ]` halves inherit from here.
 reset_fixture
 printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
 out=$(run_sut); rc=$?
-check "T22c a MISSING container is still a skip, and the run still succeeds" \
-  "$([ "$rc" -eq 0 ] && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+check "T22c a MISSING container is a skip, the stamp IS written, and the run succeeds" \
+  "$([ "$rc" -eq 0 ] && [ -f "$TMPROOT/state/last-successful-logship" ] \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
+# --- T22d: the probe's PLACEMENT, which is what keeps `Requires=` refused --------------------------
+# The ordering was asserted in three places — the unit header, the probe's own comment and the PR
+# body — and instrumented in none. It is the whole reason a dead daemon may fail this run at all:
+# the two legs carrying the forensic obligation have already had their turn by then, so failing
+# here does not suppress the archive of the journal that would explain the docker fault.
+#
+# Measured before this case existed: hoisting the probe into the precondition block — where this
+# file already keeps its `command -v` checks, which is what makes the move plausible as a future
+# tidy-up — left every other case in this suite passing.
+reset_fixture
+printf 'journal line one\n' >"$TMPROOT/journal-entries"
+printf 'audit line one\n'   >"$TMPROOT/audit/audit.log"
+printf 'api line one\n'     >"$TMPROOT/containers/jobbliggaren-api"
+out=$(DOCKER_STUB_DAEMON_DOWN=1 run_sut); rc=$?
+check "T22d a dead daemon fails the run only AFTER journal and audit have had their turn" \
+  "$([ "$rc" -ne 0 ] \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^journal-' \
+     && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^audit-' && echo 0 || echo 1)"
 
 # --- T23: a stamp dated in the FUTURE anchors nothing --------------------------------------------
 # #1316's second door, security-auditor's Minor 3 on PR #1567. #1561's floor clamps DOWNWARD only,

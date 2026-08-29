@@ -375,16 +375,16 @@ if command -v docker >/dev/null 2>&1; then
   #
   # REPORTING HERE DOES NOT CONTRADICT THE UNIT'S `Requires=` ARGUMENT, and the placement is what
   # makes that true: the journal and audit legs — the two carrying the forensic obligation — have
-  # already shipped by this line, so a dead daemon fails the run without suppressing the archive
-  # of the journal that would explain it. Same instrument, same reason and the same wording as
+  # already run by this line, so a dead daemon fails the run without suppressing the archive of
+  # the journal that would explain it. T22d is what holds the probe here; the ordering was stated
+  # in three places and instrumented in none until it existed. Same instrument and same reason as
   # jobbliggaren-logprune.sh's, which is where this probe comes from.
   docker version --format '{{.Server.Version}}' >/dev/null 2>&1 ||
     die "the docker daemon is not reachable — refusing to write a stamp for an app window no leg
-read. The journal and audit legs above have shipped; withholding the stamp is what makes the next
-run re-read this window rather than anchor past it."
+read. The journal and audit legs above have run; withholding the stamp is what makes the next run
+re-read this window rather than anchor past it."
 
-  # The anchor, floored: max(stamp, now - RETENTION_DAYS), and the floor is in BOTH branches
-  # rather than only the stamp-less one. A stamp older than the window anchors exactly as far
+  # The anchor, floored. A stamp older than the window anchors exactly as far
   # back as no stamp at all — a box that was down, or a leg that withheld its stamp on purpose —
   # so a floor living in one branch leaves the same read reachable through the other. What this
   # leg can state is therefore unconditional: it never reads a line older than the window. The

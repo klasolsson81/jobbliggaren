@@ -184,6 +184,39 @@ public class LookupCompanyQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WithStatedOccupation_AsksThePortForTheGoodOrBetterBandExactly()
+    {
+        // The band is the whole meaning of "matchande annonser". Every other case here stubs the
+        // grades with Arg.Any, so swapping GoodOrBetter for Filterable on the call site passed the
+        // suite while the count on /foretag silently started including Basic and Related. The
+        // expectation is written out rather than read from MatchGradeBands: this is the consumer
+        // side's independent second transcription (parity ListCompanyWatchesQueryHandlerTests).
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        StubFound(LegalEntityOrgNr, "Testbolaget AB");
+        _profileBuilder
+            .BuildFullForSortAsync(Arg.Any<CancellationToken>(), Arg.Any<bool>())
+            .Returns(ProfileWithSsyk("ssyk-1"));
+        _perUserSearch.CountPerUserByEmployerAsync(
+                Arg.Any<IReadOnlyList<string>>(),
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<IReadOnlyList<MatchGrade>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, int> { [LegalEntityOrgNr] = 3 });
+
+        await Handler(db).Handle(new LookupCompanyQuery(LegalEntityOrgNr), ct);
+
+        await _perUserSearch.Received(1).CountPerUserByEmployerAsync(
+            Arg.Any<IReadOnlyList<string>>(),
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Is<IReadOnlyList<MatchGrade>>(g => g != null &&
+                g.Count == 2
+                && g.Contains(MatchGrade.Good)
+                && g.Contains(MatchGrade.Strong)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_WithStatedOccupation_AbsentFromCountMap_IsHardZero()
     {
         // #452 parity: with a stated occupation, an employer absent from the count map is an honest

@@ -39,8 +39,24 @@ describe("buildCompanyJobsHref (#1547)", () => {
     // SILENTLY, so a formatted number ("559280-4784") would produce a link that looks
     // right and shows EVERY ad instead of the employer's.
     const href = buildCompanyJobsHref(ORG_NR, "all");
-    const raw = new URLSearchParams(href.slice(href.indexOf("?"))).get("employer");
+    expect(href).not.toBeNull();
+    const raw = new URLSearchParams(href!.slice(href!.indexOf("?"))).get("employer");
     expect(raw).toBe(ORG_NR);
     expect(parseEmployerParam(raw ?? undefined)).toBe(ORG_NR);
+  });
+
+  it.each([
+    ["formaterat org.nr", "559280-4784"],
+    ["för kort", "55928047"],
+    ["för långt", "55928047840"],
+    ["med inledande blanksteg", " 5592804784"],
+    ["tomt", ""],
+  ])("vägrar bygga en länk för %s", (_label, value) => {
+    // The writer floor mirrors the reader: `parseEmployerParam` drops a mismatch SILENTLY, so
+    // without this the link would look right and the page would show EVERY ad. Deliberately a
+    // FORMAT floor and not a personnummer discriminator -- that would give IsPersonnummerShaped
+    // a second home, which the house rejected once (#844).
+    expect(buildCompanyJobsHref(value, "all")).toBeNull();
+    expect(buildCompanyJobsHref(value, "matching")).toBeNull();
   });
 });

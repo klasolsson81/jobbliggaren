@@ -44,6 +44,7 @@
     "viewMatchingAds": "View matching ads",
     "viewMatchingAdsAria": "View matching ads from {company}",
     "adsNotLinkable": "The organisation number is hidden, so Jobbliggaren cannot show this company's ads as a list.",
+    "adsNotLinkableUnknown": "Jobbliggaren cannot show the ads for this watch as a list.",
     "followedSince": "Followed since {date}",
     "unfollowAria": "Unfollow {company}",
     "view": {

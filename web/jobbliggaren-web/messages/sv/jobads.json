@@ -44,6 +44,7 @@
     "viewMatchingAds": "Visa matchande annonser",
     "viewMatchingAdsAria": "Visa matchande annonser från {company}",
     "adsNotLinkable": "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista.",
+    "adsNotLinkableUnknown": "Jobbliggaren kan inte visa den här bevakningens annonser i en lista.",
     "followedSince": "Bevakad sedan {date}",
     "unfollowAria": "Sluta bevaka {company}",
     "view": {

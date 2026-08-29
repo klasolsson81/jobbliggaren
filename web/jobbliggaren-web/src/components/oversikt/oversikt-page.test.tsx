@@ -268,7 +268,7 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
     // date-bearing), so the honest destination is the watch list, named as such.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
-    const cta = screen.getByRole("link", { name: /Visa företagen/ });
+    const cta = screen.getByRole("link", { name: /Visa bevakade företag/ });
     expect(cta).toHaveAttribute("href", "/foretag/bevakade");
     const row = cta.closest("li");
     expect(row).toHaveTextContent("5");
@@ -281,7 +281,9 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
     // promise back on a company-list link, and the href assertion above would not see it.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
-    const row = screen.getByRole("link", { name: /Visa företagen/ }).closest("li")!;
+    const row = screen
+      .getByRole("link", { name: /Visa bevakade företag/ })
+      .closest("li")!;
     expect(within(row).queryByRole("link", { name: /Visa annonser/ })).toBeNull();
   });
 
@@ -291,7 +293,9 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
     // ads. The counts that may carry one live on /foretag/bevakade, never on Oversikt.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
-    const row = screen.getByRole("link", { name: /Visa företagen/ }).closest("li")!;
+    const row = screen
+      .getByRole("link", { name: /Visa bevakade företag/ })
+      .closest("li")!;
     expect(row.innerHTML).not.toContain("employer=");
     expect(row.innerHTML).not.toMatch(/\d{10}/);
   });
@@ -305,7 +309,7 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
       screen.queryByText(/Dina bevakade företag har publicerat/),
     ).toBeNull();
     expect(
-      screen.queryByRole("link", { name: /Visa företagen/ }),
+      screen.queryByRole("link", { name: /Visa bevakade företag/ }),
     ).toBeNull();
   });
 });

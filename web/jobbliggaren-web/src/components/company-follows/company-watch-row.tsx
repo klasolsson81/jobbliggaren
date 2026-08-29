@@ -3,7 +3,7 @@
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { Filter, ShieldAlert, Trash2 } from "lucide-react";
+import { Filter, Info, ShieldAlert, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/i18n/format";
 import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
@@ -107,12 +107,18 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
     });
   }
 
-  // #1547 — the app's only originator of an `?employer=` value. BOTH halves of the gate are
-  // load-bearing. `organizationNumber === null` covers two different rows that the wire cannot
-  // tell apart: a masked sole-prop, and a BRAND_GROUP watch whose counts are summed over member
-  // org.nrs the DTO never carries (`companyWatchSchema` has neither `targetType` nor
-  // `brandGroupId` — #1566 owns that). `!isProtectedIdentity` is the second half: it is the gate
-  // `search-params.ts` describes as guarding an empty set, and it guards a real set again here.
+  // #1547 — the app's only originator of an `?employer=` value.
+  //
+  // `!isProtectedIdentity` is the gate `search-params.ts` describes as guarding an empty set, and
+  // it guards a real set again here. `organizationNumber === null` covers two rows the FE SCHEMA
+  // cannot tell apart — a masked sole-prop, and a BRAND_GROUP watch whose counts are summed over
+  // member org.nrs. The backend DTO does carry `targetType` and `brandGroupId`; it is
+  // `companyWatchSchema` that stops short, which is what #1566 owns.
+  //
+  // The `item.organizationNumber &&` conjunct is NOT what stops a brand-group link — mutation-
+  // verified, the suite stays green without it, because `linkableOrgNr !== null` below already
+  // does. What it guards is `organizationNumber: ""`: falsy, `!== null`, admitted by
+  // `z.string().nullable()`, contract-impossible. Defence in depth, and untested as such.
   const linkableOrgNr =
     !item.isProtectedIdentity && item.organizationNumber ? item.organizationNumber : null;
 
@@ -212,22 +218,30 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
             </span>
             {followedSince && <span>{t("followedSince", { date: followedSince })}</span>}
           </div>
-          {/* #1547 — the masked row is the ONE row where the org.nr route is closed, and silence
-              here is worse than a sentence: its neighbour has both a number and a link, this row has
-              neither, and the only existing explanation (`protectedIdentityHint`) is sr-only — so a
-              sighted user is told less than a screen-reader user. Shown only where a link would
-              otherwise have rendered, so a 0-ad masked row stays quiet.
-              ⚠ The copy deliberately offers NO next step. "Search the company name under Jobb" was
-              the obvious remedy and it is measured FALSE: `search_vector` is title + description only
-              (20260521090234_F6P4FtsSearchVector.cs:23) and `SuggestionKind` has no `Employer`, so
-              that path returns zero hits — issue #1546. If #1546 lands a name-reachable employer
-              route, this sentence goes stale and nothing detects that automatically; the closing PR
-              should read it. */}
-          {item.isProtectedIdentity &&
+          {/* #1547 — EVERY row without a linkable org.nr says so, not just the masked one. Before
+              this delta all four rows were equally silent; the links create the asymmetry, and a
+              missing affordance with no visible reason reads as a defect rather than a rule. The
+              two branches are one treatment: the masked row can name its cause (the badge above
+              already shows it), the brand-group row cannot — the FE schema cannot even tell that
+              is what it is — so its sentence claims nothing about why.
+              Shown only where a link would otherwise have rendered, so a 0-ad row stays quiet.
+              ⚠ The masked copy deliberately offers NO next step. "Search the company name under
+              Jobb" was the obvious remedy and it is measured FALSE: `search_vector` is title +
+              description only (20260521090234_F6P4FtsSearchVector.cs:23) and `SuggestionKind` has
+              no `Employer`, so that path returns zero hits — issue #1546. If #1546 lands a
+              name-reachable employer route, that sentence goes stale and nothing detects it
+              automatically; #1546 carries a comment naming this key for its closing PR. */}
+          {linkableOrgNr === null &&
             (item.activeAdCount > 0 || (item.matchingAdCount ?? 0) > 0) && (
               <p className="jp-transparency-note jp-transparency-note--compact mt-2">
-                <ShieldAlert size={14} aria-hidden="true" />
-                <span>{t("adsNotLinkable")}</span>
+                {item.isProtectedIdentity ? (
+                  <ShieldAlert size={14} aria-hidden="true" />
+                ) : (
+                  <Info size={14} aria-hidden="true" />
+                )}
+                <span>
+                  {item.isProtectedIdentity ? t("adsNotLinkable") : t("adsNotLinkableUnknown")}
+                </span>
               </p>
             )}
           {/* BC-9′ — the resting-state disclosure. Visible without opening anything, because it is the

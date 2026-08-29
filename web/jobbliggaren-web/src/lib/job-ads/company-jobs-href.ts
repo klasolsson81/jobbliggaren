@@ -36,7 +36,14 @@ export type CompanyJobsScope = "all" | "matching";
 export function buildCompanyJobsHref(
   organizationNumber: string,
   scope: CompanyJobsScope
-): string {
+): string | null {
+  // Writer/reader symmetry: the same 10-digit floor `parseEmployerParam` applies on the read path,
+  // where a mismatch is dropped SILENTLY — so a formatted number would otherwise produce a link
+  // that looks right and shows every ad. Deliberately NOT a personnummer discriminator: that would
+  // give `IsPersonnummerShaped` a second home, which the house rejected once (#844). This is the
+  // URL contract's own shape and duplicates no knowledge.
+  if (!/^\d{10}$/.test(organizationNumber)) return null;
+
   return buildJobbHref({
     q: "",
     occupationGroup: [],

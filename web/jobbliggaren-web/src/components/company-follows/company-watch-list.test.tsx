@@ -459,10 +459,11 @@ describe("CompanyWatchList — 'Filtrera'-knappen öppnar filter-dialogen", () =
   });
 });
 
-// Brand-group watch: the counts are summed over member org.nrs the wire never carries, so the row
-// arrives with organizationNumber null and the protected flag FALSE. That combination is what makes
-// the `organizationNumber &&` half of the gate falsifiable — soleProp cannot test it, because its
-// number is null too. #1566 owns giving the client a way to tell the two apart.
+// Brand-group watch: the counts are summed over member org.nrs the FE schema never carries, so the
+// row arrives with organizationNumber null and the protected flag FALSE. The BrandGroup arm of
+// `ListCompanyWatchesQueryHandler` produces exactly this shape, but no such row is reachable today:
+// `brand-groups.v1.json` ships an empty group list, so every slug 404s (#1566). This case pins that
+// the null-number branch is decided by `linkableOrgNr !== null`, whichever row produced the null.
 const brandGroupWatch: CompanyWatch = {
   id: "33333333-3333-3333-3333-333333333333",
   organizationNumber: null,
@@ -623,10 +624,29 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
   });
 
+  it("varumärkesgrupp får en anspråkslös förklaring, inte den maskade radens", () => {
+    // Both rows lack a linkable org.nr, but only one of them can name why: the FE schema cannot
+    // tell a brand-group row from a masked one, so its sentence claims nothing about the cause.
+    renderList([brandGroupWatch]);
+
+    expect(
+      screen.getByText(
+        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Organisationsnumret är dolt/)).toBeNull();
+  });
+
+  it("varumärkesgrupp UTAN annonser tiger, som den maskade raden", () => {
+    renderList([{ ...brandGroupWatch, activeAdCount: 0, matchingAdCount: 0 }]);
+
+    expect(screen.queryByText(/kan inte visa/)).toBeNull();
+  });
+
   it("legal entity får ingen sådan förklaring — den har ju länkarna", () => {
     renderList([legalEntity]);
 
-    expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
+    expect(screen.queryByText(/kan inte visa/)).toBeNull();
   });
 
   it("talet självt är inte länken", () => {

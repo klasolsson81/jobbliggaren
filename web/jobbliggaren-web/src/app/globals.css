@@ -5102,6 +5102,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary--empty .jp-btn { align-self: flex-start; }
 /* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
 .jp-appsummary--unavailable { color: var(--jp-ink-1); }
+/* #1558 — matchningsraden i företagssammanfattningen. `.jp-matchline` bär 6px top-margin
+   för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
+.jp-appsummary .jp-matchline { margin-top: 0; }
 
 /* Notiser */
 .jp-notice-list {

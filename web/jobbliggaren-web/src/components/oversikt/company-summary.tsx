@@ -58,11 +58,12 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
     );
   }
 
-  // Summorna är exakta bara för att raderna är disjunkta: en annons har en arbetsgivare,
-  // och varje rad FE kan skapa är en employer-bevakning med eget org.nr. Det som skulle
-  // bryta premissen är en brand-group-affordance i FE (backendens `BrandGroup`-bevakning
-  // summerar över sina medlemmar och kan då överlappa en employer-bevakning). Det finns
-  // ingen sådan affordance i dag, och dto:n bär inte axeln som hade kunnat pinna det.
+  // Summan är exakt för att employer-bevakningar är disjunkta PER KONSTRUKTION: det unika
+  // indexet `ux_company_watches_user_orgnr_active` på (UserId, OrganizationNumber) ger en
+  // rad per arbetsgivare och användare, och en annons har en arbetsgivare. Det villkor som
+  // bryter invarianten är en `BrandGroup`-bevakning — dess rad summerar över sina medlemmar
+  // och kan därför täcka en annan rads org.nr — och dto:n bär varken `targetType` eller
+  // `brandGroupId`, så klienten kan inte upptäcka en sådan rad. Det arbetet bor i #1566.
   const activeAds = items.reduce((sum, w) => sum + w.activeAdCount, 0);
 
   // `some`, inte `every`. Backendens SSYK-gate sätts en gång per request, så alla

@@ -391,10 +391,14 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
   // #1558, samma kompositionsdefekt som #1548: company-summary.test.tsx målar
   // komponenten isolerat och förblir grön om `summary`-propen tas bort här. Dessa
   // asserterar inkopplingen, inne i rätt sektion.
-  it("företagssammanfattningen renderas inuti Företagsbevakning", () => {
+  // Egen brytpunkt mot testet nedan: HÄR finns det en riktig notis (delta 5), så det här
+  // mäter att sammanfattningen står TILLSAMMANS med en notisrad. Testet nedan mäter det
+  // motsatta fallet (delta 0). Utan den skillnaden vore det ena en delmängd av det andra
+  // och kunde inte falla av eget skäl (code-reviewer Minor 2).
+  it("sammanfattningen står tillsammans med en notisrad, inte i stället för den", () => {
     renderOversikt(true, {
       matchCount: null,
-      newFollowedCompanyAdCount: 0,
+      newFollowedCompanyAdCount: 5,
       companyWatches: { kind: "ok", data: [makeWatch()] },
     });
 
@@ -402,6 +406,8 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     expect(
       within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
     ).toBeInTheDocument();
+    expect(within(section).getByText(/publicerat/)).toBeInTheDocument();
+    expect(within(section).getByText(/1 oläst/)).toBeInTheDocument();
   });
 
   // Defekten issuet stänger, mätt på sidan: watermarken är avancerad (delta 0) men

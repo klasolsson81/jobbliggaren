@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CompanySummary } from "./company-summary";
@@ -187,7 +188,12 @@ describe("CompanySummary", () => {
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
-  it("renderar inget företagsnamn och inget org.nr", () => {
+  // Mätt av security-auditor: `textContent` konkatenerar textnoder och ser INTE `href`,
+  // `title`, `aria-label` eller `data-*`. En nod med href="/jobb?employer=5566524301" ger
+  // textContent "Visa" och hade passerat — vilket är exakt ADR 0087 D8-gränsen den här
+  // PR:en säger sig hålla utanför. Assertionen går därför mot markup, inte mot text, och
+  // det generella siffermönstret fångar även ett org.nr denna fixtur inte råkar bära.
+  it("renderar varken företagsnamn eller org.nr — i markup, inte bara i text", () => {
     const { container } = render(
       <CompanySummary
         watches={ok([
@@ -196,7 +202,27 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(container.textContent).not.toContain("Friday Väst AB");
-    expect(container.textContent).not.toContain("5566524301");
+    expect(container.innerHTML).not.toContain("Friday Väst AB");
+    expect(container.innerHTML).not.toContain("5566524301");
+    // Vilken tiosiffrig sekvens som helst: ett org.nr som läckt via en annan väg än
+    // fixturens egen sträng ska också falla.
+    expect(container.innerHTML).not.toMatch(/\d{10}/);
+    expect(container.innerHTML).not.toContain("employer=");
+  });
+
+  // Komplement till ovanstående: assertionen mäter DOM, och DOM kan inte skilja dagens
+  // korrekta form från en framtida `"use client"` överst i modulen — den skulle serialisera
+  // hela watch-arrayen (klartext-org.nr + companyName) in i flight-payloaden på varje
+  // /oversikt-laddning medan varje DOM-test förblir grönt. Källan är det enda stället där
+  // den skillnaden syns.
+  it("modulen är en Server Component — ingen use client-direktiv", () => {
+    const src = readFileSync(
+      "src/components/oversikt/company-summary.tsx",
+      "utf8",
+    );
+    // Bevisar att rätt fil lästes. Utan den här raden skulle en tom eller felaktig
+    // läsning göra negationen nedan sann av fel skäl.
+    expect(src).toContain("export function CompanySummary");
+    expect(src).not.toMatch(/^\s*["']use client["']/m);
   });
 });

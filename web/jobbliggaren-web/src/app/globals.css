@@ -5104,7 +5104,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary--unavailable { color: var(--jp-ink-1); }
 /* #1558 — matchningsraden i företagssammanfattningen. `.jp-matchline` bär 6px top-margin
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
-.jp-appsummary .jp-matchline { margin-top: 0; }
+.jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
 
 /* Notiser */
 .jp-notice-list {

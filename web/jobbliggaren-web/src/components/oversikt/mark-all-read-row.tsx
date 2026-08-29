@@ -89,7 +89,7 @@ export function MarkAllReadRow({ notices }: MarkAllReadRowProps) {
         <>
           <button
             type="button"
-            className="jp-btn jp-btn--ghost jp-btn--sm"
+            className="jp-btn jp-btn--ghost jp-btn--sm jp-btn--flush"
             aria-describedby={HINT_ID}
             onClick={() => {
               moveFocusRef.current = true;

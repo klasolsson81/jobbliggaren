@@ -3578,6 +3578,14 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-section {
   margin-top: 32px;
 }
+/* Bär stängningsrälsen när `.jp-notice-list` uteblir (#1557). Samma token och samma
+   vikt som listans egen `border-bottom`, och 14px matchar tomt-radens padding, så
+   linjen hamnar där den hade legat om listan renderats. Egen modifier och inte
+   `.jp-section` rakt av: den klassen bär åtta ytor, inklusive gäst och laddskelett. */
+.jp-section--railed {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--jp-border);
+}
 .jp-section__head {
   display: flex;
   align-items: baseline;
@@ -5493,9 +5501,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 24px;
 }
 /* Hinten är INNEHÅLL, inte metadata: den är det enda som säger att knappen är
-   ofarlig. Därför body-sm + ink-1 som .jp-notice-empty ovan, vars kommentar bär
-   samma skäl — aldrig .jp-callout__hint:s micro + ink-3, som är rätt för en
-   kvalificerare men fel för det bärande skälet att våga klicka (DESIGN.md §4). */
+   ofarlig. Därför ink-1 — aldrig .jp-callout__hint:s micro + ink-3, som är rätt för
+   en kvalificerare men fel för det bärande skälet att våga klicka (DESIGN.md §4).
+   body-sm och inte body: hinten sitter under en 14px semibold kontrolletikett, och
+   16px hade lagt kvalificeraren över kontrollen i vikt. */
 .jp-notice-bulk__hint {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-1);

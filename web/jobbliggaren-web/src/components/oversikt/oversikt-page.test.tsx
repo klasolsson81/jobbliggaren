@@ -514,3 +514,29 @@ describe("OversiktPage — notis-id:ts dygnsgräns (#1557)", () => {
     }
   });
 });
+
+describe("OversiktPage — 'Markera alla' sitter EFTER sektionerna (#1557)", () => {
+  it("renderar kontrollen, och raden ligger efter sista sektionen i DOM-ordning", () => {
+    // Placeringen ÄR issuet: kontrollen låg ovanför de tre sektionerna den verkar på,
+    // vilket läste som "rensa innan du tittar". Utan den här assertionen är just den
+    // egenskapen opinnad — en flytt tillbaka upp ger noll signal från tsc, lint och
+    // hela sviten, eftersom komponenten bara refereras från sin egen testfil och från
+    // den här sidan. Samma hål som `swedishDateSlug` hade, en nivå upp: en enhet kan
+    // vara helt bevisad och ändå monterad på fel plats.
+    const { container } = renderOversikt(true, { matchCount: 42 });
+
+    const row = container.querySelector(".jp-notice-bulk");
+    expect(row).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Markera alla som lästa/ }),
+    ).toBeInTheDocument();
+
+    const sections = [...container.querySelectorAll("section.jp-section")];
+    expect(sections.length).toBeGreaterThan(0);
+    const last = sections[sections.length - 1]!;
+    // DOCUMENT_POSITION_FOLLOWING: raden kommer EFTER sista sektionen.
+    expect(last.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+});

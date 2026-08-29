@@ -395,7 +395,7 @@ if command -v docker >/dev/null 2>&1; then
   # goes missing.
   #
   # The anchor is the stamp, floored at the window (see the anchor above), so the symmetric cure
-  # is to withhold the stamp: the next run re-reads this window back to the floor, and duplicates
+  # is to withhold the stamp: the next run re-reads this window, and duplicates
   # in a forensic archive are benign while a hole is not (this file's own doctrine, stated twice).
   # What has already been promoted stays promoted — the journal
   # cursor and the audit offset are separate state and their windows did ship.

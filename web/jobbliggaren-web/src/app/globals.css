@@ -2012,8 +2012,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-btn--sm {
   /* Sets the token rather than a literal, so `--flush`'s `calc(-1 * var(--jp-btn-px))` resolves to
-     -14px on a small button instead of over-pulling by 4px. Nothing combines the two today; the
-     point is that the modifier's promise ("no second number") is true rather than untested. */
+     -14px on a small button instead of over-pulling by 4px. */
   --jp-btn-px: 14px;
   height: 36px;
   padding: 0 var(--jp-btn-px);
@@ -5245,7 +5244,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-notice--read .jp-notice__text b { color: inherit; }
 
-/* Sid-toolbar: "senast uppdaterad"-stämpel vänster, "Markera alla" höger. */
+/* Sid-toolbar: "senast uppdaterad"-stämpel vänster. */
 .jp-oversikt-toolbar {
   display: flex;
   align-items: center;
@@ -5260,8 +5259,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Informationsbärande siffra: sans + tabular-nums, aldrig mono (DESIGN.md §4). */
   font-variant-numeric: tabular-nums;
 }
-/* Stämpeln och uppdatera-kontrollen som EN vänstergrupp, så förälderns
-   space-between fortsatt håller "Markera alla" till höger (#1549). */
+/* Stämpeln och uppdatera-kontrollen som EN vänstergrupp (#1549). */
 .jp-oversikt-toolbar__left {
   display: flex;
   align-items: center;
@@ -5478,6 +5476,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 14px 0;
   font-size: var(--text-body);
   color: var(--jp-ink-1);
+}
+
+/* "Markera alla som lästa" som egen rad sist på sidan (#1557). Ingen ram, ingen
+   bakgrund, ingen radie: raden är sidflöde och inte en fjärde sektion — 24px är
+   mindre än sektionernas 32px och säger det. Ingen egen border-top heller: sista
+   .jp-notice-list stänger redan med sin 1px-räls, och en andra hårlinje strax under
+   den hade läst som dubbelräls. align-items håller knappen vid sin egen bredd — en
+   flex-kolumn sträcker annars barnen till full radbredd (#1548). */
+.jp-notice-bulk {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 24px;
+}
+/* Hinten är INNEHÅLL, inte metadata: den är det enda som säger att knappen är
+   ofarlig. Därför ink-1 — aldrig .jp-callout__hint:s micro + ink-3, som är rätt för
+   en kvalificerare men fel för det bärande skälet att våga klicka (DESIGN.md §4).
+   body-sm och inte body: hinten sitter under en 14px semibold kontrolletikett, och
+   16px hade lagt kvalificeraren över kontrollen i vikt. */
+.jp-notice-bulk__hint {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+/* Alltid monterad, även tom — en live-region som monteras samtidigt som sitt
+   innehåll annonseras opålitligt (#1556). */
+.jp-notice-bulk__receipt {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
 }
 
 /* Sammanfattning — dossier-tabell */

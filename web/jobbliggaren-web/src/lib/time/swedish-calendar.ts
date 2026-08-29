@@ -73,6 +73,47 @@ export function swedishMonthOf(instant: Date): SwedishMonth {
   return { year, month };
 }
 
+const SWEDISH_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SWEDISH_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * The Swedish civil-calendar DATE as a canonical `YYYY-MM-DD` label — the day
+ * member this module lacked. The backend mirror carries `StartOfDay` beside
+ * `MonthOf`; what is restored here is that a day member EXISTS, not its
+ * signature. `StartOfDay` returns an instant and this returns a label, which is
+ * why it is deliberately not named `swedishDayOf`.
+ *
+ * `toISOString().slice(0, 10)` is the wrong answer, for the reason this module
+ * already gives for `getUTCMonth()`: it is the UTC date, and RSC code runs on the
+ * server, whose zone is UTC in the container. A day derived that way rolls over
+ * at 01:00 (CET) / 02:00 (CEST) Swedish, so a reader who acts just after their
+ * own midnight stays in the previous day for another one to two hours.
+ *
+ * Read the PARTS by name, never the formatted string by shape — the same reason
+ * `swedishMonthOf` gives, with one consequence particular to a string return:
+ * splitting "2026-08-01" on "-" rests on a CLDR pattern, and an ICU separator or
+ * field-order change would interpolate `undefined` into the slug. Because that
+ * would be STABLE rather than intermittent, every dismissal would become
+ * permanent instead of daily. The zero-padding comes from the `2-digit` options
+ * above, never from arithmetic here.
+ *
+ * The result is an identity token, not copy: it suffixes the notice ids the
+ * overview stores in localStorage, so a notice marked read returns at the
+ * READER's midnight. It carries no locale — which is why this reaches for
+ * `en-CA` rather than the app formatter — and no human ever reads it.
+ */
+export function swedishDateSlug(instant: Date): string {
+  const parts = SWEDISH_DATE.formatToParts(instant);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Steps a civil month back, rolling the year. The mirror of the backend's
  * `CivilMonth.Previous()`, and here for the same reason: it is the only month

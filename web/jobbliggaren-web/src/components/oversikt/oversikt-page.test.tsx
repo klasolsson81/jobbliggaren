@@ -534,9 +534,12 @@ describe("OversiktPage — 'Markera alla' sitter EFTER sektionerna (#1557)", () 
     const sections = [...container.querySelectorAll("section.jp-section")];
     expect(sections.length).toBeGreaterThan(0);
     const last = sections[sections.length - 1]!;
-    // DOCUMENT_POSITION_FOLLOWING: raden kommer EFTER sista sektionen.
+    // DOCUMENT_POSITION_FOLLOWING: raden kommer EFTER sista sektionen. Flaggan sätts även
+    // för en DESCENDANT (4|16), så ensam läser den bara "inte före" — `contains` skär bort
+    // inneslutning så paret betyder syskon EFTER, vilket är det placeringen handlar om.
     expect(last.compareDocumentPosition(row!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+    expect(last.contains(row!)).toBe(false);
   });
 });

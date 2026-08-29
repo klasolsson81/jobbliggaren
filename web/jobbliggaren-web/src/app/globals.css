@@ -2012,8 +2012,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-btn--sm {
   /* Sets the token rather than a literal, so `--flush`'s `calc(-1 * var(--jp-btn-px))` resolves to
-     -14px on a small button instead of over-pulling by 4px. Nothing combines the two today; the
-     point is that the modifier's promise ("no second number") is true rather than untested. */
+     -14px on a small button instead of over-pulling by 4px. */
   --jp-btn-px: 14px;
   height: 36px;
   padding: 0 var(--jp-btn-px);
@@ -3577,14 +3576,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 .jp-section {
   margin-top: 32px;
-}
-/* Bär stängningsrälsen när `.jp-notice-list` uteblir (#1557). Samma token och samma
-   vikt som listans egen `border-bottom`, och 14px matchar tomt-radens padding, så
-   linjen hamnar där den hade legat om listan renderats. Egen modifier och inte
-   `.jp-section` rakt av: den klassen bär åtta ytor, inklusive gäst och laddskelett. */
-.jp-section--railed {
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--jp-border);
 }
 .jp-section__head {
   display: flex;

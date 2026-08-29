@@ -179,19 +179,10 @@ export function NoticeSection({
     restoreMany(read.map((n) => n.id));
   }, [read, restoreMany]);
 
-  // #1556 gav sektionen en grammatik: 2px öppnar, 1px stänger. Den lätta rälsen bars av
-  // `.jp-notice-list`, som INTE renderas när sammanfattningen äger tillståndet och inget är
-  // oläst eller läst — då slutade sektionen ingenstans. Osynligt tills #1557 lade en rad
-  // under sista sektionen: utan räls stötte radens knapp mot sammanfattningens CTA med bara
-  // ett gap emellan. Rälsen flyttar alltså till sektionen när listan uteblir, i stället för
-  // att kompenseras i raden.
   const listRendered = unread.length > 0 || read.length > 0 || !summaryOwns;
 
   return (
-    <section
-      className={listRendered ? "jp-section" : "jp-section jp-section--railed"}
-      aria-labelledby={titleId}
-    >
+    <section className="jp-section" aria-labelledby={titleId}>
       <div className="jp-section__head">
         <h2 className="jp-section__title" id={titleId}>
           {title}

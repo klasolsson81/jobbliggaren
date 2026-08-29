@@ -171,38 +171,3 @@ describe("NoticeSection", () => {
     expect(screen.getByText("inga olästa")).toBeInTheDocument();
   });
 });
-
-describe("NoticeSection — stängningsrälsen (#1557)", () => {
-  beforeEach(() => window.localStorage.clear());
-
-  it("bär rälsen på sektionen när listan uteblir", () => {
-    // `summaryOwns` + noget olästa/lästa ⇒ `<ul class="jp-notice-list">` renderas inte,
-    // och den var ENSAM bärare av 1px-rälsen (#1556: 2px öppnar, 1px stänger). Utan den
-    // här grenen slutade sektionen ingenstans — osynligt tills #1557 lade en rad under
-    // sista sektionen.
-    const { container } = render(
-      <NoticeSection
-        source="jobads"
-        titleId="s-jobads"
-        title="Jobbannonser"
-        notices={[]}
-        emptyBody="Nya matchningar och deadlines dyker upp här."
-        prefTypes={prefTypes}
-        summary={<div>sammanfattning</div>}
-        summaryOwns="empty"
-      />,
-    );
-
-    expect(container.querySelector(".jp-notice-list")).toBeNull();
-    expect(container.querySelector("section.jp-section--railed")).not.toBeNull();
-  });
-
-  it("bär INTE rälsen på sektionen när listan gör det", () => {
-    // Två rälsar hade läst som dubbellinje. Den negativa grenen är hälften av regeln,
-    // och utan den kan testet ovan inte skilja "rätt villkor" från "alltid på".
-    const { container } = renderSection([n("a", "matches")]);
-
-    expect(container.querySelector(".jp-notice-list")).not.toBeNull();
-    expect(container.querySelector("section.jp-section--railed")).toBeNull();
-  });
-});

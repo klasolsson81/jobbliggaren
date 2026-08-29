@@ -150,8 +150,20 @@ STUB
   # rewriting the stub.
   cat >"$BIN/docker" <<STUB
 #!/usr/bin/env bash
+# AN UNREACHABLE DAEMON FAILS EVERY SUBCOMMAND, inspect INCLUDED — and it fails inspect in exactly
+# the shape a missing container does. That indistinguishability is the defect T22 pins. Same env
+# var and same message as jobbliggaren-logprune.test.sh's arm, because it is the same daemon.
+if [ -n "\${DOCKER_STUB_DAEMON_DOWN:-}" ]; then
+  echo "Cannot connect to the Docker daemon at unix:///var/run/docker.sock." >&2
+  exit 1
+fi
 verb="\$1"; shift
 case "\$verb" in
+  version)
+    # ANSWERED EXPLICITLY rather than left to the catch-all exit 0 at the bottom. The daemon probe
+    # passes either way, so this changes no verdict — it stops the arm T22 turns on from resting
+    # on a fallthrough that a later edit could remove without meaning to.
+    echo "28.5.1" ;;
   inspect)
     [ -f "$TMPROOT/containers/\$1" ] && exit 0 || exit 1 ;;
   logs)
@@ -506,6 +518,35 @@ now=$(date -u +%s)
 got=$(since_epoch_of_last_logs_call)
 check "T20c a stamp OLDER than the window is clamped to the floor, not honoured" \
   "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+
+# --- T22: an UNREACHABLE daemon is not a quiet skip ----------------------------------------------
+# #1316, the third door into the loss `429c1e69` repaired. `docker inspect` exits 1 against an
+# unreachable daemon in exactly the shape it uses for a container that does not exist, and the loop
+# reads that shape as a normal skip. Every container is skipped, the extract stays empty, `app_rc`
+# is never set — and the stamp is written, anchoring the next run past a window nothing read.
+#
+# Three assertions, T19's shape. The third is not decoration: "container missing" is the diagnosis
+# an operator would otherwise act on, and it sends them to the wrong box entirely.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+out=$(DOCKER_STUB_DAEMON_DOWN=1 run_sut); rc=$?
+check "T22 an unreachable docker daemon fails the run and writes NO stamp" \
+  "$([ "$rc" -ne 0 ] && [ ! -f "$TMPROOT/state/last-successful-logship" ] && echo 0 || echo 1)"
+check "T22b the failure names the DAEMON rather than a missing container" \
+  "$(echo "$out" | grep -q 'daemon is not reachable' && echo 0 || echo 1)"
+
+# CROSSES THE CONTROL: without this, T22 also passes against a script that died on every failed
+# `inspect` — which would break the case the loop's `|| continue` exists for. Three of the four
+# containers are absent here by construction, and the run must still succeed and still ship what
+# the fourth gave. It is also what would catch DOCKER_STUB_DAEMON_DOWN leaking out of T22: bash
+# leaves a var assigned this way set after a FUNCTION returns, and only the command substitution
+# above confines it.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+out=$(run_sut); rc=$?
+check "T22c a MISSING container is still a skip, and the run still succeeds" \
+  "$([ "$rc" -eq 0 ] && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
+
 # --- T21: the floor's number is PARITY, and a KEEP-IN-SYNC note is not an instrument ------------
 # jobbliggaren-logship.sh declares RETENTION_DAYS as parity with jobbliggaren-logprune.sh, both
 # following ADR 0024 D7 policy 1. That note is prose; this is the instrument — T12's form, for the

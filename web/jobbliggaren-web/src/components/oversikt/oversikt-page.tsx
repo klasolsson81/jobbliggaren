@@ -21,6 +21,7 @@ import {
   OVERSIKT_FOLLOW_UP_DAYS,
 } from "@/lib/oversikt/aggregations";
 import { ApplicationSummary } from "./application-summary";
+import { MarkAllReadRow } from "./mark-all-read-row";
 import { CompanySummary } from "./company-summary";
 import {
   countByStatus,
@@ -375,7 +376,6 @@ export function OversiktPage({
         <NoticeToolbar
           lastUpdated={formatNoticesStamp(format, today)}
           lastUpdatedIso={today.toISOString()}
-          notices={allNotices}
         />
 
         {!hasStatedOccupation && <SetupCallout />}
@@ -408,6 +408,9 @@ export function OversiktPage({
           summary={<CompanySummary watches={companyWatches} />}
           summaryOwns={companySummaryOwns}
         />
+
+        {/* Sist på sidan, efter det den verkar på (#1557). */}
+        <MarkAllReadRow notices={allNotices} />
       </div>
     </>
   );

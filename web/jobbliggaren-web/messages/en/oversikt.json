@@ -36,6 +36,8 @@
     "refreshing": "Refreshing…",
     "refreshed": "Refreshed",
     "markAllRead": "Mark all as read",
+    "markAllReadHint": "The notices are hidden in each section until tomorrow. Nothing is removed.",
+    "markAllReadReceipt": "{count, plural, one {# notice marked as read} other {# notices marked as read}}",
     "emptyTitle": "No unread notices",
     "emptyBody": "The inbox is empty. You will be notified as soon as something happens in your case.",
     "groupAction": "Needs action",

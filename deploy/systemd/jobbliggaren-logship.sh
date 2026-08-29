@@ -395,7 +395,20 @@ run re-read this window rather than anchor past it."
   if [[ -f "$STAMP_FILE" ]]; then
     stamp_epoch=$(stat -c '%Y' "$STAMP_FILE") ||
       die "could not read the stamp's mtime at ${STAMP_FILE}"
-    if [[ "$stamp_epoch" -gt "$floor_epoch" ]]; then
+    # THE WINDOW IS BOUNDED ON BOTH SIDES, and the ceiling is this run's start. A stamp dated after
+    # it is not a window boundary at all — every successful run stamps its own start, so nothing
+    # here writes one ahead of that. A clock that ran backwards, a restored file or tampering does.
+    # `--since <future>` is the one wrong-looking value docker takes SILENTLY (rc=0, empty output;
+    # a malformed date exits 1), so the header-only extract would suppress the ship, leave `app_rc`
+    # at 0, and let the stamp be written — losing the window in the same shape this leg's other
+    # #1316 door loses it. `--check` already refuses this state; the shipping path did not.
+    #
+    # AN UNTRUSTWORTHY STAMP THEREFORE ANCHORS NOTHING and `app_epoch` stays at the floor, which is
+    # the audit leg's own answer to the same class of state: its malformed offset "resets to a full
+    # ship rather than guessing". Re-reading is the side this file's doctrine already picks, above.
+    if [[ "$stamp_epoch" -gt "$run_epoch" ]]; then
+      log "app: the stamp is dated after this run started; reading from the window floor instead"
+    elif [[ "$stamp_epoch" -gt "$floor_epoch" ]]; then
       app_epoch="$stamp_epoch"
     fi
   fi

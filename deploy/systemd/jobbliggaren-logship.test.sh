@@ -547,6 +547,32 @@ out=$(run_sut); rc=$?
 check "T22c a MISSING container is still a skip, and the run still succeeds" \
   "$([ "$rc" -eq 0 ] && ls "$TMPROOT/remote" 2>/dev/null | grep -q '^app-' && echo 0 || echo 1)"
 
+# --- T23: a stamp dated in the FUTURE anchors nothing --------------------------------------------
+# #1316's second door, security-auditor's Minor 3 on PR #1567. #1561's floor clamps DOWNWARD only,
+# so a future stamp passed through and became `--since <future>` — which docker accepts silently
+# (rc=0, empty output), unlike a malformed date, which exits 1. Header-only extract, ship
+# suppressed, `app_rc` 0, stamp written, next run anchored past the window.
+#
+# §5 `Tests:` — THE ACTOR IS NAMED, because production cannot produce this state. Every successful
+# run ends `touch -d "@${run_epoch}"`, so no path in this repo writes an mtime ahead of its own
+# run's start. What does: a clock that ran backwards, a file restored from a later backup, or
+# tampering. None of the three is callable from here, so naming them is the whole obligation.
+# Whether any is reachable on the box is UNMEASURED and this case asserts nothing about it.
+reset_fixture
+printf 'api line one\n' >"$TMPROOT/containers/jobbliggaren-api"
+future_epoch=$(( $(date -u +%s) + 7200 ))
+printf '20260101T000000Z\n' >"$TMPROOT/state/last-successful-logship"
+touch -d "@${future_epoch}" "$TMPROOT/state/last-successful-logship"
+out=$(run_sut); rc=$?
+now=$(date -u +%s)
+got=$(since_epoch_of_last_logs_call)
+check "T23 a stamp dated in the FUTURE is refused, and the window opens at the floor" \
+  "$(within "$got" "$(( now - 30 * 86400 ))" && echo 0 || echo 1)"
+# The refusal is SAID. T4's counterpart on the shipping side: a silent fallback would leave an
+# operator reading a 30-day re-ship with nothing naming why.
+check "T23b the refusal is logged rather than silent" \
+  "$(echo "$out" | grep -q 'dated after this run started' && echo 0 || echo 1)"
+
 # --- T21: the floor's number is PARITY, and a KEEP-IN-SYNC note is not an instrument ------------
 # jobbliggaren-logship.sh declares RETENTION_DAYS as parity with jobbliggaren-logprune.sh, both
 # following ADR 0024 D7 policy 1. That note is prose; this is the instrument — T12's form, for the

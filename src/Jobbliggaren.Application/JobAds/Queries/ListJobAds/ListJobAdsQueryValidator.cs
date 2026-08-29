@@ -164,7 +164,9 @@ public sealed class ListJobAdsQueryValidator : AbstractValidator<ListJobAdsQuery
         RuleFor(q => q.MatchGrades!)
             .Must(g => g.Count <= MatchGradeBands.Filterable.Count)
             .When(q => q.MatchGrades is not null)
-            .WithMessage("Max 4 matchningsgrader (Grund/Relaterat/Bra/Stark) per filter.");
+            .WithMessage(
+                $"Max {MatchGradeBands.Filterable.Count} matchningsgrader "
+                + "(Grund/Relaterat/Bra/Stark) per filter.");
 
         RuleForEach(q => q.MatchGrades)
             .Must(MatchGradeBands.Filterable.Contains)

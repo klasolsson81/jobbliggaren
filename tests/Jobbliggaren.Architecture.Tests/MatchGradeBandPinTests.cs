@@ -14,10 +14,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <b>Why the derivation needs a pin at all.</b> <see cref="MatchGradeBands.GoodOrBetter"/> is
 /// <c>Filterable.Where(g =&gt; g &gt;= MatchGrade.Good)</c>, which turns the enum's DECLARATION ORDER
 /// into a semantic claim: that the rungs are ordinal. They are today, deliberately — ADR 0084 §F2
-/// placed <see cref="MatchGrade.Related"/> BETWEEN Basic and Good. But insert a sixth grade between
-/// Good and Strong tomorrow and the band grows silently, at every consumer at once, moving a
-/// user-visible count on /foretag. The derivation removes transcription risk and INCREASES the blast
-/// radius of a reorder; these tests are the other half of that bargain.
+/// placed <see cref="MatchGrade.Related"/> BETWEEN Basic and Good. The derivation removes
+/// transcription risk and INCREASES the blast radius of a reorder — every consumer moves at once;
+/// these tests are the other half of that bargain.
 /// </para>
 /// <para>
 /// <b>What these pins do NOT do.</b> They do not verify that <see cref="MatchGradeBands.Filterable"/>
@@ -85,8 +84,6 @@ public sealed class MatchGradeBandPinTests
         MatchGradeBands.Filterable.ShouldBe(
             [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong]);
 
-        // Order is load-bearing, not cosmetic: it reaches Postgres as the `= ANY(@ranks)` parameter
-        // value via PerUserJobAdSearchQuery's goodOrBetterRanks.
         MatchGradeBands.GoodOrBetter.ShouldBe([MatchGrade.Good, MatchGrade.Strong]);
     }
 

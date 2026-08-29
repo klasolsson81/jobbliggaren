@@ -68,7 +68,9 @@ public class CompanyWatchMatchCountTests(ApiFactory factory)
     private const string CvSkillConceptId = "skill-cwmatch-0001";
     private const string CvSkillDisplay = "Cwmatch-skill";
 
-    // The headline band the hub counts (parity ListCompanyWatchesQueryHandler.MatchingGrades).
+    // The headline band the hub counts (parity MatchGradeBands.GoodOrBetter). Kept as a local
+    // literal on purpose: this is the oracle's independent second transcription, and reading the
+    // production constant here would make it assert x == x.
     private static readonly IReadOnlyList<MatchGrade> HeadlineGrades =
         [MatchGrade.Good, MatchGrade.Strong];
 

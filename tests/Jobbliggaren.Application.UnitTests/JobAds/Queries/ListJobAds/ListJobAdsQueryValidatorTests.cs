@@ -570,18 +570,20 @@ public class ListJobAdsQueryValidatorTests
     [Fact]
     public void Validate_MatchGrades_AcceptsExactlyTheFilterableBand_OverEveryDeclaredGrade()
     {
-        // Behavioural, not a set comparison: the validator now reads MatchGradeBands.Filterable, so
-        // comparing the two sets would be near-tautological. Driving the validator instead takes the
-        // grade through the cap, the When-clause and RuleForEach -- so a When that accidentally
-        // disarms the rule fails here, which a set comparison would sail past.
+        // The expectation is a LOCAL literal, not MatchGradeBands: reading the same artefact the
+        // validator reads would make this blind to a widening of the band -- the exact mutation it
+        // exists for. This is the wire side's independent second transcription.
         //
-        // Over EVERY declared grade, not over the band: the one-sided form cannot see a widening.
+        // Driven over EVERY declared grade, so the case also covers a grade no [InlineData] names.
+        MatchGrade[] expectedAccepted =
+            [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong];
+
         foreach (var grade in Enum.GetValues<MatchGrade>())
         {
             var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: [grade]));
 
             result.IsValid.ShouldBe(
-                MatchGradeBands.Filterable.Contains(grade),
+                expectedAccepted.Contains(grade),
                 $"{grade}: the wire must accept exactly the Fast band -- accepting a grade the list "
                 + "cannot compute makes the filter silently match zero (the G3-OPT-A honesty gate)");
         }

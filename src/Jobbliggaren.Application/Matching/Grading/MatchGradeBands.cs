@@ -1,8 +1,8 @@
 namespace Jobbliggaren.Application.Matching.Grading;
 
 /// <summary>
-/// The named bands of <see cref="MatchGrade"/> that production filters on. One home for a piece of
-/// knowledge that had four: the ">= Good" threshold was hand-enumerated in
+/// The named bands of <see cref="MatchGrade"/> that production filters on. One home for knowledge
+/// that was spread out: the ">= Good" threshold was hand-enumerated in
 /// <c>ListCompanyWatchesQueryHandler</c>, <c>LookupCompanyQueryHandler</c> and
 /// <c>PerUserJobAdSearchQuery</c>, the filterable band in <c>ListJobAdsQueryHandler</c> and again in
 /// <c>ListJobAdsQueryValidator</c>, and the five were held in step by a prose comment. The mutation
@@ -51,9 +51,10 @@ public static class MatchGradeBands
     /// <para>
     /// ⚠ <b>The derivation turns the enum's DECLARATION ORDER into a semantic claim</b> — that the
     /// rungs are ordinal. They are today, on purpose (<see cref="MatchGrade.Related"/> is placed
-    /// between Basic and Good). But that alignment is what <c>MatchGradeBandPinTests</c> exists to
-    /// hold: insert a sixth grade between Good and Strong and this set grows silently, moving a
-    /// user-visible count on /foretag without a single test failing. The pin is what makes the
+    /// between Basic and Good). That alignment is what <c>MatchGradeBandPinTests</c> exists to hold.
+    /// The set can only grow through <see cref="Filterable"/>, which is hand-written — but a grade
+    /// added there that sorts at or above Good joins this band as a side effect of a one-line edit,
+    /// and the effect on /foretag is invisible at the edit site. The pin is what makes the
     /// derivation safe, not decoration on top of it.
     /// </para>
     /// </summary>

@@ -633,6 +633,7 @@ jobs:
       # är den enabled, timvisa — den oskyddade halvan var precis den som går live först.
       - name: rclone-invocation-guard (fixturer + det riktiga trädet)
         run: bash .github/scripts/rclone-invocation-guard.test.sh
+
       # The predicate behind close-out step FOUR (CLAUDE.md §6.5). `release-images.yml` has no
       # push trigger, and over ~79 h on 2026-08-30 its schedule delivered 11 of ~79 expected
       # runs (#1592) — three merged PRs sat unbuilt. The detector in `worktree-reaper.sh` is the

@@ -129,7 +129,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # THE IDEMPOTENCE, and it is what removes the trigger from the critical path: if this
-      # SHA is already published there is nothing to do, so a missed schedule self-heals and
+      # SHA is already published there is nothing to do, and
       # an extra trigger costs a lookup.
       #
       # BOTH TAGS MUST AGREE, not just the immutable one. Keyed on `sha-` alone, a run

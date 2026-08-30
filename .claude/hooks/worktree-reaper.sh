@@ -293,13 +293,13 @@ done
 HYGIENE=""
 if command -v gh >/dev/null 2>&1; then
   # (d) runs FIRST despite its letter: it is two calls and O(1), while (a) below makes one `gh`
-  #     call per local branch — measured at ~48 s of this hook's 60 s budget on a tree with 91
-  #     branches. Ordered after it, a timeout loses all four detectors and says nothing.
+  #     call per local branch, so its cost scales with
+  #     `git branch --format='%(refname:short)' | wc -l`.
   #
   # (d) main carries commits no published image was built from. CLAUDE.md §6.5 makes the
-  #     dispatch the fourth close-out step; this is the mechanism behind that step, because
-  #     three merged PRs already went unbuilt while every session did exactly what the
-  #     checklist said. The verdict and the reasons for this shape live in the classifier.
+  #     dispatch the fourth close-out step, because three merged PRs already went unbuilt
+  #     while every session did exactly what the checklist said. What this detector does and
+  #     does not cover lives in the classifier.
   #
   #     main's tip is read from the REMOTE. A worktree's `origin/main` is only as fresh as its
   #     last fetch, and a stale ref reports "in sync" when it is not — which would make this

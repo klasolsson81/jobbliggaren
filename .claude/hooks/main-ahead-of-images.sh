@@ -31,15 +31,14 @@
 # `gh` call, so its whole behaviour is reachable from a fixture suite. Detector (a) has the same
 # in-band failure and guards it with one inline `case`, so in-band failure is not what
 # distinguishes this one. Two things are: its verdict compares TWO independently fallible
-# measurements rather than validating one, and it is the only detector with a false-NEGATIVE mode
-# — the others fail by not reaping, this one by not speaking.
+# measurements rather than validating one, and it is the only detector with a false-NEGATIVE
+# mode.
 #
 # ⚠ THE CALLER'S MEASURE IS NARROWER THAN "PUBLISHED", and that residual is not closed here
 # (dotnet-architect, 2026-08-30). `gh run list --status=success` records which ref a run was
 # triggered on; success does not imply a push. `-f push=false` (a dry run) and `-f ref=<branch>`
 # both leave a `success` run whose headSha can equal main's tip with nothing published, and this
-# file then says in-sync. Closing it means measuring the REGISTRY — the layer the box actually
-# reads — which is a different measurement layer and so a different change-reason.
+# file then says in-sync.
 #
 # Usage:   main-ahead-of-images.sh <main-tip-sha> <last-successful-build-sha>
 # Prints:  "in-sync" | "ahead <built-short> <main-short>" | "not-measurable <reason>"

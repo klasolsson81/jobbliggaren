@@ -492,10 +492,12 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     renderList([legalEntity]);
 
     expect(
-      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+      screen.getByRole("link", { name: "3 aktiva annonser just nu hos Skatteverket" })
     ).toHaveAttribute("href", ALL_ADS_HREF);
     expect(
-      screen.getByRole("link", { name: "Visa matchande annonser från Skatteverket" })
+      screen.getByRole("link", {
+        name: "2 matchande annonser just nu hos Skatteverket",
+      })
     ).toHaveAttribute("href", MATCHING_ADS_HREF);
   });
 
@@ -546,10 +548,10 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     renderList([{ ...legalEntity, matchingAdCount: null }]);
 
     expect(
-      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+      screen.queryByRole("link", { name: /matchande annons/ })
     ).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+      screen.getByRole("link", { name: "3 aktiva annonser just nu hos Skatteverket" })
     ).toHaveAttribute("href", ALL_ADS_HREF);
     expect(screen.getByText(/Ställ in matchning/)).toBeInTheDocument();
   });
@@ -560,15 +562,17 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
 
     await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
     expect(
-      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+      screen.queryByRole("link", { name: /matchande annons/ })
     ).toBeNull();
     expect(
-      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+      screen.getByRole("link", { name: "3 aktiva annonser just nu hos Skatteverket" })
     ).toHaveAttribute("href", ALL_ADS_HREF);
 
     await user.click(screen.getByRole("radio", { name: "Matchande" }));
     expect(
-      screen.getByRole("link", { name: "Visa matchande annonser från Skatteverket" })
+      screen.getByRole("link", {
+        name: "2 matchande annonser just nu hos Skatteverket",
+      })
     ).toHaveAttribute("href", MATCHING_ADS_HREF);
   });
 
@@ -586,10 +590,10 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     renderList([{ ...legalEntity, matchingAdCount: 0 }]);
 
     expect(
-      screen.getByRole("link", { name: "Visa annonserna från Skatteverket" })
+      screen.getByRole("link", { name: "3 aktiva annonser just nu hos Skatteverket" })
     ).toHaveAttribute("href", ALL_ADS_HREF);
     expect(
-      screen.queryByRole("link", { name: /Visa matchande annonser/ })
+      screen.queryByRole("link", { name: /matchande annons/ })
     ).toBeNull();
   });
 
@@ -597,11 +601,13 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     renderList([legalEntity]);
 
     for (const name of [
-      "Visa annonserna från Skatteverket",
-      "Visa matchande annonser från Skatteverket",
+      "3 aktiva annonser just nu hos Skatteverket",
+      "2 matchande annonser just nu hos Skatteverket",
     ]) {
       const link = screen.getByRole("link", { name });
-      expect(name).toContain(link.textContent?.trim());
+      // The visible label is a PREFIX of the accessible name. Two ICU strings carry the same
+      // plural, so this is what fails if one is edited and the other is not.
+      expect(name.startsWith(link.textContent!.trim())).toBe(true);
       expect(name).toContain("Skatteverket");
     }
   });
@@ -667,16 +673,15 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     expect(screen.queryByText(/kan inte visa/)).toBeNull();
   });
 
-  it("talet självt är inte länken", () => {
-    // globals.css:2663-2669 — "talet är information, inte interaktion". The obvious-but-wrong
-    // implementation wraps the count in the Link; nothing else in this suite forbids it.
+  it("talet SJÄLVT är länken — ingen separat handling bredvid det", () => {
+    // Klas-direktiv 2026-08-30: the product owner asked for the count itself to be the
+    // clickable, underlined target. This case fails if the link is ever moved back out beside
+    // the number.
     renderList([legalEntity]);
 
-    expect(
-      screen.getByText(/3 aktiva annonser just nu/).closest("a")
-    ).toBeNull();
-    expect(
-      screen.getByText(/2 matchande annonser just nu/).closest("a")
-    ).toBeNull();
+    expect(screen.getByText(/3 aktiva annonser just nu/).closest("a")).not.toBeNull();
+    expect(screen.getByText(/2 matchande annonser just nu/).closest("a")).not.toBeNull();
+    // And there is no second, separate control repeating the same destination.
+    expect(screen.queryByRole("link", { name: /^Visa/ })).toBeNull();
   });
 });

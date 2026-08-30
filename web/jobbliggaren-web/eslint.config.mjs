@@ -218,6 +218,55 @@ const eslintConfig = defineConfig([
       "no-restricted-syntax": ["error", ...allExcept("ZONE")],
     },
   },
+  // ── Server-side logging: AGENTS.md §5 `Backend:` (no sensitive data in logs) ──
+  // Every line this app writes to stdout leaves the box: the Next container is in
+  // the set whose output `jobbliggaren-logship.sh` ships offsite, and that script
+  // calls the app leg the only one carrying data-subject personal data. A
+  // `console.*` added to a Server Action or a Server Component is therefore not a
+  // debug aid — it is a new export path, and the `SECURITY (§5)` docblocks under
+  // `src/lib/actions/` and `src/components/auth/` already promise callers that a
+  // token or an email is never logged. Until this block those promises had no
+  // mechanism.
+  //
+  // `error`, never `warn`: a warning fails a run only when the `lint` script is
+  // given `--max-warnings`, which this block cannot guarantee and must not depend
+  // on, so the severity has to carry the gate by itself. And no `{ allow: [...] }`:
+  // every known call site is `console.error`, so allowing that method would make
+  // the rule inert exactly where it is needed.
+  //
+  // This block deliberately does NOT subtract from ALL_GROUPS and must never be
+  // folded into `no-restricted-syntax`. That composition exists to stop last-wins
+  // narrowing WITHIN one rule key; `no-console` is its own key and shares last-wins
+  // with nothing. Folding it in would also widen every exemption: a single
+  // `eslint-disable-next-line no-restricted-syntax` would switch the copy,
+  // typography, `"use server"` and zone guards off on the same line.
+  //
+  // Its own `files`/`ignores` rather than the first block's: that one drops
+  // `src/components/ui/**`, and a logging gate that skips a directory is a gate
+  // over part of the surface.
+  //
+  // Exemptions are line-local `eslint-disable-next-line no-console` comments and
+  // are not restated here — a second copy is a second thing to keep true, the same
+  // reason ZONE_MSG gives for not listing its own.
+  //
+  // Two limits, named so this block is not itself an unmeasured promise of the kind
+  // it exists to support. It is LEXICAL, not semantic: it matches the `console.*`
+  // member expression and nothing else, so `const c = console`,
+  // `globalThis.console`, a direct `process.stdout.write` and a dependency's own
+  // logging all pass. And its `files` is `src/**`, so config that runs in the same
+  // container — `next.config.ts` — is outside it.
+  //
+  // Pinned on severity, reach and effect in
+  // `src/test/eslint-restriction-blocks.test.ts`, beside the sibling block's pin
+  // and for the reason stated there: the gate can die on any axis and only the
+  // first is visible in a diff.
+  {
+    files: ["src/**/*.{ts,tsx,js,jsx}"],
+    ignores: TEST_FILES,
+    rules: {
+      "no-console": "error",
+    },
+  },
 ]);
 
 export default eslintConfig;

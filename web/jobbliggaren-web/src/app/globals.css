@@ -6753,12 +6753,41 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 
+/* #1547 follow-up (Klas-direktiv 2026-08-30) — the count ITSELF is the link, so the underline
+   is already there at rest and hover must offer a different step than "an underline appears".
+   Thickness + offset, both, so the feedback carries without relying on the accent-700/600
+   shift alone.
+
+   No `color` here on purpose: `a:not(.jp-btn, …)` on line 534 is (0,1,1) and this class is
+   (0,1,0), so a `color` declaration would be inert — the base rule already paints exactly the
+   accent-700/600 pair, hover included. No `font-weight` either: the count sits inside
+   `.jp-appsummary__totals` (700) on one row and `.jp-matchline` (medium) on the next, and a
+   fixed weight made the link the LIGHTER half of its own sentence. Inheriting keeps the link
+   at least as heavy as the text around it, wherever it lands. */
+.jp-countlink {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition:
+    color 120ms ease,
+    text-decoration-thickness 120ms ease,
+    text-underline-offset 120ms ease;
+}
+.jp-countlink:hover {
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
 /* Signpost-/nudgelänk (accent, semibold, underline) — återanvänds av
    match-sektionens CTA:er + company-watch-row m.fl. */
 .jp-nudgelink {
   color: var(--jp-accent-700);
   font-weight: var(--jp-fw-semibold);
   text-decoration: underline;
+}
+/* Had no hover at all — a link with no feedback reads as text (Klas 2026-08-30). */
+.jp-nudgelink:hover {
+  text-decoration-thickness: 2px;
 }
 
 /* Matchrad under företagsnamn — återanvänds av company-watch-row

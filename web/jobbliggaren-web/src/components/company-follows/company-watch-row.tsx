@@ -136,11 +136,11 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
   // The two gates are independent — 136 active with 0 matching is an ordinary row.
   const activeAdsHref =
     linkableOrgNr !== null && item.activeAdCount > 0
-      ? buildCompanyJobsHref(linkableOrgNr, "all")
+      ? buildCompanyJobsHref([linkableOrgNr], "all")
       : null;
   const matchingAdsHref =
     linkableOrgNr !== null && item.matchingAdCount !== null && item.matchingAdCount > 0
-      ? buildCompanyJobsHref(linkableOrgNr, "matching")
+      ? buildCompanyJobsHref([linkableOrgNr], "matching")
       : null;
 
   return (
@@ -169,18 +169,20 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
               // A count of ADS over a named grade threshold (>= Good) — high-contrast primary ink,
               // tabular-nums for stable digits (#448), NEVER a score/percentage/meter (ADR 0071).
               <p className="jp-matchline tabular-nums">
-                {t("matchingAds", { count: item.matchingAdCount })}
-                {matchingAdsHref && (
-                  <>
-                    {" "}
-                    <Link
-                      href={matchingAdsHref}
-                      className="jp-nudgelink"
-                      aria-label={t("viewMatchingAdsAria", { company: displayName })}
-                    >
-                      {t("viewMatchingAds")}
-                    </Link>
-                  </>
+                {matchingAdsHref ? (
+                  <Link
+                    href={matchingAdsHref}
+                    className="jp-countlink"
+                    prefetch={false}
+                    aria-label={t("adsLinkAria", {
+                      label: t("matchingAds", { count: item.matchingAdCount }),
+                      company: displayName,
+                    })}
+                  >
+                    {t("matchingAds", { count: item.matchingAdCount })}
+                  </Link>
+                ) : (
+                  t("matchingAds", { count: item.matchingAdCount })
                 )}
               </p>
             ))}
@@ -215,22 +217,22 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                 <span>{t("orgNr", { orgNr: formatOrgNr(item.organizationNumber) })}</span>
               )
             )}
-            {/* The link lives INSIDE the count's own element, never as a sibling in the meta
-                strip: `.jp-job__meta` wraps with a 6px/16px gap, so a sibling would break away
-                from the number it refers to and read as a third, unrelated fact. */}
+            {/* The count IS the link -- there is no separate action to break away from it. */}
             <span className="tabular-nums">
-              {t("activeAds", { count: item.activeAdCount })}
-              {activeAdsHref && (
-                <>
-                  {" "}
-                  <Link
-                    href={activeAdsHref}
-                    className="jp-nudgelink"
-                    aria-label={t("viewAdsAria", { company: displayName })}
-                  >
-                    {t("viewAds")}
-                  </Link>
-                </>
+              {activeAdsHref ? (
+                <Link
+                  href={activeAdsHref}
+                  className="jp-countlink"
+                  prefetch={false}
+                  aria-label={t("adsLinkAria", {
+                    label: t("activeAds", { count: item.activeAdCount }),
+                    company: displayName,
+                  })}
+                >
+                  {t("activeAds", { count: item.activeAdCount })}
+                </Link>
+              ) : (
+                t("activeAds", { count: item.activeAdCount })
               )}
             </span>
             {followedSince && <span>{t("followedSince", { date: followedSince })}</span>}

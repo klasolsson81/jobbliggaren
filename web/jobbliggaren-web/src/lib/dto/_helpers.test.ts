@@ -6,6 +6,7 @@ import {
   pagedResult,
   pagedResultWithTotalPages,
   parseResponse,
+  redactIssues,
   responseToResult,
   type ApiResult,
 } from "./_helpers";
@@ -99,21 +100,43 @@ describe("parseResponse", () => {
     );
   });
 
-  it("redacts `received` value from logged issues (PII safety)", async () => {
-    // Backend råkar returnera känsligt värde i fel fält (här: nummer-id där
-    // string förväntades). `received` ska inte hamna i strukturerad logg.
-    const res = jsonResponse({ id: "user@example.com", count: "not-a-number" });
+  it("logs the error class, never the parse message, on invalid JSON", async () => {
+    // This path parses the session response, whose body carries the bearer
+    // credential, and V8 quotes a window of bytes ending at the parse failure —
+    // so the message is the carrier and the stack is inert file paths.
+    //
+    // Asserted as equality on the field, not as a substring of the payload. A
+    // sentinel search cannot fail here: the quote window is narrower than the
+    // value, and JSON.stringify renders an Error as {}. Equality kills every
+    // message-bearing variant, `cause` and `${name}: ${message}` alike.
+    const res = new Response('{"sessionId":"sess_ZQSENTINELZQ","n":undefined}', {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
     await expect(
       parseResponse(res, sampleSchema, "GET /test")
     ).rejects.toThrow();
 
-    expect(errorSpy).toHaveBeenCalled();
-    const loggedPayload = errorSpy.mock.calls[0]?.[1] as {
-      issues: Array<Record<string, unknown>>;
-    };
-    for (const issue of loggedPayload.issues) {
-      expect(issue).not.toHaveProperty("received");
-    }
+    const payload = errorSpy.mock.calls[0]?.[1] as { cause: unknown };
+    expect(payload.cause).toBe("SyntaxError");
+  });
+});
+
+describe("redactIssues", () => {
+  // The production path cannot reach this transform: Zod omits `input` unless a
+  // caller passes `reportInput`, and parseResponse does not. Per AGENTS.md §5
+  // `Tests:` the actor is callable here, so the test asserts the transform's own
+  // behaviour rather than a production outcome.
+  it("strips `input` when a caller has asked Zod to report it", () => {
+    const result = z
+      .object({ id: z.number() })
+      .safeParse({ id: "user@example.com" }, { reportInput: true });
+
+    expect(result.success).toBe(false);
+    const raw = result.success ? [] : result.error.issues;
+    expect(JSON.stringify(raw)).toContain("user@example.com");
+
+    expect(JSON.stringify(redactIssues(raw))).not.toContain("user@example.com");
   });
 });
 

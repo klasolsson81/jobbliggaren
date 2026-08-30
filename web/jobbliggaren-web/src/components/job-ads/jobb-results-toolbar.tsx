@@ -121,14 +121,14 @@ interface JobbResultsToolbarProps {
    */
   onlyMatched: boolean;
   /**
-   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret (ETT org.nr,
-   * page-validerat). Bärs i toolbarens bas-URL-state så sort/chip-×/Rensa
-   * bevarar det, och renderas som en toolbar-lokal avtagbar chip (samma
+   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: en lista av
+   * page-validerade org.nr. Bärs i toolbarens bas-URL-state så sort/chip-×/Rensa
+   * bevarar det, och renderas som EN toolbar-lokal avtagbar chip (samma
    * mönster som grad-chipsen — ALDRIG via buildChipModels, som är SPOT med
-   * hero-fältets in-field-chips). Filtret sätts av företagskortets
-   * "se annonser"-länkar, aldrig av toolbaren själv.
+   * hero-fältets in-field-chips). Filtret sätts av bevakningsradens och Översiktens
+   * räknelänkar (`company-jobs-href.ts`), aldrig av toolbaren själv.
    */
-  employer: string | undefined;
+  employer: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -372,8 +372,10 @@ export function JobbResultsToolbar({
   // motsatsen som ett Klas-val (E2j, 2026-06-12): ta bort chip / Rensa / byt sort ÄR
   // avsiktliga sökningar som fångas, och `removeChip` anropar `commit`. För varje chip utom
   // detta. Formen har varit rätt hela tiden; det är skälet som har varit fel två gånger.
+  // Clears the WHOLE axis: it is set as one set (every watched company or none), so a
+  // per-value × would leave a filter the user cannot name and never asked for.
   function removeEmployer() {
-    navigate({ ...urlState, employer: undefined });
+    navigate({ ...urlState, employer: [] });
   }
 
   // E2i (Klas-beslut 2026-06-11, ersätter E2e-domen "q bevaras"): q-orden
@@ -397,7 +399,7 @@ export function JobbResultsToolbar({
       worktimeExtent: [],
       // #454 PR-0 — arbetsgivar-filtret nollas också (det har × i samma rad;
       // least surprise — allt med × försvinner, E2i-doktrinen).
-      employer: undefined,
+      employer: [],
       q: "",
     });
   }
@@ -444,13 +446,26 @@ export function JobbResultsToolbar({
           .filter(isListMatchGrade)
           .map((grade) => ({ grade, label: tGrade(`grade.${grade}`) }))
       : [];
+  // #1547 — EN arbetsgivar-chip, aldrig en per org.nr. Axeln bär hela bevakningsmängden
+  // sedan Översiktens summor länkar hit, och en chip-rad med fem tiosiffriga tal beskriver
+  // inte vad användaren tittar på. Ett ensamt org.nr identifierar däremot en arbetsgivare
+  // och står kvar. Namnupplösning är #408-adjacent och fortfarande out-of-scope.
+  const employers = urlState.employer ?? [];
+  // `noUncheckedIndexedAccess` types the index read as `string | undefined`, so the narrowing
+  // below carries the whole decision -- there is no second, unreachable length check.
+  const soleEmployer = employers.length === 1 ? employers[0] : undefined;
+  const employerChipLabel =
+    soleEmployer !== undefined
+      ? t("toolbar.employerChip", { orgNr: formatOrgNr(soleEmployer) })
+      : t("toolbar.employerChipMany", { count: employers.length });
+
   // Chips-rad syns när det finns sök/q-chips, smalnade grad-chips ELLER ett
   // aktivt arbetsgivar-filter (#454 PR-0). Status-chips borttagna (Dölj
   // ansökta syns på sin egen hero-toggle, inte som chip).
   const hasAnyToolbarChips =
     chips.length > 0 ||
     matchGradeChips.length > 0 ||
-    Boolean(urlState.employer) ||
+    (urlState.employer?.length ?? 0) > 0 ||
     // #551 punkt 4 — clearAllFilters nollar distans, så grinden måste kunna SE
     // den. Utan detta är "Rensa sökord och filter" osynlig för ett rent
     // Distans-filter, alltså en funktion vars grind inte ser vad den rensar.
@@ -541,24 +556,16 @@ export function JobbResultsToolbar({
 
         {/* Arbetsgivar-chip (#454 PR-0, toolbar-lokal som grad-chipsen —
             ALDRIG via buildChipModels, SPOT med hero-fältets in-field-chips).
-            Label = "Arbetsgivare NNNNNN-NNNN" (org.nr; namnupplösning i chipen
-            är #408-adjacent polish, out-of-scope v1). × navigerar utan
-            commit-intent (removeEmployer). Civic-ikon: Building2. */}
-        {urlState.employer && (
+            × navigerar utan commit-intent (removeEmployer). Civic-ikon: Building2. */}
+        {employers.length > 0 && (
           <span className="jp-filterchip">
             <Building2 size={12} aria-hidden="true" />
-            {t("toolbar.employerChip", {
-              orgNr: formatOrgNr(urlState.employer),
-            })}
+            {employerChipLabel}
             <button
               type="button"
               className="jp-filterchip__rm"
               onClick={removeEmployer}
-              aria-label={t("toolbar.removeFilter", {
-                label: t("toolbar.employerChip", {
-                  orgNr: formatOrgNr(urlState.employer),
-                }),
-              })}
+              aria-label={t("toolbar.removeFilter", { label: employerChipLabel })}
             >
               <X size={12} aria-hidden="true" />
             </button>

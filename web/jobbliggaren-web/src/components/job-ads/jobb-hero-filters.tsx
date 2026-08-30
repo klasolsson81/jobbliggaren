@@ -109,7 +109,7 @@ interface JobbHeroFiltersProps {
    * varje buildJobbHref-commit så ett filter-pill-klick inte raderar det
    * (samma param-bevarande-disciplin som q/sort — closure-prop, ej selection).
    */
-  employer: string | undefined;
+  employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }

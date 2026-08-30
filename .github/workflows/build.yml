@@ -633,14 +633,14 @@ jobs:
       # är den enabled, timvisa — den oskyddade halvan var precis den som går live först.
       - name: rclone-invocation-guard (fixturer + det riktiga trädet)
         run: bash .github/scripts/rclone-invocation-guard.test.sh
-      # Predikatet bakom close-out-stegets FJÄRDE punkt (CLAUDE.md §6.5). `release-images.yml`
-      # har ingen push-trigger, och dess schema levererade 11 av ~79 väntade körningar över
-      # ~79 h (mätt 2026-08-30, #1592) — tre mergade PR:er låg obyggda. Detektorn i
-      # `worktree-reaper.sh` är svaret, och en detektor som tiger när den borde larma är
-      # exakt den green-silent-inert-form den finns för att avskaffa. Därför är predikatet
-      # rent och har en egen fixtursvit: båda fel-lägena (`gh` som skriver "null",
-      # `git ls-remote` som skriver ingenting) skulle annars ge ett permanent falsklarm.
-      - name: main-ahead-of-images (close-out-dispatchens predikat)
+      # The predicate behind close-out step FOUR (CLAUDE.md §6.5). `release-images.yml` has no
+      # push trigger, and over ~79 h on 2026-08-30 its schedule delivered 11 of ~79 expected
+      # runs (#1592) — three merged PRs sat unbuilt. The detector in `worktree-reaper.sh` is the
+      # answer, and a detector that stays quiet when it should speak is exactly the
+      # green-silent-inert shape it exists to abolish. Hence a pure predicate with its own
+      # fixture suite: both of its inputs report failure IN BAND, so a missing shape guard gives
+      # a permanent false alarm rather than an error.
+      - name: main-ahead-of-images (the close-out dispatch predicate)
         run: bash .claude/hooks/main-ahead-of-images.test.sh
 
   # ---------------------------------------------------------------------------

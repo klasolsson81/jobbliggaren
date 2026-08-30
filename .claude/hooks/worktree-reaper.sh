@@ -103,6 +103,10 @@ REAPED_LIST=""; REAPED_N=0
 RESCUED_LIST=""; RESCUED_N=0
 REMOTE_LIST=""; REMOTE_N=0
 SKIPPED_LIST=""; SKIPPED_N=0
+# The dispatch detector's raw verdict. Logged rather than only branched on: `not-measurable`
+# had no consumer, so a permanently unmeasurable detector was indistinguishable from a quiet
+# healthy one — the same green-silent-inert failure the detector exists to abolish.
+DISPATCH_VERDICT=""
 _skip() { SKIPPED_LIST+="  skip: $1 :: $2"$'\n'; SKIPPED_N=$((SKIPPED_N + 1)); }
 
 for i in "${!WT_PATHS[@]}"; do
@@ -314,7 +318,7 @@ if command -v gh >/dev/null 2>&1; then
     [ "$_m" = "0" ] && continue
     _stale="${_stale}      - #$_n"$'\n'
   done < <(gh issue list --state open --label wip --assignee '@me' --json number --jq '.[].number' 2>/dev/null || true)
-  [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close' + drop wip):"$'\n'"${_stale}"
+  [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close', drop wip, unassign, dispatch the image build):"$'\n'"${_stale}"
 
   # (d) main carries commits no published image was built from. CLAUDE.md §6.5 makes the
   #     dispatch the fourth close-out step; this is the mechanism behind that step, because
@@ -329,6 +333,7 @@ if command -v gh >/dev/null 2>&1; then
               --json headSha --jq '.[0].headSha' 2>/dev/null || true)"
   _verdict="$(bash "$(dirname "${BASH_SOURCE[0]}")/main-ahead-of-images.sh" \
                 "$_main_tip" "$_built" 2>/dev/null || true)"
+  DISPATCH_VERDICT="$_verdict"
   case "$_verdict" in
     "ahead "*)
       read -r _ _built_short _main_short <<<"$_verdict"
@@ -342,7 +347,7 @@ fi
 # phase that gates the live ratchet has a complete audit trail, incl. every skip reason.
 mkdir -p docs/sessions 2>/dev/null || true
 {
-  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
+  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N} dispatch=${DISPATCH_VERDICT:-unmeasured}"
   printf '%s%s%s' "$RESCUED_LIST" "$REAPED_LIST" "$SKIPPED_LIST"
 } >> "$LOG" 2>/dev/null || true
 

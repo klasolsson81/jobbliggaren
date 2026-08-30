@@ -28,14 +28,15 @@ set -u
 main_tip="${1-}"
 built="${2-}"
 
-# Both inputs come from tools that report failure IN BAND: `gh ... --jq '.[0].headSha'` prints
-# the string "null" when no run matched, and `git ls-remote` prints nothing when offline. Either
-# would compare unequal to a real SHA and produce a confident, permanent false alarm. So the
-# shape is checked before the comparison, and anything that is not a full lowercase hex SHA
-# resolves to silence rather than to a warning.
+# Both inputs report failure IN BAND rather than by exit code, and either shape would compare
+# unequal to a real SHA and produce a confident, permanent false alarm. `worktree-reaper.sh`
+# already records which shape comes from where, at its Conjunct 4 — read it there rather than
+# here, and note that the two are NOT interchangeable: gh's embedded `--jq` emits empty, while a
+# standalone `jq` over `[]` emits the string "null". `git ls-remote` emits nothing when offline.
+# So the shape is checked before the comparison, and anything that is not a full lowercase hex
+# SHA resolves to silence rather than to a warning.
 is_sha() {
   case "$1" in
-    "") return 1 ;;
     *[!0-9a-f]*) return 1 ;;
     *) [ "${#1}" -eq 40 ] ;;
   esac
@@ -56,4 +57,4 @@ if [ "$main_tip" = "$built" ]; then
   exit 0
 fi
 
-echo "ahead ${built%${built#????????}} ${main_tip%${main_tip#????????}}"
+echo "ahead ${built:0:8} ${main_tip:0:8}"

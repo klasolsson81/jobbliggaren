@@ -40,14 +40,16 @@ check "identical SHAs"                 "in-sync"                        "$SHA_A"
 check "main ahead of the last build"   "ahead 8c776da8 ea769d32"        "$SHA_A" "$SHA_B"
 check "build ahead of main (also 'ahead')" "ahead ea769d32 8c776da8"    "$SHA_B" "$SHA_A"
 
-# --- in-band failures the real callers actually emit ------------------------------------
-# `gh run list --jq '.[0].headSha'` prints this when no run matched. Without the shape guard it
-# compares unequal to any real SHA and the detector warns forever.
-check "gh printed null for the build"  "not-measurable last-build"      "$SHA_A" "null"
-check "gh printed null for main"       "not-measurable main-tip"        "null"   "$SHA_A"
-# `git ls-remote` prints nothing when offline or unauthenticated.
-check "git ls-remote returned nothing" "not-measurable main-tip"        ""       "$SHA_A"
-check "empty build sha"                "not-measurable last-build"      "$SHA_A" ""
+# --- in-band failures, and there are two distinct shapes ---------------------------------
+# Neither caller reports failure by exit code, and the two shapes are NOT interchangeable:
+# gh's embedded `--jq` emits EMPTY for a null result, while a standalone `jq` over `[]` emits
+# the literal string "null". worktree-reaper.sh's Conjunct 4 carries that distinction and is
+# where it is recorded. `git ls-remote` emits nothing when offline or unauthenticated. Without
+# the shape guard each compares unequal to any real SHA and the detector warns forever.
+check "gh --jq emitted empty for the build"   "not-measurable last-build" "$SHA_A" ""
+check "gh --jq emitted empty for main"        "not-measurable main-tip"   ""       "$SHA_A"
+check "standalone jq emitted the string null" "not-measurable last-build" "$SHA_A" "null"
+check "standalone jq null for the main tip"   "not-measurable main-tip"   "null"   "$SHA_A"
 
 # --- malformed shapes --------------------------------------------------------------------
 check "short sha (abbreviated)"        "not-measurable main-tip"        "ea769d32" "$SHA_A"

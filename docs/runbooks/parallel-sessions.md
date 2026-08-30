@@ -413,6 +413,43 @@ confirmed 2026-07-28 that he runs no such loop. `.claude/hooks/worktree-reaper.s
 does *surface* your stale `wip` claims at session start — that is a report, not a
 close-out.
 
+**Then dispatch the image build, or the merge does not reach the box.**
+
+```bash
+gh workflow run release-images.yml     # builds main; SHA-idempotent, safe to repeat
+```
+
+`release-images.yml` has **no push trigger**: automerge merges as a GitHub App, and
+app-triggered events start no workflow runs (measured counterfactual in that workflow's
+own header). Its `schedule` is the only automatic path, and a scheduled workflow on a
+public repo is dropped under load — so a merge can sit unbuilt for hours while `main` is green
+and the issue is closed. The workflow's header names the owning session as the actor for exactly
+this reason: *"the owning session dispatches manually when it wants the image now; CLAUDE.md §6.5
+already requires it to watch its PR to merge, so it is standing at the right moment."*
+
+Measure the schedule's actual behaviour rather than trusting its cron line — the numbers move, so
+this is the command, not a figure:
+
+```bash
+gh run list --workflow=release-images.yml --limit 40 \
+  --json event,createdAt,conclusion \
+  --jq '.[] | select(.event=="schedule") | .createdAt'
+```
+
+⚠ **This step was missing from this section until 2026-08-30, and three consecutive merges
+(#1579, #1583, #1584) went unbuilt** — found only when Klas opened `dev.jobbliggaren.se` and saw
+none of them. Every session had watched its own PR to merge and stopped there, which is what this
+section told them to do.
+
+⚠ **Publishing is not deploying, and the second half is not yours.** The box's
+`jobbliggaren-reconcile.timer` pulls the published images on its own (schedule and jitter live in
+`deploy/systemd/jobbliggaren-reconcile.timer`), so the dispatch is the whole of your part for
+anything that ships *inside* an image — and `deploy/caddy/` is one of the five, its `Dockerfile`
+bakes the Caddyfile in. **A change to a file the box reads from its git CHECKOUT — the compose
+file, systemd units — is in no image**: reconcile pulls images and never advances git. That needs
+a `git pull` on the box, which is a deploy and needs Klas's GO (CLAUDE.md §9.2).
+Measure the checkout HEAD and the image dates separately before claiming what the box is running.
+
 ---
 
 ## 9. Backlog = GitHub Issues

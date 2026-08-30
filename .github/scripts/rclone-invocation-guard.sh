@@ -115,7 +115,26 @@ readonly ALLOWED_VERBS='rcat cat'
 # passes, because rule A's inline-comment strip truncates the line and rule B is not watching this
 # verb. `config` carries no CVE among the 19 measured against 1.60.1, which is why this is
 # accepted rather than closed; it is not a claim that the subcommand is unreachable.
+#
+# ⚠ AND IT IS NOT A CLAIM THAT `config` IS HARMLESS. `rclone config show` prints the S3
+# `access_key_id` and `secret_access_key` in CLEARTEXT to stdout; these units log to the journal,
+# and `jobbliggaren-logship.sh` ships the journal OFF-BOX. So this verb can disclose the very
+# credential row 27d measured able to DELETE the backup container. Rule A covers it in command
+# position, which is why the residual is accepted — but a future reader must not read "no CVE" as
+# "safe to widen" (`security-auditor`, 2026-08-30).
 # Measured 2026-08-30: with these 52, zero false positives across all scoped files.
+# ⚠ RULE B MATCHES THE RAW LINE, SO IT CAN FIRE ON HONEST PROSE, AND THAT IS A DECLARED COST.
+# Many of these 52 are ordinary English words — `version`, `check`, `size`, `test`, `about`,
+# `touch`, `link`, `move`, `delete`, `tree`, `copy`, `purge`, `cleanup`, `archive`, `backend`,
+# `completion`, `gui` — so an inline comment or a `die` string that happens to write one of them
+# next to `rclone` fails the build. Measured 2026-08-30: a comment reading
+# "verified with rclone version on the box" and a die message reading "run rclone check before
+# trusting this" both go red — and `rclone version` is the instrument row 28 itself names.
+# This fails CLOSED, so it blocks nothing unsafe; the cost is a false red, and the way out is to
+# put the prose on its own line, because WHOLE-LINE comments are skipped entirely. The
+# alternative — letting rule B skip inline comments too — reopens the hole the
+# `red-verb-in-inline-comment` fixture pins, so the false red is the cheaper side.
+# The "zero false positives" note below measures TODAY-S CORPUS, not the class.
 readonly FORBIDDEN_VERBS='about archive authorize backend bisync check checksum cleanup completion convmv copy copyto copyurl cryptcheck cryptdecode dedupe delete deletefile gendocs gitannex gui hashsum link listremotes ls lsd lsf lsjson lsl md5sum mkdir mount move moveto ncdu nfsmount obscure purge rc rcd rmdir rmdirs selfupdate serve settier sha1sum size sync test touch tree version'
 
 # Flags forbidden outright — see RULE C above.
@@ -125,8 +144,26 @@ readonly FORBIDDEN_FLAGS='--links --metadata'
 # `dotnet-architect` independently: `RCLONE="${RCLONE:-rclone}"` then `"$RCLONE" rcd --rc-no-auth`
 # passed BOTH other rules, because the literal `rclone` appears only in an assignment and never
 # beside the verb. That is the three CRITICAL CVEs, green. The fix refuses the FORM rather than
-# following the indirection — an alias-tracking parser is a different program, and shell can hide
-# a binary behind arbitrarily many hops.
+# following the indirection — an alias-tracking parser is a different program.
+#
+# ⚠ RULE D IS BEST-EFFORT, EXACTLY AS RULE A IS, AND FOR THE SAME REASON: indirection is an open
+# set. An earlier version of this comment called it total ("closes the WHOLE indirection class at
+# its SINGLE entry point"); both reviewers measured that false in the same round. What it catches
+# and what it does not, measured 2026-08-30:
+#   CAUGHT   literal, quoted, defaulted (`${VAR:-rclone}`), path-qualified, `readonly`/`export`,
+#            separator-terminated, lookup via `$(command -v rclone)` / `$(which rclone)`, and the
+#            array form `RC=(rclone)`.
+#   NOT      a name assembled from pieces — `b=rcl; b="${b}one"`. No pattern closes that, and a
+#            guard that claimed to would be lying in the same way this comment used to.
+# The two lookup forms were added because they are NOT exotic here: this repo already resolves
+# tools by name (`command -v "$tool"` in both backup.sh and logship.sh), so a future author
+# writing `RCLONE=$(command -v rclone)` is one step from existing code, not an attacker.
+#
+# `Exec*=` IS EXEMPT. systemd directives and shell assignments both use `=`, and a unit line
+# `ExecStart=/usr/bin/rclone rcat …` is not a binding — it is calling the binary by name, which
+# is what rule D's own message tells the reader to do. Rules A and B both still see that line
+# (the strip below hands it to A, and B never needed a position), so the exemption costs no
+# enforcement: measured, `ExecStart=…rclone rcd` still fails on B's blocklist.
 # Measured against all scoped files: zero occurrences, so refusing it costs nothing here.
 # The closing character class is exactly quote, whitespace, `;`, `&`, `|` and end-of-line, and
 # each inclusion and exclusion was measured rather than reasoned:
@@ -135,7 +172,7 @@ readonly FORBIDDEN_FLAGS='--links --metadata'
 #   NOT `)`     — admitting it fired on honest prose: backup.sh:292 writes the die message
 #                 "(1=pg_dump 2=age 3=rclone)", where `=rclone` is followed by `)`.
 #   NOT `_` `.` — this is what keeps `rclone_config=…` and `…/rclone.conf` out.
-readonly BINARY_BINDING_RE='=["'"'"']?([^"'"'"'[:space:]]*/)?rclone(["'"'"']|[[:space:]]|[;&|]|$)|:-[[:space:]]*([^"'"'"'[:space:]}]*/)?rclone[}"'"'"']'
+readonly BINARY_BINDING_RE='=["'"'"']?([^"'"'"'[:space:]]*/)?rclone(["'"'"']|[[:space:]]|[;&|]|$)|:-[[:space:]]*([^"'"'"'[:space:]}]*/)?rclone[}"'"'"']|=["'"'"']?[$][(](command[[:space:]]+-v|which)[[:space:]]+rclone[)]|=[(][[:space:]]*["'"'"']?rclone["'"'"']?[[:space:]]*[)]'
 
 # Floor for the dynamic scope. `dotnet-architect` measured 2026-08-30 that the empty-scope check
 # catches TOTAL disappearance but not PARTIAL narrowing: rename one `deploy/` script away from
@@ -153,7 +190,7 @@ if [ "${#SCOPED[@]}" -eq 0 ]; then
 fi
 
 if [ "${#SCOPED[@]}" -lt "$MIN_SCOPED" ]; then
-  echo "::error::rclone-invocation-guard: scope narrowed to ${#SCOPED[@]} files, floor is $MIN_SCOPED — fail-closed. A script renamed out of *.sh leaves the scope silently, so this is a narrowing until measured otherwise. If a file was legitimately removed, lower MIN_SCOPED in the same commit and say which file and why."
+  echo "::error::rclone-invocation-guard: scope narrowed to ${#SCOPED[@]} files, floor is $MIN_SCOPED — fail-closed. A file renamed out of *.sh or *.service leaves the scope silently, so this is a narrowing until measured otherwise. If a file was legitimately removed, lower MIN_SCOPED in the same commit and say which file and why."
   exit 1
 fi
 
@@ -190,15 +227,16 @@ for f in "${SCOPED[@]}"; do
       {
         line = $0
 
-        # Rule A reads the line with any INLINE comment removed; rules B and C read the whole
+        # Rule A reads the line with any INLINE comment removed; rules B, C and D read the whole
         # line. The split is deliberate and each half is load-bearing. Without it, an honest
         # `foo   # (rclone stub is restored below)` parses as a command segment naming the verb
         # "stub" and fails — measured on jobbliggaren-backup.test.sh:504 while writing this. But
-        # stripping for B or C would let a forbidden verb hide behind a `#`, so B and C keep the
-        # raw line and remain the fail-closed net under A.
+        # stripping for the others would let a forbidden verb hide behind a `#`, so they keep the
+        # raw line.
         #
-        # The strip is a heuristic: it also truncates at a `#` inside a quoted string. That costs
-        # rule A some reach on such a line and nothing else, because B and C never see the strip.
+        # The strip is a heuristic: it also truncates at a `#` inside a quoted string. On such a
+        # line rule A sees only the part before the `#`, and what covers the rest is B, C and D —
+        # which between them cover every subcommand except `config` (see its constant above).
         codeline = line
         sub(/[[:space:]]#.*$/, "", codeline)
 
@@ -213,7 +251,7 @@ for f in "${SCOPED[@]}"; do
         # Refuses the FORM. Following the indirection would mean tracking assignments across a
         # shell script, and a binary can hide behind arbitrarily many hops; refusing the one
         # shape that starts every such chain is total where a tracker would be best-effort.
-        if (line ~ binding) {
+        if (line ~ binding && line !~ /^[[:space:]]*Exec[A-Za-z]*=/) {
           printf "%d\tBINDING\t-\t%s\n", NR, substr(line, 1, 140)
         }
 
@@ -241,6 +279,12 @@ for f in "${SCOPED[@]}"; do
           # set — which is exactly why rule B above is a full blocklist rather than six verbs:
           # A gets the good error message, B is what actually holds.
           sub(/^[[:space:]]+/, "", s)
+          # A systemd directive key, plus the ExecStart prefix characters systemd allows. This
+          # runs BEFORE the VAR= strip below, which would otherwise consume the whole
+          # ExecStart=/usr/bin/rclone part as a prefix and hand rule A the VERB as the command
+          # word — measured 2026-08-30, rule A was blind to every Exec line until this ran first.
+          # (No apostrophes inside this awk program: it is single-quoted, and one ends it.)
+          sub(/^Exec[A-Za-z]*=[+!@:-]*/, "", s)
           while (match(s, /^(if|while|until|then|do|else|elif|exec|eval|sudo|time|command|nohup|env|xargs|nice|ionice|stdbuf|flock|timeout|!|not)[[:space:]]+/) ||
                  match(s, /^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/) ||
                  match(s, /^[0-9]+[smhd]?[[:space:]]+/)) {
@@ -322,8 +366,9 @@ rclone-invocation-guard FAILED (#1289).
 DO NOT simply widen the allowlist. The allowlist IS the safety argument: the box runs
 rclone 1.60.1, which carried 19 version-exact CVEs when measured 2026-08-30 — three of them
 CRITICAL — and every one of those is closed today only because we never invoke the subcommand
-it needs. Debian ships no patched rclone in any suite (trixie 1.60.1, sid 1.69.3; fixes land in
-1.74.4/1.75.0), so there is no apt remedy to fall back on.
+it needs. Measured 2026-08-30, Debian shipped no patched rclone in any suite (trixie 1.60.1, sid
+1.69.3; fixes land in 1.74.4/1.75.0), so there was no apt remedy to fall back on. Re-check
+that in row 28a rather than trusting this paragraph -- sid moves continuously.
 
 If this change genuinely needs a new subcommand, the order is:
   1. Re-run the reachability measurement for that subcommand (the regeneration command is in

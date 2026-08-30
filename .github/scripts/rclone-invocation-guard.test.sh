@@ -338,6 +338,99 @@ stage "$d"
 run_case "scope below the floor fails closed even when the code is clean" 1 "$d"
 
 # --------------------------------------------------------------------------------------------
+# THE LOOKUP BINDINGS — the second round of measured bypasses. Rule D caught the literal form but
+# not the RESOLVED one, and `command -v` is this repo's own idiom (`command -v "$tool"` in both
+# backup.sh and logship.sh), so these are one step from existing code rather than hostile.
+# --------------------------------------------------------------------------------------------
+
+d=$(mkproj red-bind-command-v)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RC=$(command -v rclone); "$RC" rcd --rc-no-auth
+EOF
+stage "$d"
+run_case "BYPASS 9: binary resolved with command -v" 1 "$d"
+
+d=$(mkproj red-bind-which)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RC="$(which rclone)"; "$RC" serve restic /data
+EOF
+stage "$d"
+run_case "BYPASS 10: binary resolved with which" 1 "$d"
+
+d=$(mkproj red-bind-array)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RC=(rclone); "${RC[@]}" rcd
+EOF
+stage "$d"
+run_case "BYPASS 11: binary bound as an array" 1 "$d"
+
+# ⚠ THIS CASE PINS AN OPEN HOLE, DELIBERATELY. A name assembled from pieces defeats rule D and no
+# pattern closes it — following indirection through arbitrary string construction is a different
+# program. The guard's constant block declares this form open; asserting exit 0 here means the
+# declaration and the behaviour cannot drift apart silently, and anyone who later closes it will
+# see this case go red and know to update the declaration. A declared hole beats a hidden one.
+d=$(mkproj open-bind-assembled)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+b=rcl; b="${b}one"; "$b" rcd
+EOF
+stage "$d"
+run_case "OPEN (declared): binary name assembled from pieces" 0 "$d"
+
+# --------------------------------------------------------------------------------------------
+# UNIT FILES — the scope extension. A unit can invoke the binary directly, and before the scope
+# included *.service such a line was invisible. Three cases: the forbidden verb must fail, the
+# allowed verb must PASS (rule D exempts Exec*=, or no unit could ever call rclone at all), and an
+# unknown verb must fail with rule A's diagnosis rather than rule D's.
+# --------------------------------------------------------------------------------------------
+
+d=$(mkproj red-unit-forbidden)
+cat >"$d/deploy/systemd/x.service" <<'EOF'
+[Service]
+ExecStart=/usr/bin/rclone rcd --rc-addr :5572 --rc-no-auth
+EOF
+stage "$d"
+run_case "unit file invoking rcd directly" 1 "$d"
+
+d=$(mkproj green-unit-allowed)
+cat >"$d/deploy/systemd/x.service" <<'EOF'
+[Service]
+ExecStart=/usr/bin/rclone rcat --config /x remote:obj
+EOF
+stage "$d"
+run_case "unit file invoking an ALLOWED verb passes" 0 "$d"
+
+# Rule D and a systemd directive both use `=`, so before the exemption this line failed with
+# "this binds the rclone binary to a variable … Call the binary by its name" — which is exactly
+# what the line already does. The diagnosis, not just the verdict, is what this pins.
+d=$(mkproj red-unit-unknown-verb)
+cat >"$d/deploy/systemd/x.service" <<'EOF'
+[Service]
+ExecStart=/usr/bin/rclone frobnicate remote:obj
+EOF
+stage "$d"
+run_case "unit file with an unknown verb fails closed" 1 "$d"
+
+# The VERDICT above is not enough: before the Exec exemption this line failed with rule D's
+# message telling the author to "call the binary by its name", which the line already did. Capture
+# the output first — the guard exits 1 here by design, and under `pipefail` a pipe would inherit
+# that and mask a matching grep.
+cases=$((cases + 1))
+set +e
+unit_out=$(bash "$SUT" "$TMPROOT/red-unit-unknown-verb" 2>&1)
+set -e
+if printf '%s' "$unit_out" | grep -q "is not in the allowlist"; then
+  echo "ok   [unit file gets rule A's diagnosis, not rule D's]"
+else
+  fails=$((fails + 1))
+  echo "FAIL [unit file gets rule A's diagnosis, not rule D's]: expected an allowlist message"
+  printf '%s' "$unit_out" | grep '::error' | sed 's/^/      | /'
+fi
+
+# --------------------------------------------------------------------------------------------
 # MUTATION — the only cases that touch real source. Both arms are asserted: a guard that fails on
 # the mutant but also on the clean copy has measured nothing.
 # --------------------------------------------------------------------------------------------

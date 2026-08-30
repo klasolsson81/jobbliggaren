@@ -6736,7 +6736,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    Thickness + offset, both, so the feedback carries without relying on the accent-700/600
    shift alone.
 
-   No `color` here on purpose: `a:not(.jp-btn, …)` on line 534 is (0,1,1) and this class is
+   No `color` here on purpose: `a:not(.jp-btn, …)` is (0,1,1) and this class is
    (0,1,0), so a `color` declaration would be inert — the base rule already paints exactly the
    accent-700/600 pair, hover included. */
 .jp-countlink {

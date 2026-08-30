@@ -33,9 +33,9 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 
 const NO_FILTER = null;
 
-// Regeltexten LASES ur katalogen i stallet for att skrivas av. En hardkodad mening hade
-// passerat aven efter att komponenten forkat sin egen copy -- och det ar precis det
-// forkandet testet finns for att fanga.
+// The rule text is READ from the catalog rather than transcribed. A hardcoded sentence would
+// keep passing after the component forked its own copy, which is the drift these tests exist
+// to catch.
 const RULE = messages.jobads.companyWatches.filter;
 
 function visibleText(el: Element | null): string {
@@ -483,9 +483,10 @@ describe("CompanySummary", () => {
     ).not.toBeInTheDocument();
   });
 
-  // Poängen med att läsa ur en främmande namnrymd är att texten är EN, inte två. Det här är
-  // testet som mäter det: Översikt visar watch-dialogens EGNA strängar. Forkas copyn faller det.
-  it("regeltexten är watch-dialogens egen sträng, aldrig en kopia", async () => {
+  // Reading from a foreign namespace only pays if the text stays ONE text. This measures that:
+  // the strings Oversikt renders are equal to the ones the watch dialog owns, so any later edit
+  // to one and not the other fails here.
+  it("regeltexten är lika med watch-dialogens katalogsträngar", async () => {
     render(
       <CompanySummary
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
@@ -501,5 +502,22 @@ describe("CompanySummary", () => {
     expect(screen.getByText(RULE.onlyMatchedHelpTitle)).toBeInTheDocument();
     expect(screen.getByText(RULE.onlyMatchedHelpBody1)).toBeInTheDocument();
     expect(screen.getByText(RULE.onlyMatchedHelpBody2)).toBeInTheDocument();
+  });
+  // The guest surface (#1572) passes linkHref={null}: no authenticated destination at all, and the
+  // rule's second sentence sends the reader to Matchning, which that demo has no route for.
+  it("?-hjälpen tiger på en yta utan autentiserat mål", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref={null}
+      />,
+    );
+
+    // The count itself still renders. It is the HELP that is gated here, not the line -- the
+    // "not assessed" test above is what pins the other, and the two must not collapse into one.
+    expect(document.querySelector(".jp-matchline")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).not.toBeInTheDocument();
   });
 });

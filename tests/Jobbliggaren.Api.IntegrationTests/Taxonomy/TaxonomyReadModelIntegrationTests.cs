@@ -138,10 +138,11 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ResolveLabelsAsync_ShouldReturnFallbackNotThrow_WhenIdUnknown()
+    public async Task ResolveLabelsAsync_ShouldReturnRowWithoutLabelNotThrow_WhenIdUnknown()
     {
-        // Kärninvariant (ADR 0043 graceful degradation): okänt concept-id
-        // → "Okänd kod (<id>)", ALDRIG throw/null. Stale snapshot kraschar inte.
+        // Kärninvariant (ADR 0043 graceful degradation, amendment 2026-08-30): okänt
+        // concept-id → rad UTAN label, ALDRIG throw. Raden finns kvar så positionen
+        // bevaras; frånvaron av namn är signalen. Stale snapshot kraschar inte.
         var ct = TestContext.Current.CancellationToken;
         await RunSeederAsync(ct);
         var sut = new TaxonomyReadModel(ScopeFactory);
@@ -150,7 +151,7 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
 
         var row = result.ShouldHaveSingleItem();
         row.ConceptId.ShouldBe("definitivt-okand-99");
-        row.Label.ShouldBe("Okänd kod (definitivt-okand-99)");
+        row.Label.ShouldBeNull();
     }
 
     [Fact]
@@ -165,9 +166,15 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         var result = await sut.ResolveLabelsAsync(
             [known.ConceptId, "saknas-abc", known.ConceptId], ct);
 
+        // 1:1-positionaliteten är portkontrakt: tre id in → tre rader ut, i ordning,
+        // med den olösta mitt i. Det är den som gör "utelämna olösta rader" omöjlig
+        // att införa i efterhand utan att bryta ett pinnat löfte.
         result.Count.ShouldBe(3);
+        result[0].ConceptId.ShouldBe(known.ConceptId);
         result[0].Label.ShouldBe(known.Label);
-        result[1].Label.ShouldBe("Okänd kod (saknas-abc)");
+        result[1].ConceptId.ShouldBe("saknas-abc");
+        result[1].Label.ShouldBeNull();
+        result[2].ConceptId.ShouldBe(known.ConceptId);
         result[2].Label.ShouldBe(known.Label);
     }
 
@@ -309,9 +316,7 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
 
         result.Count.ShouldBe(2);
         result[0].Label.ShouldBe(knownMunicipality.Label);
-        result[0].Label.ShouldNotStartWith("Okänd kod");
         result[1].Label.ShouldBe(knownGroup.Label);
-        result[1].Label.ShouldNotStartWith("Okänd kod");
     }
 
     [Fact]
@@ -385,7 +390,7 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         // HÖGT VÄRDE (PR-direktiv): kind-agnostisk reverse-lookup måste täcka
         // Klass 2 utan resolver-ändring (toolbar-chips + recent-/saved-search-
         // labels). Ett Klass 2-concept-id ska resolva till sitt riktiga namn,
-        // ALDRIG fallback "Okänd kod".
+        // ALDRIG till en rad utan namn.
         var ct = TestContext.Current.CancellationToken;
         await RunSeederAsync(ct);
         var sut = new TaxonomyReadModel(ScopeFactory);
@@ -396,10 +401,8 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
         result.Count.ShouldBe(2);
         result[0].ConceptId.ShouldBe("6YE1_gAC_R2G");
         result[0].Label.ShouldBe("Heltid");
-        result[0].Label.ShouldNotStartWith("Okänd kod");
         result[1].ConceptId.ShouldBe("PFZr_Syz_cUq");
         result[1].Label.ShouldBe("Vanlig anställning");
-        result[1].Label.ShouldNotStartWith("Okänd kod");
     }
 
     [Fact]

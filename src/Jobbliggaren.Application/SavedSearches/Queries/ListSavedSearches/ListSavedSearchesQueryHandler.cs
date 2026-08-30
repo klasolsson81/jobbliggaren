@@ -45,8 +45,8 @@ public sealed class ListSavedSearchesQueryHandler(
         // Per sparad sökning: resolvera varje dimension för sig (in-process
         // O(1) singleton-cache, ingen DB-/HTTP-touch, ingen fan-out-DoS —
         // annan yta än /taxonomy/labels-endpointen). Tom lista →
-        // ResolveLabelsAsync ger tom lista (ingen krasch). Okänt id →
-        // "Okänd kod (<id>)" via portens befintliga fallback-semantik.
+        // ResolveLabelsAsync ger tom lista (ingen krasch). Okänt id → rad utan
+        // label; klienten namnger den ur sin katalog.
         // ADR 0067 Fas C2: OccupationGroup + Municipality ersätter Ssyk.
         var dtos = new List<SavedSearchDto>(items.Count);
         foreach (var s in items)

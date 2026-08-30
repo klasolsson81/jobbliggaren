@@ -108,15 +108,14 @@ describe("savedSearchDtoSchema", () => {
     expect(parsed.regionLabels).toEqual([]);
   });
 
-  it("accepts a stale-id label verbatim (backend 'Okänd kod (<id>)')", () => {
+  it("accepts a stale id whose label the backend could not resolve", () => {
     const parsed = savedSearchDtoSchema.parse({
       ...wireBase,
       sortBy: 0,
-      occupationGroupLabels: [
-        { conceptId: "gone_99", label: "Okänd kod (gone_99)" },
-      ],
+      occupationGroupLabels: [{ conceptId: "gone_99", label: null }],
     });
-    expect(parsed.occupationGroupLabels[0]?.label).toBe("Okänd kod (gone_99)");
+    expect(parsed.occupationGroupLabels[0]?.conceptId).toBe("gone_99");
+    expect(parsed.occupationGroupLabels[0]?.label).toBeNull();
   });
 });
 

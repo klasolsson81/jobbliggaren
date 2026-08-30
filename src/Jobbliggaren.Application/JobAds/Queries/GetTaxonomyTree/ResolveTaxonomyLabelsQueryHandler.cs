@@ -5,8 +5,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
 
 /// <summary>
 /// ADR 0043 — tunn adapter mot <see cref="ITaxonomyReadModel.ResolveLabelsAsync"/>.
-/// Okänt concept-id → fallback-label i porten (graceful degradation, aldrig
-/// throw). DoS-cap enforce:as i <c>ResolveTaxonomyLabelsQueryValidator</c>
+/// DoS-cap enforce:as i <c>ResolveTaxonomyLabelsQueryValidator</c>
 /// FÖRE handlern (Validation-pipeline).
 /// </summary>
 public sealed class ResolveTaxonomyLabelsQueryHandler(ITaxonomyReadModel taxonomy)

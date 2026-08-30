@@ -6,9 +6,8 @@ import type { RecentSearchLabel, RecentSearchLabelPart } from "@/lib/dto/recent-
  * — so this stays a pure function, unit-testable without a translator.
  *
  * Proper nouns are NOT in here and never should be: place names, region names and
- * occupation-group names arrive resolved from the taxonomy and stay Swedish in every
- * locale. Only the words AROUND them move (#1430) — and the coded terms below, which arrive
- * as ids precisely because they are not proper nouns (#1537).
+ * occupation-group names stay Swedish in every locale. Only the words AROUND them move
+ * (#1430) — and the coded terms below, which arrive as ids (#1537).
  */
 export interface RecentSearchLabelCopy {
   /** No dimension narrows the search, e.g. "Alla annonser" / "All job ads". */
@@ -28,8 +27,7 @@ export interface RecentSearchLabelCopy {
    */
   readonly more: (count: number) => string;
   /**
-   * The name for a coded taxonomy concept — employment type and worktime extent, whose
-   * words the catalogue owns because they are common nouns, e.g. "Heltid" / "Full time".
+   * The name for a coded taxonomy concept, e.g. "Heltid" / "Full time".
    * Takes the id because that is all a `Coded` part carries; resolving it is the caller's,
    * so this file stays a pure function with no translator of its own.
    */
@@ -81,9 +79,8 @@ function renderPart(
     return index === 0 ? copy.remoteLeading : copy.remoteInline;
   }
 
-  // `Named` carries register data, already resolved and Swedish in every locale; `Coded`
-  // carries only an id, because its word is catalogue copy (#1537). The overflow suffix is
-  // the same either way — it counts selections, not characters.
+  // `Named` carries a resolved name, Swedish in every locale; `Coded` carries only an id.
+  // The overflow suffix is the same either way — it counts selections, not characters.
   const name = part.kind === "Coded" ? copy.coded(part.conceptId) : part.text;
 
   return part.moreCount > 0 ? `${name} ${copy.more(part.moreCount)}` : name;

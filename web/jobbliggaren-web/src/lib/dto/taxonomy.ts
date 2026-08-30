@@ -87,15 +87,18 @@ export const taxonomyTreeSchema = z.object({
 });
 export type TaxonomyTree = z.infer<typeof taxonomyTreeSchema>;
 
-// Reverse-lookup-rad: concept-id → visningsnamn. Okänt id → backend
-// returnerar `"Okänd kod (<id>)"` (graceful degradation, ADR 0043
-// Beslut B; aldrig null/throw). conceptId valideras INTE mot
-// concept-id-pattern här — vid stale snapshot kan ett sparat id ha annat
-// format än det nuvarande mönstret; label-strängen renderas som ren text
-// (security-auditor FE-flagga 2026-05-17).
+// Reverse-lookup-rad: concept-id → visningsnamn. Okänt id → backend returnerar
+// raden med `label: null` (graceful degradation, ADR 0043 Beslut B + amendment
+// 2026-08-30; aldrig throw). Namnet för ett olöst id ägs av katalogen här
+// (`ui.toolbar.unknownCode`), eftersom det är ett ord per locale — därav
+// `.nullable()` och inte `.optional()`: fältet FINNS på wire:n, det är tomt.
+//
+// conceptId valideras INTE mot concept-id-pattern här — vid stale snapshot kan
+// ett sparat id ha annat format än det nuvarande mönstret; label-strängen
+// renderas som ren text (security-auditor FE-flagga 2026-05-17).
 export const taxonomyLabelSchema = z.object({
   conceptId: z.string(),
-  label: z.string(),
+  label: z.string().nullable(),
 });
 export type TaxonomyLabel = z.infer<typeof taxonomyLabelSchema>;
 

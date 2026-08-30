@@ -79,8 +79,14 @@ vi.mock("@/lib/api/taxonomy", () => ({
 // The toolbar is a client island needing router context, and it renders the count VISUALLY. What
 // is measured here is the ANNOUNCED sentence, which `jobb-results.tsx` owns — so the island is
 // stubbed rather than mounted. Its own visual rendering is covered by `jobb-results-toolbar.test.tsx`.
+// The stub records `resolvedLabels` because that record is composed HERE, and the shape it hands
+// over is the contract the toolbar's own fallback branch reads (#1540).
+const toolbarProps: { resolvedLabels?: Record<string, string> } = {};
 vi.mock("@/components/job-ads/jobb-results-toolbar", () => ({
-  JobbResultsToolbar: () => null,
+  JobbResultsToolbar: (props: { resolvedLabels: Record<string, string> }) => {
+    toolbarProps.resolvedLabels = props.resolvedLabels;
+    return null;
+  },
 }));
 vi.mock("@/components/job-ads/job-ad-list", () => ({ JobAdList: () => null }));
 vi.mock("@/components/job-ads/job-ad-pagination", () => ({ JobAdPagination: () => null }));
@@ -144,6 +150,30 @@ describe("JobbResults — the load's completion reaches the surface region", () 
     getEmployerApplicationCounts.mockResolvedValue({ countsByJobAdId: {} });
     getFollowedJobAdIds.mockResolvedValue([]);
     getSessionId.mockResolvedValue(null);
+  });
+
+  it("a label the snapshot could not resolve is OMITTED from resolvedLabels, never empty", async () => {
+    // #1540 — the port now answers `label: null` for a concept id it could not resolve, and the
+    // toolbar's existing fallback is keyed on `=== undefined`. So the row must be left OUT of the
+    // record. The regression this catches is `l.label ?? ""`, which the TYPE accepts: the entry
+    // would then exist as an empty string, miss the fallback branch, and render a blank chip.
+    getJobAds.mockResolvedValue({
+      kind: "ok",
+      data: { items: [sampleAd("a1")], page: 1, pageSize: 20, totalCount: 1 },
+    });
+    resolveTaxonomyLabels.mockResolvedValue({
+      kind: "ok",
+      data: [
+        { conceptId: "CifL_Rzy_Mku", label: "Stockholms län" },
+        { conceptId: "gone_99", label: null },
+      ],
+    });
+
+    await renderHosted();
+
+    expect(toolbarProps.resolvedLabels).toEqual({
+      CifL_Rzy_Mku: "Stockholms län",
+    });
   });
 
   it("a SEARCH announces the count — W3C's '18 results returned'", async () => {

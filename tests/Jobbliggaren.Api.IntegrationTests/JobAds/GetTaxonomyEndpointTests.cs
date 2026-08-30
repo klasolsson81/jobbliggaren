@@ -12,7 +12,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 // ADR 0043 — picker-träd + reverse-lookup-endpoints. Verifierar mot riktig
 // host (ApiFactory): auth-gate (samma group som RequireAuthorization),
 // ETag + Cache-Control: private, 304 vid If-None-Match, reverse-lookup
-// inkl graceful "Okänd kod"-fallback. Speglar ListJobAdsTests/SuggestJobAdTerms-
+// inkl graceful namnlös rad för okänt id. Speglar ListJobAdsTests/SuggestJobAdTerms-
 // integrationsmönstret. Taxonomi-snapshoten seedas av TaxonomySnapshotSeeder
 // (IHostedService) vid host-start (Test-env grace-period).
 [Collection("Api")]
@@ -163,13 +163,18 @@ public class GetTaxonomyEndpointTests(ApiFactory factory)
         labels.GetArrayLength().ShouldBe(2);
 
         var byId = labels.EnumerateArray()
-            .ToDictionary(
-                e => e.GetProperty("conceptId").GetString()!,
-                e => e.GetProperty("label").GetString()!);
+            .ToDictionary(e => e.GetProperty("conceptId").GetString()!, e => e);
 
-        byId[knownId].ShouldNotBeNullOrWhiteSpace();
-        byId[knownId].ShouldNotStartWith("Okänd kod"); // känt → riktigt namn
-        byId["helt-okand-77"].ShouldBe("Okänd kod (helt-okand-77)");
+        byId[knownId].GetProperty("label").GetString().ShouldNotBeNullOrWhiteSpace();
+
+        // Okänt id: fältet ska FINNAS på wire:n och vara JSON null — inte utelämnas.
+        // Det är precis den skillnad FE:s schema binder på (`label: z.string().nullable()`
+        // accepterar null; ett borttaget fält hade krävt `.optional()`). Web-defaults
+        // skriver null, men en tillagd DefaultIgnoreCondition i Api-composition skulle
+        // ändra det tyst — den här raden är det som fångar det.
+        var unknown = byId["helt-okand-77"];
+        unknown.TryGetProperty("label", out var unknownLabel).ShouldBeTrue();
+        unknownLabel.ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Fact]

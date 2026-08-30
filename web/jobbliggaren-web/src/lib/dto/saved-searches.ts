@@ -58,8 +58,8 @@ const sortByFromWire = z
 //
 // ADR 0043 Approach A (additivt): occupationGroupLabels/municipalityLabels/
 // regionLabels är taxonomi-reverse-lookup ({conceptId, label}) som backend
-// resolvar i listan (ListSavedSearches). Stale id → backend "Okänd kod (<id>)"
-// (graceful degradation, aldrig null/throw). Råa concept-id-listor är
+// resolvar i listan (ListSavedSearches). Stale id → raden kommer med
+// `label: null` (graceful degradation, aldrig throw). Råa concept-id-listor är
 // OFÖRÄNDRADE — labels är ett rent UI-presentationslager. Detalj-endpointen
 // GetSavedSearch returnerar tomma label-listor (CTO-scope: bara listan), därför
 // `.default([])` — schemat är robust om fältet saknas helt på wire.

@@ -253,7 +253,7 @@ public static class JobAdsEndpoints
         .RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
 
         // ADR 0043 — reverse-lookup (concept-id → namn) för redan-sparade
-        // sökningar/valda chips. Okänt id → "Okänd kod (<id>)" (graceful,
+        // sökningar/valda chips. Okänt id → rad med label null (graceful,
         // aldrig 500). Cap i ResolveTaxonomyLabelsQueryValidator (= domänens
         // MaxConceptIds ×4 efter C1, ADR 0067 — fyra filter-dimensioner).
         // Cache-Control: private (varierar per ids, auth).

@@ -167,10 +167,9 @@ public sealed class GetApplicationByIdQueryHandler(
     }
 
     // Resolve the snapshot's frozen municipality concept-id to a human name at
-    // read-time (ADR 0086 D4). Graceful null when absent or unresolvable —
-    // dropping the port's "Okänd kod (id)" fallback so an opaque concept-id is
-    // never surfaced (§5; TaxonomyLabels = single owner of the fallback format).
-    // Mirrors the #316 activity-report resolution.
+    // read-time (ADR 0086 D4). Graceful null when absent or unresolvable — an
+    // opaque concept-id is never surfaced (§5). Mirrors the #316 activity-report
+    // resolution.
     private async Task<string?> ResolveLocationAsync(
         string? municipalityConceptId, CancellationToken cancellationToken)
     {
@@ -180,8 +179,6 @@ public sealed class GetApplicationByIdQueryHandler(
         var labels = await taxonomy.ResolveLabelsAsync([municipalityConceptId], cancellationToken);
         var label = labels.FirstOrDefault(l => l.ConceptId == municipalityConceptId);
 
-        return label is not null && !TaxonomyLabels.IsUnresolved(label)
-            ? label.Label
-            : null;
+        return label?.Label;
     }
 }

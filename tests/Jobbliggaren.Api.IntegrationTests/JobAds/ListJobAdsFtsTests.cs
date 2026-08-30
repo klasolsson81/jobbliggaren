@@ -18,11 +18,14 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 //
 //   search_vector @@ websearch_to_tsquery('swedish', q)   -- FTS-primärväg
 //   OR lower(title) LIKE '%q%'                            -- title-substring-fallback
+//   OR lower(company_name) LIKE '%q%'                     -- arbetsgivarnamn (#1546)
 //
 // Kritiska beteenden som täcks:
 //  * svensk stemming (lärare/läraren/lärares → samma lexem) via FTS
 //  * search_vector spänner BÅDE title OCH description → helt description-ord matchbart
 //  * title-LIKE ger mitt-i-ord-substring ENBART mot titeln
+//  * company_name-LIKE gör arbetsgivarnamnet sökbart via q (#1546) — bakom SAMMA
+//    >=3-teckensgrind som titel-grenen, av samma trigram-skäl
 //  * description-LIKE är BORTTAGET (perf-rotorsak) → mitt-i-ord-delsträng av
 //    ett description-ord matchar INTE längre (negativ regression)
 //  * JobAdSortBy.Relevance rangordnar via ts_rank — title-LIKE-träffar
@@ -47,7 +50,8 @@ public class ListJobAdsFtsTests(ApiFactory factory)
         string description,
         CancellationToken ct,
         DateTimeOffset? publishedAt = null,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        string? companyName = null)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -55,7 +59,7 @@ public class ListJobAdsFtsTests(ApiFactory factory)
 
         var jobAd = JobAd.Create(
             title: title,
-            company: Company.Create("Test Company AB").Value,
+            company: Company.Create(companyName ?? "Test Company AB").Value,
             description: description,
             url: $"https://example.com/jobs/{Guid.NewGuid():N}",
             source: JobSource.Manual,
@@ -421,5 +425,76 @@ public class ListJobAdsFtsTests(ApiFactory factory)
             filter, JobAdSortBy.PublishedAtDesc, Page: 1, PageSize: 20);
         var page = await search.SearchAsync(searchCriteria, ct);
         page.TotalCount.ShouldBe(count);
+    }
+    // #1546 — the reproduction, made mechanical. The hero field promises "Sök efter yrke,
+    // arbetsgivare eller ort", and until this branch existed the promise was empty: search_vector
+    // spans title + description only, so a company whose ads never name it in their own title or
+    // body returned zero hits while its company page reported the ads. Klas hit it on the box
+    // 2026-08-28 against a real employer with 136 active ads.
+    //
+    // The premise is one production writes: JobAd.Create is the same entry point the ingest funnel
+    // uses, and company_name is an ordinary column populated per ad from the payload.
+    [Fact]
+    public async Task ApplyCriteria_EmployerName_MatchesAnAdThatNeverNamesItsEmployer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var marker = $"arbgivare{Guid.NewGuid():N}"[..18];
+
+        // The marker lives ONLY in company_name. If it leaked into the title or the body,
+        // search_vector would answer and this test would pass with the branch removed.
+        var matching = await SeedJobAdAsync(
+            "Servicetekniker till fordonsverkstad",
+            "Vi söker en servicetekniker till vår verkstad.",
+            ct,
+            companyName: $"{marker} AB");
+
+        // Identical ad, different employer — so a branch that matched everything fails here too.
+        var other = await SeedJobAdAsync(
+            "Servicetekniker till fordonsverkstad",
+            "Vi söker en servicetekniker till vår verkstad.",
+            ct,
+            companyName: "Annat Bolag AB");
+
+        using var scope = _factory.Services.CreateScope();
+        var handler = CreateHandler(scope);
+
+        var result = await handler.Handle(new ListJobAdsQuery(Q: marker), ct);
+
+        result.TotalCount.ShouldBe(
+            1,
+            "an employer name must reach its own ads through q, and ONLY its own. Zero here is the "
+                + "#1546 defect itself; more than one means the company_name branch is not selective.");
+        result.Items.ShouldContain(i => i.Id == matching);
+        result.Items.ShouldNotContain(i => i.Id == other);
+    }
+
+    // #1546 — the >=3 gate is load-bearing on the new branch for the same reason it is on the title
+    // branch: ix_job_ads_company_name_lower_trgm is a GIN trigram index and cannot physically serve
+    // a <3-character LIKE '%q%', so a shorter q would fall back to a seq scan over the whole corpus.
+    //
+    // Asserted as the seeded ad's ABSENCE rather than a total count: a two-character term cannot be
+    // made unique, and this suite shares its database with the rest of the "Api" collection.
+    [Fact]
+    public async Task ApplyCriteria_EmployerName_IsNotSearchedBelowTheTrigramFloor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var marker = $"kortq{Guid.NewGuid():N}"[..14];
+
+        // "zq" appears only inside company_name, and in no lexeme of either text column.
+        var seeded = await SeedJobAdAsync(
+            $"Lagerarbetare {marker}",
+            "Beskrivning utan bolagsnamn.",
+            ct,
+            companyName: $"Zq{marker} AB");
+
+        using var scope = _factory.Services.CreateScope();
+        var handler = CreateHandler(scope);
+
+        var result = await handler.Handle(new ListJobAdsQuery(Q: "zq"), ct);
+
+        result.Items.ShouldNotContain(
+            i => i.Id == seeded,
+            "a 2-character q must not reach the company_name branch. The trigram index cannot serve "
+                + "it, so matching here means the corpus was seq-scanned instead.");
     }
 }

@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
  *
  * Civic-utility-stil: rektangulära taggar (2px radie), 11px versaler, dovt
  * färg-spektrum från befintliga tokens. INGA pills, INGA pastellchips, INGA
- * ikoner i taggar, INGA emoji (CLAUDE.md §5.2 + HANDOVER §0 + Klas verbatim).
+ * ikoner i taggar, INGA emoji (AGENTS.md §5 + HANDOVER §0 + Klas verbatim).
  *
  * NY-modell (#293/#306, ADR 0042 Beslut E-amendment 2026-06-28): NY = OLÄST
  * (per-användar watermark), INTE tidsbaserat. Den föräldern beräknar

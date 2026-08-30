@@ -310,12 +310,16 @@ export async function logoutAction(): Promise<void> {
       // anropet failar. Strukturerad warning så vi kan upptäcka systematiska
       // fel (TD-6) — ingen PII loggad (session-id är pseudonym).
       if (!res.ok) {
+        // An event name and a status code; the session id stays out of it.
+        // eslint-disable-next-line no-console
         console.error("logout.backend_call_failed", {
           event: "logout",
           status: res.status,
         });
       }
     } catch (cause) {
+      // The message, never the Error itself: a thrown Error prints its stack.
+      // eslint-disable-next-line no-console
       console.error("logout.backend_call_failed", {
         event: "logout",
         cause: cause instanceof Error ? cause.message : String(cause),

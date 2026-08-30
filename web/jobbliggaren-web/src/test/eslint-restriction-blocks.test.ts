@@ -321,3 +321,98 @@ describe("eslint.config.mjs — no-restricted-syntax blocks", () => {
     });
   });
 });
+
+// ── The `no-console` block ──────────────────────────────────────────────────
+// Its own resolution rather than the harness above: that one is bound to a single
+// module-level RULE, and `no-console` is a different key with a different shape
+// (no selector list, so MEMBERSHIP becomes "does an allow-list make it inert").
+//
+// Pinned on the same four axes and for the same stated reason as its neighbour —
+// the gate can die on any of them and only the first is visible in a diff. It is
+// the gate standing behind the SECURITY (§5) docblocks under src/lib/actions/ and
+// src/components/auth/, whose promise is that a token or an address never reaches
+// the stdout `jobbliggaren-logship.sh` ships offsite.
+describe("eslint.config.mjs — no-console block", () => {
+  const CONSOLE_RULE = "no-console";
+  const CALL = "console.error('probe');";
+  const EXEMPTED = "// eslint-disable-next-line no-console\nconsole.error('probe');";
+
+  let severityOf: (file: string) => number | undefined;
+  let countIn: (code: string, file: string) => Promise<number>;
+
+  beforeAll(async () => {
+    const eslint = new ESLint({ cwd: ROOT });
+    const cache = new Map<string, number | undefined>();
+
+    const probes = [
+      PATHS.product,
+      PATHS.productApp,
+      PATHS.productComponent,
+      PATHS.shadcn,
+      PATHS.testFile,
+      "next.config.ts",
+    ];
+    for (const file of probes) {
+      const config: unknown = await eslint.calculateConfigForFile(path.join(ROOT, file));
+      const configured =
+        typeof config === "object" && config !== null
+          ? (config as { rules?: Record<string, unknown> }).rules?.[CONSOLE_RULE]
+          : undefined;
+      cache.set(file, Array.isArray(configured) ? Number(configured[0]) : undefined);
+    }
+
+    severityOf = (file) => cache.get(file);
+    countIn = async (code, file) => {
+      const [result] = await eslint.lintText(code, { filePath: path.join(ROOT, file) });
+      // Fail closed: a missing result would otherwise read as "no violations".
+      if (!result) throw new Error(`ESLint returned no result for ${file}`);
+      return result.messages.filter((m) => m.ruleId === CONSOLE_RULE).length;
+    };
+  }, 120_000);
+
+  describe("severity", () => {
+    it.each([
+      ["a product file", PATHS.product],
+      ["an app route", PATHS.productApp],
+      // The main no-restricted-syntax block drops this directory; the console gate
+      // carries its own ignores so it does not inherit that hole.
+      ["a shadcn primitive", PATHS.shadcn],
+    ])("is error, not warn, for %s", (_label, file) => {
+      // `lint` is a bare eslint with no --max-warnings, so severity 1 would clear
+      // both the pre-commit hook and CI while measuring nothing.
+      expect(severityOf(file)).toBe(2);
+    });
+  });
+
+  describe("reach", () => {
+    it("does not gate test files", () => {
+      expect(severityOf(PATHS.testFile)).toBeUndefined();
+    });
+
+    it("does not reach next.config.ts, which runs in the same container", () => {
+      // The block's `files` is src/** only. Recorded as a measured limit rather
+      // than a claim of full coverage; there is no console call there today.
+      expect(severityOf("next.config.ts")).toBeUndefined();
+    });
+  });
+
+  describe("effect — what the gate actually catches", () => {
+    it("catches console.error, so no allow-list has made it inert", async () => {
+      // Every known call site in the repo is console.error. An { allow: ["error"] }
+      // would leave the rule configured and enforcing nothing.
+      expect(await countIn(CALL, PATHS.product)).toBe(1);
+    });
+
+    it("catches a call inside the directory the sibling block drops", async () => {
+      expect(await countIn(CALL, PATHS.shadcn)).toBe(1);
+    });
+
+    it("lets a line-local exemption through", async () => {
+      expect(await countIn(EXEMPTED, PATHS.product)).toBe(0);
+    });
+
+    it("does not fire in a test file", async () => {
+      expect(await countIn(CALL, PATHS.testFile)).toBe(0);
+    });
+  });
+});

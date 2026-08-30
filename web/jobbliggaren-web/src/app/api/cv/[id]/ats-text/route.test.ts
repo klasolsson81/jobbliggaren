@@ -172,8 +172,6 @@ describe("GET /api/cv/[id]/ats-text (JSON ATS-text-BFF, Fas 4b PR-8.2/8.3)", () 
   });
 
   it("backend 200 med OGILTIG form (saknar text) → 502, body ekas aldrig (zod ACL-grind)", async () => {
-    // parseResponse loggar strukturerad shape-mismatch via console.error — tysta
-    // den (redan redigerad för `received`, men vi håller testutdata rent).
     vi.spyOn(console, "error").mockImplementation(() => {});
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ source: "Linearized", leak: "SENTINEL-PII" }), {

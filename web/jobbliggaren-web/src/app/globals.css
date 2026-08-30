@@ -6738,11 +6738,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
    No `color` here on purpose: `a:not(.jp-btn, …)` on line 534 is (0,1,1) and this class is
    (0,1,0), so a `color` declaration would be inert — the base rule already paints exactly the
-   accent-700/600 pair, hover included. No `font-weight` either: the count sits inside
-   `.jp-appsummary__totals` (700) on one row and `.jp-matchline` (medium) on the next, and a
-   fixed weight made the link the LIGHTER half of its own sentence. Inheriting keeps the link
-   at least as heavy as the text around it, wherever it lands. */
+   accent-700/600 pair, hover included. */
 .jp-countlink {
+  font-weight: var(--jp-fw-bold);
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;

@@ -27,9 +27,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <c>security-auditor</c> against an earlier, position-blind version of this class. Every fact
 /// below therefore reads <see cref="GlobalOptionsLines"/> rather than the whole file, and
 /// <see cref="TheCaddyfile_CarriesExactlyOneLogDirective"/> closes the other half: a SECOND
-/// <c>log</c> block would not be seen by a parser that stops at the first. Measured 2026-08-29:
-/// moving the block into the site block fails four of these five facts, and a second <c>log</c>
-/// directive fails the fifth.
+/// <c>log</c> block would not be seen by a parser that stops at the first.
 /// </para>
 ///
 /// <para>
@@ -91,19 +89,30 @@ public class CaddyfileTokenScrubbingPinTests
     /// constrains — <c>parseQParam</c> gates arity and <c>clampSubMinimumQ</c> gates length,
     /// neither gates content. A retention purpose therefore cannot be written for it, which is
     /// Art. 5(1)(c), the same ground <c>uid</c> was deleted on in ADR 0050's
-    /// Amendment 2026-08-29. Note the asymmetry it closes: <c>employer</c> is format-gated to ten
+    /// Amendment 2026-08-29 — and, where the term is health-adjacent, Art. 9(1) with no 9(2)
+    /// exception available to an edge log, plus Art. 5(1)(e) because the json-file sink has no
+    /// age limit. Note the asymmetry it closes: <c>employer</c> is format-gated to ten
     /// digits and was already scrubbed, while the ungated field — the one that can actually carry
     /// a personnummer — was not.
     /// </para>
     /// <para>
+    /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
+    /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
+    /// from a closed, published or enumerated value space that identifies nobody and has a stated
+    /// purpose — it selects which server-side query path ran — and is kept.
+    /// (senior-cto-advisor, 2026-08-30.) The rule lives here rather than in any one route's test
+    /// file because it governs every app surface, and the next surface's author opens this array.
+    /// </para>
+    /// <para>
     /// <b>This list is one half of a pair, and C# cannot derive the other.</b> The mail inventory
-    /// above comes from the real <see cref="EmailTemplates"/> methods; the app-surface inventory
-    /// exists only by CALLING the two TypeScript URL builders, so it is derived — and every key of
-    /// it judged scrubbed or deliberately kept — in
-    /// <c>web/jobbliggaren-web/src/lib/job-ads/axis-edge-log-inventory.test.ts</c>. That file reads
-    /// this array and fails in both directions, so the two halves cannot drift apart silently. It
-    /// deliberately does not parse the Caddyfile: the placement sensitivity above is owned here and
-    /// nowhere else.
+    /// above comes from the real <see cref="EmailTemplates"/> methods. The <c>/jobb</c> inventory
+    /// exists only by CALLING that route's TypeScript URL builders, so it is derived — and every
+    /// key OF THAT ROUTE judged scrubbed or kept — in
+    /// <c>web/jobbliggaren-web/src/lib/job-ads/axis-edge-log-inventory.test.ts</c>, which reads
+    /// this array and fails in both directions. A name added here from ANOTHER surface is held by
+    /// the Caddyfile fact below and by nothing else: that surface owes its own inventory file, and
+    /// <c>/foretag/sok</c> is the one that already exists without one. That file deliberately does
+    /// not parse the Caddyfile — the placement sensitivity above is owned here and nowhere else.
     /// </para>
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters = ["employer", "q"];

@@ -16,8 +16,9 @@ import {
  * `CaddyfileTokenScrubbingPinTests` derives the MAIL surface's parameter inventory from the
  * real `EmailTemplates` methods and requires every name to be either filtered at the edge or
  * named as deliberately kept, so a new parameter fails until someone decides which it is. It
- * cannot do the same for /jobb: that inventory exists only by CALLING the two TypeScript
- * builders. This file is the missing derivation, and #1584 is why it is owed — that PR filtered
+ * cannot do the same for /jobb: that inventory exists only by CALLING the TypeScript builders
+ * (and `withCommitFlag`, which is where `commit` comes from and nowhere else). This file is the
+ * missing derivation, and #1584 is why it is owed — that PR filtered
  * `employer` at the edge while nothing said what the route's other keys do there.
  *
  * It binds to that pin's `AppSurfaceScrubbedParameters` array and never to the Caddyfile. The
@@ -27,11 +28,10 @@ import {
  * A position-blind parser is the exact defect `code-reviewer` and `security-auditor` each
  * raised against an earlier version of that class, so exactly one file owns that parse.
  *
- * The rule that decides a verdict, so the next axis is not decided by looking at these
- * seventeen and guessing (senior-cto-advisor, 2026-08-30): a key is scrubbed when its content is
- * UNBOUNDED, or when its value IS an identifier of a natural person. Everything else draws from
- * a closed, published or enumerated value space that identifies nobody and has a stated purpose
- * — it selects which server-side query path ran — and is kept.
+ * The rule that decides a verdict lives on `AppSurfaceScrubbedParameters` in the C# pin, because
+ * it governs every app surface rather than this route: the next surface's author opens that
+ * array, not another route's test file (senior-cto-advisor 2026-08-30; placement per
+ * dotnet-architect).
  *
  * On the premise (CLAUDE.md §5 `Tests:`). The fixtures below are hand-built and no assertion
  * reads a fixture VALUE. What is asserted is the set of query KEY NAMES, and those are string
@@ -117,6 +117,20 @@ const EMITTED: ReadonlySet<string> = new Set([
   ...COMMIT_HREF_KEYS,
 ]);
 
+// What the kept reasons below do and do not claim (security-auditor, 2026-08-30). They describe
+// the value space the UI PRODUCES, not the one the builders will re-emit: only `employer` and `q`
+// are gated (`parseEmployerParam`, `parseQParam`), while `toStringList` splits, trims and drops
+// empties without validating, and `pageSize`/`sortBy` are re-emitted on a `!==` check. So a
+// hand-edited `?region=<anything>` does reach the edge — but that value is the visitor typing
+// into their own address bar, which no query filter can protect them from, and it is a different
+// thing from a field the app INVITES free text into. That difference is the whole of why `q` is
+// scrubbed and these are not.
+//
+// Nor does "identifies nobody" describe the log POST. The Caddy filter names two fields,
+// `request>uri query` and `request>headers`; everything else passes through, `remote_ip`
+// included, and an IP is personal data (Art. 4(1), Breyer C-582/14). The kept verdicts rest on
+// the value's content being bounded, never on the record being anonymous. The aggregation risk
+// rides on that IP field, and its controls are the log's field set and retention, not this list.
 const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
   employer: {
     verdict: "must-not-reach-a-stored-log-post",
@@ -134,7 +148,10 @@ const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
       "parseQParam gates arity and clampSubMinimumQ gates length, neither gates CONTENT. A " +
       "retention purpose therefore cannot be written for it — Art. 5(1)(c), the same ground uid " +
       "was deleted on. It is the field that can carry a personnummer, a former employer or a " +
-      "health-adjacent word, and nothing on the request path would know that it had.",
+      "health-adjacent word, and nothing on the request path would know that it had. That last " +
+      "case is Art. 9(1) with no 9(2) exception available to an edge log, and the json-file sink " +
+      "has no age limit at all, which is Art. 5(1)(e) — both stronger grounds than 5(1)(c), and " +
+      "the ones that hold if someone later wants q back for diagnostics.",
   },
   occupationGroup: {
     verdict: "kept",
@@ -256,11 +273,13 @@ const PIN_SOURCE = readFileSync(path.join(repoRoot(), PIN_RELATIVE), "utf8");
 /**
  * Read as source text, for the reason the pin itself gives about the Caddyfile: the file is the
  * artefact, and a parser clever enough to normalise it could hide the spelling this join exists
- * to compare. Finding nothing THROWS — an empty list would make both directions below pass over
- * zero iterations, which is the failure this join is here to prevent.
+ * to compare. Finding nothing THROWS — an empty list would make the REVERSE direction below pass
+ * over zero iterations, since it alone iterates the pinned list.
  */
 function pinnedAppSurfaceParameters(): ReadonlyArray<string> {
-  const body = new RegExp(`${PIN_LIST}\\s*=([^;]*);`).exec(PIN_SOURCE)?.[1];
+  // `\b` so a future member merely ENDING in this name (LegacyAppSurfaceScrubbedParameters)
+  // cannot be matched in its place — a wrong-but-successful read bypasses the throw below.
+  const body = new RegExp(`\\b${PIN_LIST}\\s*=([^;]*);`).exec(PIN_SOURCE)?.[1];
   if (body === undefined) {
     throw new Error(
       `Could not read the ${PIN_LIST} array out of ${PIN_RELATIVE}. It was renamed or reshaped ` +
@@ -337,7 +356,6 @@ describe("/jobb axis inventory — an edge-log verdict per emitted query key", (
     const scrubbed = keysJudged("must-not-reach-a-stored-log-post");
     const kept = keysJudged("kept");
     expect([...scrubbed, ...kept].sort()).toEqual([...EMITTED].sort());
-    expect(scrubbed.filter((key) => kept.includes(key))).toEqual([]);
     expect(kept.length).toBeGreaterThan(0);
   });
 });

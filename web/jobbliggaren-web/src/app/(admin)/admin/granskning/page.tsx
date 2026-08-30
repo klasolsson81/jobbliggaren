@@ -138,4 +138,3 @@ function toIsoOrUndefined(s: string | undefined): string | undefined {
   if (m) return `${m[1]}:00Z`;
   return s;
 }
-

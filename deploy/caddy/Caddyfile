@@ -100,6 +100,17 @@
 					# personnummer (#841). The wash is a 3xx on the incoming request, whose log post is already
 					# written.
 					delete namn
+					# `eventType` and `aggregateType` read like closed enums and are not. Both are
+					# `<input type="text" maxLength={100}>` in a native GET form, and the backend validator's own
+					# comment calls them fri-text-fält and bounds LENGTH only. A length cap is not a content cap,
+					# which is the same distinction `q` is deleted on. An admin investigating an incident has a
+					# personnummer in the clipboard and five text boxes in front of them.
+					delete eventType
+					delete aggregateType
+					# The /jobb search box's LIVE keystrokes, one request per ~300 ms. Same user input as `q`,
+					# which is already deleted here; the streaming is what makes the exposure larger rather than
+					# smaller. Art. 5(1)(c) on the same footing.
+					delete prefix
 				}
 				request>headers delete
 			}

@@ -21,6 +21,27 @@ import { fileURLToPath } from "node:url";
  * safely.
  */
 
+/**
+ * One key's disposition at the edge. Two values, never three: a key is either one the edge must
+ * strip, or one deliberately kept with a written reason. There is no "not looked at" — that state
+ * is what the whole mechanism exists to make impossible.
+ */
+export type EdgeLogVerdict = {
+  readonly verdict: "must-not-reach-a-stored-log-post" | "kept";
+  readonly reason: string;
+};
+
+export type EdgeLogVerdicts = Readonly<Record<string, EdgeLogVerdict>>;
+
+export function keysJudged(
+  verdicts: EdgeLogVerdicts,
+  verdict: EdgeLogVerdict["verdict"]
+): ReadonlyArray<string> {
+  return Object.entries(verdicts)
+    .filter(([, d]) => d.verdict === verdict)
+    .map(([key]) => key);
+}
+
 export const PIN_RELATIVE = path.join(
   "tests",
   "Jobbliggaren.Architecture.Tests",

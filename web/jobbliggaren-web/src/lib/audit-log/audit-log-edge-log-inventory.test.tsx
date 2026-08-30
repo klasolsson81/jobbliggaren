@@ -1,16 +1,20 @@
+import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   PIN_FACT,
   PIN_LIST,
   PIN_RELATIVE,
   emittedKeys,
+  keysJudged as keysJudgedIn,
   pinCarriesTheCaddyfileFact,
   pinnedAppSurfaceParameters,
 } from "@/test/edge-log-pin";
+import { EDGE_LOG_VERDICT } from "./edge-log-verdicts";
 import {
   buildAuditLogPageHref,
   type AuditLogRawSearchParams,
 } from "./page-href";
+import { AuditLogFilter } from "@/app/(admin)/admin/granskning/audit-log-filter";
 
 /**
  * ADR 0050 gate N-1, app-surface half, for `/admin/granskning`.
@@ -33,11 +37,6 @@ import {
  * keeps that checkable rather than assumed.
  */
 
-type EdgeLogVerdict = {
-  readonly verdict: "must-not-reach-a-stored-log-post" | "kept";
-  readonly reason: string;
-};
-
 // Annotated `Required<…>`, not `as`: the annotation IS the completeness guard, so a field added to
 // the type stops this file compiling under `tsc --noEmit`, which pre-commit and CI both run.
 const FULL_PARAMS: Required<AuditLogRawSearchParams> = {
@@ -55,51 +54,28 @@ const TARGET_PAGE = 3;
 /** The one field the builder does not read; `page` comes from the second argument instead. */
 const PAGE_FIELD = "page";
 
-const EMITTED = emittedKeys(buildAuditLogPageHref(FULL_PARAMS, TARGET_PAGE));
-
-const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
-  userId: {
-    verdict: "must-not-reach-a-stored-log-post",
-    reason:
-      "A DIRECT identifier of a natural person (Art. 4(1)), and the URL discloses more than the " +
-      "identifier: it says WHOSE audit records were read. The edge's existing `uid` entry does " +
-      "not cover it, because the filter matches keys exactly and case-sensitively.",
-  },
-  from: {
-    verdict: "kept",
-    reason:
-      "An ISO 8601 instant bounding the query window. It names a time, not a person, and the " +
-      "same value is produced by anyone who picks that window.",
-  },
-  to: {
-    verdict: "kept",
-    reason: "An ISO 8601 instant, same bounded class as from.",
-  },
-  eventType: {
-    verdict: "kept",
-    reason:
-      "A domain event name from a closed, enumerated set. It selects which server-side query " +
-      "path ran and identifies nobody.",
-  },
-  aggregateType: {
-    verdict: "kept",
-    reason: "An aggregate name from a closed, enumerated set, same class as eventType.",
-  },
-  page: {
-    verdict: "kept",
-    reason: "A page ordinal. It carries no user content.",
-  },
-  pageSize: {
-    verdict: "kept",
-    reason: "A page-size integer. It carries no user content.",
-  },
-};
-
-function keysJudged(verdict: EdgeLogVerdict["verdict"]): ReadonlyArray<string> {
-  return Object.entries(EDGE_LOG_VERDICT)
-    .filter(([, d]) => d.verdict === verdict)
-    .map(([key]) => key);
+// The GET form is the ORIGINATING producer, and on this surface it is the primary one: the five
+// filter keys reach the URL because an admin submits it, and the pagination builder only forwards
+// them. A fact derived from the builder alone would measure the forwarder, not the source — so the
+// form's rendered `name=` attributes are DERIVED here and unioned in, rather than named as a
+// residual the way /jobb's are. A sixth hidden input then fails this file instead of passing green
+// (code-reviewer + security-auditor + dotnet-architect, independently, 2026-08-30).
+function formFieldNames(): ReadonlySet<string> {
+  const { container } = render(<AuditLogFilter current={{}} />);
+  return new Set(
+    [...container.querySelectorAll("[name]")]
+      .map((el) => el.getAttribute("name"))
+      .filter((n): n is string => n !== null && n.length > 0)
+  );
 }
+
+const BUILDER_KEYS = emittedKeys(buildAuditLogPageHref(FULL_PARAMS, TARGET_PAGE));
+const FORM_KEYS = formFieldNames();
+const EMITTED: ReadonlySet<string> = new Set([...BUILDER_KEYS, ...FORM_KEYS]);
+
+
+const keysJudged = (v: "must-not-reach-a-stored-log-post" | "kept") =>
+  keysJudgedIn(EDGE_LOG_VERDICT, v);
 
 describe("/admin/granskning inventory — an edge-log verdict per emitted query key", () => {
   it("gives every key the builder emits a verdict", () => {
@@ -133,6 +109,9 @@ describe("/admin/granskning inventory — an edge-log verdict per emitted query 
     // give the new key a verdict.
     expect(EMITTED.size).toBeGreaterThan(0);
     expect(EMITTED.size).toBe(7);
+    expect(BUILDER_KEYS.size).toBe(7);
+    // The form does not carry pagination; the builder does not originate the filters.
+    expect(FORM_KEYS.size).toBe(5);
     expect(keysJudged("must-not-reach-a-stored-log-post").length).toBeGreaterThan(0);
   });
 
@@ -140,9 +119,9 @@ describe("/admin/granskning inventory — an edge-log verdict per emitted query 
     // `Required<…>` forces a new field to be PRESENT, never to be emitted: a new optional string
     // left falsy compiles and writes nothing. This is the half that catches that.
     const readFields = Object.keys(FULL_PARAMS).filter((f) => f !== PAGE_FIELD);
-    const carried = [...EMITTED].filter((k) => k !== PAGE_FIELD);
+    const carried = [...BUILDER_KEYS].filter((k) => k !== PAGE_FIELD);
     expect(carried.length).toBe(readFields.length);
-    expect(EMITTED.has(PAGE_FIELD)).toBe(true);
+    expect(BUILDER_KEYS.has(PAGE_FIELD)).toBe(true);
   });
 
   it("partitions the inventory across both verdicts, so nothing is decided by absence", () => {

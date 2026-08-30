@@ -4,9 +4,11 @@ import {
   PIN_LIST,
   PIN_RELATIVE,
   emittedKeys,
+  keysJudged as keysJudgedIn,
   pinCarriesTheCaddyfileFact,
   pinnedAppSurfaceParameters,
 } from "@/test/edge-log-pin";
+import { EDGE_LOG_VERDICT } from "./edge-log-verdicts";
 import {
   buildForetagSokHref,
   buildOrgNrRefusedHref,
@@ -28,16 +30,19 @@ import {
  * holder's personnummer (#841). The wash is a 3xx on the incoming request, so it protects the
  * request AFTER the one that carried the value; that request's log post is already written.
  *
+ * Residual producer, named rather than covered: `components/company-criteria/foretag-sok-searchbar.tsx`
+ * renders the no-JS form's raw hidden inputs and never constructs a `ForetagSokUrlState`. This
+ * module's own doc calls it "a producer that cannot call a URL builder" and records that it
+ * ALREADY drifted from the builders once (#1134), so the residual is not hypothetical. Its key
+ * set matches the builders' today, measured, but nothing here would notice a new hidden input.
+ * `/admin/granskning`'s fact closes the same gap by rendering its form; this one does not,
+ * because that component is a hydrating client island rather than a five-input server form.
+ *
  * On the premise (CLAUDE.md §5 `Tests:`). The fixtures are hand-built and no assertion reads a
  * fixture VALUE. What is asserted is the set of query KEY NAMES, which are string literals inside
  * the builders; input decides only WHETHER a name is written. The values need only clear the
  * builders' own emission gates (a non-empty name, non-empty axes, a target page above 1).
  */
-
-type EdgeLogVerdict = {
-  readonly verdict: "must-not-reach-a-stored-log-post" | "kept";
-  readonly reason: string;
-};
 
 // Annotated `Required<…>`, not `as`: the annotation IS the completeness guard, so a field added to
 // `ForetagSokUrlState` stops this file compiling under `tsc --noEmit`.
@@ -57,42 +62,9 @@ const REFUSED_KEYS = emittedKeys(buildOrgNrRefusedHref({ sni: FULL_STATE.sni, ko
 
 const EMITTED: ReadonlySet<string> = new Set([...SOK_KEYS, ...PAGE_KEYS, ...REFUSED_KEYS]);
 
-const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
-  namn: {
-    verdict: "must-not-reach-a-stored-log-post",
-    reason:
-      "Unbounded free text, the same class as /jobb's q. Worse in one respect: proxy.ts washes " +
-      "an org.nr-shaped value out of this field, which is the app stating that it EXPECTS org.nr " +
-      "here, and for an enskild firma the org.nr IS the holder's personnummer (#841). The wash " +
-      "is a 3xx on the incoming request, whose log post is already written.",
-  },
-  sni: {
-    verdict: "kept",
-    reason:
-      "SNI branch codes from the public SCB taxonomy, joined on one axis. A closed published " +
-      "value space that names an industry, never a person.",
-  },
-  kommun: {
-    verdict: "kept",
-    reason: "Municipality codes from the public taxonomy, same closed published class as sni.",
-  },
-  sida: {
-    verdict: "kept",
-    reason: "A page ordinal. It carries no user content.",
-  },
-  avvisat: {
-    verdict: "kept",
-    reason:
-      "A single sentinel recording that an org.nr-shaped name was refused. One bit, and it is " +
-      "set precisely when the value that triggered it was NOT carried forward.",
-  },
-};
 
-function keysJudged(verdict: EdgeLogVerdict["verdict"]): ReadonlyArray<string> {
-  return Object.entries(EDGE_LOG_VERDICT)
-    .filter(([, d]) => d.verdict === verdict)
-    .map(([key]) => key);
-}
+const keysJudged = (v: "must-not-reach-a-stored-log-post" | "kept") =>
+  keysJudgedIn(EDGE_LOG_VERDICT, v);
 
 describe("/foretag/sok inventory — an edge-log verdict per emitted query key", () => {
   it("gives every key the builders emit a verdict", () => {

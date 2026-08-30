@@ -620,6 +620,20 @@ jobs:
       - name: resolve-published-digests (fixturer + de riktiga filerna)
         run: bash .github/scripts/resolve-published-digests.test.sh
 
+      # #1289. Lådans `rclone 1.60.1+dfsg-4` bar 19 versionsexakta CVE:er när det mättes
+      # 2026-08-30 (tre CRITICAL), och HELA säkerhetsargumentet är EN mening: vi anropar bara
+      # `rcat` och `cat`. Debian levererar ingen patchad rclone i någon svit, så det finns inget
+      # `apt upgrade` att falla tillbaka på — meningen är mitigeringen, inte en formalitet.
+      # Före den här grinden höll ingenting den; den var sann av vana.
+      #
+      # Grinden vaktar REPOTS anropsyta, ALDRIG lådan — den kan aldrig se en version som glider
+      # där. Versionsaxeln bor i `vps-deploy-stack.md` rad 28a med en namngiven mänsklig läsare.
+      # Statisk och inte stub-baserad därför att en stub bara ser vägar någon fixtur kör, och
+      # `jobbliggaren-logship.test.sh`:s rclone-stub saknar verb-allowlist helt medan dess timer
+      # är den enabled, timvisa — den oskyddade halvan var precis den som går live först.
+      - name: rclone-invocation-guard (fixturer + det riktiga trädet)
+        run: bash .github/scripts/rclone-invocation-guard.test.sh
+
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).
   #

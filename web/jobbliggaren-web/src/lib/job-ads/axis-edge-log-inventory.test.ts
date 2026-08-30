@@ -1,7 +1,12 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  PIN_FACT,
+  PIN_LIST,
+  PIN_RELATIVE,
+  emittedKeys,
+  pinCarriesTheCaddyfileFact,
+  pinnedAppSurfaceParameters,
+} from "@/test/edge-log-pin";
 import {
   buildJobbHref,
   buildPageHref,
@@ -98,12 +103,6 @@ const DEFAULT_PAGE_SIZE = 20;
 
 /** The one raw field `buildPageHref` does not read; `targetPage` supplies the key instead. */
 const PAGE_FIELD = "page";
-
-function emittedKeys(href: string): ReadonlySet<string> {
-  const start = href.indexOf("?");
-  if (start < 0) return new Set<string>();
-  return new Set(new URLSearchParams(href.slice(start + 1)).keys());
-}
 
 const JOBB_HREF_KEYS = emittedKeys(buildJobbHref(FULL_STATE));
 const PAGE_HREF_KEYS = emittedKeys(
@@ -242,53 +241,6 @@ function keysJudged(verdict: EdgeLogVerdict["verdict"]): ReadonlyArray<string> {
     .map(([key]) => key);
 }
 
-const PIN_RELATIVE = path.join(
-  "tests",
-  "Jobbliggaren.Architecture.Tests",
-  "CaddyfileTokenScrubbingPinTests.cs"
-);
-const PIN_LIST = "AppSurfaceScrubbedParameters";
-const PIN_FACT = "TheCaddyfile_FiltersEveryAppSurfaceParameterThatCarriesPersonalData";
-
-function repoRoot(): string {
-  const from = path.dirname(fileURLToPath(import.meta.url));
-  let dir = from;
-  for (;;) {
-    if (existsSync(path.join(dir, "Jobbliggaren.sln"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) {
-      throw new Error(
-        `Could not find Jobbliggaren.sln by walking up from ${from}. This file binds the /jobb ` +
-          `key inventory to ${PIN_RELATIVE}, so it needs the repo checkout present.`
-      );
-    }
-    dir = parent;
-  }
-}
-
-const PIN_SOURCE = readFileSync(path.join(repoRoot(), PIN_RELATIVE), "utf8");
-
-/**
- * Read as source text, for the reason the pin itself gives about the Caddyfile: the file is the
- * artefact, and a parser clever enough to normalise it could hide the spelling this join exists
- * to compare. Finding nothing THROWS — an empty list would make the REVERSE direction below pass
- * over zero iterations, since it alone iterates the pinned list.
- */
-function pinnedAppSurfaceParameters(): ReadonlyArray<string> {
-  // `\b` so a future member merely ENDING in this name (LegacyAppSurfaceScrubbedParameters)
-  // cannot be matched in its place — a wrong-but-successful read bypasses the throw below.
-  const body = new RegExp(`\\b${PIN_LIST}\\s*=([^;]*);`).exec(PIN_SOURCE)?.[1];
-  if (body === undefined) {
-    throw new Error(
-      `Could not read the ${PIN_LIST} array out of ${PIN_RELATIVE}. It was renamed or reshaped ` +
-        `— re-make this join deliberately, do not delete it.`
-    );
-  }
-  return [...body.matchAll(/"([^"]*)"/g)]
-    .map((m) => m[1])
-    .filter((v): v is string => v !== undefined && v.length > 0);
-}
-
 describe("/jobb axis inventory — an edge-log verdict per emitted query key", () => {
   // Both directions collect before asserting rather than failing inside the loop: a maintainer
   // who added three axes should be told about three, not made to re-run twice to find them.
@@ -385,9 +337,9 @@ describe("the chain to the edge: this inventory to the C# pin list to the Caddyf
   it("still finds the pin list and the fact that binds it to the Caddyfile", () => {
     expect(pinnedAppSurfaceParameters().length).toBeGreaterThan(0);
     expect(
-      PIN_SOURCE,
+      pinCarriesTheCaddyfileFact(),
       `${PIN_RELATIVE} no longer carries ${PIN_FACT}. The chain third link is gone: this file ` +
         `would keep asserting against a list nobody checks the Caddyfile against.`
-    ).toContain(PIN_FACT);
+    ).toBe(true);
   });
 });

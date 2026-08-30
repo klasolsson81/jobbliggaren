@@ -419,8 +419,9 @@ close-out.
 gh workflow run release-images.yml     # builds main; SHA-idempotent, safe to repeat
 ```
 
-`release-images.yml` has **no push trigger**: automerge merges as a GitHub App, and app-triggered
-events start no workflow runs (measured counterfactual in that workflow's own header). Its `schedule` is the only automatic path, and a scheduled workflow on a
+`release-images.yml` has **no push trigger**: automerge merges as a GitHub App, and
+app-triggered events start no workflow runs (measured counterfactual in that workflow's
+own header). Its `schedule` is the only automatic path, and a scheduled workflow on a
 public repo is dropped under load — so a merge can sit unbuilt for hours while `main` is green
 and the issue is closed. The workflow's header names the owning session as the actor for exactly
 this reason: *"the owning session dispatches manually when it wants the image now; CLAUDE.md §6.5
@@ -430,7 +431,9 @@ Measure the schedule's actual behaviour rather than trusting its cron line — t
 this is the command, not a figure:
 
 ```bash
-gh run list --workflow=release-images.yml --limit 40 \n  --json event,createdAt,conclusion --jq '.[] | select(.event=="schedule") | .createdAt'
+gh run list --workflow=release-images.yml --limit 40 \
+  --json event,createdAt,conclusion \
+  --jq '.[] | select(.event=="schedule") | .createdAt'
 ```
 
 ⚠ **This step was missing from this section until 2026-08-30, and three consecutive merges

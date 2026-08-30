@@ -19,7 +19,7 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  *
  * Vi EKAR ALDRIG backend-svarets råa body vid fel (GDPR Art. 5(1)(f) —
  * ProblemDetails kan bära stacktrace/PII); fel mappas till statusbaserad, säker
- * copy och `parseResponse` redigerar bort `received` ur loggade shape-avvikelser.
+ * copy.
  * `isValidId(id)`-allowlisten är path-injektions-/SSRF-barriären (backend nås
  * aldrig vid ogiltigt id — spegel av preview-routen). `no-store` på 200 (paritet
  * med backendens egen `private, no-store` — CV-textytan cachas aldrig).
@@ -78,8 +78,8 @@ export async function GET(
   }
 
   // 200 OK — validera `{ source, text }` vid ACL-gränsen (aldrig eka rå body;
-  // parseResponse kastar DtoParseError vid shape-avvikelse och redigerar bort
-  // received). Färska headers: no-store, ingen vidarebefordrad backend-header.
+  // parseResponse kastar DtoParseError vid shape-avvikelse). Färska headers:
+  // no-store, ingen vidarebefordrad backend-header.
   try {
     const data = await parseResponse(
       backendRes,

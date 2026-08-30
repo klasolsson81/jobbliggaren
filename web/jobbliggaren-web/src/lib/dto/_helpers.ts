@@ -35,12 +35,22 @@ export async function parseResponse<T>(
   try {
     raw = await res.json();
   } catch (cause) {
-    console.error("DTO parse failed: invalid JSON body", { context, cause });
+    // The error class, never its message: V8 quotes bytes surrounding the parse
+    // failure, and this function parses the session response whose body carries
+    // the bearer credential.
+    // eslint-disable-next-line no-console
+    console.error("DTO parse failed: invalid JSON body", {
+      context,
+      cause: cause instanceof Error ? cause.name : "unknown",
+    });
     throw new DtoParseError("Invalid JSON body", context, cause);
   }
 
   const result = schema.safeParse(raw);
   if (!result.success) {
+    // redactIssues strips the value-bearing field; see its docblock for which
+    // layer actually keeps it out today.
+    // eslint-disable-next-line no-console
     console.error("DTO parse failed: shape mismatch", {
       context,
       issues: redactIssues(result.error.issues),
@@ -52,22 +62,29 @@ export async function parseResponse<T>(
 }
 
 /**
- * Tar bort `received`-fältet ur Zod-issues innan loggning. Zod v4 inkluderar
- * det faktiska värdet i `received` vid type-mismatch-issues — om backend råkar
- * returnera email/userId i fel fält skulle rå PII hamna i strukturerad logg
- * (CloudWatch). CLAUDE.md §5.1 förbjuder PII-loggning i klartext.
+ * Tar bort `input` ur Zod-issues innan loggning. `input` bär det avvisade
+ * värdet — om backend råkar returnera email/userId i fel fält är det den
+ * vägen rå PII skulle nå en strukturerad logg. AGENTS.md §5 (`Backend:`
+ * logging sensitive data in plaintext) förbjuder det.
+ *
+ * Två lager, och det andra är detta: Zod utelämnar `input` som default
+ * (`finalizeIssue` destrukturerar bort det om inte `reportInput` sätts), så
+ * `parseResponse` når inte hit i dag. Mappningen håller det andra lagret
+ * mot en framtida anropare som sätter flaggan. Exporterad enbart för att den
+ * annars saknar orakel: den tar bort ett fält ingen produktionsväg producerar,
+ * och en oanropbar transform kan inte falla av sitt eget skäl.
  *
  * `path`, `code`, `message`, `expected` behålls — de räcker för debug utan
  * att riskera PII-läckage.
  */
-function redactIssues(
+export function redactIssues(
   issues: readonly z.core.$ZodIssue[]
-): Array<Omit<z.core.$ZodIssue, "received">> {
+): Array<Omit<z.core.$ZodIssue, "input">> {
   return issues.map((issue) => {
-    if (!("received" in issue)) return issue;
+    if (!("input" in issue)) return issue;
     const copy: Record<string, unknown> = { ...issue };
-    delete copy.received;
-    return copy as Omit<z.core.$ZodIssue, "received">;
+    delete copy.input;
+    return copy as Omit<z.core.$ZodIssue, "input">;
   });
 }
 

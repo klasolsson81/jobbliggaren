@@ -60,7 +60,7 @@ describe("globals.css — the global link colour rule (#1352)", () => {
       expect(
         selector.match(/:not\(/g) ?? [],
         `${selector.trim()} — a chained :not() raises the rule from (0,1,1) to (0,2,1) and turns ` +
-          `the footer links green. Keep both exemptions in one selector list.`,
+          `the footer links green.`,
       ).toHaveLength(1);
     }
   });

@@ -4524,10 +4524,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 
-/* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
-   Auth-kolumn + gäst-länk under kortet. Ledger-heron (01/02/03 +
-   800-verb, streckade radlinjer) togs bort i #517 efter Plattan-
-   cutover (#518). */
 .jp-land-hero__cardcol { min-width: 0; }
 
 /* ── Gratis- och datarader under ett registreringsformulär ───
@@ -4574,10 +4570,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
    samma doktrin som footern) — ALDRIG --jp-ink-inverse (som vänder
    mörk i dark och försvinner mot grönt). Kontrast uppmätt mot plattan
    (identisk light+dark; gradient-tokens skiftar ej):
-     #FFFFFF på #1E6B4C (ljusaste hörn) ..... 5.90:1  (verb, gäst-länk)
+     #FFFFFF på #1E6B4C (ljusaste hörn) ..... 5.90:1  (verb)
      rgba(255,255,255,0.94) lede ............ 7–8:1   (mitten)
      #E8C77B kicker på #0B2A1E .............. 9.45:1  (mörka övre vänster)
      rgba(255,255,255,0.72) källrad ......... ≥ 4.5:1 på sitt läge */
+/* MED FLIT utanför vit-ring-scopet (.jp-hero__plate, .jp-pagehero__inner):
+   --jp-focus ärvs, så en pin här kaskadar ned i det vita kontokortet och ger
+   vit ring på vit yta (#549 WS2). Ett fokuserbart element direkt på plattan
+   behöver en egen scopad literal ring; kortets egna kontroller sitter på
+   --jp-surface och behåller den gröna. */
 .jp-land-hero--plate { background: var(--jp-hero-gradient); padding: 0; }
 .jp-land-hero__inner--plate {
   max-width: 1232px;

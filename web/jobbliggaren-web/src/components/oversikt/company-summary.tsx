@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
 import { Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -78,11 +79,46 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
   // katalogen från /foretag/bevakade, byggd genom bakdörren.
   const filteredWatches = items.filter((w) => w.filter !== null).length;
 
+  // Klas-direktiv 2026-08-30: the sums link straight to the ads, so a user reaches them in one
+  // click instead of going through /foretag/bevakade first.
+  //
+  // EVERY watch must be linkable or neither sum links. A masked sole-prop and a brand-group watch
+  // both arrive with `organizationNumber: null`, and their ads would be missing from the
+  // destination while the number beside the link still counted them -- the count/click divergence
+  // this route exists to avoid. Partial is worse than plain text here.
+  const linkableOrgNrs = items.flatMap((w) =>
+    !w.isProtectedIdentity && w.organizationNumber ? [w.organizationNumber] : []
+  );
+  const everyWatchLinkable =
+    items.length > 0 && linkableOrgNrs.length === items.length;
+
+  // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
+  const activeAdsHref =
+    everyWatchLinkable && activeAds > 0
+      ? buildCompanyJobsHref(linkableOrgNrs, "all")
+      : null;
+  const matchingAdsHref =
+    everyWatchLinkable && matchingAds !== null && matchingAds > 0
+      ? buildCompanyJobsHref(linkableOrgNrs, "matching")
+      : null;
+
   return (
     <div className="jp-appsummary">
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
-          {t("anchor", { count: items.length, active: activeAds })}
+          {t("anchorWatches", { count: items.length })}
+          {" \u00b7 "}
+          {activeAdsHref ? (
+            <Link
+              href={activeAdsHref}
+              className="jp-countlink"
+              aria-label={t("anchorActiveAria", { active: activeAds })}
+            >
+              {t("anchorActive", { active: activeAds })}
+            </Link>
+          ) : (
+            t("anchorActive", { active: activeAds })
+          )}
         </span>
         <Link className="jp-appsummary__link" href="/foretag/bevakade">
           {t("link")}
@@ -96,7 +132,17 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
           felklass. */}
       {matchingAds !== null && (
         <p className="jp-matchline tabular-nums">
-          {t("matching", { count: matchingAds })}
+          {matchingAdsHref ? (
+            <Link
+              href={matchingAdsHref}
+              className="jp-countlink"
+              aria-label={t("matchingAria", { count: matchingAds })}
+            >
+              {t("matching", { count: matchingAds })}
+            </Link>
+          ) : (
+            t("matching", { count: matchingAds })
+          )}
         </p>
       )}
 

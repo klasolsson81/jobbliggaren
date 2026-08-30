@@ -48,14 +48,17 @@ export function isLinkableOrgNr(organizationNumber: string): boolean {
  * every visual trace of the filter (the grade chips render only when matching is active).
  */
 export function buildCompanyJobsHref(
-  organizationNumber: string,
+  organizationNumbers: ReadonlyArray<string>,
   scope: CompanyJobsScope
 ): string | null {
   // The producer keeps its own floor even though the only caller now shares the predicate: a
   // second line of defence at the seam that emits the value, which is where `security-auditor`
   // asked for it. Deliberately NOT a personnummer discriminator — that would give
   // `IsPersonnummerShaped` a second home, which the house rejected once (#844).
-  if (!isLinkableOrgNr(organizationNumber)) return null;
+  // Every value or none: a partial link would show fewer ads than the number beside it
+  // promises, which is the divergence this whole route exists to avoid.
+  if (organizationNumbers.length === 0) return null;
+  if (!organizationNumbers.every(isLinkableOrgNr)) return null;
 
   return buildJobbHref({
     q: "",
@@ -66,7 +69,7 @@ export function buildCompanyJobsHref(
     worktimeExtent: [],
     matchGrades: scope === "matching" ? WATCH_MATCHING_GRADES : [],
     remote: false,
-    employer: organizationNumber,
+    employer: organizationNumbers,
     sortBy: DEFAULT_SORT_BY,
   });
 }

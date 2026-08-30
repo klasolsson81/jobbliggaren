@@ -32,6 +32,16 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 
 const NO_FILTER = null;
 
+/**
+ * The anchor is split across elements since the ad half became a link (Klas-direktiv
+ * 2026-08-30), so an exact `getByText` over the whole sentence can no longer match. Reading the
+ * totals span keeps the assertion on the rendered SENTENCE rather than on the markup carrying it.
+ */
+function anchorText(): string {
+  const totals = document.querySelector(".jp-appsummary__totals");
+  return (totals?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 describe("CompanySummary", () => {
   it("ankarraden summerar bevakningar och aktiva annonser", () => {
     render(
@@ -43,9 +53,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(
-      screen.getByText("2 bevakade företag · 140 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("2 bevakade företag · 140 aktiva annonser");
     expect(
       screen.getByRole("link", { name: "Visa bevakade företag" }),
     ).toHaveAttribute("href", "/foretag/bevakade");
@@ -56,18 +64,14 @@ describe("CompanySummary", () => {
   it("bevakning med aktiva annonser läser aldrig som tom", () => {
     render(<CompanySummary watches={ok([watch({ activeAdCount: 136 })])} />);
 
-    expect(
-      screen.getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
   it("noll aktiva annonser är ett mätt tillstånd, inte ett tomt-läge", () => {
     render(<CompanySummary watches={ok([watch({ activeAdCount: 0 })])} />);
 
-    expect(
-      screen.getByText("1 bevakat företag · inga aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · inga aktiva annonser");
   });
 
   it("bedömd matchning renderas, och en bedömd nolla skrivs ut", () => {
@@ -101,9 +105,7 @@ describe("CompanySummary", () => {
     expect(screen.queryByText(/matchande/)).toBeNull();
     expect(screen.queryByText(/Ställ in matchning/)).toBeNull();
     // Ankarraden står kvar — det är den som stänger issuet.
-    expect(
-      screen.getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · 136 aktiva annonser");
   });
 
   // `some`, inte `every`: bryter backendens per-request-gate någon gång får en delsumma
@@ -172,7 +174,7 @@ describe("CompanySummary", () => {
       "href",
       "/foretag/sok",
     );
-    expect(screen.queryByText(/bevakat företag ·/)).toBeNull();
+    expect(anchorText()).toBe("");
   });
 
   it("säger att bevakningarna inte kunde hämtas i stället för att påstå noll", () => {
@@ -184,7 +186,7 @@ describe("CompanySummary", () => {
       ),
     ).toBeInTheDocument();
     // Fabrikation: en degraderad hämtning får varken visa en siffra eller tomt-läget.
-    expect(screen.queryByText(/bevakade företag ·/)).toBeNull();
+    expect(anchorText()).toBe("");
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
@@ -193,21 +195,86 @@ describe("CompanySummary", () => {
   // textContent "Visa" och hade passerat — vilket är exakt ADR 0087 D8-gränsen den här
   // PR:en säger sig hålla utanför. Assertionen går därför mot markup, inte mot text, och
   // det generella siffermönstret fångar även ett org.nr denna fixtur inte råkar bära.
-  it("renderar varken företagsnamn eller org.nr — i markup, inte bara i text", () => {
+  it("summorna länkar DIREKT till annonserna hos varje bevakat företag", () => {
+    // Klas-direktiv 2026-08-30: ett klick, inte två. Backend har bundit `string[]` hela tiden
+    // (ADR 0087 D6), så axeln bär hela bevakningsmängden.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+          watch({
+            id: "22222222-2222-2222-2222-222222222222",
+            organizationNumber: "5560125790",
+            activeAdCount: 36,
+            matchingAdCount: 2,
+          }),
+        ])}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", {
+        name: "136 aktiva annonser hos dina bevakade företag",
+      }),
+    ).toHaveAttribute("href", "/jobb?employer=5566524301.5560125790");
+    expect(
+      screen.getByRole("link", {
+        name: "9 matchande annonser hos dina bevakade företag",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/jobb?employer=5566524301.5560125790&matchGrades=Good.Strong",
+    );
+  });
+
+  it("EN maskad bevakning räcker för att ingen summa ska länka", () => {
+    // Partiellt vore värre än ingenting: den maskade radens annonser saknas i destinationen
+    // medan talet bredvid länken fortfarande räknar dem. Det är count/click-divergensen.
     const { container } = render(
       <CompanySummary
         watches={ok([
-          watch({ companyName: "Friday Väst AB", organizationNumber: "5566524301" }),
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+          watch({
+            id: "33333333-3333-3333-3333-333333333333",
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 36,
+            matchingAdCount: 2,
+          }),
+        ])}
+      />,
+    );
+
+    expect(screen.queryAllByRole("link", { name: /annonser hos dina bevakade/ })).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("employer=");
+    // Talen skrivs ändå ut — de är mätta och sanna, det är bara vägen dit som saknas.
+    expect(anchorText()).toBe("2 bevakade företag · 136 aktiva annonser");
+  });
+
+  it("renderar aldrig ett företagsNAMN, och ett org.nr bara inuti en länk — aldrig som text", () => {
+    // ⚠ Premissen ändrades 2026-08-30. Denna vakt sa tidigare att INGET org.nr får nå Översikt.
+    // Klas-direktivet att summorna ska leda direkt till annonserna gör att org.nr nu MÅSTE nå
+    // href:en — annars finns ingen destination. Det som står kvar oförändrat är att inget
+    // företagsNAMN renderas, och att inget org.nr blir synlig text.
+    //
+    // Assertionen går mot markup, inte mot text: `textContent` ser inte `href`.
+    const { container } = render(
+      <CompanySummary
+        watches={ok([
+          watch({
+            companyName: "Friday Väst AB",
+            organizationNumber: "5566524301",
+            activeAdCount: 100,
+            matchingAdCount: 7,
+          }),
         ])}
       />,
     );
 
     expect(container.innerHTML).not.toContain("Friday Väst AB");
-    expect(container.innerHTML).not.toContain("5566524301");
-    // Vilken tiosiffrig sekvens som helst: ett org.nr som läckt via en annan väg än
-    // fixturens egen sträng ska också falla.
-    expect(container.innerHTML).not.toMatch(/\d{10}/);
-    expect(container.innerHTML).not.toContain("employer=");
+    // Org.nr:et finns i href:en, och INGEN ANNANSTANS — inte i någon textnod.
+    expect(container.innerHTML).toContain("employer=5566524301");
+    expect(container.textContent ?? "").not.toMatch(/\d{10}/);
   });
 
   // Komplement till ovanstående: assertionen mäter DOM, och DOM kan inte skilja dagens

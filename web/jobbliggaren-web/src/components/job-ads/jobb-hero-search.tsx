@@ -101,7 +101,7 @@ interface JobbHeroSearchProps {
   // Klass-2-dimensionerna: aldrig text-representabelt i fältet, men bärs genom
   // commit-/delta-vägen + no-JS-hidden-input så en sökord-ändring inte raderar
   // ett aktivt arbetsgivar-filter (samma param-bevarande-disciplin).
-  employer: string | undefined;
+  employer: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
   // #419 pt6 (CTO A1) — commit-intent på mount-URL:en (page.tsx parsar `?commit=true`).
@@ -698,8 +698,12 @@ export function JobbHeroSearch({
       ))}
       {/* #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökord-
           sökning utan JS inte tappar det (paritet med dimensionerna ovan). */}
-      {lastCommitted.employer && (
-        <input type="hidden" name="employer" value={lastCommitted.employer} />
+      {serializeJobbAxis(lastCommitted.employer ?? []).length > 0 && (
+        <input
+          type="hidden"
+          name="employer"
+          value={serializeJobbAxis(lastCommitted.employer ?? [])}
+        />
       )}
       {/* #551 punkt 4 — no-JS-submit bär Distans (paritet employer ovan). Ligger
           UTANFÖR axisInputs: den är en boolean med ett sentinel-värde, inte en

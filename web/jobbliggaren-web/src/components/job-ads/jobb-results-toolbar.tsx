@@ -128,7 +128,7 @@ interface JobbResultsToolbarProps {
    * hero-fältets in-field-chips). Filtret sätts av företagskortets
    * "se annonser"-länkar, aldrig av toolbaren själv.
    */
-  employer: string | undefined;
+  employer: ReadonlyArray<string>;
   /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
@@ -372,8 +372,11 @@ export function JobbResultsToolbar({
   // motsatsen som ett Klas-val (E2j, 2026-06-12): ta bort chip / Rensa / byt sort ÄR
   // avsiktliga sökningar som fångas, och `removeChip` anropar `commit`. För varje chip utom
   // detta. Formen har varit rätt hela tiden; det är skälet som har varit fel två gånger.
-  function removeEmployer() {
-    navigate({ ...urlState, employer: undefined });
+  function removeEmployer(orgNr: string) {
+    navigate({
+      ...urlState,
+      employer: (urlState.employer ?? []).filter((e) => e !== orgNr),
+    });
   }
 
   // E2i (Klas-beslut 2026-06-11, ersätter E2e-domen "q bevaras"): q-orden
@@ -397,7 +400,7 @@ export function JobbResultsToolbar({
       worktimeExtent: [],
       // #454 PR-0 — arbetsgivar-filtret nollas också (det har × i samma rad;
       // least surprise — allt med × försvinner, E2i-doktrinen).
-      employer: undefined,
+      employer: [],
       q: "",
     });
   }
@@ -450,7 +453,7 @@ export function JobbResultsToolbar({
   const hasAnyToolbarChips =
     chips.length > 0 ||
     matchGradeChips.length > 0 ||
-    Boolean(urlState.employer) ||
+    (urlState.employer?.length ?? 0) > 0 ||
     // #551 punkt 4 — clearAllFilters nollar distans, så grinden måste kunna SE
     // den. Utan detta är "Rensa sökord och filter" osynlig för ett rent
     // Distans-filter, alltså en funktion vars grind inte ser vad den rensar.
@@ -544,26 +547,22 @@ export function JobbResultsToolbar({
             Label = "Arbetsgivare NNNNNN-NNNN" (org.nr; namnupplösning i chipen
             är #408-adjacent polish, out-of-scope v1). × navigerar utan
             commit-intent (removeEmployer). Civic-ikon: Building2. */}
-        {urlState.employer && (
-          <span className="jp-filterchip">
+        {(urlState.employer ?? []).map((orgNr) => (
+          <span key={`employer-${orgNr}`} className="jp-filterchip">
             <Building2 size={12} aria-hidden="true" />
-            {t("toolbar.employerChip", {
-              orgNr: formatOrgNr(urlState.employer),
-            })}
+            {t("toolbar.employerChip", { orgNr: formatOrgNr(orgNr) })}
             <button
               type="button"
               className="jp-filterchip__rm"
-              onClick={removeEmployer}
+              onClick={() => removeEmployer(orgNr)}
               aria-label={t("toolbar.removeFilter", {
-                label: t("toolbar.employerChip", {
-                  orgNr: formatOrgNr(urlState.employer),
-                }),
+                label: t("toolbar.employerChip", { orgNr: formatOrgNr(orgNr) }),
               })}
             >
               <X size={12} aria-hidden="true" />
             </button>
           </span>
-        )}
+        ))}
 
         {/* Grad-chips (toolbar-lokala, #408): en per smalnad grad. × kör samma
             navigate-väg som popover-avmarkering (onMatchGradesChange med graden

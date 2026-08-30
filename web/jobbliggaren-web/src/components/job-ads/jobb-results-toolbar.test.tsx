@@ -43,7 +43,7 @@ function toolbar(over: ToolbarOverrides = {}) {
       matchningOff={false}
       hideApplied={false}
       onlyMatched={false}
-      employer={undefined}
+      employer={[]}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"
@@ -383,19 +383,19 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
   // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × navigerar utan commit.
   describe("arbetsgivar-chip (#454 PR-0)", () => {
     it("renderar chippen med formaterat org.nr när employer är satt", () => {
-      renderToolbar({ employer: "5560125790" });
+      renderToolbar({ employer: ["5560125790"] });
       expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
     });
 
     it("ingen chip utan employer", () => {
-      renderToolbar({ employer: undefined });
+      renderToolbar({ employer: [] });
       expect(screen.queryByText(/Arbetsgivare /)).toBeNull();
     });
 
     it("× tar bort employer ur URL:en (navigate, utan commit) och bevarar övrig state", async () => {
       const user = userEvent.setup();
       renderToolbar({
-        employer: "5560125790",
+        employer: ["5560125790"],
         matchGrades: ["Strong"],
         matchActive: true,
       });
@@ -410,7 +410,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
 
     it("sort-byte bevarar employer (param-bevarande-basen)", async () => {
       const user = userEvent.setup();
-      renderToolbar({ employer: "5560125790" });
+      renderToolbar({ employer: ["5560125790"] });
       await user.selectOptions(
         screen.getByLabelText("Sortera"),
         "ExpiresAtAsc",

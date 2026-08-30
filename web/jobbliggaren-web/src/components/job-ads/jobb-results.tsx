@@ -104,7 +104,7 @@ interface JobbResultsProps {
    * (10 siffror, validerat i page.tsx). Skickas till list-queryn som ett
    * string[]-element; ORTOGONAL mot matchningen (ren IN-equality-gallring).
    */
-  employer: string | undefined;
+  employer: ReadonlyArray<string>;
   q: string;
   /**
    * E2j (ADR 0060 amend 2026-06-12) — commit-intent: när URL:en bär

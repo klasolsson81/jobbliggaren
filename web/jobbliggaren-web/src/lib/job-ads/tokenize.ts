@@ -597,7 +597,7 @@ export function sameUrlState(a: JobbUrlState, b: JobbUrlState): boolean {
     // #454 PR-0 — arbetsgivar-filtret ingår i "samma filter-state" (inte
     // text-representabelt; komparatorn ska vara komplett så en extern
     // employer-ändring klassas som extern divergens, inte som no-op).
-    (a.employer ?? "") === (b.employer ?? "")
+    sameList(a.employer ?? [], b.employer ?? [])
   );
 }
 

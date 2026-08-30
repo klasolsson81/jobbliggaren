@@ -420,12 +420,12 @@ describe("updateTextForStateChange (C′ regel 2/3)", () => {
 describe("sameUrlState #454 PR-0 (employer i komparatorn)", () => {
   it("olika employer ⇒ INTE samma filter-state (extern divergens-detektorn)", () => {
     expect(
-      sameUrlState({ ...empty, employer: "5560125790" }, { ...empty }),
+      sameUrlState({ ...empty, employer: ["5560125790"] }, { ...empty }),
     ).toBe(false);
     expect(
       sameUrlState(
-        { ...empty, employer: "5560125790" },
-        { ...empty, employer: "5560000108" },
+        { ...empty, employer: ["5560125790"] },
+        { ...empty, employer: ["5560000108"] },
       ),
     ).toBe(false);
   });
@@ -433,12 +433,12 @@ describe("sameUrlState #454 PR-0 (employer i komparatorn)", () => {
   it("samma employer (eller båda frånvarande) ⇒ samma filter-state", () => {
     expect(
       sameUrlState(
-        { ...empty, employer: "5560125790" },
-        { ...empty, employer: "5560125790" },
+        { ...empty, employer: ["5560125790"] },
+        { ...empty, employer: ["5560125790"] },
       ),
     ).toBe(true);
     // undefined och utelämnad är ekvivalenta (?? ""-normalisering).
-    expect(sameUrlState({ ...empty, employer: undefined }, { ...empty })).toBe(
+    expect(sameUrlState({ ...empty, employer: [] }, { ...empty })).toBe(
       true,
     );
   });

@@ -19,7 +19,10 @@
     "unavailable": "The application count could not be loaded. Reload the page to try again."
   },
   "companySummary": {
-    "anchor": "{count, plural, one {# followed company} other {# followed companies}} · {active, plural, =0 {no active ads} one {# active ad} other {# active ads}}",
+    "anchorWatches": "{count, plural, one {# followed company} other {# followed companies}}",
+    "anchorActive": "{active, plural, =0 {no active ads} one {# active ad} other {# active ads}}",
+    "anchorActiveAria": "{active, plural, one {# active ad} other {# active ads}} at your followed companies",
+    "matchingAria": "{count, plural, one {# matching ad} other {# matching ads}} at your followed companies",
     "link": "View followed companies",
     "matching": "{count, plural, =0 {No matching ads at your followed companies} one {# matching ad at your followed companies} other {# matching ads at your followed companies}}",
     "filter": "{count, plural, one {# watch has a notification filter} other {# watches have notification filters}}. The counts above cover all ads, regardless of filter.",

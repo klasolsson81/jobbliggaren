@@ -6786,10 +6786,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* Signpost-/nudgelänk (accent, semibold, underline) — återanvänds av
    match-sektionens CTA:er + company-watch-row m.fl. */
+/* #1547 uppfoljning (Klas-direktiv 2026-08-30) -- rakneraden ÄR lanken, sa hovern maste ge ett
+   annat steg an "understrykning dyker upp": den ligger redan dar i vila. Farg + tjocklek + offset,
+   alla tre, sa aterkopplingen syns aven for den som inte skiljer accent-700 fran accent-600. */
+.jp-countlink {
+  color: var(--jp-accent-700);
+  font-weight: var(--jp-fw-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  transition:
+    color 120ms ease,
+    text-decoration-thickness 120ms ease,
+    text-underline-offset 120ms ease;
+}
+.jp-countlink:hover {
+  color: var(--jp-accent-600);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
 .jp-nudgelink {
   color: var(--jp-accent-700);
   font-weight: var(--jp-fw-semibold);
   text-decoration: underline;
+}
+/* Hade ingen hover alls -- en lank utan aterkoppling las som text (Klas 2026-08-30). */
+.jp-nudgelink:hover {
+  color: var(--jp-accent-600);
+  text-decoration-thickness: 2px;
 }
 
 /* Matchrad under företagsnamn — återanvänds av company-watch-row

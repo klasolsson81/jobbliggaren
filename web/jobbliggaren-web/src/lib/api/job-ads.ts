@@ -66,7 +66,7 @@ export interface ListJobAdsQuery {
   // (10 siffror, page-validerat). Backend binder ?employer= till string[]
   // (IN-equality på organization_number-kolumnen, PR #416) — FE skickar ett
   // element. Utelämnad = inget arbetsgivar-filter.
-  employer?: string;
+  employer?: ReadonlyArray<string>;
   q?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
   // skickas och backend auto-capturerar sökningen till Senaste sökningar.
@@ -98,7 +98,7 @@ function buildQuery(query: ListJobAdsQuery): string {
   if (query.remote) params.append("remote", "true");
   // #454 PR-0 — arbetsgivar-filtret (singel-org.nr → ett string[]-element
   // backend-sidigt). Skrivs BARA ut när satt.
-  if (query.employer) params.append("employer", query.employer);
+  for (const v of query.employer ?? []) params.append("employer", v);
   // #300 PR-5 — "Visa relaterade också". Skriv BARA ut när true (default false =
   // ren lista). Värdet är "true" (ASP.NET bool-binding tar inte "1").
   if (query.includeRelated) params.set("includeRelated", "true");

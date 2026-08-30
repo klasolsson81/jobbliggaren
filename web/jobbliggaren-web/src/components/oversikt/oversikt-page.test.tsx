@@ -440,8 +440,8 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Företagsbevakning" });
     expect(
-      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(within(section).getByText(/publicerat/)).toBeInTheDocument();
     expect(within(section).getByText(/1 oläst/)).toBeInTheDocument();
   });
@@ -458,8 +458,8 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Företagsbevakning" });
     expect(
-      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(
       within(section).getByRole("link", { name: "Visa bevakade företag" }),
     ).toBeInTheDocument();

@@ -120,7 +120,7 @@ const renderHosted = async () =>
         includeRelated: false,
         hideApplied: false,
         onlyMatched: false,
-        employer: undefined,
+        employer: [],
         q: "",
         commit: false,
         rawParams: {},

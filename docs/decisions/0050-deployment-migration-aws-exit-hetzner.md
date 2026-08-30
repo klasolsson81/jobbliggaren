@@ -1569,25 +1569,32 @@ requests i produktion.
 `ZQPROBE-PATCH-INSTALLED` före varje körning. Utan den raden hade en utebliven patch gett en grön
 körning som mäter noll — den väg ett nollresultat lättast blir falskt på.
 
-⚠ **Ett eko av request-innehåll finns, och det är avgränsat, inte frånvarande.** Den fjärde formen
-ekar `Next-Action`-headern (angriparstyrd, inte vår token). Den femte ekar kroppens början — mätt
-med tre kroppar: **exakt 10 tecken, och bara när kroppen är ogiltig JSON från position 0**; är
-JSON:en giltig med skräp efter ekas ingenting alls, bara en positionssiffra. De tre rutternas
-Server Actions bär token i kroppen, men en välformad flight-payload börjar med sina första
-argument, så 10 tecken från position 0 når inte ett argumentvärde — och en payload som är trasig
-från första byten är ingen flight-payload. Avgränsningen är alltså mätt, men den är Nodes tal och
-inte vårt.
+⚠ **Ett eko av request-innehåll finns, och dess gräns är INTE fastställd.** Den fjärde formen ekar
+`Next-Action`-headern (angriparstyrd, inte vår token). Den femte ekar delar av kroppen, och den har
+minst tre former, inte en: från position 0 (~10 tecken), **mitt i kroppen** — där V8 citerar
+tecknen *före* felpositionen, mätt till ett tjugotal totalt, alltså svansen av det värde som
+föregår felet — och enbart en positionssiffra utan eko (giltig JSON med skräp efter, samt
+trunkering, som ger `Unterminated string`).
+
+**Avgränsningen prövades och höll inte, vilket är skälet att den inte står här.** Tre kroppar gav
+form ett och tre och läste ut som en gräns på tio tecken från position 0; `security-auditor` mätte
+mid-body-formen och fällde den 2026-08-30, reproducerad ovan. Tre kroppar räcker för att se en
+form, inte för att utesluta de andra — nästa läsare behöver inte göra om det försöket, men får
+inte heller ärva dess slutsats. Vad som kan sägas är att en *legitim* klient inte skickar en
+payload som är välformad fram till token-argumentet och trasig omedelbart efter, medan en angripare
+som skräddarsyr en sådan bara ekar sin **egen** token. Det benet är resonemang, inte mätning, och
+bär inte ensamt en avgränsning. **Punkten lämnas öppen under #706.**
 
 **Vad slutsatsen INTE är.** Den är ett påstående om **ramverkets utskriftsformat i 16.3.0**, inte
-en egenskap hos arkitekturen. En Next-uppgradering är det som gör om den till en fråga, och inget i
-repot asserterar Next-versionen (mätt), så en uppgradering fäller ingen grind som pekar hit. Det
-är den kända, accepterade svagheten i den här raden.
+en egenskap hos arkitekturen. En Next-uppgradering är det som gör om den till en fråga, och ingen
+grind fäller ut vid en sådan. Det är den kända, accepterade svagheten i den här raden.
 
-**Den halva vi själva äger fick däremot en grind, för den saknade en.** Repot bar fyra
+**Den halva vi själva äger fick däremot en grind, för den saknade en.** Repot bar
 `SECURITY (§5)`-märkta docblock under `src/lib/actions/` och `src/components/auth/` som lovar att
-`uid`/`token` eller en e-postadress *aldrig* loggas — var och en med orden *"no `console.*`"* i
-klartext — medan `eslint.config.mjs` saknade `no-console` helt. Skrivna garantier, noll
-mekanismer. Grinden finns nu, i ett eget block, som
+`uid`, `token`, lösenordet eller en e-postadress *aldrig* loggas på någon väg — medan
+`eslint.config.mjs` saknade `no-console` helt. Skrivna garantier, noll mekanismer. (Ett tal stod
+här och var fel; det är struket i stället för rättat, eftersom det är ett levande mätt tal utan
+regenereringskommando.) Grinden finns nu, i ett eget block, som
 `error` (en `warn` fäller en körning endast om `lint`-scriptet ges `--max-warnings`, vilket blocket
 varken kan garantera eller bör bero på, så svårighetsgraden får bära grinden själv) och utan
 `allow`-lista (varje känt anrop är `console.error`, så just den allow-listan hade gjort regeln inert

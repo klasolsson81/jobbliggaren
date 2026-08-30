@@ -367,6 +367,18 @@ base64 -w0 < rclone.conf        # produce it wherever you configured rclone, the
 `/run` is tmpfs, so the upload credential dies with the box exactly as the master key does.
 Re-inject with the command above; there is nothing backup-specific to remember.
 
+> ⚠ **Injection is what ARMS hourly `rclone` execution, so it is the trigger for the advisory
+> check — read `vps-deploy-stack.md` row 28a before injecting** ([#1289](https://github.com/klasolsson81/jobbliggaren/issues/1289)). Measured 2026-08-30: the logship
+> timers were `enabled` and firing hourly, with execution held off only by this credential's
+> absence. That row also names the one reading that is only available once the file exists —
+> whether the injected `rclone.conf` sets `session_token` or `sse_customer_*`, which decides
+> three otherwise-conditional CVEs. This is a pointer, not a re-measurement: if row 28a is
+> current, the advisory axis costs nothing extra here.
+>
+> ⚠ **This callout covers the ADVISORY axis only.** It is not a clearance to inject: the Art. 28
+> processor agreement with OVHcloud is unsigned (`security-auditor` escalation, 2026-08-30), and
+> injection is the event that makes the processing operative. Klas owns that sequencing decision.
+
 **What happens in the meantime, precisely, because the two cases differ.** A *scheduled* run with
 no credential is **skipped**, not failed: `jobbliggaren-backup.service` carries
 `ConditionPathExists=` on the credential, so systemd marks the unit inactive and logs the reason.

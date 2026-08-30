@@ -52,7 +52,6 @@ describe("useCodedTaxonomyName", () => {
     // (`recent-search-label.ts` interpolates it), and one that handed the id would put the
     // external system's vocabulary in front of the user (§5).
     expect(name).toBe(`Okänd kod (${LOST_REGISTER_ID})`);
-    expect(name).not.toBe(LOST_REGISTER_ID);
   });
 
   it("names it in the reader's locale, which is the whole point of #1540", () => {

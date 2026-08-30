@@ -71,6 +71,15 @@
 					delete token
 					delete email
 					delete uid
+					# NOT a mail-link parameter, and the only one here that is not. `employer`
+					# carries a LIST of org.nr, and Oversikt's summary links emit the user's
+					# WHOLE watch set in one URL. A single org.nr is public-register data any
+					# visitor can type; the set has exactly one producer, an authenticated one,
+					# so a log entry holding it IS "whom this user watches" — ADR 0087 D8(b)
+					# personal data ABOUT the user — and it stays stable across IP changes and
+					# cleared cookies. D8(b) protects that with owner-scoped access and an
+					# Art. 17 cascade; neither reaches a query string in a log file.
+					delete employer
 				}
 				request>headers delete
 			}

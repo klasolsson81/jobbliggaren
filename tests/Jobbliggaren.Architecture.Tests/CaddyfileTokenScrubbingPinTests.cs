@@ -74,6 +74,21 @@ public class CaddyfileTokenScrubbingPinTests
     /// </summary>
     private static readonly string[] KeptParameters = [];
 
+    /// <summary>
+    /// Parameters the APP SURFACE renders that must not reach a stored log post either. Kept apart
+    /// from <see cref="ScrubbedParameters"/> on purpose: that list is derived from the mail
+    /// generators and every entry must be one they render, while nothing here is a mail parameter
+    /// at all. Merging them would make one of the two facts below unsatisfiable.
+    /// <para>
+    /// <c>employer</c> (#1547): Översikt's summary links carry the user's WHOLE set of watched
+    /// org.nr in one URL, and they are its only producer. A single org.nr is public-register data
+    /// any visitor can type; the set is "whom this user watches" — ADR 0087 D8(b) personal data
+    /// about the user, protected there by owner-scoped access and an Art. 17 cascade, neither of
+    /// which reaches an edge log.
+    /// </para>
+    /// </summary>
+    private static readonly string[] AppSurfaceScrubbedParameters = ["employer"];
+
     private static readonly Regex TokenLink = new(
         @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",
         RegexOptions.Compiled);
@@ -156,6 +171,23 @@ public class CaddyfileTokenScrubbingPinTests
                 name,
                 $"no token-bearing link renders '{name}' any more, so the Caddyfile's filter for "
                 + "it is dead. Re-derive the gate's list from the generators.");
+        }
+    }
+
+    [Fact]
+    public void TheCaddyfile_FiltersEveryAppSurfaceParameterThatCarriesPersonalData()
+    {
+        var filtered = CaddyfileFilteredParameters();
+
+        foreach (var name in AppSurfaceScrubbedParameters)
+        {
+            // Byte-exact for the same reason as the mail parameters: Caddy's query filter is.
+            filtered.ShouldContain(
+                name,
+                $"deploy/caddy/Caddyfile does not filter '{name}' out of the logged query string. "
+                + "The mail-template derivation cannot see this parameter — it is rendered by the "
+                + "app, not by a generator — so this list is the only thing holding it. "
+                + "ADR 0087 D8(b) / #1547.");
         }
     }
 

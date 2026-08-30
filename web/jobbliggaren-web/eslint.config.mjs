@@ -219,9 +219,9 @@ const eslintConfig = defineConfig([
     },
   },
   // ── Server-side logging: AGENTS.md §5 `Backend:` (no sensitive data in logs) ──
-  // Every line this app writes to stdout leaves the box: the Next container is one
-  // of the four whose output `jobbliggaren-logship.sh` ships offsite, and that
-  // script calls the app leg the only one carrying data-subject personal data. A
+  // Every line this app writes to stdout leaves the box: the Next container is in
+  // the set whose output `jobbliggaren-logship.sh` ships offsite, and that script
+  // calls the app leg the only one carrying data-subject personal data. A
   // `console.*` added to a Server Action or a Server Component is therefore not a
   // debug aid — it is a new export path, and the `SECURITY (§5)` docblocks under
   // `src/lib/actions/` and `src/components/auth/` already promise callers that a
@@ -245,15 +245,21 @@ const eslintConfig = defineConfig([
   // `src/components/ui/**`, and a logging gate that skips a directory is a gate
   // over part of the surface.
   //
-  // Exemptions are rad-lokala `eslint-disable-next-line no-console` comments and
+  // Exemptions are line-local `eslint-disable-next-line no-console` comments and
   // are not restated here — a second copy is a second thing to keep true, the same
   // reason ZONE_MSG gives for not listing its own.
   //
-  // The guard is lexical, not semantic: it matches the `console.*` member
-  // expression and nothing else. `const c = console`, `globalThis.console`, a
-  // direct `process.stdout.write`, and a dependency's own logging all pass it.
-  // Named so this block is not itself an unmeasured promise of the kind it exists
-  // to support.
+  // Two limits, named so this block is not itself an unmeasured promise of the kind
+  // it exists to support. It is LEXICAL, not semantic: it matches the `console.*`
+  // member expression and nothing else, so `const c = console`,
+  // `globalThis.console`, a direct `process.stdout.write` and a dependency's own
+  // logging all pass. And its `files` is `src/**`, so config that runs in the same
+  // container — `next.config.ts` — is outside it.
+  //
+  // Pinned on severity, reach and effect in
+  // `src/test/eslint-restriction-blocks.test.ts`, beside the sibling block's pin
+  // and for the reason stated there: the gate can die on any axis and only the
+  // first is visible in a diff.
   {
     files: ["src/**/*.{ts,tsx,js,jsx}"],
     ignores: TEST_FILES,

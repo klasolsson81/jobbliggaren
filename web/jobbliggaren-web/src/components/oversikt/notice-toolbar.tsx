@@ -10,6 +10,16 @@ interface NoticeToolbarProps {
   readonly lastUpdated: string;
   /** Samma tidpunkt som ISO-8601, för `<time dateTime>`. */
   readonly lastUpdatedIso: string;
+  /**
+   * Om ytans INNEHÅLL kan skilja sig mellan två renderingar. Default `true` — appens
+   * notiser räknas om per request, så "Senast uppdaterad" är ett sant påstående om data.
+   *
+   * `false` där innehållet är fryst (gäst-demot, #1572): då stämplar raden det som
+   * faktiskt hände — att sidan laddades — i stället för att påstå datafärskhet som
+   * ingen render kan leverera. Kontrollen och kvittot behålls: en omladdning är en
+   * verklig händelse även när den ger samma rader.
+   */
+  readonly contentCanChange?: boolean;
 }
 
 /**
@@ -42,6 +52,7 @@ interface NoticeToolbarProps {
 export function NoticeToolbar({
   lastUpdated,
   lastUpdatedIso,
+  contentCanChange = true,
 }: NoticeToolbarProps) {
   const t = useTranslations("oversikt");
   const router = useRouter();
@@ -66,12 +77,17 @@ export function NoticeToolbar({
     <div className="jp-oversikt-toolbar">
       <div className="jp-oversikt-toolbar__left">
         <span className="jp-oversikt-toolbar__stamp">
-          {t.rich("notices.lastUpdatedTime", {
-            time: lastUpdated,
-            // Taggen heter inte `time`: värdet gör redan det, och next-intl slår
-            // ihop värden och taggar i samma namnrymd.
-            stamp: (chunks) => <time dateTime={lastUpdatedIso}>{chunks}</time>,
-          })}
+          {t.rich(
+            contentCanChange
+              ? "notices.lastUpdatedTime"
+              : "notices.pageLoadedTime",
+            {
+              time: lastUpdated,
+              // Taggen heter inte `time`: värdet gör redan det, och next-intl slår
+              // ihop värden och taggar i samma namnrymd.
+              stamp: (chunks) => <time dateTime={lastUpdatedIso}>{chunks}</time>,
+            },
+          )}
         </span>
         <button
           type="button"

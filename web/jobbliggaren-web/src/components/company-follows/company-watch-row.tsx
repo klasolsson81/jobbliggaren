@@ -174,9 +174,10 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                     href={matchingAdsHref}
                     className="jp-countlink"
                     prefetch={false}
-                    aria-label={`${t("matchingAds", {
-                      count: item.matchingAdCount,
-                    })} ${t("adsLinkSuffix", { company: displayName })}`}
+                    aria-label={t("adsLinkAria", {
+                      label: t("matchingAds", { count: item.matchingAdCount }),
+                      company: displayName,
+                    })}
                   >
                     {t("matchingAds", { count: item.matchingAdCount })}
                   </Link>
@@ -223,9 +224,10 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                   href={activeAdsHref}
                   className="jp-countlink"
                   prefetch={false}
-                  aria-label={`${t("activeAds", {
-                    count: item.activeAdCount,
-                  })} ${t("adsLinkSuffix", { company: displayName })}`}
+                  aria-label={t("adsLinkAria", {
+                    label: t("activeAds", { count: item.activeAdCount }),
+                    company: displayName,
+                  })}
                 >
                   {t("activeAds", { count: item.activeAdCount })}
                 </Link>

@@ -231,6 +231,11 @@ public class CaddyfileTokenScrubbingPinTests
 
         CaddyfileFilteredParameters().ShouldNotBeEmpty();
         GlobalOptionsLines().Length.ShouldBeLessThan(CaddyfileLines().Length);
+
+        // Emptying this list would let its own fact pass over zero iterations and the pin would
+        // disappear without a red run. `ScrubbedParameters` is backstopped by the
+        // generator-derived fact above; nothing derives this one, so the shape guard is here.
+        AppSurfaceScrubbedParameters.ShouldNotBeEmpty();
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MAX_CONCEPT_IDS } from "@/lib/dto/job-ads";
 import { buildCompanyJobsHref } from "./company-jobs-href";
 import { parseEmployerParam } from "./search-params";
 
@@ -21,6 +22,19 @@ describe("buildCompanyJobsHref (#1547)", () => {
       expect(buildCompanyJobsHref([], scope)).toBeNull();
     },
   );
+
+  it("över backendens tak ger ingen länk — och trunkerar INTE till taket", () => {
+    // `ListJobAdsQueryValidator.cs:96-99` binder Employer till `SearchCriteria.MaxConceptIds`.
+    // Konstanten läses ur FE:ns egen spegel, aldrig hårdkodad: en literal här hade kunnat drifta
+    // från den backend faktiskt validerar mot.
+    const tooMany = Array.from({ length: MAX_CONCEPT_IDS + 1 }, (_, i) =>
+      String(5000000000 + i),
+    );
+
+    expect(buildCompanyJobsHref(tooMany, "all")).toBeNull();
+    // Exakt på taket är lagligt — gränsfallet, inte bara det som ligger utanför.
+    expect(buildCompanyJobsHref(tooMany.slice(0, MAX_CONCEPT_IDS), "all")).not.toBeNull();
+  });
 
   it("scope 'all' → arbetsgivar-axeln ensam, inga andra params", () => {
     expect(buildCompanyJobsHref([ORG_NR], "all")).toBe("/jobb?employer=5592804784");

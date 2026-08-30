@@ -1,3 +1,4 @@
+import { MAX_CONCEPT_IDS } from "@/lib/dto/job-ads";
 import { WATCH_MATCHING_GRADES } from "@/lib/dto/job-ad-match";
 import { DEFAULT_SORT_BY, buildJobbHref } from "./search-params";
 
@@ -59,6 +60,12 @@ export function buildCompanyJobsHref(
   // promises, which is the divergence this whole route exists to avoid.
   if (organizationNumbers.length === 0) return null;
   if (!organizationNumbers.every(isLinkableOrgNr)) return null;
+
+  // Over the backend cap the list query 400s and the link lands on the technical-error card, so
+  // no link is the honest answer. Deliberately NOT truncated to the cap: the doctrine above is
+  // every value or none, and a truncated link shows fewer ads than the number beside it promises
+  // -- the exact divergence this route exists to avoid.
+  if (organizationNumbers.length > MAX_CONCEPT_IDS) return null;
 
   return buildJobbHref({
     q: "",

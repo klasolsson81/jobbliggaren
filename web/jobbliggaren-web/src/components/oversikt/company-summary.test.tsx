@@ -32,15 +32,15 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 
 const NO_FILTER = null;
 
+function visibleText(el: Element | null): string {
+  return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 /**
  * The anchor is split across elements since the ad half became a link (Klas-direktiv
  * 2026-08-30), so an exact `getByText` over the whole sentence can no longer match. Reading the
  * totals span keeps the assertion on the rendered SENTENCE rather than on the markup carrying it.
  */
-function visibleText(el: Element | null): string {
-  return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-}
-
 function anchorText(): string {
   return visibleText(document.querySelector(".jp-appsummary__totals"));
 }
@@ -212,6 +212,7 @@ describe("CompanySummary", () => {
             matchingAdCount: 2,
           }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 
@@ -232,6 +233,44 @@ describe("CompanySummary", () => {
     );
   });
 
+  it("en yta utan autentiserad destination (gäst) länkar INGEN summa", () => {
+    // ⛔ Measured regression, not a hypothetical: the base merge brought #1572 in, and the guest
+    // mock's three watches all carry ten-digit org.nr with `isProtectedIdentity: false`. Every
+    // link gate this component owns passed, so the guest demo rendered count links to
+    // `/jobb?employer=…` -- an `(app)/` segment, therefore in PROTECTED_PREFIXES, therefore
+    // `/logga-in` for a guest. `linkHref: null` was made required by #1572 to stop exactly this,
+    // and the ad links now read it too.
+    const { container } = render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+        ])}
+        linkHref={null}
+      />,
+    );
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("/jobb");
+    expect(container.innerHTML).not.toContain("employer=");
+    // The numbers are still true and still shown -- only the route is withheld.
+    expect(anchorText()).toBe("1 bevakat företag · 100 aktiva annonser");
+  });
+
+  it("gästytan förklarar INTE en frånvaro den själv orsakade", () => {
+    // The explanation blames the DATA ("1 bevakning kan inte visas som en lista"). On a surface
+    // that links nothing by design, that sentence would be false about the cause.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: null, isProtectedIdentity: true, activeAdCount: 40 }),
+        ])}
+        linkHref={null}
+      />,
+    );
+
+    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+  });
+
   it("den maskade bevakningen FÖRKLARAS — ett tal utan väg får inte stå oförklarat", () => {
     // design-reviewer Major 4: the watch row explains this same absence per row; the summary
     // said nothing at all, so the number just stood there with no route and no reason.
@@ -246,6 +285,7 @@ describe("CompanySummary", () => {
             activeAdCount: 36,
           }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 
@@ -269,6 +309,7 @@ describe("CompanySummary", () => {
             matchingAdCount: 0,
           }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 
@@ -289,6 +330,7 @@ describe("CompanySummary", () => {
         watches={ok([
           watch({ organizationNumber: "55665243", activeAdCount: 100 }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 
@@ -315,6 +357,7 @@ describe("CompanySummary", () => {
             activeAdCount: 40,
           }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 
@@ -346,6 +389,7 @@ describe("CompanySummary", () => {
             matchingAdCount: 2,
           }),
         ])}
+      linkHref="/foretag/bevakade"
       />,
     );
 

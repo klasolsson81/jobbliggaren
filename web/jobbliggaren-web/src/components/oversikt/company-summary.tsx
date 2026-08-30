@@ -113,13 +113,19 @@ export function CompanySummary({
   );
   const everyWatchLinkable = linkableOrgNrs.length === items.length;
 
+  // `linkHref === null` means this surface has no authenticated destination at all (#1572: the
+  // guest demo). The ad links go to `/jobb`, an `(app)/` segment and therefore in
+  // PROTECTED_PREFIXES, so rendering them there would hand a guest a link to `/logga-in` --
+  // the same failure `linkHref` was made required to prevent. One prop, one meaning.
+  const surfaceCanLink = linkHref !== null;
+
   // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
   const activeAdsHref =
-    everyWatchLinkable && activeAds > 0
+    surfaceCanLink && everyWatchLinkable && activeAds > 0
       ? buildCompanyJobsHref(linkableOrgNrs, "all")
       : null;
   const matchingAdsHref =
-    everyWatchLinkable && matchingAds !== null && matchingAds > 0
+    surfaceCanLink && everyWatchLinkable && matchingAds !== null && matchingAds > 0
       ? buildCompanyJobsHref(linkableOrgNrs, "matching")
       : null;
 
@@ -128,7 +134,7 @@ export function CompanySummary({
   // explains the same absence per row.
   const notLinkableCount = items.length - linkableOrgNrs.length;
   const explainMissingLinks =
-    notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+    surfaceCanLink && notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
 
   return (
     <div className="jp-appsummary">
@@ -180,9 +186,6 @@ export function CompanySummary({
         </p>
       )}
 
-      {/* Utan den här raden går ett per-bevakningsfilter som tystar allt inte att skilja
-          från "inget publicerat" — och sammanfattningen ställer nu volym intill just den
-          tystnaden. */}
       {explainMissingLinks && (
         <p className="jp-transparency-note">
           <EyeOff size={16} aria-hidden="true" />
@@ -190,6 +193,9 @@ export function CompanySummary({
         </p>
       )}
 
+      {/* Utan den här raden går ett per-bevakningsfilter som tystar allt inte att skilja
+          från "inget publicerat" — och sammanfattningen ställer nu volym intill just den
+          tystnaden. */}
       {filteredWatches > 0 && (
         <p className="jp-transparency-note">
           <Filter size={16} aria-hidden="true" />

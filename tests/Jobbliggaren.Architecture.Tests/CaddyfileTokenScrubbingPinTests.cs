@@ -86,8 +86,27 @@ public class CaddyfileTokenScrubbingPinTests
     /// about the user, protected there by owner-scoped access and an Art. 17 cascade, neither of
     /// which reaches an edge log.
     /// </para>
+    /// <para>
+    /// <c>q</c>: the user's free search text, and the only key on this surface that no gate
+    /// constrains — <c>parseQParam</c> gates arity and <c>clampSubMinimumQ</c> gates length,
+    /// neither gates content. A retention purpose therefore cannot be written for it, which is
+    /// Art. 5(1)(c), the same ground <c>uid</c> was deleted on in ADR 0050's
+    /// Amendment 2026-08-29. Note the asymmetry it closes: <c>employer</c> is format-gated to ten
+    /// digits and was already scrubbed, while the ungated field — the one that can actually carry
+    /// a personnummer — was not.
+    /// </para>
+    /// <para>
+    /// <b>This list is one half of a pair, and C# cannot derive the other.</b> The mail inventory
+    /// above comes from the real <see cref="EmailTemplates"/> methods; the app-surface inventory
+    /// exists only by CALLING the two TypeScript URL builders, so it is derived — and every key of
+    /// it judged scrubbed or deliberately kept — in
+    /// <c>web/jobbliggaren-web/src/lib/job-ads/axis-edge-log-inventory.test.ts</c>. That file reads
+    /// this array and fails in both directions, so the two halves cannot drift apart silently. It
+    /// deliberately does not parse the Caddyfile: the placement sensitivity above is owned here and
+    /// nowhere else.
+    /// </para>
     /// </summary>
-    private static readonly string[] AppSurfaceScrubbedParameters = ["employer"];
+    private static readonly string[] AppSurfaceScrubbedParameters = ["employer", "q"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",

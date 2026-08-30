@@ -35,12 +35,17 @@ export async function parseResponse<T>(
   try {
     raw = await res.json();
   } catch (cause) {
+    // `context` is a call-site constant. `cause` is the JSON parse error, whose
+    // message quotes the first bytes of the body it could not parse.
+    // eslint-disable-next-line no-console
     console.error("DTO parse failed: invalid JSON body", { context, cause });
     throw new DtoParseError("Invalid JSON body", context, cause);
   }
 
   const result = schema.safeParse(raw);
   if (!result.success) {
+    // redactIssues drops the one field that carries a value; see its docblock.
+    // eslint-disable-next-line no-console
     console.error("DTO parse failed: shape mismatch", {
       context,
       issues: redactIssues(result.error.issues),
@@ -54,8 +59,8 @@ export async function parseResponse<T>(
 /**
  * Tar bort `received`-fältet ur Zod-issues innan loggning. Zod v4 inkluderar
  * det faktiska värdet i `received` vid type-mismatch-issues — om backend råkar
- * returnera email/userId i fel fält skulle rå PII hamna i strukturerad logg
- * (CloudWatch). CLAUDE.md §5.1 förbjuder PII-loggning i klartext.
+ * returnera email/userId i fel fält skulle rå PII hamna i strukturerad logg.
+ * AGENTS.md §5 (`Backend:` logging sensitive data in plaintext) förbjuder det.
  *
  * `path`, `code`, `message`, `expected` behålls — de räcker för debug utan
  * att riskera PII-läckage.

@@ -36,7 +36,7 @@ Taxonomi-snapshotten persisteras som en committad artefakt `taxonomy-snapshot.js
 
 - **Seeder framför `HasData`:** `HasData` materialiserar all seed-data i varje migration-snapshot och tvingar en ny migration vid varje regenerering (~600 rader region/kommun/yrkesområde/yrke + relationer blåser upp model-snapshot och diffar tungt). En idempotent seeder (upsert mot natural key = concept-id) håller migrationen ren (endast `CREATE TABLE`) och gör snapshot-uppdatering till en ren data-operation, inte en schema-operation (REP/CCP, Martin 2017 kap. 13 — återanvänd befintlig seeder-mekanism).
 - **Färskhets-kadens:** manuell regenerering + commit. En utvecklare kör ett off-repo engångs-script (eller manuell fetch) som producerar `taxonomy-snapshot.json`, committar filen, deployar; seedern upsertar idempotent vid app-start. **Inte** build-tids-fetch (bryter hermetisk build — Software Engineering at Google 2020 kap. 18 — och återinför den externa-yta-på-kritisk-väg Approach A finns för att eliminera). Snapshot-filen är versionerad referensdata under granskning som vilken annan committad artefakt.
-- **Graceful degradation vid stale snapshot:** okänt concept-id i en sparad sökning → reverse-lookup-fallback `"Okänd kod (<id>)"`. Ingen krasch, ingen data-migration — medveten resiliens, inte en brist.
+- **Graceful degradation vid stale snapshot:** okänt concept-id i en sparad sökning → raden kommer tillbaka utan namn (`Label` = `null`; se amendment 2026-08-30). Ingen krasch, ingen data-migration — medveten resiliens, inte en brist.
 - **Snapshot-kanonisering (defekt-triage 2026-05-17, CTO Defekt #1 Variant C):** JobTech-taxonomin är en GRAF — en occupation-name kan tillhöra flera occupation-fields (359 av 2724 par i råsnapshoten). `TaxonomyConcept.ConceptId` är PK med single `ParentConceptId`. Den committade `taxonomy-snapshot.json` ska därför vara **kanoniskt dedupliserad vid commit**: varje occupation-name förekommer under exakt ett (primärt/första, deterministiskt valt — occupation-fält sorterade på conceptId) occupation-field. Dedup sker i den off-repo snapshot-genereringen, INTE i runtime-`MapRows` (artefakten kanonisk vid commit; `MapRows` trivial 1:1-projektion). Motiv: Evans kap. 14 (ACL ska isolera från extern modell-komplexitet, ej replikera den troget) + YAGNI/KISS (multi-membership är osynligt — filtrering på `ssyk_concept_id` shadow-prop per Beslut E, ej pickerns grenval; samma concept-id → samma sökresultat). Trade-off: multi-membership-fidelitet förloras i lokala modellen (yrke visas endast under primärt yrkesområde i pickern) — NOLL sökresultatpåverkan; samma klass av medveten ACL-förenkling som Beslut E (kommun bort). Generatorn måste ha en deterministisk primär-fält-regel (annars snapshot-diff-brus).
 - **Prod-startup-fixtur-paritet (defekt-triage 2026-05-17, CTO Defekt #3 Variant A):** `TaxonomySnapshotSeeder` speglar `IdempotentAdminRoleSeeder` även i test-kontraktet: prod-lika startup-fixturer som triggar host-start före/utan `AppDbContext`-migration plockar bort seeder-descriptorn ur DI (samma N-2-hardening-mekanism som admin-seedern). Seederns 42P01-grace förblir gated Dev/Test → fail-loud i Production (CLAUDE.md §3.4) — kontraktet ändras EJ för testfixturer.
 
@@ -45,7 +45,7 @@ Taxonomi-snapshotten persisteras som en committad artefakt `taxonomy-snapshot.js
 ACL:n materialiseras som en Infrastructure-intern snapshot-entity (`TaxonomyConcept`) bakom Application-porten `ITaxonomyReadModel`. `IAppDbContext` utökas **inte** med `DbSet<TaxonomyConcept>`.
 
 - **Motiv:** ADR 0009:s aggregate-per-DbSet-invariant (`IAppDbContext` = "DbSet&lt;T&gt; per aggregate root"; `TaxonomyConcept` är **inget aggregate root** — inga invarianter, ingen state-övergång, ingen domän-identitet) + CLAUDE.md §5.1 (ingen EF-entity över Application-gränsen) + Evans 2003 kap. 14 (ACL-data ska vara inkapslad bakom en explicit översättnings-port, inte exponerad rått) + ISP (Martin 2017 kap. 10 — aggregate-handlers ska inte tvingas se en read-model de aldrig rör) + IJobSource-precedens (Application-port, `internal` Infrastructure-impl, DTO över gränsen).
-- Porten exponerar två operationer: **hierarki-hämtning** (regioner→kommuner, yrkesområden→yrken som Application-DTOs, `record class`) och **reverse-lookup** (concept-id-lista → namn; okänt id → `"Okänd kod (<id>)"`-fallback, aldrig null/throw).
+- Porten exponerar två operationer: **hierarki-hämtning** (regioner→kommuner, yrkesområden→yrken som Application-DTOs, `record class`) och **reverse-lookup** (concept-id-lista → namn; okänt id → rad utan namn, aldrig throw — se amendment 2026-08-30).
 - ACL:n lever **utanför** query-vägen. `JobAdSearch.ApplyCriteria`-shadow-prop-filtreringen (`SsykConceptId`/`RegionConceptId`) är **orörd** — den opererar på rå concept-id och förblir namn-omedveten.
 
 ### Beslut D — DoS/cache-disciplin (MAP-3)
@@ -73,7 +73,7 @@ CTO-beslut Variant A (leverera inom låst design nu) — kärnmålet (concept-id
 - Tre billiga cache-/DoS-lager på en deterministisk statisk endpoint → nära-noll resurskostnad på varma vägen.
 
 **Negativa + mitigering:**
-- Snapshot-färskhet är en commit-disciplin, inte automatiserad — stale data om ingen regenererar. *Mitigering:* taxonomin är extremt stabil (kvartals-/månadskadens, web-verifierat 2026-05-17); okänt concept-id i en sparad sökning degraderar gracefully till `"Okänd kod (<id>)"` reverse-lookup-fallback, ingen krasch, ingen data-migration.
+- Snapshot-färskhet är en commit-disciplin, inte automatiserad — stale data om ingen regenererar. *Mitigering:* taxonomin är extremt stabil (kvartals-/månadskadens, web-verifierat 2026-05-17); okänt concept-id i en sparad sökning degraderar gracefully till en reverse-lookup-rad utan namn, ingen krasch, ingen data-migration.
 - En extra port-fil + impl-fil jämfört med rå `DbSet<TaxonomyConcept>`. *Mitigering:* accepterad trade-off — fil-antal är ingen design-axel; inkapsling och kontrakts-renhet är design-värde.
 - Ny läs-/inmatnings-väg (endpoint) öppnar DoS-yta. *Mitigering:* `TaxonomyReadPolicy` + reverse-lookup-cap (= `SearchCriteria.MaxConceptIds`) + ETag + in-memory; security-auditor BLOCKING verifierar konkreta tal innan commit.
 - Lokala taxonomi-modellen kollapsar JobTechs multi-field-graf till ett primärt yrkesområde per yrke (defekt-triage 2026-05-17). *Mitigering:* medveten ACL-förenkling (Evans kap. 14) — sökresultat opåverkat (filtrering på shadow-prop per Beslut E, ej pickerns gren); yrke ej hittbart under sekundärt yrkesområde i hierarki-pickern men ADR 0042 Beslut C-typeahead är primär upptäcktsväg och reverse-lookup-label är parent-oberoende; deterministisk primär-fält-regel i generatorn undviker snapshot-diff-brus.
@@ -130,7 +130,7 @@ Vid trigger: **separat förhandlad batch** (ny `STORED` generated column + parti
 
 - **ADR 0042 (Beslut B — domänkontrakt):** `SearchCriteria.Ssyk/Region` förblir `IReadOnlyList<string>` concept-id. **SearchCriteria VO-kontrakt ändras EJ.** Endast inmatnings-/presentationsytan ändras (namn-väljare istället för concept-id-fritext); `onChange` emitterar fortfarande concept-id `string[]` — backend-kontraktet är oförändrat hela vägen (URL-query → `ListJobAdsQuery` → `JobAdSearch.ApplyCriteria` → shadow-props → `SearchCriteria.Create`). ADR 0042 Beslut B-invarianterna (normalisering, cap, tom-invariant, jsonb-bakåtkompat) är orörda.
 - **ADR 0042 (Beslut C — typeahead-arkitektur):** typeahead-designen (C1 lokal `job_ads`-prefix, `SuggestPolicy`, self-contained debounce-hook) är **oförändrad**. ADR 0042 rad 21-constraintet ("inget externt taxonomi-API på sök-vägen") är **uppfyllt, inte brutet** — lokal snapshot är per definition inte på sök-vägen. ADR 0043 utvidgar Beslut C:s *datakälla för inmatningsytan* (namn-väljare matas av lokal taxonomi-snapshot) utan att röra Beslut C:s typeahead-väg.
-- **ADR 0039 (SavedSearch):** `saved_searches.criteria` jsonb-converter, comparer, jsonb-shape och dedupe-invarianter (Beslut B.1) är **orörda** — VO-formen (`IReadOnlyList<string>` concept-id) är oförändrad; dedupe vilar på concept-id-sekvenslikhet, namn ingår aldrig i VO:t. Ingen ny migration på `saved_searches`. Redan-sparade sökningar renderas via reverse-lookup; okänt id → `"Okänd kod (<id>)"`-fallback (graceful degradation, ingen invariant-risk).
+- **ADR 0039 (SavedSearch):** `saved_searches.criteria` jsonb-converter, comparer, jsonb-shape och dedupe-invarianter (Beslut B.1) är **orörda** — VO-formen (`IReadOnlyList<string>` concept-id) är oförändrad; dedupe vilar på concept-id-sekvenslikhet, namn ingår aldrig i VO:t. Ingen ny migration på `saved_searches`. Redan-sparade sökningar renderas via reverse-lookup; okänt id → rad utan namn (graceful degradation, ingen invariant-risk).
 - **ADR 0032 (JobTech-integration):** sync-skrivlast-precedensen (ny dynamisk extern skrivlast-yta måste motiveras mot konkret nytta, inte införas spekulativt) stöder MAP-1=Variant A — den taxonomi-snapshot-tabellen är en fristående tabell utan FK till `job_ads`/`saved_searches`, ingen ny extern HTTP-yta, ingen sync-cron-konflikt.
 - **ADR 0009 (ingen Repository):** aggregate-per-DbSet-invarianten stöder MAP-2 — `ITaxonomyReadModel`-porten håller `IAppDbContext` smal; `TaxonomyConcept` är Infrastructure-intern read-model, inget aggregate.
 
@@ -258,3 +258,74 @@ Seeden bär **JobTech preferred-labels** (sanningskälla, korrekt reverse-lookup
 - Agent-domar: `docs/reviews/2026-06-13-sok-paritet-e-klass2-{architect,cto}.md`
 - ADR 0043 Beslut B (snapshot-källa Variant A-vs-B-disposition — Klass 2 är linje med den mindre dynamiska dispositionen), Beslut C (ACL-port), amendment 2026-06-08 (additiv `TaxonomyTreeDto`-precedens)
 - Evans DDD (2003) kap. 14 (ärlig ACL-modell, ingen syntetisk rot); Fowler (2018) kap. 3 (Speculative Generality — generator-primitiv avvisad); Hunt/Thomas (1999) DRY (egen `TaxonomyOptionDto`, kunskaps-enhet ej kod-likhet); Beck YAGNI/KISS (frusen seed)
+
+---
+
+## Amendment 2026-08-30 — degraderingens REPRESENTATION (#1540)
+
+**Status:** Accepted. Ändrar Beslut B/C i ett avseende: *hur* en olöst reverse-lookup
+signaleras. **Beslutet självt står kvar** — porten kastar aldrig, ingen data-migration,
+stale snapshot kraschar inte.
+
+### Vad som ändras
+
+`ITaxonomyReadModel.ResolveLabelsAsync` returnerade ett färdigkomponerat namn för ett
+concept-id snapshoten inte kände: `"Okänd kod (<id>)"`. Den strängen komponerades i
+**Application-lagret** (`TaxonomyLabels.Unknown`), och `TaxonomyLabels.IsUnresolved`
+återskapade den och jämförde — **prosan var signalen** två konsumenter grenade på.
+
+Nu bär `TaxonomyLabelDto.Label` `null` för ett id som inte gick att slå upp. Frånvaron av
+namn är signalen. `TaxonomyLabels` är borttagen i sin helhet.
+
+### Grund
+
+Det som gjorde formen fel var inte att den var ful utan att **`en` blev en produkt-locale**
+(BUILD.md §10.6, #1537). En färdig svensk sträng renderade `Okänd kod (X)` mitt i en
+engelsk sida, och klienten kunde inte skilja den från ett äkta registernamn. Ordet som ska
+stå där är locale-copy och ägs av katalogen (`ui.toolbar.unknownCode`, som redan fanns i
+både `sv` och `en`) — inte av Application-lagret.
+
+Beslutet från 2026-05 var alltså inte fel när det togs; dess premiss var en enda locale.
+
+### Form (senior-cto-advisor 2026-08-30)
+
+Nullable fält framför flagga eller separat resultatform. Löst-het är EN bit: ett nullable
+fält kodar två tillstånd, en `(Label, IsResolved)`-flagga kodar fyra varav två är
+självmotsägande (`IsResolved=false` med ett namn satt). Precedensen är `RecentSearchLabelDto`
+(#1430) i samma bounded context: BE emitterar struktur, `messages/{sv,en}` äger orden.
+
+**Positionaliteten är oförändrad och pinnad:** en rad per efterfrågat id, i indatans ordning.
+Att i stället utelämna olösta rader avvisades — det hade gjort frånvaron osynlig i stället för
+typad, och `GetJobAdMatchDetail` hade då läckt råa concept-id.
+
+### Följdverkningar
+
+- `GetActivityReport` och `GetApplicationById` grenar på `Label is not null`. Beteendet
+  utåt är oförändrat: en olöst ort blir fortfarande `null`, aldrig ett synligt id.
+- `ListRecentSearches`: en yrkesgrupp eller ort utan namn kan inte bli en `Named`-del, så
+  delen bär koden (`RecentSearchLabelPartKind.Coded`) och klienten namnger den ur katalogen
+  — samma väg klass 2 redan tar. Vad som avgör delens form är därmed **om ett namn finns**,
+  inte vilken taxonomiklass id:t tillhör.
+- `GetJobAdMatchDetail` droppar olösta id ur `ssykOverlap`/`regionFit` i stället för att
+  falla tillbaka på det råa id:t. Den fallbacken var tidigare onåbar (porten gav alltid en
+  rad med namn), så detta är ingen ny degradering — det är att stänga en gren som blev
+  nåbar. **Följd-PR:** dimensionerna får bära `{conceptId, label}` så klienten kan namnge
+  det servern inte kunde; det rör `/matchning`:s wire-kontrakt och är en egen
+  förändringsanledning.
+- Wire: fältet **finns** och är `null` (Minimal APIs `JsonSerializerDefaults.Web`, ingen
+  `DefaultIgnoreCondition` i `src/`). FE-schemat är därför `z.string().nullable()`, inte
+  `.optional()`, och endpoint-testet asserterar `JsonValueKind.Null` så en tillagd
+  ignore-condition inte kan ändra det tyst.
+
+### Vad som INTE ändras
+
+Beslut A (in-memory-snapshot), Beslut D (cache/DoS-cap), Beslut E (shadow-prop-filtrering
+utanför ACL:n), seeder-mekanismen och `SearchCriteria`-VO:t. Reverse-lookup-capet är orört.
+
+### Referenser
+
+- [#1540](https://github.com/klasolsson81/jobbliggaren/issues/1540) (routad ut ur #1537 av
+  `senior-cto-advisor` 2026-08-28), [#1537](https://github.com/klasolsson81/jobbliggaren/issues/1537),
+  [#1430](https://github.com/klasolsson81/jobbliggaren/issues/1430)
+- AGENTS.md §5 (hårdkodade UI-strängar), BUILD.md §10.6 (`sv` + `en` är produkt-locales)
+- Martin, *Clean Architecture* (2017) kap. 8, 22; Hunt/Thomas (1999) DRY

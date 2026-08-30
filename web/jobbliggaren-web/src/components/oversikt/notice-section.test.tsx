@@ -46,6 +46,37 @@ function renderSection(notices: SectionNoticeData[]) {
   );
 }
 
+describe("NoticeSection utan prefTypes (#1572)", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  it("renderar inget kugghjul — men fortfarande sina notiser", () => {
+    // Andra ledet är inte pynt: ett rent "inget kugghjul"-test hade passerat på en
+    // komponent som inte renderade något alls.
+    render(
+      <NoticeSection
+        source="jobads"
+        titleId="s-jobads"
+        title="Jobbannonser"
+        notices={[n("a", "matches")]}
+        emptyBody="Nya matchningar och deadlines dyker upp här."
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Notisinställningar" }),
+    ).toBeNull();
+    expect(screen.getByText("Notis a")).toBeInTheDocument();
+  });
+
+  it("kugghjulet står kvar när prefTypes finns (kontrafaktum)", () => {
+    renderSection([n("a", "matches")]);
+
+    expect(
+      screen.getByRole("button", { name: "Notisinställningar" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("NoticeSection", () => {
   beforeEach(() => window.localStorage.clear());
 

@@ -11,6 +11,22 @@ interface CompanySummaryProps {
    * inte hämtas". Degraderas den till [] påstår ett tomt-läge noll när sanningen är omätt.
    */
   readonly watches: ApiResult<ListCompanyWatchesResult>;
+  /**
+   * Vart ankarradens länk pekar. `null` = rendera ingen länk alls.
+   *
+   * Obligatorisk och utan default, av samma skäl som `ApplicationSummary.linkHref`:
+   * en utelämnad prop hade tyst löst till en route i `PROTECTED_PREFIXES`.
+   *
+   * Gäst-demon (#1572) skickar `null`, och det är etiketten som avgör det, inte
+   * href:en: `companySummary.link` lyder "Visa bevakade företag", så en omdirigering
+   * till `/registrera` hade gjort ETIKETTEN falsk i stället för att laga länken.
+   * Demot har ingen `/gast/foretag` att peka på, och sektionens notis bär redan
+   * "Skapa konto" som konverteringsväg.
+   *
+   * Ingen prop för tomt-lägets `/foretag/sok`: den grenen kräver noll bevakningar, och
+   * `mock-adapters.test.ts` pinnar gästmockens bevakningsmängd som icke-tom.
+   */
+  readonly linkHref: string | null;
 }
 
 /**
@@ -31,7 +47,10 @@ interface CompanySummaryProps {
  * Talen är olänkade. Ankarradens länk går till /foretag/bevakade och tomt-lägets till
  * /foretag/sok; ingen `?employer=<orgnr>`-axel emitteras här — den frågan är #1547:s.
  */
-export function CompanySummary({ watches }: CompanySummaryProps) {
+export function CompanySummary({
+  watches,
+  linkHref,
+}: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
 
   if (watches.kind !== "ok") {
@@ -84,9 +103,11 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
         <span className="jp-appsummary__totals tabular-nums">
           {t("anchor", { count: items.length, active: activeAds })}
         </span>
-        <Link className="jp-appsummary__link" href="/foretag/bevakade">
-          {t("link")}
-        </Link>
+        {linkHref !== null && (
+          <Link className="jp-appsummary__link" href={linkHref}>
+            {t("link")}
+          </Link>
+        )}
       </p>
 
       {/* Ej bedömd matchning tiger helt: ingen nolla (dto:ns null är "inte bedömd", och

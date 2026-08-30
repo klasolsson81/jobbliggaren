@@ -20,6 +20,25 @@ interface ApplicationSummaryProps {
    * pipeline till [] och en siffra skulle då påstå noll när sanningen är omätt.
    */
   readonly pipeline: ApiResult<PipelineGroupDto[]>;
+  /**
+   * Vart ankarradens länk pekar. `null` = rendera ingen länk alls.
+   *
+   * Obligatorisk och utan default: en utelämnad prop hade tyst löst till `/ansokningar`,
+   * som ligger i `PROTECTED_PREFIXES` — på en publik yta är det en resa till
+   * `/logga-in`, inte "ingen länk". Med två anropsställen totalt kostar det ingenting
+   * att säga målet högt, och misstaget blir ett typfel.
+   *
+   * Gäst-demon (#1572) behöver båda grenarna: den har en egen ansökningsvy, men en
+   * hårdkodad `/ansokningar` hade skickat en utloggad besökare till `/logga-in` via
+   * proxyns `PROTECTED_PREFIXES`-grind.
+   *
+   * Ingen motsvarande prop för tomt-lägets `/ny-ansokan`: den grenen kräver
+   * `total === 0`, och `mock-data.test.ts` pinnar minst en ansökan i var och en av
+   * gästmockens fem statusar — så den är onåbar där, och en prop ingen yta kan
+   * framkalla vore otestbar per konstruktion. Töms mocken någon gång faller den
+   * pinnen först.
+   */
+  readonly linkHref: string | null;
 }
 
 /**
@@ -40,7 +59,10 @@ interface ApplicationSummaryProps {
  * avslutade ansökningar renderat sex nollor, vilket är samma falska tomhet som
  * issuet handlar om.
  */
-export function ApplicationSummary({ pipeline }: ApplicationSummaryProps) {
+export function ApplicationSummary({
+  pipeline,
+  linkHref,
+}: ApplicationSummaryProps) {
   const t = useTranslations("oversikt.summary");
   const tEnum = useTranslations("applications.enums");
   const tCounts = useTranslations("applications.ui");
@@ -82,9 +104,11 @@ export function ApplicationSummary({ pipeline }: ApplicationSummaryProps) {
         <span className="jp-appsummary__totals tabular-nums">
           {tCounts("counts.totalWithActive", { count: total, active })}
         </span>
-        <Link className="jp-appsummary__link" href="/ansokningar">
-          {t("link")}
-        </Link>
+        {linkHref !== null && (
+          <Link className="jp-appsummary__link" href={linkHref}>
+            {t("link")}
+          </Link>
+        )}
       </p>
 
       <ul className="jp-appsummary__steps" aria-label={t("stepsAriaLabel")}>

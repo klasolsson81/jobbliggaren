@@ -10,6 +10,16 @@ import type { SectionNoticeData } from "./notice-section";
 interface MarkAllReadRowProps {
   /** ALLA sektioners notiser — kontrollen avfärdar tvärs över sektionerna. */
   readonly notices: ReadonlyArray<SectionNoticeData>;
+  /**
+   * Om ytans notis-id ROTERAR, dvs. om en avfärdad notis kommer tillbaka i morgon.
+   * Default `true`: app-ytans id:n byggs med `swedishDateSlug(today)`.
+   *
+   * Gäst-ytan skickar `false` — dess id:n är statiska literaler (`guest-n-offer`, …)
+   * utan datumdel, så dygnspåståendet hade varit falskt där (#1572). En sluten
+   * boolean och inte en fri hint-sträng: det här är radens enda strängs vars
+   * SANNING är bärande, och en boolean kan inte skrivas fel av en anropare.
+   */
+  readonly noticeIdsRotate?: boolean;
 }
 
 const HINT_ID = "jp-markall-hint";
@@ -30,12 +40,13 @@ const HINT_ID = "jp-markall-hint";
  * för den lärdomen). Knappen och hinten är däremot villkorade på att det finns något
  * att avfärda, annars vore de en no-op.
  *
- * Hinten bär konsekvensen, inte etiketten. `notices.markAllRead` delas med gästsidan
- * (`notice-list.tsx`), vars notis-id är statiska literaler utan datumdel och alltså
- * ALDRIG roterar — ett dygnspåstående i den nyckeln hade varit falskt där. Hinten
- * beskriver dessutom handlingens räckvidd ("döljs till i morgon"), inte ett löfte om
- * återkomst: en passerad deadline gör den fortfarande sann, eftersom det är döljandet
- * som upphör och inte notisen som utlovas.
+ * Hinten bär konsekvensen, inte etiketten — och den finns i TVÅ former, valda på
+ * `noticeIdsRotate`. Etiketten (`notices.markAllRead`) är gemensam; det är bara
+ * dygnspåståendet som skiljer ytorna åt, eftersom det är sant precis när id:na bär en
+ * datum-slug. Där de inte gör det säger hinten samma sak minus den satsen (#1572).
+ * Ingendera formen lovar återkomst: de beskriver handlingens räckvidd, så en passerad
+ * deadline gör dem fortfarande sanna — det är döljandet som upphör, inte notisen som
+ * utlovas.
  *
  * Ingen bekräftelsedialog. DESIGN.md §6 kräver en för destruktiva åtgärder; den här är
  * mätt icke-destruktiv (sektionens fotband och kugghjulets "Återställ lästa notiser"
@@ -48,7 +59,10 @@ const HINT_ID = "jp-markall-hint";
  * varje avfärdat id tillhör en pref-aktiverad typ och landar därför i sin sektions
  * `read`-lista, vilket är precis villkoret som renderar fotbandet.
  */
-export function MarkAllReadRow({ notices }: MarkAllReadRowProps) {
+export function MarkAllReadRow({
+  notices,
+  noticeIdsRotate = true,
+}: MarkAllReadRowProps) {
   const t = useTranslations("oversikt");
   const { dismissed, dismissMany } = useDismissedNotices();
   const { isEnabled } = useNoticePrefs();
@@ -100,7 +114,11 @@ export function MarkAllReadRow({ notices }: MarkAllReadRowProps) {
             <Check size={14} aria-hidden="true" /> {t("notices.markAllRead")}
           </button>
           <span id={HINT_ID} className="jp-notice-bulk__hint">
-            {t("notices.markAllReadHint")}
+            {t(
+              noticeIdsRotate
+                ? "notices.markAllReadHint"
+                : "notices.markAllReadHintStatic",
+            )}
           </span>
         </>
       )}

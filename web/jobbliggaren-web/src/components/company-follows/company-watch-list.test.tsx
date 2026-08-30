@@ -619,7 +619,7 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
 
     expect(
       screen.getByText(
-        "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista."
+        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
       )
     ).toBeInTheDocument();
   });
@@ -627,12 +627,15 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
   it("maskad rad UTAN annonser tiger — förklaringen gäller en länk som annars hade funnits", () => {
     renderList([{ ...soleProp, activeAdCount: 0, matchingAdCount: 0 }]);
 
-    expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
+    expect(screen.queryByText(/kan inte visa den här bevakningens/)).toBeNull();
   });
 
-  it("varumärkesgrupp får en anspråkslös förklaring, inte den maskade radens", () => {
-    // Both rows lack a linkable org.nr, but only one of them can name why: the FE schema cannot
-    // tell a brand-group row from a masked one, so its sentence claims nothing about the cause.
+  it("varumärkesgrupp och maskad rad får SAMMA mening", () => {
+    // #1546 — they used to differ: the masked row named its cause ("the org.nr is hidden, so we
+    // cannot list this company's ads"). That sentence became FALSE once q reached company_name,
+    // so it was struck rather than rewritten (CLAUDE.md §9.6). One treatment now, and the badge
+    // plus `protectedIdentityHint` still carry the WHY for the masked row.
+    // This is the test that fails if a masked-specific copy is reintroduced.
     renderList([brandGroupWatch]);
 
     expect(
@@ -640,7 +643,13 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
         "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
       )
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Organisationsnumret är dolt/)).toBeNull();
+    // And the masked row reaches the same string, not a sibling of it.
+    renderList([soleProp]);
+    expect(
+      screen.getAllByText(
+        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("varumärkesgrupp UTAN annonser tiger, som den maskade raden", () => {

@@ -239,17 +239,8 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           </div>
           {/* #1547 — EVERY row without a linkable org.nr says so, not just the masked one. Before
               this delta all four rows were equally silent; the links create the asymmetry, and a
-              missing affordance with no visible reason reads as a defect rather than a rule. The
-              two branches are one treatment: the masked row can name its cause (the badge above
-              already shows it), the brand-group row cannot — the FE schema cannot even tell that
-              is what it is — so its sentence claims nothing about why.
-              Shown only where a link would otherwise have rendered, so a 0-ad row stays quiet.
-              ⚠ The masked copy deliberately offers NO next step. "Search the company name under
-              Jobb" was the obvious remedy and it is measured FALSE: `search_vector` is title +
-              description only (20260521090234_F6P4FtsSearchVector.cs:23) and `SuggestionKind` has
-              no `Employer`, so that path returns zero hits — issue #1546. If #1546 lands a
-              name-reachable employer route, that sentence goes stale and nothing detects it
-              automatically; #1546 carries a comment naming this key for its closing PR. */}
+              missing affordance with no visible reason reads as a defect rather than a rule.
+              Shown only where a link would otherwise have rendered, so a 0-ad row stays quiet. */}
           {linkableOrgNr === null &&
             (item.activeAdCount > 0 || (item.matchingAdCount ?? 0) > 0) && (
               <p className="jp-transparency-note jp-transparency-note--compact mt-2">
@@ -259,7 +250,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
                   <Info size={14} aria-hidden="true" />
                 )}
                 <span>
-                  {item.isProtectedIdentity ? t("adsNotLinkable") : t("adsNotLinkableUnknown")}
+                  {t("adsNotLinkableUnknown")}
                 </span>
               </p>
             )}

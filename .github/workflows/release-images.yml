@@ -26,7 +26,7 @@
 # actual delivery before relying on it — the command is in parallel-sessions.md §8.1, and
 # .claude/hooks/main-ahead-of-images.sh is what notices when it has not.
 #
-# The owning session dispatches manually when it wants the image now; CLAUDE.md §6.5
+# The owning session dispatches manually; CLAUDE.md §6.5
 # already requires it to watch its PR to merge, so it is standing at the right moment.
 name: release-images
 

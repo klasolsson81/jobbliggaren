@@ -219,20 +219,31 @@ internal static class JobAdSearchComposition
             // mitt-i-ord-substring i titel matchas inte längre; UI-kontraktet
             // (`systemut` → `systemutvecklare`, ADR 0062 Beslut 1) är ≥3 tecken och
             // opåverkat.
-            var includeTitleLike = q.Length >= 3;
+            //
+            // #1546 - the same gate now carries the company-name branch below, for the same
+            // reason: ix_job_ads_company_name_lower_trgm is a trigram index and cannot serve a
+            // <3-character LIKE either. That branch exists because the hero field promises
+            // "Sök efter yrke, arbetsgivare eller ort" while search_vector spans title +
+            // description only, so an employer name reached nothing at all.
+            // search_vector is deliberately NOT widened: it is a STORED generated column, so
+            // redefining it rewrites the whole table under ACCESS EXCLUSIVE on a continuously
+            // ingested table, where this branch costs one CONCURRENTLY-built index.
+            var includeSubstringLike = q.Length >= 3;
 
 #pragma warning disable CA1304, CA1311
-            source = (includeTitleLike, hasSsyks: expandedSsyks.Count > 0) switch
+            source = (includeSubstringLike, hasSsyks: expandedSsyks.Count > 0) switch
             {
                 (true, true) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
                     || EF.Functions.Like(j.Title.ToLower(), pattern)
+                    || EF.Functions.Like(j.Company.Name.ToLower(), pattern)
                     || expandedSsyks.Contains(j.SsykConceptId)),
                 (true, false) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
-                    || EF.Functions.Like(j.Title.ToLower(), pattern)),
+                    || EF.Functions.Like(j.Title.ToLower(), pattern)
+                    || EF.Functions.Like(j.Company.Name.ToLower(), pattern)),
                 (false, true) => source.Where(j =>
                     EF.Property<NpgsqlTsVector>(j, "SearchVector")
                         .Matches(EF.Functions.WebSearchToTsQuery(TextSearchConfig, q))
@@ -293,8 +304,8 @@ internal static class JobAdSearchComposition
     // nollas i handlern och landar här med q = null. Fallbacken (PublishedAt desc, kastar
     // ej) är alltså det avsedda beteendet för det fallet, inte en osannolik skyddsnät-gren.
     // Create-invarianten står kvar och gäller SPARADE sökningar, inte den här läsvägen.
-    // Rader som matchade enbart via title-LIKE-fallbacken (ej FTS) får ts_rank 0 → de
-    // sorteras efter FTS-träffarna, sedan PublishedAt desc, sedan Id.
+    // Rader som matchade enbart via substrängs-fallbackarna (title eller company_name, ej FTS)
+    // får ts_rank 0 → de sorteras efter FTS-träffarna, sedan PublishedAt desc, sedan Id.
     private static IQueryable<JobAd> ApplyRelevanceSort(IQueryable<JobAd> source, string? q)
     {
         if (!HasFreeTextQuery(q))

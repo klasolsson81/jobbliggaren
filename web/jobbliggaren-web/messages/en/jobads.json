@@ -40,8 +40,7 @@
     "matchNudge": "You have not stated which occupations you are searching within. Set it up to see matching ads.",
     "matchNudgeCta": "Set up matching",
     "adsLinkAria": "{label} at {company}",
-    "adsNotLinkable": "The organisation number is hidden, so Jobbliggaren cannot show this company's ads as a list.",
-    "adsNotLinkableUnknown": "Jobbliggaren cannot show the ads for this watch as a list.",
+    "adsNotLinkableUnknown": "There is no link to the ads here.",
     "followedSince": "Followed since {date}",
     "unfollowAria": "Unfollow {company}",
     "view": {

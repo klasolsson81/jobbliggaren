@@ -213,6 +213,67 @@ public class JobAdIndexOracleTests(ApiFactory factory)
             $"index predicates on job_ads. Use status as a key column, not a WHERE. Actual:\n{def}");
     }
 
+    /// <summary>
+    /// #1546 — the employer-name trigram index, pinned on the same terms as the five above and for the
+    /// same reason: its KEY is an expression (<c>lower(company_name)</c>), which is outside EF's fluent
+    /// reach, so <c>AppDbContextModelSnapshot</c> does not know it exists and nothing in the build would
+    /// say a word if it vanished. <c>/jobb</c>'s q-path would keep answering — just by seq-scanning
+    /// <c>job_ads</c> for every employer-name term.
+    ///
+    /// <para>
+    /// It is NOT folded into <see cref="RebuiltIndexes"/>: that set means "survived #821's deleted_at
+    /// retirement", a claim this index cannot make, having been created after it.
+    /// </para>
+    ///
+    /// <para>
+    /// The expected fragment is the NORMALISED form PostgreSQL reports, read out of the catalog rather
+    /// than reasoned about — <c>company_name</c> is <c>character varying(200)</c>, so the planner rewrites
+    /// <c>lower(company_name)</c> into <c>lower((company_name)::text)</c>, exactly as it does for
+    /// <c>title</c> and unlike the <c>text</c>-typed <c>description</c>.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task EmployerNameTrigramIndex_ExistsWithItsTrigramShape()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var def = await ReadIndexDefAsync("ix_job_ads_company_name_lower_trgm", ct);
+
+        def.ShouldNotBeNull(
+            "ix_job_ads_company_name_lower_trgm is MISSING from job_ads. It is raw-SQL and invisible to "
+                + "the model snapshot, so its loss is silent: q-search still answers, by sequentially "
+                + "scanning the corpus for every employer-name term. See #1546.");
+
+        def!.ShouldContain(
+            "USING gin (lower((company_name)::text) gin_trgm_ops)",
+            Case.Insensitive,
+            "the employer-name index exists but has the WRONG shape. The access method and the operator "
+                + "class are both load-bearing: a btree over the same expression cannot serve "
+                + "LIKE '%q%' at all, and only gin_trgm_ops makes a mid-word substring indexable. "
+                + "Actual: "
+                + def);
+    }
+
+    /// <summary>
+    /// #1546 — and it must stay predicate-free, on #821 Q2's terms. A partial index is usable only while
+    /// the query's WHERE provably implies the index's, and this repo has already paid ~35-50 s once for
+    /// a predicate that outlived the query implying it.
+    /// </summary>
+    [Fact]
+    public async Task EmployerNameTrigramIndex_CarriesNoPredicate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var def = await ReadIndexDefAsync("ix_job_ads_company_name_lower_trgm", ct);
+        def.ShouldNotBeNull();
+
+        def!.ShouldNotContain(
+            " WHERE ",
+            Case.Insensitive,
+            "ix_job_ads_company_name_lower_trgm grew a predicate. #821 Q2 banned that on job_ads: the "
+                + "planner can only use a partial index when it can PROVE the query's WHERE implies it, "
+                + "and nothing in CI sees the proof break. Actual: "
+                + def);
+    }
+
     private async Task<string?> ReadIndexDefAsync(string indexName, CancellationToken ct)
     {
         using var scope = _factory.Services.CreateScope();

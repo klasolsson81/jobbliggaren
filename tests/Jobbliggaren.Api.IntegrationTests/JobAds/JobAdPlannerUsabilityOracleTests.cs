@@ -75,15 +75,16 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
 {
     private readonly ApiFactory _factory = factory;
 
-    // The q-search DISJUNCTION ListJobAds emits: the FTS branch OR the title-trigram substring fallback,
-    // served as a BitmapOr over BOTH GIN indexes — this one query is the oracle for both. Mirrors the
+    // The q-search DISJUNCTION ListJobAds emits: the FTS branch OR the title-trigram substring
+    // fallback OR the company-name-trigram substring fallback (#1546), served as a BitmapOr over
+    // ALL THREE GIN indexes -- this one query is the oracle for all of them. Mirrors the
     // disjunction in JobAdSearchComposition.ApplyFilter / Jobbliggaren.Migrate --explain-search.
     //
     // Deliberately WITHOUT the `status='Active'` conjunct that production ALSO emits (ApplyFilter SPOT).
     // #743 added ix_job_ads_status_published_at_id, whose leading `status` key gives that conjunct its own
     // Index Cond; on the empty Testcontainers table the planner then serves the whole query via that btree
     // and never reaches the GINs — collapsing this oracle's power to prove GIN predicate-implication. The
-    // status conjunct is ORTHOGONAL to whether the FTS/title-trigram GINs are usable for their arms; its
+    // status conjunct is ORTHOGONAL to whether the three q-branch GINs are usable for their arms; its
     // index-servability is proven separately by
     // DefaultBrowseSort_IsIndexServedForBothFilterAndOrder_NoSeqScanNoSort. This
     // is the file's "shape production emits" rule APPLIED, not broken: the disjunction is verbatim
@@ -91,7 +92,8 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
     // owns — keeping the orthogonal conjunct would only let the oracle go green via a different index.
     private const string QSearchSql =
         "SELECT id FROM job_ads WHERE (search_vector @@ websearch_to_tsquery('swedish', 'lärare') " +
-        "OR lower(title) LIKE '%lärare%')";
+        "OR lower(title) LIKE '%lärare%' " +
+        "OR lower(company_name) LIKE '%lärare%')";
 
     // SuggestJobAdTermsQueryHandler:37-44 — left-anchored LIKE with an explicit ESCAPE. WITHOUT the
     // production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would otherwise
@@ -109,7 +111,7 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         "ORDER BY published_at DESC, id LIMIT 20";
 
     [Fact]
-    public async Task QSearch_IsServedByBothTheFtsAndTitleTrigramIndexes()
+    public async Task QSearch_IsServedByEveryArmOfItsDisjunction()
     {
         var ct = TestContext.Current.CancellationToken;
         var plan = await ExplainWithScanAndSortDisabledAsync(QSearchSql, ct);
@@ -119,12 +121,19 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
             "seqscan disabled (a prohibition on PG 17+), which means an index is UNUSABLE for this query rather than merely " +
             $"un-preferred. That is the 2026-05-21 predicate-implication bug (~35-50 s). Plan:\n{plan}");
 
-        // The disjunction must be served by BOTH arms (a BitmapOr). If only one index appears, the other
+        // The disjunction must be served by EVERY arm (a BitmapOr). If only one index appears, the other
         // arm is scanning inside the Or — the same bug wearing a different hat.
         plan.ShouldContain("ix_job_ads_search_vector", Case.Insensitive,
             $"the FTS arm of q-search did not use its GIN index. Plan:\n{plan}");
         plan.ShouldContain("ix_job_ads_title_lower_trgm", Case.Insensitive,
             $"the title-trigram arm of q-search did not use its GIN index. Plan:\n{plan}");
+
+        // #1546 — the THIRD arm. Adding it to the production disjunction without adding it here
+        // would have left this oracle green while measuring a query shape production no longer emits.
+        plan.ShouldContain("ix_job_ads_company_name_lower_trgm", Case.Insensitive,
+            "the employer-name arm of q-search did not use its GIN trigram index. Without it that " +
+            "arm scans inside the BitmapOr, which is the #821 failure mode wearing a third hat. " +
+            $"Plan:\n{plan}");
     }
 
     [Fact]

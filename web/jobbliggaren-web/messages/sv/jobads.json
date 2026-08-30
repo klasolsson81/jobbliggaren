@@ -40,8 +40,7 @@
     "matchNudge": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser.",
     "matchNudgeCta": "Ställ in matchning",
     "adsLinkAria": "{label} hos {company}",
-    "adsNotLinkable": "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista.",
-    "adsNotLinkableUnknown": "Jobbliggaren kan inte visa den här bevakningens annonser i en lista.",
+    "adsNotLinkableUnknown": "Det finns ingen länk till annonserna här.",
     "followedSince": "Bevakad sedan {date}",
     "unfollowAria": "Sluta bevaka {company}",
     "view": {

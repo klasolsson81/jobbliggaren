@@ -209,7 +209,7 @@ export function CompanySummary({
       {explainMissingLinks && (
         <p className="jp-transparency-note">
           <EyeOff size={16} aria-hidden="true" />
-          <span>{t("notLinkable", { count: notLinkableCount })}</span>
+          <span>{t("notLinkable")}</span>
         </p>
       )}
 

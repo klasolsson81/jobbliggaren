@@ -73,9 +73,10 @@ type JobbSearchParams = {
   // #419 pt1 — "Visa bara matchade"-toggle:n. `?baraMatchade=on`. Frånvaro = hela
   // listan. Endast on-värdet parsas (paritet doljAnsokta/relaterade).
   baraMatchade?: string;
-  // #454 PR-0 — arbetsgivar-filtret: ETT org.nr (exakt 10 siffror). Felformat
-  // droppas tyst (paritet matchGrades drop-unknown; backend-validatorn skulle
-  // annars 400:a hela list-queryn). string[] (manipulerad URL) → första värdet.
+  // #454 PR-0 — arbetsgivar-filtret: en eller flera org.nr (vardera exakt 10 siffror).
+  // Felformat droppas tyst PER VÄRDE (paritet matchGrades drop-unknown; backend-validatorn
+  // skulle annars 400:a hela list-queryn), så ett skräpvärde inte längre kan tysta ett
+  // lagligt filter bredvid sig.
   employer?: string | string[];
   // #847 — `string | string[]`, like every sibling above: Next.js delivers an array
   // for a repeated query param. `q?: string` asserted a guarantee the runtime does
@@ -258,7 +259,7 @@ export default async function JobbPage({ searchParams }: PageProps) {
   const remoteKey = remote ? "d" : "";
   // #454 PR-0 — arbetsgivar-filtret ingår i Suspense-keyn så listan re-renderas
   // (visar skeleton) när filtret sätts/tas bort (samma princip som dimensionerna).
-  const employerKey = employer ?? "";
+  const employerKey = employer.join(".");
 
   return (
     <>

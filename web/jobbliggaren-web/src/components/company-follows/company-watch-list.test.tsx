@@ -674,8 +674,7 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
   });
 
   it("talet SJÄLVT är länken — ingen separat handling bredvid det", () => {
-    // Klas-direktiv 2026-08-30, and it overrides the house rule in globals.css ("talet är
-    // information, inte interaktion"): the product owner asked for the count itself to be the
+    // Klas-direktiv 2026-08-30: the product owner asked for the count itself to be the
     // clickable, underlined target. This case fails if the link is ever moved back out beside
     // the number.
     renderList([legalEntity]);

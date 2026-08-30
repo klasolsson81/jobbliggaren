@@ -387,6 +387,30 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
     });
 
+    it("FLERA arbetsgivare kollapsar till EN chip — aldrig en rad råa org.nr", () => {
+      // #1547 — Översiktens summor sätter hela bevakningsmängden på axeln. En chip per värde
+      // skrev ut "Arbetsgivare 559141-1326 · Arbetsgivare 556012-5790 · …" som enda beskrivning
+      // av vad användaren tittar på.
+      renderToolbar({ employer: ["5560125790", "5591411326", "5566524301"] });
+
+      expect(screen.getByText("3 arbetsgivare")).toBeInTheDocument();
+      expect(screen.queryByText(/Arbetsgivare 5/)).toBeNull();
+      expect(screen.getAllByRole("button", { name: /Ta bort filter/ })).toHaveLength(1);
+    });
+
+    it("× på den kollapsade chippen tömmer HELA axeln, inte ett värde", () => {
+      // The axis is set as one set (every watched company or none), so removing a single value
+      // would leave a filter the user cannot name and never asked for.
+      const user = userEvent.setup();
+      renderToolbar({ employer: ["5560125790", "5591411326"] });
+
+      return user
+        .click(screen.getByRole("button", { name: "Ta bort filter 2 arbetsgivare" }))
+        .then(() => {
+          expect(pushMock).toHaveBeenCalledWith("/jobb");
+        });
+    });
+
     it("ingen chip utan employer", () => {
       renderToolbar({ employer: [] });
       expect(screen.queryByText(/Arbetsgivare /)).toBeNull();

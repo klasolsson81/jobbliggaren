@@ -491,7 +491,7 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
   // Skillnaden mot ansökningssektionen, och den är avsiktlig: notiserna och
   // sammanfattningen läser SKILDA källor här, så en fallen bevakningshämtning får inte
   // dölja oläst-räknaren — den räknar notiser vars egen källa lästes.
-  it("oläsbara bevakningar: oläst-räknaren står kvar och notislistan behåller sitt tomt-läge", () => {
+  it("oläsbara bevakningar: oläst-räknaren står kvar och tom-raden tiger — en ohämtbar-rad är också information", () => {
     renderOversikt(true, {
       matchCount: null,
       companyWatches: { kind: "error" },

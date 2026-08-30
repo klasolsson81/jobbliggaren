@@ -11,6 +11,17 @@ const ORG_NR = "5592804784";
  * `search-params.test.ts`, which writes its axis URLs out in full).
  */
 describe("buildCompanyJobsHref (#1547)", () => {
+  // Neither caller can reach this today. It is pinned anyway because removing the line does not
+  // fail anything else: `[].every(isLinkableOrgNr)` is VACUOUSLY TRUE, `buildJobbHref` then omits
+  // the axis entirely, and the result is a link to every ad in the list behind a count that
+  // measured a handful -- the count/click divergence in its worst form.
+  it.each(["all", "matching"] as const)(
+    "tom lista ger ingen lank (scope %s) -- aldrig en URL utan employer-axel",
+    (scope) => {
+      expect(buildCompanyJobsHref([], scope)).toBeNull();
+    },
+  );
+
   it("scope 'all' → arbetsgivar-axeln ensam, inga andra params", () => {
     expect(buildCompanyJobsHref([ORG_NR], "all")).toBe("/jobb?employer=5592804784");
   });

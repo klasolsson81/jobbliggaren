@@ -103,9 +103,9 @@ export interface JobbUrlState {
   // matchnings-axeln PÅ; FE mappar den till API-kontraktets engelska flagga `onlyMatched`.
   onlyMatched?: boolean;
   // #454 PR-0 (ADR 0087 D6 FE-konsumtion; löser C1-flaggan "live silent-drop") —
-  // arbetsgivar-filtret: ett org.nr (exakt 10 siffror, validerat i page.tsx).
-  // SINGEL-värde v1 (företagskortets "se annonser"-länk bär ETT företag;
-  // backend binder string[] — FE skickar ett element). Frånvaro = inget
+  // arbetsgivar-filtret: en LISTA av org.nr (vardera exakt 10 siffror, validerade i
+  // page.tsx). Backend har bundit `string[]` hela tiden; sedan #1547 bär FE hela listan,
+  // eftersom Översiktens summor spänner över varje bevakat företag. Tom lista = inget
   // arbetsgivar-filter (ren URL). Aldrig text-representabelt i hero-fältet
   // (som popover-dimensionerna, CTO VAL 4a); syns som avtagbar chip i
   // toolbaren.
@@ -324,9 +324,9 @@ export function withCommitFlag(href: string): string {
  * ett exakt 10-siffrigt värde accepteras (`^\d{10}$` — samma form som
  * backend-validatorns OrganizationNumberPattern); allt annat droppas tyst så
  * en manipulerad URL aldrig 400:ar list-queryn (drop-unknown-disciplinen,
- * paritet matchGrades). Singel-värde v1: string[] → första elementet. OBS:
- * detta är en FORMAT-gate, ingen pnr-diskriminator — ett 10-siffrigt
- * personnummer är formatidentiskt med org.nr.
+ * paritet matchGrades). Hela listan returneras, dedupad och ordningsbevarande — inte
+ * dess första element. OBS: detta är en FORMAT-gate, ingen pnr-diskriminator — ett
+ * 10-siffrigt personnummer är formatidentiskt med org.nr.
  *
  * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
  * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)

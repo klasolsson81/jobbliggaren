@@ -534,6 +534,10 @@ export function JobbHeroSearch({
       ["worktimeExtent", lastCommitted.worktimeExtent],
       // STEG 5 — no-JS-submit bär aktivt grad-filter (paritet med Klass-2).
       ["matchGrades", lastCommitted.matchGrades],
+      // #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökordssökning utan
+      // JS inte tappar det. Låg utanför listan medan axeln var enkelvärd; sedan #1547 är
+      // den en vanlig joinad axel och serialiseras här, en gång.
+      ["employer", lastCommitted.employer ?? []],
     ] as const
   )
     .map(([name, values]) => [name, serializeJobbAxis(values)] as const)
@@ -696,15 +700,6 @@ export function JobbHeroSearch({
       {axisInputs.map(([name, joined]) => (
         <input key={name} type="hidden" name={name} value={joined} />
       ))}
-      {/* #454 PR-0 — no-JS-submit bär aktivt arbetsgivar-filter så en sökord-
-          sökning utan JS inte tappar det (paritet med dimensionerna ovan). */}
-      {serializeJobbAxis(lastCommitted.employer ?? []).length > 0 && (
-        <input
-          type="hidden"
-          name="employer"
-          value={serializeJobbAxis(lastCommitted.employer ?? [])}
-        />
-      )}
       {/* #551 punkt 4 — no-JS-submit bär Distans (paritet employer ovan). Ligger
           UTANFÖR axisInputs: den är en boolean med ett sentinel-värde, inte en
           joinad id-lista. Utan raden raderar en native GET före hydrering

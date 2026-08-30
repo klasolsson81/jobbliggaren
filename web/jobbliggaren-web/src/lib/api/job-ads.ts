@@ -62,10 +62,10 @@ export interface ListJobAdsQuery {
   // (rank > 0). Default false (hela listan). Härledd ur ?baraMatchade uppströms; gatad
   // på matchnings-axeln aktiv (jobb-results.tsx) — som includeRelated.
   onlyMatched?: boolean;
-  // #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: ETT org.nr
-  // (10 siffror, page-validerat). Backend binder ?employer= till string[]
-  // (IN-equality på organization_number-kolumnen, PR #416) — FE skickar ett
-  // element. Utelämnad = inget arbetsgivar-filter.
+  // #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: en lista av org.nr
+  // (vardera 10 siffror, page-validerade). Backend binder ?employer= till string[]
+  // (IN-equality på organization_number-kolumnen, PR #416). Tom = inget
+  // arbetsgivar-filter.
   employer?: ReadonlyArray<string>;
   q?: string;
   // ADR 0060 amendment 2026-06-12 (Fas E2j) — commit-intent: true ⇒ ?commit=1
@@ -96,8 +96,8 @@ function buildQuery(query: ListJobAdsQuery): string {
   // default false), och som "true": endpointen binder en C#-bool, och ASP.NET
   // binder INTE rutt-flaggans sentinel-ord "on". Två namn OCH två värden.
   if (query.remote) params.append("remote", "true");
-  // #454 PR-0 — arbetsgivar-filtret (singel-org.nr → ett string[]-element
-  // backend-sidigt). Skrivs BARA ut när satt.
+  // #454 PR-0 — arbetsgivar-filtret. En `employer`-param per org.nr; skrivs BARA ut
+  // när listan är icke-tom.
   for (const v of query.employer ?? []) params.append("employer", v);
   // #300 PR-5 — "Visa relaterade också". Skriv BARA ut när true (default false =
   // ren lista). Värdet är "true" (ASP.NET bool-binding tar inte "1").

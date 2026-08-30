@@ -39,8 +39,7 @@
     "matchingAds": "{count, plural, =0 {Inga matchande annonser just nu} one {# matchande annons just nu} other {# matchande annonser just nu}}",
     "matchNudge": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser.",
     "matchNudgeCta": "Ställ in matchning",
-    "activeAdsAria": "{count, plural, one {# aktiv annons just nu} other {# aktiva annonser just nu}} hos {company}",
-    "matchingAdsAria": "{count, plural, one {# matchande annons just nu} other {# matchande annonser just nu}} hos {company}",
+    "adsLinkSuffix": "hos {company}",
     "adsNotLinkable": "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista.",
     "adsNotLinkableUnknown": "Jobbliggaren kan inte visa den här bevakningens annonser i en lista.",
     "followedSince": "Bevakad sedan {date}",
@@ -315,7 +314,8 @@
       "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Listan visas med nyaste först tills du ställt in det.",
       "matchSortDisclosureLink": "Ställ in matchning",
       "unknownCode": "Okänd kod ({code})",
-      "employerChip": "Arbetsgivare {orgNr}"
+      "employerChip": "Arbetsgivare {orgNr}",
+      "employerChipMany": "{count, plural, other {# arbetsgivare}}"
     },
     "results": {
       "rateLimitedTitle": "För många förfrågningar",

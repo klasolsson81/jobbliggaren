@@ -100,9 +100,9 @@ interface JobbResultsProps {
    */
   onlyMatched: boolean;
   /**
-   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: ETT org.nr
-   * (10 siffror, validerat i page.tsx). Skickas till list-queryn som ett
-   * string[]-element; ORTOGONAL mot matchningen (ren IN-equality-gallring).
+   * #454 PR-0 (ADR 0087 D6 FE-konsumtion) — arbetsgivar-filtret: en lista av org.nr
+   * (vardera 10 siffror, validerade i page.tsx). Skickas till list-queryn som `string[]`;
+   * ORTOGONAL mot matchningen (ren IN-equality-gallring).
    */
   employer: ReadonlyArray<string>;
   q: string;

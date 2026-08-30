@@ -1,6 +1,9 @@
 import Link from "next/link";
-import { buildCompanyJobsHref } from "@/lib/job-ads/company-jobs-href";
-import { Filter } from "lucide-react";
+import {
+  buildCompanyJobsHref,
+  isLinkableOrgNr,
+} from "@/lib/job-ads/company-jobs-href";
+import { EyeOff, Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
@@ -26,11 +29,7 @@ interface CompanySummaryProps {
  * En radlista här hade lagt en radlista ovanpå notislistans, på samma vänsterkant och
  * med samma grammatik men annan betydelse (stående tillstånd vs händelser). Formen
  * varierar därför inte med antalet: den är densamma vid 1 som vid 25 bevakningar, och
- * inget företagsnamn renderas. Följden är att `companyName`, `organizationNumber` och
- * `isProtectedIdentity` aldrig når Översikt (ADR 0087 D8(c)).
- *
- * Talen är olänkade. Ankarradens länk går till /foretag/bevakade och tomt-lägets till
- * /foretag/sok; ingen `?employer=<orgnr>`-axel emitteras här — den frågan är #1547:s.
+ * inget företagsnamn renderas.
  */
 export function CompanySummary({ watches }: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
@@ -87,10 +86,13 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
   // destination while the number beside the link still counted them -- the count/click divergence
   // this route exists to avoid. Partial is worse than plain text here.
   const linkableOrgNrs = items.flatMap((w) =>
-    !w.isProtectedIdentity && w.organizationNumber ? [w.organizationNumber] : []
+    !w.isProtectedIdentity &&
+    w.organizationNumber &&
+    isLinkableOrgNr(w.organizationNumber)
+      ? [w.organizationNumber]
+      : []
   );
-  const everyWatchLinkable =
-    items.length > 0 && linkableOrgNrs.length === items.length;
+  const everyWatchLinkable = linkableOrgNrs.length === items.length;
 
   // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
   const activeAdsHref =
@@ -102,23 +104,34 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
       ? buildCompanyJobsHref(linkableOrgNrs, "matching")
       : null;
 
+  // Shown only where a link would otherwise have rendered -- an account whose watches have no
+  // ads at all is not missing anything, so it stays quiet. Parity with the watch row, which
+  // explains the same absence per row.
+  const notLinkableCount = items.length - linkableOrgNrs.length;
+  const explainMissingLinks =
+    notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+
   return (
     <div className="jp-appsummary">
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
-          {t("anchorWatches", { count: items.length })}
-          {" \u00b7 "}
-          {activeAdsHref ? (
-            <Link
-              href={activeAdsHref}
-              className="jp-countlink"
-              aria-label={t("anchorActiveAria", { active: activeAds })}
-            >
-              {t("anchorActive", { active: activeAds })}
-            </Link>
-          ) : (
-            t("anchorActive", { active: activeAds })
-          )}
+          {t.rich("anchor", {
+            count: items.length,
+            active: activeAds,
+            // The accessible name is the visible text -- 2.5.3 Label in Name holds by
+            // construction, and the plural lives in ONE key rather than a visible copy and an
+            // aria copy that can drift. There is exactly one such link on the page and its
+            // enclosing paragraph is the programmatic context 2.4.4 asks for, so no suffix is
+            // owed here. The watch card is the opposite case and does carry one.
+            lnk: (chunks) =>
+              activeAdsHref ? (
+                <Link href={activeAdsHref} className="jp-countlink" prefetch={false}>
+                  {chunks}
+                </Link>
+              ) : (
+                <>{chunks}</>
+              ),
+          })}
         </span>
         <Link className="jp-appsummary__link" href="/foretag/bevakade">
           {t("link")}
@@ -132,23 +145,30 @@ export function CompanySummary({ watches }: CompanySummaryProps) {
           felklass. */}
       {matchingAds !== null && (
         <p className="jp-matchline tabular-nums">
-          {matchingAdsHref ? (
-            <Link
-              href={matchingAdsHref}
-              className="jp-countlink"
-              aria-label={t("matchingAria", { count: matchingAds })}
-            >
-              {t("matching", { count: matchingAds })}
-            </Link>
-          ) : (
-            t("matching", { count: matchingAds })
-          )}
+          {t.rich("matching", {
+            count: matchingAds,
+            lnk: (chunks) =>
+              matchingAdsHref ? (
+                <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
+                  {chunks}
+                </Link>
+              ) : (
+                <>{chunks}</>
+              ),
+          })}
         </p>
       )}
 
       {/* Utan den här raden går ett per-bevakningsfilter som tystar allt inte att skilja
           från "inget publicerat" — och sammanfattningen ställer nu volym intill just den
           tystnaden. */}
+      {explainMissingLinks && (
+        <p className="jp-transparency-note">
+          <EyeOff size={16} aria-hidden="true" />
+          <span>{t("notLinkable", { count: notLinkableCount })}</span>
+        </p>
+      )}
+
       {filteredWatches > 0 && (
         <p className="jp-transparency-note">
           <Filter size={16} aria-hidden="true" />

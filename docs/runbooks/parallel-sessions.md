@@ -424,7 +424,7 @@ app-triggered events start no workflow runs (measured counterfactual in that wor
 own header). Its `schedule` is the only automatic path, and a scheduled workflow on a
 public repo is dropped under load — so a merge can sit unbuilt for hours while `main` is green
 and the issue is closed. The workflow's header names the owning session as the actor for exactly
-this reason: *"the owning session dispatches manually when it wants the image now; CLAUDE.md §6.5
+this reason: *"the owning session dispatches manually; CLAUDE.md §6.5
 already requires it to watch its PR to merge, so it is standing at the right moment."*
 
 Measure the schedule's actual behaviour rather than trusting its cron line — the numbers move, so

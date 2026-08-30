@@ -95,6 +95,20 @@ public class CaddyfileTokenScrubbingPinTests
     /// a personnummer — was not.
     /// </para>
     /// <para>
+    /// <c>userId</c>: <b>not</b> covered by <c>uid</c> above. The filter matches keys exactly and
+    /// case-sensitively — the measurement this class opens with — so the mail parameter's entry
+    /// protects nothing here. <c>/admin/granskning</c>'s pagination links carry it, and it is a
+    /// DIRECT identifier of a natural person (Art. 4(1)); the URL additionally discloses WHOSE
+    /// audit records were read, which is more than <c>employer</c> says about anyone.
+    /// </para>
+    /// <para>
+    /// <c>namn</c>: the free-text company-name field on <c>/foretag/sok</c>. Same unbounded-content
+    /// class as <c>q</c>, with one addition: <c>proxy.ts</c> washes an org.nr-shaped value out of
+    /// it, which is the app stating that it EXPECTS org.nr there — and for an enskild firma the
+    /// org.nr IS the holder's personnummer (#841). The wash is a 3xx on the incoming request,
+    /// whose log post is already written.
+    /// </para>
+    /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
     /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
     /// from a closed, published or enumerated value space and has a stated purpose — it selects
@@ -114,7 +128,8 @@ public class CaddyfileTokenScrubbingPinTests
     /// owned here and nowhere else.
     /// </para>
     /// </summary>
-    private static readonly string[] AppSurfaceScrubbedParameters = ["employer", "q"];
+    private static readonly string[] AppSurfaceScrubbedParameters =
+        ["employer", "q", "userId", "namn"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",

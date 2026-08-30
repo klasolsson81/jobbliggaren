@@ -88,6 +88,18 @@
 					# personnummer, a former employer or a health-adjacent word, and nothing on the
 					# request path would know that it had.
 					delete q
+					# `userId` is NOT `uid`. The filter matches keys exactly and case-sensitively — the measurement
+					# this whole block opens with — so the mail parameter's entry protects nothing here.
+					# /admin/granskning's pagination links carry it, and it is a DIRECT identifier of a natural
+					# person (Art. 4(1)); the URL additionally discloses WHOSE audit records were read, which is
+					# more than `employer` says about anyone.
+					delete userId
+					# The free-text company-name field on /foretag/sok. Same unbounded-content class as `q`, with
+					# one addition: `proxy.ts` washes an org.nr-shaped value out of it, which is the app stating
+					# that it EXPECTS org.nr there — and for an enskild firma the org.nr IS the holder's
+					# personnummer (#841). The wash is a 3xx on the incoming request, whose log post is already
+					# written.
+					delete namn
 				}
 				request>headers delete
 			}

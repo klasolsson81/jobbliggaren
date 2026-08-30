@@ -9,7 +9,18 @@
 # dispatch built them; Klas found out by opening dev.jobbliggaren.se and seeing none of them.
 #
 # CLAUDE.md §6.5 answered that by making the dispatch the fourth close-out step, which is a
-# checklist item with no mechanism behind it. This is the mechanism. `senior-cto-advisor`,
+# checklist item with no mechanism behind it.
+#
+# WHAT THIS IS, AND IS NOT (dotnet-architect, 2026-08-30). The duty falls at close-out, at session
+# END; this runs at SessionStart. It therefore never sees the session that owes the dispatch, and
+# it is blind to exactly the case that produced the incident — the last merge of the day, with no
+# session starting until tomorrow. What it delivers is a FLEET-LEVEL BACKSTOP: some other
+# session's next start notices. That is worth more than a 14%-delivery cron and less than a
+# mechanism at the moment of the duty. A `SessionEnd` twin is the closable half and is a
+# follow-up, not this file: `.claude/hooks/session-end.sh` is already wired, but whether its
+# stdout has a reader and whether its 10 s timeout holds two network calls are both unmeasured.
+#
+# `senior-cto-advisor`,
 # 2026-08-30, chose it over a tighter cron on the rule both workflow headers already state —
 # *"the only mechanism whose trigger survives the condition it exists to repair"*: a cron's
 # trigger IS the thing measured to fail, while this runs at SessionStart and inherits none of
@@ -17,8 +28,18 @@
 # hour, so the box's intake caps below what one working cron line already asks for.)
 #
 # A PURE CLASSIFIER, ON PURPOSE. It takes the two SHAs as arguments and performs no network or
-# `gh` call, so its whole behaviour is reachable from a fixture suite. The caller owns the
-# measuring; this file owns the deciding, and only the deciding can be got wrong silently.
+# `gh` call, so its whole behaviour is reachable from a fixture suite. Detector (a) has the same
+# in-band failure and guards it with one inline `case`, so in-band failure is not what
+# distinguishes this one. Two things are: its verdict compares TWO independently fallible
+# measurements rather than validating one, and it is the only detector with a false-NEGATIVE mode
+# — the others fail by not reaping, this one by not speaking.
+#
+# ⚠ THE CALLER'S MEASURE IS NARROWER THAN "PUBLISHED", and that residual is not closed here
+# (dotnet-architect, 2026-08-30). `gh run list --status=success` records which ref a run was
+# triggered on; success does not imply a push. `-f push=false` (a dry run) and `-f ref=<branch>`
+# both leave a `success` run whose headSha can equal main's tip with nothing published, and this
+# file then says in-sync. Closing it means measuring the REGISTRY — the layer the box actually
+# reads — which is a different measurement layer and so a different change-reason.
 #
 # Usage:   main-ahead-of-images.sh <main-tip-sha> <last-successful-build-sha>
 # Prints:  "in-sync" | "ahead <built-short> <main-short>" | "not-measurable <reason>"

@@ -4,8 +4,9 @@
 # The classifier's whole job is to be quiet when it cannot measure and loud when main really is
 # ahead. Both halves fail silently if wrong — a permanent false alarm trains the reader to
 # ignore the reaper's output, and a permanent silence is the green-silent-inert shape the
-# detector was built to abolish. So the in-band failure strings the two real callers emit
-# (`gh --jq` printing "null", `git ls-remote` printing nothing) each get a fixture.
+# detector was built to abolish. So each in-band failure shape gets a fixture; which shape comes
+# from which caller is recorded at worktree-reaper.sh's Conjunct 4, and the labels below follow
+# it.
 #
 # Read the summary line, not the exit code after a pipe.
 set -u

@@ -292,6 +292,31 @@ done
 # Fail-safe and quiet: no gh, no network, no auth -> emit nothing. Never a false alarm.
 HYGIENE=""
 if command -v gh >/dev/null 2>&1; then
+  # (d) runs FIRST despite its letter: it is two calls and O(1), while (a) below makes one `gh`
+  #     call per local branch — measured at ~48 s of this hook's 60 s budget on a tree with 91
+  #     branches. Ordered after it, a timeout loses all four detectors and says nothing.
+  #
+  # (d) main carries commits no published image was built from. CLAUDE.md §6.5 makes the
+  #     dispatch the fourth close-out step; this is the mechanism behind that step, because
+  #     three merged PRs already went unbuilt while every session did exactly what the
+  #     checklist said. The verdict and the reasons for this shape live in the classifier.
+  #
+  #     main's tip is read from the REMOTE. A worktree's `origin/main` is only as fresh as its
+  #     last fetch, and a stale ref reports "in sync" when it is not — which would make this
+  #     detector the very thing it exists to abolish.
+  _main_tip="$(git ls-remote origin refs/heads/main 2>/dev/null | cut -f1)"
+  _built="$(gh run list --workflow=release-images.yml --status=success --limit 1 \
+              --json headSha --jq '.[0].headSha' 2>/dev/null || true)"
+  _verdict="$(bash "$(dirname "${BASH_SOURCE[0]}")/main-ahead-of-images.sh" \
+                "$_main_tip" "$_built" 2>/dev/null || true)"
+  DISPATCH_VERDICT="$_verdict"
+  case "$_verdict" in
+    "ahead "*)
+      read -r _ _built_short _main_short <<<"$_verdict"
+      HYGIENE="${HYGIENE}    main is ahead of the last published image (${_built_short} -> ${_main_short}) — 'gh workflow run release-images.yml':"$'\n'"      - until it is built, the merge has not reached the box (playbook §8.1)"$'\n'
+      ;;
+  esac
+
   # (a) branches whose PR is merged — keyed on the branch, so worktree-less strays show up.
   _dead_local=""
   while IFS= read -r _b; do
@@ -320,26 +345,6 @@ if command -v gh >/dev/null 2>&1; then
   done < <(gh issue list --state open --label wip --assignee '@me' --json number --jq '.[].number' 2>/dev/null || true)
   [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close', drop wip, unassign, dispatch the image build):"$'\n'"${_stale}"
 
-  # (d) main carries commits no published image was built from. CLAUDE.md §6.5 makes the
-  #     dispatch the fourth close-out step; this is the mechanism behind that step, because
-  #     three merged PRs already went unbuilt while every session did exactly what the
-  #     checklist said. The verdict and the reasons for this shape live in the classifier.
-  #
-  #     main's tip is read from the REMOTE. A worktree's `origin/main` is only as fresh as its
-  #     last fetch, and a stale ref reports "in sync" when it is not — which would make this
-  #     detector the very thing it exists to abolish.
-  _main_tip="$(git ls-remote origin refs/heads/main 2>/dev/null | cut -f1)"
-  _built="$(gh run list --workflow=release-images.yml --status=success --limit 1 \
-              --json headSha --jq '.[0].headSha' 2>/dev/null || true)"
-  _verdict="$(bash "$(dirname "${BASH_SOURCE[0]}")/main-ahead-of-images.sh" \
-                "$_main_tip" "$_built" 2>/dev/null || true)"
-  DISPATCH_VERDICT="$_verdict"
-  case "$_verdict" in
-    "ahead "*)
-      read -r _ _built_short _main_short <<<"$_verdict"
-      HYGIENE="${HYGIENE}    main is ahead of the last published image (${_built_short} -> ${_main_short}) — 'gh workflow run release-images.yml':"$'\n'"      - until it is built, the merge has not reached the box (playbook §8.1)"$'\n'
-      ;;
-  esac
 fi
 
 # --- report ------------------------------------------------------------------------

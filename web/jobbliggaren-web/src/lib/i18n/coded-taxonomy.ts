@@ -4,7 +4,7 @@
  * Two kinds of taxonomy value reach the frontend, and the difference is not cosmetic:
  *
  * - **Register data** — municipality, region and occupation-group names. Proper nouns, so
- *   they stay Swedish in every locale (#1430) and the backend ships them resolved.
+ *   they stay Swedish in every locale (#1430).
  * - **Coded terms** — the klass 2 set: employment type and worktime extent. Common nouns
  *   (`Heltid`, `Vikariat`, `Behovsanställning`), so they translate. `klass2-taxonomy.json`
  *   says so of itself: relabelling them is "an FE presentation concern (PR-2), not a

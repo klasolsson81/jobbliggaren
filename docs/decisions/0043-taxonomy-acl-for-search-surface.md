@@ -308,9 +308,8 @@ typad, och `GetJobAdMatchDetail` hade då läckt råa concept-id.
   inte vilken taxonomiklass id:t tillhör.
 - `GetJobAdMatchDetail` droppar olösta id ur `ssykOverlap`/`regionFit` i stället för att
   falla tillbaka på det råa id:t. Den fallbacken var tidigare onåbar (porten gav alltid en
-  rad med namn), så detta är ingen ny degradering — det är att stänga en gren som blev
-  nåbar. **Följd-PR:** dimensionerna får bära `{conceptId, label}` så klienten kan namnge
-  det servern inte kunde; det rör `/matchning`:s wire-kontrakt och är en egen
+  rad med namn). **Följd-PR:** dimensionerna får bära `{conceptId, label}` så klienten kan
+  namnge det servern inte kunde; det rör `/matchning`:s wire-kontrakt och är en egen
   förändringsanledning.
 - Wire: fältet **finns** och är `null` (Minimal APIs `JsonSerializerDefaults.Web`, ingen
   `DefaultIgnoreCondition` i `src/`). FE-schemat är därför `z.string().nullable()`, inte
@@ -327,5 +326,6 @@ utanför ACL:n), seeder-mekanismen och `SearchCriteria`-VO:t. Reverse-lookup-cap
 - [#1540](https://github.com/klasolsson81/jobbliggaren/issues/1540) (routad ut ur #1537 av
   `senior-cto-advisor` 2026-08-28), [#1537](https://github.com/klasolsson81/jobbliggaren/issues/1537),
   [#1430](https://github.com/klasolsson81/jobbliggaren/issues/1430)
+- [#1598](https://github.com/klasolsson81/jobbliggaren/issues/1598) — följd-PR:en ovan
 - AGENTS.md §5 (hårdkodade UI-strängar), BUILD.md §10.6 (`sv` + `en` är produkt-locales)
 - Martin, *Clean Architecture* (2017) kap. 8, 22; Hunt/Thomas (1999) DRY

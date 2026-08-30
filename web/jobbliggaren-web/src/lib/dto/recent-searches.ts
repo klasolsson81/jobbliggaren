@@ -47,8 +47,8 @@ const sortByFromWire = z
 // (ADR 0060 Beslut 9). Utan unionen parsar en `Named` utan text grönt och renderas som en tom
 // sträng mitt i labeln — samma tysta fel som `parts`-refine:n nedan finns för att stoppa.
 export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
-  // "Named" bär REGISTERdata — ort, län, yrkesgrupp. Egennamn, alltså svenska i varje
-  // locale, och därför resolvade redan på wire:n.
+  // "Named" bär ett resolvat REGISTERnamn — ort, län, yrkesgrupp. Egennamn, alltså svenska
+  // i varje locale.
   z.object({
     kind: z.literal("Named"),
     text: z.string(),
@@ -63,10 +63,9 @@ export const recentSearchLabelPartSchema = z.discriminatedUnion("kind", [
     conceptId: z.null(),
     moreCount: z.literal(0),
   }),
-  // "Coded" är spegelvänd mot "Named": wire:n bär koden, katalogen bär ordet. Klass 2 —
-  // anställningsform och omfattning — är allmänsubstantiv och byter språk med locale:n
-  // (#1537). Att `text` är null är poängen: det finns ingen svenska att tyst falla tillbaka
-  // på, så en saknad katalognyckel blir synlig i stället för att bli svensk.
+  // "Coded" är spegelvänd mot "Named": wire:n bär koden, katalogen bär ordet. Att `text` är
+  // null är poängen: det finns ingen svenska att tyst falla tillbaka på, så en saknad
+  // katalognyckel blir synlig i stället för att bli svensk.
   z.object({
     kind: z.literal("Coded"),
     text: z.null(),

@@ -64,8 +64,7 @@ public enum RecentSearchLabelPartKind
     /// </summary>
     /// <remarks>
     /// Not every taxonomy name is one of these — the klass 2 terms are common nouns and travel
-    /// as <see cref="Coded"/> instead (#1537). The carve-out is register data, not taxonomy
-    /// membership.
+    /// as <see cref="Coded"/> instead (#1537).
     /// </remarks>
     Named,
 
@@ -77,8 +76,8 @@ public enum RecentSearchLabelPartKind
     Remote,
 
     /// <summary>
-    /// A taxonomy concept whose NAME is locale copy: employment type and worktime extent
-    /// (klass 2). It carries <see cref="RecentSearchLabelPartDto.ConceptId"/> and no
+    /// A taxonomy concept whose NAME is locale copy.
+    /// It carries <see cref="RecentSearchLabelPartDto.ConceptId"/> and no
     /// <see cref="RecentSearchLabelPartDto.Text"/> — the mirror image of <see cref="Named"/>.
     /// </summary>
     /// <remarks>

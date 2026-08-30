@@ -409,7 +409,11 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     expect(within(section).getByText(/olästa/)).toBeInTheDocument();
   });
 
-  it("populerat konto: notislistan bär sitt eget tomt-läge som förut", () => {
+  it("populerat konto: tom-raden tiger — sektionen bär redan information", () => {
+    // ⚠ Detta INVERTERAR ett tidigare medvetet val ("notislistan bär sitt eget tomt-läge som
+    // förut"). Klas-direktiv 2026-08-30: raden får stå när sektionen är helt tom på annan info,
+    // men inte bredvid en sammanfattning som just räknat upp två ansökningar — då säger den att
+    // information samlas här, på en plats där information redan står.
     renderOversikt(true, {
       matchCount: null,
       pipeline: {
@@ -420,8 +424,10 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
     expect(
-      within(section).getByText(/Vi säger till när något händer/),
-    ).toBeInTheDocument();
+      within(section).queryByText(/Vi säger till när något händer/),
+    ).toBeNull();
+    // Sammanfattningen står kvar — det är DEN som gör tom-raden överflödig.
+    expect(within(section).getByText(/2 ansökningar/)).toBeInTheDocument();
   });
 
   // #1558, samma kompositionsdefekt som #1548: company-summary.test.tsx målar
@@ -440,8 +446,8 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Företagsbevakning" });
     expect(
-      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(within(section).getByText(/publicerat/)).toBeInTheDocument();
     expect(within(section).getByText(/1 oläst/)).toBeInTheDocument();
   });
@@ -458,8 +464,8 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Företagsbevakning" });
     expect(
-      within(section).getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+      section.querySelector(".jp-appsummary__totals")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(
       within(section).getByRole("link", { name: "Visa bevakade företag" }),
     ).toBeInTheDocument();
@@ -485,7 +491,7 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
   // Skillnaden mot ansökningssektionen, och den är avsiktlig: notiserna och
   // sammanfattningen läser SKILDA källor här, så en fallen bevakningshämtning får inte
   // dölja oläst-räknaren — den räknar notiser vars egen källa lästes.
-  it("oläsbara bevakningar: oläst-räknaren står kvar och notislistan behåller sitt tomt-läge", () => {
+  it("oläsbara bevakningar: oläst-räknaren står kvar och tom-raden tiger — en ohämtbar-rad är också information", () => {
     renderOversikt(true, {
       matchCount: null,
       companyWatches: { kind: "error" },
@@ -496,9 +502,11 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
       within(section).getByText(/Bevakade företag kunde inte hämtas/),
     ).toBeInTheDocument();
     expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+    // Även en ohämtbar-rad ÄR information. Att bredvid den säga att händelser samlas här är
+    // dubbelt tomt prat (Klas-direktiv 2026-08-30) — tidigare pinnades motsatsen här.
     expect(
-      within(section).getByText(/Händelser från dina bevakade företag/),
-    ).toBeInTheDocument();
+      within(section).queryByText(/Händelser från dina bevakade företag/),
+    ).toBeNull();
   });
 
   it("ingen recent-search → ingen senaste-sök-notis", () => {

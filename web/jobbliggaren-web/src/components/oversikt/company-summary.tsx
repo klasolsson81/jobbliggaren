@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { Filter } from "lucide-react";
+import {
+  buildCompanyJobsHref,
+  isLinkableOrgNr,
+} from "@/lib/job-ads/company-jobs-href";
+import { EyeOff, Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
@@ -41,11 +45,7 @@ interface CompanySummaryProps {
  * En radlista här hade lagt en radlista ovanpå notislistans, på samma vänsterkant och
  * med samma grammatik men annan betydelse (stående tillstånd vs händelser). Formen
  * varierar därför inte med antalet: den är densamma vid 1 som vid 25 bevakningar, och
- * inget företagsnamn renderas. Följden är att `companyName`, `organizationNumber` och
- * `isProtectedIdentity` aldrig når Översikt (ADR 0087 D8(c)).
- *
- * Talen är olänkade. Ankarradens länk går till /foretag/bevakade och tomt-lägets till
- * /foretag/sok; ingen `?employer=<orgnr>`-axel emitteras här — den frågan är #1547:s.
+ * inget företagsnamn renderas.
  */
 export function CompanySummary({
   watches,
@@ -97,11 +97,66 @@ export function CompanySummary({
   // katalogen från /foretag/bevakade, byggd genom bakdörren.
   const filteredWatches = items.filter((w) => w.filter !== null).length;
 
+  // Klas-direktiv 2026-08-30: the sums link straight to the ads, so a user reaches them in one
+  // click instead of going through /foretag/bevakade first.
+  //
+  // EVERY watch must be linkable or neither sum links. A masked sole-prop and a brand-group watch
+  // both arrive with `organizationNumber: null`, and their ads would be missing from the
+  // destination while the number beside the link still counted them -- the count/click divergence
+  // this route exists to avoid. Partial is worse than plain text here.
+  const linkableOrgNrs = items.flatMap((w) =>
+    !w.isProtectedIdentity &&
+    w.organizationNumber &&
+    isLinkableOrgNr(w.organizationNumber)
+      ? [w.organizationNumber]
+      : []
+  );
+  const everyWatchLinkable = linkableOrgNrs.length === items.length;
+
+  // `linkHref === null` means this surface has no authenticated destination at all (#1572: the
+  // guest demo). The ad links go to `/jobb`, an `(app)/` segment and therefore in
+  // PROTECTED_PREFIXES, so rendering them there would hand a guest a link to `/logga-in` --
+  // the same failure `linkHref` was made required to prevent. One prop, one meaning.
+  const surfaceCanLink = linkHref !== null;
+
+  // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
+  const activeAdsHref =
+    surfaceCanLink && everyWatchLinkable && activeAds > 0
+      ? buildCompanyJobsHref(linkableOrgNrs, "all")
+      : null;
+  const matchingAdsHref =
+    surfaceCanLink && everyWatchLinkable && matchingAds !== null && matchingAds > 0
+      ? buildCompanyJobsHref(linkableOrgNrs, "matching")
+      : null;
+
+  // Shown only where a link would otherwise have rendered -- an account whose watches have no
+  // ads at all is not missing anything, so it stays quiet. Parity with the watch row, which
+  // explains the same absence per row.
+  const notLinkableCount = items.length - linkableOrgNrs.length;
+  const explainMissingLinks =
+    surfaceCanLink && notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+
   return (
     <div className="jp-appsummary">
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
-          {t("anchor", { count: items.length, active: activeAds })}
+          {t.rich("anchor", {
+            count: items.length,
+            active: activeAds,
+            // The accessible name is the visible text -- 2.5.3 Label in Name holds by
+            // construction, and the plural lives in ONE key rather than a visible copy and an
+            // aria copy that can drift. There is exactly one such link on the page and its
+            // enclosing paragraph is the programmatic context 2.4.4 asks for, so no suffix is
+            // owed here. The watch card is the opposite case and does carry one.
+            lnk: (chunks) =>
+              activeAdsHref ? (
+                <Link href={activeAdsHref} className="jp-countlink" prefetch={false}>
+                  {chunks}
+                </Link>
+              ) : (
+                <>{chunks}</>
+              ),
+          })}
         </span>
         {linkHref !== null && (
           <Link className="jp-appsummary__link" href={linkHref}>
@@ -117,7 +172,24 @@ export function CompanySummary({
           felklass. */}
       {matchingAds !== null && (
         <p className="jp-matchline tabular-nums">
-          {t("matching", { count: matchingAds })}
+          {t.rich("matching", {
+            count: matchingAds,
+            lnk: (chunks) =>
+              matchingAdsHref ? (
+                <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
+                  {chunks}
+                </Link>
+              ) : (
+                <>{chunks}</>
+              ),
+          })}
+        </p>
+      )}
+
+      {explainMissingLinks && (
+        <p className="jp-transparency-note">
+          <EyeOff size={16} aria-hidden="true" />
+          <span>{t("notLinkable", { count: notLinkableCount })}</span>
         </p>
       )}
 

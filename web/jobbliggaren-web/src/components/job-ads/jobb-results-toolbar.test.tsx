@@ -43,7 +43,7 @@ function toolbar(over: ToolbarOverrides = {}) {
       matchningOff={false}
       hideApplied={false}
       onlyMatched={false}
-      employer={undefined}
+      employer={[]}
       resolvedLabels={{}}
       q=""
       sortBy="PublishedAtDesc"
@@ -383,19 +383,43 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
   // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × navigerar utan commit.
   describe("arbetsgivar-chip (#454 PR-0)", () => {
     it("renderar chippen med formaterat org.nr när employer är satt", () => {
-      renderToolbar({ employer: "5560125790" });
+      renderToolbar({ employer: ["5560125790"] });
       expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
     });
 
+    it("FLERA arbetsgivare kollapsar till EN chip — aldrig en rad råa org.nr", () => {
+      // #1547 — Översiktens summor sätter hela bevakningsmängden på axeln. En chip per värde
+      // skrev ut "Arbetsgivare 559141-1326 · Arbetsgivare 556012-5790 · …" som enda beskrivning
+      // av vad användaren tittar på.
+      renderToolbar({ employer: ["5560125790", "5591411326", "5566524301"] });
+
+      expect(screen.getByText("3 arbetsgivare")).toBeInTheDocument();
+      expect(screen.queryByText(/Arbetsgivare 5/)).toBeNull();
+      expect(screen.getAllByRole("button", { name: /Ta bort filter/ })).toHaveLength(1);
+    });
+
+    it("× på den kollapsade chippen tömmer HELA axeln, inte ett värde", () => {
+      // The axis is set as one set (every watched company or none), so removing a single value
+      // would leave a filter the user cannot name and never asked for.
+      const user = userEvent.setup();
+      renderToolbar({ employer: ["5560125790", "5591411326"] });
+
+      return user
+        .click(screen.getByRole("button", { name: "Ta bort filter 2 arbetsgivare" }))
+        .then(() => {
+          expect(pushMock).toHaveBeenCalledWith("/jobb");
+        });
+    });
+
     it("ingen chip utan employer", () => {
-      renderToolbar({ employer: undefined });
+      renderToolbar({ employer: [] });
       expect(screen.queryByText(/Arbetsgivare /)).toBeNull();
     });
 
     it("× tar bort employer ur URL:en (navigate, utan commit) och bevarar övrig state", async () => {
       const user = userEvent.setup();
       renderToolbar({
-        employer: "5560125790",
+        employer: ["5560125790"],
         matchGrades: ["Strong"],
         matchActive: true,
       });
@@ -410,7 +434,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
 
     it("sort-byte bevarar employer (param-bevarande-basen)", async () => {
       const user = userEvent.setup();
-      renderToolbar({ employer: "5560125790" });
+      renderToolbar({ employer: ["5560125790"] });
       await user.selectOptions(
         screen.getByLabelText("Sortera"),
         "ExpiresAtAsc",

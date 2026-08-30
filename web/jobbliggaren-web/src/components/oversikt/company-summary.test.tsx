@@ -32,6 +32,19 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 
 const NO_FILTER = null;
 
+function visibleText(el: Element | null): string {
+  return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * The anchor is split across elements since the ad half became a link (Klas-direktiv
+ * 2026-08-30), so an exact `getByText` over the whole sentence can no longer match. Reading the
+ * totals span keeps the assertion on the rendered SENTENCE rather than on the markup carrying it.
+ */
+function anchorText(): string {
+  return visibleText(document.querySelector(".jp-appsummary__totals"));
+}
+
 describe("CompanySummary", () => {
   it("ankarraden summerar bevakningar och aktiva annonser", () => {
     render(
@@ -44,9 +57,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(
-      screen.getByText("2 bevakade företag · 140 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("2 bevakade företag · 140 aktiva annonser");
     expect(
       screen.getByRole("link", { name: "Visa bevakade företag" }),
     ).toHaveAttribute("href", "/foretag/bevakade");
@@ -57,18 +68,14 @@ describe("CompanySummary", () => {
   it("bevakning med aktiva annonser läser aldrig som tom", () => {
     render(<CompanySummary watches={ok([watch({ activeAdCount: 136 })])} linkHref="/foretag/bevakade" />);
 
-    expect(
-      screen.getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
   it("noll aktiva annonser är ett mätt tillstånd, inte ett tomt-läge", () => {
     render(<CompanySummary watches={ok([watch({ activeAdCount: 0 })])} linkHref="/foretag/bevakade" />);
 
-    expect(
-      screen.getByText("1 bevakat företag · inga aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · inga aktiva annonser");
   });
 
   it("bedömd matchning renderas, och en bedömd nolla skrivs ut", () => {
@@ -82,8 +89,8 @@ describe("CompanySummary", () => {
       />,
     );
     expect(
-      screen.getByText("11 matchande annonser hos dina bevakade företag"),
-    ).toBeInTheDocument();
+      visibleText(document.querySelector(".jp-matchline")),
+    ).toBe("11 matchande annonser hos dina bevakade företag");
 
     rerender(
       <CompanySummary watches={ok([watch({ matchingAdCount: 0 })])} linkHref="/foretag/bevakade" />,
@@ -104,9 +111,7 @@ describe("CompanySummary", () => {
     expect(screen.queryByText(/matchande/)).toBeNull();
     expect(screen.queryByText(/Ställ in matchning/)).toBeNull();
     // Ankarraden står kvar — det är den som stänger issuet.
-    expect(
-      screen.getByText("1 bevakat företag · 136 aktiva annonser"),
-    ).toBeInTheDocument();
+    expect(anchorText()).toBe("1 bevakat företag · 136 aktiva annonser");
   });
 
   // `some`, inte `every`: bryter backendens per-request-gate någon gång får en delsumma
@@ -177,7 +182,7 @@ describe("CompanySummary", () => {
       "href",
       "/foretag/sok",
     );
-    expect(screen.queryByText(/bevakat företag ·/)).toBeNull();
+    expect(anchorText()).toBe("");
   });
 
   it("säger att bevakningarna inte kunde hämtas i stället för att påstå noll", () => {
@@ -189,31 +194,240 @@ describe("CompanySummary", () => {
       ),
     ).toBeInTheDocument();
     // Fabrikation: en degraderad hämtning får varken visa en siffra eller tomt-läget.
-    expect(screen.queryByText(/bevakade företag ·/)).toBeNull();
+    expect(anchorText()).toBe("");
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
-  // Mätt av security-auditor: `textContent` konkatenerar textnoder och ser INTE `href`,
-  // `title`, `aria-label` eller `data-*`. En nod med href="/jobb?employer=5566524301" ger
-  // textContent "Visa" och hade passerat — vilket är exakt ADR 0087 D8-gränsen den här
-  // PR:en säger sig hålla utanför. Assertionen går därför mot markup, inte mot text, och
-  // det generella siffermönstret fångar även ett org.nr denna fixtur inte råkar bära.
-  it("renderar varken företagsnamn eller org.nr — i markup, inte bara i text", () => {
+  it("summorna länkar DIREKT till annonserna hos varje bevakat företag", () => {
+    // Klas-direktiv 2026-08-30: ett klick, inte två. Backend har bundit `string[]` hela tiden
+    // (ADR 0087 D6), så axeln bär hela bevakningsmängden.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+          watch({
+            id: "22222222-2222-2222-2222-222222222222",
+            organizationNumber: "5560125790",
+            activeAdCount: 36,
+            matchingAdCount: 2,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "136 aktiva annonser" }),
+    ).toHaveAttribute("href", "/jobb?employer=5566524301.5560125790");
+    expect(
+      screen.getByRole("link", { name: "9 matchande annonser" }),
+    ).toHaveAttribute(
+      "href",
+      "/jobb?employer=5566524301.5560125790&matchGrades=Good.Strong",
+    );
+
+    // The qualifier is rendered, just OUTSIDE the link -- design-reviewer Major 3: two adjacent
+    // rows must underline the same amount of text, not 135px on one and 337px on the other.
+    expect(visibleText(document.querySelector(".jp-matchline"))).toBe(
+      "9 matchande annonser hos dina bevakade företag",
+    );
+  });
+
+  it("en yta utan autentiserad destination (gäst) länkar INGEN summa", () => {
+    // ⛔ Measured regression, not a hypothetical: the base merge brought #1572 in, and the guest
+    // mock's three watches all carry ten-digit org.nr with `isProtectedIdentity: false`. Every
+    // link gate this component owns passed, so the guest demo rendered count links to
+    // `/jobb?employer=…` -- an `(app)/` segment, therefore in PROTECTED_PREFIXES, therefore
+    // `/logga-in` for a guest. `linkHref: null` was made required by #1572 to stop exactly this,
+    // and the ad links now read it too.
     const { container } = render(
       <CompanySummary
         watches={ok([
-          watch({ companyName: "Friday Väst AB", organizationNumber: "5566524301" }),
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+        ])}
+        linkHref={null}
+      />,
+    );
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("/jobb");
+    expect(container.innerHTML).not.toContain("employer=");
+    // The numbers are still true and still shown -- only the route is withheld.
+    expect(anchorText()).toBe("1 bevakat företag · 100 aktiva annonser");
+  });
+
+  it("gästytan förklarar INTE en frånvaro den själv orsakade", () => {
+    // The explanation blames the DATA ("1 bevakning kan inte visas som en lista"). On a surface
+    // that links nothing by design, that sentence would be false about the cause.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: null, isProtectedIdentity: true, activeAdCount: 40 }),
+        ])}
+        linkHref={null}
+      />,
+    );
+
+    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+  });
+
+  it("den maskade bevakningen FÖRKLARAS — ett tal utan väg får inte stå oförklarat", () => {
+    // design-reviewer Major 4: the watch row explains this same absence per row; the summary
+    // said nothing at all, so the number just stood there with no route and no reason.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100 }),
+          watch({
+            id: "33333333-3333-3333-3333-333333333333",
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 36,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("noll annonser: ingen länk skulle ändå ha renderats, så förklaringen tiger", () => {
+    // Parity with the row: an account whose watches have no ads at all is not missing a route.
+    // Without this the note would fire on every masked watch, including ones with nothing to link.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 0,
+            matchingAdCount: 0,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+  });
+
+  it("ett org.nr som inte är tio siffror ger varken länk ELLER tyst tal", () => {
+    // code-reviewer Major 4: the summary gated on "is the field non-null" while the href builder
+    // gated on "is it ten digits". They disagreed, so `everyWatchLinkable` went true, the builder
+    // returned null, and the count rendered with no link AND no note -- exactly the state the row
+    // closed by construction. Both callers read `isLinkableOrgNr` now.
+    //
+    // ⚠ Premise: this shape is contract-impossible today. `OrganizationNumber.Create` enforces
+    // ten digits and the one other on-wire form is an HMAC token the handler masks to null. The
+    // test asserts only that the READ side degrades safely, never that production emits this.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "55665243", activeAdCount: 100 }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
+    expect(
+      screen.getByText(
+        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("en varumärkesgruppsrad (org.nr null, flaggan FALSK) släcker också länkarna", () => {
+    // code-reviewer Minor 9: only the masked arm was pinned. The production comment names TWO
+    // rows arriving with `organizationNumber: null`, and this is the other one -- a BRAND_GROUP
+    // watch, whose counts are summed over member org.nrs the FE schema never receives. Removing
+    // the `w.organizationNumber` half of the gate leaves the masked test green and this one red.
+    render(
+      <CompanySummary
+        watches={ok([
+          watch({
+            organizationNumber: null,
+            isProtectedIdentity: false,
+            companyName: "Friday-koncernen",
+            activeAdCount: 40,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
+    expect(anchorText()).toBe("1 bevakat företag · 40 aktiva annonser");
+    // The row is COUNTED as not linkable, not merely dropped from the link. Without this the
+    // gate could admit the row and let the href builder return null instead, which renders the
+    // same missing link with no explanation beside it — the state design-reviewer Major 4 and
+    // code-reviewer Major 4 both name.
+    expect(
+      screen.getByText(
+        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("EN maskad bevakning räcker för att ingen summa ska länka", () => {
+    // Partiellt vore värre än ingenting: den maskade radens annonser saknas i destinationen
+    // medan talet bredvid länken fortfarande räknar dem. Det är count/click-divergensen.
+    const { container } = render(
+      <CompanySummary
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
+          watch({
+            id: "33333333-3333-3333-3333-333333333333",
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 36,
+            matchingAdCount: 2,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(screen.queryAllByRole("link", { name: /annonser/ })).toHaveLength(0);
+    expect(container.innerHTML).not.toContain("employer=");
+    // Talen skrivs ändå ut — de är mätta och sanna, det är bara vägen dit som saknas.
+    expect(anchorText()).toBe("2 bevakade företag · 136 aktiva annonser");
+  });
+
+  it("renderar aldrig ett företagsNAMN, och ett org.nr bara inuti en länk — aldrig som text", () => {
+    // ⚠ Premissen ändrades 2026-08-30. Denna vakt sa tidigare att INGET org.nr får nå Översikt.
+    // Klas-direktivet att summorna ska leda direkt till annonserna gör att org.nr nu MÅSTE nå
+    // href:en — annars finns ingen destination. Det som står kvar oförändrat är att inget
+    // företagsNAMN renderas, och att inget org.nr blir synlig text.
+    //
+    // Assertionen går mot markup, inte mot text: `textContent` ser inte `href`.
+    const { container } = render(
+      <CompanySummary
+        watches={ok([
+          watch({
+            companyName: "Friday Väst AB",
+            organizationNumber: "5566524301",
+            activeAdCount: 100,
+            matchingAdCount: 7,
+          }),
         ])}
         linkHref="/foretag/bevakade"
       />,
     );
 
     expect(container.innerHTML).not.toContain("Friday Väst AB");
-    expect(container.innerHTML).not.toContain("5566524301");
-    // Vilken tiosiffrig sekvens som helst: ett org.nr som läckt via en annan väg än
-    // fixturens egen sträng ska också falla.
-    expect(container.innerHTML).not.toMatch(/\d{10}/);
-    expect(container.innerHTML).not.toContain("employer=");
+    expect(container.innerHTML).toContain("employer=5566524301");
+
+    // INGEN ANNANSTANS, mätt: strip every href and no ten-digit sequence may survive anywhere in
+    // the markup — not in a text node, and not in `title`, `data-*` or `aria-label` either.
+    // `textContent` alone sees none of those attributes, which is the reach this restores.
+    const withoutHrefs = container.innerHTML.replace(/href="[^"]*"/g, "");
+    expect(withoutHrefs).not.toMatch(/\d{10}/);
   });
 
   // Komplement till ovanstående: assertionen mäter DOM, och DOM kan inte skilja dagens

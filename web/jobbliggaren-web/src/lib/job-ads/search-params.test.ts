@@ -192,14 +192,14 @@ describe("buildJobbHref #300 PR-5 (relaterade — Visa relaterade också)", () =
 
 describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
   it("employer emitterar ?employer=<orgnr> (singel-värde)", () => {
-    expect(buildJobbHref({ ...empty, employer: "5560125790" })).toBe(
+    expect(buildJobbHref({ ...empty, employer: ["5560125790"] })).toBe(
       "/jobb?employer=5560125790",
     );
   });
 
   it("employer utelämnad/undefined ger inget param (ren URL)", () => {
     expect(buildJobbHref(empty)).toBe("/jobb");
-    expect(buildJobbHref({ ...empty, employer: undefined })).toBe("/jobb");
+    expect(buildJobbHref({ ...empty, employer: [] })).toBe("/jobb");
   });
 
   it("ordning: Klass-2-dimensioner → employer → matchGrades → q (stabil URL-form)", () => {
@@ -211,7 +211,7 @@ describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
         q: "volvo",
         occupationGroup: ["og1"],
         employmentType: ["et1"],
-        employer: "5560125790",
+        employer: ["5560125790"],
         matchGrades: ["Strong"],
         hideApplied: true,
       }),
@@ -221,7 +221,7 @@ describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
   });
 
   it("round-trip: buildJobbHref → URLSearchParams bevarar employer", () => {
-    const href = buildJobbHref({ ...empty, employer: "5560125790" });
+    const href = buildJobbHref({ ...empty, employer: ["5560125790"] });
     const qs = href.slice(href.indexOf("?") + 1);
     expect(new URLSearchParams(qs).get("employer")).toBe("5560125790");
   });
@@ -229,24 +229,49 @@ describe("buildJobbHref #454 PR-0 (employer — arbetsgivar-filtret)", () => {
 
 describe("parseEmployerParam (#454 PR-0 — SPOT-gaten, delad page ↔ buildPageHref)", () => {
   it("accepterar exakt 10 siffror (trimmat)", () => {
-    expect(parseEmployerParam("5560125790")).toBe("5560125790");
-    expect(parseEmployerParam(" 5560125790 ")).toBe("5560125790");
+    expect(parseEmployerParam("5560125790")).toEqual(["5560125790"]);
+    expect(parseEmployerParam(" 5560125790 ")).toEqual(["5560125790"]);
   });
 
   it("droppar felformat tyst (drop-unknown — backend skulle annars 400:a)", () => {
-    expect(parseEmployerParam("556012-5790")).toBeUndefined(); // bindestreck
-    expect(parseEmployerParam("55601257")).toBeUndefined(); // för kort
-    expect(parseEmployerParam("55601257901")).toBeUndefined(); // för långt
-    expect(parseEmployerParam("556012579a")).toBeUndefined(); // icke-siffra
-    expect(parseEmployerParam("55601\n25790")).toBeUndefined(); // inbäddad newline-injektion
-    expect(parseEmployerParam("")).toBeUndefined();
-    expect(parseEmployerParam(undefined)).toBeUndefined();
+    expect(parseEmployerParam("556012-5790")).toEqual([]); // bindestreck
+    expect(parseEmployerParam("55601257")).toEqual([]); // för kort
+    expect(parseEmployerParam("55601257901")).toEqual([]); // för långt
+    expect(parseEmployerParam("556012579a")).toEqual([]); // icke-siffra
+    expect(parseEmployerParam("55601\n25790")).toEqual([]); // inbäddad newline-injektion
+    expect(parseEmployerParam("")).toEqual([]);
+    expect(parseEmployerParam(undefined)).toEqual([]);
   });
 
-  it("singel-värde v1: string[] → första elementet (manipulerad URL dubblar inte)", () => {
-    expect(parseEmployerParam(["5560125790", "5560360793"])).toBe("5560125790");
-    expect(parseEmployerParam(["nonsens", "5560360793"])).toBeUndefined();
-    expect(parseEmployerParam([])).toBeUndefined();
+  it("bär HELA axeln — både den joinade och den upprepade formen", () => {
+    // The axis is a list since Oversikt links its sums straight to the ads of every watched
+    // company at once. Backend has bound `string[]` all along (ADR 0087 D6).
+    expect(parseEmployerParam("5560125790.5560360793")).toEqual([
+      "5560125790",
+      "5560360793",
+    ]);
+    expect(parseEmployerParam(["5560125790", "5560360793"])).toEqual([
+      "5560125790",
+      "5560360793",
+    ]);
+    expect(parseEmployerParam([])).toEqual([]);
+  });
+
+  it("droppar ett felformat värde men behåller resten (drop-unknown per värde)", () => {
+    // Not "the first value decides": a manipulated URL must not be able to suppress a legal
+    // filter by prefixing junk, and it must not 400 the list query either.
+    expect(parseEmployerParam(["nonsens", "5560360793"])).toEqual(["5560360793"]);
+    expect(parseEmployerParam("nonsens.5560360793")).toEqual(["5560360793"]);
+  });
+
+  it("dedupar och bevarar ordningen", () => {
+    // Order is load-bearing: `sameList` compares element-wise and `sameUrlState` is the hero
+    // mirror field's own-roundtrip detector, so a set-equal pair in another order would
+    // compare unequal and re-serialise the field forever.
+    expect(parseEmployerParam("5560360793.5560125790.5560360793")).toEqual([
+      "5560360793",
+      "5560125790",
+    ]);
   });
 });
 
@@ -387,7 +412,7 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
         relaterade: "on",
         doljAnsokta: "on",
         baraMatchade: "on",
-        employer: "5565021000",
+        employer: ["5565021000"],
         q: "backend",
         sortBy: "Relevance",
       },

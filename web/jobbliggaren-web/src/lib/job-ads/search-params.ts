@@ -103,9 +103,9 @@ export interface JobbUrlState {
   // matchnings-axeln PÅ; FE mappar den till API-kontraktets engelska flagga `onlyMatched`.
   onlyMatched?: boolean;
   // #454 PR-0 (ADR 0087 D6 FE-konsumtion; löser C1-flaggan "live silent-drop") —
-  // arbetsgivar-filtret: ett org.nr (exakt 10 siffror, validerat i page.tsx).
-  // SINGEL-värde v1 (företagskortets "se annonser"-länk bär ETT företag;
-  // backend binder string[] — FE skickar ett element). Frånvaro = inget
+  // arbetsgivar-filtret: en LISTA av org.nr (vardera exakt 10 siffror, validerade i
+  // page.tsx). Backend har bundit `string[]` hela tiden; sedan #1547 bär FE hela listan,
+  // eftersom Översiktens summor spänner över varje bevakat företag. Tom lista = inget
   // arbetsgivar-filter (ren URL). Aldrig text-representabelt i hero-fältet
   // (som popover-dimensionerna, CTO VAL 4a); syns som avtagbar chip i
   // toolbaren.
@@ -117,7 +117,7 @@ export interface JobbUrlState {
   // (`company-watch-row.tsx`), inte i byggaren, och vaktar en verklig mängd.
   // Persistens-grinden i `RecentJobSearchCaptureBehavior` (A2) är fortfarande det andra
   // ledet; se `parseEmployerParam` nedan för hela mätningen.
-  employer?: string;
+  employer?: ReadonlyArray<string>;
   sortBy: JobAdSortBy;
   pageSize?: string;
 }
@@ -324,9 +324,9 @@ export function withCommitFlag(href: string): string {
  * ett exakt 10-siffrigt värde accepteras (`^\d{10}$` — samma form som
  * backend-validatorns OrganizationNumberPattern); allt annat droppas tyst så
  * en manipulerad URL aldrig 400:ar list-queryn (drop-unknown-disciplinen,
- * paritet matchGrades). Singel-värde v1: string[] → första elementet. OBS:
- * detta är en FORMAT-gate, ingen pnr-diskriminator — ett 10-siffrigt
- * personnummer är formatidentiskt med org.nr.
+ * paritet matchGrades). Hela listan returneras, dedupad och ordningsbevarande — inte
+ * dess första element. OBS: detta är en FORMAT-gate, ingen pnr-diskriminator — ett
+ * 10-siffrigt personnummer är formatidentiskt med org.nr.
  *
  * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
  * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)
@@ -349,9 +349,16 @@ export function withCommitFlag(href: string): string {
  */
 export function parseEmployerParam(
   raw: string | string[] | undefined
-): string | undefined {
-  const first = (Array.isArray(raw) ? raw[0] : raw)?.trim();
-  return first && /^\d{10}$/.test(first) ? first : undefined;
+): ReadonlyArray<string> {
+  // Deduped, order-preserving. Order is load-bearing: `sameList` compares element-wise, and
+  // `sameUrlState` is the hero mirror field's own-roundtrip detector, so a set-equal pair in a
+  // different order would compare unequal. Producers therefore emit a stable order.
+  const seen = new Set<string>();
+  for (const value of toStringList(raw)) {
+    const trimmed = value.trim();
+    if (/^\d{10}$/.test(trimmed)) seen.add(trimmed);
+  }
+  return [...seen];
 }
 
 /**
@@ -401,10 +408,11 @@ export function buildJobbHref(state: JobbUrlState): string {
   // ort/yrke so shared URLs keep a stable form.
   setAxis(params, "employmentType", state.employmentType);
   setAxis(params, "worktimeExtent", state.worktimeExtent);
-  // #454 PR-0 — arbetsgivar-filtret (singel-org.nr). Skrivs BARA ut när satt
-  // (frånvaro = ren URL). Placeras efter Klass-2-dimensionerna, före
-  // matchGrades (stabil URL-form för delningsbara länkar).
-  if (state.employer) params.set("employer", state.employer);
+  // #454 PR-0 — arbetsgivar-filtret. En LISTA sedan Översiktens summor länkar till
+  // annonserna hos varje bevakat företag på en gång; backend har bundit `string[]` hela
+  // tiden (ADR 0087 D6). Skrivs BARA ut när icke-tom (frånvaro = ren URL). Placeras efter
+  // Klass-2-dimensionerna, före matchGrades (stabil URL-form för delningsbara länkar).
+  setAxis(params, "employer", state.employer ?? []);
   // STEG 5 — matchningsgrad (enum-namn). One param, placed after the Klass-2
   // dimensions and before q (stable URL form for shared links). An empty list
   // writes no param = every grade is shown (when matching is ON).
@@ -590,8 +598,7 @@ export function buildPageHref(
   // #454 PR-0 — utan denna rad tappar sida-2-klicket arbetsgivar-filtret
   // (samma felklass som ovan; buildPageHref är en andra URL-builder vid sidan
   // av buildJobbHref). SPOT-gaten (parseEmployerParam) delas med page-parsern.
-  const employerParam = parseEmployerParam(params.employer);
-  if (employerParam) url.set("employer", employerParam);
+  setAxis(url, "employer", parseEmployerParam(params.employer));
   // #823 — KLAMPA. Utan detta re-emitterar sidlänkarna det råa under-minimum-q:t
   // (/jobb?q=a → "Nästa sida" = /jobb?page=2&q=a): en URL vi själva genererar som påstår
   // ett sök sidan inte kör, medan sökfältet står tomt. Samma SPOT-parser som page.tsx.

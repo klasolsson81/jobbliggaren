@@ -1,3 +1,4 @@
+import { MAX_CONCEPT_IDS } from "@/lib/dto/job-ads";
 import { WATCH_MATCHING_GRADES } from "@/lib/dto/job-ad-match";
 import { DEFAULT_SORT_BY, buildJobbHref } from "./search-params";
 
@@ -19,10 +20,10 @@ export function isLinkableOrgNr(organizationNumber: string): boolean {
 }
 
 /**
- * Builds the `/jobb` href that shows one watched company's ads (#1547). Sibling of
- * {@link buildRecentSearchHref} — one source of truth for "a watched company → /jobb URL",
- * so the two links a watch row renders cannot drift from each other or from the counts
- * above them.
+ * Builds the `/jobb` href that shows the ads of one or more watched companies (#1547).
+ * Sibling of {@link buildRecentSearchHref} — one source of truth for "watched companies →
+ * /jobb URL", so no link can drift from another or from the count beside it. Two callers:
+ * the watch row passes a single org.nr, Översikt's summary passes the whole watch set.
  *
  * This is the ONLY originator of an `?employer=` value in the app. `search-params.ts`
  * recorded (2026-08-19) that there were none since `company-lookup.tsx` was deleted in
@@ -48,14 +49,23 @@ export function isLinkableOrgNr(organizationNumber: string): boolean {
  * every visual trace of the filter (the grade chips render only when matching is active).
  */
 export function buildCompanyJobsHref(
-  organizationNumber: string,
+  organizationNumbers: ReadonlyArray<string>,
   scope: CompanyJobsScope
 ): string | null {
-  // The producer keeps its own floor even though the only caller now shares the predicate: a
+  // The producer keeps its own floor even though both callers share the predicate: a
   // second line of defence at the seam that emits the value, which is where `security-auditor`
   // asked for it. Deliberately NOT a personnummer discriminator — that would give
   // `IsPersonnummerShaped` a second home, which the house rejected once (#844).
-  if (!isLinkableOrgNr(organizationNumber)) return null;
+  // Every value or none: a partial link would show fewer ads than the number beside it
+  // promises, which is the divergence this whole route exists to avoid.
+  if (organizationNumbers.length === 0) return null;
+  if (!organizationNumbers.every(isLinkableOrgNr)) return null;
+
+  // Over the backend cap the list query 400s and the link lands on the technical-error card, so
+  // no link is the honest answer. Deliberately NOT truncated to the cap: the doctrine above is
+  // every value or none, and a truncated link shows fewer ads than the number beside it promises
+  // -- the exact divergence this route exists to avoid.
+  if (organizationNumbers.length > MAX_CONCEPT_IDS) return null;
 
   return buildJobbHref({
     q: "",
@@ -66,7 +76,7 @@ export function buildCompanyJobsHref(
     worktimeExtent: [],
     matchGrades: scope === "matching" ? WATCH_MATCHING_GRADES : [],
     remote: false,
-    employer: organizationNumber,
+    employer: organizationNumbers,
     sortBy: DEFAULT_SORT_BY,
   });
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MAX_CONCEPT_IDS } from "@/lib/dto/job-ads";
 import { buildCompanyJobsHref } from "./company-jobs-href";
 import { parseEmployerParam } from "./search-params";
 
@@ -11,12 +12,36 @@ const ORG_NR = "5592804784";
  * `search-params.test.ts`, which writes its axis URLs out in full).
  */
 describe("buildCompanyJobsHref (#1547)", () => {
+  // Neither caller can reach this today. It is pinned anyway because removing the line does not
+  // fail anything else: `[].every(isLinkableOrgNr)` is VACUOUSLY TRUE, `buildJobbHref` then omits
+  // the axis entirely, and the result is a link to every ad in the list behind a count that
+  // measured a handful -- the count/click divergence in its worst form.
+  it.each(["all", "matching"] as const)(
+    "tom lista ger ingen lank (scope %s) -- aldrig en URL utan employer-axel",
+    (scope) => {
+      expect(buildCompanyJobsHref([], scope)).toBeNull();
+    },
+  );
+
+  it("över backendens tak ger ingen länk — och trunkerar INTE till taket", () => {
+    // `ListJobAdsQueryValidator.cs:96-99` binder Employer till `SearchCriteria.MaxConceptIds`.
+    // Konstanten läses ur FE:ns egen spegel, aldrig hårdkodad: en literal här hade kunnat drifta
+    // från den backend faktiskt validerar mot.
+    const tooMany = Array.from({ length: MAX_CONCEPT_IDS + 1 }, (_, i) =>
+      String(5000000000 + i),
+    );
+
+    expect(buildCompanyJobsHref(tooMany, "all")).toBeNull();
+    // Exakt på taket är lagligt — gränsfallet, inte bara det som ligger utanför.
+    expect(buildCompanyJobsHref(tooMany.slice(0, MAX_CONCEPT_IDS), "all")).not.toBeNull();
+  });
+
   it("scope 'all' → arbetsgivar-axeln ensam, inga andra params", () => {
-    expect(buildCompanyJobsHref(ORG_NR, "all")).toBe("/jobb?employer=5592804784");
+    expect(buildCompanyJobsHref([ORG_NR], "all")).toBe("/jobb?employer=5592804784");
   });
 
   it("scope 'matching' → arbetsgivaren plus grad-delmängden Good.Strong", () => {
-    expect(buildCompanyJobsHref(ORG_NR, "matching")).toBe(
+    expect(buildCompanyJobsHref([ORG_NR], "matching")).toBe(
       "/jobb?employer=5592804784&matchGrades=Good.Strong",
     );
   });
@@ -29,7 +54,7 @@ describe("buildCompanyJobsHref (#1547)", () => {
     // computed at, so the destination would hold MORE ads than the number promised.
     // `matchning=off` is the other trap: it would filter the list while hiding every
     // visual trace of the filter, because the grade chips render only when matching is on.
-    const href = buildCompanyJobsHref(ORG_NR, "matching");
+    const href = buildCompanyJobsHref([ORG_NR], "matching");
     expect(href).not.toContain("baraMatchade");
     expect(href).not.toContain("matchning=off");
   });
@@ -38,11 +63,11 @@ describe("buildCompanyJobsHref (#1547)", () => {
     // Writer/reader symmetry. `parseEmployerParam` drops anything that is not `^\d{10}$`
     // SILENTLY, so a formatted number ("559280-4784") would produce a link that looks
     // right and shows EVERY ad instead of the employer's.
-    const href = buildCompanyJobsHref(ORG_NR, "all");
+    const href = buildCompanyJobsHref([ORG_NR], "all");
     expect(href).not.toBeNull();
     const raw = new URLSearchParams(href!.slice(href!.indexOf("?"))).get("employer");
     expect(raw).toBe(ORG_NR);
-    expect(parseEmployerParam(raw ?? undefined)).toBe(ORG_NR);
+    expect(parseEmployerParam(raw ?? undefined)).toEqual([ORG_NR]);
   });
 
   it.each([
@@ -56,7 +81,7 @@ describe("buildCompanyJobsHref (#1547)", () => {
     // without this the link would look right and the page would show EVERY ad. Deliberately a
     // FORMAT floor and not a personnummer discriminator -- that would give IsPersonnummerShaped
     // a second home, which the house rejected once (#844).
-    expect(buildCompanyJobsHref(value, "all")).toBeNull();
-    expect(buildCompanyJobsHref(value, "matching")).toBeNull();
+    expect(buildCompanyJobsHref([value], "all")).toBeNull();
+    expect(buildCompanyJobsHref([value], "matching")).toBeNull();
   });
 });

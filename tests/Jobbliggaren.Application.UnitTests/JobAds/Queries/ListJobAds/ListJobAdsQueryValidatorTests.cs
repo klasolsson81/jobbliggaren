@@ -568,6 +568,28 @@ public class ListJobAdsQueryValidatorTests
     }
 
     [Fact]
+    public void Validate_MatchGrades_AcceptsExactlyTheFilterableBand_OverEveryDeclaredGrade()
+    {
+        // The expectation is a LOCAL literal, not MatchGradeBands: reading the same artefact the
+        // validator reads would make this blind to a widening of the band -- the exact mutation it
+        // exists for. This is the wire side's independent second transcription.
+        //
+        // Driven over EVERY declared grade, so the case also covers a grade no [InlineData] names.
+        MatchGrade[] expectedAccepted =
+            [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong];
+
+        foreach (var grade in Enum.GetValues<MatchGrade>())
+        {
+            var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: [grade]));
+
+            result.IsValid.ShouldBe(
+                expectedAccepted.Contains(grade),
+                $"{grade}: the wire must accept exactly the Fast band -- accepting a grade the list "
+                + "cannot compute makes the filter silently match zero (the G3-OPT-A honesty gate)");
+        }
+    }
+
+    [Fact]
     public void Validate_MatchGrades_Null_Passes()
     {
         var result = _validator.Validate(new ListJobAdsQuery(MatchGrades: null));

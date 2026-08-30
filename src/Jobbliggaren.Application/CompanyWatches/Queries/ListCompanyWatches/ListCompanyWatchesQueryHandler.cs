@@ -80,14 +80,6 @@ public sealed class ListCompanyWatchesQueryHandler(
     private static readonly IReadOnlyDictionary<string, string> NoRegisterNames =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
-    // #452 — "matchande annonser" = grade >= Good in the Fast band (parity
-    // GetMyMatchCountQueryHandler.HeadlineGrades). Top is not Fast-computable (G3-OPT-A) and is
-    // irrelevant to a >= Good COUNT: skills only elevate WITHIN the notifiable band, never lift a
-    // Basic across the Good threshold, so the Fast-band >= Good set == the Full-band >= Good set
-    // (Fast==Full oracle, ADR 0087 D5-tillägg).
-    private static readonly IReadOnlyList<MatchGrade> MatchingGrades =
-        [MatchGrade.Good, MatchGrade.Strong];
-
     public async ValueTask<IReadOnlyList<CompanyWatchDto>> Handle(
         ListCompanyWatchesQuery query, CancellationToken cancellationToken)
     {
@@ -253,7 +245,7 @@ public sealed class ListCompanyWatchesQueryHandler(
         {
             // Over BOTH the employer org.nrs AND the group members — each row then sums its own subset.
             matchingByOrgNr = await perUserSearch.CountPerUserByEmployerAsync(
-                countOrgNrs, profile, MatchingGrades, cancellationToken);
+                countOrgNrs, profile, MatchGradeBands.GoodOrBetter, cancellationToken);
         }
 
         return watches

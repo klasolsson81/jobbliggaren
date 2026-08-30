@@ -44,15 +44,6 @@ public sealed class ListJobAdsQueryHandler(
     ICurrentUser currentUser)
     : IQueryHandler<ListJobAdsQuery, PagedResult<JobAdDto>>
 {
-    // #419 punkt 1 (CTO Approach A) — det filtrerbara Fast-bandet (Grund/Relaterat/Bra/
-    // Stark = rank {1,2,3,4}, ALLA positiva grader). "Visa bara matchade" injicerar denna
-    // NÄR ingen specifik grad-delmängd är vald → grad-WHERE:t blir RankInSet(rank ∈
-    // {1,2,3,4}) = exkludera otaggade (rank 0), dvs. exakt "bara matchade". MÅSTE spegla
-    // ListJobAdsQueryValidator:s allow-list (Basic/Related/Good/Strong) + GradeToRank:s
-    // positiva rankar; håll dem i lockstep om en grad någonsin läggs till/tas bort.
-    private static readonly IReadOnlyList<MatchGrade> AllFilterableGrades =
-        [MatchGrade.Basic, MatchGrade.Related, MatchGrade.Good, MatchGrade.Strong];
-
     public async ValueTask<PagedResult<JobAdDto>> Handle(
         ListJobAdsQuery query, CancellationToken cancellationToken)
     {
@@ -121,7 +112,7 @@ public sealed class ListJobAdsQueryHandler(
                 // injicera den är inert med toggle:n av.
                 IReadOnlyList<MatchGrade> grades =
                     query.MatchGrades is { Count: > 0 } subset ? subset
-                    : query.OnlyMatched ? AllFilterableGrades
+                    : query.OnlyMatched ? MatchGradeBands.Filterable
                     : [];
 
                 // #383 — status (om aktivt) komponeras IN i match-vägen: samma grad-WHERE/

@@ -71,7 +71,7 @@
 					delete token
 					delete email
 					delete uid
-					# NOT a mail-link parameter, and the only one here that is not. `employer`
+					# NOT a mail-link parameter. `employer`
 					# carries a LIST of org.nr, and Oversikt's summary links emit the user's
 					# WHOLE watch set in one URL. A single org.nr is public-register data any
 					# visitor can type; the set has exactly one originator, an authenticated one,
@@ -80,6 +80,14 @@
 					# cleared cookies. D8(b) protects that with owner-scoped access and an
 					# Art. 17 cascade; neither reaches a query string in a log file.
 					delete employer
+					# Also not a mail-link parameter. `q` is the user's free search text, and it is the
+					# only key here that NO gate constrains: `parseQParam` gates arity and
+					# `clampSubMinimumQ` gates length, neither gates CONTENT. A retention purpose
+					# therefore cannot be written for it, which is Art. 5(1)(c) — the same ground
+					# Amendment 2026-08-29 deleted `uid` on. It is the field that can carry a
+					# personnummer, a former employer or a health-adjacent word, and nothing on the
+					# request path would know that it had.
+					delete q
 				}
 				request>headers delete
 			}

@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Database, Eye } from "lucide-react";
+import { Database } from "lucide-react";
 import { LandingAccountCard } from "@/components/landing/landing-account-card";
 
 /**
@@ -16,7 +15,7 @@ import { LandingAccountCard } from "@/components/landing/landing-account-card";
  *    source line. Everything on the plate uses LITERAL white/gold values
  *    (theme-stable, same doctrine as the footer) — never `--jp-ink-inverse`.
  *  - right (`.jp-land-hero__cardcol`): `<LandingAccountCard/>`, which sells the
- *    account instead of demanding a form fill, and a white guest link below it.
+ *    account instead of demanding a form fill.
  *
  * The whole section is now server-rendered. `<AuthCard/>` needed a Suspense
  * boundary because the inner Login/RegisterForm read `useSearchParams` —
@@ -53,12 +52,6 @@ export function LandingHeroSection() {
 
         <div className="jp-land-hero__cardcol">
           <LandingAccountCard />
-          <div className="jp-land-hero__guestrow">
-            <Link href="/gast/oversikt" className="jp-land-hero__guestlink">
-              <Eye size={16} aria-hidden="true" />
-              {t("hero.guest")}
-            </Link>
-          </div>
         </div>
       </div>
     </section>

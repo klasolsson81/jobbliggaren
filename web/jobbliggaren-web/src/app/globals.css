@@ -523,9 +523,8 @@ body {
    primitive's own slot attribute, like the dark-field repair below.
    ONE `:not()` with a selector list, never two chained: a list takes the
    specificity of its most specific argument, so this stays (0,1,1). Chaining
-   makes it (0,2,1), which then beats `.jp-foot__links a` (0,1,1) and
-   `.jp-land-hero--plate .jp-land-hero__guestlink` (0,2,0) — both written to beat
-   exactly this rule — turning the footer and the hero guest link green.
+   makes it (0,2,1), which then beats `.jp-foot__links a` (0,1,1) — written to
+   beat exactly this rule — turning the footer links green.
    `.jp-popover__rowbtn` is the same exemption a third time: the popover row is
    an <a> because it navigates, but it is row chrome and carries its own ink, and
    at (0,1,0) its `color` loses to this rule's (0,1,1). Exempting it here keeps
@@ -4525,19 +4524,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 
-/* ── Hero-subelement (delas av landnings-plattan, förslag 3a) ─
-   Auth-kolumn + gäst-länk under kortet. Ledger-heron (01/02/03 +
-   800-verb, streckade radlinjer) togs bort i #517 efter Plattan-
-   cutover (#518); gäst-länkens vita platt-variant + fokusring bor
-   i plattblocket nedan (scopad 0,2,0 för att slå globala
-   a:not(.jp-btn)). */
 .jp-land-hero__cardcol { min-width: 0; }
-.jp-land-hero__guestrow { margin-top: 16px; display: flex; justify-content: center; }
-.jp-land-hero__guestlink {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: var(--text-ui); font-weight: var(--jp-fw-semibold); color: var(--jp-accent-700); text-decoration: none;
-}
-.jp-land-hero__guestlink:hover { color: var(--jp-accent-600); text-decoration: underline; text-underline-offset: 3px; }
 
 /* ── Gratis- och datarader under ett registreringsformulär ───
    Kvar av det flikade auth-kortet, som förlorade sin enda konsument
@@ -4583,10 +4570,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
    samma doktrin som footern) — ALDRIG --jp-ink-inverse (som vänder
    mörk i dark och försvinner mot grönt). Kontrast uppmätt mot plattan
    (identisk light+dark; gradient-tokens skiftar ej):
-     #FFFFFF på #1E6B4C (ljusaste hörn) ..... 5.90:1  (verb, gäst-länk)
+     #FFFFFF på #1E6B4C (ljusaste hörn) ..... 5.90:1  (verb)
      rgba(255,255,255,0.94) lede ............ 7–8:1   (mitten)
      #E8C77B kicker på #0B2A1E .............. 9.45:1  (mörka övre vänster)
      rgba(255,255,255,0.72) källrad ......... ≥ 4.5:1 på sitt läge */
+/* MED FLIT utanför vit-ring-scopet (.jp-hero__plate, .jp-pagehero__inner):
+   --jp-focus ärvs, så en pin här kaskadar ned i det vita kontokortet och ger
+   vit ring på vit yta (#549 WS2). Ett fokuserbart element direkt på plattan
+   behöver en egen scopad literal ring; kortets egna kontroller sitter på
+   --jp-surface och behåller den gröna. */
 .jp-land-hero--plate { background: var(--jp-hero-gradient); padding: 0; }
 .jp-land-hero__inner--plate {
   max-width: 1232px;
@@ -4618,20 +4610,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
    footerns tema-stabila undantag. Design-reviewer-noterat (ADR-not). Bars av
    .jp-auth-tabcard till och med #1480, som ersatte kortet. */
 .jp-land-hero--plate .jp-land-account { box-shadow: var(--jp-shadow-pop); }
-/* Gäst-länk vit på plattan (literal #FFFFFF, tema-stabil som footerns länkar).
-   MÅSTE scopas under plattan (0,2,0) för att slå den globala a:not(.jp-btn)-
-   länkfärgen (0,1,1) — basens .jp-land-hero__guestlink (0,1,0) räcker inte.
-   Basens gröna --jp-accent-700 syns dåligt mot grönt. */
-.jp-land-hero--plate .jp-land-hero__guestlink { color: var(--jp-hero-ink); }
-.jp-land-hero--plate .jp-land-hero__guestlink:hover {
-  color: var(--jp-hero-ink); text-decoration: underline; text-underline-offset: 3px;
-}
-/* Vit fokusring ENDAST på gäst-länken (enda länken direkt på grön platta;
-   grön --jp-focus syns dåligt mot grönt, WCAG 2.4.7). Kontokortets länkar
-   sitter på vit yta och behåller sin normala (gröna) fokusring. */
-.jp-land-hero--plate .jp-land-hero__guestlink:focus-visible {
-  outline: 2px solid #FFFFFF; /* guard-allow: vit ring pa fargad yta - scoped literal, ej --jp-focus-pin (pin skulle kaskada in i vita barn-ytor, #549 WS2) */ outline-offset: 2px; border-radius: 2px;
-}
 @media (max-width: 980px) {
   .jp-land-hero__inner--plate { grid-template-columns: 1fr; gap: 40px; padding: 40px 24px 48px; }
 }

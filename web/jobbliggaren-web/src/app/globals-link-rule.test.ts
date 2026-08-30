@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
  * Reads source text; it does not render. What it guards is a NEGATIVE constraint that no rendered
  * test can state cheaply: the exemption must live in a selector list, because a list takes the
  * specificity of its most specific argument and keeps the rule at (0,1,1). Chaining two `:not()`s
- * makes it (0,2,1), which then outranks `.jp-foot__links a` (0,1,1) and
- * `.jp-land-hero--plate .jp-land-hero__guestlink` (0,2,0) — both written to beat exactly this rule.
+ * makes it (0,2,1), which then outranks `.jp-foot__links a` (0,1,1) — written to beat exactly
+ * this rule.
  * Measured on the chained form: the footer link falls to 2.04:1 and its hover to 2.39:1, both hard
  * WCAG 1.4.3 failures. The chained form is a plausible tidy-up, it compiles, and nothing else in the
  * repo would notice.
@@ -60,7 +60,7 @@ describe("globals.css — the global link colour rule (#1352)", () => {
       expect(
         selector.match(/:not\(/g) ?? [],
         `${selector.trim()} — a chained :not() raises the rule from (0,1,1) to (0,2,1) and turns ` +
-          `the footer links and the hero guest link green. Keep both exemptions in one selector list.`,
+          `the footer links green.`,
       ).toHaveLength(1);
     }
   });

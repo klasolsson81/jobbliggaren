@@ -53,7 +53,6 @@ type FooterHeadKey =
 type FooterLinkKey =
   | "footer.start.register"
   | "footer.start.login"
-  | "footer.start.guest"
   | "footer.support.help"
   | "footer.support.howMatching"
   | "footer.support.cvReview"
@@ -89,7 +88,6 @@ const COLUMNS: readonly FooterColumn[] = [
     links: [
       { labelKey: "footer.start.register", href: "/registrera" },
       { labelKey: "footer.start.login", href: "/logga-in" },
-      { labelKey: "footer.start.guest", href: "/gast/oversikt" },
     ],
   },
   {

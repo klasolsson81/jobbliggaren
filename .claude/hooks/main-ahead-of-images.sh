@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Classifies whether main carries commits no published image was built from.
+#
+# WHY THIS EXISTS. `release-images.yml` has no push trigger — automerge merges as a GitHub App
+# and app-triggered events start no workflow runs — so its hourly `schedule` is the only
+# automatic path to the box, and that path is the one measured to fail. `dotnet-architect`,
+# 2026-08-30 on #1592: over ~79 h, ~79 expected scheduled runs and **11 actual (~14 %)**, with
+# gaps reaching 13h18m. Three merged PRs (#1579, #1583, #1584) sat unbuilt until a manual
+# dispatch built them; Klas found out by opening dev.jobbliggaren.se and seeing none of them.
+#
+# CLAUDE.md §6.5 answered that by making the dispatch the fourth close-out step, which is a
+# checklist item with no mechanism behind it.
+#
+# WHAT THIS IS, AND IS NOT (dotnet-architect, 2026-08-30). The duty falls at close-out, at session
+# END; this runs at SessionStart. It therefore never sees the session that owes the dispatch, and
+# it is blind to exactly the case that produced the incident — the last merge of the day, with no
+# session starting until tomorrow. What it delivers is a FLEET-LEVEL BACKSTOP: some other
+# session's next start notices. That is worth more than a 14%-delivery cron and less than a
+# mechanism at the moment of the duty. A `SessionEnd` twin is the closable half and is a
+# follow-up, not this file: `.claude/hooks/session-end.sh` is already wired, but whether its
+# stdout has a reader and whether its 10 s timeout holds two network calls are both unmeasured.
+#
+# `senior-cto-advisor`,
+# 2026-08-30, chose it over a tighter cron on the rule both workflow headers already state —
+# *"the only mechanism whose trigger survives the condition it exists to repair"*: a cron's
+# trigger IS the thing measured to fail, while this runs at SessionStart and inherits none of
+# that. (Extra builds would also deliver nothing: `jobbliggaren-reconcile.timer` pulls once an
+# hour, so the box's intake caps below what one working cron line already asks for.)
+#
+# A PURE CLASSIFIER, ON PURPOSE. It takes the two SHAs as arguments and performs no network or
+# `gh` call, so its whole behaviour is reachable from a fixture suite. Detector (a) has the same
+# in-band failure and guards it with one inline `case`, so in-band failure is not what
+# distinguishes this one. Two things are: its verdict compares TWO independently fallible
+# measurements rather than validating one, and it is the only detector with a false-NEGATIVE
+# mode.
+#
+# ⚠ THE CALLER'S MEASURE IS NARROWER THAN "PUBLISHED", and that residual is not closed here
+# (dotnet-architect, 2026-08-30). `gh run list --status=success` records which ref a run was
+# triggered on; success does not imply a push. `-f push=false` (a dry run) and `-f ref=<branch>`
+# both leave a `success` run whose headSha can equal main's tip with nothing published, and this
+# file then says in-sync.
+#
+# Usage:   main-ahead-of-images.sh <main-tip-sha> <last-successful-build-sha>
+# Prints:  "in-sync" | "ahead <built-short> <main-short>" | "not-measurable <reason>"
+# Exit:    always 0 — a hygiene detector must never fail a session start.
+set -u
+
+main_tip="${1-}"
+built="${2-}"
+
+# Both inputs report failure IN BAND rather than by exit code, and either shape would compare
+# unequal to a real SHA and produce a confident, permanent false alarm. `worktree-reaper.sh`
+# already records which shape comes from where, at its Conjunct 4 — read it there rather than
+# here, and note that the two are NOT interchangeable: gh's embedded `--jq` emits empty, while a
+# standalone `jq` over `[]` emits the string "null". `git ls-remote` emits nothing when offline.
+# So the shape is checked before the comparison, and anything that is not a full lowercase hex
+# SHA resolves to silence rather than to a warning.
+is_sha() {
+  case "$1" in
+    *[!0-9a-f]*) return 1 ;;
+    *) [ "${#1}" -eq 40 ] ;;
+  esac
+}
+
+if ! is_sha "$main_tip"; then
+  echo "not-measurable main-tip"
+  exit 0
+fi
+
+if ! is_sha "$built"; then
+  echo "not-measurable last-build"
+  exit 0
+fi
+
+if [ "$main_tip" = "$built" ]; then
+  echo "in-sync"
+  exit 0
+fi
+
+echo "ahead ${built:0:8} ${main_tip:0:8}"

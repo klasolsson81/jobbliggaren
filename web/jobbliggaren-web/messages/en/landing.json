@@ -22,8 +22,7 @@
     "step2": "Apply for the job.",
     "step3": "Follow up on the application.",
     "ledgerLede": "Search every active job ad from Platsbanken, get your CV reviewed and keep track of every application, from draft to response. All in one place.",
-    "source": "Built on open data from the Swedish Public Employment Service and Statistics Sweden",
-    "guest": "Explore as a guest, without an account"
+    "source": "Built on open data from the Swedish Public Employment Service and Statistics Sweden"
   },
   "account": {
     "title": "What an account gives you",
@@ -76,8 +75,7 @@
     "colLegal": "Legal",
     "start": {
       "register": "Create account",
-      "login": "Log in",
-      "guest": "Explore as a guest"
+      "login": "Log in"
     },
     "support": {
       "help": "Help centre",

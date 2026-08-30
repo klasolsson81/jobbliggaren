@@ -103,6 +103,10 @@ REAPED_LIST=""; REAPED_N=0
 RESCUED_LIST=""; RESCUED_N=0
 REMOTE_LIST=""; REMOTE_N=0
 SKIPPED_LIST=""; SKIPPED_N=0
+# The dispatch detector's raw verdict. Logged rather than only branched on: `not-measurable`
+# had no consumer, so a permanently unmeasurable detector was indistinguishable from a quiet
+# healthy one — the same green-silent-inert failure the detector exists to abolish.
+DISPATCH_VERDICT=""
 _skip() { SKIPPED_LIST+="  skip: $1 :: $2"$'\n'; SKIPPED_N=$((SKIPPED_N + 1)); }
 
 for i in "${!WT_PATHS[@]}"; do
@@ -288,6 +292,31 @@ done
 # Fail-safe and quiet: no gh, no network, no auth -> emit nothing. Never a false alarm.
 HYGIENE=""
 if command -v gh >/dev/null 2>&1; then
+  # (d) runs FIRST despite its letter: it is two calls and O(1), while (a) below makes one `gh`
+  #     call per local branch, so its cost scales with
+  #     `git branch --format='%(refname:short)' | wc -l`.
+  #
+  # (d) main carries commits no published image was built from. CLAUDE.md §6.5 makes the
+  #     dispatch the fourth close-out step, because three merged PRs already went unbuilt
+  #     while every session did exactly what the checklist said. What this detector does and
+  #     does not cover lives in the classifier.
+  #
+  #     main's tip is read from the REMOTE. A worktree's `origin/main` is only as fresh as its
+  #     last fetch, and a stale ref reports "in sync" when it is not — which would make this
+  #     detector the very thing it exists to abolish.
+  _main_tip="$(git ls-remote origin refs/heads/main 2>/dev/null | cut -f1)"
+  _built="$(gh run list --workflow=release-images.yml --status=success --limit 1 \
+              --json headSha --jq '.[0].headSha' 2>/dev/null || true)"
+  _verdict="$(bash "$(dirname "${BASH_SOURCE[0]}")/main-ahead-of-images.sh" \
+                "$_main_tip" "$_built" 2>/dev/null || true)"
+  DISPATCH_VERDICT="$_verdict"
+  case "$_verdict" in
+    "ahead "*)
+      read -r _ _built_short _main_short <<<"$_verdict"
+      HYGIENE="${HYGIENE}    main is ahead of the last published image (${_built_short} -> ${_main_short}) — 'gh workflow run release-images.yml':"$'\n'"      - until it is built, the merge has not reached the box (playbook §8.1)"$'\n'
+      ;;
+  esac
+
   # (a) branches whose PR is merged — keyed on the branch, so worktree-less strays show up.
   _dead_local=""
   while IFS= read -r _b; do
@@ -314,7 +343,8 @@ if command -v gh >/dev/null 2>&1; then
     [ "$_m" = "0" ] && continue
     _stale="${_stale}      - #$_n"$'\n'
   done < <(gh issue list --state open --label wip --assignee '@me' --json number --jq '.[].number' 2>/dev/null || true)
-  [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close' + drop wip):"$'\n'"${_stale}"
+  [ -n "$_stale" ] && HYGIENE="${HYGIENE}    stale claims (wip + merged PR, no open PR — verify, then 'gh issue close', drop wip, unassign, dispatch the image build):"$'\n'"${_stale}"
+
 fi
 
 # --- report ------------------------------------------------------------------------
@@ -322,7 +352,7 @@ fi
 # phase that gates the live ratchet has a complete audit trail, incl. every skip reason.
 mkdir -p docs/sessions 2>/dev/null || true
 {
-  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N}"
+  echo "$(date -Iseconds 2>/dev/null) reaper mode=${REAP_MODE} reaped=${REAPED_N} rescued=${RESCUED_N} remote=${REMOTE_N} skipped=${SKIPPED_N} dispatch=${DISPATCH_VERDICT:-unmeasured}"
   printf '%s%s%s' "$RESCUED_LIST" "$REAPED_LIST" "$SKIPPED_LIST"
 } >> "$LOG" 2>/dev/null || true
 

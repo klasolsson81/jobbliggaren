@@ -80,7 +80,8 @@ PR that merges but leaves its issue open is not done (CLAUDE.md §6.5).
   is armed-but-gated by design, not stuck (#836, CLAUDE.md §6)
 - Docs-sync committed in the same PR
 - Close-out: PR watched to MERGE (`BEHIND` → `gh pr update-branch`; automerge does
-  NOT rebase); issue closed + `wip` dropped (squash drops `Closes #N`) — playbook §8.1.
+  NOT rebase); issue closed + `wip` dropped + unassigned (squash drops `Closes #N`);
+  image build dispatched — playbook §8.1.
   Worktree/branch reap belongs to the SessionStart reaper (ADR 0094), never to you
 - {Task-specific Klas-STOPP flags, only if any — e.g. spec-edit, deploy}
 ```

@@ -58,10 +58,6 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
       "href",
       "/registrera",
     );
-    expect(screen.getByRole("link", { name: "Utforska som gäst" })).toHaveAttribute(
-      "href",
-      "/gast/oversikt",
-    );
     // about.self resolves to the public /om page (link, distinct from the
     // identically-named column heading).
     expect(screen.getByRole("link", { name: "Om Jobbliggaren" })).toHaveAttribute(

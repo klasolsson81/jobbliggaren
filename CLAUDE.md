@@ -122,7 +122,8 @@ worktrees. The rules below keep parallel work collision-free; full playbook in
 - **A pushed PR is not a merged PR, and a merged PR is not a closed issue.**
   Automerge does **not** rebase.
   Squash drops `Closes #N` → the issue keeps its `wip` claim. **Watch your own
-  PRs to MERGE, then close out** (`gh issue close`, drop `wip`, unassign).
+  PRs to MERGE, then close out** (`gh issue close`, drop `wip`, unassign,
+  dispatch the image build).
   Mechanics and all four `mergeStateStatus` states: playbook §8.1 — read it, it
   also carries the `gh pr update-branch` form (a local rebase + force-push is
   deny-listed and 422s). **Since #836 the symptom has a SECOND cause:** a PR with

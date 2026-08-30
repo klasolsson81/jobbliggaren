@@ -21,8 +21,10 @@
 #
 # So the trigger is a reconciler, which is the same answer `delete-merged-branches.yml`
 # reached for the same cause: the only mechanism whose trigger survives the condition it
-# exists to repair. The build is SHA-idempotent, so no trigger is load-bearing — a missed
-# schedule self-heals on the next one, and an extra trigger costs one manifest lookup.
+# exists to repair. The build is SHA-idempotent, so an extra trigger costs one manifest lookup.
+# It does NOT follow that a missed schedule self-heals on the next one: measure the schedule's
+# actual delivery before relying on it — the command is in parallel-sessions.md §8.1, and
+# .claude/hooks/main-ahead-of-images.sh is what notices when it has not.
 #
 # The owning session dispatches manually; CLAUDE.md §6.5
 # already requires it to watch its PR to merge, so it is standing at the right moment.
@@ -127,7 +129,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # THE IDEMPOTENCE, and it is what removes the trigger from the critical path: if this
-      # SHA is already published there is nothing to do, so a missed schedule self-heals and
+      # SHA is already published there is nothing to do, and
       # an extra trigger costs a lookup.
       #
       # BOTH TAGS MUST AGREE, not just the immutable one. Keyed on `sha-` alone, a run

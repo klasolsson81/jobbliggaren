@@ -202,6 +202,16 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
+  it("promotes no guest entry point from the hero", async () => {
+    // Klas-direktiv 2026-08-30: the hero carried "Utforska som gäst, utan konto"
+    // under the account card. /gast/* still renders, so a revert is a <Link> and
+    // a message key. Bites on revert: the landing document must contain no link
+    // into the guest area at all, which is the same property the rendered
+    // verification measured across both themes and all three viewports.
+    const { container } = await renderAsyncPage();
+    expect(container.querySelectorAll('a[href^="/gast"]')).toHaveLength(0);
+  });
+
   it("mounts no form field at all — the whole point of 2b (#1480)", async () => {
     // The hero used to ask an anonymous visitor to fill in a registration form
     // before the page had said what an account is for. Bites on revert: remount

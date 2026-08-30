@@ -66,6 +66,19 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
     );
   });
 
+  it("promotes no guest entry point — the demo is out of MVP", () => {
+    render(<SiteFooter />);
+    // Klas-direktiv 2026-08-30: the promotion goes, the code stays. The Start
+    // column carried "Utforska som gäst" → /gast/oversikt, and /gast/* still
+    // renders, so a revert is one COLUMNS row that no other instrument sees.
+    // Bites on revert: the query resolves against rendered footer links, of
+    // which this surface has many, so null here is a measurement and not an
+    // artefact of the query never matching anything.
+    expect(
+      screen.queryByRole("link", { name: "Utforska som gäst" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders no aria-disabled link spans — every footer content route is now live (#263)", () => {
     const { container } = render(<SiteFooter />);
     // /for-utvecklare flipped live in #263 — the last gated content route. The

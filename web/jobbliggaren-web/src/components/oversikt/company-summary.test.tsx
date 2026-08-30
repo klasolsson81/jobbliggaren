@@ -257,7 +257,7 @@ describe("CompanySummary", () => {
   });
 
   it("gästytan förklarar INTE en frånvaro den själv orsakade", () => {
-    // The explanation blames the DATA ("1 bevakning kan inte visas som en lista"). On a surface
+    // The explanation blames the DATA ("Antalen ovan saknar länk för 1 bevakning"). On a surface
     // that links nothing by design, that sentence would be false about the cause.
     render(
       <CompanySummary
@@ -268,7 +268,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+    expect(screen.queryByText(/saknar länk för/)).toBeNull();
   });
 
   it("den maskade bevakningen FÖRKLARAS — ett tal utan väg får inte stå oförklarat", () => {
@@ -291,7 +291,7 @@ describe("CompanySummary", () => {
 
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk för 1 bevakning.",
       ),
     ).toBeInTheDocument();
   });
@@ -313,7 +313,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+    expect(screen.queryByText(/saknar länk för/)).toBeNull();
   });
 
   it("ett org.nr som inte är tio siffror ger varken länk ELLER tyst tal", () => {
@@ -337,7 +337,7 @@ describe("CompanySummary", () => {
     expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk för 1 bevakning.",
       ),
     ).toBeInTheDocument();
   });
@@ -369,7 +369,7 @@ describe("CompanySummary", () => {
     // code-reviewer Major 4 both name.
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk för 1 bevakning.",
       ),
     ).toBeInTheDocument();
   });

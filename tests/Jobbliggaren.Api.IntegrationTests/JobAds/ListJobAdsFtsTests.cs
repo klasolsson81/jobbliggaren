@@ -432,8 +432,11 @@ public class ListJobAdsFtsTests(ApiFactory factory)
     // body returned zero hits while its company page reported the ads. Klas hit it on the box
     // 2026-08-28 against a real employer with 136 active ads.
     //
-    // The premise is one production writes: JobAd.Create is the same entry point the ingest funnel
-    // uses, and company_name is an ordinary column populated per ad from the payload.
+    // The premise is one production writes, and the actor is named exactly: JobAd.Create is the
+    // MANUAL path (CreateJobAdCommandHandler, JobSource.Manual), which takes company_name verbatim
+    // from the command. The ingest funnel uses JobAd.Import instead; both write the same column,
+    // but only the first is what this seed calls, and naming the wrong one is the very duty this
+    // comment exists to discharge.
     [Fact]
     public async Task ApplyCriteria_EmployerName_MatchesAnAdThatNeverNamesItsEmployer()
     {
@@ -496,5 +499,13 @@ public class ListJobAdsFtsTests(ApiFactory factory)
             i => i.Id == seeded,
             "a 2-character q must not reach the company_name branch. The trigram index cannot serve "
                 + "it, so matching here means the corpus was seq-scanned instead.");
+
+        // Positive control, per this file's own convention (the sibling short-q test pairs absence with
+        // presence): without it a seed that never persisted would make the absence above vacuous.
+        var present = await handler.Handle(new ListJobAdsQuery(Q: marker), ct);
+        present.Items.ShouldContain(
+            i => i.Id == seeded,
+            "the seeded ad must be reachable at all — otherwise the 2-character absence above proves "
+                + "nothing about the gate, only that the row was never written.");
     }
 }

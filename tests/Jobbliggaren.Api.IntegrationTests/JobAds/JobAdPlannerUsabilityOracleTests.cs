@@ -75,15 +75,16 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
 {
     private readonly ApiFactory _factory = factory;
 
-    // The q-search DISJUNCTION ListJobAds emits: the FTS branch OR the title-trigram substring fallback,
-    // served as a BitmapOr over BOTH GIN indexes — this one query is the oracle for both. Mirrors the
+    // The q-search DISJUNCTION ListJobAds emits: the FTS branch OR the title-trigram substring
+    // fallback OR the company-name-trigram substring fallback (#1546), served as a BitmapOr over
+    // ALL THREE GIN indexes -- this one query is the oracle for all of them. Mirrors the
     // disjunction in JobAdSearchComposition.ApplyFilter / Jobbliggaren.Migrate --explain-search.
     //
     // Deliberately WITHOUT the `status='Active'` conjunct that production ALSO emits (ApplyFilter SPOT).
     // #743 added ix_job_ads_status_published_at_id, whose leading `status` key gives that conjunct its own
     // Index Cond; on the empty Testcontainers table the planner then serves the whole query via that btree
     // and never reaches the GINs — collapsing this oracle's power to prove GIN predicate-implication. The
-    // status conjunct is ORTHOGONAL to whether the FTS/title-trigram GINs are usable for their arms; its
+    // status conjunct is ORTHOGONAL to whether the three q-branch GINs are usable for their arms; its
     // index-servability is proven separately by
     // DefaultBrowseSort_IsIndexServedForBothFilterAndOrder_NoSeqScanNoSort. This
     // is the file's "shape production emits" rule APPLIED, not broken: the disjunction is verbatim

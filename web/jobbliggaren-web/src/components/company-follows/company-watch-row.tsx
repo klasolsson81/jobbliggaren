@@ -244,11 +244,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           {linkableOrgNr === null &&
             (item.activeAdCount > 0 || (item.matchingAdCount ?? 0) > 0) && (
               <p className="jp-transparency-note jp-transparency-note--compact mt-2">
-                {item.isProtectedIdentity ? (
-                  <ShieldAlert size={14} aria-hidden="true" />
-                ) : (
-                  <Info size={14} aria-hidden="true" />
-                )}
+                <Info size={14} aria-hidden="true" />
                 <span>
                   {t("adsNotLinkableUnknown")}
                 </span>

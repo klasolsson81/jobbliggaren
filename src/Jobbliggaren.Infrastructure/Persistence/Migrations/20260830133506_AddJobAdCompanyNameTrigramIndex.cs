@@ -15,18 +15,20 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </para>
     ///
     /// <para>
-    /// <b><c>search_vector</c> was deliberately NOT widened instead.</b> It is a STORED generated column
-    /// and PostgreSQL cannot ALTER a generated expression, so redefining it means DROP COLUMN + ADD
-    /// COLUMN: a full rewrite of <c>job_ads</c> plus a GIN rebuild, under ACCESS EXCLUSIVE, on a table
-    /// under continuous ingestion. It would also shift <c>ts_rank</c> for every existing search. One
-    /// CONCURRENTLY-built index buys the same recall without touching a byte of the table.
+    /// <b><c>search_vector</c> was deliberately NOT widened instead.</b> PostgreSQL 17 added
+    /// <c>ALTER TABLE … ALTER COLUMN … SET EXPRESSION AS</c> and this repo runs 18.3/18.4, so the
+    /// operation exists — but its documented behaviour is that existing data in the column is
+    /// REWRITTEN, under ACCESS EXCLUSIVE, on a table under continuous ingestion; the GIN index is
+    /// rebuilt with it and the column's statistics are dropped. It would also shift <c>ts_rank</c>
+    /// for every existing search. One CONCURRENTLY-built index buys the same recall and rewrites
+    /// no data.
     /// </para>
     ///
     /// <para>
     /// <b>Raw SQL, not fluent.</b> The index KEY is an expression (<c>lower(company_name)</c>), which is
     /// outside EF's reach — unlike a partial index's <c>HasFilter</c>, which takes raw SQL and is never
     /// parsed. So this index is invisible to the model snapshot, exactly like
-    /// <c>ix_company_register_company_name_lower</c>. <c>JobAdCompanyNameIndexOracleTests</c> is what
+    /// <c>ix_company_register_company_name_lower</c>. <c>JobAdIndexOracleTests</c> is what
     /// sees it, and reads its definition out of <c>pg_indexes</c> rather than reasoning about it.
     /// </para>
     ///

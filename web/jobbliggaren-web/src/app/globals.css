@@ -2190,7 +2190,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    höger — en villkorlig asymmetri. Inline-left binder titel + metadata
    till EN läsenhet; DOM-/källordning oförändrad (grad sist). Klas-
    mandat: civic-utility-stil, INGA pills, INGA pastell-chips,
-   INGA ikoner-i-taggar (HANDOVER §0 / CLAUDE.md §5.2). .jp-tag
+   INGA ikoner-i-taggar (HANDOVER §0 / AGENTS.md §5). .jp-tag
    bär en base-variant (.jp-tag--accent / --neutral / --brand) men
    #290 driver de fyra status-chip:arna (NY / freshness / SPARAD /
    ANSÖKT) via [data-tag]-overrides på en DISTINKT NON-GRÖN axel

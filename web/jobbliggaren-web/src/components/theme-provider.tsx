@@ -102,7 +102,7 @@ function subscribe(onChange: () => void): () => void {
 /**
  * Inline blocking-script. Renderas som första barn i `<body>` så att
  * `data-theme` är satt FÖRE first paint. Statisk string-literal utan
- * user input — XSS-ytan är noll (jfr CLAUDE.md §5.2: DOM-mutation-undantag
+ * user input — XSS-ytan är noll (jfr AGENTS.md §5: DOM-mutation-undantag
  * dokumenterat, samma kompromiss som next-themes / Tailwind-docs gör).
  */
 export function ThemeScript() {

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CompanySummary } from "./company-summary";
+import messages from "../../../messages/sv";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CompanyWatch,
@@ -31,6 +32,11 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 }
 
 const NO_FILTER = null;
+
+// Regeltexten LASES ur katalogen i stallet for att skrivas av. En hardkodad mening hade
+// passerat aven efter att komponenten forkat sin egen copy -- och det ar precis det
+// forkandet testet finns for att fanga.
+const RULE = messages.jobads.companyWatches.filter;
 
 function visibleText(el: Element | null): string {
   return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -444,5 +450,56 @@ describe("CompanySummary", () => {
     // läsning göra negationen nedan sann av fel skäl.
     expect(src).toContain("export function CompanySummary");
     expect(src).not.toMatch(/^\s*["']use client["']/m);
+  });
+
+  // #1546 (Klas 2026-08-30) — frågan var "skippas Grundmatch?", och svaret fanns bara i
+  // watch-filter-dialogen på /foretag/bevakade. Regeln är nu nåbar där talet står.
+  it("matchningsraden bär en ?-hjälp som förklarar vad som räknas som matchande", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).toBeInTheDocument();
+  });
+
+  it("?-hjälpen tiger när matchningen inte är bedömd", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: null })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    // Hela matchningsraden utelämnas när SSYK-gaten är stängd. Hjälpen får inte överleva den —
+    // en förklaring till ett tal som inte står där förklarar ingenting.
+    expect(document.querySelector(".jp-matchline")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Poängen med att läsa ur en främmande namnrymd är att texten är EN, inte två. Det här är
+  // testet som mäter det: Översikt visar watch-dialogens EGNA strängar. Forkas copyn faller det.
+  it("regeltexten är watch-dialogens egen sträng, aldrig en kopia", async () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    );
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    expect(screen.getByText(RULE.onlyMatchedHelpTitle)).toBeInTheDocument();
+    expect(screen.getByText(RULE.onlyMatchedHelpBody1)).toBeInTheDocument();
+    expect(screen.getByText(RULE.onlyMatchedHelpBody2)).toBeInTheDocument();
   });
 });

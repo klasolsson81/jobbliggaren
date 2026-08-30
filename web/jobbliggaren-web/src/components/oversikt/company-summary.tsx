@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InfoDialog } from "@/components/common/info-dialog";
 import {
   buildCompanyJobsHref,
   isLinkableOrgNr,
@@ -52,6 +53,10 @@ export function CompanySummary({
   linkHref,
 }: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
+  // The matching rule is read from the keys the watch-filter dialog already owns, never copied:
+  // one rule, one text. `jobads.companyWatches.filter` is a foreign namespace on purpose --
+  // duplicating the two sentences here is how the two surfaces drift apart on the next edit.
+  const tRule = useTranslations("jobads.companyWatches.filter");
 
   if (watches.kind !== "ok") {
     return (
@@ -171,19 +176,33 @@ export function CompanySummary({
           BEDÖMD nolla skrivs däremot alltid ut; att tysta ett mätt tal är issuets egen
           felklass. */}
       {matchingAds !== null && (
-        <p className="jp-matchline tabular-nums">
-          {t.rich("matching", {
-            count: matchingAds,
-            lnk: (chunks) =>
-              matchingAdsHref ? (
-                <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
-                  {chunks}
-                </Link>
-              ) : (
-                <>{chunks}</>
-              ),
-          })}
-        </p>
+        // The "?" is a SIBLING of the sentence, never inside it. `t.rich` returns the link and
+        // the trailing text as SEPARATE nodes, so a flex `<p>` would make each fragment its own
+        // flex item and open a gap mid-sentence. The wrapper is the one flex row; the paragraph
+        // stays a single item.
+        <div className="flex items-center gap-1">
+          <p className="jp-matchline tabular-nums">
+            {t.rich("matching", {
+              count: matchingAds,
+              lnk: (chunks) =>
+                matchingAdsHref ? (
+                  <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
+                    {chunks}
+                  </Link>
+                ) : (
+                  <>{chunks}</>
+                ),
+            })}
+          </p>
+          <InfoDialog
+            title={tRule("onlyMatchedHelpTitle")}
+            paragraphs={[
+              tRule("onlyMatchedHelpBody1"),
+              tRule("onlyMatchedHelpBody2"),
+            ]}
+            ariaLabel={tRule("onlyMatchedHelpAria")}
+          />
+        </div>
       )}
 
       {explainMissingLinks && (

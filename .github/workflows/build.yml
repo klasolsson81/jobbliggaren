@@ -300,7 +300,7 @@ jobs:
         run: pnpm test
 
   # Fixture-tester för de bash-skript som CI, merge-/hygien-kontrollerna och **deployen på
-  # lådan** själva kör. **Räkna dem med `ls .github/scripts/*.test.sh deploy/systemd/*.test.sh`
+  # lådan** själva kör. **Räkna dem med `ls .github/scripts/*.test.sh deploy/systemd/*.test.sh .claude/hooks/*.test.sh`
   # i stället för att lita på en siffra här** — den här raden sa "tre" medan jobbet körde fyra,
   # blev fem i #1198, och sa `.github/scripts/` medan sviterna låg i två kataloger (#196:
   # attestationsgrinden bor under `deploy/`, därför att lådan klonar `deploy/` och en
@@ -633,6 +633,16 @@ jobs:
       # är den enabled, timvisa — den oskyddade halvan var precis den som går live först.
       - name: rclone-invocation-guard (fixturer + det riktiga trädet)
         run: bash .github/scripts/rclone-invocation-guard.test.sh
+
+      # The predicate behind close-out step FOUR (CLAUDE.md §6.5). `release-images.yml` has no
+      # push trigger, and over ~79 h on 2026-08-30 its schedule delivered 11 of ~79 expected
+      # runs (#1592) — three merged PRs sat unbuilt. The detector in `worktree-reaper.sh` is the
+      # answer, and a detector that stays quiet when it should speak is exactly the
+      # green-silent-inert shape it exists to abolish. Hence a pure predicate with its own
+      # fixture suite: both of its inputs report failure IN BAND, so a missing shape guard gives
+      # a permanent false alarm rather than an error.
+      - name: main-ahead-of-images (the close-out dispatch predicate)
+        run: bash .claude/hooks/main-ahead-of-images.test.sh
 
   # ---------------------------------------------------------------------------
   # PERF-/SUPPLY-CHAIN-GOVERNANCE (ADR 0045 — observe-only Fas 1).

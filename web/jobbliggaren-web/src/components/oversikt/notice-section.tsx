@@ -179,7 +179,12 @@ export function NoticeSection({
     restoreMany(read.map((n) => n.id));
   }, [read, restoreMany]);
 
-  const listRendered = unread.length > 0 || read.length > 0 || !summaryOwns;
+  // Klas-direktiv 2026-08-30: en sektion som redan BÄR information ska inte också säga att
+  // information samlas här. Tom-raden är notislistans tomt-läge, inte sektionens — och när en
+  // sammanfattning står ovanför är sektionen inte tom. `summary` är alltid en renderad nod när
+  // den skickas (räknare, tomt-läge eller en ohämtbar-rad), så dess NÄRVARO är signalen.
+  const listRendered =
+    unread.length > 0 || read.length > 0 || (!summaryOwns && !summary);
 
   return (
     <section className="jp-section" aria-labelledby={titleId}>

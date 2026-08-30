@@ -409,7 +409,11 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     expect(within(section).getByText(/olästa/)).toBeInTheDocument();
   });
 
-  it("populerat konto: notislistan bär sitt eget tomt-läge som förut", () => {
+  it("populerat konto: tom-raden tiger — sektionen bär redan information", () => {
+    // ⚠ Detta INVERTERAR ett tidigare medvetet val ("notislistan bär sitt eget tomt-läge som
+    // förut"). Klas-direktiv 2026-08-30: raden får stå när sektionen är helt tom på annan info,
+    // men inte bredvid en sammanfattning som just räknat upp två ansökningar — då säger den att
+    // information samlas här, på en plats där information redan står.
     renderOversikt(true, {
       matchCount: null,
       pipeline: {
@@ -420,8 +424,10 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
 
     const section = screen.getByRole("region", { name: "Mina ansökningar" });
     expect(
-      within(section).getByText(/Vi säger till när något händer/),
-    ).toBeInTheDocument();
+      within(section).queryByText(/Vi säger till när något händer/),
+    ).toBeNull();
+    // Sammanfattningen står kvar — det är DEN som gör tom-raden överflödig.
+    expect(within(section).getByText(/2 ansökningar/)).toBeInTheDocument();
   });
 
   // #1558, samma kompositionsdefekt som #1548: company-summary.test.tsx målar
@@ -496,9 +502,11 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
       within(section).getByText(/Bevakade företag kunde inte hämtas/),
     ).toBeInTheDocument();
     expect(within(section).getByText(/olästa/)).toBeInTheDocument();
+    // Även en ohämtbar-rad ÄR information. Att bredvid den säga att händelser samlas här är
+    // dubbelt tomt prat (Klas-direktiv 2026-08-30) — tidigare pinnades motsatsen här.
     expect(
-      within(section).getByText(/Händelser från dina bevakade företag/),
-    ).toBeInTheDocument();
+      within(section).queryByText(/Händelser från dina bevakade företag/),
+    ).toBeNull();
   });
 
   it("ingen recent-search → ingen senaste-sök-notis", () => {

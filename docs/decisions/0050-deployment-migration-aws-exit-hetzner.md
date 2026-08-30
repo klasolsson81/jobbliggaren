@@ -1541,6 +1541,80 @@ rubrik citerar grind N-1 och #706.
 `dev.jobbliggaren.se` först när en ny tagg byggs och reconcile drar den — inget här påstår att
 kanten redan skrubbar i drift.
 
+## Amendment 2026-08-30 — #706 Part 4: app-containerns stdout mätt, och grinden som saknades
+
+`Amendment 2026-08-29` punkt 1 lämnade ett namngivet ben omätt: *huruvida Next skriver en
+token-bärande URL till sin egen stdout vid ett ohanterat fel.* **Den punkten är härmed urladdad.**
+Benet är mätt, och exponeringen finns inte — men mätningen har ett utgångsdatum och en halva som
+inte kunde mätas fram, bara vaktas.
+
+**Mätningens instrument, ordagrant, eftersom slutsatsen inte är starkare än det.** Mätt 2026-08-30
+mot **Next 16.3.0** i den skeppade imagen
+`ghcr.io/klasolsson81/jobbliggaren-web@sha256:5e6b1b64c3fa55efd5a6e9eef8eb5d738371968000722795ed691f1d26268417`
+(byggd ur `3ef482ce`), körd med lådans egen `docker-compose.yml`-env. Varje anrop bar en
+token-bärande URL med tre sentinels i `uid`, `email` och `token`. Versionen är utskriven därför att
+den är villkoret: en tidigare `Next-Url`-avläsning gjordes mot 16.2.9 medan `package.json` pinnade
+16.3.0, och det glappet är hela skälet att skriva versionen och inte bara utfallet.
+
+**Fem ohanterade felformer, alla på en token-bärande URL.** Kastning i sidrenderingen · kastning i
+`generateMetadata` · ohanterad promise-rejection · POST med felformat `Next-Action`-id · POST med
+giltigt action-id och trasig kropp. De två sista är **naturliga och opatchade**. I samtliga fem
+skriver Next felmeddelande, stackramar (filsökvägar) och `digest` — och `grep -c` för de tre
+sentinels över hela stdout gav **0, 0, 0**. Ingen URL, ingen query-sträng. De vilande vägarna —
+200 på alla tre rutterna, 404, och en hanterad 503 — skriver **noll rader**: Next loggar inga
+requests i produktion.
+
+⚠ **De tre patchade formerna vilar på en assertion, inte på tillit.** Patchplatsen loggade
+`ZQPROBE-PATCH-SITE-FOUND file=[project]/src/app/(auth)/bekrafta-epost/page.tsx` följt av
+`ZQPROBE-PATCH-INSTALLED` före varje körning. Utan den raden hade en utebliven patch gett en grön
+körning som mäter noll — den väg ett nollresultat lättast blir falskt på.
+
+⚠ **Ett eko av request-innehåll finns, och det är avgränsat, inte frånvarande.** Den fjärde formen
+ekar `Next-Action`-headern (angriparstyrd, inte vår token). Den femte ekar kroppens början — mätt
+med tre kroppar: **exakt 10 tecken, och bara när kroppen är ogiltig JSON från position 0**; är
+JSON:en giltig med skräp efter ekas ingenting alls, bara en positionssiffra. De tre rutternas
+Server Actions bär token i kroppen, men en välformad flight-payload börjar med sina första
+argument, så 10 tecken från position 0 når inte ett argumentvärde — och en payload som är trasig
+från första byten är ingen flight-payload. Avgränsningen är alltså mätt, men den är Nodes tal och
+inte vårt.
+
+**Vad slutsatsen INTE är.** Den är ett påstående om **ramverkets utskriftsformat i 16.3.0**, inte
+en egenskap hos arkitekturen. En Next-uppgradering är det som gör om den till en fråga, och inget i
+repot asserterar Next-versionen (mätt), så en uppgradering fäller ingen grind som pekar hit. Det
+är den kända, accepterade svagheten i den här raden.
+
+**Den halva vi själva äger fick däremot en grind, för den saknade en.** Repot bar fyra
+`SECURITY (§5)`-märkta docblock under `src/lib/actions/` och `src/components/auth/` som lovar att
+`uid`/`token` eller en e-postadress *aldrig* loggas — var och en med orden *"no `console.*`"* i
+klartext — medan `eslint.config.mjs` saknade `no-console` helt. Skrivna garantier, noll
+mekanismer. Grinden finns nu, i ett eget block, som
+`error` (en `warn` fäller en körning endast om `lint`-scriptet ges `--max-warnings`, vilket blocket
+varken kan garantera eller bör bero på, så svårighetsgraden får bära grinden själv) och utan
+`allow`-lista (varje känt anrop är `console.error`, så just den allow-listan hade gjort regeln inert
+där den behövs). Undantagen är rad-lokala och räknas inte upp
+någonstans. Blocket är medvetet **inte** invikt i `no-restricted-syntax`/`allExcept`: den
+kompositionen finns för last-wins-narrowing inom **en** regelnyckel, och en invikning hade dessutom
+gjort varje undantag brett nog att samtidigt släcka copy-, typografi- och zone-reglerna på samma
+rad.
+
+Grinden är mutationsverifierad i **båda** riktningar, i förgrunden, med landningsassertion före
+varje körning och återställning verifierad sha256-identiskt: ett oskyddat `console.log` i
+`src/components/ui/` — en katalog huvudblocket **exkluderar**, vilket är varför det egna blocket
+inte ärver dess `ignores` — fäller på exakt den raden, och ett struket undantag fäller på exakt de
+raderna. Riktning två är det som skiljer en grind som *når* de skyddade raderna från en som bara
+ser ut att göra det.
+
+⚠ **Grinden är lexikal.** Den matchar `console.*` och ingenting annat: `const c = console`,
+`globalThis.console`, `process.stdout.write` och ett beroendes egen loggning passerar. Utskrivet
+här av samma skäl som i blockets egen kommentar — annars vore grinden själv ett omätt löfte av den
+sort den finns för att stödja.
+
+**#706 stängs inte här.** Punkt 2 (G3:s lifecycle-regler för OVH-prefixet `hostlogs/`, som
+`Amendment 2026-08-11` kräver före första objektet) och punkt 3 (flip-till-Blocker-villkoret med
+sina två omgraderingsarmar) står oförändrade och behöver fortfarande ett öppet hem.
+
+**Denna amendment rör inte lådan.** Ingenting här påstår att någon konfiguration ändrats i drift.
+
 ## Relaterade beslut
 
 - **ADR 0005** — kostnadsskydd/launch-gating. Post-migration blir Budget

@@ -392,9 +392,8 @@ describe("buildPageHref (#823 q-klampen, #846 hemvisten)", () => {
     expect(href).toContain("page=2");
   });
 
-  // NAMNET beskriver vad testet TÄCKER, inte hur många fält typen har (den bär
-  // fjorton; buildPageHref läser tretton — aldrig `page`, som `targetPage` ersätter;
-  // `pageSize` har sitt eget test nedan). Det är INTE en
+  // NAMNET beskriver vad testet TÄCKER, inte hur många fält typen har (aldrig `page`,
+  // som `targetPage` ersätter; `pageSize` har sitt eget test nedan). Det är INTE en
   // fullständighetsgaranti för /jobb: `matchning` läses av page.tsx men saknas i
   // `JobbRawSearchParams`, så `?matchning=off` tappas vid ett sida-2-klick
   // (pre-existerande — se ⚠-noten på typen). Ett test som hette "varje

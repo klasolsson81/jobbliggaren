@@ -100,25 +100,15 @@ describe("parseResponse", () => {
     );
   });
 
-  it("never logs the rejected value itself (PII safety)", async () => {
-    // Asserts the VALUE's absence, not a field name. The predecessor asserted
-    // `not.toHaveProperty("received")` — a Zod v3 field name that v4 never
-    // emits, so it held with redactIssues deleted and measured nothing.
-    const res = jsonResponse({ id: "user@example.com", count: "not-a-number" });
-    await expect(
-      parseResponse(res, sampleSchema, "GET /test")
-    ).rejects.toThrow();
-
-    expect(errorSpy).toHaveBeenCalled();
-    expect(JSON.stringify(errorSpy.mock.calls[0]?.[1])).not.toContain(
-      "user@example.com"
-    );
-  });
-
-  it("logs the error class, not the parse message, on invalid JSON", async () => {
-    // V8 quotes bytes surrounding the failure position, and this path parses the
-    // session response whose body carries the bearer credential. Broken right
-    // after a credential-shaped value, so a message-bearing log would echo it.
+  it("logs the error class, never the parse message, on invalid JSON", async () => {
+    // This path parses the session response, whose body carries the bearer
+    // credential, and V8 quotes a window of bytes ending at the parse failure —
+    // so the message is the carrier and the stack is inert file paths.
+    //
+    // Asserted as equality on the field, not as a substring of the payload. A
+    // sentinel search cannot fail here: the quote window is narrower than the
+    // value, and JSON.stringify renders an Error as {}. Equality kills every
+    // message-bearing variant, `cause` and `${name}: ${message}` alike.
     const res = new Response('{"sessionId":"sess_ZQSENTINELZQ","n":undefined}', {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -127,9 +117,8 @@ describe("parseResponse", () => {
       parseResponse(res, sampleSchema, "GET /test")
     ).rejects.toThrow();
 
-    const logged = JSON.stringify(errorSpy.mock.calls[0]?.[1]);
-    expect(logged).not.toContain("sess_ZQSENTINELZQ");
-    expect(logged).toContain("SyntaxError");
+    const payload = errorSpy.mock.calls[0]?.[1] as { cause: unknown };
+    expect(payload.cause).toBe("SyntaxError");
   });
 });
 

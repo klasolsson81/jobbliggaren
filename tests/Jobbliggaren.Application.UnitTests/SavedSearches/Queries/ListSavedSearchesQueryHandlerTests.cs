@@ -38,14 +38,14 @@ public class ListSavedSearchesQueryHandlerTests
     {
         _currentUser.UserId.Returns(_userId);
 
-        // Default: porten ekar tillbaka fallback-form för okänt id så att
-        // tester som inte bryr sig om namn ändå inte kraschar. Specifika
-        // tester stubbar om för sina concept-id.
+        // Default: porten ekar tillbaka en namnlös rad per id så att tester som
+        // inte bryr sig om namn ändå inte kraschar. Specifika tester stubbar om
+        // för sina concept-id.
         _taxonomy.ResolveLabelsAsync(
                 Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
             .Returns(ci => new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(
                 ci.ArgAt<IReadOnlyList<string>>(0)
-                    .Select(id => new TaxonomyLabelDto(id, $"Okänd kod ({id})"))
+                    .Select(id => new TaxonomyLabelDto(id, Label: null))
                     .ToList()));
     }
 
@@ -180,16 +180,15 @@ public class ListSavedSearchesQueryHandlerTests
             seeker.Id, "Stale", occupationGroup: ["borttagen-kod"]));
         await db.SaveChangesAsync(CancellationToken.None);
 
-        // Porten ger fallback (befintlig ResolveLabelsAsync-semantik — aldrig
-        // throw/null). Default-stubben i ctor producerar "Okänd kod (<id>)".
+        // Porten degraderar utan att kasta: raden finns kvar, namnet saknas.
+        // Default-stubben i ctor producerar Label = null.
 
         var handler = new ListSavedSearchesQueryHandler(db, _currentUser, _taxonomy);
         var result = await handler.Handle(new ListSavedSearchesQuery(), CancellationToken.None);
 
         var dto = result.ShouldHaveSingleItem();
         dto.OccupationGroupLabels.ShouldContain(l =>
-            l.ConceptId == "borttagen-kod"
-            && l.Label == "Okänd kod (borttagen-kod)");
+            l.ConceptId == "borttagen-kod" && l.Label == null);
     }
 
     [Fact]

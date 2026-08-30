@@ -264,8 +264,15 @@ public sealed class ListRecentSearchesQueryHandler(
     }
 
     // "{första} +{N−1}" — +N räknar samma enhet som första namnet anger.
+    //
+    // Ett id snapshoten inte kände (taxonomi-drift) har inget namn att ange, så delen bär
+    // koden i stället och klienten namnger den ur sin katalog — exakt CodedWithMoreCount
+    // nedan, av samma skäl: det ord som saknas är locale-copy, inte registerdata (#1540).
+    // Urvalsregeln är oförändrad: första elementet namnger delen, resten räknas.
     private static RecentSearchLabelPartDto WithMoreCount(IReadOnlyList<TaxonomyLabelDto> labels) =>
-        new(RecentSearchLabelPartKind.Named, labels[0].Label, ConceptId: null, labels.Count - 1);
+        labels[0].Label is { } text
+            ? new(RecentSearchLabelPartKind.Named, text, ConceptId: null, labels.Count - 1)
+            : new(RecentSearchLabelPartKind.Coded, Text: null, labels[0].ConceptId, labels.Count - 1);
 
     // Samma form, men koden i stället för namnet: klass 2-termerna är allmänsubstantiv och
     // deras ord ägs av katalogen (#1537). Tar id:na direkt ur kriteriet — de ÄR det som ska

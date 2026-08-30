@@ -27,10 +27,14 @@ public interface ITaxonomyReadModel
 
     /// <summary>
     /// Reverse-lookup för redan-sparade sökningar/valda chips: concept-id →
-    /// namn. Okänt id (taxonomi-drift, borttagen kod) ger fallback-label
-    /// <c>"Okänd kod (&lt;id&gt;)"</c> — aldrig null/throw. Sökningen fungerar
-    /// ändå (filtrering sker på rå concept-id mot shadow-props; namnet är
-    /// ren presentation). Graceful degradation, ingen data-migration.
+    /// namn. Okänt id (taxonomi-drift, borttagen kod) ger
+    /// <see cref="TaxonomyLabelDto.Label"/> <c>null</c> — aldrig throw. Porten
+    /// namnger inte det den inte kunde slå upp: ett fallback-namn måste väljas
+    /// per locale, och det ordet ägs av katalogen, inte av det här lagret.
+    /// Returnerar EN rad per efterfrågat id, i samma ordning som indatan.
+    /// Sökningen fungerar ändå (filtrering sker på rå concept-id mot
+    /// shadow-props; namnet är ren presentation). Graceful degradation, ingen
+    /// data-migration.
     /// </summary>
     ValueTask<IReadOnlyList<TaxonomyLabelDto>> ResolveLabelsAsync(
         IReadOnlyList<string> conceptIds,

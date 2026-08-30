@@ -129,7 +129,6 @@ interface JobbResultsToolbarProps {
    * räknelänkar (`company-jobs-href.ts`), aldrig av toolbaren själv.
    */
   employer: ReadonlyArray<string>;
-  /** conceptId → visningsnamn (server-resolverad, fallback redan ifylld). */
   resolvedLabels: Record<string, string>;
   q: string;
   sortBy: JobAdSortBy;

@@ -67,7 +67,8 @@ export async function getTaxonomyTree(): Promise<ApiResult<TaxonomyTree>> {
 /**
  * Reverse-lookup: concept-id-lista → visningsnamn. Används för att rendera
  * redan-valda/sparade concept-id som namn (chips + sparade sökningar).
- * Okänt id → backend `"Okänd kod (<id>)"` (graceful, ADR 0043 Beslut B).
+ * Okänt id → backend svarar med raden och `label: null`; ordet som visas i
+ * stället ägs av katalogen (graceful, ADR 0043 Beslut B).
  *
  * Tom id-lista → tom lista utan backend-anrop (ingen DoS-yta, ingen
  * onödig rundtur). Cap = backend `SearchCriteria.MaxConceptIds * 4` (=1600)

@@ -131,10 +131,19 @@ describe("taxonomyLabelsResultSchema", () => {
     expect(taxonomyLabelsResultSchema.safeParse(rows).success).toBe(true);
   });
 
-  it("accepts the backend 'Okänd kod (<id>)' fallback label as plain text", () => {
-    const rows = [{ conceptId: "stale_id", label: "Okänd kod (stale_id)" }];
+  it("accepts a null label for an id the snapshot could not resolve", () => {
+    const rows = [{ conceptId: "stale_id", label: null }];
     const parsed = taxonomyLabelsResultSchema.safeParse(rows);
     expect(parsed.success).toBe(true);
+    expect(parsed.data?.[0]?.label).toBeNull();
+  });
+
+  it("rejects a MISSING label field (the wire always carries the key)", () => {
+    // `.nullable()`, inte `.optional()`: backend skriver `"label": null`. Om fältet
+    // en dag försvinner helt är det en kontraktsdrift som ska falla här, inte
+    // maskeras till undefined och renderas som tom sträng nedströms.
+    const rows = [{ conceptId: "stale_id" }];
+    expect(taxonomyLabelsResultSchema.safeParse(rows).success).toBe(false);
   });
 
   it("does NOT constrain conceptId format here (stale saved id may differ)", () => {

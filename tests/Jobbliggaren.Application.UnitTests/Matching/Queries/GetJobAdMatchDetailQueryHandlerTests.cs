@@ -174,13 +174,20 @@ public class GetJobAdMatchDetailQueryHandlerTests
     // Taxonomy read-model fake. Default = passthrough (label == concept-id) so existing
     // tests are unaffected; pass a map to assert the concept-id → label resolution the
     // modal handler applies to the SSYK / region / employment membership dimensions.
-    private sealed class FakeTaxonomy(IReadOnlyDictionary<string, string>? map = null) : ITaxonomyReadModel
+    // <paramref name="unresolved"/> reproduces what the real port emits for an id the
+    // snapshot has lost (#1540): the row survives, the label is null.
+    private sealed class FakeTaxonomy(
+        IReadOnlyDictionary<string, string>? map = null,
+        IReadOnlySet<string>? unresolved = null) : ITaxonomyReadModel
     {
         public ValueTask<IReadOnlyList<TaxonomyLabelDto>> ResolveLabelsAsync(
             IReadOnlyList<string> conceptIds, CancellationToken cancellationToken)
             => new(conceptIds
                 .Select(id => new TaxonomyLabelDto(
-                    id, map is not null && map.TryGetValue(id, out var l) ? l : id))
+                    id,
+                    unresolved is not null && unresolved.Contains(id)
+                        ? null
+                        : map is not null && map.TryGetValue(id, out var l) ? l : id))
                 .ToList());
 
         public ValueTask<TaxonomyTreeDto> GetTreeAsync(CancellationToken cancellationToken)
@@ -343,6 +350,44 @@ public class GetJobAdMatchDetailQueryHandlerTests
         result.EmploymentFit.MissingConceptIds.ShouldBe(["emp_999"]);
         // Skill dim already carries a Display label → passed through, never re-resolved.
         result.SkillOverlap.Matched.ShouldBe(["C#"]);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldDropUnresolvedRegisterConceptId_RatherThanSurfaceItRaw()
+    {
+        // #1540 — an id the snapshot has lost comes back without a name. This row carries
+        // names only and the client has no id to look a word up by, so the entry is
+        // dropped: surfacing it would put the external system's vocabulary in the modal,
+        // which is what the ACL exists to prevent (§5, ADR 0043).
+        //
+        // The resolvable dimension beside it is asserted too, so the pin measures the DROP
+        // and not a handler that stopped resolving.
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["grp_12345"]),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["region_GONE"]),
+                EmploymentFit: Dim(MatchDimensionVerdict.NotAssessed)),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var map = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["grp_12345"] = "Mjukvaru- och systemutvecklare m.fl.",
+        };
+        var taxonomy = new FakeTaxonomy(
+            map, unresolved: new HashSet<string>(StringComparer.Ordinal) { "region_GONE" });
+        var sut = CreateHandler(
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
+            new FakeScorer(score),
+            taxonomy: taxonomy);
+
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
+
+        result.ShouldNotBeNull();
+        result!.SsykOverlap.Matched.ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
+        result.RegionFit.Matched.ShouldBeEmpty();
     }
 
     // =================================================================

@@ -367,6 +367,13 @@ base64 -w0 < rclone.conf        # produce it wherever you configured rclone, the
 `/run` is tmpfs, so the upload credential dies with the box exactly as the master key does.
 Re-inject with the command above; there is nothing backup-specific to remember.
 
+> ⚠ **Injection is what ARMS hourly `rclone` execution, so it is the trigger for the advisory
+> check — read `vps-deploy-stack.md` row 28a before injecting** ([#1289](https://github.com/klasolsson81/jobbliggaren/issues/1289)). The logship timers are enabled and
+> fire hourly; the only thing holding execution off is this credential's absence. That row also
+> names the one reading that is only available once the file exists — whether the injected
+> `rclone.conf` sets `session_token` or `sse_customer_*`, which decides two otherwise-conditional
+> CVEs. This is a pointer, not a re-measurement: if row 28a is current, injecting costs nothing extra.
+
 **What happens in the meantime, precisely, because the two cases differ.** A *scheduled* run with
 no credential is **skipped**, not failed: `jobbliggaren-backup.service` carries
 `ConditionPathExists=` on the credential, so systemd marks the unit inactive and logs the reason.

@@ -23,7 +23,7 @@ import { Check } from "lucide-react";
  * filter in "Senaste sökningar", and nothing in the product makes one watch.
  *
  * One solid primary button on the page (ADR 0038 / DESIGN.md §6): this CTA.
- * "Logga in" in the header is secondary and the guest link is a link.
+ * "Logga in" in the header is secondary.
  */
 
 const BENEFIT_KEYS = [

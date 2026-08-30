@@ -22,8 +22,7 @@
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
     "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
-    "source": "Byggd på öppen data från Arbetsförmedlingen och SCB",
-    "guest": "Utforska som gäst, utan konto"
+    "source": "Byggd på öppen data från Arbetsförmedlingen och SCB"
   },
   "account": {
     "title": "Det här får du med ett konto",
@@ -76,8 +75,7 @@
     "colLegal": "Juridik",
     "start": {
       "register": "Skapa konto",
-      "login": "Logga in",
-      "guest": "Utforska som gäst"
+      "login": "Logga in"
     },
     "support": {
       "help": "Hjälpcenter",

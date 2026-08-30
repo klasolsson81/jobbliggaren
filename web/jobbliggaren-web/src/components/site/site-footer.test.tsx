@@ -58,16 +58,22 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
       "href",
       "/registrera",
     );
-    expect(screen.getByRole("link", { name: "Utforska som gäst" })).toHaveAttribute(
-      "href",
-      "/gast/oversikt",
-    );
     // about.self resolves to the public /om page (link, distinct from the
     // identically-named column heading).
     expect(screen.getByRole("link", { name: "Om Jobbliggaren" })).toHaveAttribute(
       "href",
       "/om",
     );
+  });
+
+  it("promotes no guest entry point — the demo is out of MVP", () => {
+    render(<SiteFooter />);
+    // Bites on revert: the query resolves against rendered footer links, of
+    // which this surface has many, so null here is a measurement and not an
+    // artefact of the query never matching anything.
+    expect(
+      screen.queryByRole("link", { name: "Utforska som gäst" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders no aria-disabled link spans — every footer content route is now live (#263)", () => {

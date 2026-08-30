@@ -199,8 +199,8 @@ public sealed class GetActivityReportQueryHandler(
     /// <summary>
     /// Batch-resolve distinct municipality concept-ids to human labels via the
     /// taxonomy ACL (one call, bounded). A concept-id that does not resolve
-    /// (taxonomy drift) yields the port's "Okänd kod (id)" fallback — we drop
-    /// it rather than surface the opaque id in a civic report (§5).
+    /// (taxonomy drift) comes back without a label — we drop it rather than
+    /// surface the opaque id in a civic report (§5).
     /// </summary>
     private async Task<IReadOnlyDictionary<string, string>> ResolveLocationsAsync(
         IEnumerable<string?> conceptIds, CancellationToken cancellationToken)
@@ -219,11 +219,9 @@ public sealed class GetActivityReportQueryHandler(
         var map = new Dictionary<string, string>(labels.Count);
         foreach (var label in labels)
         {
-            // Drop the taxonomy port's graceful-degradation fallback so an
-            // unresolved code renders as the neutral empty placeholder, never as
-            // a leaked concept-id (§5). The fallback format is owned in one place
-            // (TaxonomyLabels) — no magic string across the layer boundary.
-            if (!TaxonomyLabels.IsUnresolved(label))
+            // An unresolved code renders as the neutral empty placeholder, never
+            // as a leaked concept-id (§5).
+            if (label.Label is not null)
                 map[label.ConceptId] = label.Label;
         }
         return map;

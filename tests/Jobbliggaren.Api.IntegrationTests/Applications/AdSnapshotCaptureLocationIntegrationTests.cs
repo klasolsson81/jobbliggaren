@@ -197,7 +197,7 @@ public class AdSnapshotCaptureLocationIntegrationTests
     }
 
     // ---------------------------------------------------------------
-    // Olösbart concept-id fryses rått; read droppar "Okänd kod (id)" → null
+    // Olösbart concept-id fryses rått; read får en namnlös rad och ger null
     // (aldrig ett opakt concept-id läckt till användaren, CLAUDE.md §5)
     // ---------------------------------------------------------------
 
@@ -212,7 +212,7 @@ public class AdSnapshotCaptureLocationIntegrationTests
 
         await SeedSeekerAsync(scope, db, clock);
         // Syntetiskt concept-id som inte finns i snapshoten. Det fryses RÅTT på
-        // write-vägen; läs-vägen får "Okänd kod (...)" och droppar fallbacken → null.
+        // write-vägen; läs-vägen får en rad utan label och ger null.
         var jobAd = SeedImportedJobAdWithMunicipality(db, clock, "ZZZZ_zzz_ZZZ");
         await db.SaveChangesAsync(ct);
         db.ChangeTracker.Clear();

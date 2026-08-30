@@ -70,9 +70,14 @@ public sealed record TaxonomyOccupationDto(string ConceptId, string Label);
 /// Platsbanken-paritet (ADR 0067 Beslut 1).</summary>
 public sealed record TaxonomyOccupationGroupDto(string ConceptId, string Label);
 
-/// <summary>Reverse-lookup-rad: concept-id → visningsnamn (eller
-/// fallback för okänt id).</summary>
-public sealed record TaxonomyLabelDto(string ConceptId, string Label);
+/// <summary>Reverse-lookup-rad: concept-id → visningsnamn.</summary>
+/// <param name="ConceptId">Det efterfrågade concept-id:t, alltid satt.</param>
+/// <param name="Label">
+/// Namnet ur snapshoten, eller <c>null</c> när snapshoten inte känner id:t
+/// (taxonomi-drift, borttagen kod). Frånvaron ÄR signalen: klienten namnger
+/// då id:t ur sin egen katalog, som har ett ord per locale.
+/// </param>
+public sealed record TaxonomyLabelDto(string ConceptId, string? Label);
 
 /// <summary>
 /// Ett taxonomi-prefix-förslag (ADR 0067 Beslut 5a) returnerat av

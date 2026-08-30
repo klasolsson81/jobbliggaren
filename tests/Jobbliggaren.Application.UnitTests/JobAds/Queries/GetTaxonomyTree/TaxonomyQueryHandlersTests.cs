@@ -64,7 +64,7 @@ public class TaxonomyQueryHandlersTests
         IReadOnlyList<TaxonomyLabelDto> labels =
         [
             new TaxonomyLabelDto("r1", "Stockholms län"),
-            new TaxonomyLabelDto("unknown-xyz", "Okänd kod (unknown-xyz)"),
+            new TaxonomyLabelDto("unknown-xyz", Label: null),
         ];
         _taxonomy.ResolveLabelsAsync(ids, Arg.Any<CancellationToken>())
             .Returns(new ValueTask<IReadOnlyList<TaxonomyLabelDto>>(labels));

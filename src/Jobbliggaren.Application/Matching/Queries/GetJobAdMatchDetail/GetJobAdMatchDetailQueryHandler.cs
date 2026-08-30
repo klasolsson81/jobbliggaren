@@ -135,7 +135,9 @@ public sealed class GetJobAdMatchDetailQueryHandler(
             return EmptyLabels;
 
         var resolved = await taxonomy.ResolveLabelsAsync(conceptIds, cancellationToken);
-        return resolved.ToDictionary(l => l.ConceptId, l => l.Label, StringComparer.Ordinal);
+        return resolved
+            .Where(l => l.Label is not null)
+            .ToDictionary(l => l.ConceptId, l => l.Label!, StringComparer.Ordinal);
     }
 
     private static readonly IReadOnlyDictionary<string, string> EmptyLabels =
@@ -154,9 +156,13 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         MatchDimension dimension, IReadOnlyDictionary<string, string> labels) =>
         new(dimension.Verdict, MapLabels(dimension.Matched, labels), MapLabels(dimension.Missing, labels));
 
+    // A concept-id the snapshot could not name is dropped, not shown raw. This row carries
+    // names only, so a leaked id would be the one thing the ACL exists to prevent (§5,
+    // ADR 0043) — and unlike the toolbar, the client has no id here to look a word up by.
+    // #1540 follow-up: carry {conceptId, label} so it can name what the server could not.
     private static IReadOnlyList<string> MapLabels(
         IReadOnlyList<string> conceptIds, IReadOnlyDictionary<string, string> labels) =>
         conceptIds.Count == 0
             ? conceptIds
-            : conceptIds.Select(id => labels.TryGetValue(id, out var label) ? label : id).ToList();
+            : [.. conceptIds.Select(labels.GetValueOrDefault).OfType<string>()];
 }

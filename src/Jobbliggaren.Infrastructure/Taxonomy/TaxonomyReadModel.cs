@@ -55,7 +55,7 @@ internal sealed class TaxonomyReadModel(IServiceScopeFactory scopeFactory)
         {
             var label = state.LabelByConceptId.TryGetValue(id, out var l)
                 ? l
-                : TaxonomyLabels.Unknown(id);   // graceful degradation, aldrig throw
+                : null;   // graceful degradation, aldrig throw
             result.Add(new TaxonomyLabelDto(id, label));
         }
         return result;

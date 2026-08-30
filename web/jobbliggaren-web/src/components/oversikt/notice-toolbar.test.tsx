@@ -17,6 +17,37 @@ function renderToolbar(lastUpdated: string) {
   return render(<NoticeToolbar lastUpdated={lastUpdated} lastUpdatedIso={ISO} />);
 }
 
+describe("NoticeToolbar — stämpelns betydelse (#1572)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    refreshMock.mockClear();
+  });
+
+  it("contentCanChange={false} stämplar sidladdningen, inte datafärskhet", () => {
+    // På en yta vars innehåll är fryst är "Senast uppdaterad" ett påstående ingen
+    // render kan leverera. Raden ska då säga det som faktiskt hände.
+    render(
+      <NoticeToolbar
+        lastUpdated="08:05"
+        lastUpdatedIso={ISO}
+        contentCanChange={false}
+      />,
+    );
+
+    expect(screen.getByText(/Sidan laddades/)).toBeInTheDocument();
+    expect(screen.queryByText(/Senast uppdaterad/)).toBeNull();
+    // Kontrollen står kvar: en omladdning är en verklig händelse även på fryst data.
+    expect(screen.getByRole("button", { name: "Uppdatera" })).toBeInTheDocument();
+  });
+
+  it("default bär kvar app-påståendet (kontrafaktum)", () => {
+    render(<NoticeToolbar lastUpdated="08:05" lastUpdatedIso={ISO} />);
+
+    expect(screen.getByText(/Senast uppdaterad/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sidan laddades/)).toBeNull();
+  });
+});
+
 describe("NoticeToolbar", () => {
   beforeEach(() => {
     window.localStorage.clear();

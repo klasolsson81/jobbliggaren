@@ -40,6 +40,7 @@ describe("CompanySummary", () => {
           watch({ id: "a", activeAdCount: 136 }),
           watch({ id: "b", activeAdCount: 4 }),
         ])}
+        linkHref="/foretag/bevakade"
       />,
     );
 
@@ -54,7 +55,7 @@ describe("CompanySummary", () => {
   // Defekten issuet stänger: bevakningar med aktiva annonser fick inte läsa som tomma
   // bara för att inget NYTT publicerats sedan besöket.
   it("bevakning med aktiva annonser läser aldrig som tom", () => {
-    render(<CompanySummary watches={ok([watch({ activeAdCount: 136 })])} />);
+    render(<CompanySummary watches={ok([watch({ activeAdCount: 136 })])} linkHref="/foretag/bevakade" />);
 
     expect(
       screen.getByText("1 bevakat företag · 136 aktiva annonser"),
@@ -63,7 +64,7 @@ describe("CompanySummary", () => {
   });
 
   it("noll aktiva annonser är ett mätt tillstånd, inte ett tomt-läge", () => {
-    render(<CompanySummary watches={ok([watch({ activeAdCount: 0 })])} />);
+    render(<CompanySummary watches={ok([watch({ activeAdCount: 0 })])} linkHref="/foretag/bevakade" />);
 
     expect(
       screen.getByText("1 bevakat företag · inga aktiva annonser"),
@@ -77,6 +78,7 @@ describe("CompanySummary", () => {
           watch({ id: "a", activeAdCount: 136, matchingAdCount: 9 }),
           watch({ id: "b", activeAdCount: 4, matchingAdCount: 2 }),
         ])}
+        linkHref="/foretag/bevakade"
       />,
     );
     expect(
@@ -84,7 +86,7 @@ describe("CompanySummary", () => {
     ).toBeInTheDocument();
 
     rerender(
-      <CompanySummary watches={ok([watch({ matchingAdCount: 0 })])} />,
+      <CompanySummary watches={ok([watch({ matchingAdCount: 0 })])} linkHref="/foretag/bevakade" />,
     );
     expect(
       screen.getByText("Inga matchande annonser hos dina bevakade företag"),
@@ -95,6 +97,7 @@ describe("CompanySummary", () => {
     render(
       <CompanySummary
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: null })])}
+        linkHref="/foretag/bevakade"
       />,
     );
 
@@ -118,6 +121,7 @@ describe("CompanySummary", () => {
           watch({ id: "a", matchingAdCount: 9 }),
           watch({ id: "b", matchingAdCount: null }),
         ])}
+        linkHref="/foretag/bevakade"
       />,
     );
 
@@ -148,6 +152,7 @@ describe("CompanySummary", () => {
           }),
           watch({ id: "c", filter: NO_FILTER }),
         ])}
+        linkHref="/foretag/bevakade"
       />,
     );
 
@@ -159,13 +164,13 @@ describe("CompanySummary", () => {
   });
 
   it("inget filter någonstans → ingen filter-rad", () => {
-    render(<CompanySummary watches={ok([watch({ filter: NO_FILTER })])} />);
+    render(<CompanySummary watches={ok([watch({ filter: NO_FILTER })])} linkHref="/foretag/bevakade" />);
 
     expect(screen.queryByText(/notisfilter/)).toBeNull();
   });
 
   it("noll bevakningar ger tomt-läget med Sök företag", () => {
-    render(<CompanySummary watches={ok([])} />);
+    render(<CompanySummary watches={ok([])} linkHref="/foretag/bevakade" />);
 
     expect(screen.getByText("Du bevakar inga företag än")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sök företag" })).toHaveAttribute(
@@ -176,7 +181,7 @@ describe("CompanySummary", () => {
   });
 
   it("säger att bevakningarna inte kunde hämtas i stället för att påstå noll", () => {
-    render(<CompanySummary watches={{ kind: "error" }} />);
+    render(<CompanySummary watches={{ kind: "error" }} linkHref="/foretag/bevakade" />);
 
     expect(
       screen.getByText(
@@ -199,6 +204,7 @@ describe("CompanySummary", () => {
         watches={ok([
           watch({ companyName: "Friday Väst AB", organizationNumber: "5566524301" }),
         ])}
+        linkHref="/foretag/bevakade"
       />,
     );
 

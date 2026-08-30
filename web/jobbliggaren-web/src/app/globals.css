@@ -5507,33 +5507,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
 }
 
-/* Sammanfattning — dossier-tabell */
-.jp-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  overflow: hidden;
-}
-.jp-summary__group {
-  padding: 18px 22px 14px;
-  border-right: 1px solid var(--jp-border-soft);
-  display: flex;
-  flex-direction: column;
-}
-.jp-summary__group:last-child { border-right: 0; }
-.jp-summary__group__title {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
-  color: var(--jp-ink-2);
-  padding-bottom: 10px;
-  margin-bottom: 6px;
-  border-bottom: 1.5px solid var(--jp-border);
-}
+/* Sammanfattnings-RAD (`summary-row.tsx`). Dossier-tabellens tre behållarklasser
+   — `.jp-summary`, `__group`, `__group__title` — ströks i #1572: /gast/oversikt var
+   deras enda konsument, och den ytan bär nu appens `.jp-appsummary`. Raden själv
+   står kvar med sin komponent, som ingen route längre renderar; båda pensioneras
+   ihop när `summary-row.tsx` gör det. */
 .jp-summary__row {
   display: grid;
   grid-template-columns: auto 1fr auto 14px;
@@ -5552,7 +5530,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-family: inherit;
   cursor: default;
 }
-.jp-summary__group .jp-summary__row:last-of-type {
+.jp-summary__row:last-of-type {
   border-bottom: 0;
 }
 .jp-summary__row--btn {
@@ -5607,15 +5585,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-summary__row--btn:hover .jp-summary__row__chev {
   color: var(--jp-accent-700);
-}
-
-@media (max-width: 880px) {
-  .jp-summary { grid-template-columns: 1fr; }
-  .jp-summary__group {
-    border-right: 0;
-    border-bottom: 1px solid var(--jp-border-soft);
-  }
-  .jp-summary__group:last-child { border-bottom: 0; }
 }
 
 /* Notice-grupp rubriker — "Kräver åtgärd" / "Information" */

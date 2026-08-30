@@ -27,8 +27,23 @@ const STEPS = [
 ];
 
 describe("ApplicationSummary", () => {
+  it("linkHref={null} renderar ingen ankarlänk", () => {
+    // Grenen finns för ytor där etiketten inte har någon sann destination (#1572).
+    render(
+      <ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref={null} />,
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Visa alla ansökningar" }),
+    ).toBeNull();
+    // Sammanfattningen i övrigt oförändrad — annars mäter testet att inget renderades.
+    expect(
+      screen.getByRole("list", { name: "Ansökningar per steg" }),
+    ).toBeInTheDocument();
+  });
+
   it("visar alla sju poster även när bara en status har en grupp", () => {
-    render(<ApplicationSummary pipeline={ok([group("Submitted", 2)])} />);
+    render(<ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />);
 
     const list = screen.getByRole("list", { name: "Ansökningar per steg" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(7);
@@ -46,6 +61,7 @@ describe("ApplicationSummary", () => {
           group("Acknowledged", 1),
           group("Rejected", 1),
         ])}
+        linkHref="/ansokningar"
       />,
     );
 
@@ -64,6 +80,7 @@ describe("ApplicationSummary", () => {
           group("Withdrawn", 1),
           group("Ghosted", 2),
         ])}
+        linkHref="/ansokningar"
       />,
     );
 
@@ -75,7 +92,7 @@ describe("ApplicationSummary", () => {
   });
 
   it("visar tomt-läget med nästa steg när kontot saknar ansökningar", () => {
-    render(<ApplicationSummary pipeline={ok([])} />);
+    render(<ApplicationSummary pipeline={ok([])} linkHref="/ansokningar" />);
 
     expect(
       screen.getByText("Du har inga ansökningar än"),
@@ -88,7 +105,7 @@ describe("ApplicationSummary", () => {
   });
 
   it("säger att antalet inte kunde hämtas i stället för att påstå noll", () => {
-    render(<ApplicationSummary pipeline={{ kind: "error" }} />);
+    render(<ApplicationSummary pipeline={{ kind: "error" }} linkHref="/ansokningar" />);
 
     expect(
       screen.getByText(
@@ -104,7 +121,7 @@ describe("ApplicationSummary", () => {
     // Kontrastgarantin bor i CSS-regeln och verifieras renderat, inte här:
     // vitest laddar aldrig globals.css. Detta test mäter bara markeringen.
     const { container } = render(
-      <ApplicationSummary pipeline={ok([group("Submitted", 2)])} />,
+      <ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />,
     );
 
     // Fem tomma aktiva steg + den terminala posten.

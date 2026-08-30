@@ -82,7 +82,7 @@ interface OversiktPageProps {
  * Bygger notiser grupperade per KÄLLA (Mina ansökningar / Jobbannonser /
  * Företagsbevakning) i stället för de globala "Kräver åtgärd"/"Information"-
  * grupperna, plus ett "Kräver åtgärd"-kort för matchnings-setup. Sammanfattningen
- * och I dag-kortet är borttagna (guest-only-ytorna behåller sina kopior).
+ * och I dag-kortet är borttagna.
  *
  * Degraderad fallback: ApiResult-fel på en enskild källa ger en tom sektion
  * (tomt-läge), aldrig en blank sida.
@@ -387,7 +387,9 @@ export function OversiktPage({
           notices={applicationNotices}
           emptyBody={t("notices.emptyApplications")}
           prefTypes={prefTypesFor("applications")}
-          summary={<ApplicationSummary pipeline={pipeline} />}
+          summary={
+            <ApplicationSummary pipeline={pipeline} linkHref="/ansokningar" />
+          }
           summaryOwns={summaryOwns}
         />
         <NoticeSection
@@ -405,7 +407,12 @@ export function OversiktPage({
           notices={companyNotices}
           emptyBody={t("notices.emptyCompanies")}
           prefTypes={prefTypesFor("companies")}
-          summary={<CompanySummary watches={companyWatches} />}
+          summary={
+            <CompanySummary
+              watches={companyWatches}
+              linkHref="/foretag/bevakade"
+            />
+          }
           summaryOwns={companySummaryOwns}
         />
 

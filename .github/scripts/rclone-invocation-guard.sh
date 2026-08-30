@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # rclone-invocation-guard.sh — BLOCKING (#1289).
 #
-# WHAT IT PINS: every `rclone` invocation under `deploy/` uses only `rcat` or `cat`, and none of
-# the subcommands or flags whose CVE classes would otherwise become reachable appears at all.
+# WHAT IT PINS: every `rclone` invocation under `deploy/` uses only `rcat` or `cat`; no forbidden
+# subcommand or flag appears anywhere; and the binary is never bound to a variable, which is how
+# every position-based check gets defeated.
 #
 # WHY THIS EXISTS, AND IT IS NOT A STYLE RULE. Measured 2026-08-30 against OSV
 # (`github.com/rclone/rclone` @ `1.60.1`, the version `vps-deploy-stack.md` row 28 protocols for
@@ -27,36 +28,55 @@
 # first, and `jobbliggaren-logship.sh` calls that leg "THE ONLY LEG CARRYING DATA-SUBJECT
 # PERSONAL DATA". Half-present enforcement that looks whole is worse than none.
 #
-# SCOPE is DYNAMIC — every tracked `*.sh` under `deploy/` — and that is deliberate where
-# `seq-retention-duration-guard.sh` uses a literal list. The threat here is a NEW file starting
-# to invoke rclone; a literal list would be silently bypassed by adding one. Fail-closed if the
-# set comes back empty, which is the failure mode a dynamic scope brings with it.
+# SCOPE is DYNAMIC — every tracked `*.sh` AND `*.service` under `deploy/` — and that is
+# deliberate where `seq-retention-duration-guard.sh` uses a literal list. The threat here is a
+# NEW file starting to invoke rclone; a literal list would be silently bypassed by adding one.
+# The price of a dynamic scope is that it can narrow, so there are TWO checks: empty (total
+# disappearance) and a floor (partial narrowing — see MIN_SCOPED).
 #
-# THE PARSER SPLITS INTO COMMAND SEGMENTS rather than matching "rclone at a command position"
-# with one regex. A single regex has to enumerate the openers (`^`, `|`, `;`, `&&`, `$(`, `` ` ``,
-# `{`) and silently misses the keyword ones — `then rclone rcd …` and `do rclone serve …` both
-# read as ordinary text to it. Splitting first and stripping leading keywords afterwards has no
-# such blind spot, and rule B below is the net under it either way.
+# `*.service` is in scope because a unit can invoke a binary directly. Measured 2026-08-30: every
+# `ExecStart=` today points at a `.sh` under `deploy/systemd/`, so nothing depends on this — but
+# `ExecStart=/usr/bin/rclone rcd --rc-no-auth` is a one-line unit file, and it was invisible to
+# this guard until the scope included it. Rules B and D are plain regexes over lines and need no
+# shell grammar, so the INI syntax costs nothing; measured green across all nine unit files.
+#
+# ⚠ WHY THERE ARE FOUR RULES AND NOT ONE, WHICH IS THE HISTORY WORTH KEEPING. The first version
+# of this file had a single command-position parser: split the line into segments, strip leading
+# keywords, check the command word. `security-auditor` and `dotnet-architect` each built their
+# own adversarial fixtures against it on 2026-08-30 and between them measured EIGHT idiomatic
+# shell forms that passed GREEN while invoking a forbidden subcommand — `rcd`, `copyto` or
+# `lsjson`, depending on the form — variable-bound binaries
+# (`RCLONE="${RCLONE:-rclone}"`), `VAR=value` prefixes, wrapper commands (`timeout 30 rclone …`),
+# `xargs`, and a `#` inside a string. Command position in shell is not a thing a parser can
+# enumerate; every list of openers is a list someone can step outside of.
+#
+# So position is no longer what the enforcement rests on. Rules B and D are POSITION-FREE, and
+# they are what holds; rule A remains because it produces the precise error message.
 #
 # RULE A (allowlist, command position): every segment whose command word is `rclone` must name a
-# verb in ALLOWED_VERBS. An unrecognised or absent verb FAILS — fail-closed, so a form the parser
-# cannot vouch for is a red build and not a silent pass.
+# verb in ALLOWED_VERBS. Best-effort BY CONSTRUCTION — it strips keywords, `VAR=` prefixes and a
+# list of wrapper commands, and wrapper commands are an open set. Its job is the good diagnostic,
+# not the guarantee.
 #
-# RULE B (blocklist, anywhere): the token `rclone` followed by a forbidden verb fails wherever it
-# appears, whether or not rule A recognised the position. B is not redundant with A: it is what
-# catches a command position A's segment logic does not model.
+# RULE B (blocklist, anywhere): `rclone` ADJACENT to any of the 52 forbidden subcommands fails
+# wherever it appears. No position to model, so none of the eight forms defeats it. This is the
+# net, and it is why the blocklist is every subcommand rather than a handful.
 #
 # RULE C (flags, anywhere): `--links` and `--metadata` are forbidden outright in scoped files.
 # They have no legitimate use here and both carry their own CVE class (CVE-2026-54572,
 # CVE-2024-52522, CVE-2026-79783). Measured 2026-08-30: zero occurrences under `deploy/`.
 #
-# WHOLE-LINE COMMENTS ARE SKIPPED, and the reason is measured rather than defensive: six comment
-# lines under `deploy/` legitimately write "the rclone config is a credential". `config` is
-# therefore NOT in the blocklist — it is prose here, and an interactive subcommand no script
-# runs. INLINE comments are stripped for rule A only, and kept for rules B and C — the reasoning
-# is at the strip site, where the measurement that forced it also lives.
+# RULE D (binary binding, anywhere): assigning the rclone binary to a variable is refused
+# outright. This closes the whole indirection class at its single entry point instead of chasing
+# it — see the pattern's own comment for why refusing beats following.
 #
-# EXIT: 0 the predicate holds · 1 it does not, or the scope came back empty (fail-closed).
+# WHOLE-LINE COMMENTS ARE SKIPPED: lines under `deploy/` legitimately write "the rclone config is
+# a credential", and a guard that fires on honest text gets switched off. INLINE comments are
+# stripped for rule A only and kept for rules B, C and D — the reasoning, and the measurement
+# that forced it, are at the strip site.
+#
+# EXIT: 0 the predicate holds · 1 it does not, or the scope is empty or below its floor
+# (fail-closed) · 2 the rule-D pattern did not reach awk (see the BEGIN block).
 #
 # USAGE: rclone-invocation-guard.sh [root]
 # With no argument it judges THE DELIVERY — this repo. The argument exists for the fixture suite,
@@ -75,25 +95,65 @@ cd -- "$root"
 # closing the "arbitrary write from an untrusted remote" class (`security-auditor`, 2026-08-30).
 readonly ALLOWED_VERBS='rcat cat'
 
-# Forbidden subcommands. Each names a CVE class measured against 1.60.1 on 2026-08-30:
-#   rcd     — CVE-2026-41176 / -41179 / -49980, all three CRITICAL, unauthenticated RCE
-#   serve   — CVE-2026-59733 / -71309 (restic), CVE-2026-79781 (s3)
-#   mount   — local write surface
-#   sync    — local write surface, and remote-driven deletion
-#   copy    — remote-driven local write
-#   archive — CVE-2026-59732, S3 prefix escape via crafted archive paths
-# `config` is deliberately ABSENT: it appears in prose in six comment lines under deploy/ and is
-# an interactive subcommand no unit runs. Listing it would fire on honest text, and a guard that
-# fires on honest text gets switched off.
-readonly FORBIDDEN_VERBS='rcd serve mount sync copy archive'
+# EVERY rclone subcommand except `rcat`, `cat` (the allowlist above) and `config`. This is rule
+# B, and it is the NET: rule A can only see command positions it models, and the two reviews
+# measured eight idiomatic forms that defeat that modelling (enumerated in the header). A
+# blocklist keyed on `rclone` ADJACENT to a verb has no position to model and is not defeated by
+# any of them.
+#
+# Regenerate the source list (rclone v1.75.0 ships 55 subcommands; this list is those 55 minus
+# the three named above, so 52 — verify with `tr ' ' '\n' | grep -c .` after editing):
+#   curl -sS "https://api.github.com/repos/rclone/rclone/contents/docs/content/commands?ref=v1.75.0" | jq -r '.[].name | select(startswith("rclone_")) | ltrimstr("rclone_") | rtrimstr(".md") | split("_")[0]' | sort -u
+#
+# `config` IS DELIBERATELY ABSENT: three lines under `deploy/` legitimately write `rclone config`
+# as prose inside a `die` message ("It is the base64 OF an rclone config file"), and putting it in
+# this list fires on all three. A guard that fires on honest text gets switched off.
+#
+# ⚠ THE COST IS REAL AND IS NOT COVERED ELSEWHERE. `config` is the one subcommand outside rule B's
+# net, so it is caught only where rule A sees the command position. Measured 2026-08-30, the
+# residual form is a `#` inside a string ahead of it — `echo "chan #ops" ; rclone config create`
+# passes, because rule A's inline-comment strip truncates the line and rule B is not watching this
+# verb. `config` carries no CVE among the 19 measured against 1.60.1, which is why this is
+# accepted rather than closed; it is not a claim that the subcommand is unreachable.
+# Measured 2026-08-30: with these 52, zero false positives across all scoped files.
+readonly FORBIDDEN_VERBS='about archive authorize backend bisync check checksum cleanup completion convmv copy copyto copyurl cryptcheck cryptdecode dedupe delete deletefile gendocs gitannex gui hashsum link listremotes ls lsd lsf lsjson lsl md5sum mkdir mount move moveto ncdu nfsmount obscure purge rc rcd rmdir rmdirs selfupdate serve settier sha1sum size sync test touch tree version'
 
 # Flags forbidden outright — see RULE C above.
 readonly FORBIDDEN_FLAGS='--links --metadata'
 
-mapfile -t SCOPED < <(git ls-files -- 'deploy/' | grep '\.sh$' || true)
+# RULE D: binding the rclone binary to a variable. Measured 2026-08-30 by `security-auditor` and
+# `dotnet-architect` independently: `RCLONE="${RCLONE:-rclone}"` then `"$RCLONE" rcd --rc-no-auth`
+# passed BOTH other rules, because the literal `rclone` appears only in an assignment and never
+# beside the verb. That is the three CRITICAL CVEs, green. The fix refuses the FORM rather than
+# following the indirection — an alias-tracking parser is a different program, and shell can hide
+# a binary behind arbitrarily many hops.
+# Measured against all scoped files: zero occurrences, so refusing it costs nothing here.
+# The closing character class is exactly quote, whitespace, `;`, `&`, `|` and end-of-line, and
+# each inclusion and exclusion was measured rather than reasoned:
+#   `;` `&` `|` — `RC=/usr/bin/rclone; "$RC" rcd` ends the assignment with a separator and
+#                 slipped through a first version that accepted only quote/space/EOL.
+#   NOT `)`     — admitting it fired on honest prose: backup.sh:292 writes the die message
+#                 "(1=pg_dump 2=age 3=rclone)", where `=rclone` is followed by `)`.
+#   NOT `_` `.` — this is what keeps `rclone_config=…` and `…/rclone.conf` out.
+readonly BINARY_BINDING_RE='=["'"'"']?([^"'"'"'[:space:]]*/)?rclone(["'"'"']|[[:space:]]|[;&|]|$)|:-[[:space:]]*([^"'"'"'[:space:]}]*/)?rclone[}"'"'"']'
+
+# Floor for the dynamic scope. `dotnet-architect` measured 2026-08-30 that the empty-scope check
+# catches TOTAL disappearance but not PARTIAL narrowing: rename one `deploy/` script away from
+# `.sh` and the guard goes green over 15 files with no signal. `build.yml` already carries this
+# pattern for the same reason ("A GLOB THAT MATCHES NOTHING PASSES VACUOUSLY").
+# RAISE this when scripts are added. LOWERING it requires measuring why a file left the scope —
+# that measurement is the whole point of the floor.
+readonly MIN_SCOPED=25
+
+mapfile -t SCOPED < <(git ls-files -- 'deploy/' | grep -E '\.(sh|service)$' || true)
 
 if [ "${#SCOPED[@]}" -eq 0 ]; then
-  echo "::error::rclone-invocation-guard: no tracked *.sh under deploy/ — fail-closed. Either the scope moved or git ls-files failed; do not read this as a pass."
+  echo "::error::rclone-invocation-guard: no tracked *.sh or *.service under deploy/ — fail-closed. Either the scope moved or git ls-files failed; do not read this as a pass."
+  exit 1
+fi
+
+if [ "${#SCOPED[@]}" -lt "$MIN_SCOPED" ]; then
+  echo "::error::rclone-invocation-guard: scope narrowed to ${#SCOPED[@]} files, floor is $MIN_SCOPED — fail-closed. A script renamed out of *.sh leaves the scope silently, so this is a narrowing until measured otherwise. If a file was legitimately removed, lower MIN_SCOPED in the same commit and say which file and why."
   exit 1
 fi
 
@@ -104,17 +164,24 @@ for f in "${SCOPED[@]}"; do
   fi
 done
 
-echo "scope: ${#SCOPED[@]} tracked *.sh under deploy/"
+echo "scope: ${#SCOPED[@]} tracked *.sh + *.service under deploy/"
 
 status=0
 
 for f in "${SCOPED[@]}"; do
   findings=$(
-    awk -v allowed="$ALLOWED_VERBS" -v forbidden="$FORBIDDEN_VERBS" -v flags="$FORBIDDEN_FLAGS" '
+    awk -v allowed="$ALLOWED_VERBS" -v forbidden="$FORBIDDEN_VERBS" -v flags="$FORBIDDEN_FLAGS" -v binding="$BINARY_BINDING_RE" '
       BEGIN {
         split(allowed, a, " ");   for (i in a) ALLOW[a[i]] = 1
         split(forbidden, b, " "); for (i in b) DENY[b[i]] = 1
         split(flags, c, " ");     for (i in c) BADFLAG[c[i]] = 1
+        # An UNSET awk variable is the empty string, and `line ~ ""` is TRUE for every line —
+        # so a mis-wired -v would turn rule D from a check into a blanket failure. Caught
+        # exactly that way while wiring this. Refuse loudly instead of guessing.
+        if (binding == "") {
+          print "FATAL: rule D pattern was not passed to awk" > "/dev/stderr"
+          exit 2
+        }
       }
       # Whole-line comments carry prose about the rclone config and are out of scope for every
       # rule. Inline comments are handled per-rule at the strip site below.
@@ -142,6 +209,14 @@ for f in "${SCOPED[@]}"; do
           }
         }
 
+        # ---- RULE D: binding the rclone binary to a variable ----
+        # Refuses the FORM. Following the indirection would mean tracking assignments across a
+        # shell script, and a binary can hide behind arbitrarily many hops; refusing the one
+        # shape that starts every such chain is total where a tracker would be best-effort.
+        if (line ~ binding) {
+          printf "%d\tBINDING\t-\t%s\n", NR, substr(line, 1, 140)
+        }
+
         # ---- RULE B: `rclone <forbidden verb>` anywhere, regardless of position ----
         for (verb in DENY) {
           # ERE, no \b available: require a non-word char (or start) before rclone, and a
@@ -158,13 +233,23 @@ for f in "${SCOPED[@]}"; do
         for (k = 1; k <= n; k++) {
           s = seg[k]
 
-          # Strip leading whitespace, then leading shell keywords, repeatedly: `then rclone …`,
-          # `do sudo rclone …`. This is the blind spot a single command-position regex has.
+          # Strip, repeatedly and in any order, the three things that can sit between a command
+          # position and the binary: shell keywords (`then rclone …`), VAR=value prefixes
+          # (`RCLONE_CONFIG=x rclone …`) and wrapper commands (`timeout 30 rclone …`,
+          # `xargs rclone …`). All three were measured passing green by `dotnet-architect`
+          # 2026-08-30. This list is best-effort BY CONSTRUCTION — wrapper commands are an open
+          # set — which is exactly why rule B above is a full blocklist rather than six verbs:
+          # A gets the good error message, B is what actually holds.
           sub(/^[[:space:]]+/, "", s)
-          while (match(s, /^(then|do|else|elif|exec|eval|sudo|time|!|not)[[:space:]]+/)) {
+          while (match(s, /^(if|while|until|then|do|else|elif|exec|eval|sudo|time|command|nohup|env|xargs|nice|ionice|stdbuf|flock|timeout|!|not)[[:space:]]+/) ||
+                 match(s, /^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/) ||
+                 match(s, /^[0-9]+[smhd]?[[:space:]]+/)) {
             s = substr(s, RLENGTH + 1)
             sub(/^[[:space:]]+/, "", s)
           }
+
+          # Accept a path-qualified binary too: `/usr/bin/rclone rcat …`.
+          sub(/^[^[:space:]]*\//, "", s)
 
           if (s !~ /^rclone[[:space:]]/) continue
 
@@ -214,6 +299,9 @@ for f in "${SCOPED[@]}"; do
           ;;
         NOVERB)
           msg="an rclone invocation with no subcommand this parser can read — fail-closed."
+          ;;
+        BINDING)
+          msg="this binds the rclone binary to a variable, which defeats every position-based check. Measured 2026-08-30 by two reviewers independently: assigning the binary and then calling it through the variable passed this guard GREEN while invoking rcd, which is the three CRITICAL CVEs. Call the binary by its name."
           ;;
         FLAGFIRST)
           msg="a global flag precedes the subcommand. Put the subcommand immediately after 'rclone' — the delivered form is: rclone rcat \"\${RCLONE_FLAGS[@]}\" ... — because parsing flags first would mean tracking which of rclone's several hundred flags take a value. This is a parse refusal, not a claim that the flag is unsafe."

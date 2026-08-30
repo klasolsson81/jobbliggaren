@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 # rclone-invocation-guard.test.sh — fixtures for the #1289 guard.
 #
-# THE LAST THREE CASES PIN THE DELIVERY ITSELF, not a fixture of it: the real repo root, once by
-# argument and once by the default, plus the mutation case senior-cto-advisor required — a copy
-# of the REAL `jobbliggaren-logship.sh` with one `rclone serve` line added, which must go red. A
-# guard that has never been observed failing on the actual delivered file is not coverage; it is
-# a green light with no wiring behind it.
+# THE FINAL CASES PIN THE DELIVERY ITSELF, not a fixture of it: the real repo root, once by
+# argument and once by the default, plus two mutation pairs — copies of the REAL
+# `jobbliggaren-logship.sh` with one hostile line added, which must go red while the clean copy
+# stays green. A guard that has never been observed failing on the actual delivered file is not
+# coverage; it is a green light with no wiring behind it.
+#
+# THE EIGHT BYPASS CASES ARE THE HEART OF THIS SUITE. The first version of the guard was a single
+# command-position parser, and it passed all of its own fixtures. `security-auditor` and
+# `dotnet-architect` each built adversarial fixtures against it on 2026-08-30 and between them
+# measured eight idiomatic shell forms that ran a forbidden subcommand — `rcd`, `copyto` or
+# `lsjson` — while the guard stayed GREEN. Every one of those is a case below. They are not
+# hypothetical shapes: they are the measured ways this guard has already been defeated, and the
+# reason it now has four rules.
 #
 # Every case that asserts 0 is as load-bearing as every case that asserts 1. This guard reads
-# shell source, and the honest text under `deploy/` genuinely contains the word `rclone` in
-# prose, in variable names and in a `for tool in …` list. A guard that fires on any of those gets
-# switched off, and a switched-off guard is worth less than none — case 3 below is the one that
-# actually caught a false positive during development (backup.test.sh:504).
+# shell source, and honest text under `deploy/` genuinely contains `rclone` in prose, in variable
+# names, in a `for tool in …` list and inside a `die` message. Three of the green cases below are
+# false positives this suite actually caught during development.
 set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -26,8 +33,23 @@ trap 'rm -rf "$TMPROOT"' EXIT
 fails=0
 cases=0
 
-# Build a throwaway repo carrying one script under deploy/systemd/. The guard reads the INDEX
-# (`git ls-files`), so `stage` is not optional bookkeeping — an unstaged file is invisible to it.
+# The guard enforces a FLOOR on its dynamic scope (MIN_SCOPED), so a one-file fixture would fail
+# on the floor rather than on the predicate under test and every case would pass for the wrong
+# reason. Padding to the floor is deliberate: it exercises the DELIVERED configuration instead of
+# making the floor overridable, which would put a bypass in the shipped guard to serve its tests.
+# `scope_floor` reads the floor out of the guard itself, so raising it there cannot silently
+# strand this suite.
+scope_floor() { sed -n 's/^readonly MIN_SCOPED=\([0-9]*\).*/\1/p' "$SUT"; }
+FLOOR=$(scope_floor)
+readonly FLOOR
+if [ -z "$FLOOR" ]; then
+  echo "FAIL [harness]: could not read MIN_SCOPED out of the guard — the suite would pad blind"
+  exit 1
+fi
+
+# Build a throwaway repo carrying one script under test plus enough inert padding to clear the
+# floor. The guard reads the INDEX (`git ls-files`), so `git add` is not bookkeeping — an
+# unstaged file is invisible to it.
 mkproj() {
   local d="$TMPROOT/$1"
   rm -rf "$d"
@@ -35,6 +57,10 @@ mkproj() {
   git -C "$d" init -q
   git -C "$d" config user.email t@example.invalid
   git -C "$d" config user.name t
+  local i
+  for i in $(seq 2 "$FLOOR"); do
+    printf '#!/usr/bin/env bash\ntrue\n' >"$d/deploy/systemd/pad$i.sh"
+  done
   printf '%s' "$d"
 }
 
@@ -65,11 +91,12 @@ d=$(mkproj green-delivered)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
 readonly RCLONE_FLAGS=(--config "$rclone_config" --log-level NOTICE --retries 3)
+rclone_config="${WORKDIR}/rclone.conf"
 gzip -c "$f" | age -R "$rcpt" | rclone rcat "${RCLONE_FLAGS[@]}" "$object"
 remote_sha=$(rclone cat "${RCLONE_FLAGS[@]}" "${BACKUP_REMOTE}/${DEK}" | sha256sum)
 EOF
 stage "$d"
-run_case "delivered rcat + cat" 0 "$d"
+run_case "delivered rcat + cat, with rclone_config nearby" 0 "$d"
 
 d=$(mkproj green-prose)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
@@ -79,15 +106,14 @@ cat >"$d/deploy/systemd/x.sh" <<'EOF'
 for tool in docker age rclone sha256sum flock; do
   command -v "$tool" >/dev/null || die "missing $tool"
 done
-rclone_config="${WORKDIR}/rclone.conf"
 die "shipping failed (gzip=${rc[0]} age=${rc[1]} rclone=${rc[2]})."
 rclone rcat "${RCLONE_FLAGS[@]}" "$object"
 EOF
 stage "$d"
-run_case "honest prose, for-list, var names" 0 "$d"
+run_case "honest prose, for-list, rc[] array" 0 "$d"
 
-# The case that actually caught a false positive while this guard was being written: an INLINE
-# comment whose parenthesised text parses as a command segment naming the verb "stub".
+# FALSE POSITIVE CAUGHT DURING DEVELOPMENT (1/3): an inline comment whose parenthesised text
+# parsed as a command segment naming the verb "stub".
 d=$(mkproj green-inline-comment)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -97,22 +123,111 @@ EOF
 stage "$d"
 run_case "inline comment naming rclone is not a call" 0 "$d"
 
-# A global flag BEFORE the subcommand is refused, and this case pins that the refusal is a
-# deliberate parse boundary rather than an accident. The alternative — skipping flags — requires
-# knowing which of rclone's several hundred flags take a separate value, and a flag whose value
-# was then read as the subcommand produced the genuinely confusing message
-# "subcommand '\"$c\"' is not in the allowlist" during development. Refusing the shape outright
-# says what is wrong. All six delivered invocations already put the verb first.
-d=$(mkproj red-flag-before-verb)
+# FALSE POSITIVE CAUGHT DURING DEVELOPMENT (2/3): rule D's closing character class briefly
+# admitted `)`, which fired on backup.sh:292's real die message.
+d=$(mkproj green-die-message)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
-rclone --config "$c" --retries 3 rcat "$object"
+die "backup failed at stage (1=pg_dump 2=age 3=rclone). No stamp is written."
+rclone rcat "$object"
 EOF
 stage "$d"
-run_case "global flag before the subcommand is refused" 1 "$d"
+run_case "die message listing rclone as a stage is not a binding" 0 "$d"
+
+# FALSE POSITIVE CAUGHT DURING DEVELOPMENT (3/3): `config` in the blocklist fired on the real
+# inject-secrets die message. It is excluded from rule B for exactly this, and rule A still
+# rejects it in command position — which the red case below pins.
+d=$(mkproj green-config-prose)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+die "${key} is not valid base64. It is the base64 OF an rclone config file, not the config itself"
+rclone rcat "$object"
+EOF
+stage "$d"
+run_case "rclone config as prose in a die message" 0 "$d"
+
+d=$(mkproj green-path-literal)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+/usr/bin/rclone rcat "$object"
+EOF
+stage "$d"
+run_case "path-qualified binary with an allowed verb" 0 "$d"
 
 # --------------------------------------------------------------------------------------------
-# RED — one case per forbidden subcommand, each naming the CVE class it opens
+# RED — the EIGHT measured bypasses. Each of these passed GREEN against the first version of the
+# guard while invoking a subcommand that opens a CVE class.
+# --------------------------------------------------------------------------------------------
+
+d=$(mkproj red-bypass-defaulted-var)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RCLONE="${RCLONE:-rclone}"
+"$RCLONE" rcd --rc-addr :5572 --rc-no-auth
+EOF
+stage "$d"
+run_case "BYPASS 1: defaulted variable binding, then rcd" 1 "$d"
+
+d=$(mkproj red-bypass-plain-var)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RCLONE=rclone
+"$RCLONE" rcd
+EOF
+stage "$d"
+run_case "BYPASS 2: plain variable binding, then rcd" 1 "$d"
+
+d=$(mkproj red-bypass-var-unquoted)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RCLONE_BIN=rclone
+$RCLONE_BIN serve restic /data
+EOF
+stage "$d"
+run_case "BYPASS 3: unquoted variable expansion, then serve" 1 "$d"
+
+d=$(mkproj red-bypass-path-in-var)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RC=/usr/bin/rclone; "$RC" rcd --rc-addr :5572 --rc-no-auth
+EOF
+stage "$d"
+run_case "BYPASS 4: path bound to a variable, semicolon-terminated" 1 "$d"
+
+d=$(mkproj red-bypass-hash-in-string)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "a # b" ; rclone lsjson "$remote"
+EOF
+stage "$d"
+run_case "BYPASS 5: hash inside a string truncates rule A's view" 1 "$d"
+
+d=$(mkproj red-bypass-varprefix)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+RCLONE_CONFIG=x rclone lsjson "$remote"
+EOF
+stage "$d"
+run_case "BYPASS 6: VAR=value prefix before the binary" 1 "$d"
+
+d=$(mkproj red-bypass-wrapper)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+timeout 30 rclone copyto "$rem" /etc/x
+EOF
+stage "$d"
+run_case "BYPASS 7: wrapper command, and copyto writes locally" 1 "$d"
+
+d=$(mkproj red-bypass-xargs)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+echo x | xargs rclone lsjson
+EOF
+stage "$d"
+run_case "BYPASS 8: xargs as the command word" 1 "$d"
+
+# --------------------------------------------------------------------------------------------
+# RED — one case per originally-blocklisted subcommand, plus the keyword positions
 # --------------------------------------------------------------------------------------------
 
 for verb in rcd serve mount sync copy archive; do
@@ -125,35 +240,24 @@ for verb in rcd serve mount sync copy archive; do
   run_case "forbidden verb: $verb" 1 "$d"
 done
 
-# The blind spot a single command-position regex has: `rclone` after a shell KEYWORD rather than
-# after `|`, `;` or start-of-line. Rule A's keyword stripping is what sees this; rule B is the
-# net under it. Both must hold, so this case is not redundant with the loop above.
-d=$(mkproj red-keyword-position)
+d=$(mkproj red-keyword-then)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
 if [ -n "$x" ]; then rclone rcd --rc-serve --rc-addr :5572; fi
 EOF
 stage "$d"
-run_case "forbidden verb after 'then' (keyword position)" 1 "$d"
+run_case "forbidden verb after 'then'" 1 "$d"
 
-d=$(mkproj red-do-position)
+d=$(mkproj red-keyword-do)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
 for o in a b; do rclone sync "$src" "$o"; done
 EOF
 stage "$d"
-run_case "forbidden verb after 'do' (keyword position)" 1 "$d"
-
-d=$(mkproj red-pipe-position)
-cat >"$d/deploy/systemd/x.sh" <<'EOF'
-#!/usr/bin/env bash
-cat "$f" | rclone serve s3 --addr :8080
-EOF
-stage "$d"
-run_case "forbidden verb after a pipe" 1 "$d"
+run_case "forbidden verb after 'do'" 1 "$d"
 
 # Rule B keeps the RAW line, so a forbidden verb cannot hide behind a `#`. This is the half of
-# the inline-comment split that stays fail-closed, and it is why case "green-inline-comment"
+# the inline-comment split that stays fail-closed, and it is why the green inline-comment case
 # above does not open a hole.
 d=$(mkproj red-verb-in-inline-comment)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
@@ -162,10 +266,21 @@ true   # someday we might rclone serve s3 here
 rclone rcat "$object"
 EOF
 stage "$d"
-run_case "forbidden verb inside an inline comment still fails (rule B)" 1 "$d"
+run_case "forbidden verb inside an inline comment (rule B)" 1 "$d"
+
+# `config` is out of rule B's blocklist so it does not fire on prose. Rule A catches it in plain
+# command position, which this pins — but ONLY there: the guard's own constant block records the
+# forms that get past it, and this case must not be read as covering them.
+d=$(mkproj red-config-invoked)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+rclone config create remote s3
+EOF
+stage "$d"
+run_case "rclone config in plain command position fails (rule A)" 1 "$d"
 
 # --------------------------------------------------------------------------------------------
-# RED — forbidden flags, and the unparseable forms that must fail closed
+# RED — flags, unparseable forms, and the two scope failures
 # --------------------------------------------------------------------------------------------
 
 for flag in --links --metadata; do
@@ -181,7 +296,7 @@ done
 d=$(mkproj red-unknown-verb)
 cat >"$d/deploy/systemd/x.sh" <<'EOF'
 #!/usr/bin/env bash
-rclone lsjson "$remote"
+rclone frobnicate "$remote"
 EOF
 stage "$d"
 run_case "verb outside the allowlist fails closed" 1 "$d"
@@ -194,40 +309,71 @@ EOF
 stage "$d"
 run_case "invocation with no verb fails closed" 1 "$d"
 
-# An empty scope is the failure mode a DYNAMIC scope brings with it, and a guard that passes
-# vacuously when it can see nothing is the defect this whole file exists to prevent.
+# A global flag BEFORE the subcommand is refused as its own error rather than parsed. Skipping
+# flags would mean knowing which of rclone's several hundred take a value, and a flag whose value
+# was read as the subcommand produced a genuinely confusing message during development.
+d=$(mkproj red-flag-before-verb)
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+rclone --config "$c" --retries 3 rcat "$object"
+EOF
+stage "$d"
+run_case "global flag before the subcommand is refused" 1 "$d"
+
+# The two failure modes a DYNAMIC scope brings with it. A guard that passes vacuously when it can
+# see nothing — or can see only some of what it should — is the defect this file exists to stop.
 d=$(mkproj red-empty-scope)
+rm -f "$d"/deploy/systemd/*.sh
 echo "placeholder" >"$d/README.md"
 stage "$d"
 run_case "empty scope fails closed" 1 "$d"
 
+d=$(mkproj red-narrowed-scope)
+rm -f "$d/deploy/systemd/pad2.sh"
+cat >"$d/deploy/systemd/x.sh" <<'EOF'
+#!/usr/bin/env bash
+rclone rcat "$object"
+EOF
+stage "$d"
+run_case "scope below the floor fails closed even when the code is clean" 1 "$d"
+
 # --------------------------------------------------------------------------------------------
-# THE MUTATION CASE — required by senior-cto-advisor, and the only one that touches real source
+# MUTATION — the only cases that touch real source. Both arms are asserted: a guard that fails on
+# the mutant but also on the clean copy has measured nothing.
 # --------------------------------------------------------------------------------------------
-#
-# A copy of the REAL logship script, unmodified, must pass; the SAME copy with one `rclone serve`
-# line added must fail. Asserting both arms is the point: a guard that fails on the mutated copy
-# but also on the clean one has measured nothing.
+
 d=$(mkproj mutation-logship)
 cp "$REPO_ROOT/deploy/systemd/jobbliggaren-logship.sh" "$d/deploy/systemd/"
 stage "$d"
 run_case "real logship.sh, unmutated" 0 "$d"
 
-# Assert the mutation actually landed before running the guard on it. A mutation that did not
-# apply gives a green run that measures nothing.
 mut="$d/deploy/systemd/jobbliggaren-logship.sh"
 printf '\nrclone serve s3 --addr :8080 "$REMOTE_PREFIX"\n' >>"$mut"
 landed=$(grep -c 'rclone serve s3' "$mut")
 if [ "$landed" != "1" ]; then
-  echo "FAIL [mutation harness]: expected the mutation to land exactly once, counted $landed"
+  echo "FAIL [mutation harness A]: expected the mutation to land exactly once, counted $landed"
   fails=$((fails + 1))
 fi
 stage "$d"
-run_case "real logship.sh + one 'rclone serve' line (MUTANT)" 1 "$d"
+run_case "real logship.sh + 'rclone serve' (MUTANT A)" 1 "$d"
+
+# A second mutation in the shape the first guard could not see, against the same real file. This
+# one is the regression test for the whole four-rule rewrite: it passed GREEN before it.
+d=$(mkproj mutation-logship-indirect)
+cp "$REPO_ROOT/deploy/systemd/jobbliggaren-logship.sh" "$d/deploy/systemd/"
+mut="$d/deploy/systemd/jobbliggaren-logship.sh"
+printf '\nRCLONE="${RCLONE:-rclone}"\n"$RCLONE" rcd --rc-addr :5572 --rc-no-auth\n' >>"$mut"
+landed=$(grep -c 'rc-no-auth' "$mut")
+if [ "$landed" != "1" ]; then
+  echo "FAIL [mutation harness B]: expected the mutation to land exactly once, counted $landed"
+  fails=$((fails + 1))
+fi
+stage "$d"
+run_case "real logship.sh + variable-bound rcd (MUTANT B)" 1 "$d"
 
 # --------------------------------------------------------------------------------------------
-# THE DELIVERY ITSELF — both invocation forms. A workflow step passing no argument must judge
-# the same thing the explicit form does, or the step and this suite disagree silently.
+# THE DELIVERY ITSELF — both invocation forms. A workflow step passing no argument must judge the
+# same thing the explicit form does, or the step and this suite disagree silently.
 # --------------------------------------------------------------------------------------------
 
 cases=$((cases + 1))

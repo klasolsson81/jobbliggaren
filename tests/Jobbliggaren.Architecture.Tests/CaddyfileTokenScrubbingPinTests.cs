@@ -90,16 +90,15 @@ public class CaddyfileTokenScrubbingPinTests
     /// neither gates content. A retention purpose therefore cannot be written for it, which is
     /// Art. 5(1)(c), the same ground <c>uid</c> was deleted on in ADR 0050's
     /// Amendment 2026-08-29 — and, where the term is health-adjacent, Art. 9(1) with no 9(2)
-    /// exception available to an edge log, plus Art. 5(1)(e) because the json-file sink has no
-    /// age limit. Note the asymmetry it closes: <c>employer</c> is format-gated to ten
+    /// exception available to an edge log. Note the asymmetry it closes: <c>employer</c> is format-gated to ten
     /// digits and was already scrubbed, while the ungated field — the one that can actually carry
     /// a personnummer — was not.
     /// </para>
     /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
     /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
-    /// from a closed, published or enumerated value space that identifies nobody and has a stated
-    /// purpose — it selects which server-side query path ran — and is kept.
+    /// from a closed, published or enumerated value space and has a stated purpose — it selects
+    /// which server-side query path ran — and is kept.
     /// (senior-cto-advisor, 2026-08-30.) The rule lives here rather than in any one route's test
     /// file because it governs every app surface, and the next surface's author opens this array.
     /// </para>
@@ -110,9 +109,9 @@ public class CaddyfileTokenScrubbingPinTests
     /// key OF THAT ROUTE judged scrubbed or kept — in
     /// <c>web/jobbliggaren-web/src/lib/job-ads/axis-edge-log-inventory.test.ts</c>, which reads
     /// this array and fails in both directions. A name added here from ANOTHER surface is held by
-    /// the Caddyfile fact below and by nothing else: that surface owes its own inventory file, and
-    /// <c>/foretag/sok</c> is the one that already exists without one. That file deliberately does
-    /// not parse the Caddyfile — the placement sensitivity above is owned here and nowhere else.
+    /// the Caddyfile fact below and by nothing else: that surface owes its own inventory file.
+    /// That file deliberately does not parse the Caddyfile — the placement sensitivity above is
+    /// owned here and nowhere else.
     /// </para>
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters = ["employer", "q"];

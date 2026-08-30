@@ -122,9 +122,8 @@ const EMITTED: ReadonlySet<string> = new Set([
 // are gated (`parseEmployerParam`, `parseQParam`), while `toStringList` splits, trims and drops
 // empties without validating, and `pageSize`/`sortBy` are re-emitted on a `!==` check. So a
 // hand-edited `?region=<anything>` does reach the edge — but that value is the visitor typing
-// into their own address bar, which no query filter can protect them from, and it is a different
-// thing from a field the app INVITES free text into. That difference is the whole of why `q` is
-// scrubbed and these are not.
+// into their own address bar, which is a different thing from a field the app INVITES free text
+// into. That difference is the whole of why `q` is scrubbed and these are not.
 //
 // Nor does "identifies nobody" describe the log POST. The Caddy filter names two fields,
 // `request>uri query` and `request>headers`; everything else passes through, `remote_ip`
@@ -149,9 +148,8 @@ const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
       "retention purpose therefore cannot be written for it — Art. 5(1)(c), the same ground uid " +
       "was deleted on. It is the field that can carry a personnummer, a former employer or a " +
       "health-adjacent word, and nothing on the request path would know that it had. That last " +
-      "case is Art. 9(1) with no 9(2) exception available to an edge log, and the json-file sink " +
-      "has no age limit at all, which is Art. 5(1)(e) — both stronger grounds than 5(1)(c), and " +
-      "the ones that hold if someone later wants q back for diagnostics.",
+      "case is Art. 9(1) with no 9(2) exception available to an edge log — a stronger ground " +
+      "than 5(1)(c), and the one that holds if someone later wants q back for diagnostics.",
   },
   occupationGroup: {
     verdict: "kept",

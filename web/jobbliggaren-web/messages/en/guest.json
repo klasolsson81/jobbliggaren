@@ -3,6 +3,7 @@
     "regionAriaLabel": "Demo mode",
     "label": "DEMO",
     "text": "You are exploring Jobbliggaren as a guest. The content is sample data. Create an account to save job ads and follow up on your own applications.",
+    "toStart": "To the start page",
     "cta": "Create account"
   },
   "welcome": {

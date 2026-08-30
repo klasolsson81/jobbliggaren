@@ -27,4 +27,22 @@ describe("<GuestDemoBanner />", () => {
       /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u
     );
   });
+
+  it("erbjuder en etiketterad väg ut ur demot till startsidan", () => {
+    render(<GuestDemoBanner />);
+    const toStart = screen.getByRole("link", { name: /till startsidan/i });
+    expect(toStart).toHaveAttribute("href", "/");
+  });
+
+  // Ordningen är assertionen, inte en detalj: bandet har EN länkstil, så det som
+  // skiljer utgången från primäråtgärden är att den står först. Listan pinnar
+  // också antalet — en tredje länk i bandet faller här och ska granskas som en
+  // egen fråga, inte glida in.
+  it("radar utgången före skapa-konto så primäråtgärden står sist", () => {
+    const { container } = render(<GuestDemoBanner />);
+    const hrefs = Array.from(container.querySelectorAll("a")).map((a) =>
+      a.getAttribute("href")
+    );
+    expect(hrefs).toEqual(["/", "/registrera"]);
+  });
 });

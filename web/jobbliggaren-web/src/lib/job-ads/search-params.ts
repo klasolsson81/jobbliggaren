@@ -335,7 +335,7 @@ export function withCommitFlag(href: string): string {
  * TVÅ producenter, med OLIKA grindar: `buildCompanyJobsHref` (`company-jobs-href.ts`),
  * anropad från bevakningsraden, gatar hos ANROPAREN på
  * `!isProtectedIdentity && organizationNumber`; typeaheadens arbetsgivarförslag
- * (`composeSuggestionChip`) gatar i fyra led på serversidan och i dekodern.
+ * (`composeSuggestionChip`) gatar i fyra led.
  * En tredje producent måste bära en egen grind — ingen ärvs. Utöver den round-trippar
  * `buildJobbHref`, `buildPageHref` och toolbarens
  * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje

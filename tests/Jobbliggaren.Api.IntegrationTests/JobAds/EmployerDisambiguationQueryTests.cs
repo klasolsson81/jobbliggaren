@@ -369,8 +369,7 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
     /// C# to the indexed expression. LINK 2 — that this expression is served by
     /// <c>ix_job_ads_company_name_lower_trgm</c> — is
     /// <c>JobAdPlannerUsabilityOracleTests.EmployerSuggest_IsIndexServed</c>. Together they cover
-    /// what neither does alone, and link 2's hand-written SQL cannot go stale behind production
-    /// while link 1 holds.
+    /// what neither does alone.
     /// </para>
     /// </summary>
     [Fact]

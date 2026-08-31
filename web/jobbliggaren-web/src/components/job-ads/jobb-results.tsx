@@ -409,10 +409,6 @@ export async function JobbResults({
       // arbetsgivare filtreras tillhör VARJE rad på sidan den arbetsgivaren. Radens
       // `companyName` ÄR alltså dess namn — org.nr och namn behöver aldrig mötas på
       // klienten, och ingen uppslagstjänst behövs (#408 förblir orörd).
-      //
-      // MIN över sidans namn, samma deterministiska val som portens
-      // `SuggestActiveEmployersQuery` gör med `MIN(company_name)`, så chippet och förslaget
-      // visar samma sträng när en arbetsgivares annonser stavar namnet olika.
       const soleEmployerName =
         employer.length === 1
           ? [...new Set(result.data.items.map((it) => it.companyName))]

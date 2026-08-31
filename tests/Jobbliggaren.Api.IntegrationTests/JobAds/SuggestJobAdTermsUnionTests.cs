@@ -385,4 +385,37 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         result.ShouldAllBe(x => x.Label != $"{token} Enskild Firma");
     }
 
+    /// <summary>
+    /// The employer branch is gated on <c>Prefix.Length &gt;= MinTrigramServableTermLength</c> (3).
+    /// Below that length a <c>%contains%</c> fragment is not trigram-servable, so running the branch
+    /// anyway degrades to a sequential scan of <c>job_ads</c> on every keystroke. The query validator
+    /// admits a two-character prefix, so this gate, not validation, is what stands between that
+    /// prefix and the scan.
+    /// </summary>
+    /// <remarks>
+    /// The three-character arm is a positive control: it proves the seeded employer IS reachable
+    /// through the real port, so the two-character assertion cannot pass by finding nothing at all.
+    /// </remarks>
+    [Fact]
+    public async Task Handle_ShouldNotRunTheEmployerBranch_BelowTheTrigramServableLength()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Letters the sibling tokens cannot produce: those are guid hex, which has no q, x or z.
+        var stem = $"qxz{Guid.NewGuid():N}"[..12];
+        const string orgNr = "5566111104";
+
+        await SeedEmployerAdAsync(orgNr, $"{stem} AB", ct);
+
+        var served = await RunAsync(TaxonomyReturning(), stem[..3], 10, ct);
+        served.ShouldContain(
+            x => x.Kind == SuggestionKind.Employer && x.OrganizationNumber == orgNr,
+            "positive control: at three characters the branch runs and the row is reachable.");
+
+        var gated = await RunAsync(TaxonomyReturning(), stem[..2], 10, ct);
+        gated.ShouldNotContain(
+            x => x.Kind == SuggestionKind.Employer && x.OrganizationNumber == orgNr,
+            "at two characters the gate must stop the branch, so the row the arm above just proved "
+            + "reachable does not come back.");
+    }
+
 }

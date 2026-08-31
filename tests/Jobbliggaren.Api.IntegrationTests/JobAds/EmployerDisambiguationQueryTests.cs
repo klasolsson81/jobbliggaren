@@ -4,6 +4,7 @@ using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -209,5 +210,147 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
         var result = await RunAsync(brand, 2, ct);
 
         result.Count.ShouldBe(2);
+    }
+
+    // ═══════════════ #1546 — the suggest-scoped sibling (Active-only) ═══════════════
+
+    private async Task<IReadOnlyList<Application.JobAds.Abstractions.EmployerAdGroup>> SuggestAsync(
+        string nameTerm, int limit, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await new EmployerDisambiguationQuery(db)
+            .SuggestActiveEmployersAsync(nameTerm, limit, ct);
+    }
+
+    /// <summary>
+    /// Archives the ad seeded at <paramref name="externalId"/> through the aggregate's own
+    /// <see cref="JobAd.Archive"/> — the transition <c>ArchiveExternalJobAdCommand</c> drives and that
+    /// <c>ExpireJobAdsJob</c> performs in bulk. NOT a hand-written status column: an Archived ad is a
+    /// state production produces, and this is the actor that produces it (CLAUDE.md §5 <c>Tests:</c>).
+    /// </summary>
+    private async Task ArchiveSeededAdAsync(string externalId, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+
+        var url = $"https://example.com/jobs/{externalId}";
+        var ad = await db.JobAds.SingleAsync(j => j.Url == url, ct);
+
+        ad.Archive(clock).IsSuccess.ShouldBeTrue("the seeded ad must be Active before archiving");
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// The difference the method exists for. Asserts BOTH directions against the same row, so a green
+    /// result cannot come from the term simply matching nothing.
+    /// </summary>
+    [Fact]
+    public async Task SuggestActiveEmployers_ExcludesAnEmployerWhoseAdsAreAllArchived()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brand = NewBrand();
+        var externalId = $"ext-{Guid.NewGuid():N}";
+
+        await SeedAdAsync("5566070701", $"{brand} AB", externalId, ct);
+        (await SuggestAsync(brand, 50, ct)).Count.ShouldBe(1, "the ad is Active at this point");
+
+        await ArchiveSeededAdAsync(externalId, ct);
+
+        (await SuggestAsync(brand, 50, ct)).ShouldBeEmpty(
+            "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active — an "
+            + "employer with no active ads would be a chip with no target.");
+
+        (await RunAsync(brand, 50, ct)).Count.ShouldBe(1,
+            "SearchAsync must stay status-agnostic: following an employer is a bet on its FUTURE ads "
+            + "(Klas, 2026-07-17). If this side moved too, the two reads were collapsed into one.");
+    }
+
+    /// <summary>
+    /// The count a suggestion shows is the count the chip then shows. Same employer, one Active ad and
+    /// one Archived, so the two methods must disagree by exactly one.
+    /// </summary>
+    [Fact]
+    public async Task SuggestActiveEmployers_CountsOnlyActiveAds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brand = NewBrand();
+        const string org = "5566070702";
+        var staleExternalId = $"ext-{Guid.NewGuid():N}";
+
+        await SeedAdAsync(org, $"{brand} AB", $"ext-{Guid.NewGuid():N}", ct);
+        await SeedAdAsync(org, $"{brand} AB", staleExternalId, ct);
+        await ArchiveSeededAdAsync(staleExternalId, ct);
+
+        var suggested = await SuggestAsync(brand, 50, ct);
+        suggested.Count.ShouldBe(1);
+        suggested[0].AdCount.ShouldBe(1, "the archived ad is not reachable through ?employer=");
+
+        var searched = await RunAsync(brand, 50, ct);
+        searched[0].AdCount.ShouldBe(2, "the follow picker counts every ad, by design");
+    }
+
+    /// <summary>
+    /// Infrastructure does NO masking, for the suggest branch exactly as for its sibling. The
+    /// personnummer exclusion (ADR 0087 D8(c), CTO bind F3) lives in the Application handler; if it
+    /// ever migrates down here this fact goes red, which is the point.
+    /// </summary>
+    [Fact]
+    public async Task SuggestActiveEmployers_ReturnsRawOrgNr_EvenWhenPersonnummerShaped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brand = NewBrand();
+
+        // Third digit 0 → personnummer-shaped by OrganizationNumber.IsPersonnummerShaped().
+        await SeedAdAsync("8501012384", $"{brand} Konsult", $"ext-{Guid.NewGuid():N}", ct);
+
+        var result = await SuggestAsync(brand, 50, ct);
+
+        result.Count.ShouldBe(1);
+        result[0].OrganizationNumber.ShouldBe("8501012384",
+            "the port returns the RAW value; masking and exclusion are the handler's job.");
+    }
+
+    /// <summary>
+    /// LINK 1 OF 2 in the index chain, and the one that cannot drift.
+    ///
+    /// <para>
+    /// The trigram index #1546 shipped is keyed on the EXPRESSION <c>lower(company_name)</c>. An
+    /// <c>ILIKE</c> over the bare column is semantically identical and NOT index-servable, so the
+    /// difference is invisible to every behavioural test in this file — on a per-keystroke surface it
+    /// is a sequential scan of <c>job_ads</c> per keystroke.
+    /// </para>
+    ///
+    /// <para>
+    /// This fact reads the SQL EF actually emits from production's own expression tree, so it binds
+    /// C# to the indexed expression. LINK 2 — that this expression is served by
+    /// <c>ix_job_ads_company_name_lower_trgm</c> — is already pinned by
+    /// <c>JobAdPlannerUsabilityOracleTests.QSearch_IsServedByEveryArmOfItsDisjunction</c>, whose
+    /// company-name arm is the same expression. Together they cover what neither does alone, and
+    /// link 2's hand-written SQL cannot go stale behind production while link 1 holds.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void SuggestActiveEmployers_EmitsTheIndexedLowerExpression_NeverIlike()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var sql = EmployerDisambiguationQuery
+            .SuggestActiveEmployersQuery(db, "volvo", 10)
+            .ToQueryString();
+
+        // Checked explicitly, because "LIKE" is a substring of "ILIKE": asserting the presence of
+        // LIKE alone would pass against the very form this fact exists to forbid.
+        sql.ShouldNotContain("ILIKE", Case.Insensitive,
+            "ILIKE over the bare column cannot use ix_job_ads_company_name_lower_trgm, whose key is "
+            + $"the expression lower(company_name). SQL:\n{sql}");
+
+        sql.ShouldContain("lower(", Case.Insensitive,
+            $"the company-name predicate must be written over lower(company_name). SQL:\n{sql}");
+
+        sql.ShouldContain("LIKE", Case.Sensitive,
+            $"the company-name predicate must be a LIKE against the lowered expression. SQL:\n{sql}");
     }
 }

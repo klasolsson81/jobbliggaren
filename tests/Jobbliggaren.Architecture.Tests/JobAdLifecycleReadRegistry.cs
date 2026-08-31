@@ -146,6 +146,13 @@ public static class JobAdLifecycleReadRegistry
                 One(Active(".CountAsync(orgNr == x && j.Status == Active) — the company's active-ad count (#864 C3 class).")),
             ["Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms.SuggestJobAdTermsQueryHandler.Handle"] =
                 One(Active(".Where(j.Status == Active).Where(title LIKE pattern) — the public title autosuggest (#913 B5-equivalent surface).")),
+            ["Jobbliggaren.Infrastructure.JobAds.EmployerDisambiguationQuery.SuggestActiveEmployersQuery"] =
+                One(Active(
+                    ".Where(j.Status == Active && org.nr != null && Like(lower(Company.Name), pattern)).GroupBy(org.nr) "
+                    + "— the /jobb typeahead's employer branch (#1546). Deliberately NOT the sibling SearchAsync below: "
+                    + "selecting a suggestion navigates to ?employer=, which ApplyFilter scopes to Active, so an "
+                    + "employer with only archived ads would be a chip with no target and an ad count the chip then "
+                    + "contradicts.")),
             ["Jobbliggaren.Application.Matching.Queries.GetMyNewMatchCount.GetMyNewMatchCountQueryHandler.Handle"] =
                 One(Active("join JobAds where j.Status == Active — the Översikt new-match badge (#913 B3 witness).")),
             ["Jobbliggaren.Application.Matching.Queries.GetMyMatches.GetMyMatchesQueryHandler.Handle"] =

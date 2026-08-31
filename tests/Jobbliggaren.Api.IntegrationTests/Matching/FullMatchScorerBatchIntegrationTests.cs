@@ -277,6 +277,11 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             // CoveredSkillConceptIds helper on both paths).
             batch[id].MatchedSkillConceptIds.ShouldBe(single.MatchedSkillConceptIds,
                 "MatchedSkillConceptIds batch==single (per-key regression contract)");
+            // The batch arm builds MatchDimensionCauses from its own three locals, so a
+            // transposed wiring there compiles and every single-path cause test stays green.
+            // This is the only assertion that sees it.
+            batch[id].Causes.ShouldBe(single.Causes,
+                "Causes batch==single (per-key regression contract)");
         }
 
         // Sanity that the seed genuinely exercised the new dims on ad1.

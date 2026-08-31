@@ -248,8 +248,7 @@
       "matchCause": {
         "PreferenceUnstated": {
           "employmentFit": "You have not stated any employment type.",
-          "regionFit": "You have not stated any region.",
-          "ssykOverlap": "You have not stated which occupations you are searching within."
+          "regionFit": "You have not stated any region."
         },
         "AdSilent": {
           "employmentFit": "The ad does not state an employment type.",

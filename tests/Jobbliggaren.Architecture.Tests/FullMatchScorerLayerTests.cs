@@ -91,20 +91,6 @@ public class FullMatchScorerLayerTests
     [Fact]
     public void FullScoredMatch_carries_exactly_Score_SsykIsRelated_MatchedSkillEvidence_and_Causes()
     {
-        // PR-4 (#300, ADR 0084 — PR-2 bind) + #477 Low 2: the FULL-scorer carrier is exactly
-        // { Score (the frozen FullMatchScore), SsykIsRelated, MatchedSkillConceptIds }. Both
-        // extra members ride BESIDE the Goodhart-frozen FullMatchScore, never inside it:
-        // SsykIsRelated is a CATEGORICAL bool (a ladder BRANCH — the MatchGrade.Related flat cap),
-        // and MatchedSkillConceptIds is a string-list EVIDENCE payload (the covered-skill
-        // concept-ids the background scan persists into UserJobAdMatch, #477 Low 2). NEITHER is a
-        // magnitude — neither blends into a number. Pinned BY SHAPE so a sneak-total or an extra
-        // scoring dimension still cannot creep onto the carrier; a string-list of matched ids is
-        // explicitly the ALLOWED explainability shape (parity UserJobAdMatchGoodhartTests, which
-        // bless "the evidence is a string list").
-        //
-        // Causes is the third such member: a bounded per-dimension DISCRIMINATOR (why a membership
-        // dimension landed where it did when its verdict and evidence do not say so alone). Its
-        // members are named enum values, so nothing here can be summed either.
         var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
 
         var propNames = carrier

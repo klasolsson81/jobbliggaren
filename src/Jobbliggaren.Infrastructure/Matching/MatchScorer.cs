@@ -319,7 +319,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
             // SkillOverlap dimension consumed above.
             CoveredSkillConceptIds(terms, cvSkills),
-            new MatchDimensionCauses(ssyk.Cause, ort.Cause, employment.Cause));
+            new MatchDimensionCauses(
+                SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause));
     }
 
     // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
@@ -421,7 +422,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
                 // SkillOverlap dimension consumed above (parity ScoreFullAsync).
                 CoveredSkillConceptIds(terms, cvSkills),
-                new MatchDimensionCauses(ssyk.Cause, ort.Cause, employment.Cause));
+                new MatchDimensionCauses(
+                    SsykOverlap: ssyk.Cause, RegionFit: ort.Cause, EmploymentFit: employment.Cause));
         }
 
         return result;

@@ -117,9 +117,13 @@ function causeReason(
 ): string | null {
   switch (key) {
     case "ssykOverlap":
+      // Bara AdSilent: `PreferenceUnstated` på yrkesraden tvingar grade till null, och
+      // skylten nedan läser exakt det paret och ersätter hela sektionen — så den här
+      // raden hinner aldrig rendera med den orsaken.
+      return cause === "AdSilent" ? t("matchCause.AdSilent.ssykOverlap") : null;
     case "employmentFit":
       return cause === "PreferenceUnstated" || cause === "AdSilent"
-        ? t(`matchCause.${cause}.${key}`)
+        ? t(`matchCause.${cause}.employmentFit`)
         : null;
     case "regionFit":
       return t(`matchCause.${cause}.regionFit`);
@@ -538,7 +542,9 @@ export function JobAdMatchSection({
   // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
   // (design §2.E #2 — ingen string-drift mellan ytor).
   // Skylten ersätter HELA sektionen och talar om ANVÄNDARENS inställningar, så
-  // den får bara tändas när det verkligen är de som saknas. Verdiktet räcker
+  // den får bara tändas när det verkligen är de som saknas. Villkoras den någonsin
+  // hårdare får yrkesraden en nåbar `PreferenceUnstated`-gren igen, och `causeReason`
+  // behöver sin katalogfras tillbaka. Verdiktet räcker
   // inte: `NotAssessed` betyder också "annonsen saknar yrkesgrupp", och då sa
   // skylten åt en användare som angett sitt yrke att hon inte hade gjort det,
   // med en länk till en inställning hon redan fyllt i.

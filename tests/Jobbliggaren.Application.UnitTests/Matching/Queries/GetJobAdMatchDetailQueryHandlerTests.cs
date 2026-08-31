@@ -119,15 +119,13 @@ public class GetJobAdMatchDetailQueryHandlerTests
         {
             _score = score;
             _isRelated = isRelated;
-            // Default: no dimension carries a cause — what the scorer returns when every
-            // dimension cites ordinary evidence. A cause test passes its own.
-            _causes = causes ?? new MatchDimensionCauses(null, null, null);
+            _causes = causes ?? MatchDimensionCauses.None;
         }
 
         public FakeScorer(Exception throwOnScoreFull)
         {
             _throwOnScoreFull = throwOnScoreFull;
-            _causes = new MatchDimensionCauses(null, null, null);
+            _causes = MatchDimensionCauses.None;
         }
 
         public int ScoreFullCallCount { get; private set; }

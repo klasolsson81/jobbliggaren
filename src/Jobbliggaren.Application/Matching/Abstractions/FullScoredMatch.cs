@@ -2,9 +2,8 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 
 /// <summary>
 /// #300 PR-4 (ADR 0084 §F4 / §5 point 5; senior-cto-advisor carrier-bind 2026-06-28,
-/// Variant A) — the FULL scorer's port result, the frozen <see cref="FullMatchScore"/>
-/// PLUS the single bit the grade ladder needs to split exact-vs-related:
-/// <see cref="SsykIsRelated"/>.
+/// Variant A) — the FULL scorer's port result: the frozen <see cref="FullMatchScore"/> plus the
+/// signals the score type cannot carry, each documented on its own parameter below.
 /// <para>
 /// <b>Why a separate carrier, not a field on <see cref="FullMatchScore"/> (PR-2 bind):</b>
 /// the score types are arch-pinned BY SHAPE (Goodhart guard — <c>FullMatchScore</c> is

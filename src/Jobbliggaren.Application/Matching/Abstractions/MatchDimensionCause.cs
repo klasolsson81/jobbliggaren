@@ -93,4 +93,13 @@ public enum MatchDimensionCause
 public sealed record MatchDimensionCauses(
     MatchDimensionCause? SsykOverlap,
     MatchDimensionCause? RegionFit,
-    MatchDimensionCause? EmploymentFit);
+    MatchDimensionCause? EmploymentFit)
+{
+    /// <summary>
+    /// No dimension carries a cause — what the scorer returns when every membership dimension
+    /// cites ordinary evidence. An INSTANCE, not a <see cref="MatchDimensionCause"/> member: the
+    /// enum deliberately has no <c>None</c>, because a member meaning "ignore me" is not a
+    /// reason. This one names a real state and keeps an arity change to one edit.
+    /// </summary>
+    public static readonly MatchDimensionCauses None = new(null, null, null);
+}

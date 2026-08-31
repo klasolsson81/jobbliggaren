@@ -51,6 +51,17 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
       "ui.gradeFilter.grade.Related",
       // Badge + modal-förklaring för Related.
       "ui.match.grade.Related",
+      // Orsaks-katalogen: de sju (orsak × dimension)-par backend faktiskt producerar OCH
+      // modalen kan rendera. Enumet är bundet (MatchDimensionCause_is_the_locked_four_member_set)
+      // men katalogen är det inte — utan de här raderna kan en fras försvinna ur BÅDA
+      // lokalerna med grön svit, eftersom pariteten bara jämför sv mot en.
+      "ui.match.matchCause.PreferenceUnstated.regionFit",
+      "ui.match.matchCause.PreferenceUnstated.employmentFit",
+      "ui.match.matchCause.AdSilent.ssykOverlap",
+      "ui.match.matchCause.AdSilent.regionFit",
+      "ui.match.matchCause.AdSilent.employmentFit",
+      "ui.match.matchCause.RemoteOverride.regionFit",
+      "ui.match.matchCause.RegionContainsPreferredMunicipality.regionFit",
       "ui.match.relatedYrkeReason",
     ];
     const sv = new Set(leafPaths(svJobads));

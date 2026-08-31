@@ -348,7 +348,7 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // RelatedSsykGroupConceptIds is an additive init-property on the embedded Fast profile (not a
     // positional arg). preferredRegions/preferredEmployments default empty so the cap-before-RB1
     // cases can opt into a stated-but-contradicted secondary. The related set is EMPTY for every
-    // pre-PR-4 test (behaviour-inert), so this helper is only used by the B2 Related cases.
+    // pre-PR-4 test (behaviour-inert).
     private static FullCandidateMatchProfile RelatedFullProfile(
         IReadOnlyList<string>? preferredRegions = null,
         IReadOnlyList<string>? preferredEmployments = null,
@@ -383,6 +383,10 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // The last two tests are the falsifiers: an ordinary hit and an ordinary miss carry NO cause.
     // Without them every assertion below would also pass against a scorer that stamped one cause
     // unconditionally.
+    //
+    // Each caused arm also asserts EMPTY evidence. The modal's cause branch runs first and
+    // consumes the whole evidence cell, so a future cause attached to an arm that cites concepts
+    // would hide them with no test failing.
     // =================================================================
 
     [Fact]
@@ -399,6 +403,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
         result.Causes.RegionFit.ShouldBe(MatchDimensionCause.PreferenceUnstated,
             "the vacuous-gate arm: the USER constrained nothing, which is why nothing was assessed");
     }
@@ -417,6 +423,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
 
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
         result.Causes.RegionFit.ShouldBe(MatchDimensionCause.AdSilent,
             "the #552 arm: the AD is silent on a dimension the user constrained");
     }
@@ -463,6 +471,8 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         // This is the arm whose NotAssessed used to be indistinguishable from the unstated one, so
         // the modal told a user who HAD named a kommun that she had named no region.
         result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
         result.Causes.RegionFit.ShouldBe(
             MatchDimensionCause.RegionContainsPreferredMunicipality);
     }

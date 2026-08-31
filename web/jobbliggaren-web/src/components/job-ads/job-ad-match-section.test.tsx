@@ -523,7 +523,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // Bevisraden måste förklara annonsens tystnad — aldrig en tom cell. Skälet KOMMER
   // numera från servern (`cause: "AdSilent"`); komponenten härleder det inte längre.
   describe("AdSilent (#552 — NoMatch med tom evidens)", () => {
-    it("RegionFit NoMatch utan evidens → 'Annonsen anger ingen region.' i neutral ink", () => {
+    it("RegionFit NoMatch utan evidens → 'Annonsen anger varken län eller kommun.' i neutral ink", () => {
       const { container } = render(
         <JobAdMatchSection
           match={detail({
@@ -531,7 +531,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
           })}
         />
       );
-      const reason = screen.getByText("Annonsen anger ingen region.");
+      const reason = screen.getByText("Annonsen anger varken län eller kommun.");
       expect(reason).toBeInTheDocument();
       // Neutral ink, aldrig röd — annonsens tystnad är inget fel.
       expect(reason.className).toContain("jp-modal__matchrow-missing");
@@ -595,7 +595,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
           ortGranularityByLabel={granularity}
         />
       );
-      expect(screen.getByText("Annonsen anger ingen region.")).toBeInTheDocument();
+      expect(screen.getByText("Annonsen anger varken län eller kommun.")).toBeInTheDocument();
     });
 
     it("explicit ort-mismatch (missing bär annonsens ort) tar INTE den nya grenen", () => {
@@ -608,7 +608,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         screen.getByText("Annonsen efterfrågar även: Stockholms län")
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Annonsen anger ingen region.")
+        screen.queryByText("Annonsen anger varken län eller kommun.")
       ).not.toBeInTheDocument();
     });
   });
@@ -663,7 +663,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       // Den bärande negativa halvan: det var precis den här meningen som sas till
       // en användare som HADE angett en kommun.
       expect(
-        screen.queryByText("Du har inte angett någon region.")
+        screen.queryByText("Du har inte angett någon ort.")
       ).not.toBeInTheDocument();
     });
 
@@ -720,7 +720,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         screen.getByText("Annonsen efterfrågar även: Stockholms län")
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Annonsen anger ingen region.")
+        screen.queryByText("Annonsen anger varken län eller kommun.")
       ).not.toBeInTheDocument();
     });
   });
@@ -751,7 +751,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.queryByText("Annonsen anger ingen region.")
+        screen.queryByText("Annonsen anger varken län eller kommun.")
       ).not.toBeInTheDocument();
     });
 
@@ -766,7 +766,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen anger ingen region.")
+        screen.getByText("Annonsen anger varken län eller kommun.")
       ).toBeInTheDocument();
       expect(
         screen.queryByText(/saknas i vårt register/)

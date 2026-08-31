@@ -248,12 +248,11 @@
       "matchCause": {
         "PreferenceUnstated": {
           "employmentFit": "Du har inte angett någon anställningsform.",
-          "regionFit": "Du har inte angett någon region.",
-          "ssykOverlap": "Du har inte angett vilka yrken du söker inom."
+          "regionFit": "Du har inte angett någon ort."
         },
         "AdSilent": {
           "employmentFit": "Annonsen anger ingen anställningsform.",
-          "regionFit": "Annonsen anger ingen region.",
+          "regionFit": "Annonsen anger varken län eller kommun.",
           "ssykOverlap": "Annonsen anger inget yrke."
         },
         "RemoteOverride": {

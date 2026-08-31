@@ -127,10 +127,6 @@ public class BackgroundMatchingJobTopDirectTests
                 PreferredMunicipalityConceptIds: []),
             CvSkillConceptIds: []);
 
-    // Every dimension in these fixtures cites ordinary evidence, so no dimension carries a
-    // cause — the shape the scorer returns for a plain hit or miss. The scan reads .Score only.
-    private static readonly MatchDimensionCauses NoCauses = new(null, null, null);
-
     // PR-4 (#300, ADR 0084): ScoreFullBatchAsync returns FullScoredMatch carriers. The scan
     // unwraps .Score to grade and maps Good/Strong/Top → notifiable (Related → null, not
     // persisted). These Top-direct tests are behaviour-inert on the related bit (SsykIsRelated:
@@ -143,7 +139,7 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? [], NoCauses),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? [], MatchDimensionCauses.None),
             });
 
     // PR-4 (#300): stub the carrier with SsykIsRelated:true → the Worker grades Related (flat cap)
@@ -155,7 +151,7 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true, [], NoCauses),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true, [], MatchDimensionCauses.None),
             });
 
     private static async Task<UserJobAdMatch?> ReloadMatchAsync(
@@ -426,8 +422,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], NoCauses),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], NoCauses),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
             });
 
         await CreateJob(db).RunAsync(ct);
@@ -466,8 +462,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], NoCauses),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], NoCauses),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
             });
 
         // First send throws, the second succeeds (dispatch order over the score dict is not

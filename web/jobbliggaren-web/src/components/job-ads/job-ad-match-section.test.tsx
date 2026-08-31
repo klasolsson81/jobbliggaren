@@ -533,7 +533,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       );
       const reason = screen.getByText("Annonsen anger ingen region.");
       expect(reason).toBeInTheDocument();
-      // Neutral ink (ink-2), aldrig röd — annonsens tystnad är inget fel.
+      // Neutral ink, aldrig röd — annonsens tystnad är inget fel.
       expect(reason.className).toContain("jp-modal__matchrow-missing");
       // Verdiktet är fortfarande Saknas (graden golvas — det är grindens poäng).
       const verdict = container.querySelector(

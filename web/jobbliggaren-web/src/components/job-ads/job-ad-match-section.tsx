@@ -476,7 +476,7 @@ function MatchRow({
         ) : isRelatedYrke ? (
           // #300 PR-5 — neutral "därför lägre"-förklaring på Yrke-raden för en
           // Related-match. Ingen siffra (Goodhart), neutral ink (jp-modal__
-          // matchrow-missing = ink-2, ej röd — ett relaterat yrke är inget fel).
+          // matchrow-missing, ej röd — ett relaterat yrke är inget fel).
           <span className="jp-modal__matchrow-missing">
             {t("relatedYrkeReason")}
           </span>

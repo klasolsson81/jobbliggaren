@@ -1,4 +1,5 @@
 import { Q_MAX_LENGTH, Q_MIN_LENGTH, type SuggestionKind } from "@/lib/dto/job-ads";
+import { assertNever } from "@/lib/dto/_helpers";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
 import { composeSuggestionChip } from "./chip-composition";
 import {
@@ -255,7 +256,16 @@ export function applyClaimsDelta(
   for (const m of next.matches) {
     if (prevKeys.has(matchKey(m))) continue;
     const after = composeSuggestionChip(
-      { kind: m.kind, conceptId: m.conceptId, label: m.label },
+      {
+        kind: m.kind,
+        conceptId: m.conceptId,
+        label: m.label,
+        // A parse-match is never an Employer (an employer name is not in the
+        // label index), so the employer-only fields are absent by construction.
+        organizationNumber: null,
+        adCount: null,
+        isProtectedIdentity: false,
+      },
       state,
       taxonomy,
     );
@@ -380,6 +390,19 @@ export function enforceClaims(
       }
       case "Title":
         break; // förekommer aldrig som parse-match.
+      case "Employer":
+        // #1546 — ett arbetsgivarnamn läggs ALDRIG i label-indexet
+        // (`buildLabelIndex`), så det kan inte uppstå som parse-match. Se
+        // `removeMatch` nedan för samma resonemang på borttagningssidan.
+        break;
+      default:
+        // #1546 — den här switchen SÅG UT som sin kompilator-tvingade
+        // syskonfunktion `removeMatch` fyrtio rader ned, men var det inte: den
+        // är ett statement i en loop, så en ny SuggestionKind föll rakt igenom
+        // och tappades tyst. `assertNever` gör den lika fail-closed som
+        // syskonet. Beviset att det landade: stryk `case "Employer"` ovan och
+        // filen ska sluta kompilera.
+        assertNever(m.kind);
     }
   }
   return result;
@@ -425,6 +448,14 @@ function removeMatch(
     }
     case "Title":
       return state; // Title förekommer aldrig som parse-match.
+    case "Employer":
+      // #1546 — samma skäl som Title, men det är värt att skriva ut VARFÖR det
+      // är ett medvetet val och inte ett glapp: ett arbetsgivarnamn läggs
+      // ALDRIG i `buildLabelIndex`. Gjorde det det, skulle "Volvo" skrivet som
+      // fritext i hero-fältet göra anspråk på `?employer=` som användaren
+      // aldrig valde — ett I1-brott. Axeln sätts bara genom ett explicit
+      // förslags-val, och tas bort genom toolbarens egen chip.
+      return state;
   }
 }
 

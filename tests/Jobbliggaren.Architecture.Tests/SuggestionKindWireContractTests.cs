@@ -62,6 +62,7 @@ public class SuggestionKindWireContractTests
         (2, "Municipality"),
         (3, "OccupationField"),
         (4, "OccupationGroup"),
+        (5, "Employer"),
     ];
 
     [Fact]

@@ -117,6 +117,27 @@ export function composeSuggestionChip(
       };
     }
 
+    case "Employer": {
+      // #1546 — arbetsgivar-axeln. org.nr är den KANONISKA nyckeln (ADR 0087):
+      // valet sätter `?employer=<org.nr>`, ett exakt entitets-filter, aldrig en
+      // luddig `?q=<namn>` som skulle återöppna Volvo×20-fällan.
+      //
+      // `organizationNumber` är null när backend maskerat raden (enskild firma,
+      // ADR 0087 D8(c)). Då finns inget filter-mål och valet är en no-op — samma
+      // form som taxonomi-grenarnas `conceptId === null`-vakt ovan. Handlern
+      // utesluter redan sådana rader och dekodern släpper dem, så detta är det
+      // tredje lagret, inte det första.
+      const orgNr = suggestion.organizationNumber;
+      if (orgNr === null) return current;
+
+      // `employer` är OPTIONAL på JobbUrlState (till skillnad från de fem
+      // DimensionAxis-axlarna), därav `?? []`. Det är också precis därför axeln
+      // INTE får läggas i DimensionAxis: removeChipFromState indexerar
+      // `state[chip.axis]` utan null-vakt.
+      if ((current.employer ?? []).includes(orgNr)) return current;
+      return { ...current, employer: addUnique(current.employer ?? [], orgNr) };
+    }
+
     default:
       return assertNever(suggestion.kind);
   }

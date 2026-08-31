@@ -101,7 +101,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
         // kind serialiseras som heltal (0=Title), conceptId=null för titel.
         new Response(
           JSON.stringify([
-            { kind: 0, conceptId: null, label: "Backend-utvecklare" },
+            { kind: 0, conceptId: null, label: "Backend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -131,7 +131,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
         new Response(
           JSON.stringify([
             // kind=2 = Municipality (ADR 0067 wire-ordningen), conceptId satt.
-            { kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg" },
+            { kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -155,6 +155,9 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       kind: "Municipality",
       conceptId: "PVZL_BQT_XtL",
       label: "Göteborg",
+      organizationNumber: null,
+      adCount: null,
+      isProtectedIdentity: false,
     });
   });
 
@@ -163,8 +166,8 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       async () =>
         new Response(
           JSON.stringify([
-            { kind: 0, conceptId: null, label: "Frontend-utvecklare" },
-            { kind: 0, conceptId: null, label: "Fullstack-utvecklare" },
+            { kind: 0, conceptId: null, label: "Frontend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
+            { kind: 0, conceptId: null, label: "Fullstack-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -194,6 +197,9 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       kind: "Title",
       conceptId: null,
       label: "Fullstack-utvecklare",
+      organizationNumber: null,
+      adCount: null,
+      isProtectedIdentity: false,
     });
   });
 
@@ -201,7 +207,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -225,7 +231,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -247,7 +253,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -290,7 +296,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     return vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "AI-ingenjör" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "AI-ingenjör", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -491,7 +497,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     resolveFetch(
       new Response(
         JSON.stringify([
-          { kind: 0, conceptId: null, label: "Backend-utvecklare" },
+          { kind: 0, conceptId: null, label: "Backend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
         ]),
         { status: 200 },
       ),

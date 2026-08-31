@@ -164,6 +164,14 @@ public class OrganizationNumberSurfacingGuardTests
         // it staying correct. The DTO nulls + flags; the handler routes every row through
         // IsPersonnummerShaped.
         typeof(Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies.CompanyBrowseDto),
+        // #1546: the /jobb typeahead's employer suggestion. SAME defense-in-depth posture as the two
+        // entries above, and the WEAKEST of the three premises, which is exactly why it belongs here
+        // rather than in the exempt set: CompanyLookupDto rests on a validator's refuse-posture,
+        // CompanyBrowseDto on an ingest-time filter in another subsystem, and this one on a single
+        // `continue` in SuggestJobAdTermsQueryHandler (CTO bind F3). The DTO nulls + flags via
+        // IsPersonnummerShaped regardless, so the exclusion and the masking are two independent gates
+        // and removing either leaves the other standing.
+        typeof(Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms.SuggestionDto),
     ];
 
     /// <summary>

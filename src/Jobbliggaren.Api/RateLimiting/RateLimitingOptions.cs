@@ -77,6 +77,36 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// GET /job-ads/suggest specifically, since #1546 (security-auditor Major 1, 2026-08-31).
+    /// <para>
+    /// <b>Why this endpoint left the shared <see cref="Suggest"/> budget.</b> The employer branch runs
+    /// a <c>%contains%</c> + <c>GROUP BY</c> over <c>job_ads</c> — the same query FORM that
+    /// <c>/job-ads/employers</c> deliberately sits on the heavier <see cref="ListRead"/> budget for,
+    /// its endpoint comment saying so in as many words: <i>"the ILIKE + GROUP BY is a heavier scan than
+    /// the typeahead suggest"</i>. Leaving it on 30/10s would have moved that scan onto a lighter
+    /// budget AND from per-submit to per-keystroke at the same time, which is exactly the budget
+    /// sharing least common mechanism forbids.
+    /// </para>
+    /// <para>
+    /// <b>20/10s = 2 req/s</b> carries a 300 ms-debounced typeahead with room to spare and cuts the
+    /// sustained script-flood budget by a third. <see cref="Suggest"/> itself is UNCHANGED at 30/10s —
+    /// <c>SavedSearchesEndpoints</c> is typeahead-shaped but carries none of this weight, and tightening
+    /// it would be collateral, not calibration.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>The number is deliberately conservative and is revised UP after the latency measurement,
+    /// never down after shipping.</b> Raising a limit once it is measured is free; lowering one that
+    /// users already have is a visible regression. <c>security-auditor</c> owns this calibration (this
+    /// file's own convention: <i>"riktvärde, security-auditor verifierar/justerar (BLOCKING)"</i>).
+    /// </para>
+    /// </summary>
+    public PolicyOptions JobAdSuggest { get; init; } = new()
+    {
+        PermitLimit = 20,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// GET /job-ads/taxonomy(+/labels) (ADR 0043 picker-träd + reverse-
     /// lookup) — partitionerat per UserId (claim "sub"). Egen policy
     /// (least common mechanism, Saltzer/Schroeder): statisk referensdata

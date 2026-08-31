@@ -12,7 +12,11 @@ using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
-// ADR 0067 Beslut 5a (Fas D1) — SuggestJobAdTermsQueryHandler union-väg.
+// ADR 0067 Beslut 5a (Fas D1) + #1546 — SuggestJobAdTermsQueryHandler union-väg.
+//
+// #1546: arbetsgivar-porten löses ur containern (RIKTIG port, riktig Postgres) medan
+// taxonomin substitueras — en contains-matchning mot en fake bevisar ingenting om det
+// som gör arbetsgivar-blocket tungt (senior-cto-advisor 2026-08-31).
 // Titel-grenen kräver riktig Postgres (EF.Functions.Like mot job_ads.Title) →
 // Testcontainers via ApiFactory, [Collection("Api")]. ITaxonomyReadModel
 // substitueras (NSubstitute) så taxonomi-delen är deterministisk och unionens
@@ -63,9 +67,16 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
 
 
     /// <summary>
-    /// #1546 — seeds ONE Active ad for a distinct legal entity. The org.nr reaches the STORED
-    /// generated column through <c>raw_payload</c>, exactly as ingestion writes it; nothing here is a
+    /// #1546 — seeds ONE Active ad for a distinct legal entity. The org.nr is written by the same
+    /// actor production uses: <c>JobAd.Import</c> takes it off the parsed facets, and
+    /// <c>TestFacets.FromPayload</c> mirrors the ACL parse that <c>PlatsbankenJobSource</c> performs
+    /// (pinned on the ACL side by <c>PlatsbankenJobSourceFacetMappingTests</c>). Nothing here is a
     /// hand-written column value (CLAUDE.md §5 <c>Tests:</c>).
+    /// <para>
+    /// ⚠ NOT a generated column any more — <c>organization_number</c> became ordinary and
+    /// <c>ValueGeneratedNever()</c> in #824/#841. An earlier version of this comment said otherwise;
+    /// the premise held, the reason given for it did not, and §5 asks for the reason.
+    /// </para>
     /// </summary>
     private async Task SeedEmployerAdAsync(
         string organizationNumber, string companyName, CancellationToken ct)
@@ -119,9 +130,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, taxonomy,
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
@@ -149,9 +158,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         // Tom taxonomi → endast titel-grenen.
         var handler = new SuggestJobAdTermsQueryHandler(
             db, TaxonomyReturning(),
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
@@ -178,9 +185,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, taxonomy,
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
@@ -210,9 +215,7 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, taxonomy,
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 3), ct);
@@ -226,6 +229,50 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
     // Every fact below distinguishes the CHOSEN design from a specific rejected one
     // (senior-cto-advisor 2026-08-31). A test that only asserted "an employer appears" would be
     // green under all of them.
+
+    /// <summary>
+    /// #1546 — the tightest regime the validator allows for this branch, where the over-fetch margin
+    /// the handler's comment relies on is EXACTLY ZERO.
+    ///
+    /// <para>
+    /// The handler asks the port for the whole <c>Limit</c> and shows at most
+    /// <c>EmployerSuggestionBudget</c>, so at the default limit of 10 the personnummer exclusion has
+    /// seven rows of headroom. At <c>limit == 3</c> it has none: the port returns three rows, one is
+    /// dropped, and only two employers can be shown. That is CORRECT — the alternative would be a
+    /// second round trip per keystroke — but it is a different regime from the one the sibling fact
+    /// measures, and it was previously asserted nowhere.
+    /// </para>
+    ///
+    /// <para>
+    /// The sole proprietorship is seeded with the most ads so it sorts FIRST and is therefore inside
+    /// any cap: if it sorted last the test would pass without exercising anything.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldShrinkTheEmployerBlock_WhenTheLimitLeavesNoOverfetchMargin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"tig{Guid.NewGuid():N}"[..14];
+
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("5566111101", $"{token} Alfa AB", ct);
+        await SeedEmployerAdAsync("5566111102", $"{token} Beta AB", ct);
+        await SeedEmployerAdAsync("5566111103", $"{token} Gamma AB", ct);
+
+        var result = await RunAsync(TaxonomyReturning(), token, 3, ct);
+
+        var employers = result.Where(x => x.Kind == SuggestionKind.Employer).ToList();
+
+        employers.Count.ShouldBe(2,
+            "at limit 3 the port returns 3 rows and the excluded sole proprietorship is one of them, "
+            + "so the block shrinks. Shown so the margin the handler's comment names is not read as a "
+            + "guarantee that holds at every limit.");
+
+        employers.ShouldAllBe(x => x.OrganizationNumber != "8501012384");
+        result.ShouldAllBe(x => x.Label != $"{token} Enskild Firma",
+            "whatever the limit, the excluded employer must never be surfaced.");
+    }
 
     /// <summary>
     /// Distinguishes the chosen budget from "no per-kind cap" (the delivered accident). Five distinct

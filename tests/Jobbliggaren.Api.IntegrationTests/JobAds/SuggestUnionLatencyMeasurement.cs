@@ -73,6 +73,10 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// </para>
 /// </summary>
 [Collection("JobAdBrowsePlan")]
+// Same trait as the collection sibling PnrShapedPrefilterQueryPlanTests. It excludes nothing
+// from a default run (AGENTS.md §7) — it marks that this class TRUNCATEs, seeds 50 000 rows,
+// ANALYZEs and drives ~330 handler calls, so its cost is visible to whoever reads the suite.
+[Trait("Category", "SmokeTest")]
 public class SuggestUnionLatencyMeasurement(JobAdBrowsePlanFixture fixture, ITestOutputHelper output)
 {
     private readonly JobAdBrowsePlanFixture _fixture = fixture;

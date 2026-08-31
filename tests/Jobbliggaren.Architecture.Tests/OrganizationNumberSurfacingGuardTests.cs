@@ -56,6 +56,10 @@ public class OrganizationNumberSurfacingGuardTests
     /// </summary>
     private static readonly IReadOnlyList<string> RawOrgNrReadingSourcePaths =
     [
+        // #1546 — the /jobb typeahead's employer branch reads each candidate's RAW org.nr into scope
+        // (OrganizationNumber.FromTrusted for the F3 exclusion, and again in SuggestionDto.ForEmployer)
+        // before either gate fires. It holds no ILogger today; this scan is what keeps that true.
+        "src/Jobbliggaren.Application/JobAds/Queries/SuggestJobAdTerms/SuggestJobAdTermsQueryHandler.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
         // #311 PR-5 (ADR 0087 D4 / #544 gap-closure) — the per-ad follow-state overlay reads each page

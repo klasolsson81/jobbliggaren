@@ -81,9 +81,7 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, EmptyTaxonomy(),
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         // Gement prefix matchar versalt seedat (case-insensitivt via lower()).
@@ -111,9 +109,7 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, EmptyTaxonomy(),
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 3), ct);
@@ -134,9 +130,7 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var handler = new SuggestJobAdTermsQueryHandler(
             db, EmptyTaxonomy(),
-            // #1546 — den RIKTIGA porten ur containern, aldrig en stub: en
-            // contains-matchning mot en fake bevisar ingenting om det som gör
-            // arbetsgivar-blocket farligt (senior-cto-advisor 2026-08-31).
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
             scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         // Prefix "%<marker>" ska tolkas LITERALT (escapad %), inte som

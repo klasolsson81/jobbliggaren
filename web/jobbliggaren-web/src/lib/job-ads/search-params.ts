@@ -331,9 +331,12 @@ export function withCommitFlag(href: string): string {
  * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
  * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)
  * och backend-maskningen". Den producenten var `company-lookup.tsx:204/:210`, raderad i
- * `aca39970` (#997/#1030) — grinden vaktade en tom mängd fram till #1547. Producenten är
- * nu `buildCompanyJobsHref` (`company-jobs-href.ts`), anropad från bevakningsraden, som
- * gatar på `!isProtectedIdentity && organizationNumber`. Utöver den round-trippar
+ * `aca39970` (#997/#1030) — grinden vaktade en tom mängd fram till #1547. Sedan #1546 finns
+ * TVÅ producenter, med OLIKA grindar: `buildCompanyJobsHref` (`company-jobs-href.ts`),
+ * anropad från bevakningsraden, gatar hos ANROPAREN på
+ * `!isProtectedIdentity && organizationNumber`; typeaheadens arbetsgivarförslag
+ * (`composeSuggestionChip`) gatar i fyra led på serversidan och i dekodern.
+ * En tredje producent måste bära en egen grind — ingen ärvs. Utöver den round-trippar
  * `buildJobbHref`, `buildPageHref` och toolbarens
  * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje
  * toolbar-handling som bär commit-intent. Vilka de är avgörs av `commit()` mot `navigate()` i

@@ -313,6 +313,48 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
     }
 
     /// <summary>
+    /// #1546 — one legal entity whose ads spell its name two ways must be ONE suggestion.
+    ///
+    /// <para>
+    /// <c>company_name</c> is written per ad from the source payload and nothing normalises it against
+    /// org.nr, so the sibling <c>SearchAsync</c>'s composite <c>GROUP BY (org.nr, name)</c> would split
+    /// such an employer into two rows. That matters here and not there: a suggestion carries an
+    /// <c>AdCount</c> the user then sees again on <c>?employer=</c>, which filters on org.nr ALONE — so
+    /// a split row shows a count smaller than the page it leads to, and the <c>Take(limit)</c> can drop
+    /// one fragment entirely.
+    /// </para>
+    ///
+    /// <para>
+    /// The premise the sibling rests on ("company_name is stable per org.nr") is written in two places
+    /// and pinned in none. This fact does not argue about whether it holds in the corpus; it removes
+    /// the dependency.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task SuggestActiveEmployers_GroupsNameVariantsUnderOneOrgNr()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brand = NewBrand();
+        const string org = "5566070703";
+
+        await SeedAdAsync(org, $"{brand} Bygg AB", $"ext-{Guid.NewGuid():N}", ct);
+        await SeedAdAsync(org, $"{brand} Bygg Aktiebolag", $"ext-{Guid.NewGuid():N}", ct);
+
+        var suggested = await SuggestAsync(brand, 50, ct);
+
+        suggested.Count.ShouldBe(1,
+            "one org.nr is one legal entity and one ?employer= filter, however its ads spell the name.");
+        suggested[0].OrganizationNumber.ShouldBe(org);
+        suggested[0].AdCount.ShouldBe(2,
+            "the count must be what ?employer=<org.nr> then shows, not what one spelling of the name shows.");
+
+        // The contrast that makes the assertion above mean something: the status-agnostic sibling still
+        // groups on the composite and therefore still splits this employer in two.
+        (await RunAsync(brand, 50, ct)).Count.ShouldBe(2,
+            "SearchAsync is unchanged by #1546 — if this moved, the two methods were collapsed.");
+    }
+
+    /// <summary>
     /// LINK 1 OF 2 in the index chain, and the one that cannot drift.
     ///
     /// <para>
@@ -325,10 +367,10 @@ public class EmployerDisambiguationQueryTests(ApiFactory factory)
     /// <para>
     /// This fact reads the SQL EF actually emits from production's own expression tree, so it binds
     /// C# to the indexed expression. LINK 2 — that this expression is served by
-    /// <c>ix_job_ads_company_name_lower_trgm</c> — is already pinned by
-    /// <c>JobAdPlannerUsabilityOracleTests.QSearch_IsServedByEveryArmOfItsDisjunction</c>, whose
-    /// company-name arm is the same expression. Together they cover what neither does alone, and
-    /// link 2's hand-written SQL cannot go stale behind production while link 1 holds.
+    /// <c>ix_job_ads_company_name_lower_trgm</c> — is
+    /// <c>JobAdPlannerUsabilityOracleTests.EmployerSuggest_IsIndexServed</c>. Together they cover
+    /// what neither does alone, and link 2's hand-written SQL cannot go stale behind production
+    /// while link 1 holds.
     /// </para>
     /// </summary>
     [Fact]

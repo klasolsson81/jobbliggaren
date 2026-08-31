@@ -314,6 +314,7 @@
       "matchSortDisclosureLink": "Ställ in matchning",
       "unknownCode": "Okänd kod ({code})",
       "employerChip": "Arbetsgivare {orgNr}",
+      "employerChipNamed": "Arbetsgivare {name}",
       "employerChipMany": "{count, plural, other {# arbetsgivare}}"
     },
     "results": {

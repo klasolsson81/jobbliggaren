@@ -129,6 +129,15 @@ interface JobbResultsToolbarProps {
    * räknelänkar (`company-jobs-href.ts`), aldrig av toolbaren själv.
    */
   employer: ReadonlyArray<string>;
+  /**
+   * #1546 — the sole filtered employer's NAME, derived by the page from the rows it already
+   * rendered. Present only when exactly one employer is filtered (then every row belongs to it,
+   * so any row's `companyName` is its name); `undefined` on an empty page, where the chip falls
+   * back to the org.nr it has always shown. Deliberately NOT carried in the URL: the URL is the
+   * only source of truth for filter STATE, and a display name there would be a second
+   * un-validated key that goes stale on a shared link.
+   */
+  employerName?: string;
   resolvedLabels: Record<string, string>;
   q: string;
   sortBy: JobAdSortBy;
@@ -207,6 +216,7 @@ export function JobbResultsToolbar({
   hideApplied,
   onlyMatched,
   employer,
+  employerName,
   resolvedLabels,
   q,
   sortBy,
@@ -453,10 +463,15 @@ export function JobbResultsToolbar({
   // `noUncheckedIndexedAccess` types the index read as `string | undefined`, so the narrowing
   // below carries the whole decision -- there is no second, unreachable length check.
   const soleEmployer = employers.length === 1 ? employers[0] : undefined;
+  // #1546 — name the employer the user actually chose. A selection made BY NAME in the typeahead
+  // was previously receipted with ten digits, which is not a receipt of what was chosen. The org.nr
+  // remains the fallback: it is all the page has when the result set is empty.
   const employerChipLabel =
-    soleEmployer !== undefined
-      ? t("toolbar.employerChip", { orgNr: formatOrgNr(soleEmployer) })
-      : t("toolbar.employerChipMany", { count: employers.length });
+    soleEmployer === undefined
+      ? t("toolbar.employerChipMany", { count: employers.length })
+      : employerName !== undefined
+        ? t("toolbar.employerChipNamed", { name: employerName })
+        : t("toolbar.employerChip", { orgNr: formatOrgNr(soleEmployer) });
 
   // Chips-rad syns när det finns sök/q-chips, smalnade grad-chips ELLER ett
   // aktivt arbetsgivar-filter (#454 PR-0). Status-chips borttagna (Dölj

@@ -60,12 +60,18 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         await SuggestActiveEmployersQuery(db, nameTerm, limit).ToListAsync(cancellationToken);
 
     /// <summary>
-    /// The suggest projection as an un-executed <see cref="IQueryable{T}"/>, so the planner oracle can
-    /// <c>EXPLAIN</c> PRODUCTION'S OWN expression tree instead of a hand-copied SQL string (the
-    /// <c>PnrShapedPrefilterQueryPlanTests.PrefilterSql</c> precedent). That distinction is the whole
-    /// point here: a copied string would keep asserting that <c>lower(company_name) LIKE …</c> is
-    /// index-served long after this method had been changed to emit something else, which is exactly
-    /// the failure mode <c>Migrate --explain-search</c> hit in #1603.
+    /// The suggest projection as an un-executed <see cref="IQueryable{T}"/>, so a test can read the
+    /// SQL EF actually generates from PRODUCTION'S OWN expression tree via <c>ToQueryString()</c>.
+    /// <para>
+    /// Its consumer is
+    /// <c>EmployerDisambiguationQueryTests.SuggestActiveEmployers_EmitsTheIndexedLowerExpression_NeverIlike</c>,
+    /// which binds this method to the indexed expression <c>lower(company_name)</c>. That the
+    /// expression is index-served is a SEPARATE fact
+    /// (<c>JobAdPlannerUsabilityOracleTests.EmployerSuggest_IsIndexServed</c>), and that one does
+    /// EXPLAIN a hand-written string. Stated plainly because an earlier version of this docblock
+    /// claimed the oracle EXPLAINs this tree, and it does not: the pair covers the drift hazard
+    /// between them, but neither link does it alone.
+    /// </para>
     /// </summary>
     internal static IQueryable<EmployerAdGroup> SuggestActiveEmployersQuery(
         AppDbContext db, string nameTerm, int limit)
@@ -77,7 +83,8 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         // two forms are semantically identical and differ only in whether they are index-served —
         // which is why the mistake is invisible in a behavioural test and why
         // JobAdPlannerUsabilityOracleTests.EmployerSuggest_IsIndexServed exists. This is the byte-
-        // shape JobAdSearchComposition:240 already emits for the same index; keep them identical.
+        // shape JobAdSearchComposition.ApplyFilter's company-name arm already emits for the same index;
+        // keep them identical. Named by SYMBOL, never by line number, which rots.
         // On a per-keystroke surface the difference is a sequential scan of job_ads per keystroke.
         //
         // No explicit ESCAPE argument: '\' is PostgreSQL's default LIKE escape, so the C#-side
@@ -85,8 +92,18 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
         // ILIKE and produces the operator shape proven index-served.
         //
         // Status == Active is the whole reason this method exists beside SearchAsync — see the port's
-        // docblock. It is the same predicate JobAdSearchComposition:82 applies to `?employer=`, so a
-        // suggestion's ad count is the count the chip then shows.
+        // docblock. It is the same predicate JobAdSearchComposition.ApplyFilter applies to `?employer=`.
+        //
+        // GROUP BY org.nr ALONE, unlike SearchAsync's composite (org.nr, company_name). The grouping key
+        // must be the key the FILTER uses, and `?employer=` is an IN-equality on org.nr only. Grouping on
+        // the pair would split one legal entity across rows whenever its ads spell the company name
+        // differently — company_name is written per ad from the source payload and nothing normalises it
+        // against org.nr — and each fragment would then carry an AdCount SMALLER than the chip goes on to
+        // show, while the Take(limit) above could drop a fragment entirely. The name is picked
+        // deterministically with MIN so the row is stable across runs.
+        //
+        // The inherited premise on SearchAsync ("company_name is stable per org.nr") is written in two
+        // places and pinned in none; this method does not rely on it.
 #pragma warning disable CA1304, CA1311
         var pattern = $"%{EscapeLike(nameTerm).ToLowerInvariant()}%";
 
@@ -95,16 +112,12 @@ internal sealed class EmployerDisambiguationQuery(AppDbContext db) : IEmployerDi
             .Where(j => j.Status == JobAdStatus.Active
                         && j.OrganizationNumber != null
                         && EF.Functions.Like(j.Company.Name.ToLower(), pattern))
-            .GroupBy(j => new
-            {
-                OrganizationNumber = j.OrganizationNumber!,
-                j.Company.Name,
-            })
+            .GroupBy(j => j.OrganizationNumber!)
             .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key.Name)
-            .ThenBy(g => g.Key.OrganizationNumber)
+            .ThenBy(g => g.Min(x => x.Company.Name))
+            .ThenBy(g => g.Key)
             .Take(limit)
-            .Select(g => new EmployerAdGroup(g.Key.OrganizationNumber, g.Key.Name, g.Count()));
+            .Select(g => new EmployerAdGroup(g.Key, g.Min(x => x.Company.Name)!, g.Count()));
 #pragma warning restore CA1304, CA1311
     }
 

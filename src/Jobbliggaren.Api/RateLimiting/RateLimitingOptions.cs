@@ -61,7 +61,7 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// GET /job-ads/suggest (typeahead) — partitionerat per UserId (claim
+    /// GET /saved-searches/derive (typeahead-format) — partitionerat per UserId (claim
     /// "sub"). Egen policy (ej ListRead-återanvändning) eftersom typeahead
     /// är strukturellt högre frekvens (1 req/keystroke) — least common
     /// mechanism (Saltzer/Schroeder): dela inte skyddsbudget mellan ytor
@@ -88,7 +88,8 @@ public sealed class RateLimitingOptions
     /// sharing least common mechanism forbids.
     /// </para>
     /// <para>
-    /// <b>20/10s = 2 req/s</b> carries a 300 ms-debounced typeahead with room to spare and cuts the
+    /// <b>20/10s</b> — a burst of 20 and, with <c>SegmentsPerWindow</c> = 6, a sustained
+    /// 3 tokens per 1.67 s ≈ <b>1.8 req/s</b> — carries a 300 ms-debounced typeahead and cuts the
     /// sustained script-flood budget by a third. <see cref="Suggest"/> itself is UNCHANGED at 30/10s —
     /// <c>SavedSearchesEndpoints</c> is typeahead-shaped but carries none of this weight, and tightening
     /// it would be collateral, not calibration.

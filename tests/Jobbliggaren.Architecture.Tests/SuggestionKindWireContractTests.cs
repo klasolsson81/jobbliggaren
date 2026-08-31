@@ -47,6 +47,7 @@ public class SuggestionKindWireContractTests
 {
     private const string FrontendDtoRelativePath = "web/jobbliggaren-web/src/lib/dto/job-ads.ts";
     private const string FrontendListName = "SUGGESTION_KIND_ORDER";
+    private const string FrontendFacetListName = "FACET_DIMENSIONS";
 
     /// <summary>
     /// The contract as a HAND-WRITTEN literal, deliberately not derived from the enum it checks —
@@ -153,13 +154,45 @@ public class SuggestionKindWireContractTests
     }
 
     /// <summary>
+    /// #1546 — the SIBLING list, pinned for the reason this PR supplied the hard way.
+    ///
+    /// <para>
+    /// <c>FACET_DIMENSIONS</c> lives 130 lines below <c>SUGGESTION_KIND_ORDER</c> in the same file and
+    /// mirrors a different C# enum, <see cref="FacetDimension"/>. It had NO pin on either side of the
+    /// language boundary, and a single careless edit to this PR added an <c>"Employer"</c> member the
+    /// backend enum does not have — widening the BFF route's own input allowlist to a value the
+    /// backend cannot bind. Nothing failed; four reviewers found it by reading.
+    /// </para>
+    ///
+    /// <para>
+    /// Unlike <c>SuggestionKind</c> this one crosses the wire BY NAME, not by ordinal, so order is not
+    /// load-bearing here — membership is. The comparison is therefore set-wise, which is the honest
+    /// assertion: claiming order would pin something the contract does not actually require.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheFrontendFacetDimensionsMatchTheBackendEnum()
+    {
+        var frontend = ReadFrontendArray(FrontendFacetListName);
+
+        frontend.Order(StringComparer.Ordinal).ShouldBe(
+            Enum.GetNames<FacetDimension>().Order(StringComparer.Ordinal),
+            $"{FrontendFacetListName} in {FrontendDtoRelativePath} is the allowlist the facet-counts "
+            + "BFF route validates against, and the backend binds this dimension BY NAME. A member "
+            + "here that the enum lacks turns a clean edge rejection into an authenticated round trip "
+            + "that can only 400; a member missing here blocks a dimension the backend supports.");
+    }
+
+    /// <summary>
     /// Read as source text, for the same reason the Caddyfile pin gives: the file is the artefact,
     /// and a parser clever enough to normalize it could hide the very spelling this join compares.
     /// Finding nothing THROWS rather than returning empty - an empty list would make the comparison
     /// above pass over zero elements the moment the constant is renamed, which is precisely the
     /// vacuous-green this class must not have.
     /// </summary>
-    private static string[] ReadFrontendKindOrder()
+    private static string[] ReadFrontendKindOrder() => ReadFrontendArray(FrontendListName);
+
+    private static string[] ReadFrontendArray(string listName)
     {
         var source = File.ReadAllText(
             Path.Combine(
@@ -168,16 +201,21 @@ public class SuggestionKindWireContractTests
 
         // \b so a future constant merely ENDING in this name cannot be read in its place - a
         // wrong-but-successful read would bypass the throw below.
-        var body = Regex.Match(source, $@"\b{FrontendListName}\s*=\s*\[([^\]]*)\]").Groups[1];
+        var body = Regex.Match(source, $@"\b{listName}\s*=\s*\[([^\]]*)\]").Groups[1];
 
         if (!body.Success)
             throw new InvalidOperationException(
-                $"Could not read {FrontendListName} out of {FrontendDtoRelativePath}. It was "
+                $"Could not read {listName} out of {FrontendDtoRelativePath}. It was "
                 + "renamed or reshaped - re-make this join deliberately, do not delete it.");
 
-        // Drop line comments before harvesting quoted names, so a commented-out member cannot be
-        // read as a live one.
-        var withoutComments = Regex.Replace(body.Value, @"//[^\n]*", string.Empty);
+        // Drop comments before harvesting quoted names, so a commented-out member cannot be read
+        // as a live one. BOTH forms: an earlier version of this method stripped `//` only, and
+        // test-writer measured that a block-commented member then passed every fact in this class
+        // while the frontend decode table had silently lost it — the exact failure this stripping
+        // exists to prevent, in the class whose whole subject is that failure.
+        var withoutComments = Regex.Replace(
+            body.Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        withoutComments = Regex.Replace(withoutComments, @"//[^\n]*", string.Empty);
 
         var names = Regex.Matches(withoutComments, "\"([^\"]+)\"")
             .Select(m => m.Groups[1].Value)
@@ -185,7 +223,7 @@ public class SuggestionKindWireContractTests
 
         if (names.Length == 0)
             throw new InvalidOperationException(
-                $"{FrontendListName} was found in {FrontendDtoRelativePath} but yielded no member "
+                $"{listName} was found in {FrontendDtoRelativePath} but yielded no member "
                 + "names. The array shape changed - re-make this join deliberately.");
 
         return names;

@@ -287,7 +287,6 @@ export type JobAdFiltersValues = z.infer<typeof jobAdFiltersSchema>;
 // list-svarets totalCount, SPOT; E2c-architect §1). Saknad nyckel = 0.
 export const FACET_DIMENSIONS = [
   "OccupationGroup",
-  "Employer",
   "Municipality",
   "Region",
   // ADR 0067 Beslut 4 (Fas E PR-3) — Klass 2 facet-counts. Backend

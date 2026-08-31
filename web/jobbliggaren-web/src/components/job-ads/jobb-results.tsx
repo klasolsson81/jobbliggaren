@@ -403,6 +403,22 @@ export async function JobbResults({
         }
       }
 
+      // #1546 — arbetsgivar-chippets namn, härlett ur träffarna sidan redan har.
+      //
+      // Nyckelinsikten: `?employer=` är ett exakt IN-filter på org.nr, så när EXAKT en
+      // arbetsgivare filtreras tillhör VARJE rad på sidan den arbetsgivaren. Radens
+      // `companyName` ÄR alltså dess namn — org.nr och namn behöver aldrig mötas på
+      // klienten, och ingen uppslagstjänst behövs (#408 förblir orörd).
+      //
+      // MIN över sidans namn, samma deterministiska val som portens
+      // `SuggestActiveEmployersQuery` gör med `MIN(company_name)`, så chippet och förslaget
+      // visar samma sträng när en arbetsgivares annonser stavar namnet olika.
+      const soleEmployerName =
+        employer.length === 1
+          ? [...new Set(result.data.items.map((it) => it.companyName))]
+              .sort((a, b) => a.localeCompare(b, "sv"))[0]
+          : undefined;
+
       return (
         <>
           {/* #1505 — the sentence that ends the load, announced through the page's persistent
@@ -418,6 +434,12 @@ export async function JobbResults({
                 : `${formatNumber(format, result.data.totalCount)} ${t("toolbar.hits", { count: result.data.totalCount })}`
             }
           />
+          {/* #1546 — arbetsgivar-chippets NAMN, hämtat ur träffarna sidan redan har.
+              Namnet får inte rida URL:en (chip-composition: "URL är ENDA sanningen") och
+              behöver ingen uppslagstjänst: varje annonskort renderar redan `companyName`.
+              Endast när EXAKT en arbetsgivare filtreras — flera är "N arbetsgivare" ändå.
+              `undefined` när sidan är tom (t.ex. sida 2 utan träffar); chippet faller då
+              tillbaka på org.nr, vilket är dagens beteende. */}
           {/* Result-toolbar (client-island): N träffar + aktiva chips +
               sort-dropdown på samma rad (F4/ADR 0055). totalCount kommer
               från RSC-fetchen; chips/sort live-commit:ar searchParams
@@ -436,6 +458,7 @@ export async function JobbResults({
             hideApplied={hideApplied}
             onlyMatched={onlyMatched}
             employer={employer}
+            employerName={soleEmployerName}
             resolvedLabels={resolvedLabels}
             q={q}
             sortBy={sortBy}

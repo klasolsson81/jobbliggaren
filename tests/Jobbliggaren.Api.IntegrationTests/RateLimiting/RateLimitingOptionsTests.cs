@@ -200,6 +200,24 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_JobAdSuggest_Is20Per10s()
+    {
+        // #1546 (security-auditor Major 1, 2026-08-31) — /job-ads/suggest left the shared Suggest
+        // budget when its employer branch started running a %contains% + GROUP BY over job_ads once
+        // per keystroke. The number is deliberately conservative and is revised UP once the latency
+        // measurement exists, never down after shipping; security-auditor owns that calibration.
+        var sut = new RateLimitingOptions();
+
+        sut.JobAdSuggest.PermitLimit.ShouldBe(20);
+        sut.JobAdSuggest.WindowSeconds.ShouldBe(10);
+
+        // The split is the point: a change that quietly re-merged the budgets would satisfy the two
+        // assertions above on their own.
+        sut.Suggest.PermitLimit.ShouldBe(30);
+        sut.Suggest.WindowSeconds.ShouldBe(10);
+    }
+
+    [Fact]
     public void PolicyKeys_AreStable()
     {
         // Stabilitet — policy-nycklar refereras i RequireRateLimiting på

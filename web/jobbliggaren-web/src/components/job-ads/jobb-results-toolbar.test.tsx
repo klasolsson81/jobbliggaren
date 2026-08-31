@@ -387,6 +387,28 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
     });
 
+    it("namnger arbetsgivaren när sidan kunde härleda namnet (#1546)", () => {
+      // Ett val gjort på NAMN i typeaheaden kvitterades tidigare med tio siffror. Namnet kommer
+      // ur träffarna sidan redan renderat — ingen uppslagstjänst, ingen URL-nyckel.
+      renderToolbar({ employer: ["5560125790"], employerName: "Nordiska Bygg AB" });
+      expect(screen.getByText("Arbetsgivare Nordiska Bygg AB")).toBeInTheDocument();
+      expect(screen.queryByText(/556012-5790/)).toBeNull();
+    });
+
+    it("faller tillbaka på org.nr när namnet inte kunde härledas (#1546)", () => {
+      // Tom träffmängd (t.ex. en sida bortom sista) → inga rader att läsa namnet ur. Chippet
+      // degraderar till dagens beteende i stället för att bli tomt.
+      renderToolbar({ employer: ["5560125790"], employerName: undefined });
+      expect(screen.getByText("Arbetsgivare 556012-5790")).toBeInTheDocument();
+    });
+
+    it("×-knappens namn följer chippens etikett, inte org.nr (#1546)", () => {
+      renderToolbar({ employer: ["5560125790"], employerName: "Nordiska Bygg AB" });
+      expect(
+        screen.getByRole("button", { name: "Ta bort filter Arbetsgivare Nordiska Bygg AB" }),
+      ).toBeInTheDocument();
+    });
+
     it("FLERA arbetsgivare kollapsar till EN chip — aldrig en rad råa org.nr", () => {
       // #1547 — Översiktens summor sätter hela bevakningsmängden på axeln. En chip per värde
       // skrev ut "Arbetsgivare 559141-1326 · Arbetsgivare 556012-5790 · …" som enda beskrivning

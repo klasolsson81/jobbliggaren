@@ -74,7 +74,8 @@ export function buildLabelIndex(taxonomy: TaxonomyTree | null): LabelIndex {
   // Indexet avgör vad som är text-representabelt; en post här skulle göra att
   // "Volvo" skrivet som fritext i hero-fältet gjorde anspåk på ?employer= som
   // användaren aldrig valde (I1-brott). Axeln sätts enbart genom ett explicit
-  // förslags-val. Pinnat av tokenize.test.ts.
+  // förslags-val. Egenskapen följer av signaturen: buildLabelIndex tar bara en
+  // TaxonomyTree, så en arbetsgivare kan inte nå indexet.
   return { byText, maxWords };
 }
 

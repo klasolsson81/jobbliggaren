@@ -70,6 +70,11 @@ export function buildLabelIndex(taxonomy: TaxonomyTree | null): LabelIndex {
     for (const g of f.occupationGroups)
       add("OccupationGroup", g.conceptId, g.label);
   }
+  // #1546 — arbetsgivarnamn läggs MEDVETET inte in här, och det är inte ett glapp.
+  // Indexet avgör vad som är text-representabelt; en post här skulle göra att
+  // "Volvo" skrivet som fritext i hero-fältet gjorde anspåk på ?employer= som
+  // användaren aldrig valde (I1-brott). Axeln sätts enbart genom ett explicit
+  // förslags-val. Pinnat av tokenize.test.ts.
   return { byText, maxWords };
 }
 

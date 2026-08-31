@@ -359,7 +359,8 @@
       "loading": "Fetching suggestions…",
       "suggestionCount": "{count} suggestions",
       "rateLimited": "Too many searches in a short time. Suggestions are paused for a while. You can keep typing and searching anyway.",
-      "listLabel": "Search suggestions"
+      "listLabel": "Search suggestions",
+      "employerAdCount": "{count, plural, one {# ad} other {# ads}}"
     },
     "popover": {
       "clear": "Clear"

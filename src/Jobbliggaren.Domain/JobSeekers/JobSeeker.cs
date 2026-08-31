@@ -46,7 +46,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 
     // Bevakning F2 (#801, RF-6=6B) — the company-follow USER-read watermark: how far the USER has
     // seen the in-app follow rail ("nya annonser från bevakade företag" on /oversikt). Advances when
-    // the user visits the follows surface (/foretag), drives the "nya sedan senaste besök" count
+    // the user opens /foretag/bevakade/nya (#1576), drives the "nya sedan senaste besök" count
     // (NEW = FollowedCompanyAdHit.CreatedAt > this). The exact sibling of LastSeenMatchesAt /
     // LastSeenJobsAt for the follow-rail surface — and DELIBERATELY DISTINCT from
     // LastCompanyWatchScanAt above: that is the SYSTEM scan high-water-mark (how far the Worker has
@@ -344,8 +344,8 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 
     /// <summary>
     /// Bevakning F2 (#801, RF-6=6B) — advances the company-follow USER-read watermark to
-    /// <paramref name="seenThrough"/>: the moment the user acknowledged the follow rail (visited
-    /// /foretag). Drives the Översikt "nya annonser från bevakade företag"-count
+    /// <paramref name="seenThrough"/>: the moment the user acknowledged the follow rail (opened
+    /// /foretag/bevakade/nya). Drives the Översikt "nya annonser från bevakade företag"-count
     /// (FollowedCompanyAdHit.CreatedAt &gt; this). The exact sibling of <see cref="SetLastSeenJobs"/>
     /// / <see cref="SetLastSeenMatches"/> — NOT clock-now-forcing at the aggregate (the caller may
     /// pass a seen window; the handler defaults a null window to clock-now). Monotonic (a stale or

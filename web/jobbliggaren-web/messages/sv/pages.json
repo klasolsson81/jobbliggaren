@@ -336,11 +336,28 @@
       }
     },
     "watchesHeading": "Bevakade företag",
-    "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",
+    "watchesLede": "Företag du bevakar. Nya annonser från dem visas på Översikt och under Nya annonser.",
     "historyHeading": "Ansökningshistorik",
     "historyLede": "Dina ansökningar grupperade per arbetsgivare.",
     "loadErrorTitle": "Kunde inte ladda bevakade företag",
     "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken",
+    "newAds": {
+      "heading": "Nya annonser",
+      "lede": "Annonser från företag du bevakar, sedan du senast var här.",
+      "loadErrorTitle": "Kunde inte ladda nya annonser",
+      "emptyTitle": "Inget nytt just nu",
+      "emptyBody": "Nya annonser från dina bevakade företag samlas här.",
+      "summary": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök, varav {matching} matchar dig.",
+      "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök.",
+      "showOnlyMatched": "Visa bara de som matchar mig",
+      "showAll": "Visa alla nya annonser",
+      "truncated": "Det finns fler nya annonser än de som visas. De står kvar till nästa besök.",
+      "backToWatches": "Till bevakade företag",
+      "link": "Nya annonser",
+      "meta": {
+        "title": "Nya annonser"
+      }
+    },
     "criteria": {
       "heading": "Smarta bevakningar",
       "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En smart bevakning skickar inga egna notiser.",

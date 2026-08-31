@@ -7,9 +7,11 @@ import {
   followCompanyResultSchema,
   listCompanyWatchesResultSchema,
   newFollowedCompanyAdCountSchema,
+  newFollowedCompanyAdsSchema,
   type CompanyFollowState,
   type ListCompanyWatchesResult,
   type NewFollowedCompanyAdCount,
+  type NewFollowedCompanyAds,
 } from "@/lib/dto/company-follows";
 import {
   parseRetryAfter,
@@ -330,16 +332,46 @@ export async function getNewFollowedCompanyAdCount(): Promise<
 }
 
 /**
+ * #1576 - the ads BEHIND the Oversikt count: `GET /api/v1/me/followed-company-ads` (auth-gated,
+ * MeListReadPolicy). Same predicate as `getNewFollowedCompanyAdCount` server-side, so the number and
+ * this set cannot disagree.
+ *
+ * Parameterless: the matching arm is a VIEW filter over rows that already carry `matchesYou`, never a
+ * second request - two requests can see two different sets, which is the defect this route closes.
+ */
+export async function getNewFollowedCompanyAds(): Promise<
+  ApiResult<NewFollowedCompanyAds>
+> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const res = await authedFetch(sessionId, "/api/v1/me/followed-company-ads");
+    return await responseToResult(
+      res,
+      newFollowedCompanyAdsSchema,
+      "GET /api/v1/me/followed-company-ads"
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
  * Bevakning F2 (#801, RF-6=6B) — advance the follow-rail watermark (reset the Översikt count).
- * Called when the user VISITS the follows hub (/foretag) — the sibling of `markMatchesSeen` (Klas
- * decision: advance on visiting the surface). `POST /api/v1/me/followed-company-ads/seen` → 204
- * (auth-gated, MeWritePolicy). No `seenThrough` sent (the hub renders no individual hits to preserve)
- * → the backend advances to clock-now (the documented safe fallback). Idempotent and NON-critical: a
+ * Called by /foretag/bevakade/nya once it has rendered the window it acknowledges (#1576) — the
+ * sibling of `markMatchesSeen`. `POST /api/v1/me/followed-company-ads/seen` → 204 (auth-gated,
+ * MeWritePolicy). `seenThrough` is the server-computed window over the rows that surface read, in
+ * the SCAN clock unit; `session` is passed when the call is deferred with `after()`, which cannot
+ * read cookies (#741, parity `markJobsSeen`). Idempotent and NON-critical: a
  * failure must NEVER block the page render (the count just does not reset this time) — degrades
  * civilly like `markMatchesSeen`. 204 → ok; anything else → error-kind.
  */
-export async function markFollowedAdsSeen(seenThrough?: string): Promise<ApiResult<void>> {
-  const sessionId = await getSessionId();
+export async function markFollowedAdsSeen(
+  seenThrough?: string,
+  session?: string | null,
+): Promise<ApiResult<void>> {
+  const sessionId = session === undefined ? await getSessionId() : session;
   if (!sessionId) return { kind: "unauthorized" };
 
   try {

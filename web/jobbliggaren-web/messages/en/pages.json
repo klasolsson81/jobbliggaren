@@ -336,11 +336,28 @@
       }
     },
     "watchesHeading": "Followed companies",
-    "watchesLede": "Companies you follow. New ads from them appear here and on the overview.",
+    "watchesLede": "Companies you follow. New ads from them appear on the overview and under New ads.",
     "historyHeading": "Application history",
     "historyLede": "Your applications grouped by employer.",
     "loadErrorTitle": "Could not load followed companies",
     "historyLoadErrorTitle": "Could not load application history",
+    "newAds": {
+      "heading": "New ads",
+      "lede": "Ads from companies you follow, since you were last here.",
+      "loadErrorTitle": "Could not load new ads",
+      "emptyTitle": "Nothing new right now",
+      "emptyBody": "New ads from the companies you follow are collected here.",
+      "summary": "{total, plural, one {# new ad} other {# new ads}} since your last visit, of which {matching} match you.",
+      "summaryNotAssessed": "{total, plural, one {# new ad} other {# new ads}} since your last visit.",
+      "showOnlyMatched": "Show only the ones that match me",
+      "showAll": "Show all new ads",
+      "truncated": "There are more new ads than the ones shown. They remain until your next visit.",
+      "backToWatches": "To followed companies",
+      "link": "New ads",
+      "meta": {
+        "title": "New ads"
+      }
+    },
     "criteria": {
       "heading": "Smart watches",
       "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A smart watch sends no notifications of its own.",

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
@@ -106,6 +107,14 @@ export function OversiktPage({
   const format = useFormatter();
   const codedName = useCodedTaxonomyName();
   const bold = (chunks: ReactNode) => <b>{chunks}</b>;
+  // #1576 - the number itself is the way to the ads it counts. The destination runs the SAME
+  // predicate as this count, so the two cannot disagree. The row's single CTA still points at the
+  // catalogue: the number links to the ads, the CTA to the list - CompanySummary's division.
+  const newAdsLink = (chunks: ReactNode) => (
+    <Link href="/foretag/bevakade/nya" className="jp-countlink">
+      {chunks}
+    </Link>
+  );
   const today = new Date();
   // Datum-suffix på notice-IDs så en dismissad notis återkommer. När unified
   // notification-port finns: byt slug+datum mot riktigt notificationId per
@@ -321,6 +330,7 @@ export function OversiktPage({
       text: t.rich("notices.companiesText", {
         count: newFollowedCompanyAdCount,
         b: bold,
+        lnk: newAdsLink,
       }),
       cta: t("notices.companiesCta"),
       href: "/foretag/bevakade",

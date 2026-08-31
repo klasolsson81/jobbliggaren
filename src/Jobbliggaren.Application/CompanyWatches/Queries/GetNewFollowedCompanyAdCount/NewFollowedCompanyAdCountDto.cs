@@ -2,7 +2,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyA
 
 /// <summary>
 /// Bevakning F2 (#801, RF-6=6B) — the count of new ads from employers the user follows, NEW since
-/// the user last visited the follows surface (<c>FollowedCompanyAdHit.CreatedAt &gt;
+/// the user last acknowledged the rail on /foretag/bevakade/nya (<c>FollowedCompanyAdHit.CreatedAt &gt;
 /// JobSeeker.LastSeenFollowedAdsAt</c>, per-watch grade-filtered read-time via the shared ≥Good
 /// SSOT). Drives the Översikt "nya annonser från bevakade företag"-row (sibling of the "Nya
 /// matchningar"-row). <c>Count == 0</c> when there is no authenticated user, no JobSeeker, no active

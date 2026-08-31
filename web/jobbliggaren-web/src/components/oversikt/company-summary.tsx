@@ -37,8 +37,8 @@ interface CompanySummaryProps {
 /**
  * Stående tillstånd över "Företagsbevakning" på Översikt (#1558).
  *
- * Sektionens enda källa var ett delta mot en watermark som besöket på /foretag/bevakade
- * självt avancerar, så efter det besöket läste sektionen som tom för ett konto som
+ * Sektionens enda källa var ett delta mot en watermark som besöket på /foretag/bevakade/nya
+ * avancerar, så efter det besöket läste sektionen som tom för ett konto som
  * bevakar företag med aktiva annonser. Den här raden svarar på "vad bevakar jag, och
  * finns det något där" utan att flytta katalogen från /foretag/bevakade hit.
  *

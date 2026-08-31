@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { jobAdDtoSchema } from "./job-ads";
 
 /**
  * #311 #455 (ADR 0087 D8(c)) — per-ad follow-state overlay. Deliberately carries NO org.nr: the FE
@@ -112,3 +113,35 @@ export const newFollowedCompanyAdCountSchema = z.object({
   count: z.number().int().nonnegative(),
 });
 export type NewFollowedCompanyAdCount = z.infer<typeof newFollowedCompanyAdCountSchema>;
+
+/**
+ * #1576 - one ad on the /foretag/bevakade/nya surface, the destination the Oversikt count links to.
+ *
+ * `matchesYou === null` means NOT ASSESSED: the user has stated no occupation, so the grade
+ * predicate is inert and neither `true` nor `false` would be an honest answer. Same nullable
+ * semantics as `companyWatchSchema.matchingAdCount` - a null is silence, never a false zero, and the
+ * matching arm must say so rather than render an empty list.
+ */
+export const newFollowedAdRowSchema = z.object({
+  ad: jobAdDtoSchema,
+  matchesYou: z.boolean().nullable(),
+});
+
+/**
+ * #1576 - the ads behind the Oversikt count, newest first, running the SAME predicate as the count
+ * (ADR 0120: a rendered count is true or it is absent).
+ *
+ * `acknowledgedThrough` is the watermark window the server computed over the rows it returned, in
+ * the SCAN clock unit - NOT an ad timestamp. It is handed back verbatim on acknowledgement; a value
+ * derived client-side from `ad.createdAt` would sit below every hit just read and the count would
+ * never reset. Null when there is nothing to acknowledge.
+ *
+ * `truncated` means the cap was hit. Everything above the returned window stays unacknowledged and
+ * comes back next visit, so nothing is silently swallowed.
+ */
+export const newFollowedCompanyAdsSchema = z.object({
+  rows: z.array(newFollowedAdRowSchema),
+  acknowledgedThrough: z.string().nullable(),
+  truncated: z.boolean(),
+});
+export type NewFollowedCompanyAds = z.infer<typeof newFollowedCompanyAdsSchema>;

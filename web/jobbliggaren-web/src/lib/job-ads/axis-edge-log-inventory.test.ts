@@ -1,7 +1,14 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  PIN_FACT,
+  PIN_LIST,
+  PIN_RELATIVE,
+  emittedKeys,
+  keysJudged as keysJudgedIn,
+  pinCarriesTheCaddyfileFact,
+  pinnedAppSurfaceParameters,
+} from "@/test/edge-log-pin";
+import { EDGE_LOG_VERDICT } from "./edge-log-verdicts";
 import {
   buildJobbHref,
   buildPageHref,
@@ -46,11 +53,6 @@ import {
  * third producer of these keys that nothing here measures. `lib/job-ads/company-jobs-href.ts`
  * delegates to `buildJobbHref` and is therefore not a fourth.
  */
-
-type EdgeLogVerdict = {
-  readonly verdict: "must-not-reach-a-stored-log-post" | "kept";
-  readonly reason: string;
-};
 
 // Annotated `Required<…>`, not `as`: an assertion would switch this control off permanently,
 // and the annotation IS the guard — a field added to either type stops this file compiling
@@ -99,12 +101,6 @@ const DEFAULT_PAGE_SIZE = 20;
 /** The one raw field `buildPageHref` does not read; `targetPage` supplies the key instead. */
 const PAGE_FIELD = "page";
 
-function emittedKeys(href: string): ReadonlySet<string> {
-  const start = href.indexOf("?");
-  if (start < 0) return new Set<string>();
-  return new Set(new URLSearchParams(href.slice(start + 1)).keys());
-}
-
 const JOBB_HREF_KEYS = emittedKeys(buildJobbHref(FULL_STATE));
 const PAGE_HREF_KEYS = emittedKeys(
   buildPageHref(FULL_RAW_PARAMS, TARGET_PAGE, DEFAULT_PAGE_SIZE)
@@ -130,164 +126,9 @@ const EMITTED: ReadonlySet<string> = new Set([
 // included, and an IP is personal data (Art. 4(1), Breyer C-582/14). The kept verdicts rest on
 // the value's content being bounded, never on the record being anonymous. The aggregation risk
 // rides on that IP field, and its controls are the log's field set and retention, not this list.
-const EDGE_LOG_VERDICT: Readonly<Record<string, EdgeLogVerdict>> = {
-  employer: {
-    verdict: "must-not-reach-a-stored-log-post",
-    reason:
-      "Oversikt's summary links carry the user's WHOLE watched org.nr set in one URL and are " +
-      "its only producer. A single org.nr is public-register data any visitor can type; the " +
-      "set is whom this user watches — ADR 0087 D8(b) personal data about the user, protected " +
-      "there by owner-scoped access and an Art. 17 cascade, neither of which reaches an edge " +
-      "log. #1547.",
-  },
-  q: {
-    verdict: "must-not-reach-a-stored-log-post",
-    reason:
-      "The user's free search text, and the only key on this surface that no gate constrains: " +
-      "parseQParam gates arity and clampSubMinimumQ gates length, neither gates CONTENT. A " +
-      "retention purpose therefore cannot be written for it — Art. 5(1)(c), the same ground uid " +
-      "was deleted on. It is the field that can carry a personnummer, a former employer or a " +
-      "health-adjacent word, and nothing on the request path would know that it had. That last " +
-      "case is Art. 9(1) with no 9(2) exception available to an edge log — a stronger ground " +
-      "than 5(1)(c), and the one that holds if someone later wants q back for diagnostics.",
-  },
-  occupationGroup: {
-    verdict: "kept",
-    reason:
-      "A JobTech taxonomy conceptId. Identical for every visitor who picks the same filter; it " +
-      "names an occupation, never a person, and any visitor can type it unauthenticated.",
-  },
-  region: {
-    verdict: "kept",
-    reason:
-      "A public taxonomy region code, same class as occupationGroup: it names a place, and the " +
-      "same value is produced by every visitor who picks that place.",
-  },
-  municipality: {
-    verdict: "kept",
-    reason:
-      "A public taxonomy municipality code, same class as region. A residence is not derivable " +
-      "from it — it is the area searched, not the searcher's.",
-  },
-  employmentType: {
-    verdict: "kept",
-    reason:
-      "A public taxonomy employment-type code. One of a small closed set shared by every " +
-      "visitor who picks it.",
-  },
-  worktimeExtent: {
-    verdict: "kept",
-    reason: "A public taxonomy worktime-extent code, same closed-set class as employmentType.",
-  },
-  matchGrades: {
-    verdict: "kept",
-    reason:
-      "Fixed enum names from a three-value set. It records the position of a UI control, not a " +
-      "score and not any ad or profile the grade was computed from.",
-  },
-  matchning: {
-    verdict: "kept",
-    reason:
-      "A single sentinel word recording that the matching master switch is off. One bit, " +
-      "shared by everyone who flips it.",
-  },
-  relaterade: {
-    verdict: "kept",
-    reason:
-      "A single sentinel word recording that the include-related toggle is on. One bit, same " +
-      "class as matchning.",
-  },
-  doljAnsokta: {
-    verdict: "kept",
-    reason:
-      "A single sentinel word. It only means anything for an authenticated seeker, so it does " +
-      "say something about the requester's state — but it draws from a closed two-value space " +
-      "that identifies nobody, and it has a stated purpose: it selects which server-side query " +
-      "path ran.",
-  },
-  baraMatchade: {
-    verdict: "kept",
-    reason:
-      "A single sentinel word, same authenticated-but-closed-space class as doljAnsokta.",
-  },
-  distans: {
-    verdict: "kept",
-    reason:
-      "A single sentinel word recording that the remote facet is on. One bit; it describes the " +
-      "ads wanted, not the searcher's location.",
-  },
-  sortBy: {
-    verdict: "kept",
-    reason: "An ordering enum from a closed set. It carries no user content.",
-  },
-  pageSize: {
-    verdict: "kept",
-    reason: "A page-size integer. It carries no user content.",
-  },
-  page: {
-    verdict: "kept",
-    reason: "A page ordinal. It carries no user content.",
-  },
-  commit: {
-    verdict: "kept",
-    reason:
-      "A transient intent boolean the client strips after mount; a constant string, never state " +
-      "and never user input.",
-  },
-};
 
-function keysJudged(verdict: EdgeLogVerdict["verdict"]): ReadonlyArray<string> {
-  return Object.entries(EDGE_LOG_VERDICT)
-    .filter(([, d]) => d.verdict === verdict)
-    .map(([key]) => key);
-}
-
-const PIN_RELATIVE = path.join(
-  "tests",
-  "Jobbliggaren.Architecture.Tests",
-  "CaddyfileTokenScrubbingPinTests.cs"
-);
-const PIN_LIST = "AppSurfaceScrubbedParameters";
-const PIN_FACT = "TheCaddyfile_FiltersEveryAppSurfaceParameterThatCarriesPersonalData";
-
-function repoRoot(): string {
-  const from = path.dirname(fileURLToPath(import.meta.url));
-  let dir = from;
-  for (;;) {
-    if (existsSync(path.join(dir, "Jobbliggaren.sln"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) {
-      throw new Error(
-        `Could not find Jobbliggaren.sln by walking up from ${from}. This file binds the /jobb ` +
-          `key inventory to ${PIN_RELATIVE}, so it needs the repo checkout present.`
-      );
-    }
-    dir = parent;
-  }
-}
-
-const PIN_SOURCE = readFileSync(path.join(repoRoot(), PIN_RELATIVE), "utf8");
-
-/**
- * Read as source text, for the reason the pin itself gives about the Caddyfile: the file is the
- * artefact, and a parser clever enough to normalise it could hide the spelling this join exists
- * to compare. Finding nothing THROWS — an empty list would make the REVERSE direction below pass
- * over zero iterations, since it alone iterates the pinned list.
- */
-function pinnedAppSurfaceParameters(): ReadonlyArray<string> {
-  // `\b` so a future member merely ENDING in this name (LegacyAppSurfaceScrubbedParameters)
-  // cannot be matched in its place — a wrong-but-successful read bypasses the throw below.
-  const body = new RegExp(`\\b${PIN_LIST}\\s*=([^;]*);`).exec(PIN_SOURCE)?.[1];
-  if (body === undefined) {
-    throw new Error(
-      `Could not read the ${PIN_LIST} array out of ${PIN_RELATIVE}. It was renamed or reshaped ` +
-        `— re-make this join deliberately, do not delete it.`
-    );
-  }
-  return [...body.matchAll(/"([^"]*)"/g)]
-    .map((m) => m[1])
-    .filter((v): v is string => v !== undefined && v.length > 0);
-}
+const keysJudged = (v: "must-not-reach-a-stored-log-post" | "kept") =>
+  keysJudgedIn(EDGE_LOG_VERDICT, v);
 
 describe("/jobb axis inventory — an edge-log verdict per emitted query key", () => {
   // Both directions collect before asserting rather than failing inside the loop: a maintainer
@@ -385,9 +226,9 @@ describe("the chain to the edge: this inventory to the C# pin list to the Caddyf
   it("still finds the pin list and the fact that binds it to the Caddyfile", () => {
     expect(pinnedAppSurfaceParameters().length).toBeGreaterThan(0);
     expect(
-      PIN_SOURCE,
+      pinCarriesTheCaddyfileFact(),
       `${PIN_RELATIVE} no longer carries ${PIN_FACT}. The chain third link is gone: this file ` +
         `would keep asserting against a list nobody checks the Caddyfile against.`
-    ).toContain(PIN_FACT);
+    ).toBe(true);
   });
 });

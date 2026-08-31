@@ -95,11 +95,29 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         "OR lower(title) LIKE '%lärare%' " +
         "OR lower(company_name) LIKE '%lärare%')";
 
-    // SuggestJobAdTermsQueryHandler:37-44 — left-anchored LIKE with an explicit ESCAPE. WITHOUT the
-    // production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would otherwise
-    // serve that conjunct on empty data and mask whether the title prefix/trigram index is usable.
+    // SuggestJobAdTermsQueryHandler's title branch — left-anchored LIKE with an explicit ESCAPE. WITHOUT
+    // the production `status='Active'` conjunct, same reason as QSearchSql: #743's status index would
+    // otherwise serve that conjunct on empty data and mask whether the title prefix/trigram index is usable.
+    //
+    // The source-line reference this comment used to carry ("SuggestJobAdTermsQueryHandler:37-44") was
+    // removed in #1546 rather than re-pointed: a prose line number is a mirror with no reader, it goes
+    // stale on the next edit to that file, and it went stale in this one.
     private const string SuggestSql =
         @"SELECT title FROM job_ads WHERE lower(title) LIKE 'lärar%' ESCAPE '\'";
+
+    // #1546 — the employer branch of the same union. Isolated to the company-name arm for the reason
+    // QSearchSql and SuggestSql give: the production query also carries `status='Active'` and
+    // `organization_number IS NOT NULL`, and on this shared, near-empty table either could be served by
+    // its own index, leaving the trigram unused and this fact red for a reason that is not the one it
+    // measures.
+    //
+    // This is a hand-written mirror of a shape production emits, and the standing hazard with those is
+    // that production moves and the mirror stays green. That hazard is closed from the other side:
+    // EmployerDisambiguationQueryTests.SuggestActiveEmployers_EmitsTheIndexedLowerExpression_NeverIlike
+    // reads the SQL EF actually generates from production's own expression tree and fails if it stops
+    // being `lower(company_name) LIKE`. Neither fact is sufficient alone; the pair is.
+    private const string EmployerSuggestSql =
+        "SELECT company_name FROM job_ads WHERE lower(company_name) LIKE '%volvo%'";
 
     // #743 — the default no-facet /jobb browse ITEMS query production emits: status = 'Active'
     // (JobAdSearchComposition.ApplyFilter SPOT) + PublishedAtDesc sort (ApplySort:263 —
@@ -160,6 +178,28 @@ public class JobAdPlannerUsabilityOracleTests(ApiFactory factory)
         indexServed.ShouldBeTrue(
             "title-suggest was served by neither the btree prefix index nor the title trigram index. " +
             $"Plan:\n{plan}");
+    }
+
+    /// <summary>
+    /// #1546 — the employer branch of the typeahead union must reach its trigram index. Unlike
+    /// title-suggest there is exactly ONE candidate index for this expression, so the name IS assertable
+    /// here without becoming an order-dependent flake.
+    /// </summary>
+    [Fact]
+    public async Task EmployerSuggest_IsIndexServed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var plan = await ExplainWithScanAndSortDisabledAsync(EmployerSuggestSql, ct);
+
+        plan.ShouldNotContain("Seq Scan on job_ads", Case.Insensitive,
+            "employer-suggest CANNOT use any index: PostgreSQL fell back to a sequential scan even with " +
+            "seqscan disabled (a prohibition on PG 17+), so the index is UNUSABLE for this query rather " +
+            $"than merely un-preferred. On a per-keystroke surface that is a corpus scan per keystroke. Plan:\n{plan}");
+
+        plan.ShouldContain("ix_job_ads_company_name_lower_trgm", Case.Insensitive,
+            "the employer-suggest branch did not use the company-name trigram index. The index KEY is the " +
+            "EXPRESSION lower(company_name), so a predicate written as `company_name ILIKE …` over the bare " +
+            $"column cannot reach it — the two forms are semantically identical and only one is served. Plan:\n{plan}");
     }
 
     [Fact]

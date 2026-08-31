@@ -329,15 +329,72 @@ describe("jobAdFiltersSchema (ADR 0042 Beslut B multi + D Relevance)", () => {
 // ADR 0067 Beslut 5a — suggest-union (titel + taxonomi). Verifierar wire-
 // kontraktet: kind serialiseras som HELTAL av backend (native enum utan
 // JsonStringEnumConverter), men schemat accepterar även sträng-namn defensivt.
+// #1546 — API:t skriver de tre arbetsgivarnycklarna på VARJE rad, så schemat
+// kräver dem. Den här hjälparen håller dem ur de fall som inte handlar om dem.
+const wireRow = (row: Record<string, unknown>) => ({
+  organizationNumber: null,
+  adCount: null,
+  isProtectedIdentity: false,
+  ...row,
+});
+
 describe("suggestionDtoSchema (ADR 0067 Beslut 5a)", () => {
   it("maps integer kind (faktisk wire-form) to the enum name", () => {
-    const parsed = suggestionDtoSchema.safeParse({
+    const parsed = suggestionDtoSchema.safeParse(wireRow({
       kind: 0,
       conceptId: null,
       label: "Backend-utvecklare",
-    });
+    }));
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.kind).toBe("Title");
+  });
+
+  it("drops an Employer suggestion whose identity is protected (#1546)", () => {
+    // security-auditor 2026-08-31, villkor 5 — TREDJE lagret. Handlern
+    // utesluter enskilda firmor och DTO:n maskerar dem; skulle båda fallera
+    // får raden ändå inte renderas: den har inget org.nr att filtrera
+    // på, och en "skyddad identitet"-badge vore onåbar copy.
+    const parsed = suggestJobAdTermsResultSchema.safeParse([
+      {
+        kind: 5,
+        conceptId: null,
+        label: "Anna Svensson Konsult",
+        organizationNumber: null,
+        adCount: 1,
+        isProtectedIdentity: true,
+      },
+      {
+        kind: 5,
+        conceptId: null,
+        label: "Volvo Group AB",
+        organizationNumber: "5560125790",
+        adCount: 136,
+        isProtectedIdentity: false,
+      },
+    ]);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0]?.label).toBe("Volvo Group AB");
+    }
+  });
+
+  it("keeps a non-Employer row even if the flag were somehow set (#1546)", () => {
+    // Grinden är skopad till Employer med avsikt: flaggan hör till
+    // arbetsgivarraden, och en bredare filtrering skulle tyst kunna släppa
+    // taxonomi- eller titelförslag om fältet någon gång återanvänds.
+    const parsed = suggestJobAdTermsResultSchema.safeParse([
+      {
+        kind: 1,
+        conceptId: "abc_123",
+        label: "Stockholms län",
+        organizationNumber: null,
+        adCount: null,
+        isProtectedIdentity: true,
+      },
+    ]);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data).toHaveLength(1);
   });
 
   it("maps each ordinal to the matching SuggestionKind name", () => {
@@ -347,50 +404,55 @@ describe("suggestionDtoSchema (ADR 0067 Beslut 5a)", () => {
       "Municipality",
       "OccupationField",
       "OccupationGroup",
+      "Employer",
     ] as const;
     expected.forEach((name, i) => {
-      const parsed = suggestionDtoSchema.safeParse({
+      const parsed = suggestionDtoSchema.safeParse(wireRow({
         kind: i,
         conceptId: name === "Title" ? null : "abc_123",
         label: name,
-      });
+      }));
       expect(parsed.success).toBe(true);
       if (parsed.success) expect(parsed.data.kind).toBe(name);
     });
   });
 
   it("accepts a string kind name defensively (om converter senare adderas)", () => {
-    const parsed = suggestionDtoSchema.safeParse({
+    const parsed = suggestionDtoSchema.safeParse(wireRow({
       kind: "OccupationGroup",
       conceptId: "ssyk_1234",
       label: "Systemutvecklare m.fl.",
-    });
+    }));
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.kind).toBe("OccupationGroup");
   });
 
   it("rejects an out-of-range kind index", () => {
     expect(
-      suggestionDtoSchema.safeParse({ kind: 99, conceptId: null, label: "x" })
+      suggestionDtoSchema.safeParse(wireRow({ kind: 99, conceptId: null, label: "x" }))
         .success
     ).toBe(false);
   });
 
   it("rejects an unknown string kind", () => {
     expect(
-      suggestionDtoSchema.safeParse({
+      suggestionDtoSchema.safeParse(wireRow({
         kind: "Bogus",
         conceptId: null,
         label: "x",
-      }).success
+      })).success
     ).toBe(false);
   });
 
   it("parses an array of mixed title + taxonomy suggestions", () => {
     const parsed = suggestJobAdTermsResultSchema.safeParse([
-      { kind: 0, conceptId: null, label: "Systemutvecklare" },
-      { kind: 4, conceptId: "ssyk_1234", label: "Mjukvaru- och systemutvecklare m.fl." },
-      { kind: 1, conceptId: "lan_01", label: "Stockholms län" },
+      wireRow({ kind: 0, conceptId: null, label: "Systemutvecklare" }),
+      wireRow({
+        kind: 4,
+        conceptId: "ssyk_1234",
+        label: "Mjukvaru- och systemutvecklare m.fl.",
+      }),
+      wireRow({ kind: 1, conceptId: "lan_01", label: "Stockholms län" }),
     ]);
     expect(parsed.success).toBe(true);
     if (parsed.success) {
@@ -399,6 +461,9 @@ describe("suggestionDtoSchema (ADR 0067 Beslut 5a)", () => {
         kind: "OccupationGroup",
         conceptId: "ssyk_1234",
         label: "Mjukvaru- och systemutvecklare m.fl.",
+        organizationNumber: null,
+        adCount: null,
+        isProtectedIdentity: false,
       });
     }
   });

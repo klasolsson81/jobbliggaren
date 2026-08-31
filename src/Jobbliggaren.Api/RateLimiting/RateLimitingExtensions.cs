@@ -23,6 +23,7 @@ public static partial class RateLimitingExtensions
     public const string AuthLoosePolicy = "auth-loose";
     public const string ListReadPolicy = "list-read";
     public const string SuggestPolicy = "suggest";
+    public const string JobAdSuggestPolicy = "job-ad-suggest";
     public const string TaxonomyReadPolicy = "taxonomy-read";
     public const string FacetCountsPolicy = "facet-counts";
     public const string MatchCountPreviewPolicy = "match-count-preview";
@@ -177,6 +178,31 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.Suggest.PermitLimit / rateLimitOpts.Suggest.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.Suggest.WindowSeconds / (double)rateLimitOpts.Suggest.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // #1546 (security-auditor Major 1) — /job-ads/suggest ENSAMT. Den ytan
+            // kör sedan arbetsgivar-axeln en %contains% + GROUP BY över job_ads,
+            // alltså samma frågeform som /job-ads/employers medvetet ligger på den
+            // TYNGRE ListRead-budgeten för. Att låta den ligga kvar på 30/10s hade
+            // flyttat den scanen till en lättare budget OCH från per-submit till
+            // per-tangenttryckning samtidigt. SuggestPolicy står kvar oförändrad
+            // för SavedSearches, som är typeahead-format men inte bär den vikten.
+            options.AddPolicy(JobAdSuggestPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-job-ad-suggest");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.JobAdSuggest.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.JobAdSuggest.PermitLimit / rateLimitOpts.JobAdSuggest.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.JobAdSuggest.WindowSeconds / (double)rateLimitOpts.JobAdSuggest.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

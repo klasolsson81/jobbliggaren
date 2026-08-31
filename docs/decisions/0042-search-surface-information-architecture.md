@@ -297,3 +297,110 @@ Truth-sync #1154.
 ---
 
 *Referencias: Eric Evans, DDD (2003) kap. 5, 14; Vaughn Vernon, IDDD (2013) kap. 6; Robert C. Martin, Clean Architecture (2017) kap. 7; Beck/Fowler — YAGNI; Ford/Parsons/Kua, Building Evolutionary Architectures (2017); Nygard, Documenting Architecture Decisions (2011). ADR 0008, 0009, 0032, 0039, 0040; jobbpilot-design-principles regel 3/7; CLAUDE.md §2.3, §4, §5, §9.1, §9.2, §9.6, §9.7.*
+
+---
+
+## Amendment 2026-08-31 — the typeahead gains an employer branch, a trigram index and its own rate limit (#1546)
+
+**Datum:** 2026-08-31
+**Källa:** [#1546](https://github.com/klasolsson81/jobbliggaren/issues/1546) PR 2 of 2 — the hero field
+promises *"Sök efter yrke, arbetsgivare eller ort"*, and PR 1 made an employer name **reachable**
+through `?q=`. This amendment records the change that makes it **discoverable**.
+**Beslutsfattare:** `senior-cto-advisor` bound the union's shape (a budget on the new block only,
+position, the duplicated `>= 3` gate); `security-auditor` bound the query form and the rate-limit
+split (Major 1); Klas bound the ad count as the row's differentiator.
+**Status:** Accepted 2026-08-31.
+
+> **Written on `dotnet-architect`'s finding in PR #1606,** which measured that this ADR's own Beslut C
+> notes now misdescribe the delivered system in two places. This amendment is that correction, and it
+> follows the house rule the 2026-06-13 amendment to ADR 0062 set: a change to the filter semantics of
+> a delivered search surface is documented as an amendment, not left to a commit message.
+
+### What changed
+
+`/api/v1/job-ads/suggest` composes **three** blocks, in the order taxonomy → employer → title:
+
+| block | match | source | cap |
+|---|---|---|---|
+| taxonomy | prefix | in-memory ACL snapshot (ADR 0043) | none (unchanged) |
+| **employer (new)** | `lower(company_name) LIKE '%term%'` | `job_ads`, `Status = Active` only | `EmployerSuggestionBudget = 3` |
+| title | left-anchored prefix | `job_ads.Title` | none (unchanged) |
+
+### Beslut C's pg_trgm rejection was scoped to the TITLE branch, and is not reopened
+
+Beslut C rejected `pg_trgm` GIN with *"Ingen extension introduceras"*. Read as written, that sentence
+now contradicts the delivered system — so it is amended rather than left to rot:
+
+- **The rejection's reasons were about the title branch, and they still hold there.** Title suggest is
+  left-anchored, and `text_pattern_ops` serves a prefix; the infix strength that made trigram
+  "spekulativ kapacitet (YAGNI)" for that branch is exactly what the employer branch **needs**, because
+  a user types a fragment of a company name, not its first letters.
+- **The extension is no longer new surface.** It was introduced by ADR 0061/0062 for the q-path, and
+  #1546 PR 1 added `ix_job_ads_company_name_lower_trgm` (migration `20260830133506`, built
+  CONCURRENTLY, predicate-free). This branch reuses that index; it introduces none.
+- **The title branch is untouched.** It still uses the btree functional partial index Beslut C chose.
+
+### Beslut C's rate limit: `SuggestPolicy` no longer serves this endpoint
+
+Beslut C concretised the DoS protection as a dedicated `SuggestPolicy`, 30 requests / 10 s, and
+records *"security-auditor PASS bekräftade 30/10 s-tröskeln"*. That confirmation was given for a
+surface running one left-anchored prefix query. The employer branch runs a `%contains%` + `GROUP BY`
+over `job_ads` — the same query FORM that `/api/v1/job-ads/employers` deliberately sits on the heavier
+`ListReadPolicy` for — and it runs once per keystroke rather than per submit.
+
+**`/api/v1/job-ads/suggest` therefore moves to a dedicated `JobAdSuggestPolicy`, 20 / 10 s**
+(`security-auditor`, 2026-08-31). `SuggestPolicy` is **unchanged at 30 / 10 s** and now serves
+`/api/v1/saved-searches/derive`, which is typeahead-shaped but carries none of that weight; tightening
+it too would have been collateral rather than calibration. The number is deliberately conservative and
+is revised **up** once further measurement exists, never down after shipping. Wiring and both key
+strings are pinned by `JobAdSuggestRateLimitWiringTests`.
+
+### The `>= 3` gate, and why it is duplicated rather than shared
+
+A GIN trigram index is built from 3-grams and cannot serve a `LIKE '%xx%'` shorter than three
+characters, so a shorter term forces a full-corpus evaluation once per keystroke. The gate is checked
+before the port call.
+
+The same number lives in `JobAdSearchComposition.includeSubstringLike` and in
+`Migrate.Program.RunExplainSearchAsync`'s `substringArms`. It is **not** shared through a constant:
+the shared knowledge is a fact about `pg_trgm` that this repo neither owns nor can change, and the
+three gates have different failure semantics — composition's drops an OR-arm from a query that still
+answers through FTS, while this one switches a whole block off, which is a product behaviour. The
+siblings are cross-referenced by symbol.
+
+⚠ It is **not** the validator's `MinimumLength(2)`, which carries a standing #831 instruction not to
+touch it. The surface legitimately holds both numbers: at exactly two characters the user gets
+taxonomy and title suggestions and no employers.
+
+### Konsekvenser
+
+**Latency, against ADR 0045's locked budget.** Class (b) typeahead/suggest is p95 **150 ms**,
+Klas-locked at the 2026-05-17 Accepted-flip. Measured 2026-08-31 at 50 000 ads, 50 warmed iterations
+(`SuggestUnionLatencyMeasurement`): worst case — a term present in *every* company name, so all rows
+reach the `GROUP BY` — **p95 53.4 ms**; ordinary case 10.0 ms; at two characters 1.1 ms against a
+1.0 ms baseline. The measurement does not cover dev scale (~106 000) directly; that it holds there is
+an inference from the worst case already matching 100 % of rows, not a reading.
+
+**Personnummer-shaped employers are excluded from the union** (ADR 0087 D8(c), CTO bind F3), in the
+Application handler, through the Domain VO's single-sourced detector — never a second heuristic and
+never in Infrastructure. They remain reachable through the `?q=` branch PR 1 delivered, which matches
+on name and needs no org.nr, exactly as `messages/sv/pages.json` already instructs the user.
+
+⚠ **F3 protects the personnummer-shaped subset, not every company name that identifies a natural
+person.** A one-person AB named after its owner passes through, and that is correct under Art. 6(1)(f)
+— the employer published the ad to recruit. No ADR, comment or UI copy may state that sole traders are
+protected from search; the statement would be false the moment it was written.
+
+**The wire contract.** `SuggestionKind.Employer` is appended LAST. The enum reaches the wire as a bare
+integer and the frontend decodes it positionally, so `SuggestionKindWireContractTests` now pins the
+ordinals, the serialized form, both converter routes and — reading the TypeScript as source text — the
+cross-language join. `FACET_DIMENSIONS` is pinned against `FacetDimension` in the same class, after an
+edit in this very PR desynchronised it unnoticed.
+
+### Referenser
+
+- [#1546](https://github.com/klasolsson81/jobbliggaren/issues/1546) · PR #1606 · PR #1602 (branch 1 of 2)
+- ADR 0045 Beslut 1 class (b) — the locked p95 · ADR 0061/0062 — `pg_trgm` and the q-path
+- ADR 0062 Amendment 2026-06-13 — the precedent that a filter-semantic change is an amendment
+- ADR 0087 D6/D8(c) — org.nr as canonical key, and the surfacing guard
+- ADR 0043 — the taxonomy snapshot the first block reads

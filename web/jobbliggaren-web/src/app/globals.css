@@ -2678,7 +2678,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  min-height: 32px;
+  max-width: 100%;
   padding: 0 10px 0 12px;
   background: var(--jp-surface-3);
   border: 1px solid var(--jp-border);

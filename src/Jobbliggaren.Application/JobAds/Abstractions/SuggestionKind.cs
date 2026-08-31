@@ -30,4 +30,18 @@ public enum SuggestionKind
 
     /// <summary>Yrkesgrupp / ssyk-level-4 (taxonomi-snapshot).</summary>
     OccupationGroup,
+
+    /// <summary>
+    /// #1546 — a distinct legal entity in the ad corpus, matched on <c>company_name</c> and carried
+    /// with its org.nr so selecting it filters on <c>?employer=</c> rather than on a fuzzy name.
+    /// <para>
+    /// ⚠ <b>APPENDED LAST, and every future member must be too.</b> This enum has no explicit
+    /// ordinals and reaches the wire as a bare integer; the frontend decodes it POSITIONALLY out of
+    /// <c>SUGGESTION_KIND_ORDER</c>. Inserting anywhere else silently remaps every kind after the
+    /// insertion point. <c>SuggestionKindWireContractTests</c> is what fails if you do — including a
+    /// cross-language fact that reads the frontend array as source text, so appending here without
+    /// appending there breaks the build rather than the client.
+    /// </para>
+    /// </summary>
+    Employer,
 }

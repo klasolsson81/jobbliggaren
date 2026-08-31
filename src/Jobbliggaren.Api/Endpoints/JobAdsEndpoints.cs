@@ -129,10 +129,15 @@ public static class JobAdsEndpoints
         })
         .RequireRateLimiting(RateLimitingExtensions.ListReadPolicy);
 
-        // ADR 0042 Beslut C — typeahead C1 (lokal job_ads.Title ILIKE-prefix).
-        // Egen SuggestPolicy (typeahead = 1 req/keystroke; least common
-        // mechanism). Auth-gated via gruppen. DoS-floor (min prefix ≥2 +
-        // Limit-cap) i ListJobAds/SuggestJobAdTermsQueryValidator.
+        // ADR 0042 Beslut C — typeahead C1 (lokal job_ads.Title ILIKE-prefix),
+        // sedan #1546 också en arbetsgivar-gren (%contains% + GROUP BY över
+        // job_ads, bakom en egen >=3-grind i handlern).
+        // Egen JobAdSuggestPolicy — INTE den delade SuggestPolicy — just för att
+        // arbetsgivar-grenen bär samma frågeform som /job-ads/employers ligger
+        // på den tyngre ListReadPolicy för (security-auditor Major 1, 2026-08-31;
+        // typeahead = 1 req/keystroke, least common mechanism). Auth-gated via
+        // gruppen. DoS-floor (min prefix ≥2 + Limit-cap) i
+        // ListJobAds/SuggestJobAdTermsQueryValidator.
         group.MapGet("/suggest", async (
             IMediator mediator,
             string prefix,
@@ -142,7 +147,7 @@ public static class JobAdsEndpoints
             var result = await mediator.Send(new SuggestJobAdTermsQuery(prefix, limit), ct);
             return Results.Ok(result);
         })
-        .RequireRateLimiting(RateLimitingExtensions.SuggestPolicy);
+        .RequireRateLimiting(RateLimitingExtensions.JobAdSuggestPolicy);
 
         // ADR 0067 Beslut 4 (Fas E2c) — per-option facet-counts: concept-id →
         // antal aktiva annonser för EN dimension, med den facetterade

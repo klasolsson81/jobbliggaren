@@ -13,6 +13,7 @@ using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.EraseRecruiterAds;
 using Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
+using Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Shouldly;
@@ -393,6 +394,14 @@ public class OrgNrRecordLoggingGuardTests
                 "Region Stockholm"),
             (typeof(EmployerDisambiguationDto),
                 new EmployerDisambiguationDto(Sentinel, false, "Region Stockholm", 3).ToString(),
+                "Region Stockholm"),
+            // #1546 — the typeahead's employer suggestion. The org.nr sits in a LATER positional slot
+            // than every sibling above (Kind/ConceptId/Label come first), which is the slot a member
+            // added later would land in too; the sentinel goes there so the redaction is measured where
+            // the value actually lives, not where it is conventionally first.
+            (typeof(SuggestionDto),
+                new SuggestionDto(
+                    SuggestionKind.Employer, null, "Region Stockholm", Sentinel, 3, false).ToString(),
                 "Region Stockholm"),
             (typeof(EmployerApplicationHistoryDto),
                 new EmployerApplicationHistoryDto(Sentinel, false, "Region Stockholm", 2, []).ToString(),

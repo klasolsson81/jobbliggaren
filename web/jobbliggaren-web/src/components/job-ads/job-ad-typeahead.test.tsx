@@ -101,7 +101,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
         // kind serialiseras som heltal (0=Title), conceptId=null för titel.
         new Response(
           JSON.stringify([
-            { kind: 0, conceptId: null, label: "Backend-utvecklare" },
+            { kind: 0, conceptId: null, label: "Backend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -125,13 +125,90 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     );
   });
 
+  it("renders an employer row with its active ad count (#1546)", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              kind: 5,
+              conceptId: null,
+              label: "Volvo Group AB",
+              organizationNumber: "5560125790",
+              adCount: 136,
+              isProtectedIdentity: false,
+            },
+          ]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "volvo");
+
+    // The whole li is the option's accessible name, so the count is announced with
+    // the name rather than being decoration a screen reader never reaches.
+    expect(
+      await screen.findByRole(
+        "option",
+        { name: /Volvo Group AB\s*136 annonser/ },
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("renders TWO employers that share a name (#1546 React-key collision)", async () => {
+    // The Volvo×20 trap, as a rendering hazard: two DISTINCT legal entities can carry
+    // the same company_name. Keyed on the label they would collide; keyed on org.nr they
+    // do not. A happy-path single-row test cannot see this.
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify([
+            {
+              kind: 5,
+              conceptId: null,
+              label: "Nordic Bygg AB",
+              organizationNumber: "5560125790",
+              adCount: 9,
+              isProtectedIdentity: false,
+            },
+            {
+              kind: 5,
+              conceptId: null,
+              label: "Nordic Bygg AB",
+              organizationNumber: "5569876543",
+              adCount: 2,
+              isProtectedIdentity: false,
+            },
+          ]),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<ControlledHarness onSelect={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "nordic");
+
+    await screen.findByRole("listbox", undefined, { timeout: 2000 });
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    // Distinguishable to a reader only by their counts, which is exactly why the count
+    // is rendered rather than left as invisible payload.
+    expect(options[0]).toHaveTextContent("9 annonser");
+    expect(options[1]).toHaveTextContent("2 annonser");
+  });
+
   it("selecting a suggestion calls onSelect with the full SuggestionDto", async () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
           JSON.stringify([
             // kind=2 = Municipality (ADR 0067 wire-ordningen), conceptId satt.
-            { kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg" },
+            { kind: 2, conceptId: "PVZL_BQT_XtL", label: "Göteborg", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -155,6 +232,9 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       kind: "Municipality",
       conceptId: "PVZL_BQT_XtL",
       label: "Göteborg",
+      organizationNumber: null,
+      adCount: null,
+      isProtectedIdentity: false,
     });
   });
 
@@ -163,8 +243,8 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       async () =>
         new Response(
           JSON.stringify([
-            { kind: 0, conceptId: null, label: "Frontend-utvecklare" },
-            { kind: 0, conceptId: null, label: "Fullstack-utvecklare" },
+            { kind: 0, conceptId: null, label: "Frontend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
+            { kind: 0, conceptId: null, label: "Fullstack-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
           ]),
           { status: 200 },
         ),
@@ -194,6 +274,9 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
       kind: "Title",
       conceptId: null,
       label: "Fullstack-utvecklare",
+      organizationNumber: null,
+      adCount: null,
+      isProtectedIdentity: false,
     });
   });
 
@@ -201,7 +284,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -225,7 +308,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -247,7 +330,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "Frontend", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -290,7 +373,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     return vi.fn(
       async () =>
         new Response(
-          JSON.stringify([{ kind: 0, conceptId: null, label: "AI-ingenjör" }]),
+          JSON.stringify([{ kind: 0, conceptId: null, label: "AI-ingenjör", organizationNumber: null, adCount: null, isProtectedIdentity: false }]),
           { status: 200 },
         ),
     );
@@ -491,7 +574,7 @@ describe("JobAdTypeahead (ADR 0042 Beslut C + ADR 0067 Fas E2d)", () => {
     resolveFetch(
       new Response(
         JSON.stringify([
-          { kind: 0, conceptId: null, label: "Backend-utvecklare" },
+          { kind: 0, conceptId: null, label: "Backend-utvecklare", organizationNumber: null, adCount: null, isProtectedIdentity: false },
         ]),
         { status: 200 },
       ),

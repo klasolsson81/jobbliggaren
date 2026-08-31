@@ -12,7 +12,11 @@ using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
-// ADR 0067 Beslut 5a (Fas D1) — SuggestJobAdTermsQueryHandler union-väg.
+// ADR 0067 Beslut 5a (Fas D1) + #1546 — SuggestJobAdTermsQueryHandler union-väg.
+//
+// #1546: arbetsgivar-porten löses ur containern (RIKTIG port, riktig Postgres) medan
+// taxonomin substitueras — en contains-matchning mot en fake bevisar ingenting om det
+// som gör arbetsgivar-blocket tungt (senior-cto-advisor 2026-08-31).
 // Titel-grenen kräver riktig Postgres (EF.Functions.Like mot job_ads.Title) →
 // Testcontainers via ApiFactory, [Collection("Api")]. ITaxonomyReadModel
 // substitueras (NSubstitute) så taxonomi-delen är deterministisk och unionens
@@ -61,6 +65,56 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
     }
 #pragma warning restore CA2012
 
+
+    /// <summary>
+    /// #1546 — seeds ONE Active ad for a distinct legal entity. The org.nr is written by the same
+    /// actor production uses: <c>JobAd.Import</c> takes it off the parsed facets, and
+    /// <c>TestFacets.FromPayload</c> mirrors the ACL parse that <c>PlatsbankenJobSource</c> performs
+    /// (pinned on the ACL side by <c>PlatsbankenJobSourceFacetMappingTests</c>). Nothing here is a
+    /// hand-written column value (CLAUDE.md §5 <c>Tests:</c>).
+    /// <para>
+    /// ⚠ NOT a generated column any more — <c>organization_number</c> became ordinary and
+    /// <c>ValueGeneratedNever()</c> in #824/#841. An earlier version of this comment said otherwise;
+    /// the premise held, the reason given for it did not, and §5 asks for the reason.
+    /// </para>
+    /// </summary>
+    private async Task SeedEmployerAdAsync(
+        string organizationNumber, string companyName, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var ext = $"ext-{Guid.NewGuid():N}";
+        var raw =
+            $"{{\"id\":\"{ext}\",\"employer\":{{\"name\":\"{companyName}\","
+            + $"\"organization_number\":\"{organizationNumber}\"}}}}";
+        var jobAd = JobAd.Import(
+            title: "Utvecklare",
+            company: Company.Create(companyName).Value,
+            description: "desc",
+            url: $"https://example.com/jobs/{ext}",
+            external: ExternalReference.Create(JobSource.Platsbanken, ext).Value,
+            rawPayload: raw,
+            facets: TestFacets.FromPayload(raw),
+            publishedAt: clock.UtcNow.AddDays(-1),
+            expiresAt: clock.UtcNow.AddDays(30),
+            clock: clock, declaredContacts: [], extractTerms: TestKeywordExtraction.None).Value;
+        db.JobAds.Add(jobAd);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<IReadOnlyList<SuggestionDto>> RunAsync(
+        ITaxonomyReadModel taxonomy, string prefix, int limit, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, taxonomy,
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
+        return await handler.Handle(new SuggestJobAdTermsQuery(prefix, limit), ct);
+    }
+
     [Fact]
     public async Task Handle_ShouldUnionTaxonomyAndTitle_WithTaxonomyFirst()
     {
@@ -74,7 +128,10 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, taxonomy);
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, taxonomy,
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
 
@@ -99,7 +156,10 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         // Tom taxonomi → endast titel-grenen.
-        var handler = new SuggestJobAdTermsQueryHandler(db, TaxonomyReturning());
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, TaxonomyReturning(),
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
 
@@ -123,7 +183,10 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, taxonomy);
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, taxonomy,
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 10), ct);
 
@@ -150,7 +213,10 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, taxonomy);
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, taxonomy,
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 3), ct);
 
@@ -158,4 +224,198 @@ public class SuggestJobAdTermsUnionTests(ApiFactory factory)
         // Taxonomi prioriteras (kommer först) → de tre taxonomi-träffarna fyller cap:en.
         result.ShouldAllBe(s => s.Kind != SuggestionKind.Title);
     }
+
+    // ═══════════ #1546 — the employer block: its budget, its position, its exclusion ═══════════
+    // Every fact below distinguishes the CHOSEN design from a specific rejected one
+    // (senior-cto-advisor 2026-08-31). A test that only asserted "an employer appears" would be
+    // green under all of them.
+
+    /// <summary>
+    /// #1546 — the tightest regime the validator allows for this branch, where the over-fetch margin
+    /// the handler's comment relies on is EXACTLY ZERO.
+    ///
+    /// <para>
+    /// The handler asks the port for the whole <c>Limit</c> and shows at most
+    /// <c>EmployerSuggestionBudget</c>, so at the default limit of 10 the personnummer exclusion has
+    /// seven rows of headroom. At <c>limit == 3</c> it has none: the port returns three rows, one is
+    /// dropped, and only two employers can be shown. That is CORRECT — the alternative would be a
+    /// second round trip per keystroke — but it is a different regime from the one the sibling fact
+    /// measures, and it was previously asserted nowhere.
+    /// </para>
+    ///
+    /// <para>
+    /// The sole proprietorship is seeded with the most ads so it sorts FIRST and is therefore inside
+    /// any cap: if it sorted last the test would pass without exercising anything.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldShrinkTheEmployerBlock_WhenTheLimitLeavesNoOverfetchMargin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"tig{Guid.NewGuid():N}"[..14];
+
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("5566111101", $"{token} Alfa AB", ct);
+        await SeedEmployerAdAsync("5566111102", $"{token} Beta AB", ct);
+        await SeedEmployerAdAsync("5566111103", $"{token} Gamma AB", ct);
+
+        var result = await RunAsync(TaxonomyReturning(), token, 3, ct);
+
+        var employers = result.Where(x => x.Kind == SuggestionKind.Employer).ToList();
+
+        employers.Count.ShouldBe(2,
+            "at limit 3 the port returns 3 rows and the excluded sole proprietorship is one of them, "
+            + "so the block shrinks. Shown so the margin the handler's comment names is not read as a "
+            + "guarantee that holds at every limit.");
+
+        employers.ShouldAllBe(x => x.OrganizationNumber != "8501012384");
+        result.ShouldAllBe(x => x.Label != $"{token} Enskild Firma",
+            "whatever the limit, the excluded employer must never be surfaced.");
+    }
+
+    /// <summary>
+    /// Distinguishes the chosen budget from "no per-kind cap" (the delivered accident). Five distinct
+    /// employers match; the block must yield exactly three.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldCapEmployerBlock_AtItsOwnBudget_WhenMoreMatch()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"bud{Guid.NewGuid():N}"[..14];
+
+        for (var i = 1; i <= 5; i++)
+            await SeedEmployerAdAsync($"55660707{i:D2}", $"{token} Bolag {i} AB", ct);
+
+        var result = await RunAsync(TaxonomyReturning(), token, 10, ct);
+
+        result.Count(x => x.Kind == SuggestionKind.Employer).ShouldBe(3,
+            "the employer block matches %contains% over the whole corpus and ranks by ad count, so "
+            + "without its own budget a common fragment would push out every title and taxonomy "
+            + "suggestion. Hard-coded 3 on purpose: reading the constant would assert 3 == 3.");
+    }
+
+    /// <summary>
+    /// The ONLY fact that distinguishes a budget on the NEW block from budgets on every block. The
+    /// taxonomy assertion is the load-bearing half: a symmetric design would cap it too.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldNotBudgetTaxonomy_WhenEmployerBlockIsBudgeted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"sym{Guid.NewGuid():N}"[..14];
+
+        for (var i = 1; i <= 5; i++)
+            await SeedEmployerAdAsync($"55660808{i:D2}", $"{token} Bolag {i} AB", ct);
+
+        var taxonomy = TaxonomyReturning(
+            new TaxonomySuggestionDto(SuggestionKind.Region, "sr1", $"{token}-1"),
+            new TaxonomySuggestionDto(SuggestionKind.Region, "sr2", $"{token}-2"),
+            new TaxonomySuggestionDto(SuggestionKind.Region, "sr3", $"{token}-3"),
+            new TaxonomySuggestionDto(SuggestionKind.Region, "sr4", $"{token}-4"),
+            new TaxonomySuggestionDto(SuggestionKind.Region, "sr5", $"{token}-5"));
+
+        var result = await RunAsync(taxonomy, token, 10, ct);
+
+        result.Count(x => x.Kind == SuggestionKind.Region).ShouldBe(5,
+            "taxonomy keeps the priority ADR 0067 Beslut 5a gave it. #1546 budgets the NEW block "
+            + "only; capping taxonomy too would re-open a delivered decision this issue never asked "
+            + "to change.");
+        result.Count(x => x.Kind == SuggestionKind.Employer).ShouldBe(3);
+    }
+
+    /// <summary>
+    /// Position, asserted positionally rather than as "employer is present" — the typeahead paints a
+    /// flat list in API order and never re-sorts, so this order IS the rendered order.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldOrderEmployerBetweenTaxonomyAndTitle()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"ord{Guid.NewGuid():N}"[..14];
+
+        await SeedEmployerAdAsync("5566090901", $"{token} Bolag AB", ct);
+        await SeedTitleAsync($"{token} utvecklare", ct);
+
+        var taxonomy = TaxonomyReturning(
+            new TaxonomySuggestionDto(SuggestionKind.Region, "or1", $"{token}-region"));
+
+        var result = await RunAsync(taxonomy, token, 10, ct);
+
+        result.Count.ShouldBe(3);
+        result[0].Kind.ShouldBe(SuggestionKind.Region);
+        result[1].Kind.ShouldBe(SuggestionKind.Employer,
+            "dimension before free text: an employer sets ?employer=<org.nr>, the canonical key, "
+            + "while Title is residual q.");
+        result[2].Kind.ShouldBe(SuggestionKind.Title);
+    }
+
+    /// <summary>
+    /// The pin for WHERE the budget is applied. Four employers match and one is personnummer-shaped;
+    /// the excluded row must not consume a display slot, so the answer is 3 and not 2. This is the
+    /// only fact that fails against the naive implementation that caps at the port call instead of at
+    /// fill time — and the naive one is green under every other test in this file.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ShouldNotSpendBudgetOnExcludedSoleProprietor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var token = $"pnr{Guid.NewGuid():D}"[..14].Replace("-", "x", StringComparison.Ordinal);
+
+        // The sole proprietorship sorts FIRST (most ads), so it is inside any cap the port applies.
+        // Format-valid and personnummer-SHAPED (third digit 0), but not a real personnummer — this
+        // literal lives in a tracked file forever.
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("8501012384", $"{token} Enskild Firma", ct);
+        await SeedEmployerAdAsync("5566101001", $"{token} Alfa AB", ct);
+        await SeedEmployerAdAsync("5566101002", $"{token} Beta AB", ct);
+        await SeedEmployerAdAsync("5566101003", $"{token} Gamma AB", ct);
+
+        var result = await RunAsync(TaxonomyReturning(), token, 10, ct);
+
+        var employers = result.Where(x => x.Kind == SuggestionKind.Employer).ToList();
+
+        employers.Count.ShouldBe(3,
+            "the excluded sole proprietorship must not cost a display slot. If the budget were "
+            + "applied at the port call instead of at fill time this would be 2 — and nothing else "
+            + "in this file would notice.");
+
+        employers.ShouldAllBe(x => x.OrganizationNumber != "8501012384");
+        employers.ShouldAllBe(x => !x.IsProtectedIdentity);
+        result.ShouldAllBe(x => x.Label != $"{token} Enskild Firma");
+    }
+
+    /// <summary>
+    /// The employer branch is gated on <c>Prefix.Length &gt;= MinTrigramServableTermLength</c> (3).
+    /// Below that length a <c>%contains%</c> fragment is not trigram-servable, so running the branch
+    /// anyway degrades to a sequential scan of <c>job_ads</c> on every keystroke. The query validator
+    /// admits a two-character prefix, so this gate, not validation, is what stands between that
+    /// prefix and the scan.
+    /// </summary>
+    /// <remarks>
+    /// The three-character arm is a positive control: it proves the seeded employer IS reachable
+    /// through the real port, so the two-character assertion cannot pass by finding nothing at all.
+    /// </remarks>
+    [Fact]
+    public async Task Handle_ShouldNotRunTheEmployerBranch_BelowTheTrigramServableLength()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Letters the sibling tokens cannot produce: those are guid hex, which has no q, x or z.
+        var stem = $"qxz{Guid.NewGuid():N}"[..12];
+        const string orgNr = "5566111104";
+
+        await SeedEmployerAdAsync(orgNr, $"{stem} AB", ct);
+
+        var served = await RunAsync(TaxonomyReturning(), stem[..3], 10, ct);
+        served.ShouldContain(
+            x => x.Kind == SuggestionKind.Employer && x.OrganizationNumber == orgNr,
+            "positive control: at three characters the branch runs and the row is reachable.");
+
+        var gated = await RunAsync(TaxonomyReturning(), stem[..2], 10, ct);
+        gated.ShouldNotContain(
+            x => x.Kind == SuggestionKind.Employer && x.OrganizationNumber == orgNr,
+            "at two characters the gate must stop the branch, so the row the arm above just proved "
+            + "reachable does not come back.");
+    }
+
 }

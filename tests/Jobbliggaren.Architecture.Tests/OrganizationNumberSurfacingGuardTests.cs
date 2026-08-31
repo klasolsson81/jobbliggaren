@@ -56,6 +56,10 @@ public class OrganizationNumberSurfacingGuardTests
     /// </summary>
     private static readonly IReadOnlyList<string> RawOrgNrReadingSourcePaths =
     [
+        // #1546 — the /jobb typeahead's employer branch reads each candidate's RAW org.nr into scope
+        // (OrganizationNumber.FromTrusted for the F3 exclusion, and again in SuggestionDto.ForEmployer)
+        // before either gate fires. It holds no ILogger today; this scan is what keeps that true.
+        "src/Jobbliggaren.Application/JobAds/Queries/SuggestJobAdTerms/SuggestJobAdTermsQueryHandler.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Jobs/CompanyWatchScan/CompanyWatchScanJob.cs",
         "src/Jobbliggaren.Application/CompanyWatches/Queries/ListCompanyWatches/ListCompanyWatchesQueryHandler.cs",
         // #311 PR-5 (ADR 0087 D4 / #544 gap-closure) — the per-ad follow-state overlay reads each page
@@ -164,6 +168,14 @@ public class OrganizationNumberSurfacingGuardTests
         // it staying correct. The DTO nulls + flags; the handler routes every row through
         // IsPersonnummerShaped.
         typeof(Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies.CompanyBrowseDto),
+        // #1546: the /jobb typeahead's employer suggestion. SAME defense-in-depth posture as the two
+        // entries above, and the WEAKEST of the three premises, which is exactly why it belongs here
+        // rather than in the exempt set: CompanyLookupDto rests on a validator's refuse-posture,
+        // CompanyBrowseDto on an ingest-time filter in another subsystem, and this one on a single
+        // `continue` in SuggestJobAdTermsQueryHandler (CTO bind F3). The DTO nulls + flags via
+        // IsPersonnummerShaped regardless, so the exclusion and the masking are two independent gates
+        // and removing either leaves the other standing.
+        typeof(Jobbliggaren.Application.JobAds.Queries.SuggestJobAdTerms.SuggestionDto),
     ];
 
     /// <summary>

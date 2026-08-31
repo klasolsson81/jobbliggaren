@@ -155,6 +155,7 @@ export const SUGGESTION_KIND_ORDER = [
   "Municipality",
   "OccupationField",
   "OccupationGroup",
+  "Employer",
 ] as const;
 export type SuggestionKind = (typeof SUGGESTION_KIND_ORDER)[number];
 
@@ -183,14 +184,32 @@ const suggestionKindFromWire = z
 // Beslut 5b, Fas E2) — i nuläget konsumerar typeaheaden enbart `label`.
 // conceptId valideras inte mot concept-id-mönstret (samma permissiva hållning
 // som `taxonomyLabelSchema` — en stale snapshot kan bära annat id-format).
+// #1546 — `organizationNumber`, `adCount` och `isProtectedIdentity` är satta
+// ENBART för Employer-träffar och är null/false för övriga kinds. `.nullable()`
+// och inte `.optional()`: API:t skriver nycklarna på VARJE rad (ingen
+// JSON-konfiguration i Api:t → System.Text.Json utelämnar inget), så en
+// frånvarande nyckel är ett kontraktsbrott och ska bli ett parse-fel, inte ett
+// tyst `undefined`.
 export const suggestionDtoSchema = z.object({
   kind: suggestionKindFromWire,
   conceptId: z.string().nullable(),
   label: z.string(),
+  organizationNumber: z.string().nullable(),
+  adCount: z.number().int().nullable(),
+  isProtectedIdentity: z.boolean(),
 });
 export type SuggestionDto = z.infer<typeof suggestionDtoSchema>;
 
-export const suggestJobAdTermsResultSchema = z.array(suggestionDtoSchema);
+// #1546 — TREDJE lagret kring enskilda firmors org.nr (security-auditor
+// 2026-08-31, villkor 5). Backend utesluter dem redan i handlern och maskerar
+// dem i DTO:n; här SLÄPPS de. Att i stället rendera en "skyddad identitet"-
+// badge vore onåbar copy — och en maskad rad har inget org.nr att filtrera på,
+// alltså ett förslag utan mål.
+export const suggestJobAdTermsResultSchema = z
+  .array(suggestionDtoSchema)
+  .transform((items) =>
+    items.filter((i) => !(i.kind === "Employer" && i.isProtectedIdentity)),
+  );
 export type SuggestJobAdTermsResult = z.infer<
   typeof suggestJobAdTermsResultSchema
 >;

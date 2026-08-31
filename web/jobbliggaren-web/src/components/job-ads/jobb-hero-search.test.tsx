@@ -61,9 +61,18 @@ function setup(extra?: Partial<Parameters<typeof JobbHeroSearch>[0]>) {
 function stubSuggest(
   items: Array<{ kind: number; conceptId: string | null; label: string }>,
 ) {
+  // #1546 — the API writes the three employer keys on EVERY row, so the schema
+  // requires them. Injected here rather than at every call site: none of these
+  // cases is about the employer axis.
+  const wire = items.map((i) => ({
+    ...i,
+    organizationNumber: null,
+    adCount: null,
+    isProtectedIdentity: false,
+  }));
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => new Response(JSON.stringify(items), { status: 200 })),
+    vi.fn(async () => new Response(JSON.stringify(wire), { status: 200 })),
   );
 }
 

@@ -502,7 +502,11 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         // the WHOLE section on a NotAssessed SSYK, so before the split the second case told a user
         // who HAD stated an occupation that she had not, and pointed her at a setting she had used.
         unstated.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        unstated.Score.Fast.SsykOverlap.Matched.ShouldBeEmpty();
+        unstated.Score.Fast.SsykOverlap.Missing.ShouldBeEmpty();
         silentAd.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        silentAd.Score.Fast.SsykOverlap.Matched.ShouldBeEmpty();
+        silentAd.Score.Fast.SsykOverlap.Missing.ShouldBeEmpty();
 
         unstated.Causes.SsykOverlap.ShouldBe(MatchDimensionCause.PreferenceUnstated);
         silentAd.Causes.SsykOverlap.ShouldBe(MatchDimensionCause.AdSilent);
@@ -524,9 +528,13 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         var unstated = await scorer.ScoreFullAsync(jobAdId, RelatedFullProfile(), ct);
 
         stated.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        stated.Score.Fast.EmploymentFit.Matched.ShouldBeEmpty();
+        stated.Score.Fast.EmploymentFit.Missing.ShouldBeEmpty();
         stated.Causes.EmploymentFit.ShouldBe(MatchDimensionCause.AdSilent);
 
         unstated.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        unstated.Score.Fast.EmploymentFit.Matched.ShouldBeEmpty();
+        unstated.Score.Fast.EmploymentFit.Missing.ShouldBeEmpty();
         unstated.Causes.EmploymentFit.ShouldBe(MatchDimensionCause.PreferenceUnstated);
     }
 
@@ -1374,9 +1382,9 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // PR-4 (#300, ADR 0084) — SsykIsRelated on the FullScoredMatch carrier. TRUE iff the ad's
     // occupation-group concept-id ∈ profile.Fast.RelatedSsykGroupConceptIds AND ∉
     // profile.Fast.SsykGroupConceptIds (exact precedence), and only meaningful when the SSYK gate
-    // is a Match; FALSE otherwise. The related set is non-empty here (RelatedFullProfile); it is
-    // EMPTY in every other test in this file, so SsykIsRelated is bit-for-bit false there (the
-    // behaviour-inert v1 invariant, pinned by the last case below).
+    // is a Match; FALSE otherwise. The related set is non-empty here (RelatedFullProfile) and
+    // empty for every profile built by FullProfile, so SsykIsRelated is bit-for-bit false there
+    // (the behaviour-inert v1 invariant, pinned by the last case below).
     // =================================================================
 
     [Fact]

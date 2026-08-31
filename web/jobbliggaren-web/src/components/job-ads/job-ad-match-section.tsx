@@ -100,16 +100,6 @@ function notAssessedReason(
   }
 }
 
-/**
- * Serverns skäl för raden, i katalogens ord. Nyckeln är paret (orsak, dimension):
- * samma orsak får olika ord per dimension ("...någon region" / "...någon
- * anställningsform"), så copyn är genuint nycklad på båda.
- *
- * Bara de par backend faktiskt producerar står i katalogen. `ssykOverlap` och
- * `employmentFit` har två armar var, `regionFit` fyra — och en dimension utan
- * orsak alls får `null` och faller vidare till nästa gren. Ingen fras uppfinns
- * här för ett par som inte kan uppstå.
- */
 function causeReason(
   key: keyof Omit<JobAdMatchDetail, "grade">,
   cause: MatchCause,

@@ -2889,7 +2889,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-modal__matchrow-evidence .jp-modal__matchrow-missing {
   /* Anti-röd-vakt: samma ink som föräldern, med descendant-specificitet (0,2,0) så en
-     enkelklass-regel (0,1,0) inte kan färga saknat rött (DESIGN.md §6). Ej ink-2 — §4
+     enkelklass-regel (0,1,0) inte kan färga saknat rött (DESIGN.md §3 — statusfärger
+     endast för status; formen §6). Ej ink-2 — §4
      läsbarhetsdoktrin gör bevis-text till innehållstext, inte metadata. */
   color: var(--jp-ink-1);
 }

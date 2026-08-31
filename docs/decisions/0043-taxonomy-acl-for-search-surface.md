@@ -308,9 +308,10 @@ typad, och `GetJobAdMatchDetail` hade då läckt råa concept-id.
   inte vilken taxonomiklass id:t tillhör.
 - `GetJobAdMatchDetail` droppar olösta id ur `ssykOverlap`/`regionFit` i stället för att
   falla tillbaka på det råa id:t. Den fallbacken var tidigare onåbar (porten gav alltid en
-  rad med namn). **Följd-PR:** dimensionerna får bära `{conceptId, label}` så klienten kan
-  namnge det servern inte kunde; det rör `/matchning`:s wire-kontrakt och är en egen
-  förändringsanledning.
+  rad med namn). **Följd-PR:** dimensionerna får bära `{conceptId, label}`; det rör
+  `/matchning`:s wire-kontrakt och är en egen förändringsanledning.
+  ⚠ **Ersatt av amendmentet 2026-08-31** (#1598): droppet är borta, och skälet som stod
+  här — att klienten skulle kunna namnge det servern inte kunde — var mätt falskt.
 - Wire: fältet **finns** och är `null` (Minimal APIs `JsonSerializerDefaults.Web`, ingen
   `DefaultIgnoreCondition` i `src/`). FE-schemat är därför `z.string().nullable()`, inte
   `.optional()`, och endpoint-testet asserterar `JsonValueKind.Null` så en tillagd
@@ -329,3 +330,47 @@ utanför ACL:n), seeder-mekanismen och `SearchCriteria`-VO:t. Reverse-lookup-cap
 - [#1598](https://github.com/klasolsson81/jobbliggaren/issues/1598) — följd-PR:en ovan
 - AGENTS.md §5 (hårdkodade UI-strängar), BUILD.md §10.6 (`sv` + `en` är produkt-locales)
 - Martin, *Clean Architecture* (2017) kap. 8, 22; Hunt/Thomas (1999) DRY
+
+## Amendment 2026-08-31 — vad klienten faktiskt kan göra med ett olöst id (#1598)
+
+**Status:** Accepted. Ersätter `GetJobAdMatchDetail`-punkten i amendmentet 2026-08-30 och
+utför dess följd-PR. Beslut A–E, portens signalform och positionaliteten är orörda.
+
+### Vad som ändras
+
+`GetJobAdMatchDetail` **droppar inte längre** ett olöst id. `SsykOverlap`/`RegionFit` bär
+`MatchRegisterDimensionDetailDto`, vars poster är `{ConceptId, Label?}` — en post per
+inkommande concept-id, i scorerns ordning, aldrig färre.
+
+### Grund: 08-30-punktens motivering var mätt falsk
+
+Den skrev att följd-PR:en skulle låta dimensionerna bära `{conceptId, label}` *"så klienten
+kan namnge det servern inte kunde"*. Klienten kan inte det. `GetTreeAsync` och
+`ResolveLabelsAsync` läser samma `CacheState`; `LoadAsync` läser `taxonomy_concepts` en gång,
+och `BuildLabelByConceptId` grupperar över hela listan utan kind-filter. `Label == null`
+betyder därför att konceptet **saknar rad**, och picker-trädet klienten läser byggs ur samma
+lista — så namnet saknas där också. Kontrast `employmentFit`, som namnges ur `jobads.enums`,
+en katalog oberoende av snapshoten. Det är därför klass 2:s form inte kunde återanvändas här.
+
+Det id:t återställer är alltså **existens**, inte namngivning. Och det är existensen som
+behövdes: droppet fick en rad som **citerade** något att renderas som en rad som citerade
+ingenting, varpå `/matchning`:s carve-out påstod *"Annonsen anger ingen region."* om en
+annons som anger en.
+
+### Form
+
+Egen radtyp, inte ett breddat `MatchDimensionDetailDto`: fyra av sju dimensioner bär inget
+concept-id alls. Samma argument som gav `MatchCodedDimensionDetailDto` sin egen typ, tillämpat
+på en tredje bevis-proveniens. Inte två parallella listor: deras korrespondens vore positionell
+och oenforcerbar — samma defektklass som droppet.
+
+**Klienten renderar aldrig id:t** (`senior-cto-advisor` 2026-08-31). Det räknas: en ICU-plural
+under `jobads.ui.match` säger hur många uppgifter annonsen anger som saknas i registret.
+`ui.toolbar.unknownCode` avvisades för den här ytan — den interpolerar koden, vilket är
+försvarbart på chipet (användaren valde koden och har ett × att träffa) men inte i en
+beskrivande bevis-cell.
+
+### Referenser
+
+- [#1598](https://github.com/klasolsson81/jobbliggaren/issues/1598), [#1540](https://github.com/klasolsson81/jobbliggaren/issues/1540)
+- Evans 2003 kap. 14 (ACL); Martin, *Clean Architecture* (2017) kap. 7 (SRP)

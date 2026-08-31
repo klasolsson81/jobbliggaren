@@ -121,8 +121,8 @@ public class ResolveTaxonomyLabelsQueryValidatorTests
     public void Validate_ShouldPass_WhenElementMatchesConceptIdCharset()
     {
         // Giltigt JobTech-format (alfanumeriskt + _- ) inkl. okänd-men-välformad
-        // kod (taxonomi-drift) — graceful "Okänd kod"-fallback sker i handlern,
-        // inte via 400. Validatorn släpper igenom välformade ids.
+        // kod (taxonomi-drift) — den graceful degraderingen sker i porten (rad
+        // utan label), inte via 400. Validatorn släpper igenom välformade ids.
         var result = _validator.Validate(
             new ResolveTaxonomyLabelsQuery(["MVqp_eS8_kDZ", "helt-okand-77"]));
 

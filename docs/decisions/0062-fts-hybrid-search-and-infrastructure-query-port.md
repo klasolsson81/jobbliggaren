@@ -254,7 +254,7 @@ search_vector @@ websearch_to_tsquery('swedish', q)  OR  lower(title) LIKE '%q%'
 search_vector @@ websearch_to_tsquery('swedish', q)
 ```
 
-This gate lives in `ApplyCriteria` inside `Jobbliggaren.Infrastructure/JobAds/JobAdSearchQuery.cs` — the ADR 0039 Beslut 1 SPOT. Because all three consumers (`SearchAsync`, `CountAsync`, `FacetCountsAsync`) pass through the same shared `ApplyCriteria`, the gate applies identically to list, count, and facets. There is no list↔count divergence.
+This gate lives in `ApplyFilter` inside `Jobbliggaren.Infrastructure/JobAds/JobAdSearchComposition.cs` — the ADR 0039 Beslut 1 SPOT. Because all three consumers (`SearchAsync`, `CountAsync`, `FacetCountsAsync`) pass through the same shared `ApplyFilter`, the gate applies identically to list, count, and facets. There is no list↔count divergence.
 
 ### Root cause (dotnet-architect isolation, 2026-06-13)
 
@@ -308,4 +308,116 @@ All results within ADR 0045 Klass (a) 300 ms p95 warm. 169 integration tests gre
 - TD-94 — free-text COUNT perf-ratchet (re-opened after initial FTS-hybrid deploy; closed by this amendment)
 - dotnet-architect 2026-06-13 (agentId `a1ce174943247863e`) — root-cause isolation, TOAST-detoast delta proof
 - senior-cto-advisor 2026-06-13 (agentId `a0472fa5783cdf9ea`) — net-improvement ruling + mandate to document as ADR 0062-amendment
-- `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchQuery.cs` — q-predicate gate + `CountWithBitmapPlanAsync`
+- `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchComposition.cs` — q-predicate gate · `src/Jobbliggaren.Infrastructure/JobAds/BitmapPlanCount.cs` — `CountWithBitmapPlanAsync`
+
+---
+
+## Amendment 2026-08-30 — employer name is a third q-branch, served by a third trigram index (#1546)
+
+**Datum:** 2026-08-30
+**Källa:** [#1546](https://github.com/klasolsson81/jobbliggaren/issues/1546) — `/jobb`'s hero field
+promises *"Sök efter yrke, arbetsgivare eller ort"* and the index could not answer it. A company
+whose ads never name it in their own title or body returned zero hits while its company page
+reported the ads.
+**Beslutsfattare:** Klas Olsson bound the form 2026-08-30; `senior-cto-advisor` bound the mechanism
+(four questions: PR split, suggest port, masked sole props, the row's copy). This amendment is
+written on `dotnet-architect`'s finding in PR #1602, which measured that Beslut 1 defines the
+q-disjunction **by enumeration** and that a new arm changes which rows match — strictly larger than
+the 2026-06-13 amendment's gate on an existing arm, whose own provenance note records the house
+rule that a filter-semantic change is documented as an ADR 0062 amendment.
+**Status:** Accepted 2026-08-30.
+
+> **Livscykel-/proveniens-not:** Written by Claude Code in PR #1602, not by web-Claude. Klas reviews
+> prose post-merge (autonomous flow, CLAUDE.md §9.2).
+
+### Beslut
+
+**Beslut 1 Amendment** — the q-hybrid is now a **three**-branch disjunction. Both substring branches
+sit behind the same `q.Length >= 3` gate from the 2026-06-13 amendment:
+
+```
+-- q >= 3 chars:
+search_vector @@ websearch_to_tsquery('swedish', q)
+  OR lower(title)        LIKE '%q%'
+  OR lower(company_name) LIKE '%q%'      -- new
+
+-- q < 3 chars (unchanged — FTS only):
+search_vector @@ websearch_to_tsquery('swedish', q)
+```
+
+The gate covers the new branch for the **same** reason it covers the title branch, not by analogy: a
+GIN trigram index cannot serve a `LIKE '%q%'` shorter than three characters, so a shorter term would
+force a full-corpus evaluation. The variable is renamed `includeSubstringLike` accordingly — a name
+saying `includeTitleLike` while gating two branches would be a comment-class defect in identifier
+form.
+
+**Beslut 5 Amendment** — a **third** trigram index on `job_ads`, and the roll-call is now:
+
+| index | serves |
+|---|---|
+| `ix_job_ads_title_lower_trgm` (ADR 0061) | the title-LIKE branch |
+| `ix_job_ads_company_name_lower_trgm` (**new**, migration `20260830133506`) | the company-name branch |
+| `ix_job_ads_description_lower_trgm` (ADR 0061) | **nothing in q-search** — deliberately preserved (Klas-GO), unchanged by this amendment |
+
+The new index is `USING gin (lower(company_name) gin_trgm_ops)`, built CONCURRENTLY, predicate-free
+per #821 Q2. Its KEY is an expression, so it is invisible to `AppDbContextModelSnapshot` — the same
+condition as `ix_company_register_company_name_lower`. `JobAdIndexOracleTests` is what sees it, and
+reads its definition out of `pg_indexes` rather than reasoning about it.
+
+### Why `search_vector` was NOT widened instead
+
+Adding `coalesce(company_name,'')` to the generated expression would have given the name stemming
+and `ts_rank` relevance. It was rejected on cost, not on principle:
+
+- `search_vector` is a STORED generated column. PostgreSQL 17 added
+  `ALTER TABLE … ALTER COLUMN … SET EXPRESSION AS`, and this repo runs 18.3/18.4 — so the operation
+  exists, but its documented behaviour is that **existing data in the column is rewritten**, under
+  ACCESS EXCLUSIVE, on a table under continuous ingestion (`SyncPlatsbankenStreamJob`, every ten
+  minutes). The GIN index is rebuilt with it and the column's statistics are dropped, which AGENTS.md
+  §3.6 turns into a further obligation.
+- It would shift `ts_rank` for **every** search that already works, not only for employer terms.
+- ⚠ `RecruiterContactFtsLockTests`' L1 would **not** have caught it. L1 asserts the `to_tsvector`
+  line contains `coalesce(title,'')` and `coalesce(description,'')` and does **not** contain
+  `contacts` — a deny-list on `contacts`, not a gate on widening. A `company_name` widening keeps all
+  three assertions true, so the lock stays green either way and its greenness is **no evidence**
+  about this choice. That is stated here because PR #1602's body originally cited it as evidence,
+  and `dotnet-architect` measured the claim false.
+
+One CONCURRENTLY-built index buys the same recall and rewrites no data.
+
+### Konsekvenser
+
+**Relevance.** `ApplyRelevanceSort` ranks on `search_vector` alone, so a row matched **only** by a
+substring branch gets `ts_rank` 0 and sorts last among the hits — pre-existing behaviour for
+title-LIKE-only rows, now shared by company-name-only rows. The nuance worth owning: when q **is** an
+employer name, the *whole* result set sits at rank 0, so `sort=relevans` degenerates to
+`PublishedAt desc` in exactly #1546's flagship case. Relevance is not the default sort, so the
+surface is small.
+
+**⚠ Named residual, unmeasured: lossy bitmaps.** The planner-usability oracle runs under
+`SET LOCAL enable_seqscan = off`, which on PG 17+ is a prohibition rather than a cost penalty — it
+proves the indexes are USABLE, never which plan is chosen. What a third arm adds is a larger
+`BitmapOr` result, and if that exceeds `work_mem` the bitmap becomes **lossy**, forcing a heap
+recheck of the whole qual per row — including `@@` against the TOASTed `search_vector`. That is
+TD-94's de-TOAST cost returning through a different door than the seq scan the 2026-06-13 amendment
+closed. **No regression has been measured**, and it is not measurable on the shared
+`[Collection("Api")]` container: a plan-choice assertion needs the dedicated container that
+`JobAdBrowsePlanFixture` (#1013) exists to provide. Recorded so it is a known open question rather
+than a surprise.
+
+**SPOT is preserved.** The branch lives in `JobAdSearchComposition.ApplyFilter` — the ADR 0039
+Beslut 1 single point — so list, count, facets and per-user match-sort all get it at once, and a
+list↔count divergence is structurally impossible.
+
+### Referenser
+
+- [#1546](https://github.com/klasolsson81/jobbliggaren/issues/1546) · PR #1602
+- `src/Jobbliggaren.Infrastructure/Persistence/Migrations/20260830133506_AddJobAdCompanyNameTrigramIndex.cs`
+- `src/Jobbliggaren.Infrastructure/JobAds/JobAdSearchComposition.cs` — the three-branch disjunction
+- `tests/Jobbliggaren.Api.IntegrationTests/JobAds/JobAdPlannerUsabilityOracleTests.cs` — the
+  production mirror, updated in the same PR because a mirror left behind measures a shape production
+  no longer emits
+- `tests/Jobbliggaren.Api.IntegrationTests/JobAds/JobAdIndexOracleTests.cs` — existence + shape +
+  predicate-freedom for the new index
+- PostgreSQL 17 `ALTER TABLE … SET EXPRESSION AS`:
+  https://www.postgresql.org/docs/17/sql-altertable.html (read 2026-08-30)

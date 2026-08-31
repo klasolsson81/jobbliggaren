@@ -427,9 +427,13 @@ static async Task<int> RunEnsureExtensionsAsync(ILogger log, CancellationToken c
 // (komma-separerad); default "lärare,systemutvecklare" (tidigare långsam vs
 // snabb referens).
 //
-// ADR 0062 — speglar nu FTS-hybrid-filtret (search_vector @@
-// websearch_to_tsquery('swedish', term) OR lower(title) LIKE '%term%'),
-// inte den gamla trigram-LIKE-vägen. Post-deploy-verifiering: planen ska
+// ADR 0062 (+ amendment 2026-08-30, #1546) — speglar FTS-hybrid-filtret, nu
+// TREAXLAT: search_vector @@ websearch_to_tsquery('swedish', term)
+// OR lower(title) LIKE '%term%' OR lower(company_name) LIKE '%term%'.
+// Substrängsarmarna gatas på term.Length >= 3, exakt som produktionen gatar dem
+// (JobAdSearchComposition: includeSubstringLike) — ett trigram-index kan inte
+// serva en kortare LIKE, så ett verktyg som emitterade dem ändå hade förklarat
+// en plan produktionen aldrig kör. Post-deploy-verifiering: planen ska
 // visa Bitmap Index Scan på ix_job_ads_search_vector och INGA de-TOAST:ade
 // description-läsningar (den tidigare trigram-rotorsaken, ADR 0061).
 static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
@@ -457,19 +461,25 @@ static async Task<int> RunExplainSearchAsync(ILogger log, CancellationToken ct)
         // amendment 2026-05-23, men detta instrument speglade aldrig ändringen. Ett
         // EXPLAIN-verktyg som inte kör produktionens fråga ljuger — och det ljög i den
         // BETRYGGANDE riktningen (en billigare plan än den verkliga).
-        const string countSql =
+        // Se (2): ett EXPLAIN-verktyg som inte kör produktionens fråga ljuger. Samma krav
+        // gäller grinden, inte bara armarna.
+        var substringArms = term.Length >= 3
+            ? "OR lower(title) LIKE @p OR lower(company_name) LIKE @p"
+            : string.Empty;
+
+        var countSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM job_ads "
             + "WHERE status = 'Active' "
             + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
-            + "OR lower(title) LIKE @p);";
+            + substringArms + ");";
         await ExplainAndLogAsync(conn, countSql, term, "COUNT", log, ct);
 
         // Items-vägen — filter + ORDER BY published_at DESC (default-sort) + LIMIT.
-        const string itemsSql =
+        var itemsSql =
             "EXPLAIN (ANALYZE, BUFFERS) SELECT id FROM job_ads "
             + "WHERE status = 'Active' "
             + "AND (search_vector @@ websearch_to_tsquery('swedish', @term) "
-            + "OR lower(title) LIKE @p) "
+            + substringArms + ") "
             + "ORDER BY published_at DESC, id LIMIT 5;";
         await ExplainAndLogAsync(conn, itemsSql, term, "ITEMS", log, ct);
     }
@@ -483,7 +493,9 @@ static async Task ExplainAndLogAsync(
 {
     await using var cmd = new NpgsqlCommand(explainSql, conn);
     // @term: rå sökterm till websearch_to_tsquery (sköter egen normalisering).
-    // @p: lowercased %term%-pattern till title-LIKE-fallbacken (ADR 0062).
+    // @p: lowercased %term%-pattern till substrängs-fallbackarna (title + company_name,
+    // ADR 0062 + amendment 2026-08-30). Oanvänd när term.Length < 3 — Npgsql skickar bara
+    // parametrar som faktiskt förekommer i den omskrivna SQL:en.
     cmd.Parameters.Add(new NpgsqlParameter("term", term));
     cmd.Parameters.Add(new NpgsqlParameter("p", "%" + term.ToLowerInvariant() + "%"));
     var plan = new StringBuilder();

@@ -619,7 +619,7 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
 
     expect(
       screen.getByText(
-        "Organisationsnumret är dolt, så Jobbliggaren kan inte visa företagets annonser i en lista."
+        "Det finns ingen länk till annonserna här."
       )
     ).toBeInTheDocument();
   });
@@ -627,26 +627,27 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
   it("maskad rad UTAN annonser tiger — förklaringen gäller en länk som annars hade funnits", () => {
     renderList([{ ...soleProp, activeAdCount: 0, matchingAdCount: 0 }]);
 
-    expect(screen.queryByText(/kan inte visa företagets annonser/)).toBeNull();
+    expect(screen.queryByText(/ingen länk till annonserna/)).toBeNull();
   });
 
-  it("varumärkesgrupp får en anspråkslös förklaring, inte den maskade radens", () => {
-    // Both rows lack a linkable org.nr, but only one of them can name why: the FE schema cannot
-    // tell a brand-group row from a masked one, so its sentence claims nothing about the cause.
+  it("varumärkesgrupp får samma mening som varje annan olänkbar rad", () => {
+    // #1546 — the two rows used to differ: the masked one named its cause ("the org.nr is hidden,
+    // cannot list this company's ads"). That sentence became FALSE once q reached company_name,
+    // so it was struck rather than rewritten (CLAUDE.md §9.6). One treatment now, and the badge
+    // plus `protectedIdentityHint` still carry the WHY for the masked row.
     renderList([brandGroupWatch]);
 
     expect(
       screen.getByText(
-        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
+        "Det finns ingen länk till annonserna här."
       )
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Organisationsnumret är dolt/)).toBeNull();
   });
 
   it("varumärkesgrupp UTAN annonser tiger, som den maskade raden", () => {
     renderList([{ ...brandGroupWatch, activeAdCount: 0, matchingAdCount: 0 }]);
 
-    expect(screen.queryByText(/kan inte visa/)).toBeNull();
+    expect(screen.queryByText(/ingen länk till annonserna/)).toBeNull();
   });
 
   it("org.nr som inte är tio siffror → ingen länk OCH förklaringen, inte tystnad", () => {
@@ -662,7 +663,7 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
     expect(screen.queryAllByRole("link", { name: /annonser/i })).toHaveLength(0);
     expect(
       screen.getByText(
-        "Jobbliggaren kan inte visa den här bevakningens annonser i en lista."
+        "Det finns ingen länk till annonserna här."
       )
     ).toBeInTheDocument();
   });
@@ -670,7 +671,7 @@ describe("CompanyWatchList — vägen från antalet till annonserna (#1547)", ()
   it("legal entity får ingen sådan förklaring — den har ju länkarna", () => {
     renderList([legalEntity]);
 
-    expect(screen.queryByText(/kan inte visa/)).toBeNull();
+    expect(screen.queryByText(/ingen länk till annonserna/)).toBeNull();
   });
 
   it("talet SJÄLVT är länken — ingen separat handling bredvid det", () => {

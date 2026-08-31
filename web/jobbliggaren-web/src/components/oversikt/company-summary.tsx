@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InfoDialog } from "@/components/common/info-dialog";
 import {
   buildCompanyJobsHref,
   isLinkableOrgNr,
@@ -52,6 +53,10 @@ export function CompanySummary({
   linkHref,
 }: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
+  // The matching rule is read from the keys the watch-filter dialog already owns, never copied:
+  // one rule, one text. `jobads.companyWatches.filter` is a foreign namespace on purpose --
+  // duplicating the two sentences here is how the two surfaces drift apart on the next edit.
+  const tRule = useTranslations("jobads.companyWatches.filter");
 
   if (watches.kind !== "ok") {
     return (
@@ -183,13 +188,28 @@ export function CompanySummary({
                 <>{chunks}</>
               ),
           })}
+          {/* Gated on the SAME flag as the links: `linkHref === null` means this surface has no
+              authenticated destination, and the rule's second sentence sends the reader to
+              Matchning. The guest demo has no such page (measured: `(guest)/gast/` carries
+              oversikt, jobb, ansokningar and cv, and nothing else), so the help would name a
+              place the reader cannot reach. */}
+          {surfaceCanLink && (
+            <InfoDialog
+              title={tRule("onlyMatchedHelpTitle")}
+              paragraphs={[
+                tRule("onlyMatchedHelpBody1"),
+                tRule("onlyMatchedHelpBody2"),
+              ]}
+              ariaLabel={tRule("onlyMatchedHelpAria")}
+            />
+          )}
         </p>
       )}
 
       {explainMissingLinks && (
         <p className="jp-transparency-note">
           <EyeOff size={16} aria-hidden="true" />
-          <span>{t("notLinkable", { count: notLinkableCount })}</span>
+          <span>{t("notLinkable")}</span>
         </p>
       )}
 

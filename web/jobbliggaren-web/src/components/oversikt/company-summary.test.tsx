@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CompanySummary } from "./company-summary";
+import messages from "../../../messages/sv";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CompanyWatch,
@@ -31,6 +32,11 @@ function ok(items: CompanyWatch[]): ApiResult<ListCompanyWatchesResult> {
 }
 
 const NO_FILTER = null;
+
+// The rule text is READ from the catalog rather than transcribed. A hardcoded sentence would
+// keep passing after the component forked its own copy, which is the drift these tests exist
+// to catch.
+const RULE = messages.jobads.companyWatches.filter;
 
 function visibleText(el: Element | null): string {
   return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -257,7 +263,7 @@ describe("CompanySummary", () => {
   });
 
   it("gästytan förklarar INTE en frånvaro den själv orsakade", () => {
-    // The explanation blames the DATA ("1 bevakning kan inte visas som en lista"). On a surface
+    // The explanation blames the DATA ("Antalen ovan saknar länk"). On a surface
     // that links nothing by design, that sentence would be false about the cause.
     render(
       <CompanySummary
@@ -268,7 +274,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+    expect(screen.queryByText(/saknar länk/)).toBeNull();
   });
 
   it("den maskade bevakningen FÖRKLARAS — ett tal utan väg får inte stå oförklarat", () => {
@@ -291,7 +297,7 @@ describe("CompanySummary", () => {
 
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk.",
       ),
     ).toBeInTheDocument();
   });
@@ -313,7 +319,7 @@ describe("CompanySummary", () => {
       />,
     );
 
-    expect(screen.queryByText(/kan inte visas som en lista/)).toBeNull();
+    expect(screen.queryByText(/saknar länk/)).toBeNull();
   });
 
   it("ett org.nr som inte är tio siffror ger varken länk ELLER tyst tal", () => {
@@ -337,7 +343,7 @@ describe("CompanySummary", () => {
     expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk.",
       ),
     ).toBeInTheDocument();
   });
@@ -369,7 +375,7 @@ describe("CompanySummary", () => {
     // code-reviewer Major 4 both name.
     expect(
       screen.getByText(
-        "1 bevakning kan inte visas som en lista, så antalen ovan saknar länk.",
+        "Antalen ovan saknar länk.",
       ),
     ).toBeInTheDocument();
   });
@@ -444,5 +450,74 @@ describe("CompanySummary", () => {
     // läsning göra negationen nedan sann av fel skäl.
     expect(src).toContain("export function CompanySummary");
     expect(src).not.toMatch(/^\s*["']use client["']/m);
+  });
+
+  // #1546 (Klas 2026-08-30) — frågan var "skippas Grundmatch?", och svaret fanns bara i
+  // watch-filter-dialogen på /foretag/bevakade. Regeln är nu nåbar där talet står.
+  it("matchningsraden bär en ?-hjälp som förklarar vad som räknas som matchande", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).toBeInTheDocument();
+  });
+
+  it("?-hjälpen tiger när matchningen inte är bedömd", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: null })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    // Hela matchningsraden utelämnas när SSYK-gaten är stängd. Hjälpen får inte överleva den —
+    // en förklaring till ett tal som inte står där förklarar ingenting.
+    expect(document.querySelector(".jp-matchline")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Reading from a foreign namespace only pays if the text stays ONE text. This measures that:
+  // the strings Oversikt renders are equal to the ones the watch dialog owns, so any later edit
+  // to one and not the other fails here.
+  it("regeltexten är lika med watch-dialogens katalogsträngar", async () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref="/foretag/bevakade"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    );
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    expect(screen.getByText(RULE.onlyMatchedHelpTitle)).toBeInTheDocument();
+    expect(screen.getByText(RULE.onlyMatchedHelpBody1)).toBeInTheDocument();
+    expect(screen.getByText(RULE.onlyMatchedHelpBody2)).toBeInTheDocument();
+  });
+  // The guest surface (#1572) passes linkHref={null}: no authenticated destination at all, and the
+  // rule's second sentence sends the reader to Matchning, which that demo has no route for.
+  it("?-hjälpen tiger på en yta utan autentiserat mål", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
+        linkHref={null}
+      />,
+    );
+
+    // The count itself still renders. It is the HELP that is gated here, not the line -- the
+    // "not assessed" test above is what pins the other, and the two must not collapse into one.
+    expect(document.querySelector(".jp-matchline")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: RULE.onlyMatchedHelpAria }),
+    ).not.toBeInTheDocument();
   });
 });

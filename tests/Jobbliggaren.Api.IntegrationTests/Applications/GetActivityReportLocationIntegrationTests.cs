@@ -132,7 +132,7 @@ public class GetActivityReportLocationIntegrationTests
     }
 
     // ---------------------------------------------------------------
-    // Olösbart concept-id → fallback "Okänd kod (id)" droppas → Location null
+    // Olösbart concept-id → namnlös rad droppas → Location null
     // ---------------------------------------------------------------
 
     [Fact]
@@ -145,7 +145,7 @@ public class GetActivityReportLocationIntegrationTests
 
         var seeker = await SeedSeekerAsync(db, clock);
         // Syntetiskt concept-id som inte finns i snapshoten → ResolveLabelsAsync
-        // ger "Okänd kod (...)"; handlern droppar fallbacken → Location == null.
+        // ger en rad utan label; handlern droppar den → Location == null.
         var jobAd = SeedImportedJobAdWithMunicipality(db, clock, "ZZZZ_zzz_ZZZ");
         db.Applications.Add(SubmittedAt(seeker.Id, jobAd.Id, clock));
         await db.SaveChangesAsync(CancellationToken.None);

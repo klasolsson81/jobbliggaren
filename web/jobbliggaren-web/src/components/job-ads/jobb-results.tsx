@@ -148,8 +148,8 @@ export async function JobbResults({
   // number a screen reader hears and the number on screen can never diverge.
   const format = await getFormatter();
   // Chip-labels hör ihop med resultatet — hämtas parallellt med listan.
-  // Reverse-lookup-miss → chip faller till "Okänd kod (<id>)" i toolbaren
-  // (ADR 0043 Beslut B graceful degradation).
+  // Reverse-lookup-miss → backend skickar raden utan label, och chipet namnges
+  // ur katalogen i toolbaren (ADR 0043 Beslut B graceful degradation).
   // Cap-aritmetik (E2b-architect fråga 5): backend-resolve-capet är
   // MaxConceptIds × 4 = 1600; teoretiskt max här = 400 yrkesgrupper +
   // 21 län + 290 kommuner = 711 — täcker, men marginalen krymper om en
@@ -298,10 +298,16 @@ export async function JobbResults({
 
   // Plain Record (EJ Map) — passas över RSC→client-gränsen till
   // JobbResultsToolbar (Map serialiseras inte i RSC-payloaden).
+  //
+  // Rader utan label utelämnas ur recordet i stället för att bära null: toolbaren
+  // grenar redan på `=== undefined` och namnger id:t ur katalogen, så frånvaron
+  // hamnar i den gren som redan finns i stället för att kräva en andra (#1540).
   const resolvedLabels: Record<string, string> =
     labelsResult.kind === "ok"
       ? Object.fromEntries(
-          labelsResult.data.map((l) => [l.conceptId, l.label] as const)
+          labelsResult.data.flatMap((l) =>
+            l.label === null ? [] : [[l.conceptId, l.label] as const]
+          )
         )
       : {};
 

@@ -38,8 +38,9 @@ public class GetActivityReportQueryHandlerTests
         _currentUser.UserId.Returns(_userId);
     }
 
-    // ITaxonomyReadModel-fake som speglar TaxonomyReadModel: okänt id ger
-    // "Okänd kod ({id})"-fallback (graceful degradation, aldrig throw).
+    // ITaxonomyReadModel-fake som speglar TaxonomyReadModel: okänt id ger en rad
+    // UTAN label (graceful degradation, aldrig throw) — porten namnger inte det
+    // den inte kunde slå upp.
     private sealed class FakeTaxonomy(IReadOnlyDictionary<string, string>? map = null)
         : ITaxonomyReadModel
     {
@@ -50,7 +51,7 @@ public class GetActivityReportQueryHandlerTests
                     id,
                     map is not null && map.TryGetValue(id, out var l)
                         ? l
-                        : $"Okänd kod ({id})"))
+                        : null))
                 .ToList());
 
         public ValueTask<TaxonomyTreeDto> GetTreeAsync(CancellationToken cancellationToken)

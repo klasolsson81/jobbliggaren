@@ -563,6 +563,55 @@ public class ListRecentSearchesQueryHandlerTests
         return Shape(result.ShouldHaveSingleItem().Label);
     }
 
+    // Porten tappar namnet på ETT id och namnger resten. Speglar
+    // TaxonomyReadModel.ResolveLabelsAsync efter #1540: en rad per id, i ordning, med
+    // Label = null där snapshoten inte har ett namn.
+    private void StubTaxonomyLosing(string unresolvedConceptId)
+    {
+#pragma warning disable CA2012 // ValueTask från NSubstitute-stub konsumeras varje gång av handlern
+        _taxonomy.ResolveLabelsAsync(Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                IReadOnlyList<TaxonomyLabelDto> labels = call.ArgAt<IReadOnlyList<string>>(0)
+                    .Select(id => new TaxonomyLabelDto(
+                        id,
+                        string.Equals(id, unresolvedConceptId, StringComparison.Ordinal)
+                            ? null
+                            : $"Label-{id}"))
+                    .ToList();
+                return ValueTask.FromResult(labels);
+            });
+#pragma warning restore CA2012
+    }
+
+    [Fact]
+    public async Task Handle_ShouldCarryCodeNotName_WhenSnapshotCannotResolveTheNamingGroup()
+    {
+        // #1540 — en yrkesgrupp snapshoten tappat (taxonomi-drift) har inget namn att
+        // ange, så delen kan inte vara Named. Den bär koden i stället och klienten
+        // namnger den ur sin katalog, exakt som klass 2 (#1537). Det som avgör formen
+        // är alltså om ett NAMN finns, inte vilken taxonomiklass id:t tillhör.
+        StubTaxonomyLosing("borttagen-kod");
+
+        var shape = await LabelOfAsync(Axis(occupationGroup: ["borttagen-kod"]));
+
+        shape.ShouldBe("Dimensions/None:<code:borttagen-kod>");
+    }
+
+    [Fact]
+    public async Task Handle_ShouldKeepMoreCount_WhenTheNamingGroupIsUnresolved()
+    {
+        // Urvalsregeln är OFÖRÄNDRAD av #1540: första elementet namnger delen, resten
+        // räknas. Att det första saknar namn byter delens FORM, aldrig dess +N — annars
+        // hade raden tyst börjat beskriva en äkta delmängd av vad klicket kör.
+        StubTaxonomyLosing("borttagen-kod");
+
+        var shape = await LabelOfAsync(
+            Axis(occupationGroup: ["borttagen-kod", "kvar-kod"]));
+
+        shape.ShouldBe("Dimensions/None:<code:borttagen-kod>+1");
+    }
+
     // #1430 — labeln är struktur, inte prosa, så pinnarna assertar på strukturen. Shape är en
     // FÖRLUSTFRI, läsbar projektion av deskriptorn: "Kind/Join:del|del", där en Named-del är
     // sitt namn plus "+N" när den står för fler val, distans-delen är "<remote>" (den bär

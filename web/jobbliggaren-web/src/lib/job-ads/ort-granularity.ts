@@ -4,8 +4,10 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
  * Spår 3 PR-D (ADR 0076-amendment 2026-06-21, architect NOTE-2) — FE-sidans
  * upplösning av ort-granularitet för match-modalens RegionFit-bevis.
  *
- * Backend unionerar region ∪ municipality till EN ort-dimension och emitterar
- * matched/missing som rena DISPLAY-labels (län- och/eller kommun-namn). Modalen
+ * Backend unionerar region ∪ municipality till EN ort-dimension. Modulen tar emot
+ * DISPLAY-labels (län- och/eller kommun-namn); sedan #1598 bär wire:t
+ * `{conceptId, label}` och labels plockas ut av `splitRegisterRow` — modulens
+ * kontrakt är oförändrat, bara proveniensen. Modalen
  * ska ärligt visa VILKEN granularitet som matchade (kommun-träff vs län-träff),
  * men backend modellerar medvetet inte granulariteten i kontraktet (NOTE-2). Vi
  * härleder den HÄR ur taxonomin som sidan redan har: varje läns-label är "län",

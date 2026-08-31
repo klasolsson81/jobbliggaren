@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { render as rawRender } from "@testing-library/react/pure";
 import { NextIntlClientProvider } from "next-intl";
 import enMessages from "../../../messages/en";
@@ -465,8 +465,30 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         ortGranularityByLabel={granularity}
       />
     );
-    expect(screen.getByText("Du har: Gotland")).toBeInTheDocument();
+    expect(screen.getByText("Ort som matchar: Gotland")).toBeInTheDocument();
     expect(screen.queryByText(/Län som matchar: Gotland/)).not.toBeInTheDocument();
+  });
+
+  it("plain-hinken gäller MISSING-halvan också, i annonsens ram", () => {
+    // Den halva som varken var pinnad eller renderad förut (`design-reviewer`
+    // 2026-08-31). "Annonsens ort" är samma meningsram som syskonen, med den
+    // o-granulära termen — aldrig kompetens-verbet "efterfrågar", som dessutom
+    // hade dinglat på "även" när plain-hinken är den enda missing-hinken.
+    render(
+      <JobAdMatchSection
+        match={detail({
+          regionFit: registerRow("NoMatch", [], ["Gotland", "Stockholms län"]),
+        })}
+        ortGranularityByLabel={granularity}
+      />
+    );
+    expect(screen.getByText("Annonsens ort: Gotland")).toBeInTheDocument();
+    expect(
+      screen.getByText("Annonsens län: Stockholms län")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Annonsen efterfrågar även: Gotland/)
+    ).not.toBeInTheDocument();
   });
 
   it("ett namn SOM finns i kartan behåller sitt granularitets-prefix", () => {
@@ -588,7 +610,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen anger en uppgift som saknas i vårt register.")
+        screen.getByText("Annonsen anger en ort som saknas i vårt register.")
       ).toBeInTheDocument();
       // Den bärande negativa halvan: interpolerar någon in id:t igen faller detta.
       expect(screen.queryByText(/LOST_missing_0/)).toBeNull();
@@ -637,7 +659,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         screen.getByText("Annonsen efterfrågar även: Stockholms län")
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Annonsen anger en uppgift som saknas i vårt register.")
+        screen.getByText("Annonsen anger en ort som saknas i vårt register.")
       ).toBeInTheDocument();
     });
 
@@ -651,7 +673,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen anger 2 uppgifter som saknas i vårt register.")
+        screen.getByText("Annonsen anger 2 yrken som saknas i vårt register.")
       ).toBeInTheDocument();
     });
 
@@ -663,9 +685,39 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen anger en uppgift som saknas i vårt register.")
+        screen.getByText("Annonsen anger en ort som saknas i vårt register.")
       ).toBeInTheDocument();
       expect(screen.queryByText(/Län som matchar/)).not.toBeInTheDocument();
+    });
+
+    it("räknaren hamnar på RÄTT rad — båda register-raderna samtidigt, olika antal", () => {
+      // Varje annan assertion i blocket är dokument-scopad, så en förväxling mellan de
+      // två radernas räknare skulle passera dem alla: texten finns i dokumentet oavsett
+      // vilken rad som bär den (`dotnet-architect` 2026-08-31). Olika antal per rad, och
+      // scopat till raden, gör förväxlingen synlig.
+      const { container } = render(
+        <JobAdMatchSection
+          match={detail({
+            grade: "Basic",
+            ssykOverlap: registerRow("NoMatch", [], [null, null]),
+            regionFit: registerRow("NoMatch", [], [null]),
+          })}
+        />
+      );
+      const rowFor = (label: string) => {
+        const cell = within(container as HTMLElement).getByText(label);
+        return cell.closest(".jp-modal__matchrow") as HTMLElement;
+      };
+      expect(
+        within(rowFor("Yrke")).getByText(
+          "Annonsen anger 2 yrken som saknas i vårt register."
+        )
+      ).toBeInTheDocument();
+      expect(
+        within(rowFor("Region")).getByText(
+          "Annonsen anger en ort som saknas i vårt register."
+        )
+      ).toBeInTheDocument();
     });
 
     it("renderas på engelska under locale en", () => {
@@ -682,7 +734,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       );
       expect(
         screen.getByText(
-          "The ad states a value that is missing from our register."
+          "The ad states a location that is missing from our register."
         )
       ).toBeInTheDocument();
     });

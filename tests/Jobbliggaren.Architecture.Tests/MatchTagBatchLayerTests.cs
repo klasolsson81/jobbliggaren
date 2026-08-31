@@ -202,8 +202,8 @@ public class MatchTagBatchLayerTests
     public void JobAdMatchDetailDto_has_no_numeric_or_score_shaped_property()
     {
         // The Goodhart guard ON THE MODAL WIRE: no opaque number may leak onto the modal
-        // detail. Grade is a named category, each dimension row is a verdict + two string
-        // lists — none matches the forbidden numeric-name regex.
+        // detail. Grade is a named category, each dimension row is a verdict plus two
+        // evidence lists — none matches the forbidden numeric-name regex.
         var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
 
         var offending = PublicInstancePropertyNames(dto)
@@ -217,24 +217,7 @@ public class MatchTagBatchLayerTests
             $"Otillåtna: [{string.Join(", ", offending)}].");
     }
 
-    [Fact]
-    public void MatchDimensionDetailDto_has_no_numeric_or_score_shaped_property()
-    {
-        // The per-dimension row carries verdict + matched[] + missing[], NO number — the
-        // evidence IS the explanation, never a magnitude (CLAUDE.md §5 / ADR 0071).
-        var dto = typeof(Jobbliggaren.Application.Matching.Queries.GetJobAdMatchDetail.MatchDimensionDetailDto);
-
-        var offending = PublicInstancePropertyNames(dto)
-            .Where(name => ForbiddenNumericName.IsMatch(name))
-            .ToList();
-
-        offending.ShouldBeEmpty(
-            "MatchDimensionDetailDto får INTE bära ett numeriskt/score-format fält — " +
-            "raden är verdict + matched[] + missing[], aldrig en siffra (Goodhart-vakten, " +
-            $"ADR 0076 Decision 4). Otillåtna: [{string.Join(", ", offending)}].");
-    }
-
-    // #1598 — the two facts above name ONE row type each, and the helper reads one level
+    // #1598 — the fact above names the ROOT DTO only, and the helper reads one level
     // (GetProperties, no recursion into IReadOnlyList<T>'s element type). So every row type
     // added since has been unguarded: MatchCodedDimensionDetailDto (#1537) had no fact at all
     // when this was measured, and MatchRegisterConceptDto would have been the second hole.
@@ -270,8 +253,7 @@ public class MatchTagBatchLayerTests
     public void Modal_wire_row_types_list_covers_every_type_reachable_from_the_detail_dto()
     {
         // Walk the root DTO's properties, unwrap IReadOnlyList<T>, and keep the Application
-        // types found. One level of unwrapping is all the shape has; a nested one would show
-        // up here as a missing type rather than pass silently.
+        // types found.
         var root = typeof(Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
         var applicationAssembly = typeof(Application.AssemblyMarker).Assembly;
 

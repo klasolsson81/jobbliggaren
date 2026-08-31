@@ -186,11 +186,24 @@ function codedDetailRow(verdict: string) {
   return { verdict, matchedConceptIds: [], missingConceptIds: [] };
 }
 
+// Yrke och Region är REGISTER-rader: wire:n bär `{conceptId, label}` per post, och `label`
+// är `null` för ett koncept taxonomi-snapshoten tappat (#1598). Fixturen bär BÅDA formerna
+// — en tom array uppfyller `z.array(z.string())` lika väl som
+// `z.array(matchRegisterConceptSchema)`, så en fixtur utan riktiga poster hade parsat
+// vakuöst och inte kunnat se formändringen alls.
+function registerDetailRow(verdict: string) {
+  return {
+    verdict,
+    matched: [{ conceptId: "grp_12345", label: "Mjukvaru- och systemutvecklare m.fl." }],
+    missing: [{ conceptId: "region_GONE", label: null }],
+  };
+}
+
 const validDetail = {
   grade: "Top",
-  ssykOverlap: detailRow("Match"),
+  ssykOverlap: registerDetailRow("Match"),
   titleSimilarity: detailRow("NotAssessed"),
-  regionFit: detailRow("Match"),
+  regionFit: registerDetailRow("Match"),
   employmentFit: codedDetailRow("Match"),
   skillOverlap: { verdict: "Partial", matched: ["Java"], missing: ["AWS"] },
   mustHaveCoverage: detailRow("Match"),
@@ -236,6 +249,16 @@ describe("getJobAdMatchDetail", () => {
     expect(result?.grade).toBe("Top");
     expect(result?.skillOverlap.matched).toEqual(["Java"]);
     expect(result?.skillOverlap.missing).toEqual(["AWS"]);
+    // #1598 — the register shape survives the parse, INCLUDING the null label. The schema
+    // is `.nullable()`, not `.optional()`, on purpose: the field is present on the wire and
+    // carries null. A parse that silently accepted the key's absence would not catch a
+    // `DefaultIgnoreCondition` added server-side.
+    expect(result?.ssykOverlap.matched).toEqual([
+      { conceptId: "grp_12345", label: "Mjukvaru- och systemutvecklare m.fl." },
+    ]);
+    expect(result?.regionFit.missing).toEqual([
+      { conceptId: "region_GONE", label: null },
+    ]);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     // #300 PR-5 — includeRelated defaultar till false (query-param, ASP.NET

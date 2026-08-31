@@ -185,7 +185,7 @@ export type MatchDimensionDetail = z.infer<typeof matchDimensionDetailSchema>;
  * (klass 2). Den bär conceptId, och klienten resolvar varje till locale-copy (#1537).
  *
  * Egen typ, inte conceptId inuti `matchDimensionDetailSchema`, vars `matched` är
- * dokumenterad som visningsetiketter. Sex av sju dimensioner bär verkligen visningstext;
+ * dokumenterad som visningsetiketter. Fyra av sju dimensioner bär verkligen visningstext;
  * att låta en av dem betyda något annat hade gjort den typen till en lögn.
  */
 export const matchCodedDimensionDetailSchema = z.object({

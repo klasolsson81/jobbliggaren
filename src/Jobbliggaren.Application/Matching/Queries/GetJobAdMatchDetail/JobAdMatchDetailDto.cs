@@ -63,7 +63,7 @@ public sealed record MatchDimensionDetailDto(
 /// <remarks>
 /// <para>
 /// A separate type rather than concept ids inside <see cref="MatchDimensionDetailDto"/>,
-/// whose <see cref="MatchDimensionDetailDto.Matched"/> is documented as display labels. Six
+/// whose <see cref="MatchDimensionDetailDto.Matched"/> is documented as display labels. Four
 /// of the seven dimensions really do carry display text; letting one of them mean something
 /// else would make that type lie, and would push per-property knowledge onto the client that
 /// this layer owns (CTO 2026-08-28).

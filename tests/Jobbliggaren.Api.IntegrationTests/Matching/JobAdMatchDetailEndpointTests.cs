@@ -28,8 +28,12 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// auth-gated endpoint, the REAL <c>MatchProfileBuilder.BuildFullForVerdictAsync</c>
 /// (encrypted CV skills via the DEK pipeline, fail-closed) and the REAL
 /// <c>MatchScorer.ScoreFullAsync</c> compose through the full Mediator pipeline, and that the
-/// modal DTO's grade + per-dimension verdict + matched/missing STRINGS round-trip as
-/// camelCase JSON with enums by NAME (<c>[JsonStringEnumConverter]</c>). The unit
+/// modal DTO's grade + per-dimension verdict + matched/missing evidence round-trip as
+/// camelCase JSON with enums by NAME (<c>[JsonStringEnumConverter]</c>). Evidence is strings
+/// on five rows, concept ids on <c>employmentFit</c>, and <c>{conceptId, label}</c> objects on
+/// the two register rows (#1598) — the register shape is asserted below, including that an
+/// unnameable concept arrives as an explicit JSON <c>null</c> label rather than a missing key
+/// or a dropped entry. The unit
 /// handler/scorer/grade tests already cover the logic exhaustively (FullMatchScorer-,
 /// MatchGradeCalculator-, GetJobAdMatchDetailQueryHandler-suites); these high-value tests
 /// prove the wire + DEK + owner-scope. NO AI/LLM (ADR 0071/0076).
@@ -430,6 +434,23 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
         DimVerdict(dto, "ssykOverlap").ShouldBe(Wire(MatchDimensionVerdict.Match));
         DimVerdict(dto, "regionFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
         DimVerdict(dto, "employmentFit").ShouldBe(Wire(MatchDimensionVerdict.Match));
+
+        // #1598 — the register rows keep a concept-id the snapshot cannot name. `grp` and `reg`
+        // are NewConceptId values, so the committed taxonomy has no row for either: this is the
+        // unnameable state the real pipeline produces, arrived at without seeding it. Before
+        // #1598 both arrays were EMPTY here and the suite could not see it, because the only
+        // assertion on these two rows was their verdict.
+        //
+        // `label` is asserted as JsonValueKind.Null, not merely "absent": the FE schema is
+        // `.nullable()` rather than `.optional()`, and a `DefaultIgnoreCondition` added to the
+        // API's serializer would silently break that without this line.
+        foreach (var (dimension, conceptId) in new[] { ("ssykOverlap", grp), ("regionFit", reg) })
+        {
+            var entries = dto.GetProperty(dimension).GetProperty("matched");
+            entries.GetArrayLength().ShouldBe(1, $"{dimension} must keep its one cited concept");
+            entries[0].GetProperty("conceptId").GetString().ShouldBe(conceptId);
+            entries[0].GetProperty("label").ValueKind.ShouldBe(JsonValueKind.Null);
+        }
     }
 
     // =================================================================

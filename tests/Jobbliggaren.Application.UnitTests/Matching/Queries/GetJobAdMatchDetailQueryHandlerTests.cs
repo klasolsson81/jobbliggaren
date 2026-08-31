@@ -171,6 +171,12 @@ public class GetJobAdMatchDetailQueryHandlerTests
         IReadOnlyList<string>? missing = null) =>
         new(v, matched ?? [], missing ?? []);
 
+    // The names on a register row, in wire order — `null` where the snapshot could not name
+    // the concept (#1598). Reading the labels out keeps the assertions about what the modal
+    // shows; the ids are asserted where the entry's SURVIVAL is the property under test.
+    private static IReadOnlyList<string?> Labels(
+        IReadOnlyList<MatchRegisterConceptDto> entries) => [.. entries.Select(e => e.Label)];
+
     // Taxonomy read-model fake. Default = passthrough (label == concept-id) so existing
     // tests are unaffected; pass a map to assert the concept-id → label resolution the
     // modal handler applies to the SSYK / region / employment membership dimensions.
@@ -280,10 +286,10 @@ public class GetJobAdMatchDetailQueryHandlerTests
 
         // Four Fast rows.
         result.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        result.SsykOverlap.Matched.ShouldContain("Systemutvecklare");
+        Labels(result.SsykOverlap.Matched).ShouldContain("Systemutvecklare");
         result.TitleSimilarity.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
         result.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
-        result.RegionFit.Matched.ShouldContain("Stockholm");
+        Labels(result.RegionFit.Matched).ShouldContain("Stockholm");
         result.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
 
         // Three Full rows — the modal's civic-useful "what you're missing" direction.
@@ -342,9 +348,11 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldNotBeNull();
-        // Register dims: concept-ids resolved to human labels (matched AND missing).
-        result!.SsykOverlap.Matched.ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
-        result.RegionFit.Matched.ShouldBe(["Stockholms län"]);
+        // Register dims: concept-ids resolved to human labels (matched AND missing), each
+        // paired with the id it was resolved from.
+        Labels(result!.SsykOverlap.Matched).ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
+        result.SsykOverlap.Matched.Select(e => e.ConceptId).ShouldBe(["grp_12345"]);
+        Labels(result.RegionFit.Matched).ShouldBe(["Stockholms län"]);
         // Coded dim: the id survives to the wire even though the fake taxonomy COULD have
         // named it — the resolver is never asked, which is the property under test.
         result.EmploymentFit.MissingConceptIds.ShouldBe(["emp_999"]);
@@ -353,15 +361,16 @@ public class GetJobAdMatchDetailQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldDropUnresolvedRegisterConceptId_RatherThanSurfaceItRaw()
+    public async Task Handle_ShouldKeepUnresolvedRegisterConceptId_WithANullLabel()
     {
-        // #1540 — an id the snapshot has lost comes back without a name. This row carries
-        // names only and the client has no id to look a word up by, so the entry is
-        // dropped: surfacing it would put the external system's vocabulary in the modal,
-        // which is what the ACL exists to prevent (§5, ADR 0043).
+        // #1598 — an id the snapshot has lost comes back without a name. #1540 dropped the
+        // entry, which made a row that CITED something render as a row that cited nothing:
+        // the client's "the ad specifies no region" branch reads emptiness, so it began
+        // claiming silence about an ad that spoke. The entry now survives without a name, and
+        // what the client renders for it is the client's decision, not this layer's.
         //
-        // The resolvable dimension beside it is asserted too, so the pin measures the DROP
-        // and not a handler that stopped resolving.
+        // The resolvable dimension beside it is asserted too, so the pin measures the
+        // SURVIVAL and not a handler that stopped resolving.
         var ct = TestContext.Current.CancellationToken;
         var score = new FullMatchScore(
             Fast: new MatchScore(
@@ -386,8 +395,98 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldNotBeNull();
-        result!.SsykOverlap.Matched.ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
-        result.RegionFit.Matched.ShouldBeEmpty();
+        Labels(result!.SsykOverlap.Matched).ShouldBe(["Mjukvaru- och systemutvecklare m.fl."]);
+        // The entry is present and carries its id; only the NAME is absent.
+        result.RegionFit.Matched.ShouldHaveSingleItem();
+        result.RegionFit.Matched[0].ConceptId.ShouldBe("region_GONE");
+        result.RegionFit.Matched[0].Label.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ShouldKeepBothEntries_WhenOneOfTwoInTheSameDimensionIsUnresolved()
+    {
+        // The form that decided the wire shape (senior-cto-advisor 2026-08-31): the port is
+        // ITEM-keyed — "EN rad per efterfrågat id" — so a single dimension can legitimately
+        // hold one nameable and one unnameable concept. The dropping version silently
+        // UNDERCOUNTED that row: two things the ad asks for became one, with nothing marking
+        // the loss. Order is the scorer's, and it is asserted, since the client pairs each
+        // entry with what it renders beside it.
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(
+                    MatchDimensionVerdict.NoMatch, missing: ["region_AB", "region_GONE"]),
+                EmploymentFit: Dim(MatchDimensionVerdict.NotAssessed)),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var map = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["region_AB"] = "Stockholms län",
+        };
+        var sut = CreateHandler(
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
+            new FakeScorer(score),
+            taxonomy: new FakeTaxonomy(
+                map, unresolved: new HashSet<string>(StringComparer.Ordinal) { "region_GONE" }));
+
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
+
+        result.ShouldNotBeNull();
+        result!.RegionFit.Missing.Select(e => e.ConceptId)
+            .ShouldBe(["region_AB", "region_GONE"]);
+        Labels(result.RegionFit.Missing).ShouldBe(["Stockholms län", null]);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldEmitOneEntryPerConceptId_EvenWhenTheSnapshotNamesNone()
+    {
+        // The invariant the client's emptiness branch rests on, pinned on the server where it
+        // is produced (dotnet-architect 2026-08-31): a register row emits exactly one entry
+        // per incoming concept-id, never fewer. Without this pin the branch decays silently
+        // the next time anyone filters the list — which is precisely what #1540 did.
+        //
+        // A snapshot that names NOTHING is what the real port emits after a taxonomy swap
+        // drops the ids these ads were indexed under; it is the extreme of the same state
+        // FakeTaxonomy's `unresolved` reproduces, not a different one.
+        //
+        // The dimensions are shaped the way their own scorer branches shape them, so the pin
+        // measures a state production reaches: ScoreSsykMembership emits exactly ONE id
+        // ([adValue]) and never both lists; ScoreOrtUnion emits EITHER matched OR missing,
+        // never both, with at most two entries (the ad's region plus its municipality).
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["grp_1"]),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(
+                    MatchDimensionVerdict.NoMatch,
+                    missing: ["region_1", "region_2"]),
+                EmploymentFit: Dim(MatchDimensionVerdict.NotAssessed)),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var nothingResolves = new FakeTaxonomy(
+            unresolved: new HashSet<string>(StringComparer.Ordinal)
+            {
+                "grp_1", "region_1", "region_2",
+            });
+        var sut = CreateHandler(
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
+            new FakeScorer(score),
+            taxonomy: nothingResolves);
+
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
+
+        result.ShouldNotBeNull();
+        // Both sides of a register row, and both cardinalities their scorers can produce.
+        result!.SsykOverlap.Matched.Count.ShouldBe(1);
+        result.RegionFit.Missing.Count.ShouldBe(2);
+        // Not one name among them — so the counts above are carried by the entries alone.
+        Labels(result.SsykOverlap.Matched).ShouldAllBe(l => l == null);
+        Labels(result.RegionFit.Missing).ShouldAllBe(l => l == null);
     }
 
     // =================================================================

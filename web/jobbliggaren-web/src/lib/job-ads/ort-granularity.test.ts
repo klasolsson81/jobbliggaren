@@ -65,7 +65,7 @@ describe("classifyOrtLabel", () => {
     expect(classifyOrtLabel("Stockholms län", map)).toBe("region");
   });
 
-  it("okänd label (stale snapshot) → null (visas rakt av)", () => {
+  it("okänd label (stale snapshot) → null", () => {
     expect(classifyOrtLabel("Okänd ort", map)).toBeNull();
   });
 });

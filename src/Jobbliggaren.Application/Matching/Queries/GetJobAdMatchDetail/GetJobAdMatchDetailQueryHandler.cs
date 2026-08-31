@@ -104,19 +104,21 @@ public sealed class GetJobAdMatchDetailQueryHandler(
         // language (ADR 0043 ACL) and an opaque id is the opposite of explainable
         // (CLAUDE.md §5).
         //
-        // TWO of the three are resolved here: SSYK and region name occupation groups and
-        // regions, which are proper-noun register data and stay Swedish in every locale.
-        // Employment type is a common noun whose word the catalogue owns, so it stays coded
-        // on the wire and the client names it (#1537) — the id still never reaches the user,
-        // it just stops being named in this layer. The skill/title dimensions already carry
-        // Display labels / lexemes, so they are passed through unchanged.
+        // TWO of the three are named here: SSYK and region name occupation groups and
+        // regions, which are proper-noun register data and stay Swedish in every locale. Each
+        // entry keeps its id beside the name (#1598), because the naming can FAIL and an entry
+        // that vanished would make the row read as one that cited nothing. Employment type is
+        // a common noun whose word the catalogue owns, so it stays coded on the wire and the
+        // client names it (#1537) — its naming cannot fail, since the catalogue is independent
+        // of the snapshot. The skill/title dimensions already carry Display labels / lexemes,
+        // so they are passed through unchanged.
         var labels = await ResolveRegisterLabelsAsync(score.Fast, cancellationToken);
 
         return Result.Success<JobAdMatchDetailDto?>(new JobAdMatchDetailDto(
             Grade: grade,
-            SsykOverlap: ToLabelledRow(score.Fast.SsykOverlap, labels),
+            SsykOverlap: ToRegisterRow(score.Fast.SsykOverlap, labels),
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
-            RegionFit: ToLabelledRow(score.Fast.RegionFit, labels),
+            RegionFit: ToRegisterRow(score.Fast.RegionFit, labels),
             EmploymentFit: ToCodedRow(score.Fast.EmploymentFit),
             SkillOverlap: ToRow(score.SkillOverlap),
             MustHaveCoverage: ToRow(score.MustHaveCoverage),
@@ -152,16 +154,17 @@ public sealed class GetJobAdMatchDetailQueryHandler(
     private static MatchCodedDimensionDetailDto ToCodedRow(MatchDimension dimension) =>
         new(dimension.Verdict, dimension.Matched, dimension.Missing);
 
-    private static MatchDimensionDetailDto ToLabelledRow(
+    private static MatchRegisterDimensionDetailDto ToRegisterRow(
         MatchDimension dimension, IReadOnlyDictionary<string, string> labels) =>
-        new(dimension.Verdict, MapLabels(dimension.Matched, labels), MapLabels(dimension.Missing, labels));
+        new(dimension.Verdict, Pair(dimension.Matched, labels), Pair(dimension.Missing, labels));
 
-    // A concept-id the snapshot could not name is dropped, not shown raw: unlike the toolbar,
-    // the client has no id here to look a word up by (§5, ADR 0043).
-    // #1598: carry {conceptId, label} so it can name what the server could not.
-    private static IReadOnlyList<string> MapLabels(
+    // #1598 — ONE entry per incoming concept-id, never fewer. The id an unnamed entry keeps is
+    // not for display: it is what makes the entry EXIST, and the client's "the ad specifies
+    // nothing here" branch reads emptiness. Filtering the unnamed ones out (what this did
+    // before) let a row that cited something render as a row that cited nothing.
+    private static IReadOnlyList<MatchRegisterConceptDto> Pair(
         IReadOnlyList<string> conceptIds, IReadOnlyDictionary<string, string> labels) =>
         conceptIds.Count == 0
-            ? conceptIds
-            : [.. conceptIds.Select(labels.GetValueOrDefault).OfType<string>()];
+            ? []
+            : [.. conceptIds.Select(id => new MatchRegisterConceptDto(id, labels.GetValueOrDefault(id)))];
 }

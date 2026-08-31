@@ -95,6 +95,33 @@ public class CaddyfileTokenScrubbingPinTests
     /// a personnummer — was not.
     /// </para>
     /// <para>
+    /// <c>userId</c>: <b>not</b> covered by <c>uid</c> above. The filter matches keys exactly and
+    /// case-sensitively — the measurement this class opens with — so the mail parameter's entry
+    /// protects nothing here. <c>/admin/granskning</c>'s pagination links carry it, and it is a
+    /// DIRECT identifier of a natural person (Art. 4(1)); the URL additionally discloses WHOSE
+    /// audit records were read, which is more than <c>employer</c> says about anyone.
+    /// </para>
+    /// <para>
+    /// <c>namn</c>: the free-text company-name field on <c>/foretag/sok</c>. Same unbounded-content
+    /// class as <c>q</c>, with one addition: <c>proxy.ts</c> washes an org.nr-shaped value out of
+    /// it, which is the app stating that it EXPECTS org.nr there — and for an enskild firma the
+    /// org.nr IS the holder's personnummer (#841). The wash also fires only on org.nr-shaped
+    /// values; every other free-text string passes through untouched.
+    /// </para>
+    /// <para>
+    /// <c>eventType</c> / <c>aggregateType</c>: they read like closed enums and are not. Both are
+    /// <c>&lt;input type="text" maxLength={100}&gt;</c> in a native GET form, and
+    /// <c>GetAuditLogEntriesQueryValidator</c>'s own comment calls them fri-text-fält while
+    /// bounding LENGTH only. A length cap is not a content cap — the same distinction <c>q</c> is
+    /// deleted on.
+    /// </para>
+    /// <para>
+    /// <c>prefix</c>: the <c>/jobb</c> search box's LIVE keystrokes, one request per ~300 ms to
+    /// <c>/api/jobb/suggest</c>. The same user input as <c>q</c>, which is already deleted here;
+    /// streaming it makes the exposure larger, not smaller. Its surface owes an inventory file
+    /// still, and that debt is named in the app-surface coverage fact rather than left silent.
+    /// </para>
+    /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
     /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
     /// from a closed, published or enumerated value space and has a stated purpose — it selects
@@ -108,13 +135,17 @@ public class CaddyfileTokenScrubbingPinTests
     /// exists only by CALLING that route's TypeScript URL builders, so it is derived — and every
     /// key OF THAT ROUTE judged scrubbed or kept — in
     /// <c>web/jobbliggaren-web/src/lib/job-ads/axis-edge-log-inventory.test.ts</c>, which reads
-    /// this array and fails in both directions. A name added here from ANOTHER surface is held by
-    /// the Caddyfile fact below and by nothing else: that surface owes its own inventory file.
+    /// this array and fails in both directions. A name added here from ANOTHER surface owes its
+    /// own inventory file, and until it has one the debt is named in
+    /// <c>web/jobbliggaren-web/src/lib/edge-log/app-surface-coverage.test.ts</c>, which requires
+    /// every name on this array to be either judged by some surface or listed there with a
+    /// reason.
     /// That file deliberately does not parse the Caddyfile — the placement sensitivity above is
     /// owned here and nowhere else.
     /// </para>
     /// </summary>
-    private static readonly string[] AppSurfaceScrubbedParameters = ["employer", "q"];
+    private static readonly string[] AppSurfaceScrubbedParameters =
+        ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",

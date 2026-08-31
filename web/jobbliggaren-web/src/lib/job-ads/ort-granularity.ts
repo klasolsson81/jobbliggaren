@@ -4,8 +4,10 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
  * Spår 3 PR-D (ADR 0076-amendment 2026-06-21, architect NOTE-2) — FE-sidans
  * upplösning av ort-granularitet för match-modalens RegionFit-bevis.
  *
- * Backend unionerar region ∪ municipality till EN ort-dimension och emitterar
- * matched/missing som rena DISPLAY-labels (län- och/eller kommun-namn). Modalen
+ * Backend unionerar region ∪ municipality till EN ort-dimension. Modulen tar emot
+ * DISPLAY-labels (län- och/eller kommun-namn); sedan #1598 bär wire:t
+ * `{conceptId, label}` och labels plockas ut av `splitRegisterRow` — modulens
+ * kontrakt är oförändrat, bara proveniensen. Modalen
  * ska ärligt visa VILKEN granularitet som matchade (kommun-träff vs län-träff),
  * men backend modellerar medvetet inte granulariteten i kontraktet (NOTE-2). Vi
  * härleder den HÄR ur taxonomin som sidan redan har: varje läns-label är "län",
@@ -15,8 +17,8 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
  * som det COARSER (`"region"`). Det är den säkra defaulten eftersom ett läns-id
  * i `preferredRegions` representerar HELA länet (kommun-träffen ingår), och
  * copyn för en län-träff ("hela länet") aldrig över-påstår en exakt kommun. En
- * ren plain-label-fallback (ingen kategori-prefix) gäller för labels som inte
- * finns i taxonomin alls (stale snapshot) — då visas namnet rakt av.
+ * egen plain-hink gäller för labels som inte finns i taxonomin alls (stale
+ * snapshot).
  */
 
 export type OrtGranularity = "region" | "municipality";
@@ -58,7 +60,7 @@ export function buildOrtGranularityMap(
 
 /**
  * Klassar EN matched/missing-label. Okänd label (saknas i taxonomin, t.ex. en
- * stale snapshot) → `null`: anroparen visar då namnet rakt av utan kategori.
+ * stale snapshot) → `null`.
  */
 export function classifyOrtLabel(
   label: string,

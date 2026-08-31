@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { getAuditLog } from "@/lib/api/admin";
+import {
+  buildAuditLogPageHref,
+  type AuditLogRawSearchParams,
+} from "@/lib/audit-log/page-href";
 import { AuditLogFilter } from "./audit-log-filter";
 import { AuditLogTable } from "./audit-log-table";
 import { AuditLogPagination } from "./audit-log-pagination";
 
-type Params = {
-  page?: string;
-  pageSize?: string;
-  from?: string;
-  to?: string;
-  userId?: string;
-  eventType?: string;
-  aggregateType?: string;
-};
+type Params = AuditLogRawSearchParams;
 
 interface PageProps {
   searchParams: Promise<Params>;
@@ -77,7 +73,7 @@ export default async function GranskningPage({ searchParams }: PageProps) {
             page={result.data.page}
             totalPages={result.data.totalPages}
             totalCount={result.data.totalCount}
-            buildHref={(targetPage) => buildPageHref(params, targetPage)}
+            buildHref={(targetPage) => buildAuditLogPageHref(params, targetPage)}
           />
         </>
       ) : result.kind === "rateLimited" ? (
@@ -141,17 +137,4 @@ function toIsoOrUndefined(s: string | undefined): string | undefined {
   const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})$/.exec(s);
   if (m) return `${m[1]}:00Z`;
   return s;
-}
-
-function buildPageHref(params: Params, page: number): string {
-  const url = new URLSearchParams();
-  if (page !== 1) url.set("page", String(page));
-  if (params.pageSize) url.set("pageSize", params.pageSize);
-  if (params.from) url.set("from", params.from);
-  if (params.to) url.set("to", params.to);
-  if (params.userId) url.set("userId", params.userId);
-  if (params.eventType) url.set("eventType", params.eventType);
-  if (params.aggregateType) url.set("aggregateType", params.aggregateType);
-  const q = url.toString();
-  return q.length > 0 ? `/admin/granskning?${q}` : "/admin/granskning";
 }

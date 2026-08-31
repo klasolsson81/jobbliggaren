@@ -250,6 +250,7 @@
         "regionFit": "Annonsen anger ingen region.",
         "employmentFit": "Annonsen anger ingen anställningsform."
       },
+      "unnamedEvidence": "{count, plural, one {Annonsen anger en uppgift som saknas i vårt register.} other {Annonsen anger # uppgifter som saknas i vårt register.}}",
       "mustHaveSummary": {
         "Match": "Du uppfyller alla ska-krav i annonsen.",
         "Partial": "Du uppfyller några av annonsens ska-krav.",

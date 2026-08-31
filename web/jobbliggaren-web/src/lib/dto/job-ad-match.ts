@@ -198,6 +198,45 @@ export type MatchCodedDimensionDetail = z.infer<
 >;
 
 /**
+ * En post på en REGISTER-rad (#1598): taxonomins concept-id plus namnet snapshoten gav det.
+ * `label` är `null` när konceptet saknar rad i snapshoten — frånvaron ÄR signalen.
+ *
+ * ⚠ `conceptId` renderas ALDRIG. Den bärs för att posten ska kunna EXISTERA utan namn, och
+ * klienten säger hur många sådana poster en rad har — inte vilka. Att interpolera den vore
+ * det externa systemets vokabulär rakt i ansiktet på användaren (AGENTS.md §5, ADR 0043), och
+ * till skillnad från toolbar-chipet finns här inget × att träffa. Den kan inte slås upp
+ * klient-sidan heller: namnet saknas exakt när konceptet saknar rad, och picker-trädet
+ * klienten läser byggs ur samma lista.
+ */
+export const matchRegisterConceptSchema = z.object({
+  conceptId: z.string(),
+  label: z.string().nullable(),
+});
+export type MatchRegisterConcept = z.infer<typeof matchRegisterConceptSchema>;
+
+/**
+ * Samma rad för de två dimensioner vars bevis är REGISTER-data servern namnger ur
+ * taxonomi-snapshoten: yrkesgrupp (`ssykOverlap`) och region (`regionFit`).
+ *
+ * Egen typ, inte en breddad `matchDimensionDetailSchema`: fyra av sju dimensioner bär inget
+ * concept-id alls (titel bär Snowball-stammar, de tre CV-dimensionerna bär Display-labels).
+ * Samma argument som gav `matchCodedDimensionDetailSchema` sin egen typ, tillämpat på en
+ * tredje bevis-proveniens — och till skillnad från två parallella listor kan namn och id inte
+ * glida isär, eftersom de sitter i samma post.
+ *
+ * KRITISKT: `.nullable()`, inte `.optional()`. Fältet FINNS på tråden och är `null` (Minimal
+ * APIs `JsonSerializerDefaults.Web`, ingen `DefaultIgnoreCondition` i `src/`).
+ */
+export const matchRegisterDimensionDetailSchema = z.object({
+  verdict: matchVerdictSchema,
+  matched: z.array(matchRegisterConceptSchema),
+  missing: z.array(matchRegisterConceptSchema),
+});
+export type MatchRegisterDimensionDetail = z.infer<
+  typeof matchRegisterDimensionDetailSchema
+>;
+
+/**
  * Modal-/fullsida-detaljsvaret. `grade` är `null` när annonsen inte tjänar in
  * en positiv tagg (yrket matchade inte) — raderna finns ändå (ärlig
  * nedbrytning). Hela svaret kan vara `null` (200 med `null`-body =
@@ -205,9 +244,9 @@ export type MatchCodedDimensionDetail = z.infer<
  */
 export const jobAdMatchDetailSchema = z.object({
   grade: matchGradeSchema.nullable(),
-  ssykOverlap: matchDimensionDetailSchema,
+  ssykOverlap: matchRegisterDimensionDetailSchema,
   titleSimilarity: matchDimensionDetailSchema,
-  regionFit: matchDimensionDetailSchema,
+  regionFit: matchRegisterDimensionDetailSchema,
   employmentFit: matchCodedDimensionDetailSchema,
   skillOverlap: matchDimensionDetailSchema,
   mustHaveCoverage: matchDimensionDetailSchema,

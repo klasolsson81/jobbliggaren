@@ -250,6 +250,7 @@
         "regionFit": "The ad does not state a region.",
         "employmentFit": "The ad does not state an employment type."
       },
+      "unnamedEvidence": "{count, plural, one {The ad states a value that is missing from our register.} other {The ad states # values that are missing from our register.}}",
       "mustHaveSummary": {
         "Match": "You meet all the must-have requirements in the ad.",
         "Partial": "You meet some of the ad's must-have requirements.",

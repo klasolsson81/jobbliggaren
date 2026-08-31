@@ -234,6 +234,73 @@ public class MatchTagBatchLayerTests
             $"ADR 0076 Decision 4). Otillåtna: [{string.Join(", ", offending)}].");
     }
 
+    // #1598 — the two facts above name ONE row type each, and the helper reads one level
+    // (GetProperties, no recursion into IReadOnlyList<T>'s element type). So every row type
+    // added since has been unguarded: MatchCodedDimensionDetailDto (#1537) had no fact at all
+    // when this was measured, and MatchRegisterConceptDto would have been the second hole.
+    // The theory grades the row types; the completeness fact below grades THE LIST, so a
+    // fourth row type cannot be added without one of the two failing.
+    private static readonly IReadOnlyList<Type> GuardedModalWireRowTypes =
+    [
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchDimensionDetailDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchCodedDimensionDetailDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchRegisterDimensionDetailDto),
+        typeof(Application.Matching.Queries.GetJobAdMatchDetail.MatchRegisterConceptDto),
+    ];
+
+    // The theory's data and the completeness fact's expectation are ONE list, so the fact
+    // cannot pass against a list the theory does not actually run.
+    public static TheoryData<Type> ModalWireRowTypes => [.. GuardedModalWireRowTypes];
+
+    [Theory]
+    [MemberData(nameof(ModalWireRowTypes))]
+    public void Modal_wire_row_type_has_no_numeric_or_score_shaped_property(Type rowType)
+    {
+        var offending = PublicInstancePropertyNames(rowType)
+            .Where(name => ForbiddenNumericName.IsMatch(name))
+            .ToList();
+
+        offending.ShouldBeEmpty(
+            $"{rowType.Name} får INTE bära ett numeriskt/score-format fält — beviset ÄR " +
+            "förklaringen, aldrig en magnitud (Goodhart-vakten, ADR 0076 Decision 4 / " +
+            $"ADR 0053 Beslut 5). Otillåtna: [{string.Join(", ", offending)}].");
+    }
+
+    [Fact]
+    public void Modal_wire_row_types_list_covers_every_type_reachable_from_the_detail_dto()
+    {
+        // Walk the root DTO's properties, unwrap IReadOnlyList<T>, and keep the Application
+        // types found. One level of unwrapping is all the shape has; a nested one would show
+        // up here as a missing type rather than pass silently.
+        var root = typeof(Application.Matching.Queries.GetJobAdMatchDetail.JobAdMatchDetailDto);
+        var applicationAssembly = typeof(Application.AssemblyMarker).Assembly;
+
+        static IEnumerable<Type> Carried(Type type) =>
+            type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(p => p.PropertyType)
+                .Select(t => t.IsGenericType ? t.GetGenericArguments()[0] : t);
+
+        var reachable = Carried(root)
+            .Where(t => t.Assembly == applicationAssembly && !t.IsEnum)
+            .SelectMany(t => Carried(t).Append(t))
+            .Where(t => t.Assembly == applicationAssembly && !t.IsEnum)
+            .Distinct()
+            .ToList();
+
+        // The walk must find something, or set equality below would hold vacuously against an
+        // empty theory list and this fact would measure nothing.
+        reachable.ShouldNotBeEmpty();
+        reachable.Count.ShouldBeGreaterThanOrEqualTo(4);
+
+        var guarded = GuardedModalWireRowTypes.ToHashSet();
+        var unguarded = reachable.Where(t => !guarded.Contains(t)).Select(t => t.Name).ToList();
+
+        unguarded.ShouldBeEmpty(
+            "Varje radtyp modal-DTO:n bär måste stå i ModalWireRowTypes, annars gäller " +
+            "Goodhart-vakten inte för den (helpern läser ETT plan och rekurserar inte). " +
+            $"Ovaktade: [{string.Join(", ", unguarded)}].");
+    }
+
     // ===============================================================
     // 4. Confirm the existing F4-5 shape pins are untouched (we don't modify them —
     //    this just fails loud if the upstream MatchScore/MatchDimension shape drifts,

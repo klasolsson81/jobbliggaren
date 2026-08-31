@@ -5,6 +5,7 @@ import { MatchChip } from "./match-chip";
 import type {
   JobAdMatchDetail,
   MatchDimensionDetail,
+  MatchRegisterDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
@@ -24,7 +25,7 @@ type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
  * JobAdDetail (modal + fullsida), ovanför Annonsbeskrivning.
  *
  * Goodhart-vakt (hård, ADR 0053 Beslut 5 + ADR 0076 §5): INGEN
- * siffra/procent/mätare/ring. Varje verdict är en diskret prick + namngivet ord.
+ * procent/mätare/ring. Varje verdict är en diskret prick + namngivet ord.
  *
  * NotAssessed/Saknas använder NEUTRAL ink — ALDRIG röd (ett saknat meritvärde
  * är inget fel). NotAssessed = hålig prick + "Ej bedömt" + skäl; aldrig
@@ -157,24 +158,95 @@ function titleSummary(verdict: MatchVerdict, t: MatchTranslator): string | null 
  * Spår 3 PR-D — grupperar en ort-label-lista per granularitet (kommun/län) och
  * formaterar två civic-fraser så bevisraden ärligt visar VILKEN granularitet
  * som matchade (architect NOTE-2; klassningen sker FE-side mot taxonomin).
- * Okänd label (saknas i kartan, t.ex. stale snapshot) faller till `region`-
- * hinken som plain text (visas rakt av, ingen felaktig kategori).
+ *
+ * TRE hinkar, inte två (#1598). Okänd label (saknas i kartan — äkta träd-
+ * divergens) föll förut i `regions`-hinken, som renderas "Län som matchar: X":
+ * ett explicit län-PÅSTÅENDE om något vi inte kunde klassa.
  */
 function splitOrtByGranularity(
   labels: ReadonlyArray<string>,
   granularityByLabel: Record<string, OrtGranularity>,
-): { municipalities: string[]; regions: string[] } {
+): { municipalities: string[]; regions: string[]; plain: string[] } {
   const municipalities: string[] = [];
   const regions: string[] = [];
+  const plain: string[] = [];
   for (const label of labels) {
-    if (classifyOrtLabel(label, granularityByLabel) === "municipality") {
+    const granularity = classifyOrtLabel(label, granularityByLabel);
+    if (granularity === "municipality") {
       municipalities.push(label);
-    } else {
-      // "region" eller okänd → coarser/plain (Gotland-fallet, stale snapshot).
+    } else if (granularity === "region") {
+      // Gotland-fallet ingår här: tvetydiga namn klassas medvetet som coarser.
       regions.push(label);
+    } else {
+      // Saknas i kartan → ingen kategori vi inte kan belägga.
+      plain.push(label);
     }
   }
-  return { municipalities, regions };
+  return { municipalities, regions, plain };
+}
+
+/**
+ * Delar en register-rad (#1598) i det som går att visa och det som bara går att
+ * RÄKNA: posterna vars `label` är `null` är concept-id snapshoten tappat.
+ *
+ * Id:t renderas aldrig — det är postens identitet, inte dess ord (AGENTS.md §5,
+ * ADR 0043), och klienten kan inte slå upp det heller: namnet saknas exakt när
+ * konceptet saknar rad, och picker-trädet byggs ur samma lista. Men posten måste
+ * RÄKNAS, för raden citerade något, och en rad som citerade något får aldrig
+ * renderas som en rad som citerade ingenting.
+ */
+function splitRegisterRow(detail: MatchRegisterDimensionDetail): MatchRowModel {
+  const matched = detail.matched.flatMap((e) => (e.label === null ? [] : [e.label]));
+  const missing = detail.missing.flatMap((e) => (e.label === null ? [] : [e.label]));
+  return {
+    verdict: detail.verdict,
+    matched,
+    missing,
+    unnamedCount:
+      detail.matched.length - matched.length + (detail.missing.length - missing.length),
+  };
+}
+
+/**
+ * Vad EN rad renderar: bevis som kan visas, plus hur många koncept raden citerar
+ * som inte kan visas.
+ *
+ * `unnamedCount` bor PÅ raden och inte i en sidoordnad karta (#1598,
+ * `dotnet-architect` 2026-08-31): en karta bredvid `rows` hade varit två
+ * parallella strukturer vars korrespondens inte är typad — exakt den defektform
+ * `MatchRegisterDimensionDetailDto` finns för att omöjliggöra på wire:t, återskapad
+ * ett lager ned. En framtida åttonde dimension blir nu ett kompileringsfel i
+ * stället för en tyst nolla.
+ */
+type MatchRowModel = MatchDimensionDetail & { unnamedCount: number };
+
+/** En rad utan onämnbara poster: fem av sju dimensioner kan aldrig ha några. */
+function shown(detail: MatchDimensionDetail): MatchRowModel {
+  return { ...detail, unnamedCount: 0 };
+}
+
+/**
+ * Meningen som räknar de koncept raden citerar men inte kan namnge. Nyckeln är
+ * dimensions-specifik, som `notAssessedReason` — "yrke"/"ort" är användarens egna
+ * ord för de två axlarna, och är sanna per dimension oavsett vilket id som föll
+ * bort (`ssykOverlap` bär bara yrkesgrupper, `regionFit` bara ort-koncept).
+ *
+ * `null` för de fem övriga: deras namngivning kan inte falera, så att de saknar
+ * nyckel är riktigt och inte ett hål.
+ */
+function unnamedEvidence(
+  key: keyof Omit<JobAdMatchDetail, "grade">,
+  count: number,
+  t: MatchTranslator,
+): string | null {
+  switch (key) {
+    case "ssykOverlap":
+      return t("unnamedEvidence.ssykOverlap", { count });
+    case "regionFit":
+      return t("unnamedEvidence.regionFit", { count });
+    default:
+      return null;
+  }
 }
 
 /**
@@ -208,6 +280,12 @@ function RegionFitEvidence({
           {t("ort.matchedRegions", { items: matched.regions.join(", ") })}
         </span>
       )}
+      {matched.plain.length > 0 && (
+        // Oklassificerbart namn: samma meningsram som syskonen, men med den
+        // o-granulära termen "ort" — vi kan belägga att det ÄR en ort (raden är
+        // ort-dimensionen), bara inte om det är en kommun eller ett län.
+        <span>{t("ort.matchedPlain", { items: matched.plain.join(", ") })}</span>
+      )}
       {missing.municipalities.length > 0 && (
         <span className="jp-modal__matchrow-missing">
           {t("ort.missingMunicipalities", {
@@ -218,6 +296,11 @@ function RegionFitEvidence({
       {missing.regions.length > 0 && (
         <span className="jp-modal__matchrow-missing">
           {t("ort.missingRegions", { items: missing.regions.join(", ") })}
+        </span>
+      )}
+      {missing.plain.length > 0 && (
+        <span className="jp-modal__matchrow-missing">
+          {t("ort.missingPlain", { items: missing.plain.join(", ") })}
         </span>
       )}
     </>
@@ -286,7 +369,7 @@ function MatchRow({
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
-  detail: MatchDimensionDetail;
+  detail: MatchRowModel;
   t: MatchTranslator;
   /** Spår 3 PR-D — endast satt för RegionFit-raden (label → kommun/län). */
   granularityByLabel?: Record<string, OrtGranularity>;
@@ -304,11 +387,22 @@ function MatchRow({
   // INTE anger dimensionen ger NoMatch med TOM matched/missing (inget att citera
   // — annonsen är tyst). Bevisraden förklarar VARFÖR i neutral ink (annonsens
   // tystnad är inget fel), i stället för en tom cell. ADR 0076-amendment.
+  //
+  // #1598 — `unnamedCount === 0` är inte en fjärde carve-out utan det som gör de
+  // två längd-testen sanna igen: `detail` bär de NAMNGIVNA posterna, så en rad
+  // vars enda citerade koncept saknar namn ser tom ut här utan att vara det.
+  // Utan konjunktionen skulle grenen påstå "Annonsen anger ingen region." om en
+  // annons som anger en — exakt defekten den här PR:en finns för att stänga.
   const isAdUnspecified =
     detail.verdict === "NoMatch" &&
     detail.matched.length === 0 &&
     detail.missing.length === 0 &&
+    detail.unnamedCount === 0 &&
     (dimensionKey === "regionFit" || dimensionKey === "employmentFit");
+  const unnamed =
+    detail.unnamedCount > 0
+      ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
+      : null;
   // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
   const useOrtGranularity =
     dimensionKey === "regionFit" && granularityByLabel !== undefined;
@@ -385,6 +479,14 @@ function MatchRow({
             )}
           </>
         )}
+        {unnamed !== null && (
+          // #1598 — annonsen citerar koncept som taxonomi-snapshoten tappat. De
+          // RÄKNAS, de namnges inte: id:t är det externa systemets vokabulär och
+          // klienten kan inte slå upp det heller. Additiv, inte en gren: en rad
+          // kan bära både namngivna och onämnbara poster samtidigt. Neutral ink
+          // — ett tappat registerord är inte användarens fel.
+          <span className="jp-modal__matchrow-missing">{unnamed}</span>
+        )}
       </span>
     </div>
   );
@@ -432,17 +534,25 @@ export function JobAdMatchSection({
   // `employmentFit` skickar koder, inte namn (#1537) — dess ord ägs av katalogen. Att namnge
   // dem här behåller EN radrenderare för alla sju dimensioner i stället för en andra som
   // skiljer sig bara i var dess strängar kom ifrån.
-  const { grade: _grade, ...dimensions } = match;
-  const rows: Record<
-    keyof Omit<JobAdMatchDetail, "grade">,
-    MatchDimensionDetail
-  > = {
-    ...dimensions,
-    employmentFit: {
+  //
+  // `ssykOverlap`/`regionFit` bär register-poster (#1598) — namn plus det id namnet
+  // kom från. De delas i det som kan visas och det som bara kan räknas, av samma
+  // skäl: EN radrenderare för alla sju, i stället för en andra som skiljer sig bara
+  // i var dess strängar kom ifrån.
+  // Sju explicita nycklar, ingen spread: en åttonde dimension ska bli ett
+  // kompileringsfel här, inte tyst ärva fel radform.
+  const rows: Record<keyof Omit<JobAdMatchDetail, "grade">, MatchRowModel> = {
+    ssykOverlap: splitRegisterRow(match.ssykOverlap),
+    titleSimilarity: shown(match.titleSimilarity),
+    regionFit: splitRegisterRow(match.regionFit),
+    employmentFit: shown({
       verdict: match.employmentFit.verdict,
       matched: match.employmentFit.matchedConceptIds.map(codedName),
       missing: match.employmentFit.missingConceptIds.map(codedName),
-    },
+    }),
+    skillOverlap: shown(match.skillOverlap),
+    mustHaveCoverage: shown(match.mustHaveCoverage),
+    niceToHaveCoverage: shown(match.niceToHaveCoverage),
   };
 
   return (

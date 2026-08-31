@@ -213,7 +213,9 @@
         "matchedMunicipalities": "Municipality that matches: {items}",
         "matchedRegions": "Region that matches: {items}",
         "missingMunicipalities": "The ad's municipality: {items}",
-        "missingRegions": "The ad's region: {items}"
+        "missingRegions": "The ad's region: {items}",
+        "matchedPlain": "Matching location: {items}",
+        "missingPlain": "The ad's location: {items}"
       },
       "grade": {
         "Top": "Top match",
@@ -249,6 +251,10 @@
       "adUnspecifiedReason": {
         "regionFit": "The ad does not state a region.",
         "employmentFit": "The ad does not state an employment type."
+      },
+      "unnamedEvidence": {
+        "ssykOverlap": "{count, plural, one {The ad states an occupation that is missing from our register.} other {The ad states # occupations that are missing from our register.}}",
+        "regionFit": "{count, plural, one {The ad states a location that is missing from our register.} other {The ad states # locations that are missing from our register.}}"
       },
       "mustHaveSummary": {
         "Match": "You meet all the must-have requirements in the ad.",

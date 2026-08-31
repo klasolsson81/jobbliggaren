@@ -20,8 +20,9 @@ import { AuditLogFilter } from "@/app/(admin)/admin/granskning/audit-log-filter"
  * ADR 0050 gate N-1, app-surface half, for `/admin/granskning`.
  *
  * Owed because the C# pin says so: a name on `AppSurfaceScrubbedParameters` from a surface with no
- * inventory file is held by the Caddyfile fact and by nothing else. `userId` was added to that
- * array, so this file is the other half.
+ * inventory file is held by the Caddyfile fact alone until it has one, and `app-surface-coverage`
+ * requires it to be either judged here or recorded there as a named debt. `userId` was added to
+ * that array, so this file is the other half.
  *
  * Why the exposure existed at all is the thing to keep: the edge already deleted `uid`, and `uid`
  * is not `userId`. Caddy matches query keys exactly and case-sensitively, measured 2026-08-29 on
@@ -72,7 +73,6 @@ function formFieldNames(): ReadonlySet<string> {
 const BUILDER_KEYS = emittedKeys(buildAuditLogPageHref(FULL_PARAMS, TARGET_PAGE));
 const FORM_KEYS = formFieldNames();
 const EMITTED: ReadonlySet<string> = new Set([...BUILDER_KEYS, ...FORM_KEYS]);
-
 
 const keysJudged = (v: "must-not-reach-a-stored-log-post" | "kept") =>
   keysJudgedIn(EDGE_LOG_VERDICT, v);

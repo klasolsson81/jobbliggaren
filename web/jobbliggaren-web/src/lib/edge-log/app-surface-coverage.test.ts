@@ -42,10 +42,10 @@ const JUDGED_MUST_NOT_REACH: ReadonlyArray<string> = [
  */
 const AWAITING_ITS_OWN_INVENTORY: Readonly<Record<string, string>> = {
   prefix:
-    "/api/jobb/suggest is a route handler, not a URL builder: its key set is what the handler " +
-    "READS, which needs a different derivation from what a builder EMITS. Closed at the edge in " +
-    "the same PR that found it (security-auditor, 2026-08-30) rather than left live across a PR " +
-    "boundary; the inventory is owed.",
+    "#1604. /api/jobb/suggest is a route handler, not a URL builder: its key set is what the " +
+    "handler READS, which needs a different derivation from what a builder EMITS. Closed at the " +
+    "edge in the same PR that found it (security-auditor, 2026-08-30) rather than left live " +
+    "across a PR boundary; the inventory is owed and #1604 is what removes this entry.",
 };
 
 describe("app-surface edge-log coverage", () => {
@@ -63,9 +63,14 @@ describe("app-surface edge-log coverage", () => {
     ).toEqual([...pinnedAppSurfaceParameters()].sort());
   });
 
-  it("states a reason for every deferred inventory", () => {
+  it("names the issue that removes every deferred inventory", () => {
+    // A presence check is not a discharge condition: "x" would pass one. A debt list without a
+    // way out stops being a debt list and becomes a permanent category (security-auditor), so
+    // each entry has to name the issue a later reader can act on and close it against.
     for (const [key, reason] of Object.entries(AWAITING_ITS_OWN_INVENTORY)) {
-      expect(reason.trim().length, `"${key}" is deferred with no reason`).toBeGreaterThan(0);
+      expect(reason, `"${key}" is deferred without naming the issue that removes it`).toMatch(
+        /#\d+/
+      );
     }
   });
 

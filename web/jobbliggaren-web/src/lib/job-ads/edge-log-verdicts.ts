@@ -7,9 +7,6 @@ import type { EdgeLogVerdicts } from "@/test/edge-log-pin";
  * can require that EVERY name on the C# pin's array is judged by SOME surface. A per-surface
  * subset check cannot state that property: with one surface emitting every pinned name the
  * check was a no-op, and with several it is asserted by nobody.
- *
- * The rule that decides a verdict lives on `AppSurfaceScrubbedParameters` in the C# pin,
- * because it governs every app surface rather than any one route.
  */
 
 export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {

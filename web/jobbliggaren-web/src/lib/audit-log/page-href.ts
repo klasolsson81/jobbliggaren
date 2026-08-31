@@ -2,7 +2,7 @@
  * The pagination URL builder for `/admin/granskning`.
  *
  * Extracted from the page it serves so it can be CALLED rather than read. Its key inventory is
- * bound to the edge's scrubbing list in `audit-log-edge-log-inventory.test.ts`, and that fact
+ * bound to the edge's scrubbing list in `audit-log-edge-log-inventory.test.tsx`, and that fact
  * exists because reading a builder's source text binds the local variable name instead of the
  * emitted key — the trap `/jobb`'s `distans` axis demonstrated, where a sweep for `setAxis(`
  * missed the one axis written with a bare `params.set`. A module-private function inside a

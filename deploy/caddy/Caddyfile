@@ -97,8 +97,8 @@
 					# The free-text company-name field on /foretag/sok. Same unbounded-content class as `q`, with
 					# one addition: `proxy.ts` washes an org.nr-shaped value out of it, which is the app stating
 					# that it EXPECTS org.nr there — and for an enskild firma the org.nr IS the holder's
-					# personnummer (#841). The wash is a 3xx on the incoming request, whose log post is already
-					# written.
+					# personnummer (#841). The wash also fires only on org.nr-shaped values; every other
+					# free-text string passes through it.
 					delete namn
 					# `eventType` and `aggregateType` read like closed enums and are not. Both are
 					# `<input type="text" maxLength={100}>` in a native GET form, and the backend validator's own

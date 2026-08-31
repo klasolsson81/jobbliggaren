@@ -27,14 +27,15 @@ import {
  * `namn` is the sharp one, and its shape is worth keeping written down: the field is unbounded
  * free text, and `proxy.ts` washes an org.nr-shaped value out of it via a redirect. That wash is
  * the app STATING that it expects org.nr there, and for an enskild firma the org.nr IS the
- * holder's personnummer (#841). The wash is a 3xx on the incoming request, so it protects the
- * request AFTER the one that carried the value; that request's log post is already written.
+ * holder's personnummer (#841). The wash also fires only on org.nr-shaped values; every other
+ * free-text string passes through it untouched.
  *
  * Residual producer, named rather than covered: `components/company-criteria/foretag-sok-searchbar.tsx`
  * renders the no-JS form's raw hidden inputs and never constructs a `ForetagSokUrlState`. This
  * module's own doc calls it "a producer that cannot call a URL builder" and records that it
  * ALREADY drifted from the builders once (#1134), so the residual is not hypothetical. Its key
- * set matches the builders' today, measured, but nothing here would notice a new hidden input.
+ * set is a subset of the builders' today, measured, but nothing here would notice a new hidden
+ * input.
  * `/admin/granskning`'s fact closes the same gap by rendering its form; this one does not,
  * because that component is a hydrating client island rather than a five-input server form.
  *

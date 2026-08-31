@@ -108,18 +108,27 @@ public class GetJobAdMatchDetailQueryHandlerTests
         private readonly FullMatchScore? _score;
         private readonly bool _isRelated;
         private readonly Exception? _throwOnScoreFull;
+        private readonly MatchDimensionCauses _causes;
 
         // PR-4 (#300, ADR 0084): ScoreFullAsync now returns the FullScoredMatch carrier
         // (score + SsykIsRelated). The optional isRelated flag lets a test set the related
         // bit the handler forwards into Grade(FullMatchScore, bool); default false keeps every
         // existing test behaviour-inert (the carrier wraps the stored score, isRelated:false).
-        public FakeScorer(FullMatchScore score, bool isRelated = false)
+        public FakeScorer(
+            FullMatchScore score, bool isRelated = false, MatchDimensionCauses? causes = null)
         {
             _score = score;
             _isRelated = isRelated;
+            // Default: no dimension carries a cause — what the scorer returns when every
+            // dimension cites ordinary evidence. A cause test passes its own.
+            _causes = causes ?? new MatchDimensionCauses(null, null, null);
         }
 
-        public FakeScorer(Exception throwOnScoreFull) => _throwOnScoreFull = throwOnScoreFull;
+        public FakeScorer(Exception throwOnScoreFull)
+        {
+            _throwOnScoreFull = throwOnScoreFull;
+            _causes = new MatchDimensionCauses(null, null, null);
+        }
 
         public int ScoreFullCallCount { get; private set; }
         public JobAdId? LastScoredId { get; private set; }
@@ -131,7 +140,8 @@ public class GetJobAdMatchDetailQueryHandlerTests
             LastScoredId = jobAdId;
             if (_throwOnScoreFull is not null)
                 throw _throwOnScoreFull; // NotFoundException for a missing ad → propagate
-            return new ValueTask<FullScoredMatch>(new FullScoredMatch(_score!, _isRelated, []));
+            return new ValueTask<FullScoredMatch>(
+                new FullScoredMatch(_score!, _isRelated, [], _causes));
         }
 
         // The modal handler must NOT touch any of the batch / Fast methods.
@@ -358,6 +368,65 @@ public class GetJobAdMatchDetailQueryHandlerTests
         result.EmploymentFit.MissingConceptIds.ShouldBe(["emp_999"]);
         // Skill dim already carries a Display label → passed through, never re-resolved.
         result.SkillOverlap.Matched.ShouldBe(["C#"]);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldCarryEachMembershipCauseOntoItsOwnRow()
+    {
+        // The causes are per dimension and the three rows are of two different DTO types, so the
+        // one thing that can go wrong here is a crossed wire. Three DIFFERENT causes, one per row,
+        // is the only fixture that catches it: with one shared value every permutation passes.
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(MatchDimensionVerdict.Match),
+                EmploymentFit: Dim(MatchDimensionVerdict.NoMatch)),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var causes = new MatchDimensionCauses(
+            SsykOverlap: MatchDimensionCause.AdSilent,
+            RegionFit: MatchDimensionCause.RemoteOverride,
+            EmploymentFit: MatchDimensionCause.PreferenceUnstated);
+        var sut = CreateHandler(
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
+            new FakeScorer(score, causes: causes));
+
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
+
+        result.ShouldNotBeNull();
+        result!.SsykOverlap.Cause.ShouldBe(MatchDimensionCause.AdSilent);
+        result.RegionFit.Cause.ShouldBe(MatchDimensionCause.RemoteOverride);
+        result.EmploymentFit.Cause.ShouldBe(MatchDimensionCause.PreferenceUnstated);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldLeaveEveryCauseNull_WhenTheScorerReportsNone()
+    {
+        // The falsifier for the test above: a handler that hardcoded any cause would pass it and
+        // fail this one. It also pins the shape the client's "no cause" branch reads.
+        var ct = TestContext.Current.CancellationToken;
+        var score = new FullMatchScore(
+            Fast: new MatchScore(
+                SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["grp_12345"]),
+                TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
+                RegionFit: Dim(MatchDimensionVerdict.Match, matched: ["region_1"]),
+                EmploymentFit: Dim(MatchDimensionVerdict.Match, matched: ["emp_1"])),
+            SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
+            MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
+            NiceToHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed));
+        var sut = CreateHandler(
+            new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
+            new FakeScorer(score));
+
+        var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
+
+        result.ShouldNotBeNull();
+        result!.SsykOverlap.Cause.ShouldBeNull();
+        result.RegionFit.Cause.ShouldBeNull();
+        result.EmploymentFit.Cause.ShouldBeNull();
     }
 
     [Fact]

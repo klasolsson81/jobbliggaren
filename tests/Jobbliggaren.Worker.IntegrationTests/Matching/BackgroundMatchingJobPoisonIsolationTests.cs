@@ -129,7 +129,8 @@ public class BackgroundMatchingJobPoisonIsolationTests(WorkerTestFixture fixture
 
         // Strong-shaped score: notifiable (persisted) but NOT Top → no Top-direct email dispatch, so
         // the email seam stays out of this test entirely.
-        var strongScored = new FullScoredMatch(StrongScore(), SsykIsRelated: false, []);
+        var strongScored = new FullScoredMatch(
+            StrongScore(), SsykIsRelated: false, [], new MatchDimensionCauses(null, null, null));
         var scorer = Substitute.For<IMatchScorer>();
         // Poison profile → score the SENTINEL ad id → the scan Adds a sentinel-keyed match row whose
         // atomic SaveChanges (AFTER Add + AdvanceMatchScan) trips the trigger → genuine poison.

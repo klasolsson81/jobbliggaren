@@ -132,13 +132,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
         return new MatchScore(
             SsykOverlap: ScoreSsykMembership(
-                profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+                profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId).Dimension,
             TitleSimilarity: ScoreTitle(profile.Title, ad.Title),
             RegionFit: ScoreOrtUnion(
                 profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                 profile.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
-            EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote).Dimension,
+            EmploymentFit: ScoreEmploymentMembership(
+                profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId).Dimension);
     }
 
     // Fas 4 STEG 13 (F4-13, ADR 0076 Decision 5; senior-cto-advisor 2026-06-19
@@ -209,13 +210,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         {
             result[ad.Id] = new MatchScore(
                 SsykOverlap: ScoreSsykMembership(
-                    profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+                    profile.SsykGroupConceptIds, profile.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId).Dimension,
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
                 RegionFit: ScoreOrtUnion(
                     profile.PreferredRegionConceptIds, profile.PreferredMunicipalityConceptIds,
                     profile.ContainmentRegionConceptIds,
-                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
-                EmploymentFit: ScoreEmploymentMembership(profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote).Dimension,
+                EmploymentFit: ScoreEmploymentMembership(
+                    profile.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId).Dimension);
         }
 
         return result;
@@ -282,15 +284,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // Embedded Fast — the SAME four helpers/inputs as ScoreAsync, so the result
         // is identical (the regression contract).
         var fast = profile.Fast;
+        var ssyk = ScoreSsykMembership(
+            fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId);
+        var ort = ScoreOrtUnion(
+            fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+            fast.ContainmentRegionConceptIds,
+            ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote);
+        var employment = ScoreEmploymentMembership(
+            fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId);
         var fastScore = new MatchScore(
-            SsykOverlap: ScoreSsykMembership(
-                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+            SsykOverlap: ssyk.Dimension,
             TitleSimilarity: ScoreTitle(fast.Title, ad.Title),
-            RegionFit: ScoreOrtUnion(
-                fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
-                fast.ContainmentRegionConceptIds,
-                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
-            EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+            RegionFit: ort.Dimension,
+            EmploymentFit: employment.Dimension);
 
         var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
         var cvSkills = profile.CvSkillConceptIds.ToHashSet(StringComparer.Ordinal);
@@ -312,7 +318,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                 fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
             // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
             // SkillOverlap dimension consumed above.
-            CoveredSkillConceptIds(terms, cvSkills));
+            CoveredSkillConceptIds(terms, cvSkills),
+            new MatchDimensionCauses(ssyk.Cause, ort.Cause, employment.Cause));
     }
 
     // Fas 4 STEG 15 (F4-15, ADR 0076 Decision 6) — the zero-N+1 batch form of
@@ -381,15 +388,19 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         var result = new Dictionary<JobAdId, FullScoredMatch>(rows.Count);
         foreach (var ad in rows)
         {
+            var ssyk = ScoreSsykMembership(
+                fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId);
+            var ort = ScoreOrtUnion(
+                fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
+                fast.ContainmentRegionConceptIds,
+                ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote);
+            var employment = ScoreEmploymentMembership(
+                fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId);
             var fastScore = new MatchScore(
-                SsykOverlap: ScoreSsykMembership(
-                    fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
+                SsykOverlap: ssyk.Dimension,
                 TitleSimilarity: ScoreTitle(cvTitleLexemes, ad.Title),
-                RegionFit: ScoreOrtUnion(
-                    fast.PreferredRegionConceptIds, fast.PreferredMunicipalityConceptIds,
-                    fast.ContainmentRegionConceptIds,
-                    ad.RegionConceptId, ad.MunicipalityConceptId, ad.Remote),
-                EmploymentFit: ScoreEmploymentMembership(fast.PreferredEmploymentTypeConceptIds, ad.EmploymentTypeConceptId));
+                RegionFit: ort.Dimension,
+                EmploymentFit: employment.Dimension);
 
             var terms = (ad.ExtractedTerms ?? ExtractedTerms.Empty).Terms;
             var fullScore = new FullMatchScore(
@@ -409,7 +420,8 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
                     fast.SsykGroupConceptIds, fast.RelatedSsykGroupConceptIds, ad.OccupationGroupConceptId),
                 // #477 Low 2 — the covered-skill concept-ids (evidence), same terms/cvSkills the
                 // SkillOverlap dimension consumed above (parity ScoreFullAsync).
-                CoveredSkillConceptIds(terms, cvSkills));
+                CoveredSkillConceptIds(terms, cvSkills),
+                new MatchDimensionCauses(ssyk.Cause, ort.Cause, employment.Cause));
         }
 
         return result;
@@ -510,21 +522,25 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // NotAssessed remains only for the unstated preference (vacuous-gate doctrine).
     // SSYK is NOT gated this way: an ad without an occupation group stays NotAssessed in
     // ScoreSsykMembership (the SSYK gate, not the RB1 floor, owns that case).
-    private static MatchDimension ScoreEmploymentMembership(IReadOnlyList<string> cvPreferred, string? adValue)
+    private static ScoredDimension ScoreEmploymentMembership(IReadOnlyList<string> cvPreferred, string? adValue)
     {
         if (cvPreferred.Count == 0)
         {
-            return NotAssessed();
+            return new(NotAssessed(), MatchDimensionCause.PreferenceUnstated);
         }
 
         if (string.IsNullOrEmpty(adValue))
         {
-            return new MatchDimension(MatchDimensionVerdict.NoMatch, [], []);
+            return new(
+                new MatchDimension(MatchDimensionVerdict.NoMatch, [], []),
+                MatchDimensionCause.AdSilent);
         }
 
-        return cvPreferred.Contains(adValue, StringComparer.Ordinal)
-            ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
-            : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
+        return new(
+            cvPreferred.Contains(adValue, StringComparer.Ordinal)
+                ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
+                : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]),
+            null);
     }
 
     // SSYK gate broadened to exact ∪ related (ADR 0084 §5 / §F4, issue #300). The CV side
@@ -542,18 +558,30 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // via its isRelated parameter in PR-4, together with the Related-cap wiring + the GradeRank
     // SQL-rank parity oracle (ADR 0084 §Implementation). Exact precedence is therefore moot for
     // the verdict here (the union is a Match regardless of which set hit).
-    private static MatchDimension ScoreSsykMembership(
+    private static ScoredDimension ScoreSsykMembership(
         IReadOnlyList<string> exact, IReadOnlyList<string> related, string? adValue)
     {
-        if ((exact.Count == 0 && related.Count == 0) || string.IsNullOrEmpty(adValue))
+        // The guard below used to be one disjunction, so its NotAssessed folded two reasons
+        // into one verdict the reader downstream could not tell apart — and the modal, which
+        // replaces the WHOLE section on a NotAssessed SSYK, told a user who HAD stated an
+        // occupation that she had not. The arms are split so each names its own cause; the
+        // predicate and the verdict are byte-identical to before.
+        if (exact.Count == 0 && related.Count == 0)
         {
-            return NotAssessed();
+            return new(NotAssessed(), MatchDimensionCause.PreferenceUnstated);
         }
 
-        return exact.Contains(adValue, StringComparer.Ordinal)
-               || related.Contains(adValue, StringComparer.Ordinal)
-            ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
-            : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]);
+        if (string.IsNullOrEmpty(adValue))
+        {
+            return new(NotAssessed(), MatchDimensionCause.AdSilent);
+        }
+
+        return new(
+            exact.Contains(adValue, StringComparer.Ordinal)
+                   || related.Contains(adValue, StringComparer.Ordinal)
+                ? new MatchDimension(MatchDimensionVerdict.Match, [adValue], [])
+                : new MatchDimension(MatchDimensionVerdict.NoMatch, [], [adValue]),
+            null);
     }
 
     // #300 PR-4 (ADR 0084 §F4) — the exact-vs-related SPLIT the union verdict (ScoreSsykMembership)
@@ -606,7 +634,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     // kommun of the same län stays NoMatch (the user deliberately narrowed — mirrors search).
     // NotAssessed (not Match) is the honest verdict: a län-only ad does not confirm the user's
     // specific kommun, so it neither floors nor lifts the grade (MatchGradeCalculator RB1 unchanged).
-    private static MatchDimension ScoreOrtUnion(
+    private static ScoredDimension ScoreOrtUnion(
         IReadOnlyList<string> preferredRegions,
         IReadOnlyList<string> preferredMunicipalities,
         IReadOnlyList<string> containmentRegions,
@@ -621,7 +649,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // NotAssessed: no ort preference stated (vacuous-gate doctrine, unchanged).
         if (!stated)
         {
-            return NotAssessed();
+            return new(NotAssessed(), MatchDimensionCause.PreferenceUnstated);
         }
 
         // #551 (ADR 0076 #551 amendment) — a remote ad OVERRIDES the ort gate: it is a location-match
@@ -639,13 +667,13 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         //
         // EMPTY evidence: there is no region concept-id to cite (the ad has none, or a non-matching one),
         // and a magic-string "distans" sentinel in Matched is a §5 anti-pattern that would break the
-        // taxonomy-label resolver. The human reason ("Erbjuder distansarbete") rides a dedicated
-        // match-detail explainer flag (PR-C), not this shared MatchDimension — parity the #552 NoMatch
-        // empty-evidence shape just below. RegionFit=Match both clears the RB1 floor AND earns a confirmed
+        // taxonomy-label resolver. RegionFit=Match both clears the RB1 floor AND earns a confirmed
         // secondary in MatchGradeCalculator, so the calculator needs NO change (verdict-driven parity, #477).
         if (adRemote)
         {
-            return new MatchDimension(MatchDimensionVerdict.Match, [], []);
+            return new(
+                new MatchDimension(MatchDimensionVerdict.Match, [], []),
+                MatchDimensionCause.RemoteOverride);
         }
 
         // #552 grade gate (ADR 0076 amendment): a STATED ort preference against an ad
@@ -655,7 +683,9 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         // what keeps a locationless ad out of ≥Good for a location-scoped user.
         if (!hasAdRegion && !hasAdMunicipality)
         {
-            return new MatchDimension(MatchDimensionVerdict.NoMatch, [], []);
+            return new(
+                new MatchDimension(MatchDimensionVerdict.NoMatch, [], []),
+                MatchDimensionCause.AdSilent);
         }
 
         // A municipality hit/miss is only ever considered when the ad HAS a municipality
@@ -678,7 +708,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
             }
 
             matched.Sort(StringComparer.Ordinal);
-            return new MatchDimension(MatchDimensionVerdict.Match, matched, []);
+            return new(new MatchDimension(MatchDimensionVerdict.Match, matched, []), null);
         }
 
         // #477 Low 1 — containment: a LÄN-ONLY ad (region present, municipality NULL) whose region
@@ -689,7 +719,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         if (hasAdRegion && !hasAdMunicipality
             && containmentRegions.Contains(adRegion!, StringComparer.Ordinal))
         {
-            return NotAssessed();
+            return new(NotAssessed(), MatchDimensionCause.RegionContainsPreferredMunicipality);
         }
 
         // Stated AND the ad has at least one ort value AND no union hit → NoMatch. Missing =
@@ -708,7 +738,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         }
 
         missing.Sort(StringComparer.Ordinal);
-        return new MatchDimension(MatchDimensionVerdict.NoMatch, [], missing);
+        return new(new MatchDimension(MatchDimensionVerdict.NoMatch, [], missing), null);
     }
 
     // Title similarity via stemmed lexeme overlap (F4-2). Matched = ad ∩ cv lexemes;
@@ -783,6 +813,14 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
 
         return new MatchDimension(verdict, matched, missing);
     }
+
+    // A membership scorer's result: the dimension, plus WHY it landed there when the verdict
+    // and the cited evidence do not say so alone. Only the three membership scorers return it —
+    // title and the concept-coverage dimensions have no arm whose reason is unrecoverable.
+    // Infrastructure-internal: what crosses the port is MatchScore + the FullScoredMatch carrier,
+    // never this pair.
+    private readonly record struct ScoredDimension(
+        MatchDimension Dimension, MatchDimensionCause? Cause);
 
     private static MatchDimension NotAssessed() =>
         new(MatchDimensionVerdict.NotAssessed, [], []);

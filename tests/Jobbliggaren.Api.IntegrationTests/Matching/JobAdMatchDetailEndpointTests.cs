@@ -372,9 +372,13 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
 
     private static string Wire(MatchGrade grade) => grade.ToString();
     private static string Wire(MatchDimensionVerdict verdict) => verdict.ToString();
+    private static string Wire(MatchDimensionCause cause) => cause.ToString();
 
     private static string DimVerdict(JsonElement dto, string dimension) =>
         dto.GetProperty(dimension).GetProperty("verdict").GetString()!;
+
+    private static string? DimCause(JsonElement dto, string dimension) =>
+        dto.GetProperty(dimension).GetProperty("cause").GetString();
 
     private static string?[] DimMatched(JsonElement dto, string dimension) =>
         dto.GetProperty(dimension).GetProperty("matched")
@@ -528,6 +532,66 @@ public class JobAdMatchDetailEndpointTests(ApiFactory factory)
 
         dto.GetProperty("grade").ValueKind.ShouldBe(JsonValueKind.Null);
         DimVerdict(dto, "ssykOverlap").ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+
+        // The REASON, by name on the wire. This verdict has two producers and the client cannot
+        // tell them apart from the verdict alone, so an assertion on the verdict is only half the
+        // contract. Here the user really has stated nothing, so the honest cause is the unstated
+        // one; the sibling test below is the same verdict from the other producer.
+        DimCause(dto, "ssykOverlap").ShouldBe(Wire(MatchDimensionCause.PreferenceUnstated));
+    }
+
+    // The fifth instance of the #1598 defect form, pinned on the wire: SAME verdict, different
+    // producer. Before the split the modal replaced the entire match section with "Du har inte
+    // angett vilka yrken du söker inom" and a link to a setting this user had already filled in.
+    [Fact]
+    public async Task GET_match_detail_names_the_ad_as_the_silent_side_when_the_ad_has_no_occupation_group()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var grp = NewConceptId("grp");
+        await SetPreferencesAsync([grp], [], [], ct);
+
+        // The ad carries NO occupation group. JobAd.OccupationGroupConceptId is nullable and the
+        // Platsbanken ACL maps it straight from the payload, so a payload without one produces
+        // this row.
+        var adId = await SeedJobAdAsync(
+            "Systemutvecklare", occupationGroupConceptId: null, null, null, terms: null, ct);
+
+        var response = await GetDetailAsync(adId, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        DimVerdict(dto, "ssykOverlap").ShouldBe(Wire(MatchDimensionVerdict.NotAssessed));
+        DimCause(dto, "ssykOverlap").ShouldBe(Wire(MatchDimensionCause.AdSilent));
+    }
+
+    // `cause` is asserted as JsonValueKind.Null rather than merely absent, for the same reason the
+    // `label` pin is: the FE schema is `.nullable()`, not `.optional()`, and a strict parser
+    // rejects a missing key. A row whose evidence explains itself must therefore send an explicit
+    // null, and this is the only test that would catch the key going away entirely.
+    [Fact]
+    public async Task GET_match_detail_sends_an_explicit_null_cause_when_the_evidence_explains_itself()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+        await SetPreferencesAsync([grp], [reg], [emp], ct);
+        var adId = await SeedJobAdAsync("Systemutvecklare", grp, reg, emp, terms: null, ct);
+
+        var response = await GetDetailAsync(adId, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var dto = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        foreach (var dimension in new[] { "ssykOverlap", "regionFit", "employmentFit" })
+        {
+            DimVerdict(dto, dimension).ShouldBe(Wire(MatchDimensionVerdict.Match));
+            dto.GetProperty(dimension).GetProperty("cause").ValueKind
+                .ShouldBe(JsonValueKind.Null, $"{dimension} citerar bevis och behöver inget skäl");
+        }
     }
 
     // =================================================================

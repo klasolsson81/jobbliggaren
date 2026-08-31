@@ -2,9 +2,8 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 
 /// <summary>
 /// #300 PR-4 (ADR 0084 §F4 / §5 point 5; senior-cto-advisor carrier-bind 2026-06-28,
-/// Variant A) — the FULL scorer's port result, the frozen <see cref="FullMatchScore"/>
-/// PLUS the single bit the grade ladder needs to split exact-vs-related:
-/// <see cref="SsykIsRelated"/>.
+/// Variant A) — the FULL scorer's port result: the frozen <see cref="FullMatchScore"/> plus the
+/// signals the score type cannot carry, each documented on its own parameter below.
 /// <para>
 /// <b>Why a separate carrier, not a field on <see cref="FullMatchScore"/> (PR-2 bind):</b>
 /// the score types are arch-pinned BY SHAPE (Goodhart guard — <c>FullMatchScore</c> is
@@ -55,7 +54,14 @@ namespace Jobbliggaren.Application.Matching.Abstractions;
 /// cannot be summed into an opaque total (parity the <c>UserJobAdMatchGoodhartTests</c> which
 /// bless "the evidence is a string list"). Empty when the profile has no confirmed skills or the
 /// ad has no covered Skill terms (honest "nothing to cite").</param>
+/// <param name="Causes">Why each membership dimension landed where it did, when its verdict and
+/// evidence do not say so alone — see <see cref="MatchDimensionCauses"/>. A third categorical
+/// signal carried beside the score for the same reason as <paramref name="SsykIsRelated"/>: it is
+/// scorer-computed knowledge that <see cref="MatchDimension"/> cannot express, and
+/// <see cref="FullMatchScore"/> is shape-frozen by the Goodhart pin. Every member is nullable —
+/// absence means the evidence explains itself.</param>
 public sealed record FullScoredMatch(
     FullMatchScore Score,
     bool SsykIsRelated,
-    IReadOnlyList<string> MatchedSkillConceptIds);
+    IReadOnlyList<string> MatchedSkillConceptIds,
+    MatchDimensionCauses Causes);

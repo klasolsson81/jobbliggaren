@@ -89,18 +89,8 @@ public class FullMatchScorerLayerTests
     }
 
     [Fact]
-    public void FullScoredMatch_carries_exactly_Score_SsykIsRelated_and_MatchedSkillEvidence()
+    public void FullScoredMatch_carries_exactly_Score_SsykIsRelated_MatchedSkillEvidence_and_Causes()
     {
-        // PR-4 (#300, ADR 0084 — PR-2 bind) + #477 Low 2: the FULL-scorer carrier is exactly
-        // { Score (the frozen FullMatchScore), SsykIsRelated, MatchedSkillConceptIds }. Both
-        // extra members ride BESIDE the Goodhart-frozen FullMatchScore, never inside it:
-        // SsykIsRelated is a CATEGORICAL bool (a ladder BRANCH — the MatchGrade.Related flat cap),
-        // and MatchedSkillConceptIds is a string-list EVIDENCE payload (the covered-skill
-        // concept-ids the background scan persists into UserJobAdMatch, #477 Low 2). NEITHER is a
-        // magnitude — neither blends into a number. Pinned BY SHAPE so a sneak-total or an extra
-        // scoring dimension still cannot creep onto the carrier; a string-list of matched ids is
-        // explicitly the ALLOWED explainability shape (parity UserJobAdMatchGoodhartTests, which
-        // bless "the evidence is a string list").
         var carrier = typeof(Jobbliggaren.Application.Matching.Abstractions.FullScoredMatch);
 
         var propNames = carrier
@@ -112,12 +102,13 @@ public class FullMatchScorerLayerTests
             .ToList();
 
         propNames.ShouldBe(
-            ["Score", "SsykIsRelated", "MatchedSkillConceptIds"],
+            ["Score", "SsykIsRelated", "MatchedSkillConceptIds", "Causes"],
             ignoreOrder: true,
             "FullScoredMatch ska bära EXAKT { Score (frusen FullMatchScore), SsykIsRelated, " +
-            "MatchedSkillConceptIds } — ingen extra scoring-dimension och ingen opak total. " +
-            "SsykIsRelated är en KATEGORISK ladder-gren (MatchGrade.Related-cap); " +
-            "MatchedSkillConceptIds är string-list-EVIDENS (matchade skill-concept-ids), ingen " +
+            "MatchedSkillConceptIds, Causes } — ingen extra scoring-dimension och ingen opak " +
+            "total. SsykIsRelated är en KATEGORISK ladder-gren (MatchGrade.Related-cap); " +
+            "MatchedSkillConceptIds är string-list-EVIDENS (matchade skill-concept-ids); Causes " +
+            "är bundna per-dimensions-DISKRIMINATORER. Ingen av dem är en " +
             $"magnitud. Faktiska: [{string.Join(", ", propNames)}].");
     }
 
@@ -150,6 +141,70 @@ public class FullMatchScorerLayerTests
         matchedSkills!.PropertyType.ShouldBe(typeof(IReadOnlyList<string>),
             "MatchedSkillConceptIds ska vara IReadOnlyList<string> — string-list-evidens " +
             "(matchade skill-concept-ids), aldrig en numerisk typ en magnitud kan gömma sig bakom.");
+
+        var causes = carrier.GetProperty("Causes",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        causes.ShouldNotBeNull("FullScoredMatch ska ha en Causes-property.");
+        causes!.PropertyType.ShouldBe(
+            typeof(Jobbliggaren.Application.Matching.Abstractions.MatchDimensionCauses),
+            "Causes ska vara MatchDimensionCauses — en namngiven enhet, inte tre lösa fält.");
+    }
+
+    [Fact]
+    public void MatchDimensionCauses_carries_exactly_the_three_membership_dimensions()
+    {
+        // The unit exists so the handler's mapping onto the three modal rows is by NAME, and so an
+        // eighth membership dimension is ONE compile error in ONE place. Its property names must
+        // therefore stay identical to the three JobAdMatchDetailDto row properties they feed.
+        var causes = typeof(Jobbliggaren.Application.Matching.Abstractions.MatchDimensionCauses);
+
+        var propNames = causes
+            .GetProperties(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance)
+            .Where(p => p.Name != "EqualityContract")
+            .Select(p => p.Name)
+            .ToList();
+
+        propNames.ShouldBe(
+            ["SsykOverlap", "RegionFit", "EmploymentFit"],
+            ignoreOrder: true,
+            "MatchDimensionCauses ska bära EXAKT de tre membership-dimensionerna, med samma namn " +
+            "som modal-DTO:ns rader. Titel och de tre CV-täckningsdimensionerna har ingen arm " +
+            $"vars skäl går förlorat, och ska inte stå här. Faktiska: [{string.Join(", ", propNames)}].");
+
+        foreach (var name in propNames)
+        {
+            causes.GetProperty(name)!.PropertyType.ShouldBe(
+                typeof(Jobbliggaren.Application.Matching.Abstractions.MatchDimensionCause?),
+                $"{name} ska vara MatchDimensionCause? — frånvaro betyder att beviset förklarar " +
+                "sig självt, och det är därför enumet inte har någon None-medlem.");
+        }
+    }
+
+    [Fact]
+    public void MatchDimensionCause_is_the_locked_four_member_set()
+    {
+        // A bounded vocabulary read by a STRICT client parser: the modal's zod schema rejects an
+        // unknown value rather than degrading it, so a member added here without its catalogue
+        // word and schema entry breaks the modal instead of silently reading as "no cause".
+        // Pinned by NAME (the wire form is the name, JsonStringEnumConverter), parity
+        // MatchDimensionVerdict's own member pin.
+        var names = Enum
+            .GetNames<Jobbliggaren.Application.Matching.Abstractions.MatchDimensionCause>()
+            .ToList();
+
+        names.ShouldBe(
+            [
+                "PreferenceUnstated",
+                "AdSilent",
+                "RemoteOverride",
+                "RegionContainsPreferredMunicipality",
+            ],
+            ignoreOrder: true,
+            "MatchDimensionCause är en BUNDEN vokabulär mot en strikt FE-parser. En ny medlem " +
+            "kräver en katalogfras per locale (sv + en) och en zod-utökning i samma PR — annars " +
+            $"faller modal-hämtningen. Faktiska: [{string.Join(", ", names)}].");
     }
 
     [Fact]

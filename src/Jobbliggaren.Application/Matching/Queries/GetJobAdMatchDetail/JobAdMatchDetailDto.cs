@@ -76,10 +76,13 @@ public sealed record MatchDimensionDetailDto(
 /// naming can FAIL, which neither of the other two can.
 /// </para>
 /// </remarks>
+/// <param name="Cause">Why this dimension landed where it did, when its verdict and evidence do
+/// not say so alone; <c>null</c> when they do. See <see cref="MatchDimensionCause"/>.</param>
 public sealed record MatchCodedDimensionDetailDto(
     MatchDimensionVerdict Verdict,
     IReadOnlyList<string> MatchedConceptIds,
-    IReadOnlyList<string> MissingConceptIds);
+    IReadOnlyList<string> MissingConceptIds,
+    MatchDimensionCause? Cause);
 
 /// <summary>
 /// The same row for the two dimensions whose evidence is REGISTER data this layer names from
@@ -109,10 +112,15 @@ public sealed record MatchCodedDimensionDetailDto(
 /// close. Pinned in <c>GetJobAdMatchDetailQueryHandlerTests</c>.
 /// </para>
 /// </remarks>
+/// <param name="Cause">Why this dimension landed where it did, when its verdict and evidence do
+/// not say so alone; <c>null</c> when they do. See <see cref="MatchDimensionCause"/>. It is
+/// independent of the naming failure <see cref="MatchRegisterConceptDto.Label"/> models: a row can
+/// cite concepts it cannot name AND carry no cause, or carry a cause and cite nothing.</param>
 public sealed record MatchRegisterDimensionDetailDto(
     MatchDimensionVerdict Verdict,
     IReadOnlyList<MatchRegisterConceptDto> Matched,
-    IReadOnlyList<MatchRegisterConceptDto> Missing);
+    IReadOnlyList<MatchRegisterConceptDto> Missing,
+    MatchDimensionCause? Cause);
 
 /// <summary>
 /// One register concept on a match-detail row: the taxonomy concept id, plus the name the

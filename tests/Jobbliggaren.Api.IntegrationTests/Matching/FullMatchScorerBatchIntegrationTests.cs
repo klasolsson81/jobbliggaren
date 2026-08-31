@@ -228,6 +228,50 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
     //    (the four Fast dims AND the three new dims), incl. the jsonb materialisation.
     // =================================================================
 
+    // The per-key contract above compares batch against single, which catches a transposed
+    // MatchDimensionCauses wiring ONLY where the two swapped slots differ for some ad. Measured
+    // on that fixture: ad1 is (null, null, null), ad2 is (null, null, AdSilent) and ad3 is
+    // (AdSilent, AdSilent, AdSilent) -- ssyk and ort hold the SAME value in all three, so
+    // swapping those two survives it. This test seeds the missing pattern and pins the triple
+    // outright, so every pairwise transposition fails something.
+    [Fact]
+    public async Task ScoreFullBatch_WiresEachCauseToItsOwnDimension()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var grp = NewConceptId("grp");
+        var reg = NewConceptId("reg");
+        var emp = NewConceptId("emp");
+
+        // Silent on ORT only: the ad names an occupation group and an employment type the user
+        // asked for, and no workplace address at all. The Platsbanken ACL maps the two ort facets
+        // straight from workplace_address, so a payload without one produces this row.
+        var ortSilent = await SeedJobAdAsync("Systemutvecklare", grp, null, emp, terms: null, ct);
+        // Silent on EMPLOYMENT only.
+        var employmentSilent = await SeedJobAdAsync("Systemutvecklare", grp, reg, null, terms: null, ct);
+
+        var fast = new CandidateMatchProfile(
+            Title: "Systemutvecklare",
+            SsykGroupConceptIds: [grp],
+            PreferredRegionConceptIds: [reg],
+            PreferredEmploymentTypeConceptIds: [emp],
+            PreferredMunicipalityConceptIds: []);
+        var profile = FullProfile(fast);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var batch = await scorer.ScoreFullBatchAsync([ortSilent, employmentSilent], profile, ct);
+
+        // (null, AdSilent, null) and (null, null, AdSilent): the two differ in WHICH slot carries
+        // the cause, so ssyk<->ort, ssyk<->employment and ort<->employment each break one of them.
+        batch[ortSilent].Causes.ShouldBe(
+            new MatchDimensionCauses(SsykOverlap: null, RegionFit: MatchDimensionCause.AdSilent, EmploymentFit: null),
+            "en annons som bara tiger om ORT ska bara bära en orsak på ort-raden");
+        batch[employmentSilent].Causes.ShouldBe(
+            new MatchDimensionCauses(SsykOverlap: null, RegionFit: null, EmploymentFit: MatchDimensionCause.AdSilent),
+            "en annons som bara tiger om ANSTÄLLNINGSFORM ska bara bära en orsak på den raden");
+    }
+
     [Fact]
     public async Task ScoreFullBatch_ForManyAds_EachKeyEqualsScoreFullAsync_AndSurfacesNewVerdicts()
     {
@@ -277,6 +321,11 @@ public class FullMatchScorerBatchIntegrationTests(ApiFactory factory)
             // CoveredSkillConceptIds helper on both paths).
             batch[id].MatchedSkillConceptIds.ShouldBe(single.MatchedSkillConceptIds,
                 "MatchedSkillConceptIds batch==single (per-key regression contract)");
+            // The batch arm builds MatchDimensionCauses from its own three locals, so a
+            // transposed wiring there compiles and every single-path cause test stays green.
+            // This is the only assertion that sees it.
+            batch[id].Causes.ShouldBe(single.Causes,
+                "Causes batch==single (per-key regression contract)");
         }
 
         // Sanity that the seed genuinely exercised the new dims on ad1.

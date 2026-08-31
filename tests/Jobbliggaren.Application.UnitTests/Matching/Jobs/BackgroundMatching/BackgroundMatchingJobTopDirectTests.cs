@@ -139,7 +139,7 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? []),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: false, matchedSkills ?? [], MatchDimensionCauses.None),
             });
 
     // PR-4 (#300): stub the carrier with SsykIsRelated:true → the Worker grades Related (flat cap)
@@ -151,7 +151,7 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true, []),
+                [jobAdId] = new FullScoredMatch(score, SsykIsRelated: true, [], MatchDimensionCauses.None),
             });
 
     private static async Task<UserJobAdMatch?> ReloadMatchAsync(
@@ -422,8 +422,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
             });
 
         await CreateJob(db).RunAsync(ct);
@@ -462,8 +462,8 @@ public class BackgroundMatchingJobTopDirectTests
                 Arg.Any<CancellationToken>())
             .Returns(new Dictionary<JobAdId, FullScoredMatch>
             {
-                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
-                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, []),
+                [adA] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
+                [adB] = new FullScoredMatch(TopScore(), SsykIsRelated: false, [], MatchDimensionCauses.None),
             });
 
         // First send throws, the second succeeds (dispatch order over the score dict is not

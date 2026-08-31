@@ -366,7 +366,7 @@ export function JobAdTypeahead({
                   Ingen ikon: en ikon utan text särskiljer ingenting för en skärmläsare, och
                   hela li:ns textinnehåll är radens tillgängliga namn. */}
               {item.kind === "Employer" && item.adCount !== null && (
-                <span className="shrink-0 text-text-secondary tabular-nums">
+                <span className="shrink-0 text-caption font-medium text-text-secondary tabular-nums">
                   {t("typeahead.employerAdCount", { count: item.adCount })}
                 </span>
               )}

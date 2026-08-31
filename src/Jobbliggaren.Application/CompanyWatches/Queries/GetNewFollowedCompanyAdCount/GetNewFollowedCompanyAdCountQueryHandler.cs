@@ -85,7 +85,11 @@ public sealed class GetNewFollowedCompanyAdCountQueryHandler(
 
         // Grade path: at least one active watch has an "endast matchade" filter. Materialize the
         // (per-user-bounded) new hits and read-time-filter the OnlyMatched watches' hits to ≥Good.
-        var newHits = await newHitsBase.ToListAsync(cancellationToken);
+        var newHits = (await newHitsBase
+                .Select(h => new { h.JobAdId, h.CompanyWatchId, h.CreatedAt })
+                .ToListAsync(cancellationToken))
+            .Select(h => new NewFollowedCompanyAdSet.Hit(h.JobAdId, h.CompanyWatchId, h.CreatedAt))
+            .ToList();
 
         var idsToGrade = newHits
             .Where(h => scope.GradeWatchIds.Contains(h.CompanyWatchId))

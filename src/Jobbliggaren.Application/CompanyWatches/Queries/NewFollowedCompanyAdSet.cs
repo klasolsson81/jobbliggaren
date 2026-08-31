@@ -102,15 +102,25 @@ internal static class NewFollowedCompanyAdSet
     /// Testcontainers (FollowedCompanyAdRailTests) is the oracle that proves this one translates AND
     /// that the count and the list return the same set.
     /// </para>
+    /// <para>
+    /// <b>Returns the hit ENTITY, not a shaped row, and that is not a style choice.</b> A
+    /// constructor projection cannot be composed onto: <c>NewHits(...).Select(h =&gt; h.JobAdId)</c>
+    /// compiles and then throws at RUNTIME inside EF's shaper
+    /// (<c>InvalidOperationException</c> in <c>GetProjectionIndex</c>), which is precisely what the
+    /// common path's <c>COUNT(DISTINCT)</c> needs to do. Handing back the entity lets each consumer
+    /// project what it needs while the predicate stays single-sourced. InMemory hides this;
+    /// FollowedCompanyAdRailTests against Testcontainers is the oracle that caught it.
+    /// </para>
     /// </summary>
-    public static IQueryable<Hit> NewHits(IAppDbContext db, Guid userId, DateTimeOffset? lastSeen) =>
-        from h in db.FollowedCompanyAdHits
+    public static IQueryable<FollowedCompanyAdHit> NewHits(
+        IAppDbContext db, Guid userId, DateTimeOffset? lastSeen) =>
+        from h in db.FollowedCompanyAdHits.AsNoTracking()
         where h.UserId == userId && (lastSeen == null || h.CreatedAt > lastSeen)
         join w in db.CompanyWatches on h.CompanyWatchId equals w.Id
         where w.UserId == userId
         join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
         where j.Status == JobAdStatus.Active
-        select new Hit(h.JobAdId, h.CompanyWatchId, h.CreatedAt);
+        select h;
 
     /// <summary>
     /// Read-time at-least-Good membership via the shared SSOT. Api-side, so

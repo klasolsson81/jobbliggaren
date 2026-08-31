@@ -161,9 +161,7 @@ function titleSummary(verdict: MatchVerdict, t: MatchTranslator): string | null 
  *
  * TRE hinkar, inte två (#1598). Okänd label (saknas i kartan — äkta träd-
  * divergens) föll förut i `regions`-hinken, som renderas "Län som matchar: X":
- * ett explicit län-PÅSTÅENDE om något vi inte kunde klassa. Både den här filens
- * kommentar och `ort-granularity.ts` lovade i stället att namnet visas "rakt av",
- * vilket koden inte gjorde. Den tredje hinken levererar löftet.
+ * ett explicit län-PÅSTÅENDE om något vi inte kunde klassa.
  */
 function splitOrtByGranularity(
   labels: ReadonlyArray<string>,
@@ -180,7 +178,7 @@ function splitOrtByGranularity(
       // Gotland-fallet ingår här: tvetydiga namn klassas medvetet som coarser.
       regions.push(label);
     } else {
-      // Saknas i kartan → namnet rakt av, ingen kategori vi inte kan belägga.
+      // Saknas i kartan → ingen kategori vi inte kan belägga.
       plain.push(label);
     }
   }

@@ -451,15 +451,19 @@ public class GetJobAdMatchDetailQueryHandlerTests
         // A snapshot that names NOTHING is what the real port emits after a taxonomy swap
         // drops the ids these ads were indexed under; it is the extreme of the same state
         // FakeTaxonomy's `unresolved` reproduces, not a different one.
+        //
+        // The dimensions are shaped the way their own scorer branches shape them, so the pin
+        // measures a state production reaches: ScoreSsykMembership emits exactly ONE id
+        // ([adValue]) and never both lists; ScoreOrtUnion emits EITHER matched OR missing,
+        // never both, with at most two entries (the ad's region plus its municipality).
         var ct = TestContext.Current.CancellationToken;
         var score = new FullMatchScore(
             Fast: new MatchScore(
-                SsykOverlap: Dim(MatchDimensionVerdict.NoMatch, missing: ["grp_1", "grp_2"]),
+                SsykOverlap: Dim(MatchDimensionVerdict.Match, matched: ["grp_1"]),
                 TitleSimilarity: Dim(MatchDimensionVerdict.NotAssessed),
                 RegionFit: Dim(
                     MatchDimensionVerdict.NoMatch,
-                    matched: ["region_1"],
-                    missing: ["region_2", "region_3"]),
+                    missing: ["region_1", "region_2"]),
                 EmploymentFit: Dim(MatchDimensionVerdict.NotAssessed)),
             SkillOverlap: Dim(MatchDimensionVerdict.NotAssessed),
             MustHaveCoverage: Dim(MatchDimensionVerdict.NotAssessed),
@@ -467,7 +471,7 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var nothingResolves = new FakeTaxonomy(
             unresolved: new HashSet<string>(StringComparer.Ordinal)
             {
-                "grp_1", "grp_2", "region_1", "region_2", "region_3",
+                "grp_1", "region_1", "region_2",
             });
         var sut = CreateHandler(
             new FakeProfileBuilder(FullProfileWithOccupation("skill-csharp")),
@@ -477,11 +481,11 @@ public class GetJobAdMatchDetailQueryHandlerTests
         var result = (await sut.Handle(new GetJobAdMatchDetailQuery(Guid.NewGuid()), ct)).Value;
 
         result.ShouldNotBeNull();
-        result!.SsykOverlap.Missing.Count.ShouldBe(2);
-        result.RegionFit.Matched.Count.ShouldBe(1);
+        // Both sides of a register row, and both cardinalities their scorers can produce.
+        result!.SsykOverlap.Matched.Count.ShouldBe(1);
         result.RegionFit.Missing.Count.ShouldBe(2);
         // Not one name among them — so the counts above are carried by the entries alone.
-        Labels(result.SsykOverlap.Missing).ShouldAllBe(l => l == null);
+        Labels(result.SsykOverlap.Matched).ShouldAllBe(l => l == null);
         Labels(result.RegionFit.Missing).ShouldAllBe(l => l == null);
     }
 

@@ -17,8 +17,8 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
  * som det COARSER (`"region"`). Det är den säkra defaulten eftersom ett läns-id
  * i `preferredRegions` representerar HELA länet (kommun-träffen ingår), och
  * copyn för en län-träff ("hela länet") aldrig över-påstår en exakt kommun. En
- * ren plain-label-fallback (ingen kategori-prefix) gäller för labels som inte
- * finns i taxonomin alls (stale snapshot) — då visas namnet rakt av.
+ * egen plain-hink gäller för labels som inte finns i taxonomin alls (stale
+ * snapshot).
  */
 
 export type OrtGranularity = "region" | "municipality";
@@ -60,7 +60,7 @@ export function buildOrtGranularityMap(
 
 /**
  * Klassar EN matched/missing-label. Okänd label (saknas i taxonomin, t.ex. en
- * stale snapshot) → `null`: anroparen visar då namnet rakt av utan kategori.
+ * stale snapshot) → `null`.
  */
 export function classifyOrtLabel(
   label: string,

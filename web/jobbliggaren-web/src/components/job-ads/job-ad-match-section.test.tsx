@@ -454,11 +454,10 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     ).toBeInTheDocument();
   });
 
-  it("label som saknas i kartan visas rakt av, utan kategori-prefix (#1598)", () => {
+  it("label som saknas i kartan får ort-ramen, inte ett län-påstående (#1598)", () => {
     // Före #1598 föll den i län-hinken och renderades "Län som matchar: Gotland"
-    // — ett explicit län-PÅSTÅENDE om ett namn vi inte kunde klassa. Både den här
-    // filens kommentar och `ort-granularity.ts` lovade "namnet rakt av"; nu gör
-    // koden det. Ett namn i kartan påverkas inte (nästa test).
+    // — ett explicit län-PÅSTÅENDE om ett namn vi inte kunde klassa. Ett namn i
+    // kartan påverkas inte (nästa test).
     render(
       <JobAdMatchSection
         match={detail({ regionFit: registerRow("Match", ["Gotland"]) })}
@@ -663,17 +662,22 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       ).toBeInTheDocument();
     });
 
-    it("räknar plural, och gäller Yrke-raden lika väl som Region", () => {
+    it("räknar plural — och två är producerbart bara på Region-raden", () => {
+      // `ScoreOrtUnion` bygger `new List<string>(2)` och kan lägga BÅDE annonsens län
+      // och dess kommun i samma lista (`MatchScorer.cs`), så två onämnbara orter är ett
+      // tillstånd produktionen faktiskt producerar. `ScoreSsykMembership` emitterar
+      // `[adValue]` — ETT id — så samma pin på Yrke-raden hade vilat på ett tillstånd
+      // som inte finns (AGENTS.md §5 `Tests:`). Yrke-raden pinnas därför vid ett.
       render(
         <JobAdMatchSection
           match={detail({
             grade: "Basic",
-            ssykOverlap: registerRow("NoMatch", [], [null, null]),
+            regionFit: registerRow("NoMatch", [], [null, null]),
           })}
         />
       );
       expect(
-        screen.getByText("Annonsen anger 2 yrken som saknas i vårt register.")
+        screen.getByText("Annonsen anger 2 orter som saknas i vårt register.")
       ).toBeInTheDocument();
     });
 
@@ -699,8 +703,8 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         <JobAdMatchSection
           match={detail({
             grade: "Basic",
-            ssykOverlap: registerRow("NoMatch", [], [null, null]),
-            regionFit: registerRow("NoMatch", [], [null]),
+            ssykOverlap: registerRow("NoMatch", [], [null]),
+            regionFit: registerRow("NoMatch", [], [null, null]),
           })}
         />
       );
@@ -708,14 +712,16 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         const cell = within(container as HTMLElement).getByText(label);
         return cell.closest(".jp-modal__matchrow") as HTMLElement;
       };
+      // Ett på Yrke, två på Region — båda producerbara per sin egen scorer-gren, och
+      // olika, så en förväxling mellan radernas räknare inte kan passera.
       expect(
         within(rowFor("Yrke")).getByText(
-          "Annonsen anger 2 yrken som saknas i vårt register."
+          "Annonsen anger ett yrke som saknas i vårt register."
         )
       ).toBeInTheDocument();
       expect(
         within(rowFor("Region")).getByText(
-          "Annonsen anger en ort som saknas i vårt register."
+          "Annonsen anger 2 orter som saknas i vårt register."
         )
       ).toBeInTheDocument();
     });

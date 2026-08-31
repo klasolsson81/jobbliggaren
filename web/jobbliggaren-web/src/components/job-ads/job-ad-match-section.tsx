@@ -4,6 +4,7 @@ import { Check, Minus } from "lucide-react";
 import { MatchChip } from "./match-chip";
 import type {
   JobAdMatchDetail,
+  MatchCause,
   MatchDimensionDetail,
   MatchRegisterDimensionDetail,
   MatchVerdict,
@@ -78,29 +79,52 @@ function MatchSectionHeading({
 }
 
 /**
- * "Ej bedömt"-skäl per dimension. Honest, namnger VARFÖR (design §2.C) —
- * aldrig en tyst blank. matched[]/missing[] är tomma för NotAssessed-rader, så
- * skälet härleds ur dimensionen.
+ * "Ej bedömt"-skäl för de dimensioner som har EXAKT ETT sätt att bli obedömda, så
+ * att skälet går att läsa ur dimensionen ensam. De tre membership-dimensionerna
+ * har inte det längre och står därför inte här: deras skäl kommer från servern
+ * (`causeReason`), som är den enda som vet vilken arm som körde.
  */
 function notAssessedReason(
   key: keyof Omit<JobAdMatchDetail, "grade">,
   t: MatchTranslator,
 ): string {
   switch (key) {
-    case "ssykOverlap":
-      return t("notAssessedReason.ssykOverlap");
     case "titleSimilarity":
       return t("notAssessedReason.titleSimilarity");
-    case "regionFit":
-      return t("notAssessedReason.regionFit");
-    case "employmentFit":
-      return t("notAssessedReason.employmentFit");
     case "skillOverlap":
     case "mustHaveCoverage":
     case "niceToHaveCoverage":
       return t("notAssessedReason.skills");
     default:
       return t("notAssessedReason.default");
+  }
+}
+
+/**
+ * Serverns skäl för raden, i katalogens ord. Nyckeln är paret (orsak, dimension):
+ * samma orsak får olika ord per dimension ("...någon region" / "...någon
+ * anställningsform"), så copyn är genuint nycklad på båda.
+ *
+ * Bara de par backend faktiskt producerar står i katalogen. `ssykOverlap` och
+ * `employmentFit` har två armar var, `regionFit` fyra — och en dimension utan
+ * orsak alls får `null` och faller vidare till nästa gren. Ingen fras uppfinns
+ * här för ett par som inte kan uppstå.
+ */
+function causeReason(
+  key: keyof Omit<JobAdMatchDetail, "grade">,
+  cause: MatchCause,
+  t: MatchTranslator,
+): string | null {
+  switch (key) {
+    case "ssykOverlap":
+    case "employmentFit":
+      return cause === "PreferenceUnstated" || cause === "AdSilent"
+        ? t(`matchCause.${cause}.${key}`)
+        : null;
+    case "regionFit":
+      return t(`matchCause.${cause}.regionFit`);
+    default:
+      return null;
   }
 }
 
@@ -204,6 +228,7 @@ function splitRegisterRow(detail: MatchRegisterDimensionDetail): MatchRowModel {
     missing,
     unnamedCount:
       detail.matched.length - matched.length + (detail.missing.length - missing.length),
+    cause: detail.cause,
   };
 }
 
@@ -218,11 +243,22 @@ function splitRegisterRow(detail: MatchRegisterDimensionDetail): MatchRowModel {
  * ett lager ned. En framtida åttonde dimension blir nu ett kompileringsfel i
  * stället för en tyst nolla.
  */
-type MatchRowModel = MatchDimensionDetail & { unnamedCount: number };
+type MatchRowModel = MatchDimensionDetail & {
+  unnamedCount: number;
+  cause: MatchCause | null;
+};
 
-/** En rad utan onämnbara poster: fem av sju dimensioner kan aldrig ha några. */
-function shown(detail: MatchDimensionDetail): MatchRowModel {
-  return { ...detail, unnamedCount: 0 };
+/**
+ * En rad utan onämnbara poster: fem av sju dimensioner kan aldrig ha några.
+ * `cause` defaultar till null — fyra av dem kan inte ha någon orsak heller
+ * (titel jämför stammar, de tre CV-dimensionerna citerar alltid Display-labels
+ * eller är Vacuous); `employmentFit` är den femte och skickar sin egen.
+ */
+function shown(
+  detail: MatchDimensionDetail,
+  cause: MatchCause | null = null,
+): MatchRowModel {
+  return { ...detail, unnamedCount: 0, cause };
 }
 
 /**
@@ -383,22 +419,13 @@ function MatchRow({
 }) {
   const word = t(`verdict.${detail.verdict}`);
   const isNotAssessed = detail.verdict === "NotAssessed";
-  // #552-grinden: en angiven ort-/anställningsform-preferens mot en annons som
-  // INTE anger dimensionen ger NoMatch med TOM matched/missing (inget att citera
-  // — annonsen är tyst). Bevisraden förklarar VARFÖR i neutral ink (annonsens
-  // tystnad är inget fel), i stället för en tom cell. ADR 0076-amendment.
-  //
-  // #1598 — `unnamedCount === 0` är inte en fjärde carve-out utan det som gör de
-  // två längd-testen sanna igen: `detail` bär de NAMNGIVNA posterna, så en rad
-  // vars enda citerade koncept saknar namn ser tom ut här utan att vara det.
-  // Utan konjunktionen skulle grenen påstå "Annonsen anger ingen region." om en
-  // annons som anger en — exakt defekten den här PR:en finns för att stänga.
-  const isAdUnspecified =
-    detail.verdict === "NoMatch" &&
-    detail.matched.length === 0 &&
-    detail.missing.length === 0 &&
-    detail.unnamedCount === 0 &&
-    (dimensionKey === "regionFit" || dimensionKey === "employmentFit");
+  // Serverns skäl, när det finns ett. Det ersätter den gren som förut GISSADE
+  // skälet ur (verdict, tomhet, dimension): den avbildningen är inte injektiv,
+  // så gissningen blev fel i tre mätta fall. En rad med orsak citerar per
+  // konstruktion inget bevis, så grenen står först utan att skugga något.
+  const reason = detail.cause !== null
+    ? causeReason(dimensionKey, detail.cause, t)
+    : null;
   const unnamed =
     detail.unnamedCount > 0
       ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
@@ -437,7 +464,12 @@ function MatchRow({
         {word}
       </span>
       <span className="jp-modal__matchrow-evidence">
-        {isNotAssessed ? (
+        {reason !== null ? (
+          // Serverns skäl, i katalogens ord. Neutral ink: varken annonsens
+          // tystnad, ett distansjobb eller ett län som rymmer din kommun är
+          // användarens fel.
+          <span className="jp-modal__matchrow-missing">{reason}</span>
+        ) : isNotAssessed ? (
           <span className="jp-modal__matchrow-missing">
             {notAssessedReason(dimensionKey, t)}
           </span>
@@ -447,15 +479,6 @@ function MatchRow({
           // matchrow-missing = ink-2, ej röd — ett relaterat yrke är inget fel).
           <span className="jp-modal__matchrow-missing">
             {t("relatedYrkeReason")}
-          </span>
-        ) : isAdUnspecified ? (
-          // #552 — annonsen anger inte dimensionen: förklara i stället för en
-          // tom bevis-cell. FÖRE granularitets-grenen (som annars renderar
-          // ingenting när matched/missing båda är tomma). Neutral ink.
-          <span className="jp-modal__matchrow-missing">
-            {dimensionKey === "regionFit"
-              ? t("adUnspecifiedReason.regionFit")
-              : t("adUnspecifiedReason.employmentFit")}
           </span>
         ) : useOrtGranularity ? (
           <RegionFitEvidence
@@ -514,8 +537,14 @@ export function JobAdMatchSection({
   // Inloggad användare UTAN angivet yrke (yrket kan inte bedömas): visa EN
   // ärlig signpost-rad i stället för nedbrytningen, med kanonisk Översikt-copy
   // (design §2.E #2 — ingen string-drift mellan ytor).
+  // Skylten ersätter HELA sektionen och talar om ANVÄNDARENS inställningar, så
+  // den får bara tändas när det verkligen är de som saknas. Verdiktet räcker
+  // inte: `NotAssessed` betyder också "annonsen saknar yrkesgrupp", och då sa
+  // skylten åt en användare som angett sitt yrke att hon inte hade gjort det,
+  // med en länk till en inställning hon redan fyllt i.
   const noStatedOccupation =
-    match.grade === null && match.ssykOverlap.verdict === "NotAssessed";
+    match.grade === null &&
+    match.ssykOverlap.cause === "PreferenceUnstated";
 
   if (noStatedOccupation) {
     return (
@@ -545,11 +574,14 @@ export function JobAdMatchSection({
     ssykOverlap: splitRegisterRow(match.ssykOverlap),
     titleSimilarity: shown(match.titleSimilarity),
     regionFit: splitRegisterRow(match.regionFit),
-    employmentFit: shown({
-      verdict: match.employmentFit.verdict,
-      matched: match.employmentFit.matchedConceptIds.map(codedName),
-      missing: match.employmentFit.missingConceptIds.map(codedName),
-    }),
+    employmentFit: shown(
+      {
+        verdict: match.employmentFit.verdict,
+        matched: match.employmentFit.matchedConceptIds.map(codedName),
+        missing: match.employmentFit.missingConceptIds.map(codedName),
+      },
+      match.employmentFit.cause,
+    ),
     skillOverlap: shown(match.skillOverlap),
     mustHaveCoverage: shown(match.mustHaveCoverage),
     niceToHaveCoverage: shown(match.niceToHaveCoverage),

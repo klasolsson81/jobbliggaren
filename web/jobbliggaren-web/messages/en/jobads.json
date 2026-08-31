@@ -241,16 +241,27 @@
         "niceToHaveCoverage": "Nice to have"
       },
       "notAssessedReason": {
-        "ssykOverlap": "You have not stated which occupations you are searching within.",
         "titleSimilarity": "No role in your CV to compare.",
-        "regionFit": "You have not stated any region.",
-        "employmentFit": "You have not stated any employment type.",
         "skills": "No skills could be read from your CV. Upload a CV under Profile.",
         "default": "This part could not be assessed."
       },
-      "adUnspecifiedReason": {
-        "regionFit": "The ad does not state a region.",
-        "employmentFit": "The ad does not state an employment type."
+      "matchCause": {
+        "PreferenceUnstated": {
+          "employmentFit": "You have not stated any employment type.",
+          "regionFit": "You have not stated any region.",
+          "ssykOverlap": "You have not stated which occupations you are searching within."
+        },
+        "AdSilent": {
+          "employmentFit": "The ad does not state an employment type.",
+          "regionFit": "The ad does not state a region.",
+          "ssykOverlap": "The ad does not state an occupation."
+        },
+        "RemoteOverride": {
+          "regionFit": "The ad offers remote work and therefore matches regardless of location."
+        },
+        "RegionContainsPreferredMunicipality": {
+          "regionFit": "The ad states only a region, not a municipality. The region contains a municipality you picked."
+        }
       },
       "unnamedEvidence": {
         "ssykOverlap": "{count, plural, one {The ad states an occupation that is missing from our register.} other {The ad states # occupations that are missing from our register.}}",

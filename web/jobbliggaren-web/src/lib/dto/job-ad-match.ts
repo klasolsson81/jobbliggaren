@@ -162,6 +162,29 @@ export const jobAdMatchBatchSchema = z.object({
 export type JobAdMatchBatch = z.infer<typeof jobAdMatchBatchSchema>;
 
 /**
+ * Varför en membership-dimension landade där den gjorde, när verdiktet och beviset inte
+ * säger det själva (CTO-bind 2026-08-31). Tre dimensioner har armar som ger TOMT bevis, och
+ * två av dem nådde samma verdikt av två olika skäl. Klienten kan inte återskapa skälet ur
+ * `(verdict, tomhet, dimension)` — avbildningen är inte injektiv — och där den råkar vara
+ * det är härledningen just det anti-mönster #1598 avvecklade. Koden är bunden; ordet ägs av
+ * katalogen (`ui.match.matchCause.*`).
+ *
+ * KRITISKT: parsas STRIKT, utan `.catch`. En tolerant default hade tyst degraderat en orsak
+ * tillbaka till den härledda grenen, alltså återinfört defekten som tystnad. Priset är att
+ * ett nytt BE-medlemsvärde MÅSTE skeppa atomiskt med sin katalogfras och detta enum: annars
+ * fäller `jobAdMatchDetailSchema.parse`, `getJobAdMatchDetail` degraderar civilt till `null`
+ * och HELA matchningssektionen försvinner ur modalen. Det är inte batch:ens page-wipe
+ * (orsaken når bara detalj-schemat), men det är inte gratis heller.
+ */
+export const matchCauseSchema = z.enum([
+  "PreferenceUnstated",
+  "AdSilent",
+  "RemoteOverride",
+  "RegionContainsPreferredMunicipality",
+]);
+export type MatchCause = z.infer<typeof matchCauseSchema>;
+
+/**
  * F4-16 (ADR 0076 Amendment (b) §3, CTO D3) — detalj-altitud för EN annons,
  * konsumerad av modal/fullsida-matchningssektionen. Skild DTO från batch:en
  * (REP/CCP/CRP): batch:en utelämnar matched/missing-strängarna medvetet
@@ -192,6 +215,7 @@ export const matchCodedDimensionDetailSchema = z.object({
   verdict: matchVerdictSchema,
   matchedConceptIds: z.array(z.string()),
   missingConceptIds: z.array(z.string()),
+  cause: matchCauseSchema.nullable(),
 });
 export type MatchCodedDimensionDetail = z.infer<
   typeof matchCodedDimensionDetailSchema
@@ -231,6 +255,7 @@ export const matchRegisterDimensionDetailSchema = z.object({
   verdict: matchVerdictSchema,
   matched: z.array(matchRegisterConceptSchema),
   missing: z.array(matchRegisterConceptSchema),
+  cause: matchCauseSchema.nullable(),
 });
 export type MatchRegisterDimensionDetail = z.infer<
   typeof matchRegisterDimensionDetailSchema

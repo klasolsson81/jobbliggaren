@@ -6,6 +6,7 @@ import enMessages from "../../../messages/en";
 import { JobAdMatchSection } from "./job-ad-match-section";
 import type {
   JobAdMatchDetail,
+  MatchCause,
   MatchCodedDimensionDetail,
   MatchDimensionDetail,
   MatchRegisterDimensionDetail,
@@ -28,7 +29,8 @@ function row(
 function registerRow(
   verdict: MatchVerdict,
   matched: Array<string | null> = [],
-  missing: Array<string | null> = []
+  missing: Array<string | null> = [],
+  cause: MatchCause | null = null
 ): MatchRegisterDimensionDetail {
   const entries = (labels: Array<string | null>, side: string) =>
     labels.map((label, i) => ({
@@ -39,6 +41,7 @@ function registerRow(
     verdict,
     matched: entries(matched, "matched"),
     missing: entries(missing, "missing"),
+    cause,
   };
 }
 
@@ -47,9 +50,10 @@ function registerRow(
 function codedRow(
   verdict: MatchVerdict,
   matchedConceptIds: string[] = [],
-  missingConceptIds: string[] = []
+  missingConceptIds: string[] = [],
+  cause: MatchCause | null = null
 ): MatchCodedDimensionDetail {
-  return { verdict, matchedConceptIds, missingConceptIds };
+  return { verdict, matchedConceptIds, missingConceptIds, cause };
 }
 
 function detail(over: Partial<JobAdMatchDetail> = {}): JobAdMatchDetail {
@@ -202,12 +206,12 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("signpost-state: grade=null + yrke NotAssessed → Översikt-nudge-copy + kanonisk länk", () => {
+  it("signpost-state: grade=null + yrket obesvarat AV ANVÄNDAREN → Översikt-nudge-copy + kanonisk länk", () => {
     render(
       <JobAdMatchSection
         match={detail({
           grade: null,
-          ssykOverlap: registerRow("NotAssessed"),
+          ssykOverlap: registerRow("NotAssessed", [], [], "PreferenceUnstated"),
         })}
       />
     );
@@ -516,11 +520,16 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
 
   // #552-grinden (ADR 0076-amendment): en angiven ort-/anställningsform-preferens
   // mot en annons som INTE anger dimensionen ger NoMatch med TOM matched/missing.
-  // Bevisraden måste förklara annonsens tystnad — aldrig en tom cell.
-  describe("adUnspecifiedReason (#552 — NoMatch med tom evidens)", () => {
+  // Bevisraden måste förklara annonsens tystnad — aldrig en tom cell. Skälet KOMMER
+  // numera från servern (`cause: "AdSilent"`); komponenten härleder det inte längre.
+  describe("AdSilent (#552 — NoMatch med tom evidens)", () => {
     it("RegionFit NoMatch utan evidens → 'Annonsen anger ingen region.' i neutral ink", () => {
       const { container } = render(
-        <JobAdMatchSection match={detail({ regionFit: registerRow("NoMatch") })} />
+        <JobAdMatchSection
+          match={detail({
+            regionFit: registerRow("NoMatch", [], [], "AdSilent"),
+          })}
+        />
       );
       const reason = screen.getByText("Annonsen anger ingen region.");
       expect(reason).toBeInTheDocument();
@@ -566,7 +575,11 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
 
     it("EmploymentFit NoMatch utan evidens → 'Annonsen anger ingen anställningsform.'", () => {
       render(
-        <JobAdMatchSection match={detail({ employmentFit: codedRow("NoMatch") })} />
+        <JobAdMatchSection
+          match={detail({
+            employmentFit: codedRow("NoMatch", [], [], "AdSilent"),
+          })}
+        />
       );
       expect(
         screen.getByText("Annonsen anger ingen anställningsform.")
@@ -576,7 +589,9 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     it("förklaringen visas ÄVEN med granularitets-karta (grenen ligger före granularitets-grenen)", () => {
       render(
         <JobAdMatchSection
-          match={detail({ regionFit: registerRow("NoMatch") })}
+          match={detail({
+            regionFit: registerRow("NoMatch", [], [], "AdSilent"),
+          })}
           ortGranularityByLabel={granularity}
         />
       );
@@ -587,6 +602,118 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       render(
         <JobAdMatchSection
           match={detail({ regionFit: registerRow("NoMatch", [], ["Stockholms län"]) })}
+        />
+      );
+      expect(
+        screen.getByText("Annonsen efterfrågar även: Stockholms län")
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Annonsen anger ingen region.")
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  // De tre defekterna orsaks-koden stänger. Var och en är en rad vars ORSAK wire:t
+  // inte kunde uttrycka, så klienten härledde den — och härledde fel.
+  describe("orsaker wire:t förut inte kunde uttrycka", () => {
+    it("distans-annons: bevis-cellen är inte längre tom under ordet Matchar", () => {
+      // Defekten i sin exakta form: verdict Match, båda listorna tomma OCH
+      // granularitets-kartan satt, så raden gick till RegionFitEvidence vars alla
+      // spans är length>0-gatade och renderade INGENTING.
+      const { container } = render(
+        <JobAdMatchSection
+          match={detail({
+            regionFit: registerRow("Match", [], [], "RemoteOverride"),
+          })}
+          ortGranularityByLabel={granularity}
+        />
+      );
+      expect(
+        screen.getByText(
+          "Annonsen erbjuder distansarbete och matchar därför oavsett ort."
+        )
+      ).toBeInTheDocument();
+      // Och verdiktet står kvar — orsaken förklarar raden, den ändrar den inte.
+      expect(
+        container.querySelector(
+          '.jp-modal__matchrow-verdict[data-verdict="Match"]'
+        )
+      ).not.toBeNull();
+    });
+
+    it("län-only-annons som rymmer din kommun påstår INTE att du saknar region", () => {
+      render(
+        <JobAdMatchSection
+          match={detail({
+            regionFit: registerRow(
+              "NotAssessed",
+              [],
+              [],
+              "RegionContainsPreferredMunicipality"
+            ),
+          })}
+          ortGranularityByLabel={granularity}
+        />
+      );
+      expect(
+        screen.getByText(
+          "Annonsen anger bara län, inte kommun. Länet innehåller en kommun du valt."
+        )
+      ).toBeInTheDocument();
+      // Den bärande negativa halvan: det var precis den här meningen som sas till
+      // en användare som HADE angett en kommun.
+      expect(
+        screen.queryByText("Du har inte angett någon region.")
+      ).not.toBeInTheDocument();
+    });
+
+    it("annons utan yrkesgrupp ersätter INTE hela sektionen med en skylt om dig", () => {
+      render(
+        <JobAdMatchSection
+          match={detail({
+            grade: null,
+            ssykOverlap: registerRow("NotAssessed", [], [], "AdSilent"),
+          })}
+        />
+      );
+      // Nedbrytningen finns kvar och Yrke-raden namnger den tysta sidan.
+      expect(screen.getByText("Annonsen anger inget yrke.")).toBeInTheDocument();
+      expect(screen.getByText("Kompetenser")).toBeInTheDocument();
+      // Skylten (och dess CTA till en inställning användaren redan fyllt i) är borta.
+      // Andra meningen är unik för skylten — radens egen fras delar bara den första.
+      expect(
+        screen.queryByText(/Ställ in det för att se hur väl/)
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Ställ in matchning" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("och skylten tänds fortfarande när det verkligen är DU som inte angett yrke", () => {
+      // Motpolen. Utan den mäter testet ovan inte skillnaden mellan de två
+      // orsakerna, bara att skylten kan vara borta.
+      render(
+        <JobAdMatchSection
+          match={detail({
+            grade: null,
+            ssykOverlap: registerRow("NotAssessed", [], [], "PreferenceUnstated"),
+          })}
+        />
+      );
+      expect(
+        screen.getByText(/Ställ in det för att se hur väl/)
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Kompetenser")).not.toBeInTheDocument();
+    });
+
+    it("en dimension utan orsak renderar sitt bevis som förut", () => {
+      // Falsifieraren för hela blocket: skickar servern ingen orsak ska ingen
+      // orsaks-mening synas, och den vanliga bevisformen ska stå kvar.
+      render(
+        <JobAdMatchSection
+          match={detail({
+            regionFit: registerRow("NoMatch", [], ["Stockholms län"]),
+          })}
         />
       );
       expect(
@@ -616,9 +743,8 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     });
 
     it("och den påstår INTE att annonsen saknar region (defekt (a))", () => {
-      // Utan `unnamedCount`-konjunktionen i `isAdUnspecified` ser raden tom ut —
-      // de namngivna listorna ÄR tomma — och grenen påstår "Annonsen anger ingen
-      // region." om en annons som anger en. Det här testet faller på den ensam.
+      // Raden ser tom ut här — de NAMNGIVNA listorna ÄR tomma — men servern skickade
+      // ingen orsak, för annonsen angav en region. Meningen får därför inte synas.
       render(
         <JobAdMatchSection
           match={detail({ regionFit: registerRow("NoMatch", [], [null]) })}
@@ -630,10 +756,14 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     });
 
     it("en tyst annons påstår fortfarande att den är tyst (#552 oförändrat)", () => {
-      // Motpolen: inga citerade koncept alls → grenen SKA fyra. Utan detta mäter
+      // Motpolen: servern säger AdSilent → meningen SKA renderas. Utan detta mäter
       // testet ovan inte skillnaden mellan de två tillstånden.
       render(
-        <JobAdMatchSection match={detail({ regionFit: registerRow("NoMatch") })} />
+        <JobAdMatchSection
+          match={detail({
+            regionFit: registerRow("NoMatch", [], [], "AdSilent"),
+          })}
+        />
       );
       expect(
         screen.getByText("Annonsen anger ingen region.")

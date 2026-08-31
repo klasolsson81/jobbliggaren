@@ -45,8 +45,14 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
 {
     private const string NewCountEndpoint = "/api/v1/me/followed-company-ads/new-count";
     private const string SeenEndpoint = "/api/v1/me/followed-company-ads/seen";
+    private const string ListEndpoint = "/api/v1/me/followed-company-ads";
 
     private sealed record CountResponse(int Count);
+
+    private sealed record ListAd(Guid Id, string Title);
+    private sealed record ListRow(ListAd Ad, bool? MatchesYou);
+    private sealed record ListResponse(
+        IReadOnlyList<ListRow> Rows, DateTimeOffset? AcknowledgedThrough, bool Truncated);
 
     private async Task<(HttpClient Client, Guid UserId)> RegisterUserAsync(string prefix, CancellationToken ct)
     {
@@ -320,5 +326,113 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
 
     // 10-digit legal-entity org.nr (third digit ≥ 2), unique per call — OrganizationNumber.Create
     // validates 10 digits (no Luhn).
+    // Seeds a SECOND hit for an ad that already exists, under a DIFFERENT watch. This is the shape
+    // the UNIQUE key (user_id, job_ad_id, company_watch_id) exists to allow: a direct employer
+    // follow AND a brand-group follow covering the same employer. CompanyWatchScanJob produces it by
+    // resolving every matching watch for one ad and writing a row per pair.
+    private async Task SeedHitForExistingAdAsync(
+        Guid userId, CompanyWatchId watchId, JobAdId adId, DateTimeOffset createdAt, CancellationToken ct)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var hit = FollowedCompanyAdHit.Create(userId, adId, watchId, new FakeDateTimeProvider(createdAt)).Value;
+        db.FollowedCompanyAdHits.Add(hit);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<ListResponse> GetListAsync(HttpClient client, CancellationToken ct)
+    {
+        var response = await client.GetAsync(ListEndpoint, ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<ListResponse>(ct);
+        body.ShouldNotBeNull();
+        return body;
+    }
+
+    // THE ORACLE (#1576). The count and its destination must return the same set — not merely the
+    // same size. One test, because two would let them drift apart while both stayed green: the
+    // divergence this route exists to close is exactly "the number says one thing, the page shows
+    // another". Seeded through the same production entry points as every other test here.
+    [Fact]
+    public async Task NewAds_ListReturnsExactlyTheAdsTheCountCounted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("rail-oracle", ct);
+        var watchId = await SeedWatchAsync(userId, active: true, ct);
+        var watermark = DateTimeOffset.UtcNow.AddHours(-1);
+        await SetWatermarkAsync(userId, watermark, ct);
+
+        // Before the watermark -> in neither. Archived -> in neither (#864 lifecycle gate).
+        await SeedHitAsync(userId, watchId, watermark.AddMinutes(-30), FollowedCompanyAdHitStatus.Pending, ct);
+        var archived = await SeedHitAsync(userId, watchId, watermark.AddMinutes(5), FollowedCompanyAdHitStatus.Pending, ct);
+        await ArchiveAdAsync(archived, ct);
+
+        var a = await SeedHitAsync(userId, watchId, watermark.AddMinutes(10), FollowedCompanyAdHitStatus.Pending, ct);
+        var b = await SeedHitAsync(userId, watchId, watermark.AddMinutes(20), FollowedCompanyAdHitStatus.Sent, ct);
+
+        var count = await GetCountAsync(client, ct);
+        var list = await GetListAsync(client, ct);
+
+        count.ShouldBe(2);
+        list.Rows.Count.ShouldBe(count, "the destination shows exactly as many ads as the number promised");
+        list.Rows.Select(r => r.Ad.Id).OrderBy(id => id)
+            .ShouldBe(new[] { a.Value, b.Value }.OrderBy(id => id), "and they are the SAME ads");
+        list.Truncated.ShouldBeFalse();
+    }
+
+    // The acknowledgement window is the max over the rows the surface READ, in the SCAN clock unit
+    // (hit.CreatedAt) - never an ad timestamp. A window taken from the ads would sit below every hit
+    // just read, and the count would never reset. This asserts the unit, not merely a non-null.
+    [Fact]
+    public async Task NewAds_AcknowledgedThroughIsTheMaxHitTimestampOfTheReturnedWindow()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("rail-window", ct);
+        var watchId = await SeedWatchAsync(userId, active: true, ct);
+        var watermark = DateTimeOffset.UtcNow.AddHours(-1);
+        await SetWatermarkAsync(userId, watermark, ct);
+
+        await SeedHitAsync(userId, watchId, watermark.AddMinutes(10), FollowedCompanyAdHitStatus.Pending, ct);
+        var newest = watermark.AddMinutes(40);
+        await SeedHitAsync(userId, watchId, newest, FollowedCompanyAdHitStatus.Pending, ct);
+
+        var list = await GetListAsync(client, ct);
+
+        list.AcknowledgedThrough.ShouldNotBeNull();
+        list.AcknowledgedThrough.Value.ShouldBe(newest, TimeSpan.FromMilliseconds(1));
+
+        // And handing it back is what actually clears the count - the round trip the surface performs.
+        var seen = await client.PostAsJsonAsync(
+            SeenEndpoint, new { seenThrough = list.AcknowledgedThrough }, ct);
+        seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await GetCountAsync(client, ct)).ShouldBe(0);
+    }
+
+    // #1576 - the user-facing unit is the AD, not the hit row. Storage is deliberately hit-granular
+    // (the UNIQUE key carries CompanyWatchId so two follows dispatch independently), but
+    // MarkFollowedCompanyAdSeenCommandHandler already decided the other way for the user: it stamps
+    // BOTH rows because "the user saw the AD". Before this, the count read the bookkeeping unit as
+    // the user unit and said "2 nya annonser" over one ad.
+    [Fact]
+    public async Task NewCount_CountsOneAdOnce_WhenTwoOfTheUsersWatchesMatchIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("rail-collapse", ct);
+        var firstWatch = await SeedWatchAsync(userId, active: true, ct);
+        var secondWatch = await SeedWatchAsync(userId, active: true, ct);
+        var watermark = DateTimeOffset.UtcNow.AddHours(-1);
+        await SetWatermarkAsync(userId, watermark, ct);
+
+        var adId = await SeedHitAsync(userId, firstWatch, watermark.AddMinutes(10), FollowedCompanyAdHitStatus.Pending, ct);
+        await SeedHitForExistingAdAsync(userId, secondWatch, adId, watermark.AddMinutes(20), ct);
+
+        var count = await GetCountAsync(client, ct);
+        var list = await GetListAsync(client, ct);
+
+        count.ShouldBe(1, "two hit rows, one ad - the copy says annonser");
+        list.Rows.Count.ShouldBe(1, "and the destination shows it once, not twice");
+        list.Rows[0].Ad.Id.ShouldBe(adId.Value);
+    }
+
     private static string NewOrgNr() => $"55{Random.Shared.Next(10000000, 99999999)}";
 }

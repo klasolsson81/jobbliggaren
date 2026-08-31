@@ -320,6 +320,7 @@
       "matchSortDisclosureLink": "Ställ in matchning",
       "unknownCode": "Okänd kod ({code})",
       "employerChip": "Arbetsgivare {orgNr}",
+      "employerChipNamed": "Arbetsgivare {name}",
       "employerChipMany": "{count, plural, other {# arbetsgivare}}"
     },
     "results": {
@@ -365,7 +366,8 @@
       "loading": "Hämtar förslag…",
       "suggestionCount": "{count} förslag",
       "rateLimited": "För många sökningar på kort tid. Förslagen pausas en stund. Du kan fortsätta skriva och söka ändå.",
-      "listLabel": "Sökförslag"
+      "listLabel": "Sökförslag",
+      "employerAdCount": "{count, plural, one {# annons} other {# annonser}}"
     },
     "popover": {
       "clear": "Rensa"

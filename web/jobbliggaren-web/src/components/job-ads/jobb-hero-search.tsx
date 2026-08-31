@@ -426,7 +426,15 @@ export function JobbHeroSearch({
       suggestion.kind === "Title"
         ? parseSearchText(suggestion.label, labelIndex, null).matches
             .length === 0
-        : suggestion.conceptId !== null &&
+        : // #1546 — en arbetsgivare skrivs ALDRIG in i fältet. Skrivet som en egen
+          // gren i stället för att falla igenom på `conceptId !== null`: det gamla
+          // uttrycket gav rätt svar av fel skäl (arbetsgivare saknar conceptId), och
+          // nästa kind hade ärvt olyckan. Skälet: ett arbetsgivarnamn är inte
+          // text-representabelt — vore det det, skulle "Volvo" som fritext göra
+          // anspåk på ?employer= som användaren aldrig valde (I1-brott). Axeln sätts
+          // enbart via composeSuggestionChip nedan, och tas bort via toolbarens chip.
+          suggestion.kind !== "Employer" &&
+          suggestion.conceptId !== null &&
           isTextRepresentable(
             suggestion.label,
             { kind: suggestion.kind, conceptId: suggestion.conceptId },

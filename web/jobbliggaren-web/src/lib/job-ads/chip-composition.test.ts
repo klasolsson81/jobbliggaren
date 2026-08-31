@@ -51,8 +51,20 @@ function s(
   kind: SuggestionDto["kind"],
   conceptId: string | null,
   label: string,
+  // #1546 — Employer-only fields. Defaulted so the existing cases read exactly as
+  // before; an employer case passes an org.nr explicitly.
+  organizationNumber: string | null = null,
+  adCount: number | null = null,
+  isProtectedIdentity = false,
 ): SuggestionDto {
-  return { kind, conceptId, label };
+  return {
+    kind,
+    conceptId,
+    label,
+    organizationNumber,
+    adCount,
+    isProtectedIdentity,
+  };
 }
 
 describe("composeSuggestionChip (ADR 0067 Fas E2d)", () => {
@@ -166,6 +178,44 @@ describe("composeSuggestionChip (ADR 0067 Fas E2d)", () => {
     // Solna i Sthlm rör inte VG-läns helläns-val.
     expect(next.region).toEqual(["oDpK_oQy_3Zc"]);
     expect(next.municipality).toEqual(["zHxw_uJZ_NNh"]);
+  });
+
+  it("Employer → org.nr på employer-axeln, rör inte q eller dimensionerna", () => {
+    const next = composeSuggestionChip(
+      s("Employer", null, "Volvo Group AB", "5560125790", 136),
+      { ...empty, q: "utvecklare", occupationGroup: ["MVqp_eS8_kDZ"] },
+      taxonomy,
+    );
+    expect(next.employer).toEqual(["5560125790"]);
+    // Arbetsgivar-valet är ett DIMENSIONS-val: det ska inte röra fritexten.
+    expect(next.q).toBe("utvecklare");
+    expect(next.occupationGroup).toEqual(["MVqp_eS8_kDZ"]);
+  });
+
+  it("Employer → idempotent: samma org.nr två gånger ger ett filter", () => {
+    const once = composeSuggestionChip(
+      s("Employer", null, "Volvo Group AB", "5560125790", 136),
+      empty,
+      taxonomy,
+    );
+    const twice = composeSuggestionChip(
+      s("Employer", null, "Volvo Group AB", "5560125790", 136),
+      once,
+      taxonomy,
+    );
+    expect(twice.employer).toEqual(["5560125790"]);
+  });
+
+  it("Employer med maskerat org.nr (null) → no-op, inget filter utan mål", () => {
+    // #1546 / ADR 0087 D8(c) — tredje lagret. Handlern utesluter raden och
+    // dekodern släpper den; skulle båda fallera finns ingen nyckel att
+    // filtrera på, och valet får inte tyst göra ingenting SYNLIGT.
+    const next = composeSuggestionChip(
+      s("Employer", null, "Anna Svensson Konsult", null, 1, true),
+      empty,
+      taxonomy,
+    );
+    expect(next.employer ?? []).toEqual([]);
   });
 
   it("dimension-förslag med null conceptId → no-op (defensivt)", () => {

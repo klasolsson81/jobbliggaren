@@ -336,11 +336,16 @@ export function JobAdTypeahead({
         >
           {items.map((item, i) => (
             <li
-              key={`${item.kind}:${item.conceptId ?? item.label}`}
+              // #1546 — org.nr före label i nyckeln för arbetsgivare. TVÅ distinkta
+              // juridiska personer kan dela namn (Volvo×20-fällan som gjorde org.nr
+              // kanonisk), och en label-nyckel skulle ge dem identisk React-nyckel —
+              // alltså en rekonsilierings-risk på exakt de rader funktionen finns för
+              // att särskilja. Ett happy-path-test ser det aldrig.
+              key={`${item.kind}:${item.organizationNumber ?? item.conceptId ?? item.label}`}
               id={optionId(i)}
               role="option"
               aria-selected={i === active}
-              className={`cursor-pointer px-3 py-2 text-body-sm ${
+              className={`flex cursor-pointer items-baseline justify-between gap-3 px-3 py-2 text-body-sm ${
                 i === active
                   ? "bg-surface-tertiary text-text-primary"
                   : "text-text-primary"
@@ -353,7 +358,18 @@ export function JobAdTypeahead({
               }}
               onMouseEnter={() => setActive(i)}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {/* #1546 — antalet aktiva annonser gör arbetsgivarraden urskiljbar från en
+                  titelrad i en lista som annars är helt platt (Klas-bind 2026-08-31).
+                  Inline-data per DESIGN.md: sans + tabular-nums i text-secondary — ALDRIG
+                  text-tertiary, som doktrinen uttryckligen förbjuder för räknare.
+                  Ingen ikon: en ikon utan text särskiljer ingenting för en skärmläsare, och
+                  hela li:ns textinnehåll är radens tillgängliga namn. */}
+              {item.kind === "Employer" && item.adCount !== null && (
+                <span className="shrink-0 text-caption font-medium text-text-secondary tabular-nums">
+                  {t("typeahead.employerAdCount", { count: item.adCount })}
+                </span>
+              )}
             </li>
           ))}
         </ul>

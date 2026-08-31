@@ -25,11 +25,12 @@ export function isLinkableOrgNr(organizationNumber: string): boolean {
  * /jobb URL", so no link can drift from another or from the count beside it. Two callers:
  * the watch row passes a single org.nr, Översikt's summary passes the whole watch set.
  *
- * This is the ONLY originator of an `?employer=` value in the app. `search-params.ts`
- * recorded (2026-08-19) that there were none since `company-lookup.tsx` was deleted in
- * `aca39970`, which is why the `IsProtectedIdentity` gate it describes was guarding an
- * empty set. The gate is live again, and it lives at the CALLER: this function takes a
- * plain org.nr and cannot tell a masked one from a legal-entity one.
+ * One of TWO originators of an `?employer=` value since #1546 (the other is the typeahead's
+ * employer suggestion, via `composeSuggestionChip`). `search-params.ts` recorded (2026-08-19)
+ * that there were none since `company-lookup.tsx` was deleted in `aca39970`, which is why the
+ * `IsProtectedIdentity` gate it describes was guarding an empty set. The gate is live again,
+ * and for THIS originator it lives at the CALLER: this function takes a plain org.nr and
+ * cannot tell a masked one from a legal-entity one.
  *
  * `scope: "matching"` carries the grade subset, never `?baraMatchade=on`. The two are not
  * interchangeable: `baraMatchade` maps to `onlyMatched`, which

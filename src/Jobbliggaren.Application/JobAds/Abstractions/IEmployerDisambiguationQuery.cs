@@ -28,6 +28,29 @@ public interface IEmployerDisambiguationQuery
     /// </summary>
     ValueTask<IReadOnlyList<EmployerAdGroup>> SearchAsync(
         string nameQuery, int limit, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #1546 — the same projection scoped to the <c>/jobb</c> typeahead: distinct employers with at
+    /// least one <b>Active</b> ad whose name contains <paramref name="nameTerm"/>, grouped by org.nr,
+    /// ordered by active-ad count desc, capped at <paramref name="limit"/>.
+    /// <para>
+    /// <b>Why this is not <see cref="SearchAsync"/> with a flag.</b> That method is deliberately
+    /// status-agnostic — following an employer is a bet on its FUTURE ads, so the follow picker offers
+    /// an employer whose current ads are all archived (Klas, 2026-07-17; classified <c>AnyStatus</c> in
+    /// <c>JobAdLifecycleReadRegistry</c>). A suggestion is the opposite bet: selecting one navigates to
+    /// <c>?employer=</c>, which <c>JobAdSearchComposition</c> filters to Active, so an employer with no
+    /// active ads would be a chip with no target — the same dead end that kept occupation-name out of
+    /// the suggest union. The two reads carry contradictory lifecycle decisions, and the registry
+    /// classifies per METHOD, so they must be two methods.
+    /// </para>
+    /// <para>
+    /// <b>The caller over-fetches.</b> The personnummer exclusion (ADR 0087 D8(c)) happens in the
+    /// handler, after this cap, so the handler asks for more rows than it will show. Capping here after
+    /// a filter it cannot see would shrink the list silently.
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<EmployerAdGroup>> SuggestActiveEmployersAsync(
+        string nameTerm, int limit, CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -79,7 +79,10 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, EmptyTaxonomy());
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, EmptyTaxonomy(),
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         // Gement prefix matchar versalt seedat (case-insensitivt via lower()).
         var result = await handler.Handle(
@@ -104,7 +107,10 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, EmptyTaxonomy());
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, EmptyTaxonomy(),
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         var result = await handler.Handle(new SuggestJobAdTermsQuery(token, 3), ct);
 
@@ -122,7 +128,10 @@ public class SuggestJobAdTermsTests(ApiFactory factory)
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var handler = new SuggestJobAdTermsQueryHandler(db, EmptyTaxonomy());
+        var handler = new SuggestJobAdTermsQueryHandler(
+            db, EmptyTaxonomy(),
+            // #1546 — den RIKTIGA porten ur containern, aldrig en stub.
+            scope.ServiceProvider.GetRequiredService<IEmployerDisambiguationQuery>());
 
         // Prefix "%<marker>" ska tolkas LITERALT (escapad %), inte som
         // wildcard som matchar "prefix<marker>...". Endast literal-titeln.

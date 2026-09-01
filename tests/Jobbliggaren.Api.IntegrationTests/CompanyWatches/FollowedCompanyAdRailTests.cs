@@ -353,6 +353,11 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
     {
         var response = await client.GetAsync(ListEndpoint, ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        // Per-user by construction, and since #1576 the payload is a list of ads plus a
+        // profiling flag rather than an int (security-auditor). Nothing else measures the header.
+        var cacheControl = response.Headers.CacheControl.ShouldNotBeNull();
+        cacheControl.Private.ShouldBeTrue();
+        cacheControl.NoStore.ShouldBeTrue();
         var body = await response.Content.ReadFromJsonAsync<ListResponse>(ct);
         body.ShouldNotBeNull();
         return body;
@@ -496,7 +501,7 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var (ownerClient, ownerId) = await RegisterUserAsync("rail-ads-owner", ct);
-        var (otherClient, _) = await RegisterUserAsync("rail-ads-other", ct);
+        var (otherClient, otherId) = await RegisterUserAsync("rail-ads-other", ct);
         var watchId = await SeedWatchAsync(ownerId, active: true, ct);
         await SeedHitAsync(
             ownerId,
@@ -504,6 +509,11 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
             DateTimeOffset.UtcNow.AddMinutes(-10),
             FollowedCompanyAdHitStatus.Pending,
             ct);
+
+        // The other user gets a watch of their OWN, and no hits. Without it LoadScopeAsync
+        // returns null on an empty watch set and the handler answers Empty BEFORE the hit query
+        // runs -- so both owner predicates could be deleted and this spec would still pass.
+        await SeedWatchAsync(otherId, active: true, ct);
 
         (await GetListAsync(ownerClient, ct)).Rows.Count.ShouldBe(1);
         (await GetListAsync(otherClient, ct)).Rows.ShouldBeEmpty();

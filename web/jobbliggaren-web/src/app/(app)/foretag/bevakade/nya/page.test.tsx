@@ -79,14 +79,26 @@ const WINDOW = "2026-08-31T08:15:00.123456Z";
 
 function okResult(
   rows: Array<{ ad: JobAdDto; matchesYou: boolean | null }>,
-  truncated = false
+  overrides: Partial<{
+    matchingAssessed: boolean;
+    acknowledgedThrough: string | null;
+    truncated: boolean;
+  }> = {}
 ) {
-  // The server carries assessability as a page-global fact, so the fixture does too rather than
-  // re-deriving it from the rows - deriving it here would hide the very ambiguity the field closes.
-  const matchingAssessed = rows.every((r) => r.matchesYou !== null);
+  // Every field the server carries is an INPUT here, never re-derived from the rows. The default
+  // for `matchingAssessed` matches what production produces (the flag and the rows agree by
+  // construction), but a spec that needs them apart has to be able to say so - otherwise `some`
+  // and `every` coincide in every fixture and the page could rebuild the flag client-side with
+  // nothing failing.
   return {
     kind: "ok" as const,
-    data: { rows, matchingAssessed, acknowledgedThrough: WINDOW, truncated },
+    data: {
+      rows,
+      matchingAssessed: rows.every((r) => r.matchesYou !== null),
+      acknowledgedThrough: WINDOW as string | null,
+      truncated: false,
+      ...overrides,
+    },
   };
 }
 
@@ -149,6 +161,42 @@ describe("/foretag/bevakade/nya", () => {
     expect(screen.getByRole("heading", { name: "Lagerarbetare" })).toBeInTheDocument();
   });
 
+
+  // UNREACHABLE STATE, declared. `matchingAssessed: false` beside a `matchesYou: true` row is a
+  // shape src/ cannot produce: ListNewFollowedCompanyAdsQueryHandler writes
+  // `resolution.Assessed ? matching.Contains(id) : null`, so the flag and the rows agree by
+  // construction. Per AGENTS.md §5 Tests: a declared-unreachable state may assert only that the
+  // READ side degrades safely - here, that the page believes the field the server carried rather
+  // than second-guessing it from the rows. It asserts nothing about what production does.
+  it("believes the carried assessability flag rather than re-deriving it from the rows", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult([{ ad: ad("a1", "Systemutvecklare"), matchesYou: true }], {
+        matchingAssessed: false,
+      })
+    );
+
+    await renderPage();
+
+    expect(screen.getByText("1 ny annons sedan ditt senaste besök.")).toBeInTheDocument();
+    expect(screen.getByText(/inte angett vilka yrken/)).toBeInTheDocument();
+  });
+
+  // The degenerate cap arm: rows on screen, but the server declined to name a window. Sending an
+  // empty body here would let the backend fall back to clock-now and swallow every hit beyond the
+  // cap for good - and the mutation that does it compiles and keeps every other spec green.
+  it("does not acknowledge when the server named no window, even with rows on screen", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult([{ ad: ad("a1", "Systemutvecklare"), matchesYou: true }], {
+        acknowledgedThrough: null,
+        truncated: true,
+      })
+    );
+
+    await renderPage();
+
+    expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
+    expect(markFollowedAdsSeen).not.toHaveBeenCalled();
+  });
   it("filters the matching arm in the browser, without a second read", async () => {
     getNewFollowedCompanyAds.mockResolvedValue(
       okResult([
@@ -214,7 +262,7 @@ describe("/foretag/bevakade/nya", () => {
           { ad: ad("a1", "Systemutvecklare"), matchesYou: true },
           { ad: ad("a2", "Lagerarbetare"), matchesYou: false },
         ],
-        true
+        { truncated: true }
       )
     );
 

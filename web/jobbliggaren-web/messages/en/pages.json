@@ -352,7 +352,8 @@
       "summaryNotAssessed": "{total, plural, one {# new ad} other {# new ads}} since your last visit.",
       "summaryTruncated": "Showing {shown, plural, one {# new ad} other {# new ads}}, of which {matching} match you.",
       "summaryTruncatedNotAssessed": "Showing {shown, plural, one {# new ad} other {# new ads}}.",
-      "consumptionNote": "The list shows what was new when you opened the page. Next time it shows only what has been added since.",
+      "consumptionNote": "The list shows what was new when you opened the page.",
+      "consumptionNoteAcknowledged": "Next time it shows only what has been added since.",
       "view": {
         "groupLabel": "Filter new ads",
         "all": "All ads",

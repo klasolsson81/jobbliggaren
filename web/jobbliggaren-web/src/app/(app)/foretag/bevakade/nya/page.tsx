@@ -150,7 +150,18 @@ export default async function NyaFollowedAdsPage() {
                   ads are still on screen — not discovered on the next visit (Blocker 2). */}
               <p className="jp-transparency-note mt-2">
                 <Info size={16} aria-hidden="true" />
-                <span>{t("foretag.newAds.consumptionNote")}</span>
+                <span>
+                  {t("foretag.newAds.consumptionNote")}
+                  {/* Only when the whole set was acknowledged. Truncated, the remainder is NEWER
+                      than the window and is deliberately left unacknowledged, so it returns next
+                      visit; and where acknowledgedThrough is null (the boundary tie group) nothing
+                      was acknowledged at all. Either way "only what has been added since" would be
+                      contradicted by the truncation note on the same screen (design-reviewer). With
+                      rows present, null implies truncated, so one gate covers both. */}
+                  {!data.truncated && (
+                    <> {t("foretag.newAds.consumptionNoteAcknowledged")}</>
+                  )}
+                </span>
               </p>
 
               {/* Not assessed says so and offers the one action that changes it — never a silent

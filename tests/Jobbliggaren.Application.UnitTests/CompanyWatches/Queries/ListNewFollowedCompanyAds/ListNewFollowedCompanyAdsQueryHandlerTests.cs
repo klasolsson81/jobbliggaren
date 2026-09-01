@@ -62,13 +62,16 @@ public class ListNewFollowedCompanyAdsQueryHandlerTests
     private void SeedSeeker(AppDbContext db, Guid userId) =>
         db.JobSeekers.Add(JobSeeker.Register(userId, "Test User", _clock).Value); // null watermark
 
-    private CompanyWatchId SeedWatch(AppDbContext db, Guid userId, bool onlyMatched)
+    private CompanyWatchId SeedWatch(
+        AppDbContext db, Guid userId, bool onlyMatched, bool active = true)
     {
         var orgNr = "55" + (Math.Abs(Guid.NewGuid().GetHashCode()) % 100000000)
             .ToString("D8", CultureInfo.InvariantCulture);
         var watch = CompanyWatch.Follow(userId, OrganizationNumber.Create(orgNr).Value, _clock).Value;
         if (onlyMatched)
             watch.SetFilter(WatchFilterSpec.Create([], [], onlyMatched: true).Value).IsSuccess.ShouldBeTrue();
+        if (!active)
+            watch.SoftDelete(_clock);
         db.CompanyWatches.Add(watch);
         return watch.Id;
     }
@@ -132,12 +135,16 @@ public class ListNewFollowedCompanyAdsQueryHandlerTests
         result.AcknowledgedThrough.ShouldBeNull("nothing was read, so nothing may be acknowledged");
     }
 
+    // Seeds a hit under an UNFOLLOWED watch on purpose. With no hit at all the assertion holds
+    // under every predicate, so it would pin the shape of Empty rather than the active-watch gate.
     [Fact]
     public async Task Handle_ReturnsEmpty_WhenUserHasNoActiveWatches()
     {
         using var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
         SeedSeeker(db, userId);
+        var unfollowed = SeedWatch(db, userId, onlyMatched: false, active: false);
+        SeedHitAt(db, userId, unfollowed, T0.AddMinutes(1));
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await ListAsync(db, userId);
@@ -244,9 +251,12 @@ public class ListNewFollowedCompanyAdsQueryHandlerTests
             T0.AddMinutes(cap - 2), "so both tied hits stay strictly above the watermark");
     }
 
-    // The degenerate arm: the whole capped window is ONE timestamp and more rows share it. A timestamp
-    // watermark cannot both show a partial group and acknowledge it, so this visit acknowledges
-    // NOTHING. No progress is the safe direction; silent loss is not.
+    // The degenerate arm. UNREACHABLE STATE, declared (§5 Tests:): a two-row boundary tie is
+    // producible -- CompanyWatchScanJob reads clock.UtcNow per hit and timestamptz truncates to the
+    // microsecond -- but 101 consecutive reads inside ONE microsecond is not, because each
+    // iteration pays a Guid and an EF Add. The microsecond is a ceiling on RESOLUTION, not a floor
+    // on the loop. So this asserts only that the read side degrades SAFELY: the watermark does not
+    // move, the rows are still shown, Truncated still stands. It claims nothing about production.
     [Fact]
     public async Task Handle_AcknowledgesNothing_WhenTheWholeCappedWindowSharesOneTimestamp()
     {

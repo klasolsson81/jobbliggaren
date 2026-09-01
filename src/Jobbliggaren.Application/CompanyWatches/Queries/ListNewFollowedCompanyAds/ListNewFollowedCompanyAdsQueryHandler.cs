@@ -93,6 +93,11 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         // tight loop and timestamptz truncates to the microsecond. Worse, the conditions correlate:
         // a window overflows the cap precisely when one scan wrote a burst, which is when
         // neighbouring iterations land in the same microsecond.
+        //
+        // That reach covers a BOUNDARY tie of a few rows. It does not cover the degenerate branch
+        // below, which needs the whole capped window plus one to share a single value: the
+        // microsecond is a ceiling on resolution, not a floor on the loop, and each iteration pays
+        // a Guid and an EF Add. That branch is a guard, not a live path.
         var boundaryIsWholeWindow = false;
         if (truncated)
         {

@@ -352,7 +352,8 @@
       "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök.",
       "summaryTruncated": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}, varav {matching} matchar dig.",
       "summaryTruncatedNotAssessed": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}.",
-      "consumptionNote": "Listan visar det som var nytt när du öppnade sidan. Nästa gång visas bara det som tillkommit sedan dess.",
+      "consumptionNote": "Listan visar det som var nytt när du öppnade sidan.",
+      "consumptionNoteAcknowledged": "Nästa gång visas bara det som tillkommit sedan dess.",
       "view": {
         "groupLabel": "Filtrera nya annonser",
         "all": "Alla annonser",

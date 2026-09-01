@@ -1068,7 +1068,7 @@ public class DigestDispatchJobTests
     }
 
     [Fact]
-    public async Task RunAsync_Follow_TotalCount_CountsPresentableHitsOnly_NotArchivedOnes()
+    public async Task RunAsync_Follow_TotalCount_CountsPresentableAdsOnly_NotArchivedOnes()
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
@@ -1095,7 +1095,7 @@ public class DigestDispatchJobTests
         captured.ShouldNotBeNull();
         captured.Items.Count.ShouldBe(1);
         captured.TotalCount.ShouldBe(1,
-            "TotalCount = presenterbara träffar (1), ALDRIG den claimade mängden (4) — annars säger " +
+            "TotalCount = presenterbara annonser (1), ALDRIG den claimade mängden (4) — annars säger " +
             "bevaknings-mejlet 'och 3 till' om tre annonser mottagaren aldrig får se");
     }
 
@@ -1182,7 +1182,7 @@ public class DigestDispatchJobTests
         captured.ShouldNotBeNull();
         captured.Items.Count.ShouldBe(2);
         captured.Items.ShouldAllBe(i => i.JobTitle.StartsWith("Aktiv"));
-        captured.TotalCount.ShouldBe(2, "TotalCount = claim-klassen, aldrig claim ∪ drain");
+        captured.TotalCount.ShouldBe(2, "TotalCount = claim-klassens annonser, aldrig claim ∪ drain");
 
         // ── TOTALITY: every pending row landed in exactly one arm.
         foreach (var adId in claimAds)

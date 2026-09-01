@@ -39,7 +39,7 @@ namespace Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 /// <para>
 /// <b>Anti-spam cap (ADR 0080 Negativa):</b> the body LISTS at most
 /// <see cref="DigestDispatchOptions.MaxItemsPerDigest"/> items while <c>TotalCount</c> reports the
-/// PRESENTABLE window — the rows whose ad is <c>Active</c> (#864). It is NOT "the full window": that
+/// PRESENTABLE window (#864). It is NOT "the full window": that
 /// phrasing meant the CLAIM set, and wiring the count to it made the email render "och N till" about
 /// ads the body can never list and the recipient can never open.
 /// </para>
@@ -469,7 +469,7 @@ public sealed partial class DigestDispatchJob(
         var filterSummary = BuildFilterSummary(
             filterByWatchId, onlyMatchedAssessable: assessableProfile is not null);
 
-        // The BODY is the CLAIM class: presentable ∧ gradePasses. `presentableRows` was read above (in
+        // The CLAIM class is presentable ∧ gradePasses. `presentableRows` was read above (in
         // display order); intersecting it with `effective` removes the drain class — which is
         // ¬presentable and therefore already absent from it — so what survives is exactly claim.
         //
@@ -484,19 +484,19 @@ public sealed partial class DigestDispatchJob(
         var claimedAdIds = effective.Select(h => h.JobAdId).ToHashSet();
 
         // #1612 — ONE ROW PER AD. Storage is hit-granular (UNIQUE(user, ad, watch)) but the
-        // user-facing unit is the AD, single-sourced by NewFollowedCompanyAdSet.CollapseToAds
-        // (#1576). The OR-over-hits rule is ALREADY applied above: `claimedAdIds` holds an ad iff
+        // user-facing unit is the AD (#1576) — NewFollowedCompanyAdSet.CollapseToAds carries
+        // the why. The OR-over-hits rule is ALREADY applied above: `claimedAdIds` holds an ad iff
         // at least one of its hits passed, so this only brings the row list into line with the set
         // already chosen. It is NOT a Distinct() over rows standing in for that rule.
-        var claimHits = presentableRows
+        var claimHitRows = presentableRows
             .Where(r => claimedAdIds.Contains(r.JobAdId))
             .ToList();
-        var claimRows = claimHits
+        var claimAds = claimHitRows
             .DistinctBy(r => r.JobAdId)
             .ToList();
 
-        var presentableTotal = claimRows.Count;
-        var items = claimRows
+        var presentableTotal = claimAds.Count;
+        var items = claimAds
             .Take(_options.MaxItemsPerDigest)
             .Select(r => new FollowedCompanyAdItem(r.Title, r.Company))
             .ToList();
@@ -551,7 +551,7 @@ public sealed partial class DigestDispatchJob(
         // remainder cannot re-surface next digest.
         DrainSent(effective);
         await db.SaveChangesAsync(ct);
-        LogFollowSent(logger, userId, presentableTotal, claimHits.Count, items.Count, effective.Count);
+        LogFollowSent(logger, userId, presentableTotal, claimHitRows.Count, items.Count, effective.Count);
         return true;
     }
 
@@ -664,7 +664,7 @@ public sealed partial class DigestDispatchJob(
     // #864.
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob (follow): digest sent to user {UserId} — {Presentable} presentable " +
-                  "new ads from {PresentableHits} hits ({Displayed} shown), {Claimed} claimed and drained")]
+                  "new ads from {PresentableHits} hits ({Displayed} shown), {Claimed} hit rows claimed and drained")]
     private static partial void LogFollowSent(
         ILogger logger, Guid userId, int presentable, int presentableHits, int displayed, int claimed);
 

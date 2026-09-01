@@ -20,6 +20,7 @@ import {
   getCompanyWatches,
   markFollowedCompanyAdSeen,
   getNewFollowedCompanyAdCount,
+  getNewFollowedCompanyAds,
   markFollowedAdsSeen,
   setWatchFilter,
 } from "./company-follows";
@@ -708,6 +709,100 @@ describe("getNewFollowedCompanyAdCount (Bevakning F2 #801) — Översikt rail co
   });
 });
 
+
+const AD = {
+  id: "22222222-2222-2222-2222-222222222222",
+  title: "Systemutvecklare",
+  companyName: "Volvo AB",
+  url: "https://example.test/ad",
+  source: "Platsbanken",
+  status: "Active",
+  publishedAt: "2026-08-30T10:00:00Z",
+  expiresAt: null,
+  createdAt: "2026-08-30T10:00:00Z",
+};
+
+const NEW_ADS_BODY = {
+  rows: [{ ad: AD, matchesYou: true }],
+  matchingAssessed: true,
+  acknowledgedThrough: "2026-08-31T08:15:00.123456Z",
+  truncated: false,
+};
+
+describe("getNewFollowedCompanyAds (#1576) — the ads behind the Översikt count", () => {
+  it("no session -> unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await getNewFollowedCompanyAds()).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 -> ok with the parsed rows, window and flags", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(NEW_ADS_BODY));
+
+    expect(await getNewFollowedCompanyAds()).toEqual({ kind: "ok", data: NEW_ADS_BODY });
+  });
+
+  it("an empty set is an honest ok, never an error", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ rows: [], matchingAssessed: false, acknowledgedThrough: null, truncated: false })
+    );
+
+    const result = await getNewFollowedCompanyAds();
+
+    expect(result.kind).toBe("ok");
+  });
+
+  // acknowledgedThrough may be NULL (nothing to acknowledge) but never absent: the surface hands it
+  // back verbatim, and an undefined would be posted as an empty body, which the backend answers with
+  // clock-now and would acknowledge PAST a capped window.
+  it("a missing acknowledgedThrough is a schema error, not a silent undefined", async () => {
+    const { acknowledgedThrough: _dropped, ...withoutWindow } = NEW_ADS_BODY;
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(withoutWindow));
+
+    expect(await getNewFollowedCompanyAds()).toEqual({ kind: "error" });
+  });
+
+  it("401 -> unauthorized", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(401));
+
+    expect(await getNewFollowedCompanyAds()).toEqual({ kind: "unauthorized" });
+  });
+
+  it("network throw -> error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("boom"));
+
+    expect(await getNewFollowedCompanyAds()).toEqual({ kind: "error" });
+  });
+});
+
+// #741 / #1576 — the `session` parameter is the whole reason the watermark advances at all from the
+// new route: an after() callback in a Server Component CANNOT read cookies, so the caller reads the
+// session during render and hands it in. Simplify this back to `await getSessionId()` and every
+// other spec stays green while production silently stops acknowledging.
+describe("markFollowedAdsSeen (#1576) — the pre-resolved session", () => {
+  it("uses an explicit session and never reads cookies", async () => {
+    getSessionIdMock.mockClear();
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(204));
+
+    const result = await markFollowedAdsSeen("2026-08-31T08:15:00.123456Z", "session-abc");
+
+    expect(result).toEqual({ kind: "ok", data: undefined });
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+  });
+
+  it("an explicit null session is unauthorized without a round-trip", async () => {
+    getSessionIdMock.mockClear();
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    expect(await markFollowedAdsSeen(undefined, null)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getSessionIdMock).not.toHaveBeenCalled();
+  });
+});
 describe("markFollowedAdsSeen (Bevakning F2 #801) — watermark advance", () => {
   it("no session -> unauthorized without a backend round-trip", async () => {
     getSessionIdMock.mockResolvedValue(null);

@@ -264,8 +264,9 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
   it("newFollowedCompanyAdCount > 0 → notis med CTA till /foretag/bevakade", () => {
     // #1547: the CTA used to read "Visa annonser" and land on a company list, and /foretag is not
     // even a 3xx -- its redirect() runs after the layout streams, so it serves a 200 meta-refresh
-    // document. There is no /jobb axis for "new since your last visit" (none of the seventeen is
-    // date-bearing), so the honest destination is the watch list, named as such.
+    // document. The CTA still names the catalogue and lands there; what changed with #1576 is that
+    // the NUMBER now carries the way to the ads it counts (pinned below), so the row has two
+    // destinations and they must not collapse into one.
     renderOversikt(false, { newFollowedCompanyAdCount: 5 });
 
     const cta = screen.getByRole("link", { name: /Visa bevakade företag/ });
@@ -273,6 +274,22 @@ describe("OversiktPage — företagsbevaknings-notis (#726, destination #1547)",
     const row = cta.closest("li");
     expect(row).toHaveTextContent("5");
     expect(row).toHaveTextContent(/nya annonser/);
+  });
+
+  // #1576 — the defect was a number no path reached. The number IS the path now, and nothing else
+  // in the suite says so: point `newAdsLink` at /foretag/bevakade like the CTA and every spec stays
+  // green while the issue reopens.
+  it("talet självt är länken till annonserna det räknar", () => {
+    renderOversikt(false, { newFollowedCompanyAdCount: 5 });
+
+    const countLink = screen.getByRole("link", { name: /5 nya annonser/ });
+    expect(countLink).toHaveAttribute("href", "/foretag/bevakade/nya");
+
+    // The catalogue keeps its own way in: numbers link to ads, the anchor links to the list.
+    expect(screen.getByRole("link", { name: /Visa bevakade företag/ })).toHaveAttribute(
+      "href",
+      "/foretag/bevakade"
+    );
   });
 
   it("CTA:n lovar inte längre annonser — det ordet tillhör match-notisen, som håller det", () => {

@@ -29,6 +29,11 @@ public static class MeFollowedCompanyAdsEndpoints
 
     public static void MapMeFollowedCompanyAdsEndpoints(this IEndpointRouteBuilder app)
     {
+        // private, no-store on both reads: per-user by construction, and since #1576 the payload is a
+        // list of ads plus a profiling flag rather than an int. Three layers already close an accidental
+        // cache (the API is not edge-exposed, authedFetch forces no-store in a type that cannot be
+        // overridden, and RFC 9111 forbids a shared cache storing an Authorization response), so this is
+        // defence in depth rather than the only control (security-auditor 2026-08-31).
         var group = app.MapGroup("/api/v1/me/followed-company-ads")
             .WithTags("Me")
             .RequireAuthorization();
@@ -36,8 +41,9 @@ public static class MeFollowedCompanyAdsEndpoints
         // Översikts follow-rail count ("nya annonser från bevakade företag" NEW since the last visit).
         // Auth-gated; a per-user grade-filtered count over the user's OWN hits + active watches (no
         // cross-user surface, no org.nr). MeListReadPolicy (parity /me/new-match-count). 200 { count }.
-        group.MapGet("/new-count", async (IMediator mediator, CancellationToken ct) =>
+        group.MapGet("/new-count", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
         {
+            http.Response.Headers.CacheControl = "private, no-store";
             var result = await mediator.Send(new GetNewFollowedCompanyAdCountQuery(), ct);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
@@ -48,8 +54,9 @@ public static class MeFollowedCompanyAdsEndpoints
         // already carry their own MatchesYou, never a second query. Capped, not paginated — the
         // response carries the acknowledgement window, which PagedResult has nowhere to put.
         // MeListReadPolicy (parity /new-count). 200 { rows, acknowledgedThrough, truncated }.
-        group.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
+        group.MapGet("/", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
         {
+            http.Response.Headers.CacheControl = "private, no-store";
             var result = await mediator.Send(new ListNewFollowedCompanyAdsQuery(), ct);
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);

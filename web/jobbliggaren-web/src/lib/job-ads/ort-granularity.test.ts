@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { TaxonomyTree } from "@/lib/dto/taxonomy";
-import { buildOrtGranularityMap, classifyOrtLabel } from "./ort-granularity";
+import { buildOrtGranularityMap, classifyOrtConcept } from "./ort-granularity";
 
 function tree(regions: TaxonomyTree["regions"]): TaxonomyTree {
   return {
@@ -12,7 +12,7 @@ function tree(regions: TaxonomyTree["regions"]): TaxonomyTree {
 }
 
 describe("buildOrtGranularityMap", () => {
-  it("klassar läns-labels som 'region' och kommun-labels som 'municipality'", () => {
+  it("klassar läns-conceptId som 'region' och kommun-conceptId som 'municipality'", () => {
     const map = buildOrtGranularityMap(
       tree([
         {
@@ -22,23 +22,27 @@ describe("buildOrtGranularityMap", () => {
         },
       ])
     );
-    expect(map["Västra Götalands län"]).toBe("region");
-    expect(map["Göteborg"]).toBe("municipality");
+    expect(map["r_vg"]).toBe("region");
+    expect(map["m_gbg"]).toBe("municipality");
   });
 
-  it("tvetydig label (både län och kommun, Gotland) → coarser 'region'", () => {
-    // Gotland-fallet: namnet är BÅDE ett län och en kommun. Län skrivs först →
-    // vinner; kommun-skrivningen hoppas över för en redan satt nyckel.
+  it("nycklar på id, inte namn: två koncept med samma label klassas var för sig", () => {
+    // Fixturen delar label mellan ett län och en kommun för att DISKRIMINERA:
+    // under namn-nyckling delade de en nyckel och en av dem måste förlora. Under
+    // id-nyckling finns ingen kollision att lösa, så båda behåller sin egen
+    // granularitet och skrivordningen saknar betydelse.
     const map = buildOrtGranularityMap(
       tree([
         {
-          conceptId: "r_gotland",
-          label: "Gotland",
-          municipalities: [{ conceptId: "m_gotland", label: "Gotland" }],
+          conceptId: "r_x",
+          label: "Delat namn",
+          municipalities: [{ conceptId: "m_x", label: "Delat namn" }],
         },
       ])
     );
-    expect(map["Gotland"]).toBe("region");
+    expect(map["r_x"]).toBe("region");
+    expect(map["m_x"]).toBe("municipality");
+    expect(map["Delat namn"]).toBeUndefined();
   });
 
   it("null-taxonomi → tom karta (degraderar civilt)", () => {
@@ -46,7 +50,7 @@ describe("buildOrtGranularityMap", () => {
   });
 });
 
-describe("classifyOrtLabel", () => {
+describe("classifyOrtConcept", () => {
   const map = buildOrtGranularityMap(
     tree([
       {
@@ -58,14 +62,21 @@ describe("classifyOrtLabel", () => {
   );
 
   it("känd kommun → 'municipality'", () => {
-    expect(classifyOrtLabel("Solna", map)).toBe("municipality");
+    expect(classifyOrtConcept("m_solna", map)).toBe("municipality");
   });
 
   it("känt län → 'region'", () => {
-    expect(classifyOrtLabel("Stockholms län", map)).toBe("region");
+    expect(classifyOrtConcept("r_sthlm", map)).toBe("region");
   });
 
-  it("okänd label (stale snapshot) → null", () => {
-    expect(classifyOrtLabel("Okänd ort", map)).toBeNull();
+  it("okänt concept-id (stale snapshot) → null", () => {
+    expect(classifyOrtConcept("m_okand", map)).toBeNull();
+  });
+
+  it("postens LABEL är inte en nyckel", () => {
+    // Vakt mot att någon nycklar tillbaka på namn: labeln finns i trädet, men
+    // kartan känner bara id:n. Utan den här raden skulle en återgång till
+    // namn-nyckling passera hela sviten.
+    expect(classifyOrtConcept("Solna", map)).toBeNull();
   });
 });

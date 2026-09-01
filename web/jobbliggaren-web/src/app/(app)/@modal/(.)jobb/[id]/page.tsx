@@ -72,7 +72,7 @@ export default async function InterceptedJobbModal({
             initialApplied={result.initialApplied}
             followState={result.followState}
             match={result.match}
-            ortGranularityByLabel={result.ortGranularityByLabel}
+            ortGranularityByConceptId={result.ortGranularityByConceptId}
             previousApplicationCount={result.previousApplicationCount}
             contacts={result.jobAd.contacts}
           />

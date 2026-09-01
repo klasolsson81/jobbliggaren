@@ -6,12 +6,13 @@ import type {
   JobAdMatchDetail,
   MatchCause,
   MatchDimensionDetail,
+  MatchRegisterConcept,
   MatchRegisterDimensionDetail,
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
 import {
-  classifyOrtLabel,
+  classifyOrtConcept,
   type OrtGranularity,
 } from "@/lib/job-ads/ort-granularity";
 
@@ -173,31 +174,41 @@ function titleSummary(verdict: MatchVerdict, t: MatchTranslator): string | null 
 }
 
 /**
- * Spår 3 PR-D — grupperar en ort-label-lista per granularitet (kommun/län) och
- * formaterar två civic-fraser så bevisraden ärligt visar VILKEN granularitet
- * som matchade (architect NOTE-2; klassningen sker FE-side mot taxonomin).
+ * Spår 3 PR-D — grupperar ort-bevisets register-poster per granularitet
+ * (kommun/län) och formaterar två civic-fraser så bevisraden ärligt visar VILKEN
+ * granularitet som matchade (architect NOTE-2; klassningen sker FE-side mot
+ * taxonomin).
  *
- * TRE hinkar, inte två (#1598). Okänd label (saknas i kartan — äkta träd-
+ * Klassningen sker på postens `conceptId`; det som hamnar i hinken är dess
+ * `label`. Namnet avgör alltså inte längre hinken — bara vad hinken visar.
+ *
+ * TRE hinkar, inte två (#1598). Ett okänt id (saknas i kartan — äkta träd-
  * divergens) föll förut i `regions`-hinken, som renderas "Län som matchar: X":
  * ett explicit län-PÅSTÅENDE om något vi inte kunde klassa.
+ *
+ * Namnlösa poster hoppas över: de kan inte visas, och raden räknar dem redan
+ * genom `unnamedCount`.
  */
 function splitOrtByGranularity(
-  labels: ReadonlyArray<string>,
-  granularityByLabel: Record<string, OrtGranularity>,
+  entries: ReadonlyArray<MatchRegisterConcept>,
+  granularityByConceptId: Record<string, OrtGranularity>,
 ): { municipalities: string[]; regions: string[]; plain: string[] } {
   const municipalities: string[] = [];
   const regions: string[] = [];
   const plain: string[] = [];
-  for (const label of labels) {
-    const granularity = classifyOrtLabel(label, granularityByLabel);
+  for (const entry of entries) {
+    if (entry.label === null) continue;
+    const granularity = classifyOrtConcept(
+      entry.conceptId,
+      granularityByConceptId,
+    );
     if (granularity === "municipality") {
-      municipalities.push(label);
+      municipalities.push(entry.label);
     } else if (granularity === "region") {
-      // Gotland-fallet ingår här: tvetydiga namn klassas medvetet som coarser.
-      regions.push(label);
+      regions.push(entry.label);
     } else {
       // Saknas i kartan → ingen kategori vi inte kan belägga.
-      plain.push(label);
+      plain.push(entry.label);
     }
   }
   return { municipalities, regions, plain };
@@ -280,21 +291,39 @@ function unnamedEvidence(
 }
 
 /**
- * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan en
- * granularitets-karta (`granularityByLabel` saknas) faller den tillbaka på den
- * generiska "Du har:"/"Annonsen efterfrågar även:"-formen (bakåtkompat).
+ * Vad Region-raden behöver utöver sin radmodell: register-posterna med sina
+ * concept-id kvar, plus kartan som klassar dem.
+ *
+ * ETT värde och inte två props — kartan utan posterna, eller posterna utan
+ * kartan, klassar ingenting, och det beroendet vore otypat om de kom var för
+ * sig. `splitRegisterRow` plockar ut labels åt radrenderaren; den här raden
+ * behöver id:t som labeln kom från och läser därför posterna direkt.
+ */
+type OrtEvidence = {
+  concepts: MatchRegisterDimensionDetail;
+  granularityByConceptId: Record<string, OrtGranularity>;
+};
+
+/**
+ * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan `ort`
+ * faller raden tillbaka på den generiska "Du har:"/"Annonsen efterfrågar
+ * även:"-formen (bakåtkompat / degraderad taxonomi).
  */
 function RegionFitEvidence({
-  detail,
-  granularityByLabel,
+  ort,
   t,
 }: {
-  detail: MatchDimensionDetail;
-  granularityByLabel: Record<string, OrtGranularity>;
+  ort: OrtEvidence;
   t: MatchTranslator;
 }) {
-  const matched = splitOrtByGranularity(detail.matched, granularityByLabel);
-  const missing = splitOrtByGranularity(detail.missing, granularityByLabel);
+  const matched = splitOrtByGranularity(
+    ort.concepts.matched,
+    ort.granularityByConceptId,
+  );
+  const missing = splitOrtByGranularity(
+    ort.concepts.missing,
+    ort.granularityByConceptId,
+  );
 
   return (
     <>
@@ -394,15 +423,15 @@ function MatchRow({
   dimensionKey,
   detail,
   t,
-  granularityByLabel,
+  ort,
   isRelatedYrke,
 }: {
   label: string;
   dimensionKey: keyof Omit<JobAdMatchDetail, "grade">;
   detail: MatchRowModel;
   t: MatchTranslator;
-  /** Spår 3 PR-D — endast satt för RegionFit-raden (label → kommun/län). */
-  granularityByLabel?: Record<string, OrtGranularity>;
+  /** Spår 3 PR-D — endast satt för RegionFit-raden (conceptId → kommun/län). */
+  ort?: OrtEvidence;
   /**
    * #300 PR-5 (ADR 0084, design-reviewer bind) — true PÅ Yrke-raden (ssykOverlap)
    * NÄR hela matchen är `Related`. Då ersätts den generiska bevisformen med en
@@ -424,9 +453,8 @@ function MatchRow({
     detail.unnamedCount > 0
       ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
       : null;
-  // Granularitets-uppdelad bevisrad bara för Region OCH bara när kartan finns.
-  const useOrtGranularity =
-    dimensionKey === "regionFit" && granularityByLabel !== undefined;
+  // Granularitets-uppdelad bevisrad bara för Region OCH bara när beviset finns.
+  const useOrtGranularity = dimensionKey === "regionFit" && ort !== undefined;
   // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
   // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
   // (inget CV) har tomma matched/missing → faller till den generiska/NotAssessed-
@@ -475,11 +503,7 @@ function MatchRow({
             {t("relatedYrkeReason")}
           </span>
         ) : useOrtGranularity ? (
-          <RegionFitEvidence
-            detail={detail}
-            granularityByLabel={granularityByLabel}
-            t={t}
-          />
+          <RegionFitEvidence ort={ort} t={t} />
         ) : isRequirementDim && hasRequirementItems ? (
           <RequirementChecklist detail={detail} label={label} t={t} />
         ) : isTitleDim ? (
@@ -512,16 +536,16 @@ function MatchRow({
 export interface JobAdMatchSectionProps {
   match: JobAdMatchDetail;
   /**
-   * Spår 3 PR-D — label → ort-granularitet (kommun/län), härledd FE-side ur
+   * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län), härledd FE-side ur
    * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
    * generiska bevisformen (bakåtkompat / degraderad taxonomi).
    */
-  ortGranularityByLabel?: Record<string, OrtGranularity>;
+  ortGranularityByConceptId?: Record<string, OrtGranularity>;
 }
 
 export function JobAdMatchSection({
   match,
-  ortGranularityByLabel,
+  ortGranularityByConceptId,
 }: JobAdMatchSectionProps) {
   // Synchronous next-intl translator — keeps JobAdMatchSection a non-async RSC
   // (shared by the modal + full page as a serialized slot, with sync tests).
@@ -597,8 +621,15 @@ export function JobAdMatchSection({
             detail={rows[key]}
             t={t}
             // Granularitets-uppdelning bara för Region-raden (kommun vs län).
-            granularityByLabel={
-              key === "regionFit" ? ortGranularityByLabel : undefined
+            // Posterna kommer från `match.regionFit` och inte från radmodellen:
+            // klassningen sker på concept-id, som `splitRegisterRow` inte bär.
+            ort={
+              key === "regionFit" && ortGranularityByConceptId !== undefined
+                ? {
+                    concepts: match.regionFit,
+                    granularityByConceptId: ortGranularityByConceptId,
+                  }
+                : undefined
             }
             // #300 PR-5 — "därför lägre"-förklaring bara på Yrke-raden NÄR hela
             // matchen är Related (liknande, inte exakt valt, yrke).

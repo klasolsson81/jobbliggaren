@@ -67,12 +67,12 @@ interface JobAdDetailProps {
    */
   match?: JobAdMatchDetail | null;
   /**
-   * Spår 3 PR-D — label → ort-granularitet (kommun/län) för match-sektionens
+   * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län) för match-sektionens
    * RegionFit-bevis. Härleds FE-side ur taxonomin i page-handlern (architect
    * NOTE-2) och vidarebefordras till JobAdMatchSection. Utelämnad → generisk
    * bevisform (degraderad taxonomi).
    */
-  ortGranularityByLabel?: Record<string, OrtGranularity>;
+  ortGranularityByConceptId?: Record<string, OrtGranularity>;
   /**
    * #593 (#446-uppföljning, #311) — antalet av den inloggade användarens EGNA tidigare (inskickade)
    * ansökningar till annonsens arbetsgivare (samma org.nr), server-resolverat via
@@ -116,7 +116,7 @@ export function JobAdDetail({
   initialApplied,
   followState,
   match,
-  ortGranularityByLabel,
+  ortGranularityByConceptId,
   previousApplicationCount,
   contacts = [],
 }: JobAdDetailProps) {
@@ -210,7 +210,7 @@ export function JobAdDetail({
         {match != null && (
           <JobAdMatchSection
             match={match}
-            ortGranularityByLabel={ortGranularityByLabel}
+            ortGranularityByConceptId={ortGranularityByConceptId}
           />
         )}
 

@@ -182,8 +182,8 @@ function detailRow(verdict: string) {
 
 // Anställningsform är den enda KODADE dimensionen: dess ord ägs av katalogen, så wire:n
 // bär conceptId i stället för visningstext (#1537).
-function codedDetailRow(verdict: string) {
-  return { verdict, matchedConceptIds: [], missingConceptIds: [] };
+function codedDetailRow(verdict: string, cause: string | null = null) {
+  return { verdict, matchedConceptIds: [], missingConceptIds: [], cause };
 }
 
 // Yrke och Region är REGISTER-rader: wire:n bär `{conceptId, label}` per post, och `label`
@@ -191,11 +191,12 @@ function codedDetailRow(verdict: string) {
 // — en tom array uppfyller `z.array(z.string())` lika väl som
 // `z.array(matchRegisterConceptSchema)`, så en fixtur utan riktiga poster hade parsat
 // vakuöst och inte kunnat se formändringen alls.
-function registerDetailRow(verdict: string) {
+function registerDetailRow(verdict: string, cause: string | null = null) {
   return {
     verdict,
     matched: [{ conceptId: "grp_12345", label: "Mjukvaru- och systemutvecklare m.fl." }],
     missing: [{ conceptId: "region_GONE", label: null }],
+    cause,
   };
 }
 
@@ -203,7 +204,7 @@ const validDetail = {
   grade: "Top",
   ssykOverlap: registerDetailRow("Match"),
   titleSimilarity: detailRow("NotAssessed"),
-  regionFit: registerDetailRow("Match"),
+  regionFit: registerDetailRow("Match", "RemoteOverride"),
   employmentFit: codedDetailRow("Match"),
   skillOverlap: { verdict: "Partial", matched: ["Java"], missing: ["AWS"] },
   mustHaveCoverage: detailRow("Match"),
@@ -316,6 +317,37 @@ describe("getJobAdMatchDetail", () => {
 
   it("nätverksfel (throw) → null", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network"));
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+  });
+
+  it("orsaken parsas och når anroparen, inte bara verdiktet", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(validDetail));
+    const result = await getJobAdMatchDetail(ID_A);
+    expect(result?.regionFit.cause).toBe("RemoteOverride");
+    // Motpolen i samma svar: en rad utan orsak bär null, inte undefined.
+    expect(result?.employmentFit.cause).toBeNull();
+  });
+
+  it("okänd orsak → null (bunden vokabulär, ingen tyst degradering)", async () => {
+    // Det här är priset schemats docblock lovar: en BE-medlem som skeppas utan sin
+    // katalogfras och sitt enum tar HELA sektionen med sig i stället för att tyst
+    // läsa som "ingen orsak" — vilket hade återinfört defekten som tystnad.
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ...validDetail,
+        regionFit: registerDetailRow("Match", "SomeFutureCause"),
+      })
+    );
+    expect(await getJobAdMatchDetail(ID_A)).toBeNull();
+  });
+
+  it("cause-nyckeln SAKNAS helt → null (.nullable(), inte .optional())", async () => {
+    // Skillnaden är bärande: `.optional()` hade accepterat en gammal server och tyst
+    // gett `undefined`. Fältet FINNS på tråden och är null när det inte har något värde.
+    const { cause: _dropped, ...withoutCause } = registerDetailRow("Match");
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ ...validDetail, regionFit: withoutCause })
+    );
     expect(await getJobAdMatchDetail(ID_A)).toBeNull();
   });
 

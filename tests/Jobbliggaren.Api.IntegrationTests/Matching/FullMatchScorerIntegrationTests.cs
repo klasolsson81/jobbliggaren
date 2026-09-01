@@ -348,11 +348,12 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // RelatedSsykGroupConceptIds is an additive init-property on the embedded Fast profile (not a
     // positional arg). preferredRegions/preferredEmployments default empty so the cap-before-RB1
     // cases can opt into a stated-but-contradicted secondary. The related set is EMPTY for every
-    // pre-PR-4 test (behaviour-inert), so this helper is only used by the B2 Related cases.
+    // pre-PR-4 test (behaviour-inert).
     private static FullCandidateMatchProfile RelatedFullProfile(
         IReadOnlyList<string>? preferredRegions = null,
         IReadOnlyList<string>? preferredEmployments = null,
         IReadOnlyList<string>? preferredMunicipalities = null,
+        IReadOnlyList<string>? containmentRegions = null,
         params string[] cvSkillConceptIds) =>
         new(
             Fast: new CandidateMatchProfile(
@@ -363,8 +364,227 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
                 PreferredMunicipalityConceptIds: preferredMunicipalities ?? [])
             {
                 RelatedSsykGroupConceptIds = [RelatedGroup, BothGroup],
+                ContainmentRegionConceptIds = containmentRegions ?? [],
             },
             CvSkillConceptIds: cvSkillConceptIds);
+
+    // The #477 Low 1 containment fixture: a län the user never picked, which CONTAINS a kommun she
+    // did. Kept out of PrefRegions so the ad cannot take the direct-hit branch instead.
+    private const string ContainingRegion = "reg-containing-0077";
+    private static readonly string[] PrefMunicipalities = ["mun-pref-0077"];
+    private static readonly string[] ContainmentRegions = [ContainingRegion];
+
+    // =================================================================
+    // Dimension CAUSES (senior-cto-advisor bind 2026-08-31). Three membership dimensions have arms
+    // that return EMPTY evidence, and two of them reached the same verdict from two different
+    // reasons, so the client could not recover the reason and derived a wrong one. Each arm is
+    // pinned to its own cause here, through the real scorer against a seeded ad.
+    //
+    // The last two tests are the falsifiers: an ordinary hit and an ordinary miss carry NO cause.
+    // Without them every assertion below would also pass against a scorer that stamped one cause
+    // unconditionally.
+    //
+    // Each caused arm also asserts EMPTY evidence. The modal's cause branch runs first and
+    // consumes the whole evidence cell, so a future cause attached to an arm that cites concepts
+    // would hide them with no test failing.
+    // =================================================================
+
+    [Fact]
+    public async Task ScoreFull_Cause_UnstatedOrt_IsPreferenceUnstated()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: AdWrongRegion, employmentTypeConceptId: null,
+            terms: null, ct);
+        var profile = RelatedFullProfile(); // states no ort at all
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
+        result.Causes.RegionFit.ShouldBe(MatchDimensionCause.PreferenceUnstated,
+            "the vacuous-gate arm: the USER constrained nothing, which is why nothing was assessed");
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_SilentAdOnOrt_IsAdSilent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct, remote: false);
+        var profile = RelatedFullProfile(preferredRegions: PrefRegions);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
+        result.Causes.RegionFit.ShouldBe(MatchDimensionCause.AdSilent,
+            "the #552 arm: the AD is silent on a dimension the user constrained");
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_RemoteAd_IsRemoteOverride()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct, remote: true);
+        var profile = RelatedFullProfile(preferredRegions: PrefRegions);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        // Verdict Match with empty evidence on BOTH sides: before this carrier the modal rendered an
+        // empty cell under the word "Matchar", because the only thing that could have explained the
+        // row was the reason, and the reason was not on the wire.
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
+        result.Causes.RegionFit.ShouldBe(MatchDimensionCause.RemoteOverride);
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_LanOnlyAdContainingAPreferredKommun_IsRegionContainment()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A LÄN-ONLY ad: region present, municipality absent. The ACL writes the two facets
+        // independently from workplace_address (PlatsbankenJobSource), so a payload naming only a
+        // region produces exactly this row.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: ContainingRegion, employmentTypeConceptId: null,
+            terms: null, ct, municipalityConceptId: null);
+        var profile = RelatedFullProfile(
+            preferredMunicipalities: PrefMunicipalities, containmentRegions: ContainmentRegions);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        // This is the arm whose NotAssessed used to be indistinguishable from the unstated one, so
+        // the modal told a user who HAD named a kommun that she had named no region.
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        result.Score.Fast.RegionFit.Matched.ShouldBeEmpty();
+        result.Score.Fast.RegionFit.Missing.ShouldBeEmpty();
+        result.Causes.RegionFit.ShouldBe(
+            MatchDimensionCause.RegionContainsPreferredMunicipality);
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_SsykNotAssessed_SeparatesAnUnstatedUserFromASilentAd()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        // Ad WITH an occupation group, user who stated none.
+        var adWithGroup = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null, terms: null, ct);
+        var unstatedUser = FullProfile(); // SsykGroupConceptIds AND the related set both empty
+
+        // Ad WITHOUT an occupation group, user who stated one.
+        var adWithoutGroup = await SeedJobAdAsync(
+            "Titel", occupationGroupConceptId: null, regionConceptId: null,
+            employmentTypeConceptId: null, terms: null, ct);
+        var statedUser = RelatedFullProfile();
+
+        var unstated = await scorer.ScoreFullAsync(adWithGroup, unstatedUser, ct);
+        var silentAd = await scorer.ScoreFullAsync(adWithoutGroup, statedUser, ct);
+
+        // ONE verdict, TWO reasons: the collision this carrier exists to split. The modal replaces
+        // the WHOLE section on a NotAssessed SSYK, so before the split the second case told a user
+        // who HAD stated an occupation that she had not, and pointed her at a setting she had used.
+        unstated.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        unstated.Score.Fast.SsykOverlap.Matched.ShouldBeEmpty();
+        unstated.Score.Fast.SsykOverlap.Missing.ShouldBeEmpty();
+        silentAd.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        silentAd.Score.Fast.SsykOverlap.Matched.ShouldBeEmpty();
+        silentAd.Score.Fast.SsykOverlap.Missing.ShouldBeEmpty();
+
+        unstated.Causes.SsykOverlap.ShouldBe(MatchDimensionCause.PreferenceUnstated);
+        silentAd.Causes.SsykOverlap.ShouldBe(MatchDimensionCause.AdSilent);
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_Employment_SilentAdAndUnstatedPreferenceDiffer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, regionConceptId: null, employmentTypeConceptId: null,
+            terms: null, ct);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+
+        var stated = await scorer.ScoreFullAsync(
+            jobAdId, RelatedFullProfile(preferredEmployments: PrefEmployments), ct);
+        var unstated = await scorer.ScoreFullAsync(jobAdId, RelatedFullProfile(), ct);
+
+        stated.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        stated.Score.Fast.EmploymentFit.Matched.ShouldBeEmpty();
+        stated.Score.Fast.EmploymentFit.Missing.ShouldBeEmpty();
+        stated.Causes.EmploymentFit.ShouldBe(MatchDimensionCause.AdSilent);
+
+        unstated.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        unstated.Score.Fast.EmploymentFit.Matched.ShouldBeEmpty();
+        unstated.Score.Fast.EmploymentFit.Missing.ShouldBeEmpty();
+        unstated.Causes.EmploymentFit.ShouldBe(MatchDimensionCause.PreferenceUnstated);
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_IsNullWhenTheEvidenceExplainsItself()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A direct hit on every membership dimension: each row cites concepts, so no row needs a
+        // reason. This is the falsifier for the tests above, which would all pass against a scorer
+        // that stamped a cause unconditionally.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, PrefRegions[0], PrefEmployments[0], terms: null, ct);
+        var profile = RelatedFullProfile(
+            preferredRegions: PrefRegions, preferredEmployments: PrefEmployments);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.SsykOverlap.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+
+        result.Causes.SsykOverlap.ShouldBeNull();
+        result.Causes.RegionFit.ShouldBeNull();
+        result.Causes.EmploymentFit.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task ScoreFull_Cause_IsNullForAnOrdinaryMiss()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // The second falsifier, on the other polarity: the ad names an ort the user did not pick.
+        // The row is NoMatch and CITES the value it rejected, so it needs no reason.
+        var jobAdId = await SeedJobAdAsync(
+            "Titel", ExactGroup, AdWrongRegion, PrefEmployments[0], terms: null, ct);
+        var profile = RelatedFullProfile(
+            preferredRegions: PrefRegions, preferredEmployments: PrefEmployments);
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var result = await scorer.ScoreFullAsync(jobAdId, profile, ct);
+
+        result.Score.Fast.RegionFit.Verdict.ShouldBe(MatchDimensionVerdict.NoMatch);
+        result.Score.Fast.RegionFit.Missing.ShouldBe([AdWrongRegion]);
+        result.Causes.RegionFit.ShouldBeNull();
+
+        result.Score.Fast.EmploymentFit.Verdict.ShouldBe(MatchDimensionVerdict.Match);
+        result.Causes.EmploymentFit.ShouldBeNull();
+    }
 
     // =================================================================
     // SkillOverlap — Match / Partial / NoMatch / NotAssessed
@@ -1162,9 +1382,9 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
     // PR-4 (#300, ADR 0084) — SsykIsRelated on the FullScoredMatch carrier. TRUE iff the ad's
     // occupation-group concept-id ∈ profile.Fast.RelatedSsykGroupConceptIds AND ∉
     // profile.Fast.SsykGroupConceptIds (exact precedence), and only meaningful when the SSYK gate
-    // is a Match; FALSE otherwise. The related set is non-empty here (RelatedFullProfile); it is
-    // EMPTY in every other test in this file, so SsykIsRelated is bit-for-bit false there (the
-    // behaviour-inert v1 invariant, pinned by the last case below).
+    // is a Match; FALSE otherwise. The related set is non-empty here (RelatedFullProfile) and
+    // empty for every profile built by FullProfile, so SsykIsRelated is bit-for-bit false there
+    // (the behaviour-inert v1 invariant, pinned by the last case below).
     // =================================================================
 
     [Fact]

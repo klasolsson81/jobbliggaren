@@ -116,10 +116,10 @@ public sealed class GetJobAdMatchDetailQueryHandler(
 
         return Result.Success<JobAdMatchDetailDto?>(new JobAdMatchDetailDto(
             Grade: grade,
-            SsykOverlap: ToRegisterRow(score.Fast.SsykOverlap, labels),
+            SsykOverlap: ToRegisterRow(score.Fast.SsykOverlap, labels, scored.Causes.SsykOverlap),
             TitleSimilarity: ToRow(score.Fast.TitleSimilarity),
-            RegionFit: ToRegisterRow(score.Fast.RegionFit, labels),
-            EmploymentFit: ToCodedRow(score.Fast.EmploymentFit),
+            RegionFit: ToRegisterRow(score.Fast.RegionFit, labels, scored.Causes.RegionFit),
+            EmploymentFit: ToCodedRow(score.Fast.EmploymentFit, scored.Causes.EmploymentFit),
             SkillOverlap: ToRow(score.SkillOverlap),
             MustHaveCoverage: ToRow(score.MustHaveCoverage),
             NiceToHaveCoverage: ToRow(score.NiceToHaveCoverage)));
@@ -151,12 +151,15 @@ public sealed class GetJobAdMatchDetailQueryHandler(
     // Employment type stays CODED on the wire: its concepts are common nouns whose words
     // the catalogue owns, so resolving them here would put Swedish in front of an English
     // reader (#1537). Ssyk and region keep resolving — those names are register data.
-    private static MatchCodedDimensionDetailDto ToCodedRow(MatchDimension dimension) =>
-        new(dimension.Verdict, dimension.Matched, dimension.Missing);
+    private static MatchCodedDimensionDetailDto ToCodedRow(
+        MatchDimension dimension, MatchDimensionCause? cause) =>
+        new(dimension.Verdict, dimension.Matched, dimension.Missing, cause);
 
     private static MatchRegisterDimensionDetailDto ToRegisterRow(
-        MatchDimension dimension, IReadOnlyDictionary<string, string> labels) =>
-        new(dimension.Verdict, Pair(dimension.Matched, labels), Pair(dimension.Missing, labels));
+        MatchDimension dimension,
+        IReadOnlyDictionary<string, string> labels,
+        MatchDimensionCause? cause) =>
+        new(dimension.Verdict, Pair(dimension.Matched, labels), Pair(dimension.Missing, labels), cause);
 
     // #1598 — ONE entry per incoming concept-id, never fewer. The id an unnamed entry keeps is
     // not for display: it is what makes the entry EXIST, and the client's "the ad specifies

@@ -41,12 +41,23 @@ FROM caddy:2-builder-alpine AS build
 # --with, not --replace: --with adds a require, which under MVS is a floor and can only
 # raise. --replace is a ceiling and would hold these versions down if caddy later required
 # newer ones.
+#
+# The third entry names a PACKAGE, not the module root, and the asymmetry is deliberate.
+# Measured 2026-09-02: `--with golang.org/x/crypto@v0.55.0` fails the build with `cannot
+# find module providing package golang.org/x/crypto` — that root carries no .go files, so
+# the blank import xcaddy writes has nothing to bind. `go get` resolves a package to its
+# containing module and go.mod can only require modules, so the require written is still
+# `golang.org/x/crypto v0.55.0` and the floor above is preserved.
+# bcrypt because `basic_auth` (Caddyfile) already links it, so the import adds nothing to
+# the binary. Never `ssh` (nothing links it today), and never anything under `x509roots/`
+# — that is a separate module with its own require, so it would raise the wrong one and
+# leave the advisory in place behind a green build.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
       --with google.golang.org/grpc@v1.82.1 \
-      --with golang.org/x/crypto@v0.55.0
+      --with golang.org/x/crypto/bcrypt@v0.55.0
 
 FROM caddy:2-alpine AS runtime
 

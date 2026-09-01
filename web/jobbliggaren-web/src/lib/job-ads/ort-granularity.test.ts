@@ -75,8 +75,7 @@ describe("classifyOrtConcept", () => {
 
   it("postens LABEL är inte en nyckel", () => {
     // Vakt mot att någon nycklar tillbaka på namn: labeln finns i trädet, men
-    // kartan känner bara id:n. Utan den här raden skulle en återgång till
-    // namn-nyckling passera hela sviten.
+    // kartan känner bara id:n.
     expect(classifyOrtConcept("Solna", map)).toBeNull();
   });
 });

@@ -340,7 +340,7 @@ function RegionFitEvidence({
         </span>
       )}
       {matched.plain.length > 0 && (
-        // Oklassificerbart namn: samma meningsram som syskonen, men med den
+        // Oklassificerbart koncept: samma meningsram som syskonen, men med den
         // o-granulära termen "ort" — vi kan belägga att det ÄR en ort (raden är
         // ort-dimensionen), bara inte om det är en kommun eller ett län.
         <span>{t("ort.matchedPlain", { items: matched.plain.join(", ") })}</span>

@@ -824,6 +824,12 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         screen.getByText("Annonsen anger en ort som saknas i vårt register.")
       ).toBeInTheDocument();
       expect(screen.queryByText(/Län som matchar/)).not.toBeInTheDocument();
+      // Namnlösa poster måste hoppas över, inte bara undvika län-hinken. Utan
+      // vakten i `splitOrtByGranularity` når posten plain-hinken med tom sträng
+      // och renderar den dinglande meningen "Ort som matchar: ". Raden ovan kan
+      // inte fånga det: postens id saknas i kartan, så den går till plain med
+      // eller utan vakten (`test-writer` 2026-09-02, mutationsverifierat).
+      expect(screen.queryByText(/Ort som matchar/)).not.toBeInTheDocument();
     });
 
     it("räknaren hamnar på RÄTT rad — båda register-raderna samtidigt, olika antal", () => {

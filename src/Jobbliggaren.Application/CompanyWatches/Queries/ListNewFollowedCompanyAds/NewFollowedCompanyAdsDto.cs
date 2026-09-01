@@ -28,6 +28,14 @@ public sealed record NewFollowedAdRow(JobAdDto Ad, bool? MatchesYou);
 /// #1576 — the ads behind the Översikt number, newest first.
 ///
 /// <para>
+/// <b><see cref="MatchingAssessed"/> is a PAGE-GLOBAL fact, carried rather than derived.</b> The
+/// server answers a whole page from one profile read, so assessability is all-or-none — but a
+/// client reconstructing it from the rows has to choose between <c>some</c> and <c>every</c>, and
+/// those disagree exactly when the invariant breaks. <c>some</c> would then count the unknown rows
+/// as non-matching and report a subset as the total. Carrying the flag removes the choice.
+/// </para>
+///
+/// <para>
 /// <b><see cref="AcknowledgedThrough"/> is the whole reason this is not a bare list.</b> The rail
 /// watermark is compared against <c>FollowedCompanyAdHit.CreatedAt</c> — the SCAN clock — while an
 /// ad's own <c>CreatedAt</c> is its ingest time. The scan only admits ads newer than its last run and
@@ -47,6 +55,7 @@ public sealed record NewFollowedAdRow(JobAdDto Ad, bool? MatchesYou);
 /// </summary>
 public sealed record NewFollowedCompanyAdsDto(
     IReadOnlyList<NewFollowedAdRow> Rows,
+    bool MatchingAssessed,
     DateTimeOffset? AcknowledgedThrough,
     bool Truncated)
 {
@@ -56,5 +65,6 @@ public sealed record NewFollowedCompanyAdsDto(
     /// <c>AcknowledgedThrough</c> is null: there is no window to acknowledge, so the client writes
     /// nothing and the watermark does not move.
     /// </summary>
-    public static readonly NewFollowedCompanyAdsDto Empty = new([], null, Truncated: false);
+    public static readonly NewFollowedCompanyAdsDto Empty =
+        new([], MatchingAssessed: false, AcknowledgedThrough: null, Truncated: false);
 }

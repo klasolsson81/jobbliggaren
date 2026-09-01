@@ -131,6 +131,12 @@ export const newFollowedAdRowSchema = z.object({
  * #1576 - the ads behind the Oversikt count, newest first, running the SAME predicate as the count
  * (ADR 0120: a rendered count is true or it is absent).
  *
+ * `matchingAssessed` is a PAGE-GLOBAL fact the server carries rather than the client derives. The
+ * server answers a whole page from one profile read, so it is all-or-none; a client rebuilding
+ * it from the rows would have to pick between `some` and `every`, and those disagree exactly
+ * when the invariant breaks - `some` would count the unknown rows as non-matching and report a
+ * subset as the total.
+ *
  * `acknowledgedThrough` is the watermark window the server computed over the rows it returned, in
  * the SCAN clock unit - NOT an ad timestamp. It is handed back verbatim on acknowledgement; a value
  * derived client-side from `ad.createdAt` would sit below every hit just read and the count would
@@ -141,6 +147,7 @@ export const newFollowedAdRowSchema = z.object({
  */
 export const newFollowedCompanyAdsSchema = z.object({
   rows: z.array(newFollowedAdRowSchema),
+  matchingAssessed: z.boolean(),
   acknowledgedThrough: z.string().nullable(),
   truncated: z.boolean(),
 });

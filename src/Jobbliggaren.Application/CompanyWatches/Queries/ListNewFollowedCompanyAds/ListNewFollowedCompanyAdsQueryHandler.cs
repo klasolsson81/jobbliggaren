@@ -61,7 +61,12 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         var window = await (
                 from h in NewFollowedCompanyAdSet.NewHits(db, userId, scope.LastSeen)
                 join j in db.JobAds.AsNoTracking() on h.JobAdId equals j.Id
-                orderby h.CreatedAt, h.JobAdId
+                // No tiebreak, deliberately. Rows sharing a CreatedAt cannot be split across the
+                // cap: the boundary tie group is trimmed out whole below, so intra-tie order can
+                // never decide which hit survives. A JobAdId tiebreak would not have helped
+                // anyway -- two hits on the SAME ad carry the same one -- and it is unsortable
+                // outside Postgres, which hid these specs from the in-memory suite.
+                orderby h.CreatedAt
                 select new Row(
                     h.JobAdId,
                     h.CompanyWatchId,
@@ -80,8 +85,23 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
             .ToListAsync(cancellationToken);
 
         var truncated = window.Count > MaxRows;
+
+        // The window must never be cut INSIDE a group of hits that share a CreatedAt. The read
+        // predicate is strict (h.CreatedAt > lastSeen), so acknowledging a timestamp that a row
+        // beyond the cap also carries would exclude that row FOR GOOD — the watermark only
+        // moves forward. Ties are reachable: CompanyWatchScanJob stamps clock.UtcNow per hit in a
+        // tight loop and timestamptz truncates to the microsecond. Worse, the conditions correlate:
+        // a window overflows the cap precisely when one scan wrote a burst, which is when
+        // neighbouring iterations land in the same microsecond.
+        var boundaryIsWholeWindow = false;
         if (truncated)
-            window = window.GetRange(0, MaxRows);
+        {
+            var firstExcluded = window[MaxRows].HitCreatedAt;
+            var capped = window.GetRange(0, MaxRows);
+            var trimmed = capped.Where(r => r.HitCreatedAt < firstExcluded).ToList();
+            boundaryIsWholeWindow = trimmed.Count == 0;
+            window = boundaryIsWholeWindow ? capped : trimmed;
+        }
 
         if (window.Count == 0)
             return NewFollowedCompanyAdsDto.Empty;
@@ -89,7 +109,13 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
         // The window is acknowledged in the SCAN clock's unit, over every row read — including rows
         // the grade fork excludes below. Acknowledging only the included rows would hold the
         // watermark down behind an excluded older hit and re-show the same included ads every visit.
-        var acknowledgedThrough = window.Max(r => r.HitCreatedAt);
+        //
+        // NULL in the degenerate case: the whole capped window carries ONE timestamp and more rows
+        // share it. A timestamp watermark cannot both show a partial group and acknowledge it, so
+        // this visit acknowledges NOTHING. The user sees the rows and the count stands; the next
+        // visit shows the same ones. No progress is the safe direction — silent loss is not.
+        DateTimeOffset? acknowledgedThrough =
+            boundaryIsWholeWindow ? null : window.Max(r => r.HitCreatedAt);
 
         var hits = window
             .Select(r => new NewFollowedCompanyAdSet.Hit(r.JobAdId, r.CompanyWatchId, r.HitCreatedAt))
@@ -123,7 +149,8 @@ public sealed class ListNewFollowedCompanyAdsQueryHandler(
                 resolution.Assessed ? resolution.Matching.Contains(x.JobAdId) : null))
             .ToList();
 
-        return new NewFollowedCompanyAdsDto(rows, acknowledgedThrough, truncated);
+        return new NewFollowedCompanyAdsDto(
+            rows, resolution.Assessed, acknowledgedThrough, truncated);
     }
 
     /// <summary>One hit joined to its ad. Named because an anonymous type cannot cross the projection.</summary>

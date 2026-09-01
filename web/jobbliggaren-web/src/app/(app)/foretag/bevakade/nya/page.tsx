@@ -100,11 +100,10 @@ export default async function NyaFollowedAdsPage({
             );
           }
 
-          // A row whose `matchesYou` is null is NOT ASSESSED — the user stated no occupation, so the
-          // grade predicate is inert. `some` rather than `every`: the backend answers the whole page
-          // from one profile read, so it is all-or-none, but if that ever breaks we fall silent
-          // instead of reporting a subset as the total.
-          const assessed = data.rows.some((row) => row.matchesYou !== null);
+          // NOT ASSESSED means the user stated no occupation, so the grade predicate is inert. The
+          // server carries the fact; deriving it from the rows would force a choice between `some`
+          // and `every` that disagree precisely when the all-or-none invariant breaks.
+          const assessed = data.matchingAssessed;
           const matchingCount = data.rows.filter(
             (row) => row.matchesYou === true
           ).length;

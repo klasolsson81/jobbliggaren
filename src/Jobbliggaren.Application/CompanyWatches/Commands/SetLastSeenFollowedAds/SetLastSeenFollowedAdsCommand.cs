@@ -21,9 +21,9 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetLastSeenFollowedAd
 /// </para>
 /// </summary>
 /// <param name="SeenThrough">
-/// The seen window the user acknowledged. Null (no body / deploy-skew from an older FE / the
-/// follows hub renders no individual hits to preserve) falls back to clock-now in the handler — the
-/// documented safe path when there is nothing newer to preserve (parity
+/// The seen window the user acknowledged. Null (no body, or deploy-skew from an older FE) falls
+/// back to clock-now in the handler — the documented safe path when there is nothing newer to
+/// preserve (parity
 /// <c>MarkMatchesSeenCommand.SeenThrough</c>). A future-dated value is clamped to now by the
 /// aggregate.
 /// </param>

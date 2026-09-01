@@ -8,13 +8,13 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetNewFollowedCompanyAdCount;
 
 /// <summary>
-/// Bevakning F2 (#801, RF-6=6B / RF-8=8C) — counts the authenticated user's new followed-company ad
-/// hits since their last-seen watermark, per-watch grade-filtered read-time. Owner-scoped (reads
+/// Bevakning F2 (#801, RF-6=6B / RF-8=8C) — counts the authenticated user's new followed-company ADS
+/// (not hit rows — #1576) since their last-seen watermark, per-watch grade-filtered read-time. Owner-scoped (reads
 /// only the current user's hits + watermark + active watches). No authenticated user / no active
-/// follows → honest 0. The soft-delete query filters on <c>FollowedCompanyAdHit</c> and
-/// <c>CompanyWatch</c> exclude erased hits and unfollowed watches automatically. NO AI/LLM.
+/// follows → honest 0. The soft-delete query filter on <c>CompanyWatch</c> excludes
+/// unfollowed watches automatically; erased hits are HARD-deleted (#868), not filtered. NO AI/LLM.
 /// <b>Lifecycle-gated (#864):</b> counts only hits whose ad is still <c>Active</c> — the same
-/// presentable set its destination (/foretag, <c>ListCompanyWatchesQueryHandler</c>) shows.
+/// presentable set its destination (<c>/foretag/bevakade/nya</c>) shows.
 ///
 /// <para>
 /// <b>Status-AGNOSTIC (parity <c>GetMyNewMatchCountQueryHandler</c>):</b> counts a hit regardless of

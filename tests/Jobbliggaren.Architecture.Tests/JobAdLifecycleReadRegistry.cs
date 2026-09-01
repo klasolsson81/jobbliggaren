@@ -144,10 +144,12 @@ public static class JobAdLifecycleReadRegistry
                     + "(#1576, #913 B4g witness). The count handler no longer holds this read; it "
                     + "composes this one.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.ListNewFollowedCompanyAds.ListNewFollowedCompanyAdsQueryHandler.Handle"] =
-                One(Active("join JobAds where j.Status == Active — projects the ad columns for "
-                    + "/foretag/bevakade/nya (#1576). A surface that RENDERS the ads owes the decision "
-                    + "more than one that counts them: an archived ad here would be a visible row the "
-                    + "count did not count — #864 read from the other end.")),
+                One(Active("join JobAds for the ad columns of /foretag/bevakade/nya (#1576). NO Status "
+                    + "predicate at this site: the lifecycle gate lives in NewFollowedCompanyAdSet"
+                    + ".NewHits, which this query composes onto, so the decision is INHERITED and "
+                    + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
+                    + "owes the decision more than one that counts them: an archived ad here would be "
+                    + "a visible row the count did not count — #864 read from the other end.")),
             ["Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob.ScanUserAsync"] =
                 One(Active(".Where(j.Status == Active && CreatedAt > since && watchedOrgNrs.Contains(orgNr)) — new-ad scan for followed companies.")),
             ["Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQueryHandler.Handle"] =

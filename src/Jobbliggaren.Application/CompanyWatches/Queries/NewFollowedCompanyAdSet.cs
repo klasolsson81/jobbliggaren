@@ -81,8 +81,8 @@ internal static class NewFollowedCompanyAdSet
 
     /// <summary>
     /// New hits since the watermark, restricted to the user's ACTIVE watches by an equijoin on the
-    /// (opaque) CompanyWatchId — NOT an org.nr read (D8). The global soft-delete filters on both
-    /// sides exclude deleted hits and unfollowed watches. Joining (not an id-set Contains) also
+    /// (opaque) CompanyWatchId — NOT an org.nr read (D8). The soft-delete filter on CompanyWatch excludes
+    /// unfollowed watches; erased hits are HARD-deleted (#868), not filtered. Joining (not an id-set Contains) also
     /// sidesteps the strongly-typed-VO Contains translation trap. STATUS-AGNOSTIC with respect to
     /// NOTIFICATION delivery (no NotificationStatus / SeenAt predicate) — that is a different axis
     /// from the ad's LIFECYCLE, gated here.

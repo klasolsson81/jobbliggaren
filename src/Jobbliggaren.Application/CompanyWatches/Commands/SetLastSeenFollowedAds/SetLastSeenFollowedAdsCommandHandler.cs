@@ -32,9 +32,10 @@ public sealed class SetLastSeenFollowedAdsCommandHandler(
             return Result.Failure(
                 DomainError.NotFound("JobSeeker", currentUser.UserId.Value));
 
-        // Advance to the window the caller acknowledged (or clock-now when the FE sends nothing —
-        // the follows hub renders no individual hits to preserve, so clock-now is the honest
-        // "acknowledged as of this visit"). The aggregate clamps a future value to now and is
+        // Advance to the window the caller acknowledged. Clock-now ONLY when the FE sends nothing,
+        // which since #1576 means deploy-skew: the one caller always sends the window it rendered,
+        // and clock-now would acknowledge PAST a capped window. The aggregate clamps a future value
+        // to now and is
         // monotonic (a stale call is a no-op).
         var seenThrough = command.SeenThrough ?? clock.UtcNow;
         jobSeeker.SetLastSeenFollowedAds(seenThrough, clock);

@@ -94,7 +94,7 @@
     "savedSearchTextNoCount": "Your latest search: <b>{name}</b>.",
     "savedSearchCta": "Run search",
     "companiesLabel": "Watch",
-    "companiesText": "The companies you watch have published <b>{count, plural, one {# new ad} other {# new ads}}</b> since your last visit.",
+    "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View followed companies",
     "calloutLabel": "Matching",
     "calloutText": "<b>Matching is not complete.</b> You have not specified which occupations you are looking for, so Jobbliggaren cannot show which job ads suit you.",

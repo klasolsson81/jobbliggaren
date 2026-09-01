@@ -88,8 +88,8 @@ export default async function OversiktRoute({
     // aldrig reject:a Promise.all eller redirecta — det löses till 0 nedan.
     getNewFollowedCompanyAdCount(),
     // #1558 — the followed-company list, for Foretagsbevakning's standing summary. The section's
-    // only other source is the watermark delta above, which the visit to /foretag/bevakade
-    // advances itself, so after that visit it is 0 and the section rendered as empty for an
+    // only other source is the watermark delta above, which the visit to /foretag/bevakade/nya
+    // advances, so after that visit it is 0 and the section rendered as empty for an
     // account that follows companies with active ads. The Result travels WHOLE to the component
     // (never degraded to a count like the row above): only a Result can tell "you follow nothing"
     // from "the list could not be read", and the summary must say different things in those two

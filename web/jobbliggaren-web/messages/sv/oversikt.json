@@ -94,7 +94,7 @@
     "savedSearchTextNoCount": "Din senaste sökning: <b>{name}</b>.",
     "savedSearchCta": "Kör sökning",
     "companiesLabel": "Bevakning",
-    "companiesText": "Dina bevakade företag har publicerat <b>{count, plural, one {# ny annons} other {# nya annonser}}</b> sedan ditt senaste besök.",
+    "companiesText": "Dina bevakade företag har publicerat <b><lnk>{count, plural, one {# ny annons} other {# nya annonser}}</lnk></b> sedan ditt senaste besök.",
     "companiesCta": "Visa bevakade företag",
     "calloutLabel": "Matchning",
     "calloutText": "<b>Matchningen är inte klar.</b> Du har inte angett vilka yrken du söker inom, så Jobbliggaren kan inte visa vilka annonser som passar dig.",

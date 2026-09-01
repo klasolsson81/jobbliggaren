@@ -6,9 +6,9 @@ namespace Jobbliggaren.Application.JobAds.Queries;
 // `GET /me/jobs/watermark`) — DTO:n bär inget presentations-fält längre.
 //
 // #745 (epik #737, perf-finding `d1-list-dto-ships-full-description`) — den list-rad-
-// formen bär MEDVETET INGEN `Description`. De tre list-ytorna (JobAdSearchComposition
-// .ToDto() → ListJobAds/RunSavedSearch/per-användar-match-sort) renderar aldrig annons-
-// texten (korten läser den inte; detaljmodalen/-sidan hämtar den separat via GetJobAd).
+// formen bär MEDVETET INGEN `Description`. De fyra list-ytorna renderar aldrig annons-
+// texten: tre går genom JobAdSearchComposition.ToDto() (ListJobAds/RunSavedSearch/per-
+// användar-match-sort), och ListNewFollowedCompanyAds (#1576) projicerar samma fält själv (korten läser den inte; detaljmodalen/-sidan hämtar den separat via GetJobAd).
 // Att projicera den untruncerade `Description` per rad (PageSize upp till 100) de-TOAST:ade
 // en bred kolumn Postgres→API→BFF för en payload ingen läser. `Description` lever kvar på
 // annons-aggregatet (`JobAd`) och på detalj-tråden (<see cref="JobAdDetailDto"/>, som

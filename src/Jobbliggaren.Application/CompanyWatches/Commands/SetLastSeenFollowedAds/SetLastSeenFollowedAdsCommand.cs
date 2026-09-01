@@ -6,9 +6,9 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetLastSeenFollowedAd
 /// <summary>
 /// Bevakning F2 (#801, RF-6=6B) — advances the authenticated user's company-follow last-seen
 /// watermark (the Översikt "nya annonser från bevakade företag"-count resets). Called when the user
-/// visits the follows surface (/foretag) — the sibling of <c>MarkMatchesSeenCommand</c> for the
-/// match rail (Klas surface decision 2026-07-12: advance on visiting the follows hub, not on every
-/// /oversikt load). Owner-scoped. Returns a non-generic <see cref="Result"/> (it mutates the
+/// opens /foretag/bevakade/nya — the sibling of <c>MarkMatchesSeenCommand</c> for the match rail.
+/// (Klas surface decision 2026-07-12 put this on the follows-hub visit; #1576 moved it to the
+/// destination that renders the window it acknowledges, because the hub showed none of it.) Owner-scoped. Returns a non-generic <see cref="Result"/> (it mutates the
 /// caller's existing JobSeeker; creates no id). Idempotent (the watermark is monotonic).
 ///
 /// <para>
@@ -21,9 +21,9 @@ namespace Jobbliggaren.Application.CompanyWatches.Commands.SetLastSeenFollowedAd
 /// </para>
 /// </summary>
 /// <param name="SeenThrough">
-/// The seen window the user acknowledged. Null (no body / deploy-skew from an older FE / the
-/// follows hub renders no individual hits to preserve) falls back to clock-now in the handler — the
-/// documented safe path when there is nothing newer to preserve (parity
+/// The seen window the user acknowledged. Null (no body, or deploy-skew from an older FE) falls
+/// back to clock-now in the handler — the documented safe path when there is nothing newer to
+/// preserve (parity
 /// <c>MarkMatchesSeenCommand.SeenThrough</c>). A future-dated value is clamped to now by the
 /// aggregate.
 /// </param>

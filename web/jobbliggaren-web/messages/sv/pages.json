@@ -266,7 +266,8 @@
       "bevakade": "Bevakade företag",
       "sok": "Sök företag",
       "smartaBevakningar": "Smarta bevakningar",
-      "historik": "Ansökningshistorik"
+      "historik": "Ansökningshistorik",
+      "nyaAnnonser": "Nya annonser"
     },
     "loading": "Laddar…",
     "sok": {
@@ -336,11 +337,37 @@
       }
     },
     "watchesHeading": "Bevakade företag",
-    "watchesLede": "Företag du bevakar. Nya annonser från dem visas här och på Översikt.",
+    "watchesLede": "Företag du bevakar. Nya annonser från dem visas på Översikt och under Nya annonser.",
     "historyHeading": "Ansökningshistorik",
     "historyLede": "Dina ansökningar grupperade per arbetsgivare.",
     "loadErrorTitle": "Kunde inte ladda bevakade företag",
     "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken",
+    "newAds": {
+      "heading": "Nya annonser från bevakade företag",
+      "lede": "Annonser från företag du bevakar, sedan du senast var här.",
+      "loadErrorTitle": "Kunde inte ladda nya annonser",
+      "emptyTitle": "Inget nytt just nu",
+      "emptyBody": "Här visas annonser som tillkommit sedan du senast var här. Alla annonser från företagen du bevakar finns kvar under Bevakade företag.",
+      "summary": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök, varav {matching} matchar dig.",
+      "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök.",
+      "summaryTruncated": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}, varav {matching} matchar dig.",
+      "summaryTruncatedNotAssessed": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}.",
+      "consumptionNote": "Listan visar det som var nytt när du öppnade sidan.",
+      "consumptionNoteAcknowledged": "Nästa gång visas bara det som tillkommit sedan dess.",
+      "view": {
+        "groupLabel": "Filtrera nya annonser",
+        "all": "Alla annonser",
+        "matching": "Matchande annonser"
+      },
+      "matchingEmptyTitle": "Ingen av de nya annonserna matchar din profil",
+      "matchingEmptyBody": "Matchningen utgår från de yrken, orter och kompetenser du angett under Matchning.",
+      "matchingEmptyAction": "Visa alla nya annonser",
+      "truncated": "Det finns fler nya annonser än de som visas. De visas nästa gång du öppnar sidan.",
+      "backToWatches": "Till bevakade företag",
+      "meta": {
+        "title": "Nya annonser från bevakade företag"
+      }
+    },
     "criteria": {
       "heading": "Smarta bevakningar",
       "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En smart bevakning skickar inga egna notiser.",

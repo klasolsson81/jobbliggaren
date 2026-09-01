@@ -11,6 +11,7 @@ import {
 } from "@/lib/job-ads/company-jobs-href";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { unfollowCompanyAction } from "@/lib/actions/company-follows";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 import type { CompanyWatch } from "@/lib/dto/company-follows";
 import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -22,10 +23,6 @@ import { WatchFilterDialog } from "./watch-filter-dialog";
  * count. The active-ad count is always kept as a secondary fact regardless of mode (#447/#448).
  */
 export type CompanyWatchViewMode = "matching" | "all";
-
-// #452 — the canonical route the "set up matching" nudge links to, kept as a repeated inline literal
-// per the established pattern (JobAdMatchSection, oversikt-page, jobb-results-toolbar all inline it).
-const MATCH_SETTINGS_HREF = "/installningar#matchning";
 
 // The primary per-company matching line sits between the title and the meta row. Token-styled inline
 // (no new globals.css rule): primary ink for high contrast (never gray, per design), sized/weighted

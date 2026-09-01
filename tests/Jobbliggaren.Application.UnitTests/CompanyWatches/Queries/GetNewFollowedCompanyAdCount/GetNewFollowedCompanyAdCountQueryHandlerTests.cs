@@ -86,7 +86,9 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
     // proved a count over ads that DO NOT EXIST. That was invisible while the handler joined nothing —
     // and "the handler joins nothing" IS the defect: the rail counted hit rows while its destination
     // (/foretag, ListCompanyWatchesQueryHandler:100) has always been Status == Active gated, so the badge
-    // could promise ads the page would never show. The rail is now lifecycle-gated, so a hit's ad must be
+    // could promise ads the page would never show. (That destination is /foretag/bevakade/nya since
+    // #1576; it was ListCompanyWatchesQueryHandler before.) The rail is now lifecycle-gated, so a
+    // hit's ad must be
     // real. Every test's own axis (watermark / owner-scope / OnlyMatched / inert-filter) is untouched.
     private JobAdId SeedHit(AppDbContext db, Guid userId, CompanyWatchId watchId)
     {
@@ -94,6 +96,12 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
         db.FollowedCompanyAdHits.Add(FollowedCompanyAdHit.Create(userId, adId, watchId, _clock).Value);
         return adId;
     }
+
+    // A second hit for an ad that already exists, under a DIFFERENT watch. CompanyWatchScanJob
+    // resolves every watch matching an ad (a direct employer follow AND a brand-group follow that
+    // covers it, ADR 0087 D3b) and writes one row per pair; UNIQUE (user, ad, watch) exists for it.
+    private void SeedHitForAd(AppDbContext db, Guid userId, JobAdId adId, CompanyWatchId watchId) =>
+        db.FollowedCompanyAdHits.Add(FollowedCompanyAdHit.Create(userId, adId, watchId, _clock).Value);
 
     private JobAdId SeedActiveAd(AppDbContext db)
     {
@@ -384,4 +392,85 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
 
         (await CountAsync(db, me)).ShouldBe(1, "only my own follows' hits count");
     }
+
+    // ═══ #1576 — the user-facing unit is the AD, not the hit row.
+    //
+    // Storage is hit-granular on purpose: UNIQUE (user_id, job_ad_id, company_watch_id) exists so two
+    // follows dispatch independently. That intent is about DISPATCH bookkeeping and says nothing about
+    // counting, and the repo had already decided the user-facing unit the other way in delivered code:
+    // MarkFollowedCompanyAdSeenCommandHandler stamps BOTH rows because "the user saw the AD". This
+    // handler was the last place reading the bookkeeping unit as the user unit.
+
+    [Fact]
+    public async Task Handle_CommonPath_CountsOneAdOnce_WhenTwoActiveWatchesMatchIt()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        SeedSeeker(db, userId);
+        var first = SeedWatch(db, userId, onlyMatched: false);
+        var second = SeedWatch(db, userId, onlyMatched: false);
+        var adId = SeedHit(db, userId, first);
+        SeedHitForAd(db, userId, adId, second);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var count = await CountAsync(db, userId);
+
+        count.ShouldBe(1, "two hit rows, one ad — and the copy says annonser");
+        await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    // THE OR RULE, and the only case that separates it from a plain Distinct(). The ad is reached
+    // through a plain watch AND an "endast matchade" watch, and it grades BELOW Good: the OnlyMatched
+    // hit fails the inclusion rule, the plain hit passes, and the AD belongs to the set. An AND
+    // reading (drop the ad if ANY hit fails) answers 0 and silently loses ads for anyone who follows a
+    // company both directly and through a brand group.
+    [Fact]
+    public async Task Handle_GradePath_CountsOneAdOnce_WhenAPlainAndAnOnlyMatchedWatchBothMatchIt()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        SeedSeeker(db, userId);
+        var plain = SeedWatch(db, userId, onlyMatched: false);
+        var onlyMatched = SeedWatch(db, userId, onlyMatched: true);
+        var adId = SeedHit(db, userId, plain);
+        SeedHitForAd(db, userId, adId, onlyMatched);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        // Below Good: the grade filter admits nothing.
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(),
+                Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId>());
+
+        var count = await CountAsync(db, userId);
+
+        count.ShouldBe(1, "the plain watch's hit stands, so the AD is in the set");
+    }
+
+    // The grade fork is entered because an OnlyMatched watch EXISTS, but it contributes no hits. The
+    // profile must not be built for nothing: the port fail-fasts on an empty-SSYK profile, so the
+    // branch order is load-bearing, not an optimisation.
+    [Fact]
+    public async Task Handle_GradePath_NeverBuildsProfile_WhenNoHitFallsUnderAnOnlyMatchedWatch()
+    {
+        using var db = TestAppDbContextFactory.Create();
+        var userId = Guid.NewGuid();
+        SeedSeeker(db, userId);
+        var plain = SeedWatch(db, userId, onlyMatched: false);
+        SeedWatch(db, userId, onlyMatched: true);
+        SeedHit(db, userId, plain);
+        SeedHit(db, userId, plain);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var count = await CountAsync(db, userId);
+
+        count.ShouldBe(2);
+        await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
+    }
+
 }

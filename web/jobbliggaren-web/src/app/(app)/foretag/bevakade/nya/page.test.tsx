@@ -77,9 +77,12 @@ function ad(id: string, title: string): JobAdDto {
 const WINDOW = "2026-08-31T08:15:00.123456Z";
 
 function okResult(rows: Array<{ ad: JobAdDto; matchesYou: boolean | null }>) {
+  // The server carries assessability as a page-global fact, so the fixture does too rather than
+  // re-deriving it from the rows - deriving it here would hide the very ambiguity the field closes.
+  const matchingAssessed = rows.every((r) => r.matchesYou !== null);
   return {
     kind: "ok" as const,
-    data: { rows, acknowledgedThrough: WINDOW, truncated: false },
+    data: { rows, matchingAssessed, acknowledgedThrough: WINDOW, truncated: false },
   };
 }
 
@@ -122,7 +125,7 @@ describe("/foretag/bevakade/nya", () => {
   it("does not acknowledge when there is nothing to acknowledge", async () => {
     getNewFollowedCompanyAds.mockResolvedValue({
       kind: "ok" as const,
-      data: { rows: [], acknowledgedThrough: null, truncated: false },
+      data: { rows: [], matchingAssessed: false, acknowledgedThrough: null, truncated: false },
     });
 
     await renderPage();

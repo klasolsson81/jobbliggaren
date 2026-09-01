@@ -20,7 +20,9 @@ namespace Jobbliggaren.Api.IntegrationTests.CompanyWatches;
 /// <summary>
 /// Bevakning F2 (#801, RF-6=6B) — end-to-end against Testcontainers Postgres for
 /// <c>GET /api/v1/me/followed-company-ads/new-count</c> (the Översikt follow-rail count) and
-/// <c>POST /api/v1/me/followed-company-ads/seen</c> (the watermark advance). Real wired stack, NEVER
+/// <c>POST /api/v1/me/followed-company-ads/seen</c> (the watermark advance) and
+/// <c>GET /api/v1/me/followed-company-ads</c> (the destination that count links to, #1576).
+/// Real wired stack, NEVER
 /// EF-InMemory: only real Postgres proves the hit↔active-watch equijoin on the value-converted
 /// <c>CompanyWatchId</c> translates to SQL (InMemory joins in memory and hides a translation failure).
 /// <para>
@@ -52,7 +54,10 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
     private sealed record ListAd(Guid Id, string Title);
     private sealed record ListRow(ListAd Ad, bool? MatchesYou);
     private sealed record ListResponse(
-        IReadOnlyList<ListRow> Rows, DateTimeOffset? AcknowledgedThrough, bool Truncated);
+        IReadOnlyList<ListRow> Rows,
+        bool MatchingAssessed,
+        DateTimeOffset? AcknowledgedThrough,
+        bool Truncated);
 
     private async Task<(HttpClient Client, Guid UserId)> RegisterUserAsync(string prefix, CancellationToken ct)
     {
@@ -94,7 +99,12 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FakeDateTimeProvider(createdAt);
-        var adId = await SeedActiveAdAsync(db, clock, ct);
+        // The ad is ingested STRICTLY BEFORE the scan stamps its hit, always: CompanyWatchScanJob
+        // only admits ads with j.CreatedAt > since and stamps the hit at now. Seeding both from one
+        // clock made them EQUAL, a shape src/ cannot produce (§5 Tests:), and it made the
+        // acknowledgement-window spec vacuous: Max(hit.CreatedAt) and Max(ad.CreatedAt) were the same
+        // number, so mutating the window to read the ad clock left the spec green.
+        var adId = await SeedActiveAdAsync(db, new FakeDateTimeProvider(createdAt.AddMinutes(-5)), ct);
         var hit = FollowedCompanyAdHit.Create(userId, adId, watchId, clock).Value;
         // Drive the state machine to the requested status (all statuses count in the rail — status-agnostic).
         switch (status)
@@ -231,8 +241,9 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
     [Fact]
     public async Task NewCount_DoesNotCountHit_WhoseAdIsArchived()
     {
-        // THE #864 LIFECYCLE PIN, against real Postgres. The rail's destination (/foretag,
-        // ListCompanyWatchesQueryHandler:100) has always been Status == Active gated; the rail joined
+        // THE #864 LIFECYCLE PIN, against real Postgres. The rail's destination has always been
+        // Status == Active gated (/foretag/bevakade/nya since #1576, ListCompanyWatchesQueryHandler
+        // before it); the rail joined
         // JobAds not at all, so it counted archived ads the page would never show. This spec is the
         // translation proof for the handler's JobAds gate (`j.Status == Active` crosses the SmartEnum
         // HasConversion — a translation failure is invisible under InMemory), exactly the role
@@ -324,8 +335,6 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    // 10-digit legal-entity org.nr (third digit ≥ 2), unique per call — OrganizationNumber.Create
-    // validates 10 digits (no Luhn).
     // Seeds a SECOND hit for an ad that already exists, under a DIFFERENT watch. This is the shape
     // the UNIQUE key (user_id, job_ad_id, company_watch_id) exists to allow: a direct employer
     // follow AND a brand-group follow covering the same employer. CompanyWatchScanJob produces it by
@@ -378,6 +387,12 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
         list.Rows.Select(r => r.Ad.Id).OrderBy(id => id)
             .ShouldBe(new[] { a.Value, b.Value }.OrderBy(id => id), "and they are the SAME ads");
         list.Truncated.ShouldBeFalse();
+
+        // Name the branch instead of hiding it: a freshly registered user has stated no occupation,
+        // so the grade predicate is INERT and every row is honestly "not assessed". Without this the
+        // suite would quietly stop covering the branch it actually runs.
+        list.MatchingAssessed.ShouldBeFalse();
+        list.Rows.ShouldAllBe(r => r.MatchesYou == null);
     }
 
     // The acknowledgement window is the max over the rows the surface READ, in the SCAN clock unit
@@ -434,5 +449,67 @@ public class FollowedCompanyAdRailTests(ApiFactory factory)
         list.Rows[0].Ad.Id.ShouldBe(adId.Value);
     }
 
+    // The window is what makes the acknowledgement safe against the read-then-write race: a hit that
+    // lands AFTER the surface read must survive it. Clock-now is still the fallback for an empty
+    // body, so nothing but this spec separates "sends the window" from "sends nothing".
+    [Fact]
+    public async Task NewAds_AcknowledgingTheWindow_DoesNotSwallowAHitCreatedAfterTheRead()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (client, userId) = await RegisterUserAsync("rail-noswallow", ct);
+        var watchId = await SeedWatchAsync(userId, active: true, ct);
+        var watermark = DateTimeOffset.UtcNow.AddHours(-1);
+        await SetWatermarkAsync(userId, watermark, ct);
+
+        await SeedHitAsync(
+            userId, watchId, watermark.AddMinutes(10), FollowedCompanyAdHitStatus.Pending, ct);
+        var list = await GetListAsync(client, ct);
+        list.Rows.Count.ShouldBe(1);
+
+        // Lands between the read and the acknowledgement.
+        await SeedHitAsync(
+            userId, watchId, watermark.AddMinutes(30), FollowedCompanyAdHitStatus.Pending, ct);
+
+        var seen = await client.PostAsJsonAsync(
+            SeenEndpoint, new { seenThrough = list.AcknowledgedThrough }, ct);
+        seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        (await GetCountAsync(client, ct)).ShouldBe(
+            1, "the hit created after the read is still new; clock-now would have swallowed it");
+    }
+
+    [Fact]
+    public async Task NewAds_WithoutAuth_Returns401()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(ListEndpoint, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    // Owner-scoping matters more here than on the count: a leak surfaces ad titles and URLs, not a
+    // number.
+    [Fact]
+    public async Task NewAds_IsCrossUserIsolated()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (ownerClient, ownerId) = await RegisterUserAsync("rail-ads-owner", ct);
+        var (otherClient, _) = await RegisterUserAsync("rail-ads-other", ct);
+        var watchId = await SeedWatchAsync(ownerId, active: true, ct);
+        await SeedHitAsync(
+            ownerId,
+            watchId,
+            DateTimeOffset.UtcNow.AddMinutes(-10),
+            FollowedCompanyAdHitStatus.Pending,
+            ct);
+
+        (await GetListAsync(ownerClient, ct)).Rows.Count.ShouldBe(1);
+        (await GetListAsync(otherClient, ct)).Rows.ShouldBeEmpty();
+    }
+
+    // 10-digit legal-entity org.nr (third digit ≥ 2), unique per call — OrganizationNumber.Create
+    // validates 10 digits (no Luhn).
     private static string NewOrgNr() => $"55{Random.Shared.Next(10000000, 99999999)}";
 }

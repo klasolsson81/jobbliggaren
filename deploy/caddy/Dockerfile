@@ -21,7 +21,7 @@
 # ADR 0065 Amendment 2026-07-28 Beslut 1: repair outranks acceptance, and an advisory may
 # be accepted only when no dependency-level fix EXISTS — demonstrated, not asserted. Both
 # fixes exist. The builder image carries a Go toolchain new enough for the stdlib three,
-# and the other two are `// indirect` requires with no `replace` anywhere in caddy's
+# and the others are requires with no `replace` anywhere in caddy's
 # go.mod, so under Minimal Version Selection a require in the main module raises them.
 # (An earlier version of this file called them "pinned" and concluded they were
 # unrepairable. That was reasoned, not measured, and it was wrong: a require is a floor.)
@@ -41,11 +41,19 @@ FROM caddy:2-builder-alpine AS build
 # --with, not --replace: --with adds a require, which under MVS is a floor and can only
 # raise. --replace is a ceiling and would hold these versions down if caddy later required
 # newer ones.
+#
+# The third entry names a PACKAGE, not the module root, and the asymmetry is deliberate.
+# Measured 2026-09-02: `--with golang.org/x/crypto@v0.55.0` fails the build with `cannot
+# find module providing package golang.org/x/crypto` — that root carries no .go files, so
+# the blank import xcaddy writes has nothing to bind. `go get` resolves a package to its
+# containing module and go.mod can only require modules, so the require written is still
+# `golang.org/x/crypto v0.55.0` and the floor above is preserved.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
-      --with google.golang.org/grpc@v1.82.1
+      --with google.golang.org/grpc@v1.82.1 \
+      --with golang.org/x/crypto/bcrypt@v0.55.0
 
 FROM caddy:2-alpine AS runtime
 

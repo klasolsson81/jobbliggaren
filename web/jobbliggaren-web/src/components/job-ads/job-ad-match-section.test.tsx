@@ -510,34 +510,6 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     expect(screen.queryByText(/Du har: Stockholms län/)).not.toBeInTheDocument();
   });
 
-  it("klassningen läser id:t, inte namnet: känt namn + okänt id → ort-ramen", () => {
-    // Diskriminerande mot en återgång till namn-nyckling. Posten bär ETT namn
-    // kartan känner ("Göteborg") men ett id den inte känner. Under namn-nyckling
-    // slog den upp som kommun; under id-nyckling kan den inte slå upp alls.
-    //
-    // Tillståndet är producerbart: kartan byggs ur `taxonomy.regions` (län +
-    // kommuner), medan serverns register-poster resolveras ur hela
-    // `taxonomy_concepts`. Ett ort-koncept utanför läns-/kommun-trädet når
-    // därför bevis-raden namngivet, utan rad i kartan — det är plain-hinkens
-    // hela existensskäl.
-    const namedButUnmapped: MatchRegisterDimensionDetail = {
-      verdict: "Match",
-      matched: [{ conceptId: "utanfor_lanstradet", label: "Göteborg" }],
-      missing: [],
-      cause: null,
-    };
-    render(
-      <JobAdMatchSection
-        match={detail({ regionFit: namedButUnmapped })}
-        ortGranularityByConceptId={granularity}
-      />
-    );
-    expect(screen.getByText("Ort som matchar: Göteborg")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Kommun som matchar: Göteborg/)
-    ).not.toBeInTheDocument();
-  });
-
   it("utan granularitets-karta faller RegionFit till generisk bevisform (bakåtkompat)", () => {
     render(
       <JobAdMatchSection

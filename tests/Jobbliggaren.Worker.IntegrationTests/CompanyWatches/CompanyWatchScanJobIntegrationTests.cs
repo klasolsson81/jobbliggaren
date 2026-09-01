@@ -223,7 +223,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
     {
         // THE multimap oracle (D3b): a member org.nr is watched by BOTH a direct EMPLOYER follow AND a
         // BRAND_GROUP follow. Each is an independent watch, so the ad yields TWO hits
-        // (UNIQUE(UserId, JobAdId, CompanyWatchId) — D3c: two honest rows, the digest lists the ad twice).
+        // (UNIQUE(UserId, JobAdId, CompanyWatchId) — D3c: two honest rows).
         // MUTATION: revert abWatchesByOrgNr from a multimap to a single-valued dict and the second
         // AddWatch silently overwrites → one hit → RED.
         var ct = TestContext.Current.CancellationToken;

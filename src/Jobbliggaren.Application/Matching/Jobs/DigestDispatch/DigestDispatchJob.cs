@@ -473,7 +473,8 @@ public sealed partial class DigestDispatchJob(
         // display order); intersecting it with `effective` removes the drain class — which is
         // ¬presentable and therefore already absent from it — so what survives is exactly claim.
         //
-        // ONE materialisation, then count, THEN cap: `TotalCount >= Items.Count` holds BY CONSTRUCTION.
+        // ONE materialisation, then collapse, then count, THEN cap: `TotalCount >= Items.Count` holds
+        // BY CONSTRUCTION.
         // A `.Take(cap)` for the body plus a separate `.CountAsync()` for the total would be two
         // unsynchronised statements with no transaction, and ExpireJobAdsJob is not serialised against
         // this job — archive an ad between them and the email announces FEWER ads than it lists, trading
@@ -481,8 +482,17 @@ public sealed partial class DigestDispatchJob(
         // MaxItemsPerDigest and silently delete the "och N till" remainder — a third way this one number
         // can lie, and the arm it lives in had no spec at all until code-reviewer said so.
         var claimedAdIds = effective.Select(h => h.JobAdId).ToHashSet();
-        var claimRows = presentableRows
+
+        // #1612 — ONE ROW PER AD. Storage is hit-granular (UNIQUE(user, ad, watch)) but the
+        // user-facing unit is the AD, single-sourced by NewFollowedCompanyAdSet.CollapseToAds
+        // (#1576). The OR-over-hits rule is ALREADY applied above: `claimedAdIds` holds an ad iff
+        // at least one of its hits passed, so this only brings the row list into line with the set
+        // already chosen. It is NOT a Distinct() over rows standing in for that rule.
+        var claimHits = presentableRows
             .Where(r => claimedAdIds.Contains(r.JobAdId))
+            .ToList();
+        var claimRows = claimHits
+            .DistinctBy(r => r.JobAdId)
             .ToList();
 
         var presentableTotal = claimRows.Count;
@@ -541,7 +551,7 @@ public sealed partial class DigestDispatchJob(
         // remainder cannot re-surface next digest.
         DrainSent(effective);
         await db.SaveChangesAsync(ct);
-        LogFollowSent(logger, userId, presentableTotal, items.Count, effective.Count);
+        LogFollowSent(logger, userId, presentableTotal, claimHits.Count, items.Count, effective.Count);
         return true;
     }
 
@@ -651,13 +661,12 @@ public sealed partial class DigestDispatchJob(
         Message = "DigestDispatchJob (follow): send failed for user {UserId} — rows left Queued (no double-send)")]
     private static partial void LogFollowSendFailed(ILogger logger, Exception ex, Guid userId);
 
-    // #864 — parity the match digest: {Presentable} and {Claimed} are separate, and their DIVERGENCE is
-    // the operational signal that pending hits were drained without ever being shown (their ads went
-    // archived, or their rows are gone).
+    // #864.
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob (follow): digest sent to user {UserId} — {Presentable} presentable " +
-                  "new ads ({Displayed} shown), {Claimed} claimed and drained")]
-    private static partial void LogFollowSent(ILogger logger, Guid userId, int presentable, int displayed, int claimed);
+                  "new ads from {PresentableHits} hits ({Displayed} shown), {Claimed} claimed and drained")]
+    private static partial void LogFollowSent(
+        ILogger logger, Guid userId, int presentable, int presentableHits, int displayed, int claimed);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "DigestDispatchJob (follow): done — {Cadence}, {Processed} users processed, {Sent} digests sent")]

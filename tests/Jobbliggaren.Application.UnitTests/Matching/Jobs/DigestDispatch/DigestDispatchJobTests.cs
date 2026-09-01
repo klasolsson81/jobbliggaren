@@ -788,14 +788,15 @@ public class DigestDispatchJobTests
     // Runs the weekly digest and returns the follow-email contract the sender was handed (null when no
     // follow email was sent).
     private async Task<FollowedCompanyNotificationEmail?> RunAndCaptureAsync(
-        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct,
+        int maxItems = 20)
     {
         FollowedCompanyNotificationEmail? captured = null;
         await _emailSender.SendFollowedCompanyNotificationEmailAsync(
             Arg.Any<string>(), Arg.Do<FollowedCompanyNotificationEmail>(c => captured = c),
             Arg.Any<CancellationToken>());
 
-        await CreateJob(db).RunAsync(DigestCadence.Weekly, ct);
+        await CreateJob(db, maxItems).RunAsync(DigestCadence.Weekly, ct);
         return captured;
     }
 
@@ -1199,6 +1200,193 @@ public class DigestDispatchJobTests
                 "stayPending: GRAD är ett FILTER-OUT-skäl. Profilen kan ändras, så hiten måste kunna " +
                 "åter-ytas retroaktivt (8C) — livscykel-fixen får inte konsumera den");
     }
+
+    // ═══ #1612 — THE DIGEST COUNTS ADS, NOT HIT ROWS.
+    //
+    // PROVENANCE (§5 `Tests:`). The state below — TWO hit rows for ONE ad under TWO watches — is
+    // produced by CompanyWatchScanJob: its abWatchesByOrgNr MULTIMAP resolves every watch an ad matches
+    // and writes one row per (ad, watch), which is why UNIQUE(UserId, JobAdId, CompanyWatchId) carries
+    // the watch id at all (ADR 0087 D3). That the actor admits this state is pinned where the actor is,
+    // against real Postgres and a populated catalogue:
+    // CompanyWatchScanJobIntegrationTests.RunAsync_MemberFollowedBothDirectlyAndViaGroup_CreatesTwoHits_MultimapOracle.
+    // Seeding the rows here is convenience over a producible state, not a fabricated premise.
+    //
+    // The storage unit stays the hit row and the claim spine still stamps every one of them. What
+    // changes is only who the DISPLAY unit is, and the repo had already answered that: MarkFollowedCompanyAdSeen
+    // stamps both rows because "the user saw the AD", and #1576 made the /oversikt count and its
+    // destination agree on it. The digest was the last reader of the bookkeeping unit as the user unit.
+    // ═══
+
+    [Fact]
+    public async Task RunAsync_Follow_OneAdMatchedByTwoWatches_IsListedOnce_AndCountedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        // Two independent ACTIVE watches (a direct employer follow and a brand-group follow are two
+        // rows; here two plain watches stand in for the pair — the dispatch pass keys on watch.Id and
+        // never re-reads the target type).
+        var watchA = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watchB = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var adId = await SeedActiveAdAsync(db, "Backend-utvecklare", "Acme AB", ct);
+        await SeedFollowHitAsync(db, userId, adId, watchA, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, adId, watchB, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(1, "en annons är en rad i mejlet, oavsett hur många bevakningar som fångade den");
+        captured.Items[0].JobTitle.ShouldBe("Backend-utvecklare");
+        captured.Items[0].CompanyName.ShouldBe("Acme AB");
+        captured.TotalCount.ShouldBe(1,
+            "talet räknar annonser. Sa det 2 om en annons blev '2 nya annonser' ett påstående " +
+            "mottagaren kan falsifiera genom att räkna raderna i sitt eget mejl");
+
+        // The claim spine is UNCHANGED: every hit row for the collapsed ad is still consumed. Missing
+        // one would resurface the ad through its other watch on the next run.
+        (await ReloadHitByWatchAsync(db, userId, adId, watchA, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+        (await ReloadHitByWatchAsync(db, userId, adId, watchB, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent);
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_AdPassingOneWatchAndFailingAnother_IsListedOnce_AndKeepsTheFailingHitPending()
+    {
+        // The rule is OR over an ad's hits, never Distinct() over rows: an ad reached through BOTH a
+        // plain watch and an "endast matchade" watch, grading below Good, has one failing hit and one
+        // passing hit — and it belongs. NewFollowedCompanyAdSet.CollapseToAds is where that rule is
+        // written down; this pins that the digest now agrees with it.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var plainWatch = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var gradeWatch = await SeedWatchAsync(db, userId, onlyMatched: true, ct);
+
+        var adId = await SeedActiveAdAsync(db, "Roll", "Bolag", ct);
+        await SeedFollowHitAsync(db, userId, adId, plainWatch, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, adId, gradeWatch, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+
+        _profileBuilder.BuildFullForUserIdAsync(userId, Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        // The ad is BELOW the ≥Good floor, so the OnlyMatched watch's hit does not pass.
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId>());
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(1, "den passerande bevakningen gör annonsen sägbar — en gång");
+        captured.TotalCount.ShouldBe(1);
+
+        (await ReloadHitByWatchAsync(db, userId, adId, plainWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Sent, "claim: den oflitrerade bevakningens hit bär annonsen");
+        (await ReloadHitByWatchAsync(db, userId, adId, gradeWatch, ct))!.NotificationStatus
+            .ShouldBe(FollowedCompanyAdHitStatus.Pending,
+                "stayPending: graden är ett filter-out-skäl, och profilen kan ändras. Att dränera den här " +
+                "hiten för att en GRANNRAD mejlades vore att konsumera 8C:s retroaktiva åter-ytning");
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_TwoAdsSharingOneTitle_AreListedSeparately_WhenOneWasMatchedTwice()
+    {
+        // THE COLLAPSE KEY IS THE AD, AND ONLY THE AD. Two employers advertising the same role is
+        // ordinary Platsbanken output: "Utvecklare" at Alfa and "Utvecklare" at Beta are two ads the
+        // user must both see. Collapsing on anything the BODY renders instead — the title, or the
+        // title+company pair — would swallow one of them, and TotalCount would fall with it, so
+        // nothing left in the email would betray the loss.
+        //
+        // ORDER is the second claim: an ad ranks by its MOST RECENT hit. Alfa's older hit sorts BELOW
+        // Beta's only hit.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var watchA = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watchB = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watchC = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var alfa = await SeedActiveAdAsync(db, "Utvecklare", "Alfa AB", ct);
+        var beta = await SeedActiveAdAsync(db, "Utvecklare", "Beta AB", ct);
+        await SeedFollowHitAsync(db, userId, alfa, watchA, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, beta, watchC, ct, createdAt: NowClock.UtcNow.AddMinutes(-5));
+        await SeedFollowHitAsync(db, userId, alfa, watchB, ct, createdAt: NowClock.UtcNow.AddMinutes(-10));
+
+        var captured = await RunAndCaptureAsync(db, ct);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Count.ShouldBe(2,
+            "två annonser är två rader även när de delar titel: kollapsen sker på annons-id, aldrig " +
+            "på den text kroppen skriver ut");
+        captured.Items.Select(i => i.CompanyName).ShouldBe(["Alfa AB", "Beta AB"],
+            "annonsen rankas av sin SENASTE träff. Alfas äldsta träff ligger under Betas enda, men " +
+            "Alfa har också en nyare");
+        captured.TotalCount.ShouldBe(2);
+
+        foreach (var (adId, watchId) in new[] { (alfa, watchA), (alfa, watchB), (beta, watchC) })
+            (await ReloadHitByWatchAsync(db, userId, adId, watchId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                    "kollapsen är en VISNINGS-regel: varje träffrad konsumeras fortfarande");
+    }
+
+    [Fact]
+    public async Task RunAsync_Follow_CapCountsAds_NotHitRows_SoTheRemainderIsAdsToo()
+    {
+        // THE CAP AND THE REMAINDER ARE THE SAME NUMBER SEEN TWICE, and both must count ads. The
+        // template renders "{TotalCount} nya annonser" and then "och {TotalCount - Items.Count} till"
+        // (EmailTemplates.FollowedCompanyNotification), so counted per ROW this seed says "4 nya
+        // annonser", spends both its lines on ONE ad, and promises two more when one is left.
+        //
+        // This is the only follow test that reaches the Take(cap) line with a collapsible set, so it
+        // is the only one that pins the ORDER of the two operations: collapse, then cap the ads.
+        // Capping first takes two rows of Bolag P, de-duplicates the body down to a single line, and
+        // never shows Roll Q at all — it was crowded out by its own neighbour row.
+        var ct = TestContext.Current.CancellationToken;
+        var db = TestAppDbContextFactory.Create();
+        var userId = await SeedFollowConsentingSeekerAsync(db, DigestCadence.Weekly, ct);
+
+        var watch1 = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watch2 = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watch3 = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+        var watch4 = await SeedWatchAsync(db, userId, onlyMatched: false, ct);
+
+        var adP = await SeedActiveAdAsync(db, "Roll P", "Bolag P", ct);
+        var adQ = await SeedActiveAdAsync(db, "Roll Q", "Bolag Q", ct);
+        var adR = await SeedActiveAdAsync(db, "Roll R", "Bolag R", ct);
+        await SeedFollowHitAsync(db, userId, adP, watch1, ct, createdAt: NowClock.UtcNow);
+        await SeedFollowHitAsync(db, userId, adP, watch2, ct, createdAt: NowClock.UtcNow.AddMinutes(-1));
+        await SeedFollowHitAsync(db, userId, adQ, watch3, ct, createdAt: NowClock.UtcNow.AddMinutes(-2));
+        await SeedFollowHitAsync(db, userId, adR, watch4, ct, createdAt: NowClock.UtcNow.AddMinutes(-3));
+
+        var captured = await RunAndCaptureAsync(db, ct, maxItems: 2);
+
+        captured.ShouldNotBeNull();
+        captured.Items.Select(i => i.JobTitle).ShouldBe(["Roll P", "Roll Q"],
+            "capen tar de två första ANNONSERNA, inte de två första träffraderna: annars listas samma " +
+            "annons två gånger och Roll Q trängs ut av sin egen grannrad");
+        captured.TotalCount.ShouldBe(3,
+            "'och 1 till' ska syfta på annonsen som inte fick plats. Räknat per rad blir talet 4, och " +
+            "'och 2 till' lovar en annons som inte finns");
+
+        foreach (var (adId, watchId) in
+            new[] { (adP, watch1), (adP, watch2), (adQ, watch3), (adR, watch4) })
+            (await ReloadHitByWatchAsync(db, userId, adId, watchId, ct))!.NotificationStatus
+                .ShouldBe(FollowedCompanyAdHitStatus.Sent,
+                    "hela fönstret dräneras, inte bara de visade: annars åter-ytas resten nästa körning");
+    }
+
+    // Reloads ONE hit row by its watch — ReloadHitAsync above keys on (user, ad) alone, which is
+    // ambiguous exactly in the two-watch case these #1612 tests create.
+    private static async Task<FollowedCompanyAdHit?> ReloadHitByWatchAsync(
+        Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId, JobAdId adId,
+        CompanyWatchId watchId, CancellationToken ct) =>
+        await db.FollowedCompanyAdHits.AsNoTracking().IgnoreQueryFilters()
+            .FirstOrDefaultAsync(h => h.UserId == userId && h.JobAdId == adId && h.CompanyWatchId == watchId, ct);
 
     // Archives an ad through the DOMAIN transition production uses (JobAd.Archive), never by fabricating
     // column state — #843 / #864 AC 4. The old soft-delete tests forged DeletedAt via

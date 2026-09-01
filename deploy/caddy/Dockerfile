@@ -21,7 +21,7 @@
 # ADR 0065 Amendment 2026-07-28 Beslut 1: repair outranks acceptance, and an advisory may
 # be accepted only when no dependency-level fix EXISTS — demonstrated, not asserted. Both
 # fixes exist. The builder image carries a Go toolchain new enough for the stdlib three,
-# and the others are `// indirect` requires with no `replace` anywhere in caddy's
+# and the others are requires with no `replace` anywhere in caddy's
 # go.mod, so under Minimal Version Selection a require in the main module raises them.
 # (An earlier version of this file called them "pinned" and concluded they were
 # unrepairable. That was reasoned, not measured, and it was wrong: a require is a floor.)

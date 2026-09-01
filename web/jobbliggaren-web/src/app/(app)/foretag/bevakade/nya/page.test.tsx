@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../messages/sv/pages.json";
 import svJobads from "../../../../../../messages/sv/jobads.json";
@@ -76,20 +77,21 @@ function ad(id: string, title: string): JobAdDto {
 
 const WINDOW = "2026-08-31T08:15:00.123456Z";
 
-function okResult(rows: Array<{ ad: JobAdDto; matchesYou: boolean | null }>) {
+function okResult(
+  rows: Array<{ ad: JobAdDto; matchesYou: boolean | null }>,
+  truncated = false
+) {
   // The server carries assessability as a page-global fact, so the fixture does too rather than
   // re-deriving it from the rows - deriving it here would hide the very ambiguity the field closes.
   const matchingAssessed = rows.every((r) => r.matchesYou !== null);
   return {
     kind: "ok" as const,
-    data: { rows, matchingAssessed, acknowledgedThrough: WINDOW, truncated: false },
+    data: { rows, matchingAssessed, acknowledgedThrough: WINDOW, truncated },
   };
 }
 
-async function renderPage(params: Record<string, string> = {}) {
-  render(
-    await NyaFollowedAdsPage({ searchParams: Promise.resolve(params) })
-  );
+async function renderPage() {
+  render(await NyaFollowedAdsPage());
 }
 
 describe("/foretag/bevakade/nya", () => {
@@ -133,7 +135,7 @@ describe("/foretag/bevakade/nya", () => {
     expect(markFollowedAdsSeen).not.toHaveBeenCalled();
   });
 
-  it("filters the matching arm from rows already fetched, without a second read", async () => {
+  it("defaults to the whole set, so a render without client JS shows every new ad", async () => {
     getNewFollowedCompanyAds.mockResolvedValue(
       okResult([
         { ad: ad("a1", "Systemutvecklare"), matchesYou: true },
@@ -141,11 +143,31 @@ describe("/foretag/bevakade/nya", () => {
       ])
     );
 
-    await renderPage({ matchande: "on" });
+    await renderPage();
 
+    expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Lagerarbetare" })).toBeInTheDocument();
+  });
+
+  it("filters the matching arm in the browser, without a second read", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult([
+        { ad: ad("a1", "Systemutvecklare"), matchesYou: true },
+        { ad: ad("a2", "Lagerarbetare"), matchesYou: false },
+      ])
+    );
+
+    await renderPage();
+    await userEvent.click(screen.getByRole("radio", { name: "Matchande annonser" }));
+
+    // The load-bearing half: arriving MOVED the watermark in `after()`, and the read is
+    // `CreatedAt > lastSeen`. A navigation-driven arm would issue a SECOND read against the moved
+    // watermark and land on the empty state, so the arm must never cost a read.
     expect(getNewFollowedCompanyAds).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("heading", { name: "Systemutvecklare" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Lagerarbetare" })).not.toBeInTheDocument();
+    // The filtered state is declared, never left to be inferred from a shorter list.
+    expect(screen.getByText("Filtrerat: endast matchande annonser")).toBeInTheDocument();
   });
 
   it("states both numbers in the matching arm, over the whole set and not the view", async () => {
@@ -156,12 +178,70 @@ describe("/foretag/bevakade/nya", () => {
       ])
     );
 
-    await renderPage({ matchande: "on" });
+    await renderPage();
+    await userEvent.click(screen.getByRole("radio", { name: "Matchande annonser" }));
 
     // Arriving here IS the acknowledgement, so the surface has to show what it acknowledged — the
     // filtered view shows one row, but the sentence must still say two.
     expect(
       screen.getByText("2 nya annonser sedan ditt senaste besök, varav 1 matchar dig.")
+    ).toBeInTheDocument();
+  });
+
+  it("names its own empty matching arm rather than the list's absent filters", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult([{ ad: ad("a1", "Lagerarbetare"), matchesYou: false }])
+    );
+
+    await renderPage();
+    await userEvent.click(screen.getByRole("radio", { name: "Matchande annonser" }));
+
+    // `JobAdList`'s own empty body names filters and a search box this surface does not have.
+    expect(screen.queryByText(/töm sökrutan/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Ingen av de nya annonserna matchar din profil")
+    ).toBeInTheDocument();
+
+    // And the way back out of the arm is an affordance, not a hint.
+    await userEvent.click(screen.getByRole("button", { name: "Visa alla nya annonser" }));
+    expect(screen.getByRole("heading", { name: "Lagerarbetare" })).toBeInTheDocument();
+  });
+
+  it("claims no total when the read was truncated", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult(
+        [
+          { ad: ad("a1", "Systemutvecklare"), matchesYou: true },
+          { ad: ad("a2", "Lagerarbetare"), matchesYou: false },
+        ],
+        true
+      )
+    );
+
+    await renderPage();
+
+    // `rows.length` is the CAPPED count. Rendering it as "N nya annonser sedan ditt senaste besök"
+    // asserts a total the page never read, and Översikt's uncapped count would contradict it
+    // (ADR 0120: a rendered number is true or absent).
+    expect(
+      screen.queryByText("2 nya annonser sedan ditt senaste besök, varav 1 matchar dig.")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Visar 2 nya annonser, varav 1 matchar dig.")
+    ).toBeInTheDocument();
+  });
+
+  it("discloses the consumption while the ads are still on screen", async () => {
+    getNewFollowedCompanyAds.mockResolvedValue(
+      okResult([{ ad: ad("a1", "Systemutvecklare"), matchesYou: true }])
+    );
+
+    await renderPage();
+
+    // The set is consumed by arriving, so a reload shows the empty state. Discovering that AFTER
+    // the ads are gone is the failure this sentence exists to prevent.
+    expect(
+      screen.getByText(/Nästa gång visas bara det som tillkommit sedan dess/)
     ).toBeInTheDocument();
   });
 
@@ -177,8 +257,6 @@ describe("/foretag/bevakade/nya", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/inte angett vilka yrken/)).toBeInTheDocument();
     // No matching arm to offer when the predicate is inert.
-    expect(
-      screen.queryByRole("link", { name: "Visa bara de som matchar mig" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
   });
 });

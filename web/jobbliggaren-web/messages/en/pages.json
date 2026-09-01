@@ -266,7 +266,8 @@
       "bevakade": "Followed companies",
       "sok": "Search companies",
       "smartaBevakningar": "Smart watches",
-      "historik": "Application history"
+      "historik": "Application history",
+      "nyaAnnonser": "New ads"
     },
     "loading": "Loading…",
     "sok": {
@@ -342,20 +343,28 @@
     "loadErrorTitle": "Could not load followed companies",
     "historyLoadErrorTitle": "Could not load application history",
     "newAds": {
-      "heading": "New ads",
+      "heading": "New ads from followed companies",
       "lede": "Ads from companies you follow, since you were last here.",
       "loadErrorTitle": "Could not load new ads",
       "emptyTitle": "Nothing new right now",
-      "emptyBody": "New ads from the companies you follow are collected here.",
+      "emptyBody": "Ads added since you were last here are shown here. Every ad from the companies you follow remains under Followed companies.",
       "summary": "{total, plural, one {# new ad} other {# new ads}} since your last visit, of which {matching} match you.",
       "summaryNotAssessed": "{total, plural, one {# new ad} other {# new ads}} since your last visit.",
-      "showOnlyMatched": "Show only the ones that match me",
-      "showAll": "Show all new ads",
-      "truncated": "There are more new ads than the ones shown. They remain until your next visit.",
+      "summaryTruncated": "Showing {shown, plural, one {# new ad} other {# new ads}}, of which {matching} match you.",
+      "summaryTruncatedNotAssessed": "Showing {shown, plural, one {# new ad} other {# new ads}}.",
+      "consumptionNote": "The list shows what was new when you opened the page. Next time it shows only what has been added since.",
+      "view": {
+        "groupLabel": "Filter new ads",
+        "all": "All ads",
+        "matching": "Matching ads"
+      },
+      "matchingEmptyTitle": "None of the new ads match your profile",
+      "matchingEmptyBody": "Matching is based on the occupations, locations and skills you have entered under Matching.",
+      "matchingEmptyAction": "Show all new ads",
+      "truncated": "There are more new ads than the ones shown. They will be shown the next time you open the page.",
       "backToWatches": "To followed companies",
-      "link": "New ads",
       "meta": {
-        "title": "New ads"
+        "title": "New ads from followed companies"
       }
     },
     "criteria": {

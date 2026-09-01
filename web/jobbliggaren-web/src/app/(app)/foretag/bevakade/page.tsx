@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getServerSession } from "@/lib/auth/session";
@@ -47,15 +46,11 @@ export default async function BevakadeForetagPage() {
         lede={t("foretag.watchesLede")}
       />
       <div className="jp-container jp-page">
+        {/* #1576 - the new-ads surface is reached through the sub-nav's own entry, not a loose
+            link under it: a fifth item that looked like a tab without being one read as broken
+            wayfinding (design-reviewer Major 7). It still carries NO number - a count here would
+            be a second read of a delta whose whole point is that it resets when followed. */}
         <ForetagSubnav active="bevakade" />
-        {/* #1576 - the only wayfinding to the new-ads surface that does not go through
-            Oversikt. Deliberately carries NO number: a count here would be a second read of
-            a delta whose whole point is that it resets when the user follows it. */}
-        <p className="jp-matchline">
-          <Link className="jp-countlink" href="/foretag/bevakade/nya">
-            {t("foretag.newAds.link")}
-          </Link>
-        </p>
         {renderSection(watchResult, t, t("foretag.loadErrorTitle"), (data) => (
           <CompanyWatchList items={data} regions={regions} />
         ))}

@@ -266,7 +266,8 @@
       "bevakade": "Bevakade företag",
       "sok": "Sök företag",
       "smartaBevakningar": "Smarta bevakningar",
-      "historik": "Ansökningshistorik"
+      "historik": "Ansökningshistorik",
+      "nyaAnnonser": "Nya annonser"
     },
     "loading": "Laddar…",
     "sok": {
@@ -342,20 +343,28 @@
     "loadErrorTitle": "Kunde inte ladda bevakade företag",
     "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken",
     "newAds": {
-      "heading": "Nya annonser",
+      "heading": "Nya annonser från bevakade företag",
       "lede": "Annonser från företag du bevakar, sedan du senast var här.",
       "loadErrorTitle": "Kunde inte ladda nya annonser",
       "emptyTitle": "Inget nytt just nu",
-      "emptyBody": "Nya annonser från dina bevakade företag samlas här.",
+      "emptyBody": "Här visas annonser som tillkommit sedan du senast var här. Alla annonser från företagen du bevakar finns kvar under Bevakade företag.",
       "summary": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök, varav {matching} matchar dig.",
       "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök.",
-      "showOnlyMatched": "Visa bara de som matchar mig",
-      "showAll": "Visa alla nya annonser",
-      "truncated": "Det finns fler nya annonser än de som visas. De står kvar till nästa besök.",
+      "summaryTruncated": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}, varav {matching} matchar dig.",
+      "summaryTruncatedNotAssessed": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}.",
+      "consumptionNote": "Listan visar det som var nytt när du öppnade sidan. Nästa gång visas bara det som tillkommit sedan dess.",
+      "view": {
+        "groupLabel": "Filtrera nya annonser",
+        "all": "Alla annonser",
+        "matching": "Matchande annonser"
+      },
+      "matchingEmptyTitle": "Ingen av de nya annonserna matchar din profil",
+      "matchingEmptyBody": "Matchningen utgår från de yrken, orter och kompetenser du angett under Matchning.",
+      "matchingEmptyAction": "Visa alla nya annonser",
+      "truncated": "Det finns fler nya annonser än de som visas. De visas nästa gång du öppnar sidan.",
       "backToWatches": "Till bevakade företag",
-      "link": "Nya annonser",
       "meta": {
-        "title": "Nya annonser"
+        "title": "Nya annonser från bevakade företag"
       }
     },
     "criteria": {

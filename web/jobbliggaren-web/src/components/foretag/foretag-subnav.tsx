@@ -17,15 +17,27 @@ import { useTranslations } from "next-intl";
  * The `smartaBevakningar` key maps to the `/foretag/smarta-bevakningar` slug so the
  * URL carries the full disambiguating noun (never a bare `bevakningar`). Order +
  * default landing = Bevakade först (Klas 2026-07-21).
+ *
+ * `nyaAnnonser` (#1576, Klas 2026-08-31) is the fifth entry: `/foretag/bevakade/nya`
+ * is a real surface a user stands on, and before this it borrowed `bevakade`'s
+ * `aria-current="page"` and told a screen reader it was on a page it was not. Its
+ * label stays inside the bevakade-företag noun and never says a bare "bevakningar",
+ * so ADR 0117's rule is untouched.
  */
 
-export type ForetagSurface = "bevakade" | "sok" | "smartaBevakningar" | "historik";
+export type ForetagSurface =
+  | "bevakade"
+  | "sok"
+  | "smartaBevakningar"
+  | "historik"
+  | "nyaAnnonser";
 
 const OPTIONS: ReadonlyArray<{ surface: ForetagSurface; href: string }> = [
   { surface: "bevakade", href: "/foretag/bevakade" },
   { surface: "sok", href: "/foretag/sok" },
   { surface: "smartaBevakningar", href: "/foretag/smarta-bevakningar" },
   { surface: "historik", href: "/foretag/historik" },
+  { surface: "nyaAnnonser", href: "/foretag/bevakade/nya" },
 ];
 
 export function ForetagSubnav({ active }: { active: ForetagSurface }) {

@@ -18,7 +18,7 @@ export default function Loading() {
         lede={t("foretag.newAds.lede")}
       />
       <div className="jp-container jp-page">
-        <ForetagSubnav active="bevakade" />
+        <ForetagSubnav active="nyaAnnonser" />
         <ForetagSurfaceSkeleton />
       </div>
     </>

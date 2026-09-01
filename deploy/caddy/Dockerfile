@@ -48,10 +48,6 @@ FROM caddy:2-builder-alpine AS build
 # the blank import xcaddy writes has nothing to bind. `go get` resolves a package to its
 # containing module and go.mod can only require modules, so the require written is still
 # `golang.org/x/crypto v0.55.0` and the floor above is preserved.
-# bcrypt because `basic_auth` (Caddyfile) already links it, so the import adds nothing to
-# the binary. Never `ssh` (nothing links it today), and never anything under `x509roots/`
-# — that is a separate module with its own require, so it would raise the wrong one and
-# leave the advisory in place behind a green build.
 RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \

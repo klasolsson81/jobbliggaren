@@ -280,8 +280,8 @@ updates:
       # lines. After 2026-08-05 that file compiles caddy itself and copies the binary in,
       # so `FROM caddy:2-alpine` decides the base layer and NOT the caddy version — a
       # Dependabot base-image bump can go green while the edge binary has not moved. The
-      # three pins that do decide it (`xcaddy build v2.11.4`, `x/text`, `grpc`) sit in a
-      # RUN argument no ecosystem reads, and there is no go.mod for `gomod` to read.
+      # pins that do decide it sit in a RUN argument no ecosystem reads, and there is no
+      # go.mod for `gomod` to read.
       # Trivy in the blocking `images` job is a partial detector: it catches advisories,
       # never an upstream hardening that carries no CVE. Same reason `seq:latest` is
       # written out below — so nobody reads an entry as coverage it does not give.

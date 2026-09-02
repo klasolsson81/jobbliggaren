@@ -52,7 +52,7 @@ RUN mkdir -p /out \
     && xcaddy build v2.11.4 \
       --output /out/caddy \
       --with golang.org/x/text@v0.39.0 \
-      --with google.golang.org/grpc@v1.82.1 \
+      --with google.golang.org/grpc@v1.83.1 \
       --with golang.org/x/crypto/bcrypt@v0.55.0
 
 FROM caddy:2-alpine AS runtime

@@ -95,10 +95,10 @@ describe("loadJobDetailData", () => {
     expect(result.match).toBe(match);
     expect(result.previousApplicationCount).toBe(2);
     // A match ⇒ the granularity map is built (a Record, never undefined).
-    expect(result.ortGranularityByLabel).toBeDefined();
+    expect(result.ortGranularityByConceptId).toBeDefined();
   });
 
-  it("leaves ortGranularityByLabel undefined when there is no match (match-gated)", async () => {
+  it("leaves ortGranularityByConceptId undefined when there is no match (match-gated)", async () => {
     primeOkAd();
     getJobAdMatchDetailMock.mockResolvedValue(null);
 
@@ -107,7 +107,7 @@ describe("loadJobDetailData", () => {
     expect(result.kind).toBe("ok");
     if (result.kind !== "ok") return;
     expect(result.match).toBeNull();
-    expect(result.ortGranularityByLabel).toBeUndefined();
+    expect(result.ortGranularityByConceptId).toBeUndefined();
   });
 
   it("returns undefined previousApplicationCount when the employer has no prior application", async () => {

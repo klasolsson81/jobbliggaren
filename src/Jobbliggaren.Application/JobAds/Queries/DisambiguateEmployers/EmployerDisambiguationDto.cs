@@ -20,10 +20,7 @@ namespace Jobbliggaren.Application.JobAds.Queries.DisambiguateEmployers;
 ///
 /// <para>
 /// <b>Municipality omitted in v1 (ADR 0087 D2 literal divergence, senior-cto-advisor 2026-07-01).</b>
-/// D2's projection lists a municipality column, but <c>ITaxonomyReadModel.ResolveLabelsAsync</c>
-/// deliberately excludes kommun reverse-resolution (ADR 0043 Variant A) and the ACL forbids surfacing
-/// a raw concept-id — so kommun can be neither resolved-to-name nor surfaced-as-id without re-opening
-/// the ADR 0043 scope decision (a distinct change-reason). org.nr + name + count fully delivers D2's
+/// The ACL forbids surfacing a raw concept-id. org.nr + name + count fully delivers D2's
 /// disambiguation value; municipality enrichment is deferred to a post-#408 batch (Option B).
 /// </para>
 /// </summary>

@@ -416,19 +416,21 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
 });
 
 describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
-  // label → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
+  // conceptId → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
+  // Nycklarna speglar `registerRow`s id-form (`id_<label>`) — kartan slår upp
+  // postens id, aldrig dess namn.
   const granularity = {
-    Göteborg: "municipality" as const,
-    Solna: "municipality" as const,
-    "Stockholms län": "region" as const,
-    "Västra Götalands län": "region" as const,
+    id_Göteborg: "municipality" as const,
+    id_Solna: "municipality" as const,
+    "id_Stockholms län": "region" as const,
+    "id_Västra Götalands län": "region" as const,
   };
 
   it("kommun-träff och län-träff skiljs åt i RegionFit-beviset", () => {
     render(
       <JobAdMatchSection
         match={detail({ regionFit: registerRow("Match", ["Göteborg", "Stockholms län"]) })}
-        ortGranularityByLabel={granularity}
+        ortGranularityByConceptId={granularity}
       />
     );
     expect(screen.getByText("Kommun som matchar: Göteborg")).toBeInTheDocument();
@@ -449,7 +451,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     render(
       <JobAdMatchSection
         match={detail({ regionFit: registerRow("NoMatch", [], ["Solna", "Västra Götalands län"]) })}
-        ortGranularityByLabel={granularity}
+        ortGranularityByConceptId={granularity}
       />
     );
     expect(screen.getByText("Annonsens kommun: Solna")).toBeInTheDocument();
@@ -458,14 +460,14 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     ).toBeInTheDocument();
   });
 
-  it("label som saknas i kartan får ort-ramen, inte ett län-påstående (#1598)", () => {
+  it("concept-id som saknas i kartan får ort-ramen, inte ett län-påstående (#1598)", () => {
     // Före #1598 föll den i län-hinken och renderades "Län som matchar: Gotland"
-    // — ett explicit län-PÅSTÅENDE om ett namn vi inte kunde klassa. Ett namn i
-    // kartan påverkas inte (nästa test).
+    // — ett explicit län-PÅSTÅENDE om en post vi inte kunde klassa. En post vars
+    // id finns i kartan påverkas inte (nästa test).
     render(
       <JobAdMatchSection
         match={detail({ regionFit: registerRow("Match", ["Gotland"]) })}
-        ortGranularityByLabel={granularity}
+        ortGranularityByConceptId={granularity}
       />
     );
     expect(screen.getByText("Ort som matchar: Gotland")).toBeInTheDocument();
@@ -482,7 +484,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         match={detail({
           regionFit: registerRow("NoMatch", [], ["Gotland", "Stockholms län"]),
         })}
-        ortGranularityByLabel={granularity}
+        ortGranularityByConceptId={granularity}
       />
     );
     expect(screen.getByText("Annonsens ort: Gotland")).toBeInTheDocument();
@@ -494,12 +496,12 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("ett namn SOM finns i kartan behåller sitt granularitets-prefix", () => {
+  it("en post vars id finns i kartan behåller sitt granularitets-prefix", () => {
     // Den halvan som fäller en regression där plain-hinken slukar allt.
     render(
       <JobAdMatchSection
         match={detail({ regionFit: registerRow("Match", ["Stockholms län"]) })}
-        ortGranularityByLabel={granularity}
+        ortGranularityByConceptId={granularity}
       />
     );
     expect(
@@ -592,7 +594,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
           match={detail({
             regionFit: registerRow("NoMatch", [], [], "AdSilent"),
           })}
-          ortGranularityByLabel={granularity}
+          ortGranularityByConceptId={granularity}
         />
       );
       expect(screen.getByText("Annonsen anger varken län eller kommun.")).toBeInTheDocument();
@@ -625,7 +627,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
           match={detail({
             regionFit: registerRow("Match", [], [], "RemoteOverride"),
           })}
-          ortGranularityByLabel={granularity}
+          ortGranularityByConceptId={granularity}
         />
       );
       expect(
@@ -652,7 +654,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
               "RegionContainsPreferredMunicipality"
             ),
           })}
-          ortGranularityByLabel={granularity}
+          ortGranularityByConceptId={granularity}
         />
       );
       expect(
@@ -815,13 +817,19 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       render(
         <JobAdMatchSection
           match={detail({ regionFit: registerRow("Match", [null]) })}
-          ortGranularityByLabel={granularity}
+          ortGranularityByConceptId={granularity}
         />
       );
       expect(
         screen.getByText("Annonsen anger en ort som saknas i vårt register.")
       ).toBeInTheDocument();
       expect(screen.queryByText(/Län som matchar/)).not.toBeInTheDocument();
+      // Namnlösa poster måste hoppas över, inte bara undvika län-hinken. Utan
+      // vakten i `splitOrtByGranularity` når posten plain-hinken med tom sträng
+      // och renderar den dinglande meningen "Ort som matchar: ". Raden ovan kan
+      // inte fånga det: postens id saknas i kartan, så den går till plain med
+      // eller utan vakten (`test-writer` 2026-09-02, mutationsverifierat).
+      expect(screen.queryByText(/Ort som matchar/)).not.toBeInTheDocument();
     });
 
     it("räknaren hamnar på RÄTT rad — båda register-raderna samtidigt, olika antal", () => {

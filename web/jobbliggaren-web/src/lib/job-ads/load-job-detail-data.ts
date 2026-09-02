@@ -29,7 +29,7 @@ export interface JobDetailData {
   /** Positive-only: `undefined` when the caller has no prior application at this employer. */
   previousApplicationCount: number | undefined;
   /** Built only when there is a match (the granularity map is match-gated); `undefined` otherwise. */
-  ortGranularityByLabel: Record<string, OrtGranularity> | undefined;
+  ortGranularityByConceptId: Record<string, OrtGranularity> | undefined;
 }
 
 /**
@@ -96,7 +96,7 @@ export async function loadJobDetailData(
     match != null
       ? await taxonomyPromise.then((r) => (r.kind === "ok" ? r.data : null))
       : null;
-  const ortGranularityByLabel =
+  const ortGranularityByConceptId =
     match != null ? buildOrtGranularityMap(taxonomy) : undefined;
 
   return {
@@ -107,6 +107,6 @@ export async function loadJobDetailData(
     followState,
     match,
     previousApplicationCount,
-    ortGranularityByLabel,
+    ortGranularityByConceptId,
   };
 }

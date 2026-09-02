@@ -12,16 +12,16 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// på shadow-props (ADR 0043 Beslut E — shadow-prop-filtrering ORÖRD).
 /// Implementationen ligger i Infrastructure (snapshot-tabell + cache);
 /// Application ser bara denna port (CLAUDE.md §2.1, speglar
-/// <see cref="IJobSource"/>). Scope (ADR 0043 Variant A): Län (region) +
-/// Yrkesområde→Yrke (occupation-field→occupation-name). Ingen kommun.
+/// <see cref="IJobSource"/>). Trädets scope ägs av
+/// <see cref="TaxonomyTreeDto"/> och dokumenteras där.
 /// </summary>
 public interface ITaxonomyReadModel
 {
     /// <summary>
-    /// Hela picker-trädet: län (platt) + yrkesområden med underordnade yrken.
-    /// Statiskt och bounded (~21 län, ~21 yrkesområden, ~2 700 yrken) →
-    /// ingen paginering/användarstyrd Take. Ren Application-DTO; inga
-    /// EF-entities över Application-gränsen (CLAUDE.md §5.1).
+    /// Hela picker-trädet — se <see cref="TaxonomyTreeDto"/> för dess
+    /// dimensioner. Statiskt och bounded → ingen paginering/användarstyrd
+    /// Take. Ren Application-DTO; inga EF-entities över Application-gränsen
+    /// (CLAUDE.md §5.1).
     /// </summary>
     ValueTask<TaxonomyTreeDto> GetTreeAsync(CancellationToken cancellationToken);
 

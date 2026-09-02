@@ -132,6 +132,7 @@ Aldrig byt ut mot: Material UI, Chakra, Mantine, Headless UI.
   ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). Matchar/saknas **per
   dimension** är en egen form (`.jp-modal__matchrow`, hålig prick för "Ej bedömt")
   — båda halvorna krävs. Föregångaren `.jp-match` (6px score bar) är borttagen.
+  Frånvaro — vad som visas när annonsen inte når någon grad alls: §8.
 - `.jp-filterBar` — flat rad mellan två hairlines, fält i naturlig bredd, ingen chrome-box
 - `.jp-banner` — info-banner med 3px brand-vänsterkant, används sparsamt
 - **Knapphöjd — TVÅ ratificerade system, båda korrekta. Namnge alltid vilket du menar.** `.jp-btn` = **44px** (`--sm` 36; `--lg` 52 är ratificerad men **oimplementerad** — klassen finns inte, så `jp-btn--lg` ger tyst 44px) i 46 filer (42 produktionsfiler) — ratificerad av HANDOVER-v3 §5.1 via ADR 0052 (Amendment 2026-07-27). shadcn `Button` = **40px** (`sm` 36, `lg` 44) — ratificerad av ADR 0038. **Ingen av dem är drift.** En blank mening som "knapphöjd = 40px" är falsk genom utelämnande oavsett siffra; skriv ut systemet. Radius `--jp-r-md` = **6px** (ADR 0052 Beslut 4: knappar 6px). Transition **90ms** (`.jp-btn`; shadcn `Button` `duration-75` = 75ms). Max EN `--primary` per skärm (ADR 0038). Inline-padding = `--jp-btn-px` (**18px**, `--sm` 14px via scoped re-pin) — namnet finns för att `.jp-btn--flush` ska kunna upphäva **exakt** den med `calc(-1 * var(--jp-btn-px))`, så en knapps TEXT hamnar på rälsen (#1090; alternativen är `padding-inline: 0`, som får ghost-hoverns fyllning att klistra sig mot glyferna, och ett `-18px` kopplat till regeln av ingenting). CSS-scopad till `:first-child` — "flush" betyder bara något först i sin rad, och efter en chipsrad skulle marginalen äta gapet. **Inte** samma sak som `--jp-control-px` (kontroll-storleks-punkten nedan), som är en DELAD SSOT över flera komponenter; denna läses av knapp-familjen plus sin egen upphävare. **Inte** heller det tokeniserings-punkten avvisar: ett `--jp-field-h` **skulle** dölja vilket av två system som gällde, medan `--jp-btn-px` namnger sitt (`.jp-btn`) och ändrar inget renderat värde. Klas-beslut 2026-07-28.
@@ -174,11 +175,13 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Matchning och CV-omdömen presenteras som kategori, aldrig som procenttal,
   mätare eller ring (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). För
   matchning är formen en namngiven grad plus matchar/saknas per dimension
-- **Saknad matchningsgrad visas inte** — når en annons ingen grad alls renderas
-  varken grad-chip eller en mening om att graden saknas (Klas 2026-09-01).
-  Tystnaden vilar på att Yrke-raden står kvar och namnger skälet; utan den är
-  sektionen inte tyst utan tom. Skyltar om användarens **egna** inställningar —
-  angivet yrke, uppladdat CV — handlar inte om grad-frånvaro och står kvar
+- **Saknad matchningsgrad visas inte** — har en annons ingen grad alls renderas
+  varken `.jp-matchchip` eller en mening om att graden saknas, varken på
+  /jobb-kortet eller i matchningssektionen (Klas 2026-09-01, räckvidden
+  2026-09-02, #1611). I sektionen vilar tystnaden på att Yrke-raden står kvar
+  och bär sitt verdikt och sitt skäl eller sitt bevis; utan den raden är
+  sektionen inte tyst utan tom. Skyltar som är **åtgärdbara** — angivet yrke,
+  uppladdat CV — står kvar; den om angivet yrke ersätter dessutom hela sektionen
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva

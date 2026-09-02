@@ -7,8 +7,7 @@ namespace Jobbliggaren.Infrastructure.Taxonomy;
 /// kap. 14) och INTE på <c>IAppDbContext</c> (ADR 0043 Beslut C / MAP-2 —
 /// read-model utan aggregate/invariant; ADR 0009 aggregate-per-DbSet).
 /// Concept-id är PK; ingen FK till job_ads/saved_searches (lös referens —
-/// ADR 0043, replika av extern taxonomi). Variant A-scope: Region (län),
-/// OccupationField (yrkesområde), Occupation (yrke). Ingen kommun.
+/// ADR 0043, replika av extern taxonomi). Scopet är <see cref="TaxonomyConceptKind"/>.
 /// </summary>
 internal sealed class TaxonomyConcept
 {
@@ -22,7 +21,7 @@ internal sealed class TaxonomyConcept
     /// <summary>Svenskt visningsnamn (JobTech preferred-label).</summary>
     public required string Label { get; init; }
 
-    /// <summary>För Occupation: yrkesområdets concept-id. Null för
-    /// Region och OccupationField (enkelnivå respektive rot).</summary>
+    /// <summary>Förälderns concept-id, för de kinds som har en förälder;
+    /// null för rötterna. Vilka de är står på <see cref="TaxonomyConceptKind"/>.</summary>
     public string? ParentConceptId { get; init; }
 }

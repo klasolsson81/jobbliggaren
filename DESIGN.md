@@ -178,7 +178,7 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - **Saknad matchningsgrad visas inte** — har en annons ingen grad alls renderas
   varken `.jp-matchchip` eller en mening om att graden saknas, varken på
   /jobb-kortet eller i matchningssektionen (Klas 2026-09-01, räckvidden
-  2026-09-02, #1611). I sektionen vilar tystnaden på att Yrke-raden står kvar
+  2026-09-02, #1613). I sektionen vilar tystnaden på att Yrke-raden står kvar
   och bär sitt verdikt och sitt skäl eller sitt bevis; utan den raden är
   sektionen inte tyst utan tom. Skyltar som är **åtgärdbara** — angivet yrke,
   uppladdat CV — står kvar; den om angivet yrke ersätter dessutom hela sektionen

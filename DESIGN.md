@@ -174,6 +174,11 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - Matchning och CV-omdömen presenteras som kategori, aldrig som procenttal,
   mätare eller ring (ADR 0076 Decision 4, ADR 0053 Amendment 2026-06-19). För
   matchning är formen en namngiven grad plus matchar/saknas per dimension
+- **Saknad matchningsgrad visas inte** — når en annons ingen grad alls renderas
+  varken grad-chip eller en mening om att graden saknas (Klas 2026-09-01).
+  Tystnaden vilar på att Yrke-raden står kvar och namnger skälet; utan den är
+  sektionen inte tyst utan tom. Skyltar om användarens **egna** inställningar —
+  angivet yrke, uppladdat CV — handlar inte om grad-frånvaro och står kvar
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva

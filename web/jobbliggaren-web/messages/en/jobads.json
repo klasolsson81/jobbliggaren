@@ -214,8 +214,8 @@
         "matchedRegions": "Region that matches: {items}",
         "missingMunicipalities": "The ad's municipality: {items}",
         "missingRegions": "The ad's region: {items}",
-        "matchedPlain": "Matching location: {items}",
-        "missingPlain": "The ad's location: {items}"
+        "matchedPlain": "{count, plural, one {Matching location} other {Matching locations}}: {items}",
+        "missingPlain": "{count, plural, one {The ad's location} other {The ad's locations}}: {items}"
       },
       "grade": {
         "Top": "Top match",
@@ -234,7 +234,7 @@
       "dimension": {
         "ssykOverlap": "Occupation",
         "titleSimilarity": "Title",
-        "regionFit": "Region",
+        "regionFit": "Place",
         "employmentFit": "Employment type",
         "skillOverlap": "Skills",
         "mustHaveCoverage": "Must-have requirements",

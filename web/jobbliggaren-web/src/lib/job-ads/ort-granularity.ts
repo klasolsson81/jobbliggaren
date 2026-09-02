@@ -4,67 +4,50 @@ import type { TaxonomyTree } from "@/lib/dto/taxonomy";
  * Spår 3 PR-D (ADR 0076-amendment 2026-06-21, architect NOTE-2) — FE-sidans
  * upplösning av ort-granularitet för match-modalens RegionFit-bevis.
  *
- * Backend unionerar region ∪ municipality till EN ort-dimension. Modulen tar emot
- * DISPLAY-labels (län- och/eller kommun-namn); sedan #1598 bär wire:t
- * `{conceptId, label}` och labels plockas ut av `splitRegisterRow` — modulens
- * kontrakt är oförändrat, bara proveniensen. Modalen
- * ska ärligt visa VILKEN granularitet som matchade (kommun-träff vs län-träff),
- * men backend modellerar medvetet inte granulariteten i kontraktet (NOTE-2). Vi
- * härleder den HÄR ur taxonomin som sidan redan har: varje läns-label är "län",
- * varje kommun-label är "kommun".
+ * Backend unionerar region ∪ municipality till EN ort-dimension och modellerar
+ * medvetet inte granulariteten i kontraktet (NOTE-2). Modalen ska ändå ärligt
+ * visa VILKEN granularitet som matchade (kommun-träff vs län-träff), så vi
+ * härleder den HÄR ur taxonomin som sidan redan har.
  *
- * Tvetydighet (ett namn som är BÅDE län och kommun, t.ex. Gotland): vi klassar
- * som det COARSER (`"region"`). Det är den säkra defaulten eftersom ett läns-id
- * i `preferredRegions` representerar HELA länet (kommun-träffen ingår), och
- * copyn för en län-träff ("hela länet") aldrig över-påstår en exakt kommun. En
- * egen plain-hink gäller för labels som inte finns i taxonomin alls (stale
- * snapshot).
+ * Nyckeln är postens `conceptId`, inte dess namn: granularitet är en egenskap hos
+ * konceptet, och namnet är bara det ord snapshoten gav det. Sedan #1598 bär wire:t
+ * `{conceptId, label}` per post, så id:t räcker hela vägen fram till bevis-raden.
+ * Två koncept är två id, så kartan behöver ingen kollisionspolicy — en namn-nyckel
+ * behövde en. Ett id som saknas i taxonomin (stale snapshot) klassas inte alls.
  */
 
 export type OrtGranularity = "region" | "municipality";
 
 /**
- * Bygger en label → granularitet-karta ur taxonomi-trädet. Serialiserbar
+ * Bygger en conceptId → granularitet-karta ur taxonomi-trädet. Serialiserbar
  * (`Record<string, OrtGranularity>`) så en Server Component kan beräkna den och
  * skicka den över RSC-gränsen till matchnings-sektionen.
  *
- * Län skrivs FÖRST och kommuner SEDAN, så en kollision (samma namn som både län
- * och kommun) landar på "region" (coarser) — kommun-skrivningen hoppas över för
- * en redan satt nyckel. Determinism: kartan är ren funktion av trädet.
+ * Skrivordningen saknar betydelse — varje koncept skriver sin egen nyckel.
+ * Determinism: kartan är ren funktion av trädet.
  */
 export function buildOrtGranularityMap(
   taxonomy: TaxonomyTree | null,
 ): Record<string, OrtGranularity> {
-  // Invariant: region- och kommun-LABELS är i praktiken disjunkta i JobTech-
-  // taxonomin (en kollision = Gotland, som är både län och kommun). Den enda
-  // kollisionen hanteras medvetet nedan genom att skriva län FÖRST → coarser
-  // "region" vinner. Övriga labels tillhör entydigt en granularitet.
   const map: Record<string, OrtGranularity> = {};
   if (taxonomy === null) return map;
 
   for (const region of taxonomy.regions) {
-    // Län först → vinner vid kollision (Gotland-fallet → "region", coarser).
-    map[region.label] = "region";
-  }
-  for (const region of taxonomy.regions) {
+    map[region.conceptId] = "region";
     for (const municipality of region.municipalities) {
-      // Skriv bara om namnet inte redan är ett län (annars vore Gotland-kommunen
-      // omklassad till "municipality" och län-träffen skulle felrapporteras).
-      if (map[municipality.label] === undefined) {
-        map[municipality.label] = "municipality";
-      }
+      map[municipality.conceptId] = "municipality";
     }
   }
   return map;
 }
 
 /**
- * Klassar EN matched/missing-label. Okänd label (saknas i taxonomin, t.ex. en
- * stale snapshot) → `null`.
+ * Klassar EN register-post via dess concept-id. Okänt id (saknas i taxonomin,
+ * t.ex. en stale snapshot) → `null`.
  */
-export function classifyOrtLabel(
-  label: string,
-  granularityByLabel: Record<string, OrtGranularity>,
+export function classifyOrtConcept(
+  conceptId: string,
+  granularityByConceptId: Record<string, OrtGranularity>,
 ): OrtGranularity | null {
-  return granularityByLabel[label] ?? null;
+  return granularityByConceptId[conceptId] ?? null;
 }

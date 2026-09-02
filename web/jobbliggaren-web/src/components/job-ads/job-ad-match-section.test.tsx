@@ -509,7 +509,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     // OCH dess kommun i samma lista, och den degraderade kartan klassar ingen av
     // dem — så båda når plain-hinken. De fyra granulära ramarna kan INTE nå den
     // här armen: annonsen bär en enda `RegionConceptId` och en enda
-    // `MunicipalityConceptId`, så var hink rymmer strukturellt högst en post.
+    // `MunicipalityConceptId`, så var hink rymmer per annonsens schema högst en post.
     render(
       <JobAdMatchSection
         match={detail({

@@ -68,7 +68,7 @@
       { "rule": "Motsäger annonsen den ort eller form du valt?", "outcome": "Som mest Grundmatch, även om kraven uppfylls." },
       { "rule": "Annars: hur mycket stämmer, och täcker ditt CV kraven?", "outcome": "Grundmatch, Bra match, Stark match eller Toppmatch." }
     ],
-    "worstNote": "Det sämsta är fel ort. En annons på en plats du valt bort kan aldrig bli mer än en grundmatch."
+    "worstNote": "Det sämsta är fel ort. En annons på en ort du valt bort kan aldrig bli mer än en grundmatch."
   },
   "notScored": {
     "heading": "Vad vi medvetet inte bedömer",

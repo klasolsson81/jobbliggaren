@@ -183,11 +183,8 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
   sektionen inte tyst utan tom. Skyltar som är **åtgärdbara** — angivet yrke,
   uppladdat CV — står kvar; den om angivet yrke ersätter dessutom hela sektionen
 - **Ort-axeln heter "Ort"** — dess granulariteter heter "Län" och "Kommun". En
-  resultat-etikett namnger AXELN; beviset under den namnger GRANULARITETEN
-  (senior-cto-advisor 2026-09-01, #1623). Regeln binder varje yta som rapporterar
-  utfallet, resultatrad såväl som förklaringstabell. Varken "Region" eller "Plats"
-  är axelns namn: det första är en granularitet, det andra står utanför produktens
-  ordförråd
+  resultat-etikett namnger AXELN (senior-cto-advisor 2026-09-01, #1623). Regeln
+  binder varje yta som rapporterar utfallet, resultatrad såväl som förklaringstabell
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva

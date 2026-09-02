@@ -307,7 +307,7 @@ type OrtEvidence = {
 /**
  * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan `ort`
  * faller raden tillbaka på den generiska "Du har:"/"Annonsen efterfrågar
- * även:"-formen (bakåtkompat / degraderad taxonomi).
+ * även:"-formen (bakåtkompat).
  */
 function RegionFitEvidence({
   ort,
@@ -546,7 +546,7 @@ export interface JobAdMatchSectionProps {
   /**
    * Spår 3 PR-D — conceptId → ort-granularitet (kommun/län), härledd FE-side ur
    * taxonomin (architect NOTE-2). Utelämnad → RegionFit-raden faller till den
-   * generiska bevisformen (bakåtkompat / degraderad taxonomi).
+   * generiska bevisformen (bakåtkompat).
    */
   ortGranularityByConceptId?: Record<string, OrtGranularity>;
 }

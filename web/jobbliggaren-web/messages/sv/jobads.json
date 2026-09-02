@@ -214,8 +214,8 @@
         "matchedRegions": "Län som matchar: {items}",
         "missingMunicipalities": "Annonsens kommun: {items}",
         "missingRegions": "Annonsens län: {items}",
-        "matchedPlain": "Ort som matchar: {items}",
-        "missingPlain": "Annonsens ort: {items}"
+        "matchedPlain": "{count, plural, one {Ort som matchar} other {Orter som matchar}}: {items}",
+        "missingPlain": "{count, plural, one {Annonsens ort} other {Annonsens orter}}: {items}"
       },
       "grade": {
         "Top": "Toppmatch",
@@ -234,7 +234,7 @@
       "dimension": {
         "ssykOverlap": "Yrke",
         "titleSimilarity": "Titel",
-        "regionFit": "Region",
+        "regionFit": "Ort",
         "employmentFit": "Anställningsform",
         "skillOverlap": "Kompetenser",
         "mustHaveCoverage": "Ska-krav",

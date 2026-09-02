@@ -291,7 +291,7 @@ function unnamedEvidence(
 }
 
 /**
- * Vad Region-raden behöver utöver sin radmodell: register-posterna med sina
+ * Vad `regionFit`-raden behöver utöver sin radmodell: register-posterna med sina
  * concept-id kvar, plus kartan som klassar dem.
  *
  * ETT värde och inte två props — kartan utan posterna, eller posterna utan
@@ -343,7 +343,12 @@ function RegionFitEvidence({
         // Oklassificerbart koncept: samma meningsram som syskonen, men med den
         // o-granulära termen "ort" — vi kan belägga att det ÄR en ort (raden är
         // ort-dimensionen), bara inte om det är en kommun eller ett län.
-        <span>{t("ort.matchedPlain", { items: matched.plain.join(", ") })}</span>
+        <span>
+          {t("ort.matchedPlain", {
+            count: matched.plain.length,
+            items: matched.plain.join(", "),
+          })}
+        </span>
       )}
       {missing.municipalities.length > 0 && (
         <span className="jp-modal__matchrow-missing">
@@ -359,7 +364,10 @@ function RegionFitEvidence({
       )}
       {missing.plain.length > 0 && (
         <span className="jp-modal__matchrow-missing">
-          {t("ort.missingPlain", { items: missing.plain.join(", ") })}
+          {t("ort.missingPlain", {
+            count: missing.plain.length,
+            items: missing.plain.join(", "),
+          })}
         </span>
       )}
     </>
@@ -453,7 +461,7 @@ function MatchRow({
     detail.unnamedCount > 0
       ? unnamedEvidence(dimensionKey, detail.unnamedCount, t)
       : null;
-  // Granularitets-uppdelad bevisrad bara för Region OCH bara när beviset finns.
+  // Granularitets-uppdelad bevisrad bara för `regionFit` OCH bara när beviset finns.
   const useOrtGranularity = dimensionKey === "regionFit" && ort !== undefined;
   // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
   // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
@@ -620,7 +628,7 @@ export function JobAdMatchSection({
             dimensionKey={key}
             detail={rows[key]}
             t={t}
-            // Granularitets-uppdelning bara för Region-raden (kommun vs län).
+            // Granularitets-uppdelning bara för `regionFit`-raden (kommun vs län).
             // Posterna kommer från `match.regionFit` och inte från radmodellen:
             // klassningen sker på concept-id, som `splitRegisterRow` inte bär.
             ort={

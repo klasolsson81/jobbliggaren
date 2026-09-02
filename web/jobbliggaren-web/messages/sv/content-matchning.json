@@ -37,7 +37,7 @@
     "rows": [
       { "part": "Yrke", "what": "Annonsens yrkesgrupp mot de yrken du valt. Det här är grinden: matchar inte yrket får annonsen ingen märkning.", "cv": false },
       { "part": "Titel", "what": "Annonsens titel mot rollen i ditt CV. Endast underlag, påverkar aldrig graden.", "cv": false },
-      { "part": "Region", "what": "Annonsens län eller kommun mot de orter du valt.", "cv": false },
+      { "part": "Ort", "what": "Annonsens län eller kommun mot de orter du valt.", "cv": false },
       { "part": "Anställningsform", "what": "Annonsens anställningsform mot de former du valt.", "cv": false },
       { "part": "Kompetenser", "what": "Annonsens kompetens-termer mot kompetenserna i ditt CV.", "cv": true },
       { "part": "Ska-krav", "what": "Annonsens obligatoriska krav mot ditt CV.", "cv": true },

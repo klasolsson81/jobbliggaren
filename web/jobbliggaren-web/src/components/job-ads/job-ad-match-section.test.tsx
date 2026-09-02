@@ -4,6 +4,7 @@ import { render as rawRender } from "@testing-library/react/pure";
 import { NextIntlClientProvider } from "next-intl";
 import enMessages from "../../../messages/en";
 import { JobAdMatchSection } from "./job-ad-match-section";
+import { buildOrtGranularityMap } from "@/lib/job-ads/ort-granularity";
 import type {
   JobAdMatchDetail,
   MatchCause,
@@ -21,7 +22,7 @@ function row(
   return { verdict, matched, missing };
 }
 
-// Yrke och Region bär {conceptId, label} (#1598). `null` som label är det snapshoten TAPPAT
+// `ssykOverlap` och `regionFit` bär {conceptId, label} (#1598). `null` som label är det snapshoten TAPPAT
 // — samma form som `ITaxonomyReadModel.ResolveLabelsAsync` emitterar för ett id utan rad i
 // `taxonomy_concepts`, alltså ett tillstånd produktionen faktiskt producerar. Id:t är
 // syntetiskt men aldrig tomt: en post utan namn måste ändå EXISTERA, och det är just det
@@ -77,7 +78,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     for (const label of [
       "Yrke",
       "Titel",
-      "Region",
+      "Ort",
       "Anställningsform",
       "Kompetenser",
       "Ska-krav",
@@ -276,7 +277,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
         })}
       />
     );
-    // Region-raden behåller sin generiska bevisform (förklaringen är yrkes-scoped).
+    // `regionFit`-raden behåller sin generiska bevisform (förklaringen är yrkes-scoped).
     expect(screen.getByText("Du har: Göteborg")).toBeInTheDocument();
   });
 });
@@ -419,6 +420,13 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // conceptId → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
   // Nycklarna speglar `registerRow`s id-form (`id_<label>`) — kartan slår upp
   // postens id, aldrig dess namn.
+  // Produktionens DEGRADERADE karta, tagen ur produktionens egen transform i
+  // stället för hårdkodad: faller taxonomi-anropet ger `load-job-detail-data.ts`
+  // `buildOrtGranularityMap(null)`, och då klassas ingen post. Tom karta — inte
+  // `undefined`, som släcker hela bevisgrenen och är ett tillstånd produktionen
+  // aldrig skickar för en levande match.
+  const degradedGranularity = buildOrtGranularityMap(null);
+
   const granularity = {
     id_Göteborg: "municipality" as const,
     id_Solna: "municipality" as const,
@@ -437,7 +445,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     expect(
       screen.getByText("Län som matchar: Stockholms län")
     ).toBeInTheDocument();
-    // Den generiska "Du har:"-formen används INTE för Region-radens orter när
+    // Den generiska "Du har:"-formen används INTE för `regionFit`-radens orter när
     // kartan finns (de splittas till kommun-/län-fraser i stället).
     expect(
       screen.queryByText(/Du har: Göteborg/)
@@ -494,6 +502,39 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
     expect(
       screen.queryByText(/Annonsen efterfrågar även: Gotland/)
     ).not.toBeInTheDocument();
+  });
+
+  it("plain-ramens MATCHADE sida böjs efter antalet", () => {
+    // Tvåan är producerbar: `ScoreOrtUnion`s två Add-grenar lägger annonsens län
+    // OCH dess kommun i samma lista, och den degraderade kartan klassar ingen av
+    // dem — så båda når plain-hinken. De fyra granulära ramarna kan INTE nå den
+    // här armen: annonsen bär en enda `RegionConceptId` och en enda
+    // `MunicipalityConceptId`, så var hink rymmer strukturellt högst en post.
+    render(
+      <JobAdMatchSection
+        match={detail({
+          regionFit: registerRow("Match", ["Göteborg", "Stockholms län"]),
+        })}
+        ortGranularityByConceptId={degradedGranularity}
+      />
+    );
+    expect(
+      screen.getByText("Orter som matchar: Göteborg, Stockholms län")
+    ).toBeInTheDocument();
+  });
+
+  it("plain-ramens SAKNADE sida böjs efter antalet", () => {
+    render(
+      <JobAdMatchSection
+        match={detail({
+          regionFit: registerRow("NoMatch", [], ["Solna", "Västra Götalands län"]),
+        })}
+        ortGranularityByConceptId={degradedGranularity}
+      />
+    );
+    expect(
+      screen.getByText("Annonsens orter: Solna, Västra Götalands län")
+    ).toBeInTheDocument();
   });
 
   it("en post vars id finns i kartan behåller sitt granularitets-prefix", () => {
@@ -794,7 +835,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       ).toBeInTheDocument();
     });
 
-    it("räknar plural — och två är producerbart bara på Region-raden", () => {
+    it("räknar plural — och två är producerbart bara på regionFit-raden", () => {
       // `ScoreOrtUnion` bygger `new List<string>(2)` och kan lägga BÅDE annonsens län
       // och dess kommun i samma lista (`MatchScorer.cs`), så två onämnbara orter är ett
       // tillstånd produktionen faktiskt producerar. `ScoreSsykMembership` emitterar
@@ -850,7 +891,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         const cell = within(container as HTMLElement).getByText(label);
         return cell.closest(".jp-modal__matchrow") as HTMLElement;
       };
-      // Ett på Yrke, två på Region — båda producerbara per sin egen scorer-gren, och
+      // Ett på `ssykOverlap`, två på `regionFit` — båda producerbara per sin egen scorer-gren, och
       // olika, så en förväxling mellan radernas räknare inte kan passera.
       expect(
         within(rowFor("Yrke")).getByText(
@@ -858,7 +899,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         )
       ).toBeInTheDocument();
       expect(
-        within(rowFor("Region")).getByText(
+        within(rowFor("Ort")).getByText(
           "Annonsen anger 2 orter som saknas i vårt register."
         )
       ).toBeInTheDocument();

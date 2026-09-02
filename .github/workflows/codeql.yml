@@ -137,7 +137,7 @@ jobs:
       # `grep -rhoE 'uses:\s*\S+' .github/workflows/ | grep -vE 'uses: [^@]+@[0-9a-f]{40}$'`,
       # which returns only prose; do not maintain a count here.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -154,7 +154,7 @@ jobs:
 
       # --- CodeQL analyze ----------------------------------------------------
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           category: '/language:${{ matrix.language }}'
 

@@ -189,8 +189,7 @@ export type MatchCause = z.infer<typeof matchCauseSchema>;
  * konsumerad av modal/fullsida-matchningssektionen. Skild DTO från batch:en
  * (REP/CCP/CRP): batch:en utelämnar matched/missing-strängarna medvetet
  * (list-altitud), detaljen bär dem (förklaringslagret). En rad per
- * matchnings-dimension: ordinalt verdict + bevis (matched = "Du har:",
- * missing = "Annonsen efterfrågar även:").
+ * matchnings-dimension: ordinalt verdict + bevis.
  *
  * matched/missing är Display-labels för JobTech-koncept-id:n + Snowball-stems —
  * INTE rå CV-prosa (CTO D3 (d), security-auditor-bekräftad). Goodhart-vakt

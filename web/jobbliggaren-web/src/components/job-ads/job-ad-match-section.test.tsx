@@ -565,11 +565,6 @@ describe("JobAdMatchSection — Anställningsform har sin egen bevisram (#1635)"
     expect(within(anstallning).queryByText(/kpPX_CNN_gDU/)).toBeNull();
   });
 
-  // `render` går genom shimen som hårdkodar locale="sv", och paritetstestet jämför bara
-  // nyckel-MÄNGDER — aldrig placeholders. `{items}` i en-katalogen vaktas därför bara av
-  // de två pinnarna nedan: en typo ger nyckelvägen tillbaka, en struken placeholder en
-  // avhuggen mening, och båda är tysta. Hela strängen asserteras, aldrig en regex över
-  // det interpolerade värdet — en sådan hade passerat båda felfallen.
   it("en-lokalen interpolerar matchad-ramens items", () => {
     const { container } = rawRender(
       <NextIntlClientProvider

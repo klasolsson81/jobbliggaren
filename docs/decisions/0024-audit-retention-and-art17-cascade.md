@@ -1026,18 +1026,11 @@ The `postgres` DETAIL line logs the offending key's **values**, and that half of
 
 - `ux_company_watches_user_orgnr_active` — **token**, per §1 above. Not a bearer.
 - **`UserNameIndex`** (`AspNetUsers.normalized_user_name`, `20260506091354_InitialIdentity.cs:233-237`) — UNIQUE on the user's normalised email. **This is the bearer the old text missed.** ⚠ Written at its measured strength: the index exists and its key is an email address; **whether such a row has ever been written is not measured.** It would take a duplicate registration racing past Identity's own pre-check.
-- Every other UNIQUE index in the model keys on GUID, hash or id.
-
-Remediation of the logging path itself is **not** this ADR's — it rides the duplicate-key logging issue, whose scope names `UserNameIndex`.
 
 ### 3. What is NOT superseded — read this before concluding the scope reopened
 
 ⛔ **`jobbliggaren-logprune`'s scope of all nine declared containers STANDS.** The ground is corrected; it does not fall. §4's criterion is *"keyed to personal data"*, and the DETAIL path still carries personal data — normalised email via `UserNameIndex` — once the organisation-number evidence is withdrawn. **A later reader must not read this correction as reopening the CTO-bound scope decision of 2026-08-28.** It does not.
 
 Equally untouched: D7's 30-day number and its Art. 5(1)(c) rationale (a fifth time), policy 3's HMAC deferral, ADR 0128 §2, and the residual that keeps #1170 open.
-
-### Discipline
-
-Additive amendment. The original text and every prior amendment stand unaltered, the five in this #1170 chain included — **superseded by name, never rewritten** (rad 721, rad 828). Two pointer banners are added at Amendment 2026-08-28's `### 3.` and `### 4.`, naming that **one clause** below each is superseded rather than the section. Neither finding was caused by PR #1632's delta; both are in-block because that delta inherits the DETAIL-path characterisation this amendment corrects, and because the chain's change-reason is that the register be true (Art. 5(2)).
 
 **Referenser:** #1170, #544, ADR 0090 D5, ADR 0032 §5, `docs/runbooks/log-sink.md` §4.

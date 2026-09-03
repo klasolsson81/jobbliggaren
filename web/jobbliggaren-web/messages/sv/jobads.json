@@ -218,6 +218,10 @@
         "matchedPlain": "{count, plural, one {Ort som matchar} other {Orter som matchar}}: {items}",
         "missingPlain": "{count, plural, one {Annonsens ort} other {Annonsens orter}}: {items}"
       },
+      "employment": {
+        "matched": "Anställningsform som matchar: {items}",
+        "missing": "Annonsens anställningsform: {items}"
+      },
       "grade": {
         "Top": "Toppmatch",
         "Strong": "Stark match",

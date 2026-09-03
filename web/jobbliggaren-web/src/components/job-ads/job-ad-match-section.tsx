@@ -474,6 +474,10 @@ function MatchRow({
   // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
   // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
   const isTitleDim = dimensionKey === "titleSimilarity";
+  // #1635 — en anställningsform är ett attribut hos tjänsten som arbetsgivaren
+  // sätter, inte en kvalifikation den sökande bär: annonsen ERBJUDER den. Egen
+  // ramfamilj i paritet med `ort.*`, aldrig den generiska ramens kompetens-verb.
+  const isEmploymentDim = dimensionKey === "employmentFit";
   // #1627 — `alsoRequested` syftar tillbaka på `youHave`-spannet, som gatas på
   // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
   // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
@@ -524,11 +528,17 @@ function MatchRow({
         ) : (
           <>
             {detail.matched.length > 0 && (
-              <span>{t("youHave", { items: detail.matched.join(", ") })}</span>
+              <span>
+                {t(isEmploymentDim ? "employment.matched" : "youHave", {
+                  items: detail.matched.join(", "),
+                })}
+              </span>
             )}
             {detail.missing.length > 0 && (
               <span className="jp-modal__matchrow-missing">
-                {t(missingFrame, { items: detail.missing.join(", ") })}
+                {t(isEmploymentDim ? "employment.missing" : missingFrame, {
+                  items: detail.missing.join(", "),
+                })}
               </span>
             )}
           </>

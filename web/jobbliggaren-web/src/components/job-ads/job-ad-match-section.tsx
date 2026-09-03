@@ -474,10 +474,10 @@ function MatchRow({
   // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
   // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
   const isTitleDim = dimensionKey === "titleSimilarity";
-  // #1627 — "även" syftar tillbaka på `youHave`-spannet, som gatas på
+  // #1627 — `alsoRequested` syftar tillbaka på `youHave`-spannet, som gatas på
   // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
-  // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos tre
-  // scorer-metoder, och att grunda renderingen på det sammanfallet vore just
+  // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
+  // scorer-metoderna, och att grunda renderingen på det sammanfallet vore just
   // härledningen ur (verdict, tomhet, dimension) som #1598/#1611 avvecklade.
   const missingFrame = detail.matched.length > 0 ? "alsoRequested" : "requested";
 

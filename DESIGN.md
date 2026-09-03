@@ -187,7 +187,8 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
   binder varje yta som rapporterar utfallet, resultatrad såväl som förklaringstabell
 - **Bevisramen förutsätter sitt led** — listan över vad annonsen efterfrågar ramas
   med "även" bara när raden faktiskt visar en föregående träff. Utan träff faller
-  adverbet bort (`ui.match.requested` i stället för `ui.match.alsoRequested`).
+  adverbet bort (`jobads.ui.match.requested` i stället för
+  `jobads.ui.match.alsoRequested`).
   Gäller varje dimension som når den generiska bevisformen (#1627)
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)

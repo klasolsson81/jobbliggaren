@@ -416,8 +416,8 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
   });
 });
 
-// #1627 — den generiska bevisgrenens missing-halva. "även" är en tillbakasyftning
-// på `youHave`-spannet; utan träff syftade adverbet på ingenting. TRE dimensioner
+// #1627 — den generiska bevisgrenens missing-halva. `alsoRequested` är en
+// tillbakasyftning på `youHave`-spannet; utan träff syftade den på ingenting. TRE dimensioner
 // når grenen med tom `matched`: `ssykOverlap` och `employmentFit` via sin explicita
 // miss-arm (`MatchScorer.ScoreSsykMembership` / `ScoreEmploymentMembership`, båda
 // `(NoMatch, [], [adValue])` med `cause = null`), `skillOverlap` via
@@ -482,6 +482,7 @@ describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () =
       <JobAdMatchSection
         match={detail({
           grade: null,
+          ssykOverlap: registerRow("NoMatch", [], ["Snickare"]),
           skillOverlap: row("NoMatch", [], ["Kubernetes", "AWS"]),
         })}
       />
@@ -499,6 +500,7 @@ describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () =
       <JobAdMatchSection
         match={detail({
           grade: null,
+          ssykOverlap: registerRow("NoMatch", [], ["Snickare"]),
           employmentFit: codedRow("NoMatch", [], ["kpPX_CNN_gDU"]),
         })}
       />

@@ -43,9 +43,8 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # KEEP IN SYNC AS UNITS LAND. #197's jobbliggaren-backup.timer and -backup-fresh.timer, and
 # #198's jobbliggaren-host-secrets-present.timer, belong here the moment they are ENABLED on the box, the
 # state check_floor_timers actually measures, and that handover is written in
-# docs/runbooks/host-detection.md rather than left to memory. (Already joined, and each on its own
-# enable day: #198's other absence timer jobbliggaren-secrets-present.timer, and #1175's logship
-# pair — see the notes below the constant.)
+# docs/runbooks/host-detection.md rather than left to memory. (Each timer already on the floor
+# joined on its own enable day; the notes below the constant record which, and when.)
 #
 # INSTALLED AND ENABLED ARE TWO MOMENTS, AND SINCE #1329 THEY DIVERGE FOR ONLY ONE OF THE TWO.
 # The absence detector split per set. jobbliggaren-secrets-present.timer runs --check over the
@@ -77,9 +76,7 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 #
 # THE PRUNE TIMER JOINED 2026-09-03, the day it was enabled on the box (#1170), on the same
 # trigger and not on its install — here the two happened in one visit, so this entry names the
-# `enable` deliberately. P2 alone covered it until then: its input is a jobbliggaren-*.timer
-# wildcard, so it catches an enabled timer that STOPS, while a `disable` is invisible to
-# everything but this floor.
+# `enable` deliberately.
 readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer jobbliggaren-logprune.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding

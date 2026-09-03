@@ -607,6 +607,19 @@ services:
       - max_wal_size=4GB
       - -c
       - min_wal_size=1GB
+      # An ERROR is logged with its DETAIL, and DETAIL names the CONSTRAINT KEY VALUES —
+      # `Key (col, col)=(v, v) already exists`. That lands in the container's json-file log,
+      # which `jobbliggaren-logprune` bounds only for ROTATED segments: the live one is capped
+      # by max-size alone, so its retention is a write rate rather than a bound, and this
+      # container is the one whose rate falls to zero the moment the ingest burst stops.
+      # `terse` drops DETAIL, HINT and CONTEXT on every error. What it does NOT cost: the
+      # constraint name is in 23505's primary message, and log_parameter_max_length_on_error
+      # already defaults to 0, so STATEMENT never carried parameter values. App-side diagnosis
+      # goes through Seq, where §5's logging rules are actually reviewed.
+      # NOT log_min_error_statement=fatal — it drops STATEMENT and leaves DETAIL, which is the
+      # half that names the values (security-auditor 2026-09-03, log-sink.md §4).
+      - -c
+      - log_error_verbosity=terse
     environment:
       POSTGRES_DB: jobbliggaren
       POSTGRES_USER: postgres

@@ -218,6 +218,10 @@
         "matchedPlain": "{count, plural, one {Matching location} other {Matching locations}}: {items}",
         "missingPlain": "{count, plural, one {The ad's location} other {The ad's locations}}: {items}"
       },
+      "employment": {
+        "matched": "Employment type that matches: {items}",
+        "missing": "The ad's employment type: {items}"
+      },
       "grade": {
         "Top": "Top match",
         "Strong": "Strong match",

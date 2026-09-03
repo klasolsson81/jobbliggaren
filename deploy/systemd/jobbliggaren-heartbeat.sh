@@ -74,7 +74,13 @@ readonly AUDIT_RULES_FILE=/etc/audit/rules.d/zz-jobbliggaren.rules
 # BOTH timers (`-fresh` skips on the same condition and latches P1 alone if left armed) and it
 # carries a re-arm duty, because the disarm removes the archive and its only probe together.
 # log-sink.md §2 carries the commands where an operator would reach for them.
-readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer"
+#
+# THE PRUNE TIMER JOINED 2026-09-03, the day it was enabled on the box (#1170), on the same
+# trigger and not on its install — here the two happened in one visit, so this entry names the
+# `enable` deliberately. P2 alone covered it until then: its input is a jobbliggaren-*.timer
+# wildcard, so it catches an enabled timer that STOPS, while a `disable` is invisible to
+# everything but this floor.
+readonly FLOOR_TIMERS="jobbliggaren-reconcile.timer jobbliggaren-heartbeat.timer jobbliggaren-secrets-present.timer jobbliggaren-logship.timer jobbliggaren-logship-fresh.timer jobbliggaren-logprune.timer"
 
 # Free-space floor, in percent. This absorbs the DETECTION half of a disk-usage finding
 # security-auditor routed to #196, which closed without it. The QUOTA half is deliberately not

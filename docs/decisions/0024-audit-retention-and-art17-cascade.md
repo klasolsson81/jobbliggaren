@@ -336,7 +336,7 @@ Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fön
 
 Tre policyer:
 
-**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23, 2026-08-23 (2) och 2026-08-28: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23, 2026-08-23 (2), 2026-08-28 och 2026-09-03: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
 
 Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
 
@@ -921,3 +921,76 @@ Amendment 2026-08-23 and Amendment 2026-08-23 (2) record that policy 3's HMAC de
 Additive amendment. The original text and every prior amendment stand unaltered, the three in this #1170 chain (2026-08-23, 2026-08-23 (2), 2026-08-24) included. Two forward pointers — at policy 1 and policy 3 — gain `och 2026-08-28` in this same PR, following the precedent the first 2026-08-23 amendment set for editing the driven row alongside the amendment that drives it. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. The measurement in §3 is dated and stands as provenance; the live question — whether the timer is armed on the box — has one home, `docs/runbooks/log-sink.md` §6, not here.
 
 **Referenser:** #1170, ADR 0066, ADR 0128 §2/§4, `docs/runbooks/log-sink.md` §5/§6, `deploy/systemd/jobbliggaren-logprune.sh`.
+
+---
+
+## Amendment 2026-09-03 — the write-rate premise is split a second time: a rate exists, the DIMENSIONING rate does not (#1170)
+
+**Datum:** 2026-09-03
+**Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); production-box measurement 2026-09-03, read-only (reading needs no GO — Klas-direktiv 2026-08-20); `docs/runbooks/log-sink.md` §4
+**Beslutsfattare:** `senior-cto-advisor` (routning, 2026-09-03). **Detta är inte en supersession.** D7's 30-day number, its rejected alternatives and its Art. 5(1)(c) rationale are unchanged for a fourth time.
+
+### 1. What is superseded, quoted rather than replaced
+
+Two sentences in this ADR asserted, in the present tense, that no write rate exists yet. Both are
+measured false as written, and both are quoted here rather than edited in place:
+
+| Site | Old text | Status as of 2026-09-03 |
+|---|---|---|
+| Amendment 2026-08-23 (2), *What is NOT superseded* | *"its number needs a write rate that does not exist until there are users"* | **The second clause falls.** A write rate exists and is measured below. The first clause — that the number needs one — is arithmetic and stands |
+| Amendment 2026-08-28 §2 | *"that number still waits for real users"* | **Falls on the same measurement**, and for the same reason |
+
+**The same split this chain already made once.** Amendment 2026-08-28 §2 divided the premise along
+*age vs volume* and kept the volume half. This amendment divides the surviving half again, along
+*a rate vs the dimensioning rate*: **a write rate exists**, so the premise's stated ground is gone;
+**the rate that would size `max-size` for a populated system does not**, so the number itself still
+waits. What changed is the reason the number waits, not whether it waits.
+
+### 2. The measurement
+
+Taken on the production box 2026-09-03, read-only. **The live figures have one home —
+`docs/runbooks/log-sink.md` §4 — and are not restated here**; what follows is the dated shape.
+
+- **Two containers had rotated, and each had filled its budget.** `jobbliggaren-worker` and
+  `jobbliggaren-postgres` each held two full 10 MB rotated segments, all four written inside a
+  ~2-minute window. The other five app containers held none.
+- **The rate is a burst, not a load.** Immediately after that window both containers returned to a
+  few hundred bytes per minute. A mean over uptime would therefore describe neither regime, which
+  is why this amendment records the shape and leaves the numbers to §4.
+- **Its source is the ingest job, not user traffic.** The volume is `postgres` logging
+  `ERROR: duplicate key value violates unique constraint` with the full `STATEMENT` for each
+  duplicate an upsert absorbs, plus the matching stack trace on the worker side. That is
+  `SyncPlatsbankenStreamJob` relying on `DbUpdateException` isolation per upsert — ADR 0032 §5's
+  deliberate design, not a fault in it. `job_seekers` = 2 on the same date.
+
+**So the premise did not merely decay — its ground was never user traffic.** A scheduled ingest
+job binds the volume budget on a box with no user base at all, which is the case the sentence
+excluded by construction.
+
+### 3. What is NOT superseded
+
+- **#1170 does not close, and not on this ground either.** It stays open on the residual named in
+  Amendment 2026-08-28 §5 — one non-rotated live segment per app container reaching no age bound.
+  This amendment moves no part of that.
+- **`max-size` is not chosen here, and this amendment does not license choosing it.** The rate
+  measured above is one job's burst, not the load a populated system produces. Reading it as a
+  dimensioning figure would repeat the error this chain has now corrected twice.
+- **The three delivered mechanisms and the 30-day number are untouched**, as is policy 3's HMAC
+  deferral and its recorded dependency on policy 1 (Amendment 2026-08-23 (2) §3).
+- **ADR 0128 §4 carries the same premise** in its own words. It is gitignored, so it cannot ride
+  this PR; it takes its own dated amendment in the main copy, the precedent Amendment
+  2026-08-23 (2) set and recorded.
+
+### Discipline
+
+Additive amendment. The original text and every prior amendment stand unaltered, the four in this
+#1170 chain (2026-08-23, 2026-08-23 (2), 2026-08-24, 2026-08-28) included. **One forward pointer
+gains `och 2026-09-03`** — policy 1's, the only one this amendment reaches; policy 3's is
+deliberately left alone, since the HMAC deferral is not touched here. Docs-sync ships in the same
+PR as scope (ADR 0065) — no docs-only PR. `docs/runbooks/log-sink.md` §5 loses the falsified clause
+in the same PR by **deletion**, not rewording: a claim closable only by new prose is closed by
+removing the sentence that carried it (CLAUDE.md §9.6). The live question — what the box's write
+rate is on any given day — has one home, `log-sink.md` §4, not here.
+
+**Referenser:** #1170, ADR 0032 §5, ADR 0128 §4, `docs/runbooks/log-sink.md` §4/§5,
+`deploy/docker-compose.yml`.

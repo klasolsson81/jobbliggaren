@@ -417,13 +417,9 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
 });
 
 // #1627 — den generiska bevisgrenens missing-halva. `alsoRequested` är en
-// tillbakasyftning på `youHave`-spannet; utan träff syftade den på ingenting. TVÅ
-// dimensioner når grenen med tom `matched`: `ssykOverlap` via sin explicita miss-arm
-// (`MatchScorer.ScoreSsykMembership`, `(NoMatch, [], [adValue])` med `cause = null`)
-// och `skillOverlap` via `ScoreConceptCoverage`s `matched.Count == 0 => NoMatch`.
-// `employmentFit` har sedan #1635 en egen ramfamilj och når inte grenen. `regionFit`
-// når den bara utan granularitets-karta, som produktionen alltid skickar, och pinnas
-// därför inte här.
+// tillbakasyftning på `youHave`-spannet; utan träff syftade den på ingenting.
+// `regionFit` når den bara utan granularitets-karta, som produktionen alltid
+// skickar, och pinnas därför inte här.
 describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () => {
   // Radscopat, inte dokument-scopat: default-fixturens `skillOverlap` är Partial och
   // bär ordet "även" på sin egen rad, så en dokument-scopad negation hade mätt fel rad.
@@ -522,10 +518,10 @@ describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () =
 
 // #1635 — Anställningsform-raden har sin EGEN bevisram i båda riktningarna: en
 // anställningsform är ett attribut hos tjänsten som arbetsgivaren sätter, inte en
-// kvalifikation den sökande bär, så annonsen ERBJUDER den. `ScoreEmploymentMembership`
-// ger exakt ett värde per sida och aldrig båda samtidigt (Match → `([adValue], [])`,
-// NoMatch → `([], [adValue])`), så båda armarna nedan är producerbara och det finns
-// ingen plural-arm att pinna. Raden bär conceptId och namnges FE-side (#1537).
+// kvalifikation den sökande bär, så annonsen ERBJUDER den. Scorerns två
+// `cause = null`-armar ger exakt ett värde per sida och aldrig båda samtidigt, så
+// båda armarna nedan är producerbara och det finns ingen plural-arm att pinna.
+// Raden bär conceptId och namnges FE-side (#1537).
 describe("JobAdMatchSection — Anställningsform har sin egen bevisram (#1635)", () => {
   const rowFor = (container: HTMLElement, label: string) =>
     within(container).getByText(label).closest(".jp-modal__matchrow") as HTMLElement;
@@ -545,9 +541,10 @@ describe("JobAdMatchSection — Anställningsform har sin egen bevisram (#1635)"
   });
 
   it("NoMatch: ramen tillskriver anställningsformen ANNONSEN, aldrig ett efterfrågande", () => {
-    // `grade: "Basic"` är det koherenta tillståndet, inte fixturens "Top":
-    // `MatchGradeCalculator` golvar till Basic så snart anställningsformen motsägs
-    // (RB1-kontradiktionsgolvet), så en Top-match med den här raden är oproducerbar.
+    // `grade: "Basic"` är det koherenta tillståndet, inte fixturens "Top": med
+    // default-fixturens `ssykOverlap: Match` och utan `isRelated` golvar
+    // `MatchGradeCalculator`s Full-överlagring till Basic när anställningsformen
+    // motsägs (RB1-kontradiktionsgolvet), så Top är oproducerbar här.
     const { container } = render(
       <JobAdMatchSection
         match={detail({
@@ -566,6 +563,52 @@ describe("JobAdMatchSection — Anställningsform har sin egen bevisram (#1635)"
     expect(within(anstallning).queryByText(/efterfrågar/)).toBeNull();
     // Bevarad ur #1627-blocket: fäller en regression som tappar `.map(codedName)`.
     expect(within(anstallning).queryByText(/kpPX_CNN_gDU/)).toBeNull();
+  });
+
+  // `render` går genom shimen som hårdkodar locale="sv", och paritetstestet jämför bara
+  // nyckel-MÄNGDER — aldrig placeholders. `{items}` i en-katalogen vaktas därför bara av
+  // de två pinnarna nedan: en typo ger nyckelvägen tillbaka, en struken placeholder en
+  // avhuggen mening, och båda är tysta. Hela strängen asserteras, aldrig en regex över
+  // det interpolerade värdet — en sådan hade passerat båda felfallen.
+  it("en-lokalen interpolerar matchad-ramens items", () => {
+    const { container } = rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <JobAdMatchSection match={detail()} />
+      </NextIntlClientProvider>
+    );
+    const employment = rowFor(container as HTMLElement, "Employment type");
+    expect(
+      within(employment).getByText(
+        "Employment type that matches: Permanent employment (including any trial employment)"
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("en-lokalen interpolerar saknad-ramens items", () => {
+    const { container } = rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <JobAdMatchSection
+          match={detail({
+            grade: "Basic",
+            employmentFit: codedRow("NoMatch", [], ["kpPX_CNN_gDU"]),
+          })}
+        />
+      </NextIntlClientProvider>
+    );
+    const employment = rowFor(container as HTMLElement, "Employment type");
+    expect(
+      within(employment).getByText(
+        "The ad's employment type: Permanent employment (including any trial employment)"
+      )
+    ).toBeInTheDocument();
   });
 });
 

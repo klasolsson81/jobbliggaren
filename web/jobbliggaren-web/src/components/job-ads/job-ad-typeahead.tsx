@@ -345,7 +345,10 @@ export function JobAdTypeahead({
               id={optionId(i)}
               role="option"
               aria-selected={i === active}
-              className={`flex cursor-pointer items-baseline justify-between gap-3 px-3 py-2 text-body-sm ${
+              // #1610 — jp-typeahead__option carries the WCAG 1.4.11 active-row edge
+              // (globals.css). bg-surface-tertiary stays as a secondary, non-load-
+              // bearing tint; the edge is what makes the state perceivable.
+              className={`jp-typeahead__option flex cursor-pointer items-baseline justify-between gap-3 px-3 py-2 text-body-sm ${
                 i === active
                   ? "bg-surface-tertiary text-text-primary"
                   : "text-text-primary"

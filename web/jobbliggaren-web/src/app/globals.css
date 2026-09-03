@@ -1453,6 +1453,35 @@ a.jp-adminnav__link[aria-current="page"]::after {
   outline-offset: -3px; /* inåtvänd — yttre ring klipps av searchrow-overflow */
 }
 
+/* #1610 — active-option indicator for the /jobb typeahead (WCAG 1.4.11 non-text
+   contrast). The bg-surface-tertiary highlight is 1.18:1 light / 1.28:1 dark against
+   the resting row, so background alone cannot carry the state, and no surface token in
+   the palette reaches 3:1 (accent-50 is 1.14:1, weaker still). A 3px edge in accent-700
+   clears the floor at 6.4:1 light / 7.2:1 dark against the highlighted row.
+
+   Drawn as a PSEUDO-ELEMENT, never border-left — same reason as
+   .jp-job[data-followed]::before (#1000 / ADR 0116): a real border shifts every row
+   against its unmarked siblings. It also keeps this rule off every property the option
+   Tailwind utilities set, so the unlayered-CSS precedence gap cannot bite.
+
+   WARNING: var(--jp-accent-700) DIRECTLY, never --jp-focus / --color-focus-ring. They
+   alias the same value at :root, but .jp-hero__plate re-scopes --jp-focus to #FFFFFF so
+   its buttons get a white ring on the gradient — and this typeahead renders inside that
+   plate on /jobb.
+
+   Bound to aria-selected, not to a state class, so the visual signal cannot drift from
+   the ARIA state it announces. */
+.jp-typeahead__option {
+  position: relative;
+}
+.jp-typeahead__option[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--jp-accent-700);
+}
+
 .jp-hero__pills {
   display: flex;
   flex-wrap: wrap;

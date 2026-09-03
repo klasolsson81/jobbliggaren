@@ -1007,7 +1007,7 @@ rate is on any given day — has one home, `log-sink.md` §4, not here.
 **Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); `security-auditor` on PR #1632, repo measurement 2026-09-03; #544 / ADR 0090 D5
 **Beslutsfattare:** `senior-cto-advisor` (routning, 2026-09-03). **Detta är inte en supersession** of D7 — two written sentences are superseded, no decision is.
 
-⚠ **Two amendments now carry the date 2026-09-03, so this one supersedes BY NAME and never by order** — the convention Amendment 2026-08-23 (2) set for the same collision. The first 2026-09-03 amendment is about the write-rate premise and is untouched here.
+⚠ **Three amendments now carry the date 2026-09-03, so this one supersedes BY NAME and never by order** — the convention Amendment 2026-08-23 (2) set for the same collision. The first 2026-09-03 amendment is about the write-rate premise and is untouched here.
 
 ### 1. The superseded sites
 
@@ -1029,6 +1029,8 @@ The `postgres` DETAIL line logs the offending key's **values**, and that half of
 
 ### 3. What is NOT superseded — read this before concluding the scope reopened
 
+> ⚠ **ONE CLAUSE in the paragraph below is superseded** — see [Amendment 2026-09-03 (3)](#amendment-2026-09-03-3--the-detail-bearer-amendment-2026-09-03-2-3-rests-on-is-removed-prospectively-and-the-scope-does-not-reopen-1170). The scope ruling itself is NOT reopened; only the DETAIL-path ground under it moved.
+>
 ⛔ **`jobbliggaren-logprune`'s scope of all nine declared containers STANDS.** The ground is corrected; it does not fall. §4's criterion is *"keyed to personal data"*, and the DETAIL path still carries personal data — normalised email via `UserNameIndex` — once the organisation-number evidence is withdrawn. **A later reader must not read this correction as reopening the CTO-bound scope decision of 2026-08-28.** It does not.
 
 Equally untouched: D7's 30-day number and its Art. 5(1)(c) rationale (a fifth time), policy 3's HMAC deferral, ADR 0128 §2, and the residual that keeps #1170 open.
@@ -1055,7 +1057,7 @@ literal, through STATEMENT) and the arms that were **not** measured.
 
 ### The scope of all nine declared containers STILL stands, and on a ground the flag cannot move
 
-⛔ **This is not an opening to re-scope `jobbliggaren-logprune`.** Three reasons, and the first is
+⛔ **This is not an opening to re-scope `jobbliggaren-logprune`.** Three reasons. ⚠ The FIRST one expires — once the container is recreated and the prune has reached the rotated segments, it no longer holds; **reason 2 is the durable one** and is
 sufficient:
 
 1. **The flag bounds FUTURE writes only.** Every segment already in the box's postgres log keeps its

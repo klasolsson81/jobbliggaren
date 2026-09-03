@@ -91,8 +91,8 @@ readonly RETENTION_DAYS=30
 # own log rather than off the documentation. ⚠ The specifics are NOT restated here — they live
 # in log-sink.md §4. Both that this comment used to carry were falsified within six days: that
 # postgres ran with no `log_*` override (this repo set one), and which key was the bearer (the
-# `(UserId, OrganizationNumber)` index stores an HMAC token, ADR 0090 D5; the measured bearer is
-# `normalized_user_name`). The conclusion survives both; the restatement did not.
+# `(UserId, OrganizationNumber)` index stores an HMAC token, ADR 0090 D5).
+# The conclusion survives both; the restatement did not.
 #
 # EXPANDING THIS ARRAY IS NOT A CHANGE TO ADR 0128's TABLE (CTO 2026-08-28). logship's note that
 # adding a name is a Streams-table change is true OF LOGSHIP, which adds a stream, an archive

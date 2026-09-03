@@ -206,6 +206,67 @@ else
   no "REFUSES more than one argument"
 fi
 
+# --- the spellings a -c-only collector misses (measured 2026-09-03) -------------------------
+
+fixture long-option <<'YML'
+    command:
+      - postgres
+      - --log-error-verbosity=terse
+YML
+assert_exit 0 "LONG option form (--name=value, hyphens)" "$FIXTURE_DIR"
+
+# security-auditor measured this exact file starting clean and running with `default`.
+fixture long-option-overrides <<'YML'
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - --log-error-verbosity=default
+YML
+assert_exit 1 "-c terse OVERRIDDEN by a long-option default (mixed spelling)" "$FIXTURE_DIR"
+
+fixture long-option-underscores <<'YML'
+    command:
+      - postgres
+      - --log_error_verbosity=default
+YML
+assert_exit 1 "LONG option with underscores, set to default" "$FIXTURE_DIR"
+
+# --- refusal channels a single-shape reader misses ------------------------------------------
+
+# dotnet-architect measured: compose does NOT normalise list-form environment to an object.
+fixture env-list-form <<'YML'
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+    environment:
+      - PGOPTIONS=-c log_error_verbosity=verbose
+YML
+assert_exit 2 "REFUSES PGOPTIONS in LIST-form environment" "$FIXTURE_DIR"
+
+# compose does not resolve env_file into the model, so its contents are invisible here.
+fixture env-file-present <<'YML'
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+    env_file:
+      - ./pg.env
+YML
+assert_exit 2 "REFUSES when env_file is present (contents unread)" "$FIXTURE_DIR"
+
+fixture conf-via-configs <<'YML'
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+    configs:
+      - source: pgconf
+        target: /etc/postgresql/postgresql.conf
+YML
+assert_exit 2 "REFUSES a conf delivered through configs: rather than volumes:" "$FIXTURE_DIR"
+
 # --- the repo's own project ----------------------------------------------------------------
 
 echo

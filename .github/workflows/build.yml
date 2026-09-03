@@ -583,7 +583,8 @@ jobs:
 
       # #1170. `log_error_verbosity=terse` on postgres is a REMEDIATION of a security-auditor
       # Major: without it a constraint violation writes its DETAIL — the constraint KEY VALUES,
-      # measured to include a normalised email via UserNameIndex — into a container log whose
+      # measured to include a normalised email via UserNameIndex, though whether such a row has
+      # ever been written is NOT measured — into a container log whose
       # LIVE segment jobbliggaren-logprune cannot reach. One line in a compose list, and nothing
       # else would report its removal: P3's floor sees timers, and no other job reads this key.
       # The guard reads compose's OWN resolved model, and asserts the LAST setting rather than

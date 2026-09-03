@@ -110,12 +110,19 @@ fi
 
 # --- refusals: channels that set the same GUC and that the command array does not show ----
 
-conf_mounts=$(printf '%s' "$model" | jq -r --arg s "$SERVICE" '
-  (.services[$s].volumes // [])
-  | map(select((.target // "") | test("postgresql\\.conf$|^/etc/postgresql")) | (.target // ""))
+# ⚠ THESE REFUSALS ARE THE HALF A SPELLING CAN DEFEAT, so each reads every shape compose
+# emits rather than the one this repo happens to write. Measured 2026-09-03 against Compose
+# v2.40.3: `environment` in LIST form stays a JSON array (compose does not normalise it to an
+# object), `env_file` is NOT resolved into `environment` at all, and a conf file can arrive
+# through `configs:` instead of `volumes:`. Reading only the object form and only volumes
+# answered `exit 0` on all three — which is the guard's own header defect, one section down.
+conf_targets=$(printf '%s' "$model" | jq -r --arg s "$SERVICE" '
+  ((.services[$s].volumes // []) + (.services[$s].configs // []))
+  | map(if type == "object" then (.target // "") else tostring end)
+  | map(select(test("postgresql[.]conf$|^/etc/postgresql")))
   | join(" ")')
-if [ -n "$conf_mounts" ]; then
-  echo "::error::postgres-log-verbosity-guard: '$SERVICE' mounts a postgres config file ($conf_mounts)." >&2
+if [ -n "$conf_targets" ]; then
+  echo "::error::postgres-log-verbosity-guard: '$SERVICE' mounts a postgres config file ($conf_targets)." >&2
   echo "Refused rather than answered: a mounted conf sets the same GUC through a channel the" >&2
   echo "command array does not show, so a verdict read off the command would overstate itself." >&2
   exit 2
@@ -123,31 +130,53 @@ fi
 
 pgoptions=$(printf '%s' "$model" | jq -r --arg s "$SERVICE" '
   (.services[$s].environment // {})
-  | if type == "object" then (.PGOPTIONS // "") else "" end')
+  | if type == "object" then (.PGOPTIONS // "" | tostring)
+    elif type == "array" then (map(select(type == "string" and startswith("PGOPTIONS="))) | join(" "))
+    else "" end')
 if [ -n "$pgoptions" ] && [ "$pgoptions" != "null" ]; then
   echo "::error::postgres-log-verbosity-guard: '$SERVICE' sets PGOPTIONS in its environment." >&2
   echo "Refused rather than answered: PGOPTIONS carries GUCs the command array does not show." >&2
   exit 2
 fi
 
+env_files=$(printf '%s' "$model" | jq -r --arg s "$SERVICE" '
+  (.services[$s].env_file // [])
+  | if type == "array" then map(if type == "object" then (.path // "") else tostring end) | join(" ")
+    else tostring end')
+if [ -n "$env_files" ] && [ "$env_files" != "null" ]; then
+  echo "::error::postgres-log-verbosity-guard: '$SERVICE' carries env_file ($env_files)." >&2
+  echo "Refused rather than answered: compose does not resolve env_file into the model, so its" >&2
+  echo "contents — PGOPTIONS among them — are invisible here. Presence alone is the refusal." >&2
+  exit 2
+fi
+
 # --- the predicate ------------------------------------------------------------------------
 
-# Compose normalises `command:` to an array. Postgres accepts both `-c name=value` (two argv
-# entries) and `-cname=value` (one), so both are collected; the ORDER is preserved because
-# the last setting is the one postgres runs with.
+# Compose normalises `command:` to an array. Postgres reaches the same GUC through THREE argv
+# spellings and the last one wins across all of them, so all three are collected in order:
+# `-c name=value` (two entries), `-cname=value` (one), and the LONG option `--name=value`,
+# whose name postgres reads with hyphens and underscores interchangeably. Measured 2026-09-03
+# (security-auditor): `-c log_error_verbosity=terse --log-error-verbosity=default` starts
+# clean and runs with `default` — collecting only the `-c` forms answered OK on it.
 values=$(printf '%s' "$model" | jq -r --arg s "$SERVICE" --arg k "$SETTING" '
+  def norm: gsub("-"; "_");
   (.services[$s].command // [])
   | if type == "string" then (. / " ") else . end
   | . as $cmd
   | [ range(0; ($cmd | length)) as $i
       | $cmd[$i] as $tok
-      | if $tok == "-c" and ($i + 1) < ($cmd | length) and ($cmd[$i+1] | startswith($k + "="))
-        then ($cmd[$i+1] | sub("^" + $k + "="; ""))
-        elif ($tok | startswith("-c" + $k + "="))
-        then ($tok | sub("^-c" + $k + "="; ""))
+      | if $tok == "-c" and ($i + 1) < ($cmd | length)
+             and (($cmd[$i+1] | split("=") | .[0] | norm) == $k)
+             and ($cmd[$i+1] | contains("="))
+        then ($cmd[$i+1] | split("=") | .[1:] | join("="))
+        elif ($tok | startswith("-c")) and ($tok | contains("="))
+             and (($tok | ltrimstr("-c") | split("=") | .[0] | norm) == $k)
+        then ($tok | split("=") | .[1:] | join("="))
+        elif ($tok | startswith("--")) and ($tok | contains("="))
+             and (($tok | ltrimstr("-") | ltrimstr("-") | split("=") | .[0] | norm) == $k)
+        then ($tok | split("=") | .[1:] | join("="))
         else empty end ]
   | join(" ")')
-
 if [ -z "$values" ]; then
   echo "::error::postgres-log-verbosity-guard: '$SERVICE' does not set $SETTING." >&2
   echo "Expected '-c $SETTING=$REQUIRED' in the resolved command. Without it postgres runs the" >&2

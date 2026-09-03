@@ -1007,7 +1007,7 @@ rate is on any given day — has one home, `log-sink.md` §4, not here.
 **Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); `security-auditor` on PR #1632, repo measurement 2026-09-03; #544 / ADR 0090 D5
 **Beslutsfattare:** `senior-cto-advisor` (routning, 2026-09-03). **Detta är inte en supersession** of D7 — two written sentences are superseded, no decision is.
 
-⚠ **Two amendments now carry the date 2026-09-03, so this one supersedes BY NAME and never by order** — the convention Amendment 2026-08-23 (2) set for the same collision. The first 2026-09-03 amendment is about the write-rate premise and is untouched here.
+⚠ **Three amendments now carry the date 2026-09-03, so this one supersedes BY NAME and never by order** — the convention Amendment 2026-08-23 (2) set for the same collision. The first 2026-09-03 amendment is about the write-rate premise and is untouched here.
 
 ### 1. The superseded sites
 
@@ -1029,8 +1029,58 @@ The `postgres` DETAIL line logs the offending key's **values**, and that half of
 
 ### 3. What is NOT superseded — read this before concluding the scope reopened
 
+> ⚠ **ONE CLAUSE in the paragraph below is superseded** — see [Amendment 2026-09-03 (3)](#amendment-2026-09-03-3--the-detail-bearer-amendment-2026-09-03-2-3-rests-on-is-removed-prospectively-and-the-scope-does-not-reopen-1170). The scope ruling itself is NOT reopened; only the DETAIL-path ground under it moved.
+>
 ⛔ **`jobbliggaren-logprune`'s scope of all nine declared containers STANDS.** The ground is corrected; it does not fall. §4's criterion is *"keyed to personal data"*, and the DETAIL path still carries personal data — normalised email via `UserNameIndex` — once the organisation-number evidence is withdrawn. **A later reader must not read this correction as reopening the CTO-bound scope decision of 2026-08-28.** It does not.
 
 Equally untouched: D7's 30-day number and its Art. 5(1)(c) rationale (a fifth time), policy 3's HMAC deferral, ADR 0128 §2, and the residual that keeps #1170 open.
 
 **Referenser:** #1170, #544, ADR 0090 D5, ADR 0032 §5, `docs/runbooks/log-sink.md` §4.
+
+---
+
+## Amendment 2026-09-03 (3) — the DETAIL bearer Amendment 2026-09-03 (2) §3 rests on is removed prospectively, and the scope does NOT reopen (#1170)
+
+**Superseded by name, not altered:** Amendment 2026-09-03 (2) §3's sentence *"the DETAIL path still
+carries personal data — normalised email via `UserNameIndex`"*. It was true when written and is the
+reason this amendment exists rather than a silent edit.
+
+### What changed
+
+`deploy/docker-compose.yml` now runs postgres with `-c log_error_verbosity=terse` (PR #1642).
+Postgres logs an ERROR **without** its DETAIL line, so the constraint key values — including the
+normalised email §3 names — stop reaching the container log. Measured in both directions against
+`postgres:18.3`, the box's own image: without the flag one `DETAIL:` line and the value twice; with
+it, zero `DETAIL:` lines and the value zero times on the bound-parameter path Npgsql uses.
+`docs/runbooks/log-sink.md` §4 carries the row, including the arm that still leaks (an inline
+literal, through STATEMENT) and the arms that were **not** measured.
+
+### The scope of all nine declared containers STILL stands, and on a ground the flag cannot move
+
+⛔ **This is not an opening to re-scope `jobbliggaren-logprune`.** Three reasons. ⚠ The FIRST one expires — once the container is recreated and the prune has reached the rotated segments, it no longer holds; **reason 2 is the durable one** and is
+sufficient:
+
+1. **The flag bounds FUTURE writes only.** Every segment already in the box's postgres log keeps its
+   DETAIL lines until the container is recreated or the prune reaches the rotated ones. A container
+   that held personal data yesterday is inside a retention mechanism's scope today.
+2. **§4's criterion is keyed to the personal-data CLASS, not to a live census.** A scope that
+   contracted every time a bearer was closed would have to be re-derived on every config change, and
+   the script is **subtractive** — it ships nothing and creates no object, so a wider scope cannot
+   widen exposure. That asymmetry is Amendment 2026-08-28's, and it is untouched.
+3. **The flag is one line in a compose list.** `.github/scripts/postgres-log-verbosity-guard.sh`
+   pins it in `ci` — asserting the LAST setting, because postgres applies `-c` left to right and a
+   later `=default` would pass a string grep — but a guard is a detector, not a guarantee, and the
+   scope must survive its removal.
+
+### What this does NOT say
+
+It does **not** say the postgres container log is now free of personal data: the existing segments
+are unmeasured, and `terse` was measured only on the DETAIL arm. It does **not** withdraw
+Amendment 2026-09-03 (2) §2's identification of `UserNameIndex` as the measured bearer — that
+finding stands and is the reason the flag was chosen over the alternatives. And it does **not**
+touch D7's 30-day number, policy 3's HMAC deferral, ADR 0128 §2, or the residual that keeps #1170
+open — which after this change is a live segment bounded by a write rate, on a container whose
+crossing date every rotation resets.
+
+**Referenser:** #1170, PR #1637, PR #1642, `docs/runbooks/log-sink.md` §4,
+`.github/scripts/postgres-log-verbosity-guard.sh`, ADR 0090 D5.

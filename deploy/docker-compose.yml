@@ -607,6 +607,15 @@ services:
       - max_wal_size=4GB
       - -c
       - min_wal_size=1GB
+      # An ERROR is logged with its DETAIL, and DETAIL names the CONSTRAINT KEY VALUES —
+      # `Key (col, col)=(v, v) already exists` — into a container log whose LIVE segment
+      # `jobbliggaren-logprune` cannot reach. The retention argument is not re-made here:
+      # the x-logging header above owns it, and log-sink.md §4 is its one home.
+      # `terse` excludes DETAIL, HINT, QUERY and CONTEXT from every logged message.
+      # NOT log_min_error_statement=fatal — that drops STATEMENT and leaves DETAIL, which is
+      # the half naming the values (security-auditor 2026-09-03).
+      - -c
+      - log_error_verbosity=terse
     environment:
       POSTGRES_DB: jobbliggaren
       POSTGRES_USER: postgres

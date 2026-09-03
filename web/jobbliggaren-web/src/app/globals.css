@@ -1467,8 +1467,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    WARNING: var(--jp-accent-700) DIRECTLY, never --jp-focus / --color-focus-ring. They
    alias the same value at :root, but .jp-hero__plate re-scopes --jp-focus to #FFFFFF so
    its buttons get a white ring on the gradient — and this typeahead renders inside that
-   plate on /jobb. The focus alias would resolve to white here: 1.14:1, worse than the
-   defect under repair. accent-700 is re-declared per THEME only, never per surface.
+   plate on /jobb.
 
    Bound to aria-selected, not to a state class, so the visual signal cannot drift from
    the ARIA state it announces. */

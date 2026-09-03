@@ -39,10 +39,9 @@ name: jobbliggaren-prod
 # it has one home: log-sink.md §4. Read that row before treating either as a bound; why this line
 # stopped asserting it is ADR 0024's Amendment 2026-08-23 (#1170).
 # A quiet container still keeps its 30 MB for months, so retention time here stays undefined.
-# That is what keeps #1170 open: demoting this layer is what finally makes a smaller max-size
-# defensible, but the number needs a write rate and there is no write rate until there are
-# users. The box's daemon config sets the same 10m x 3; this makes the artefact carry it too,
-# for anyone running the stack elsewhere.
+# Demoting this layer is what finally makes a smaller max-size defensible, but the number
+# needs a write rate. The box's daemon config sets the same 10m x 3; this makes the artefact
+# carry it too, for anyone running the stack elsewhere.
 x-logging: &logging
   driver: json-file
   options:

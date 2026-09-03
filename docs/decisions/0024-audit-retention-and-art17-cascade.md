@@ -336,7 +336,7 @@ Audit-tabellen anonymiseras via `IAuditTrailEraser` efter 30-dagars restore-fön
 
 Tre policyer:
 
-**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23, 2026-08-23 (2) och 2026-08-28: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
+**1. App-logg-retention: 30 dagar (CloudWatch LogGroup retention).** — *se Amendment 2026-08-23, 2026-08-23 (2), 2026-08-28 och 2026-09-03: mekanismen revs av ADR 0066, efterträdaren är en handsatt Seq-policy utan konfigurationsyta, och talet är oförändrat.*
 
 Matchar Art. 17 restore-fönstret från D5/D6. Efter 30 dagar är användarens audit-rad anonymiserad och konton hard-deletad — då ska app-loggens IP/UA/EmailHash inte heller vara åtkomliga. Ren GDPR Art. 5(1)(c) data-minimisation-story.
 
@@ -892,6 +892,8 @@ Each swap is drift in the mechanism, never in the decision. The 30-day figure ha
 
 ### 3. Measurement, 2026-08-28, production box, read-only
 
+> ⚠ **ONE CLAUSE in the last bullet below is superseded** — see [Amendment 2026-09-03 (2)](#amendment-2026-09-03-2--two-pii-inventory-claims-in-amendment-2026-08-28-outran-their-evidence-1170) §1. The generalisation *"arms at the first real test user"* is unscoped against this amendment's own nine containers; the `api`-scoped reading it sits on stands unaltered. **The rest of this section is untouched.**
+
 - All 7 **running** containers use the `json-file` driver at `max-size=10m`, `max-file=3` — no exceptions among them. ADR 0128 §2 counts **nine** declared; the other two are the `migrate` pair, which exit by design and whose log directories persist until the container is replaced.
 - The driver's entire option set is `max-size`, `max-file`, `labels`, `labels-regex`, `env`, `env-regex`, `compress` (docs.docker.com, read 2026-08-28). **No time or age option exists anywhere in it.** Removal happens by file COUNT, never by file age.
 - Effective retention is therefore budget divided by write rate — **inversely proportional to traffic**: the quieter a container, the longer its data survives.
@@ -901,6 +903,8 @@ Each swap is drift in the mechanism, never in the decision. The 30-day figure ha
 - Personal-data content in the app log today: **zero**. `api`'s current log (460 lines) has no match for an IPv4 address, a `UserAgent` string, an `EmailHash` value, or a GUID. `job_seekers` holds 2 rows, both created 2026-08-16 within a two-minute window — the auditor's own test accounts, not real users. **The exposure this amendment closes is latent, and arms at the first real test user**, which is exactly why D7 policy 1 is being finished ahead of that date rather than after it.
 
 ### 4. The mechanism that lands
+
+> ⚠ **ONE CLAUSE in the paragraph below is superseded** — see [Amendment 2026-09-03 (2)](#amendment-2026-09-03-2--two-pii-inventory-claims-in-amendment-2026-08-28-outran-their-evidence-1170) §1–§2. The `(UserId, OrganizationNumber)` / personnummer illustration is false since 2026-07-17 (#544, ADR 0090 D5); the bearer is `UserNameIndex`. ⛔ **The nine-container scope this section decides STANDS** — the ground is corrected, not withdrawn (§3 there).
 
 `jobbliggaren-logprune` — a service/timer pair plus `.test.sh` — runs daily at 03:40 against a **30-day window: parity with D7 policy 1 and with `retentionpolicy-36`, never a new number.** **Its scope is NOT ADR 0128 §2's app stream** (CTO 2026-08-28). That table answers *which stream is archived* and excludes `postgres` and `redis` on an **operability** ground — "connection and authentication traces rather than app events". This mechanism answers *which local log surface the retention window binds*, which is keyed to **personal data**, and the two sets are not the same set; reusing the app stream would have swapped the criterion silently. Measured on the box 2026-08-28: `postgres` runs with no `log_*` override, so a unique violation is logged as `DETAIL: Key (...)=(<value>) already exists.` — the key's values — and the schema carries a unique index on `(UserId, OrganizationNumber)`, where for an enskild firma the organisation number is the holder's personnummer (#841). The set is therefore **all nine declared containers**. Expanding it changes no row in ADR 0128 §2: that note binds `jobbliggaren-logship.sh`, which adds a stream and an archive object, whereas this script is **subtractive** and cannot widen exposure. Nor is it a fourth retention number — the window follows the data via D5/D6, not the container. Containers inside the window today are inside it by **write rate**, and a write rate is not a bound. It is delivered as a repo artefact and an operator runbook step (`log-sink.md` §6); **it has not been applied on the box in this session** — installing and arming a systemd unit pair is a write and needs Klas GO under §9.2, which the standing read-only exception for box measurement does not extend to.
 
@@ -921,3 +925,112 @@ Amendment 2026-08-23 and Amendment 2026-08-23 (2) record that policy 3's HMAC de
 Additive amendment. The original text and every prior amendment stand unaltered, the three in this #1170 chain (2026-08-23, 2026-08-23 (2), 2026-08-24) included. Two forward pointers — at policy 1 and policy 3 — gain `och 2026-08-28` in this same PR, following the precedent the first 2026-08-23 amendment set for editing the driven row alongside the amendment that drives it. Docs-sync ships in the same PR as scope (ADR 0065) — no docs-only PR. The measurement in §3 is dated and stands as provenance; the live question — whether the timer is armed on the box — has one home, `docs/runbooks/log-sink.md` §6, not here.
 
 **Referenser:** #1170, ADR 0066, ADR 0128 §2/§4, `docs/runbooks/log-sink.md` §5/§6, `deploy/systemd/jobbliggaren-logprune.sh`.
+
+---
+
+## Amendment 2026-09-03 — the write-rate premise is split a second time: a rate exists, the DIMENSIONING rate does not (#1170)
+
+**Datum:** 2026-09-03
+**Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); production-box measurement 2026-09-03, read-only (reading needs no GO — Klas-direktiv 2026-08-20); `docs/runbooks/log-sink.md` §4
+**Beslutsfattare:** `senior-cto-advisor` (routning, 2026-09-03). **Detta är inte en supersession.** D7's 30-day number, its rejected alternatives and its Art. 5(1)(c) rationale are unchanged for a fourth time.
+
+### 1. What is superseded, quoted rather than replaced
+
+Two sentences in this ADR asserted, in the present tense, that no write rate exists yet. Both are
+measured false as written, and both are quoted here rather than edited in place:
+
+| Site | Old text | Status as of 2026-09-03 |
+|---|---|---|
+| Amendment 2026-08-23 (2), *What is NOT superseded* | *"its number needs a write rate that does not exist until there are users"* | **The second clause falls.** A write rate exists and is measured below. The first clause — that the number needs one — is arithmetic and stands |
+| Amendment 2026-08-28 §2 | *"that number still waits for real users"* | **Falls on the same measurement**, and for the same reason |
+
+**The same split this chain already made once.** Amendment 2026-08-28 §2 divided the premise along
+*age vs volume* and kept the volume half. This amendment divides the surviving half again, along
+*a rate vs the dimensioning rate*: **a write rate exists**, so the premise's stated ground is gone;
+**the rate that would size `max-size` for a populated system does not**, so the number itself still
+waits. What changed is the reason the number waits, not whether it waits.
+
+### 2. The measurement
+
+Taken on the production box 2026-09-03, read-only. **The live figures have one home —
+`docs/runbooks/log-sink.md` §4 — and are not restated here**; what follows is the dated shape.
+
+- **Two containers had rotated, and each had filled its budget.** `jobbliggaren-worker` and
+  `jobbliggaren-postgres` each held two full 10 MB rotated segments, all four written inside a
+  ~2-minute window. The other five app containers held none.
+- **The rate is a burst, not a load.** Immediately after that window both containers returned to a
+  few hundred bytes per minute. A mean over uptime would therefore describe neither regime, which
+  is why this amendment records the shape and leaves the numbers to §4.
+- **Its source is the ingest job, not user traffic.** The volume is `postgres` logging
+  `ERROR: duplicate key value violates unique constraint` with the full `STATEMENT` for each
+  duplicate an upsert absorbs, plus the matching stack trace on the worker side. That is
+  `SyncPlatsbankenStreamJob` relying on `DbUpdateException` isolation per upsert — ADR 0032 §5's
+  deliberate design, not a fault in it.
+
+**So the premise did not merely decay — its ground was never user traffic.** A scheduled ingest
+job binds the volume budget on a box with no user base at all, which is the case the sentence
+excluded by construction.
+
+### 3. What is NOT superseded
+
+- **#1170 does not close, and not on this ground either.** It stays open on the residual named in
+  Amendment 2026-08-28 §5 — one non-rotated live segment per app container reaching no age bound.
+  This amendment moves no part of that.
+- **`max-size` is not chosen here, and this amendment does not license choosing it.** The rate
+  measured above is one job's burst, not the load a populated system produces. Reading it as a
+  dimensioning figure would repeat the error this chain has now corrected twice.
+- **The three delivered mechanisms and the 30-day number are untouched**, as is policy 3's HMAC
+  deferral and its recorded dependency on policy 1 (Amendment 2026-08-23 (2) §3).
+- **ADR 0128 §4 carries the same premise** in its own words. It is gitignored, so it cannot ride
+  this PR; it **has taken** its own dated amendment in the main copy, the precedent Amendment
+  2026-08-23 (2) set and recorded.
+
+### Discipline
+
+Additive amendment. The original text and every prior amendment stand unaltered, the four in this
+#1170 chain (2026-08-23, 2026-08-23 (2), 2026-08-24, 2026-08-28) included. **One forward pointer
+gains `och 2026-09-03`** — policy 1's, the only one this amendment reaches; policy 3's is
+deliberately left alone, since the HMAC deferral is not touched here. Docs-sync ships in the same
+PR as scope (ADR 0065) — no docs-only PR. `docs/runbooks/log-sink.md` §5 loses the falsified clause
+in the same PR by **deletion**, not rewording: a claim closable only by new prose is closed by
+removing the sentence that carried it (CLAUDE.md §9.6). The live question — what the box's write
+rate is on any given day — has one home, `log-sink.md` §4, not here.
+
+**Referenser:** #1170, ADR 0032 §5, ADR 0128 §4, `docs/runbooks/log-sink.md` §4/§5,
+`deploy/docker-compose.yml`.
+
+---
+
+## Amendment 2026-09-03 (2) — two PII-inventory claims in Amendment 2026-08-28 outran their evidence (#1170)
+
+**Datum:** 2026-09-03
+**Källa:** [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170); `security-auditor` on PR #1632, repo measurement 2026-09-03; #544 / ADR 0090 D5
+**Beslutsfattare:** `senior-cto-advisor` (routning, 2026-09-03). **Detta är inte en supersession** of D7 — two written sentences are superseded, no decision is.
+
+⚠ **Two amendments now carry the date 2026-09-03, so this one supersedes BY NAME and never by order** — the convention Amendment 2026-08-23 (2) set for the same collision. The first 2026-09-03 amendment is about the write-rate premise and is untouched here.
+
+### 1. The superseded sites
+
+Both sit in **Amendment 2026-08-28**, and both are quoted rather than rewritten — the discipline rad 721 and rad 828 of this ADR already fixed: *superseded by name is not altered.*
+
+| Site | Old text | Status as of 2026-09-03 |
+|---|---|---|
+| §4, the container-set rationale | *"the schema carries a unique index on `(UserId, OrganizationNumber)`, where for an enskild firma the organisation number is the holder's personnummer (#841)"* | **False since 2026-07-17 — six weeks before the amendment asserted it.** #544 / ADR 0090 D5 (migration `20260717230820`) stores a pnr-shaped organisation number as a **keyed HMAC-SHA256 token, never plaintext**: `CompanyWatchFollowExecutor.cs:47` tokenises when `IsPersonnummerShaped()`, `DependencyInjection.cs:1263` registers `HmacProtectedIdentityTokenizer` unconditionally, and **both** `db.CompanyWatches.Add` calls in `src/` sit in that one file. A unique violation on `ux_company_watches_user_orgnr_active` therefore writes a **token**, not a personnummer |
+| §3, last bullet | *"The exposure this amendment closes is latent, and arms at the first real test user"* | **Unscoped against its own amendment.** The measurement beneath it is explicitly `api`'s log; the amendment's scope is **all nine declared containers**. For `caddy` the conclusion is **unsupported — not falsified**: `deploy/caddy/Caddyfile` redacts ten query keys and the whole header map but **not `request>remote_ip`** (`grep -rn remote_ip deploy/` → zero), and its own comment records that the default logger writes the whole request line on every 5xx. What is measured is the **configuration**, not that such a line has been written |
+
+**The `api`-scoped measurement in §3 stands unaltered as provenance.** What is superseded is the generalisation drawn from it, not the reading itself.
+
+### 2. The corrected inventory for the DETAIL path
+
+The `postgres` DETAIL line logs the offending key's **values**, and that half of §4 is true and unchanged. What the old text got wrong is *which* index makes it carry personal data:
+
+- `ux_company_watches_user_orgnr_active` — **token**, per §1 above. Not a bearer.
+- **`UserNameIndex`** (`AspNetUsers.normalized_user_name`, `20260506091354_InitialIdentity.cs:233-237`) — UNIQUE on the user's normalised email. **This is the bearer the old text missed.** ⚠ Written at its measured strength: the index exists and its key is an email address; **whether such a row has ever been written is not measured.** It would take a duplicate registration racing past Identity's own pre-check.
+
+### 3. What is NOT superseded — read this before concluding the scope reopened
+
+⛔ **`jobbliggaren-logprune`'s scope of all nine declared containers STANDS.** The ground is corrected; it does not fall. §4's criterion is *"keyed to personal data"*, and the DETAIL path still carries personal data — normalised email via `UserNameIndex` — once the organisation-number evidence is withdrawn. **A later reader must not read this correction as reopening the CTO-bound scope decision of 2026-08-28.** It does not.
+
+Equally untouched: D7's 30-day number and its Art. 5(1)(c) rationale (a fifth time), policy 3's HMAC deferral, ADR 0128 §2, and the residual that keeps #1170 open.
+
+**Referenser:** #1170, #544, ADR 0090 D5, ADR 0032 §5, `docs/runbooks/log-sink.md` §4.

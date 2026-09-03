@@ -208,6 +208,7 @@
       "uploadCvFoot": "Upload a CV to match on skills and requirements. It is required for a Strong match and a Top match.",
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
+      "requested": "The ad asks for: {items}",
       "relatedYrkeReason": "A similar occupation, not one you picked. That is why the ad ranks below your exact matches.",
       "ort": {
         "matchedMunicipalities": "Municipality that matches: {items}",

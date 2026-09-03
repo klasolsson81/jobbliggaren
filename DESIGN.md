@@ -185,6 +185,11 @@ Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-com
 - **Ort-axeln heter "Ort"** — dess granulariteter heter "Län" och "Kommun". En
   resultat-etikett namnger AXELN (senior-cto-advisor 2026-09-01, #1623). Regeln
   binder varje yta som rapporterar utfallet, resultatrad såväl som förklaringstabell
+- **Bevisramen förutsätter sitt led** — listan över vad annonsen efterfrågar ramas
+  med "även" bara när raden faktiskt visar en föregående träff. Utan träff faller
+  adverbet bort (`jobads.ui.match.requested` i stället för
+  `jobads.ui.match.alsoRequested`).
+  Gäller varje dimension som når den generiska bevisformen (#1627)
 - Varje CV-omdöme pekar ut sitt underlag i CV:t, som citat eller som observation;
   "Ej bedömt" redovisas som ej bedömt, aldrig som en gissad grad (CLAUDE.md §5)
 - Ingen AI/LLM i produkten (ADR 0071) — det finns ingen AI-samtyckescopy att skriva

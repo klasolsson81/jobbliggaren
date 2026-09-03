@@ -306,8 +306,7 @@ type OrtEvidence = {
 
 /**
  * RegionFit-bevis med granularitet (kommun-träff vs län-träff). Utan `ort`
- * faller raden tillbaka på den generiska "Du har:"/"Annonsen efterfrågar
- * även:"-formen (bakåtkompat).
+ * faller raden tillbaka på den generiska bevisformen (bakåtkompat).
  */
 function RegionFitEvidence({
   ort,
@@ -377,7 +376,7 @@ function RegionFitEvidence({
 /**
  * Per-ska-krav-checklista (#5b, ADR 0079 / STEG 2) — visar VARJE krav annonsen
  * ställer med en uppfyllt/saknas-indikator per rad, i stället för den generiska
- * "Du har / Annonsen efterfrågar även"-formen. Komponerad FE-side ur de
+ * bevisformen. Komponerad FE-side ur de
  * redan-på-tråden `matched`/`missing`-arrayerna (CTO-dom FE-only — ingen
  * backend-ändring; varje matchad Display = uppfyllt krav, varje saknad = ej
  * uppfyllt). `matched` (✓, success-ink) först, sedan `missing` (NEUTRAL ink,
@@ -475,6 +474,12 @@ function MatchRow({
   // Titel-raden (#5a): visa en per-verdict-fras i stället för råa Snowball-stammar
   // (titel scoras på lexem; stammarna vore obegripliga i civic-UI).
   const isTitleDim = dimensionKey === "titleSimilarity";
+  // #1627 — `alsoRequested` syftar tillbaka på `youHave`-spannet, som gatas på
+  // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
+  // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
+  // scorer-metoderna, och att grunda renderingen på det sammanfallet vore just
+  // härledningen ur (verdict, tomhet, dimension) som #1598/#1611 avvecklade.
+  const missingFrame = detail.matched.length > 0 ? "alsoRequested" : "requested";
 
   return (
     <div className="jp-modal__matchrow">
@@ -523,7 +528,7 @@ function MatchRow({
             )}
             {detail.missing.length > 0 && (
               <span className="jp-modal__matchrow-missing">
-                {t("alsoRequested", { items: detail.missing.join(", ") })}
+                {t(missingFrame, { items: detail.missing.join(", ") })}
               </span>
             )}
           </>

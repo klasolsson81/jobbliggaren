@@ -416,6 +416,128 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
   });
 });
 
+// #1627 — den generiska bevisgrenens missing-halva. "även" är en tillbakasyftning
+// på `youHave`-spannet; utan träff syftade adverbet på ingenting. TRE dimensioner
+// når grenen med tom `matched`: `ssykOverlap` och `employmentFit` via sin explicita
+// miss-arm (`MatchScorer.ScoreSsykMembership` / `ScoreEmploymentMembership`, båda
+// `(NoMatch, [], [adValue])` med `cause = null`), `skillOverlap` via
+// `ScoreConceptCoverage`s `matched.Count == 0 => NoMatch`. `regionFit` når den bara
+// utan granularitets-karta, som produktionen alltid skickar, och pinnas därför inte här.
+describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () => {
+  // Radscopat, inte dokument-scopat: default-fixturens `skillOverlap` är Partial och
+  // bär ordet "även" på sin egen rad, så en dokument-scopad negation hade mätt fel rad.
+  const rowFor = (container: HTMLElement, label: string) =>
+    within(container).getByText(label).closest(".jp-modal__matchrow") as HTMLElement;
+
+  it("Yrke NoMatch: annonsens yrke ramas UTAN 'även' (ingen träff att syfta på)", () => {
+    // `grade: null` är det koherenta tillståndet — ssyk-grinden fäller — och tänder
+    // INTE skylten, som kräver `cause === "PreferenceUnstated"`. Ett id, aldrig två:
+    // annonsen bär en enda yrkesgrupp.
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: null,
+          ssykOverlap: registerRow("NoMatch", [], ["Snickare"]),
+        })}
+      />
+    );
+    const yrke = rowFor(container as HTMLElement, "Yrke");
+    expect(
+      within(yrke).getByText("Annonsen efterfrågar: Snickare")
+    ).toBeInTheDocument();
+    // Den bärande halvan: adverbet får inte stå kvar på en rad utan led.
+    expect(within(yrke).queryByText(/även/)).not.toBeInTheDocument();
+  });
+
+  it("båda ramarna i SAMMA rendering: raden med träff behåller 'även', raden utan får den inte", () => {
+    // Falsifieraren för en fix som byter ram villkorslöst. Default-`skillOverlap` är
+    // Partial (`ScoreConceptCoverage` ger både matched och missing) och MÅSTE behålla
+    // adverbet; Yrke-raden MÅSTE tappa det. En rendering, två rader, båda scopade.
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: null,
+          ssykOverlap: registerRow("NoMatch", [], ["Snickare"]),
+        })}
+      />
+    );
+    expect(
+      within(rowFor(container as HTMLElement, "Yrke")).getByText(
+        "Annonsen efterfrågar: Snickare"
+      )
+    ).toBeInTheDocument();
+    const kompetenser = rowFor(container as HTMLElement, "Kompetenser");
+    expect(within(kompetenser).getByText("Du har: Java, SQL")).toBeInTheDocument();
+    expect(
+      within(kompetenser).getByText("Annonsen efterfrågar även: Kubernetes, AWS")
+    ).toBeInTheDocument();
+  });
+
+  it("flera poster böjer inte ramen (subjektet är annonsen, inte listan)", () => {
+    // `ScoreConceptCoverage` ger NoMatch så snart `matched.Count == 0`, med annonsens
+    // HELA partition i `missing` — flera poster är producerbart just här, till skillnad
+    // från yrkes- och anställningsraderna som bär ett skalärt värde var. Ramen har inget
+    // räknebärande substantiv (jämför `ort.missingPlain`) och får därför ingen plural.
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: null,
+          skillOverlap: row("NoMatch", [], ["Kubernetes", "AWS"]),
+        })}
+      />
+    );
+    const kompetenser = rowFor(container as HTMLElement, "Kompetenser");
+    expect(
+      within(kompetenser).getByText("Annonsen efterfrågar: Kubernetes, AWS")
+    ).toBeInTheDocument();
+  });
+
+  it("Anställningsform NoMatch: koden namnges ur katalogen under den nya ramen", () => {
+    // `ScoreEmploymentMembership` har identisk form med ssyk-armen, men raden bär
+    // conceptId och namnges FE-side. Negationen fäller en fix som tappar `.map(codedName)`.
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: null,
+          employmentFit: codedRow("NoMatch", [], ["kpPX_CNN_gDU"]),
+        })}
+      />
+    );
+    const anstallning = rowFor(container as HTMLElement, "Anställningsform");
+    expect(
+      within(anstallning).getByText(
+        "Annonsen efterfrågar: Tillsvidareanställning (inkl. eventuell provanställning)"
+      )
+    ).toBeInTheDocument();
+    expect(within(anstallning).queryByText(/kpPX_CNN_gDU/)).toBeNull();
+  });
+
+  it("renderas på engelska under locale en", () => {
+    // `render` går genom shimen som hårdkodar locale="sv"; det engelska fallet renderas
+    // via `/pure`. Paritetstestet jämför bara nyckel-MÄNGDER, aldrig placeholders, så
+    // `{items}` i en-katalogen vaktas bara här.
+    const { container } = rawRender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={enMessages}
+        timeZone="Europe/Stockholm"
+      >
+        <JobAdMatchSection
+          match={detail({
+            grade: null,
+            ssykOverlap: registerRow("NoMatch", [], ["Snickare"]),
+          })}
+        />
+      </NextIntlClientProvider>
+    );
+    const occupation = rowFor(container as HTMLElement, "Occupation");
+    expect(
+      within(occupation).getByText("The ad asks for: Snickare")
+    ).toBeInTheDocument();
+    expect(within(occupation).queryByText(/also asks for/)).not.toBeInTheDocument();
+  });
+});
+
 describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   // conceptId → granularitet (härledd FE-side ur taxonomin, architect NOTE-2).
   // Nycklarna speglar `registerRow`s id-form (`id_<label>`) — kartan slår upp
@@ -485,8 +607,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
   it("plain-hinken gäller MISSING-halvan också, i annonsens ram", () => {
     // Den halva som varken var pinnad eller renderad förut (`design-reviewer`
     // 2026-08-31). "Annonsens ort" är samma meningsram som syskonen, med den
-    // o-granulära termen — aldrig kompetens-verbet "efterfrågar", som dessutom
-    // hade dinglat på "även" när plain-hinken är den enda missing-hinken.
+    // o-granulära termen — aldrig kompetens-verbet "efterfrågar".
     render(
       <JobAdMatchSection
         match={detail({
@@ -500,7 +621,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       screen.getByText("Annonsens län: Stockholms län")
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/Annonsen efterfrågar även: Gotland/)
+      screen.queryByText(/Annonsen efterfrågar(?: även)?: Gotland/)
     ).not.toBeInTheDocument();
   });
 
@@ -648,7 +769,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen efterfrågar även: Stockholms län")
+        screen.getByText("Annonsen efterfrågar: Stockholms län")
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Annonsen anger varken län eller kommun.")
@@ -749,9 +870,9 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       expect(screen.queryByText("Kompetenser")).not.toBeInTheDocument();
     });
 
-    it("en dimension utan orsak renderar sitt bevis som förut", () => {
+    it("en dimension utan orsak renderar sitt bevis, inte en orsaks-mening", () => {
       // Falsifieraren för hela blocket: skickar servern ingen orsak ska ingen
-      // orsaks-mening synas, och den vanliga bevisformen ska stå kvar.
+      // orsaks-mening synas, och den generiska bevisformen ska stå kvar.
       render(
         <JobAdMatchSection
           match={detail({
@@ -760,7 +881,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen efterfrågar även: Stockholms län")
+        screen.getByText("Annonsen efterfrågar: Stockholms län")
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Annonsen anger varken län eller kommun.")
@@ -828,7 +949,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText("Annonsen efterfrågar även: Stockholms län")
+        screen.getByText("Annonsen efterfrågar: Stockholms län")
       ).toBeInTheDocument();
       expect(
         screen.getByText("Annonsen anger en ort som saknas i vårt register.")

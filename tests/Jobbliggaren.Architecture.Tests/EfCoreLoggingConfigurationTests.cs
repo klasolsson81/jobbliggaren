@@ -261,6 +261,15 @@ public class EfCoreLoggingConfigurationTests
         using var first = provider.CreateScope();
         using var second = provider.CreateScope();
 
+        // The premise, asserted rather than commented. AddDbContext registers
+        // DbContextOptions<T> with optionsLifetime defaulting to Scoped, so the options action runs
+        // once per scope and the two hashes below are computed independently. Pass
+        // optionsLifetime: Singleton and both scopes hand back the SAME object, the comparison
+        // becomes a tautology, and this test stays green while measuring nothing (§5 Tests:).
+        first.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>()
+            .ShouldNotBeSameAs(
+                second.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>());
+
         WarningsExtension(first).Info.GetServiceProviderHashCode()
             .ShouldBe(WarningsExtension(second).Info.GetServiceProviderHashCode());
     }

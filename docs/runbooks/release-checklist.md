@@ -1333,17 +1333,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       grep -n "planerat\|planerad\|planeras" web/jobbliggaren-web/messages/sv/content-legal.json
       grep -n "planned"                      web/jobbliggaren-web/messages/en/content-legal.json
       ```
-      **Regenererad 2026-08-28 (#183, STRATO-mottagarstycket): 8 + 8** (rad 37, 50, 82, 92, **95**,
-      116, 117, 152 — identiska i sv och en, alla äkta statuspåståenden, ingen falsk träff).
-      **Den här gången VÄXTE mängden, och förskjutningen är enhetlig:** det nya lövet är
-      STRATO-raden på 95, och de tre raderna under den flyttade **+1** (115→116, 116→117, 151→152).
-      Rad 37, 50, 82 och 92 ligger ovanför insättningen och står stilla — inklusive notisraden på
-      82 med sina tolv egna hem, som alltså inte behövde röras.
+      **Regenererad 2026-09-04 (#183, MX-flytten): 7 + 7** (rad 37, 50, 82, 92, 116, 117, 152 —
+      identiska i sv och en). **Mängden KRYMPTE med ett och ingen rad flyttade:** STRATO-raden på
+      95 förlorade sin markör i copy-flippen, och en redigering **inuti** en JSON-sträng flyttar
+      ingenting under sig — samma mekanik som 2026-08-16-regenereringen nedan skriver ut.
+      *(Föregående regenerering, kvar som daterad proveniens: **2026-08-28** (#183,
+      STRATO-mottagarstycket): **8 + 8** på rad 37, 50, 82, 92, **95**, 116, 117, 152. Den gången
+      VÄXTE mängden och förskjutningen var enhetlig: det nya lövet var STRATO-raden på 95, och de
+      tre raderna under den flyttade **+1** (115→116, 116→117, 151→152). Rad 37, 50, 82 och 92 låg
+      ovanför insättningen och stod stilla — inklusive notisraden på 82 med sina tolv egna hem.)*
       ⚠ **Ett stycke lades till i `Mottagare av uppgifter` utan att någon spärr fällde**, och det
       är väntat: både e-post- och värdtripwiren är term-scopade (`Scaleway` respektive
       `netcup GmbH`) och itererar inte lövet. Sedan 2026-08-28 har STRATO-raden **en egen spärr** i
-      `content-legal-parity.test.ts` med golv, path-paritet och positiv markörpinne. Den tar den
-      här inventeringens plats som mekanisk läsare **för just den raden**, aldrig för de övriga sju.
+      `content-legal-parity.test.ts` med golv och path-paritet. ⚠ **Markörpinnen var POSITIV till
+      2026-09-04 och är struken vid MX-flytten** — spärren bär ingen markörhalva längre, så den är
+      mekanisk läsare för att raden **finns**, aldrig för vad den påstår om drift. För de övriga
+      sju raderna var den aldrig läsare.
       *(Föregående regenerering, kvar som daterad proveniens: **2026-08-19**, sökhistorik-disclosuren,
       ADR 0060 rad 152 — **7 + 7** på rad 37, 50, 82, 92, 115, 116, 151.)*
       **Vid den regenereringen var mängden oförändrad medan fem av sju rader flyttade, med TVÅ

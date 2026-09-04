@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.JobAds;
 
 namespace Jobbliggaren.Application.CompanyWatches.Abstractions;
 
@@ -90,6 +91,59 @@ public interface ICompanyWatchBrowseQuery
     /// </para>
     /// </summary>
     ValueTask<int> CountMatchingCompaniesAsync(
+        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
+    /// <summary>
+    /// #1559 — the ACTIVE public job ads posted by the companies this criterion matches, newest
+    /// first, as their <c>job_ads</c> ids. The caller loads and projects the ads themselves through
+    /// <c>IAppDbContext</c> (which DOES carry <c>JobAds</c>); this port only answers the half that
+    /// needs the register.
+    ///
+    /// <para>
+    /// <b>Ids, not ad rows — and that is the firewall doing its job.</b> Projecting the ad columns
+    /// here would put the job-ad read shape in the register's Infrastructure file, a second home
+    /// beside the Application-side projection every other ad surface uses. The join is the only thing
+    /// that cannot be done anywhere else, so the join is the only thing this method does.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The order is TOTAL and is part of the contract</b>: <c>published_at DESC, id</c>, and the
+    /// caller re-sequences its loaded rows by THIS array rather than re-deriving the order. A non-total
+    /// order plus OFFSET can drop or duplicate rows across pages (the same reason
+    /// <see cref="BrowseAsync"/> appends the PK), and a caller ordering differently would paginate
+    /// against one order while reading another.
+    /// </para>
+    ///
+    /// <para>
+    /// <see cref="PagedResult{T}.TotalCount"/> is a PAGINATION QUANTITY here too, capped at
+    /// <see cref="CompanyBrowseCriteria.MaxServableRows"/> — never render it as "N annonser". The
+    /// honest headline number is <see cref="CountActiveAdsAsync"/>, with its own ceiling.
+    /// </para>
+    /// </summary>
+    ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
+        CompanyBrowseCriteria criteria, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #1559 — the MAGNITUDE of the criterion's ACTIVE ad set: "how many active ads do the companies
+    /// this criterion matches have right now", capped at <paramref name="ceiling"/>. Returns
+    /// <c>min(true count, ceiling)</c>; a return value equal to <paramref name="ceiling"/> means
+    /// SATURATED and the copy must say so, never the bare number (#859).
+    ///
+    /// <para>
+    /// <b>A THIRD question on this port, and it earns its place the same way the second did</b>
+    /// (CTO Fork G3): it shares the register half of the predicate with the other two, so co-locating
+    /// it is the drift defense. It does NOT share their ceiling — the company magnitude's ceiling is a
+    /// product answer to "how many COMPANIES", and binding the ad question to it would make one
+    /// constant carry two meanings.
+    /// </para>
+    ///
+    /// <para>
+    /// Takes the Domain VO for the same reason the others do. Unlike them it also joins
+    /// <c>job_ads</c> — the one place in this port where the register meets another table, and the
+    /// reason it can only live in Infrastructure: <c>company_register</c> is not a <c>DbSet</c> on
+    /// <c>IAppDbContext</c> (DPIA C-D4), so no Application handler can express this join at all.
+    /// </para>
+    /// </summary>
+    ValueTask<int> CountActiveAdsAsync(
         CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
 }
 

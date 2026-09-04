@@ -48,13 +48,36 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         // GET  /{id}/companies -> the heaviest read in the house (its OWN CompanyBrowse bucket).
         PolicyFor(routes, "GET", r => r.EndsWith("companies", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
+        // GET  /{id}/ads      -> #1559, the same register join plus an ad load: the CompanyBrowse
+        //                         bucket, deliberately shared rather than given its own (a second
+        //                         bucket would hand one user 3x the register joins the cap exists
+        //                         to limit — security-auditor 2026-09-04).
+        PolicyFor(routes, "GET", r => r.EndsWith("ads", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
+        // GET  /{id}/ad-count  -> the headline number alone; same bucket, same reason.
+        PolicyFor(routes, "GET", r => r.EndsWith("ad-count", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
         // POST /preview-count  -> the picker's live magnitude preview (its OWN CriterionCountPreview).
         PolicyFor(routes, "POST", r => r.EndsWith("preview-count", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CriterionCountPreviewPolicy);
         // PATCH/DELETE /{id}   -> mutations (MeWrite).
         PolicyFor(routes, "PATCH", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         PolicyFor(routes, "DELETE", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
+
+        // The assertions above are hand-written, so the test's own title ("Every criteria route")
+        // was a claim nothing enforced: #1559 added two routes and the suite stayed green with both
+        // unasserted, because IsIdRoute requires the pattern to END at the id token. Counting closes
+        // that — a route added without an assertion above makes this line fail and names the number.
+        routes.Count.ShouldBe(
+            ExpectedRouteCount,
+            $"the criteria group has {routes.Count} routes but this test asserts a policy for "
+            + $"{ExpectedRouteCount}. A route without an assertion here can lose its rate limit "
+            + "silently — add the assertion and bump the count together.");
     }
+
+    // GET base, POST base, GET /reference, GET /{id}/companies, GET /{id}/ads,
+    // GET /{id}/ad-count, POST /preview-count, PATCH /{id}, DELETE /{id}.
+    private const int ExpectedRouteCount = 9;
 
     // The group root ".../company-watch-criteria" (both the GET list and the POST create map "/").
     private static bool IsBase(string raw) =>
@@ -62,8 +85,7 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
 
     // The "/{id}" mutation routes — end at the id token, and are NOT the "/{id}/companies" browse.
     private static bool IsIdRoute(string raw) =>
-        !raw.EndsWith("companies", StringComparison.Ordinal)
-        && raw.TrimEnd('/').EndsWith('}');
+        raw.TrimEnd('/').EndsWith('}');
 
     private static string? PolicyFor(
         IEnumerable<RouteEndpoint> routes, string method, Func<string, bool> suffixMatch)

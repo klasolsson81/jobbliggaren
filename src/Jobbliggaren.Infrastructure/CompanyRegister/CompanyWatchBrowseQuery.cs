@@ -2,6 +2,7 @@ using System.Data;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -204,6 +205,156 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         var scalar = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// #1559 — the criterion's ACTIVE-ad predicate: the SAME register half as <see cref="FromWhere"/>,
+    /// joined to <c>job_ads</c> on the org.nr, plus the ad's own Active gate.
+    ///
+    /// <para>
+    /// <b>It is a SEPARATE constant, not a reuse of <see cref="FromWhere"/> with a JOIN prefixed.</b>
+    /// The two differ in their FROM clause, so no textual composition could produce both without a
+    /// placeholder — and a WHERE text that reads correctly only after substitution is the shape that
+    /// makes the EXPLAIN pin stop covering production. The register predicate is instead kept in step
+    /// by <see cref="BindPredicate"/>, which binds BOTH families from one routine: a divergence in the
+    /// bound VALUES is the failure the count/page SPOT was built against, and it is the half that
+    /// cannot be seen by reading either statement.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>j.status = @ad_status</c> is the WHOLE ad-side exclusion.</b> <c>JobAd</c> has no
+    /// soft-delete axis and no query filter (#821) — a retracted ad is excluded by its Status, and
+    /// there is no <c>deleted_at</c> predicate to add here (ADR 0048 forbids a hand-rolled one). The
+    /// register side keeps its own positive-polarity <c>status = @status</c> for the reason
+    /// <see cref="FromWhere"/> gives.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The join key cannot double-count.</b> <c>company_register.organization_number</c> is the
+    /// table's PRIMARY KEY, so a given ad joins at most one register row and an ad is counted once
+    /// however many SNI codes of the criterion its company carries. Were it not the PK, the
+    /// array-overlap predicate would fan out and every number on this surface would be inflated.
+    /// </para>
+    /// </summary>
+    private const string AdsFromWhere = """
+        FROM job_ads j
+        JOIN company_register c ON c.organization_number = j.organization_number
+        WHERE c.status = @status
+          AND c.sate_kommun_code = ANY(@kommun)
+          AND c.sni_codes && @sni
+          AND j.status = @ad_status
+        """;
+
+    // ORDER BY is TOTAL for the same reason ItemsSql's is: published_at is not unique (a bulk
+    // ingest stamps many ads identically), Postgres sorts are not stable, and a non-total order
+    // plus OFFSET can drop or duplicate rows ACROSS pages. j.id is the PK — it makes the order
+    // total. The port's doc publishes this order because the CALLER re-orders by it.
+    private const string AdIdsSql =
+        "SELECT j.id "
+        + AdsFromWhere
+        + """
+
+        ORDER BY j.published_at DESC, j.id
+        LIMIT @limit OFFSET @offset;
+        """;
+
+    /// <summary>
+    /// The ad count, capped — the same statement shape as <see cref="CountSql"/> over the ad
+    /// predicate, so the pagination cap and the magnitude ceiling are again one statement differing
+    /// only in the bound <c>@count_cap</c>.
+    /// </summary>
+    private const string AdCountSql =
+        "SELECT count(*) FROM (SELECT 1 " + AdsFromWhere + " LIMIT @count_cap) t;";
+
+    public async ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
+        CompanyBrowseCriteria criteria, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // Separate count query BEFORE pagination (CLAUDE.md §3.6), same predicate, same bindings.
+        int totalCount;
+        await using (var countCmd = BuildAdCountCommand(
+            connection, criteria.Criteria, CompanyBrowseCriteria.MaxServableRows(criteria.PageSize)))
+        {
+            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var ids = new List<JobAdId>();
+        await using (var idsCmd = BuildAdIdsCommand(
+            connection, criteria.Criteria, criteria.Page, criteria.PageSize))
+        {
+            await using var reader = await idsCmd
+                .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                ids.Add(new JobAdId(reader.GetGuid(0)));
+        }
+
+        return new PagedResult<JobAdId>(ids, totalCount, criteria.Page, criteria.PageSize);
+    }
+
+    public async ValueTask<int> CountActiveAdsAsync(
+        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ceiling, 1);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = BuildAdCountCommand(connection, criteria, ceiling);
+        var scalar = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The ad-page query, exactly as production emits it. <c>internal</c> for the same reason
+    /// <see cref="BuildItemsCommand"/> is: the EXPLAIN pin prefixes an EXPLAIN onto THIS command's
+    /// text rather than a hand-typed lookalike.
+    /// </summary>
+    internal static NpgsqlCommand BuildAdIdsCommand(
+        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int page, int pageSize)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = AdIdsSql;
+        BindPredicate(cmd, spec);
+        BindAdStatus(cmd);
+        cmd.Parameters.AddWithValue("@limit", NpgsqlDbType.Integer, pageSize);
+        cmd.Parameters.AddWithValue("@offset", NpgsqlDbType.Integer, (page - 1) * pageSize);
+        return cmd;
+    }
+
+    /// <summary>
+    /// The ad-count query, exactly as production emits it — serving BOTH the pagination cap and the
+    /// magnitude ceiling, which is why the cap is a parameter here rather than derived inside (the
+    /// two callers hold two different product answers to "how far do we count").
+    /// </summary>
+    internal static NpgsqlCommand BuildAdCountCommand(
+        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int cap)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = AdCountSql;
+        BindPredicate(cmd, spec);
+        BindAdStatus(cmd);
+        cmd.Parameters.AddWithValue("@count_cap", NpgsqlDbType.Integer, cap);
+        return cmd;
+    }
+
+    /// <summary>
+    /// Binds the ad-side status. Separate from <see cref="BindPredicate"/> because that routine is
+    /// shared with the three register-only statements, none of which has an <c>@ad_status</c>
+    /// placeholder.
+    ///
+    /// <para>
+    /// The value comes from <c>JobAdStatus.Active</c>, not a literal (§5 magic strings):
+    /// <c>job_ads.status</c> is persisted from that SmartEnum's own <c>Value</c>, so the two cannot
+    /// drift apart without the type itself changing.
+    /// </para>
+    /// </summary>
+    private static void BindAdStatus(NpgsqlCommand cmd) =>
+        cmd.Parameters.AddWithValue("@ad_status", NpgsqlDbType.Text, JobAdStatus.Active.Value);
 
     /// <summary>
     /// The page query, exactly as production emits it. <c>internal</c> so

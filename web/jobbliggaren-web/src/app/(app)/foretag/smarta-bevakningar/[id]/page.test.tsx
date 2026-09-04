@@ -7,6 +7,7 @@ import BevakningBrowsePage from "./page";
 const browseCriterionCompanies = vi.fn();
 const getCompanyWatchCriteria = vi.fn();
 const getCriterionReference = vi.fn();
+const getCriterionAdCount = vi.fn();
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace?: "pages") =>
@@ -24,6 +25,7 @@ vi.mock("@/lib/api/company-criteria", () => ({
   browseCriterionCompanies: (...a: unknown[]) => browseCriterionCompanies(...a),
   getCompanyWatchCriteria: (...a: unknown[]) => getCompanyWatchCriteria(...a),
   getCriterionReference: (...a: unknown[]) => getCriterionReference(...a),
+  getCriterionAdCount: (...a: unknown[]) => getCriterionAdCount(...a),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -66,6 +68,8 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     getCriterionReference.mockReset();
     getCompanyWatchCriteria.mockResolvedValue({ kind: "error" });
     getCriterionReference.mockResolvedValue({ kind: "error" });
+    getCriterionAdCount.mockReset();
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
   });
 
   it("renders the honest magnitude but never the saturated pagination total", async () => {
@@ -98,5 +102,79 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     // The ceiling must not be rendered as a total.
     expect(screen.queryByText(/träffar totalt/)).toBeNull();
     expect(screen.queryByText(/2\s?000\s+träffar/)).toBeNull();
+  });
+
+  // #1559 — the ad line has three arms and only one of them is a link. The link arm is what Klas
+  // asked for; the other two exist so the surface never offers an empty page and never renders a
+  // number the read did not produce (#859: a rendered magnitude is true or absent).
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  it("renders the ad count as a LINK to the ads when there are any", async () => {
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: { magnitude: 167, saturated: false },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    const link = screen.getByRole("link", {
+      name: "167 aktiva annonser från dessa företag",
+    });
+    expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+  });
+
+  it("states zero without offering a link to an empty page", async () => {
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: { magnitude: 0, saturated: false },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getByText("Inga aktiva annonser från dessa företag just nu."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /aktiva annonser från dessa företag/ }),
+    ).toBeNull();
+  });
+
+  it("says the number cannot be shown rather than rendering a false 0", async () => {
+    // The degraded arm. A `0` here would read as "this watch has no ads", which is a statement the
+    // failed read did not support — the same defect as a wrong number.
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Antalet annonser kan inte visas just nu. Ladda om sidan om en stund.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
   });
 });

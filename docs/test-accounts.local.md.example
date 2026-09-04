@@ -40,7 +40,7 @@ same moment, and nothing warns. Removing it is a decision, not a convenience.
 
 The account future CC sessions use to log in and verify behaviour on the deployed box.
 
-- email: `<fill — an external mailbox; @jobbliggaren.se receives nothing, MX is a blackhole>`
+- email: `<fill — an external mailbox>`
 - password: `<fill>`
 - created: `<date>`
 - role: none (ordinary job seeker)

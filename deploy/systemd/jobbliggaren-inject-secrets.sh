@@ -127,7 +127,7 @@ readonly -a SCALEWAY_SECRET_KEYS=(
 # CanDeliver is an unconditional `true`, so AuthOptionsValidator's sender interlock passes; and
 # every send site fails per-message and silently by design. The stack stays green while mail
 # stops — and after the registration gate opens, a locked-out user's only recovery channel is the
-# mail that never comes, with kontakt@ a measured blackhole behind it.
+# mail that never comes.
 #
 # TWO HALVES, AND ONLY ONE OF THEM IS THIS FILE'S (senior-cto-advisor, binding 2026-08-16).
 #

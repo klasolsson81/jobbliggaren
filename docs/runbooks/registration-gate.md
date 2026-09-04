@@ -37,21 +37,19 @@ forbids it, and this file is the path it prescribes instead.
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
    only needs them to already exist.
-3. **Two real, external mailboxes, and the second must be an alias of the first.** The
-   domain's MX is `blackhole.tem.scaleway.com` — `@jobbliggaren.se` receives nothing, so a
-   confirmation link sent there is unrecoverable. Use an ordinary external address for the
-   operator account, and a `+`-suffixed alias of that same inbox for the CC account. The
-   alias is required rather than merely convenient: `release-checklist.md`'s reinstatement
-   schedule turns on **an address the controller himself holds**, so a `+`-suffixed alias of the
-   operator's own inbox satisfies (b) and (d) by one property rather than by two clauses that
-   happen to intersect. A separate mailbox satisfies neither, whatever it is called.
+3. **Two real, external mailboxes, and the second must be an alias of the first.** Use an
+   ordinary external address for the operator account, and a `+`-suffixed alias of that same
+   inbox for the CC account. The alias is required rather than merely convenient:
+   `release-checklist.md`'s reinstatement schedule turns on **an address the controller himself
+   holds**, so a `+`-suffixed alias of the operator's own inbox satisfies (b) and (d) by one
+   property rather than by two clauses that happen to intersect. A separate mailbox satisfies
+   neither, whatever it is called.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
 5. **A rights channel that receives, or a recorded decision that it does not.**
    `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
-   channel, and it is Reply-To on every message this procedure causes to be sent — while the
-   apex MX is a blackhole, so both replies and rights requests are discarded silently.
+   channel, and it is Reply-To on every message this procedure causes to be sent.
    **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
    against a measured operating state — read it there, not here.** Its trigger (a) is
    `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
@@ -68,8 +66,8 @@ forbids it, and this file is the path it prescribes instead.
    them** — the grading and its ground live in `release-checklist.md` §2.5 point 1 leg (e)
    precondition 5, and the operator meets them in full on the `basic_auth` directive itself in
    `deploy/caddy/Caddyfile`. Read them there. The checklist's re-grading rests in
-   part on the site answering `401` on every path; removing Basic auth for a demo makes the
-   blackhole blocking in the same moment, and nothing warns. Treat the credential in
+   part on the site answering `401` on every path; removing Basic auth for a demo makes that
+   finding blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.
 6. **Registration collects personal data before it explains itself.** `/registrera` carries
    no Art. 13 first-layer notice and no link to the policy; the footer link is site chrome,

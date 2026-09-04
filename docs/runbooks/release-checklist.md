@@ -853,31 +853,21 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            **inte** är en tyst catch-all som kastar. `Reply-To` på varje utskick är samma adress
            (`ScalewayEmailSender`, via `additional_headers`, pinnat) — så ett svar på en notis
            landar där, inte på `no-reply@`.
-           ⚠ **MX-LÄGET ÄR MÄTT FALSKT 2026-08-15 och förutsättningen är därmed längre från
-           uppfylld än den var.** Apex-MX är `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8), satt
-           av leverantörens domänverifiering, så `kontakt@jobbliggaren.se` **tar emot ingenting**.
-           Klas har skjutit upp reparationen i väntan på STRATO:s e-postpaket. Instrumentet är
-           `vps-deploy-stack.md` rad 36 — återställ inte den gamla förväntan som en "reparation",
-           recorda vad som resolverar.
-           ⚠ **FÖRUTSÄTTNINGEN ÄR INTE UPPFYLLD — VÄG (a) ÄR VALD, OCH DEN BÄR EN ORDNINGSREGEL
-           (Klas-beslut 2026-08-16).** *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
+           Instrumentet är `vps-deploy-stack.md` rad 36 — återställ inte den gamla förväntan som en
+           "reparation", recorda vad som resolverar.
+           ✅ **VÄG (a) ÄR UPPFYLLD 2026-09-04** (`security-auditor`s ruling samma dag), med de tre
+           konjunkterna avbockade var för sig: *finns* ✅ · *tar emot* ✅ (17:33, lagring 1,09 → 10 kB)
+           · *läses* ✅.
+           ⚠ **KVARSTÅR, ETT EGET FYND OCH INGET ÅTERSTÅENDE BEN I (a):** instrumentets andra halva
+           ovan — catch-all-kontrollen — är inte körd. Utfallet recordas i `vps-deploy-stack.md`
+           rad 36:s Measured-cell.
+           *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
            grammatik är "grön = inget led bär KVAR" hade den markerat ett **vägval** på en
            förutsättning som fortfarande är **osignerad och Major** — samma glyf, två jobb, och det
            ena i den farliga riktningen. `security-auditor` m-3.)* Ledet
            namnger tre vägar igenom förutsättningen — brevlådan börjar ta emot, en publicerad kanal
-           som levererar, eller en accepterad risk. **Klas valde den första**, och den är inte
-           längre en öppen fråga utan ett **schemalagt åtagande**: STRATO:s e-postpaket köps **inom
-           ~1 vecka från 2026-08-16**, långt före MVP-lansering, och Klas band ordningen — **inga
-           riktiga användare innan brevlådan tar emot.**
-           **Det binder ihop två klausuler som hittills hängt löst.** Trigger (b) — första konto
-           vars adress Klas inte själv innehar — förutsätter nu att kanalen fungerar först, alltså
-           kan den händelse som konverterar hela grinden inte längre inträffa medan
-           rättighetskanalen är död. Ordningsregeln är därmed en **förutsättning för** triggern, inte
-           ett alternativ till den, och den flyttar ingen gräns: trigger (b):s definition står
-           oförändrad **nedan**, i den här förutsättningens eget eskaleringsschema, och ägs där.
-           ⚠ **ORDNINGSREGELN ÄR ETT ÅTAGANDE, INTE EN MÄTNING — och det är hela varningen.**
-           Ingenting i den säger vad MX resolverar till; den säger vad Klas har åtagit sig att göra.
-           **MX SKA OMMÄTAS NÄR PAKETET ÄR PÅ PLATS, ALDRIG ANTAS** — instrumentet är
+           som levererar, eller en accepterad risk. **Klas valde den första.**
+           ⚠ **MX SKA OMMÄTAS NÄR PAKETET ÄR PÅ PLATS, ALDRIG ANTAS** — instrumentet är
            `vps-deploy-stack.md` rad 36:s MX-ben, körningen är `nslookup -type=MX jobbliggaren.se
            8.8.8.8`, och förutsättningen är uppfylld först av det som resolverar. **Apex-MX:en blev
            falsk på exakt det sättet förra gången:** raden bar `smtp.rzone.de` som förväntan tills
@@ -915,7 +905,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `v*` — **§2.6:s trigger, oförändrad**; (d) första utskick till annan mottagare än Klas.
            ⚠ **Mätningarna förfaller: ommät (a) och (c) VID flippen, ärv dem inte ur den här raden.**
            ⚠ **Basic-auth-credentialen på `dev` bär EN GDPR-slutsats, och det här är hemmet för
-           GRADERINGEN av den.** (1) Tas den bort för en demo blir blackholen Blocker i samma
+           GRADERINGEN av den.** (1) Tas den bort för en demo fyrar trigger (c) ovan i samma
            ögonblick, och ingenting varnar.
            ⚠ ~~(2) Borttagningen **publicerar** dessutom de markörrader §2.6 punkt 1 namnger som
            falska, om en levande behandling (ADR 0090 D3).~~ **SLUTSATS (2) ÄR UTSLÄCKT 2026-08-16
@@ -940,8 +930,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            `test-accounts.local.md` **pekar hit och räknar inte själva.**
            ⚠ **En av adressens roller upphörde 2026-08-15:** vägen till en kopia av
            standardavtalsklausulerna (Art. 13(1)(f)) förutsatte en överföring som inte längre
-           uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal
-           — och det är de som gör blackhole-läget allvarligt.
+           uppstår. **De två andra rollerna står kvar** — Art. 13(1)(b)-kontakt och Art. 15–22-kanal.
            ⚠ **DEN HÄR FÖRUTSÄTTNINGEN GRINDAR INTE HELA RISKEN, och det är fällan.** §2.5:s
            räckvidd bestäms av predikatet i preambeln — **läs det där, det upprepas inte här**. Den
            **publicerade copyn** går live med **webb-deployen** — en annan händelse — och den bär
@@ -1236,6 +1225,13 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    ⚠ **Beslutat är inte mekaniserat** — ingenting raderar automatiskt i en STRATO-brevlåda.
 >    Skriv aldrig ledet som uppfyllt på grundval av att beslutet är fattat.
 >
+>    ⚠ **DEN REGELN TÄCKTE EN AV TRE BREVLÅDOR.** DMARC-aggregat är inga ärenden, och post som
+>    aldrig blir ett avslutat ärende — spam förbi filtret, obesvarad förfrågan, felsänd post —
+>    startar aldrig klockan; `webmaster@` har ingen ärendeform alls. **Beslutat 2026-09-04 av
+>    personuppgiftsansvarig: tolv månader från MOTTAGANDET**, för DMARC-rapporter och för
+>    inkommande post som aldrig blir ett avslutat ärende, `webmaster@` inräknat. Samma hem som
+>    raden ovan, och samma icke-mekanisering.
+>
 >    ✅ **LÄSAREN ÄR UTPEKAD SEDAN 2026-08-28, OCH DET HÄR ÄR HANS HEM (#183 led 6).**
 >    **Läsare: Klas Olsson, personuppgiftsansvarig.** CC ska aldrig ha brevlådeåtkomst — ingen
 >    credentialförvaring, och en sådan åtkomst vidgar en behandling registret nyss villkorade.
@@ -1266,7 +1262,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
 >    ⚠ **LATENSEN ÄR EN AVVIKELSE MOT ETT PUBLICERAT LÖFTE OCH SKA STÅ SKRIVEN, INTE UPPTÄCKAS.**
 >    I lågtrafikläget — det förväntade — är `R1` tyst och varken
 >    `R3` eller `R4` fyrar, så bara `R2` återstår: en post som förfaller vid tolv månader raderas då
->    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym, som är noll inkommande. **Det
+>    **upp till arton**. Godtagbart under Art. 24(1) vid dagens volym. **Det
 >    gör det inte till tolv.**
 >
 >    ⛔ **INGEN PÅMINNARE ÄR BYGGD, och den meningen får aldrig strykas av att åtgärden godkänts.**
@@ -1345,10 +1341,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       ⚠ **Ett stycke lades till i `Mottagare av uppgifter` utan att någon spärr fällde**, och det
       är väntat: både e-post- och värdtripwiren är term-scopade (`Scaleway` respektive
       `netcup GmbH`) och itererar inte lövet. Sedan 2026-08-28 har STRATO-raden **en egen spärr** i
-      `content-legal-parity.test.ts` med golv och path-paritet. ⚠ **Markörpinnen var POSITIV till
-      2026-09-04 och är struken vid MX-flytten** — spärren bär ingen markörhalva längre, så den är
-      mekanisk läsare för att raden **finns**, aldrig för vad den påstår om drift. För de övriga
-      sju raderna var den aldrig läsare.
+      `content-legal-parity.test.ts`. För de övriga sju raderna var den aldrig läsare.
       *(Föregående regenerering, kvar som daterad proveniens: **2026-08-19**, sökhistorik-disclosuren,
       ADR 0060 rad 152 — **7 + 7** på rad 37, 50, 82, 92, 115, 116, 151.)*
       **Vid den regenereringen var mängden oförändrad medan fem av sju rader flyttade, med TVÅ
@@ -1537,9 +1530,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         är inte en release, så punkt 2:s vanliga utfall (*bocka hela sektionen och sluta*) är
         blint för den. **Proceduren bor i `vps-deploy-stack.md` rad 36:s MX-ben**, som är där
         operatören står i det ögonblick handlingen utförs; den här bulleten **klassificerar,
-        den bär inte proceduren**. Den mekaniska läsaren för just det stycket är STRATO-spärren
-        i `content-legal-parity.test.ts`, och den fäller **bara** en copy-flip utan MX-flytt —
-        aldrig det omvända, eftersom det inte finns något repo-event att fälla på.
+        den bär inte proceduren**.
       - **Användar-aktiverad — NY KLASS 2026-08-28, i samma ändring som den tredje.** Notisernas
         stycke, som bulleten om konfigurations-grindade ovan redan namnger och uttryckligen
         utesluter (*"grindas av ett användarreglage, inte av den här punkten"*) utan att ge det

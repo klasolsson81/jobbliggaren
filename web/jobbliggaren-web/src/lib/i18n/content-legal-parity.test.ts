@@ -388,9 +388,6 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * som flippar copyn, och golvet och path-pariteten är behållna. Flytten sker i STRATO:s panel
    * utan PR, utan CI och utan deploy — den första aktiveringshändelsen i huset som ingen release
    * grindar — så ordningen mellan copyn och posten är det enda som håller policyn ärlig.
-   * ⚠ **Den ordningen är GRINDAD, inte antagen:** ändringen bär `blocked` och håller tillbaka
-   * `agents-done` tills apex-MX faktiskt läser STRATO. En merge före flytten hade påstått en
-   * behandling som inte sker — samma defekt spegelvänd.
    *
    * ⚠ **DEN OPERATIVA YTAN ÄR `docs/runbooks/vps-deploy-stack.md` RAD 36:s MX-BEN, INTE DEN
    * HÄR FILEN** (#183 led 5, 2026-08-28). Docblocket ovan talar till den som kör CI. Raden
@@ -422,10 +419,6 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // Docblocket ovan förbjuder att TERMEN viks in i en annan spärr; det här fäller det andra
     // fallet, som förbudet inte täcker: ett LÖV som namnger både `STRATO GmbH` och en part vars
     // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` i den levande grenen.
-    // Den här spärren kräver markören positivt på samma löv, så sviten blir osatisfierbar, varvid
-    // den "uppenbara" utvägen är att försvaga en av spärrarna. Assertionen fäller i stället vid den
-    // commit som skriver lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är
-    // en mottagare per stycke. Skopa INTE bort täckning för att lösa det.
     // `consentGated` bor inne i e-post-spärrens block; predikatet återskapas här ur samma
     // modulnivå-hjälpare (`sectionHeadingOf`) i stället för att hissas — en hissning hade gjort
     // e-post-spärrens diskriminator till ett delat hem utan att någon läsare krävde det.
@@ -444,10 +437,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     expect(sv.map(([path]) => path).filter((path) => forbidsMarkerSv.has(path))).toEqual([]);
     expect(en.map(([path]) => path).filter((path) => forbidsMarkerEn.has(path))).toEqual([]);
 
-    // Invariant 2 (markör-halvan) är STRUKEN vid MX-flytten, som docblocket föreskrev. Golvet och
-    // path-pariteten är kvar och är det spärren bär nu. Om raden ska ha en NEGATIV pinne som
-    // värdspärrens — mot en framtida "paritetsåterställning" som återinför markören — är en
-    // designfråga för spärrens ägare, inte för den här ändringen; den är namngiven i PR-kroppen.
+    // Invariant 2 i NEGATIV polaritet — samma ratificerade markörformer som e-post-spärren binder.
+    // Delat hem med den positiva assertionen, se konstanternas doc-kommentar överst.
+    for (const [path, item] of sv) expect(item, path).not.toMatch(SV_STATUS_MARKER);
+    for (const [path, item] of en) expect(item, path).not.toMatch(EN_STATUS_MARKER);
   });
 
   /**

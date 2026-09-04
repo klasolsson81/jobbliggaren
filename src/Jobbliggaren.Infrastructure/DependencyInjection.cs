@@ -23,11 +23,13 @@ using Jobbliggaren.Infrastructure.Security.BreachCheck;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.RateLimiting;
@@ -1137,11 +1139,30 @@ public static class DependencyInjection
         // EN intern EF-provider (ingen ManyServiceProvidersCreatedWarning,
         // prod-reell läcka annars). Scoped state (cache/owner/encryptor) nås
         // via eventData.Context.GetService<T>() vid invocation, ej ctor.
+        // #1633 — EF Core's default level for these two events describes a failed statement, not
+        // this system's semantics. A UNIQUE violation is an EXPECTED outcome here: six catch sites
+        // in five files absorb 23505 by design (ADR 0032 §5's race-safe upsert and its four
+        // siblings). EF cannot know that — it logs before the catch runs — so the correction
+        // belongs at the only seam that can speak for EF's events. The MECHANISM is untouched;
+        // only the level is.
+        //
+        // Information, not Debug: Debug asserts "no long-term value", which is false of a GENUINE
+        // save failure. Information is true of both, and the volume is taken by the category rules
+        // in both hosts' appsettings.json (Database.Command already at Warning per #752;
+        // EntityFrameworkCore.Update joins it here) — one silencing mechanism in the house, pinned
+        // by EfCoreLoggingConfigurationTests and re-armed by
+        // docs/runbooks/performance-measurement.md §D, rather than a second code-baked axis.
+        //
+        // What carries a genuine failure instead: LoggingBehavior.LogFailed (Error, with the
+        // exception) on every Mediator path.
         services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention()
+                .ConfigureWarnings(warnings => warnings.Log(
+                    (RelationalEventId.CommandError, LogLevel.Information),
+                    (CoreEventId.SaveChangesFailed, LogLevel.Information)))
                 .AddInterceptors(
                     sp.GetRequiredService<Security.FieldEncryptionSaveChangesInterceptor>(),
                     sp.GetRequiredService<Security.FieldDecryptionMaterializationInterceptor>()));

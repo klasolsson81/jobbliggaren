@@ -258,7 +258,8 @@ public class UserDataKeyStoreIntegrationTests(WorkerTestFixture fixture)
         using var failCache = new ScopedUserDataKeyCache();
         var inspector = dbScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>();
         var failStore = new UserDataKeyStore(
-            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow), inspector);
+            db, failingProvider, failCache, new FixedClock(DateTimeOffset.UtcNow), inspector,
+            NullLogger<UserDataKeyStore>.Instance);
 
         Exception? caught = null;
         byte[]? leaked = null;

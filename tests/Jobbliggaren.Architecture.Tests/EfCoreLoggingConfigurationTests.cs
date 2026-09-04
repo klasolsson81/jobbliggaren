@@ -1,4 +1,10 @@
+using Jobbliggaren.Infrastructure;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 
@@ -6,7 +12,7 @@ namespace Jobbliggaren.Architecture.Tests;
 
 /// <summary>
 /// Configuration fitness function for ADR 0045's measurement plan (#752, perf-audit finding
-/// g2). EF Core's per-statement logging is an <i>instrument</i>, not a default.
+/// g2; extended by #1633). EF Core's per-statement logging is an <i>instrument</i>, not a default.
 ///
 /// <para>
 /// Left at Information, the category <c>Microsoft.EntityFrameworkCore.Database.Command</c>
@@ -14,8 +20,19 @@ namespace Jobbliggaren.Architecture.Tests;
 /// child DI scope — and therefore one <c>AppDbContext</c> — per item (ADR 0032 §5 child-scope
 /// fix, ~47k items), so a single sync also emits ~47k <c>ContextInitialized</c> events, which
 /// live in a <i>different</i> category (<c>Microsoft.EntityFrameworkCore.Infrastructure</c>,
-/// Information by default). Silencing only the first category halves a flood that has two
-/// sources — which is why both are asserted here.
+/// Information by default). <c>Microsoft.EntityFrameworkCore.Update</c> is the third
+/// (#1633): it carries <c>SaveChangesFailed</c>, which the ingest job's absorbed duplicate-key
+/// path triggers on every collision. Silencing one of the three leaves the other two — which is
+/// why all three are asserted here.
+/// </para>
+///
+/// <para>
+/// <b>Two halves, and the property needs both.</b> A category rule can only silence an event at
+/// the level EF <i>emits</i> it. <c>CommandError</c> and <c>SaveChangesFailed</c> are Error by
+/// default, so a Warning rule does not reach them; <c>AddPersistence</c>'s
+/// <c>ConfigureWarnings</c> moves both to Information (#1633) and the rules below then take the
+/// volume. <see cref="AddPersistence_ExpectedDatabaseOutcomes_AreEmittedAtInformation"/> pins the
+/// emitting half so neither can be removed while the other keeps this file green.
 /// </para>
 ///
 /// <para>
@@ -36,6 +53,9 @@ public class EfCoreLoggingConfigurationTests
 
     /// <summary>Carries <c>ContextInitialized</c> — one event per DbContext, i.e. per snapshot item.</summary>
     private const string EfInfrastructureCategory = "Microsoft.EntityFrameworkCore.Infrastructure";
+
+    /// <summary>Carries <c>SaveChangesFailed</c> — one event per absorbed duplicate key (#1633).</summary>
+    private const string EfUpdateCategory = "Microsoft.EntityFrameworkCore.Update";
 
     /// <summary>"Applying migration ..." — deliberately still Information (see the parent-category test).</summary>
     private const string EfMigrationsCategory = "Microsoft.EntityFrameworkCore.Migrations";
@@ -92,20 +112,50 @@ public class EfCoreLoggingConfigurationTests
             "Information keeps ~47k events per sync even after Database.Command is silenced.");
     }
 
+    [Theory]
+    [MemberData(nameof(Hosts))]
+    public void HostConfiguration_EfUpdateCategory_IsNotEnabledAtInformation(string host)
+    {
+        var logger = BuildLogger(host, EfUpdateCategory);
+
+        logger.IsEnabled(LogLevel.Information).ShouldBeFalse(
+            $"{host}: SaveChangesFailed lives in this category and fires on every absorbed " +
+            "duplicate key (#1633). AddPersistence emits it at Information; without this rule " +
+            "the whole DbUpdateException — stack trace included, twice — still ships.");
+    }
+
     // --- What must NOT be silenced (guards over-correction) ----------------------------------
 
     [Theory]
     [MemberData(nameof(Hosts))]
-    public void HostConfiguration_DbCommandCategory_StillSurfacesFailedSql(string host)
+    public void HostConfiguration_EfUpdateCategory_StillSurfacesWarnings(string host)
+    {
+        var logger = BuildLogger(host, EfUpdateCategory);
+
+        // Warning is the floor, not None. #1633 re-levels exactly two events in AddPersistence;
+        // everything else this category carries is untouched by that argument, because none of it
+        // is emitted per absorbed collision.
+        logger.IsEnabled(LogLevel.Warning).ShouldBeTrue(
+            $"{host}: this category must stay at Warning, not None — #1633 silences the two " +
+            "events it re-levelled in AddPersistence, not the category's own warnings.");
+    }
+
+    [Theory]
+    [MemberData(nameof(Hosts))]
+    public void HostConfiguration_DbCommandCategory_StillSurfacesWarnings(string host)
     {
         var logger = BuildLogger(host, DbCommandCategory);
 
-        // RelationalEventId.CommandExecuted is Information; CommandError is Error. Silencing the
-        // success chatter must not blind us to failing SQL.
+        // The floor #752 left here, re-aimed at the property that SURVIVED #1633. The deleted
+        // predecessor guarded it via CommandError, which is now Information for AppDbContext —
+        // but AppIdentityDbContext is NOT re-levelled (AddPersistence configures AppDbContext
+        // alone), so its CommandError still arrives at Error in this same shared category. A
+        // duplicate registration racing past Identity's own pre-check is therefore audible only
+        // while this floor holds, and criterion 4 of #1633 leans on exactly that.
         logger.IsEnabled(LogLevel.Warning).ShouldBeTrue(
-            $"{host}: EF command logging is set to Warning, not None/Error — failed SQL " +
-            "(CommandError, Error level) must still reach the log.");
-        logger.IsEnabled(LogLevel.Error).ShouldBeTrue($"{host}: EF errors must always be logged.");
+            $"{host}: Warning is the floor, not None. Setting this category to None would " +
+            "silence AppIdentityDbContext's genuine UserNameIndex race as collateral — the one " +
+            "EF record on that path that names the violated constraint.");
     }
 
     [Theory]
@@ -153,15 +203,121 @@ public class EfCoreLoggingConfigurationTests
         // than assumed. Development is where a developer actually runs a sync.
         var dbCommand = BuildLogger(host, DbCommandCategory, withDevelopmentOverlay: true);
         var efInfrastructure = BuildLogger(host, EfInfrastructureCategory, withDevelopmentOverlay: true);
+        var efUpdate = BuildLogger(host, EfUpdateCategory, withDevelopmentOverlay: true);
 
         dbCommand.IsEnabled(LogLevel.Information).ShouldBeFalse(
             $"{host} (Development): the base EF override must survive the overlay — dev is " +
             "precisely where a full local sync would drown the console and the local Seq.");
         efInfrastructure.IsEnabled(LogLevel.Information).ShouldBeFalse(
             $"{host} (Development): the ContextInitialized override must survive the overlay.");
+        efUpdate.IsEnabled(LogLevel.Information).ShouldBeFalse(
+            $"{host} (Development): the SaveChangesFailed override must survive the overlay.");
+    }
+
+    // --- The emitting half: what level AddPersistence hands MEL ------------------------------
+    //
+    // The category rules above can only silence an event at the level EF EMITS it. Both events
+    // below are Error by default, which no Warning rule reaches. This drives the real
+    // AddPersistence composition and reads the resulting DbContextOptions.
+
+    [Fact]
+    public void AddPersistence_ExpectedDatabaseOutcomes_AreEmittedAtInformation()
+    {
+        var warnings = BuildWarningsConfiguration();
+
+        warnings.GetLevel(RelationalEventId.CommandError).ShouldBe(
+            LogLevel.Information,
+            "#1633: a UNIQUE violation the code absorbs by design is an EXPECTED outcome, and " +
+            "EF's Error default misreports it. Removing this override puts the failing INSERT " +
+            "back on the Error channel once per collision.");
+
+        warnings.GetLevel(CoreEventId.SaveChangesFailed).ShouldBe(
+            LogLevel.Information,
+            "#1633: same event, second EF report — the whole DbUpdateException with its stack " +
+            "trace, printed twice by the console formatter. This is the larger half by volume.");
+    }
+
+    [Fact]
+    public void AddPersistence_AnEventItDoesNotRelevel_KeepsEfsOwnDefault()
+    {
+        // The probe's discriminator. Without this, the assertions above could not tell "the two
+        // overrides are configured" from "GetLevel answers Information for everything".
+        BuildWarningsConfiguration().GetLevel(CoreEventId.SaveChangesStarting).ShouldBeNull(
+            "AddPersistence must re-level exactly the two events it names — an event it does " +
+            "not configure has no override, and this is what makes the two assertions above " +
+            "capable of going red.");
+    }
+
+    [Fact]
+    public void AddPersistence_ResolvedTwice_YieldsOneOptionsCacheKey()
+    {
+        // ADR 0049 Mekanik-not 5c: two options-cache keys mean two internal EF providers, which
+        // the comment above AddDbContext calls a production-real leak. ConfigureWarnings joins the
+        // options, so it joins that key — reasoning says it is invariant (the lambda captures
+        // nothing, both levels are compile-time constants), but the invariant Klas named is proven
+        // by measurement, not by reasoning (CLAUDE.md §9.4). This goes red the day the options
+        // lambda starts capturing per-resolution state.
+        using var provider = BuildProvider();
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+
+        // The premise, asserted rather than commented. AddDbContext registers
+        // DbContextOptions<T> with optionsLifetime defaulting to Scoped, so the options action runs
+        // once per scope and the two hashes below are computed independently. Pass
+        // optionsLifetime: Singleton and both scopes hand back the SAME object, the comparison
+        // becomes a tautology, and this test stays green while measuring nothing (§5 Tests:).
+        first.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>()
+            .ShouldNotBeSameAs(
+                second.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>());
+
+        WarningsExtension(first).Info.GetServiceProviderHashCode()
+            .ShouldBe(WarningsExtension(second).Info.GetServiceProviderHashCode());
     }
 
     // --- Harness ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Runs the SHIPPED <c>AddPersistence</c>. No database is touched: <c>UseNpgsql</c> only
+    /// records the connection string, and the two interceptors the options lambda resolves are
+    /// parameterless singletons registered by <c>AddPersistence</c> itself.
+    ///
+    /// <para>
+    /// <b>The dictionary is a contract, not a convenience.</b> <c>BuildServiceProvider()</c>
+    /// defaults to <c>validateOnBuild: false</c> and <c>ValidateOnStart</c> runs at host start, so
+    /// nothing here is instantiated — the only throw that reaches this call is an UNCONDITIONAL
+    /// eager read in <c>AddPersistence</c>, today just the connection string. CLAUDE.md §11's
+    /// dev-boot contract expects new fail-fast options to land in exactly this shared module, so
+    /// the next one must be added below. A missing key surfaces as a throw from this harness, which
+    /// reads like a logging regression and is not one.
+    /// </para>
+    /// </summary>
+    private static ServiceProvider BuildProvider()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                // Never connected to. AddPersistence throws without the key, so it must be present.
+                ["ConnectionStrings:Postgres"] = "Host=localhost;Database=unused",
+            })
+            .Build();
+
+        return new ServiceCollection()
+            .AddPersistence(configuration)
+            .BuildServiceProvider();
+    }
+
+    private static CoreOptionsExtension WarningsExtension(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>()
+            .FindExtension<CoreOptionsExtension>()
+            .ShouldNotBeNull("every DbContextOptions carries a CoreOptionsExtension");
+
+    private static WarningsConfiguration BuildWarningsConfiguration()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+
+        return WarningsExtension(scope).WarningsConfiguration;
+    }
 
     private static ILogger BuildLogger(string host, string category, bool withDevelopmentOverlay = false)
     {

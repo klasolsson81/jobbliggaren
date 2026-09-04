@@ -244,16 +244,47 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// GET /api/v1/me/company-watch-criteria/{id}/companies (#560 PR-3, CTO Fork G4) — the
-    /// criteria browse over the 1.17M-row company register: by measurement the HEAVIEST read in
-    /// the house (25–163 ms typical per call, items + capped count + magnitude). Dedicated policy,
-    /// never folded into MeListRead — a browse scan-burst must not consume the budget /oversikt's
-    /// ~7-call fan-out lives on, and a limit tuned for light /me-reads would let the heavy browse
-    /// through too freely (least common mechanism / bulkhead — the doctrine every policy in this
-    /// file applies). Partitionerad per UserId, anonym → NoLimiter (RequireAuthorization-gated).
-    /// TokenBucket (#875 gate condition 3 — populates Retry-After; SlidingWindow does not),
-    /// QueueLimit=0. 15/min = CTO riktvärde 2026-07-16 (a human pages a result list; only a
-    /// scraper needs more) — <b>security-auditor BLOCKING verifierar talet</b>.
+    /// GET /me/company-watch-criteria/{id}/companies, /{id}/ads, /{id}/ad-count (#560 PR-3, #1559)
+    /// and POST /companies/search (#560 search wave, CTO F1) — FOUR routes, ONE bucket, over the same
+    /// 1.17M-row register join: by measurement the heaviest read in the house. Never folded into
+    /// MeListRead — a browse scan-burst must not consume the budget /oversikt's ~7-call fan-out lives
+    /// on. Partitioned per UserId; anonymous -> NoLimiter, which is safe ONLY because UseRateLimiter is
+    /// registered AFTER UseAuthorization (Program.cs) and all four routes are RequireAuthorization-
+    /// gated. TokenBucket (#875 condition 3 — populates Retry-After; SlidingWindow does not),
+    /// QueueLimit=0 (a queue is memory-DoS).
+    ///
+    /// <para><b>One bucket, deliberately — and this file's other policies argue the opposite way, so
+    /// read the CONDITION, not the conclusion.</b> Least common mechanism splits budgets between
+    /// surfaces with DIFFERENT legitimate-frequency profiles (typeahead vs list read). These four share
+    /// one profile (a human paging a register result list) AND one backing resource. A bulkhead
+    /// separates failure domains; there is one here. Giving /ads its own bucket would hand a single
+    /// user 15 register joins for companies PLUS 15 for ads — doubling exactly what this caps.</para>
+    ///
+    /// <para><b>The number, and how to recompute it (security-auditor 2026-09-04, #1654 — BLOCKING).</b>
+    /// A token is ONE HTTP request to any of the four routes. Cost is per REQUEST, never per mediator
+    /// send: /companies, /ads and /search each compose two sends and still cost one token. React
+    /// dedupes identical fetches within one render pass, so a route reading the same endpoint in
+    /// generateMetadata AND in the body also costs one — cache: "no-store" does not change that; do not
+    /// budget for a metadata call.
+    /// 15 is the BURST. The SUSTAINED rate is 12/min: TokensPerPeriod = max(1, 15/6) = 2 per
+    /// ReplenishmentPeriod = 60/6 = 10 s. 15 does not divide by SegmentsPerWindow = 6 — JobAdSuggest
+    /// (20/10s) has the same property and states its sustained rate explicitly; this one now does too.
+    /// Measured 2026-09-04 against the dev stack, bucket full, 75 s idle between readings, calibrated
+    /// against a fresh account's 15-then-429:
+    ///   /foretag/smarta-bevakningar/{id}           2 tokens (browse + ad-count) — PER PAGE TURN
+    ///   /foretag/smarta-bevakningar/{id}/annonser  1 token
+    ///   /foretag/sok (search or page turn)         1 token
+    /// Sustained headroom: 6 detail views/min, 12 for the other two.
+    /// The verified criterion is UNCHANGED — "a human pages a result list; only a scraper needs more".
+    /// 6 page turns/min clears a human READING 20 rows and no longer clears one SKIMMING them. That
+    /// margin is spent knowingly: 15 vs 30 does not separate a human from a scraper (MaxPage = 100 and
+    /// CompanyBrowseDto's org.nr mask do that work), while doubling the cap doubles the register load
+    /// one compromised account can impose. Buy the margin back by removing a call, not by raising this.
+    /// The cap counts REQUESTS but the cost is in ROWS: MaxPageSize = 100 while the FE sends 20, so a
+    /// script gets 5x the row throughput this derivation assumes. Known, filed, not priced in here.
+    /// A FIFTH call on any of these pages spends a token off the SAME 12/min: divide 12 by the new
+    /// per-view total BEFORE adding it, and re-run the measurement above. Raising PermitLimit is a
+    /// security-auditor decision (BLOCKING), never a fix for a page that got chattier.</para>
     /// </summary>
     public PolicyOptions CompanyBrowse { get; init; } = new()
     {

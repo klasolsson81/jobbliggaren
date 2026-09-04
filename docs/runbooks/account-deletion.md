@@ -158,7 +158,7 @@ WHERE user_id IS NULL AND aggregate_type = 'JobSeeker';
 -- INTE en orphan. Filtrera bort den för att matcha vad sweepen faktiskt agerar på:
 -- KÖR i AppIdentityDbContext-schemat:
 SELECT u.id, u.user_name, u.created_at
-FROM identity.asp_net_users u
+FROM identity."AspNetUsers" u
 LEFT JOIN public.job_seekers js ON js.user_id = u.id
 WHERE js.id IS NULL
   AND u.created_at <= NOW() - INTERVAL '1 hour';
@@ -170,7 +170,7 @@ WHERE js.id IS NULL
 -- verklig lucka (#1409).
 SELECT js.id, js.user_id
 FROM public.job_seekers js
-LEFT JOIN identity.asp_net_users u ON u.id = js.user_id
+LEFT JOIN identity."AspNetUsers" u ON u.id = js.user_id
 WHERE u.id IS NULL;
 ```
 
@@ -284,7 +284,7 @@ racear sweepens två snapshot-läsningar) — utred före du raderar.
 --   (ingen rad = fel id · deleted_at satt = klockan går · annars: kör §3.3 igen)
 UPDATE job_seekers SET deleted_at = NOW()
 WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
+  AND NOT EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
 ```
 
 ```sql
@@ -295,7 +295,7 @@ WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
 -- deleted_at IS NULL här: en verifierad Art. 17-begäran ska kunna korta en redan löpande klocka.
 UPDATE job_seekers SET deleted_at = NOW() - INTERVAL '31 days'
 WHERE id = '<jobSeekerId>'::uuid
-  AND NOT EXISTS (SELECT 1 FROM identity.asp_net_users u WHERE u.id = job_seekers.user_id);
+  AND NOT EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
 ```
 
 ⚠ **"Verifierad" har en högre tröskel här än i §4.1, och §4.1:s båda metoder är otillgängliga.** Det
@@ -405,7 +405,7 @@ re-registrera under cleanup-fönstret. Audit-trail anonymiserad.
 **Åtgärd:**
 - Steg 0 (orphan-cleanup) i nästa daily-run plockar upp orphanen automatiskt
 - Inget manuellt ingripande krävs förrän det blir > 24h gammalt
-- Vid permanent fail: manuell `DELETE FROM identity.asp_net_users WHERE id = '<userId>'`
+- Vid permanent fail: manuell `DELETE FROM identity."AspNetUsers" WHERE id = '<userId>'`
 
 ### 5.4 Audit-anonymisering failar
 

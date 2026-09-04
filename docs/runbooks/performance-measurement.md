@@ -235,14 +235,23 @@ useful instrument and an unusable default:
 - The same child-scope shape emits ~47 000 **`ContextInitialized`** events, which live in a
   *different* category (`Microsoft.EntityFrameworkCore.Infrastructure`). Silencing only
   `Database.Command` halves a flood that has two sources.
+- The ingest path absorbs a duplicate key by design (ADR 0032 §5), and EF reports each one
+  twice: `CommandError` in `Database.Command`, and `SaveChangesFailed` — the whole
+  `DbUpdateException`, stack trace included — in a **third** category,
+  `Microsoft.EntityFrameworkCore.Update`. Both are Error by default, which no `Warning` rule
+  reaches, so `AddPersistence` re-levels them to Information (#1633) and this category rule
+  then takes the volume.
 
-So both categories ship at `Warning` in both hosts' base `appsettings.json` (#752, perf-audit
-finding `g2`), and both survive into Development. Pinned by
+So all three categories ship at `Warning` in both hosts' base `appsettings.json` (#752,
+perf-audit finding `g2`; #1633), and all three survive into Development. Pinned by
 `tests/Jobbliggaren.Architecture.Tests/EfCoreLoggingConfigurationTests.cs`, which runs the
-shipped config through the real MEL filter engine.
+shipped config through the real MEL filter engine and reads the re-levelling back out of
+`AddPersistence`'s own `DbContextOptions`.
 
-**Failed SQL still reaches the log.** `CommandExecuted` is Information; `CommandError` is
-**Error**. Warning silences the success chatter, not the failures.
+**A genuine failure still reaches the log at `Error` — from the application, not from EF.**
+`LoggingBehavior.LogFailed` logs it with the exception on every Mediator path. What the two
+re-levelled EF events add on top of that is the SQL text, and this section is how you get it
+back.
 
 ### Turning it on for a session
 
@@ -254,14 +263,18 @@ committed change and cannot leak into anyone else's environment:
 {
   "Logging": {
     "LogLevel": {
-      "Microsoft.EntityFrameworkCore.Database.Command": "Information"
+      "Microsoft.EntityFrameworkCore.Database.Command": "Information",
+      "Microsoft.EntityFrameworkCore.Update": "Information"
     }
   }
 }
 ```
 
 MEL resolves a category by **longest matching prefix**, so this re-enables exactly the
-per-query duration signal and leaves the `ContextInitialized` flood silenced.
+per-query duration signal plus the failed-statement detail, and leaves the
+`ContextInitialized` flood silenced. Drop the `Update` line if you want the SQL without the
+absorbed duplicate keys — on the ingest path that is the difference between five lines per
+collision and seventy-seven.
 
 In a container, use the environment-variable form — and note the footgun:
 

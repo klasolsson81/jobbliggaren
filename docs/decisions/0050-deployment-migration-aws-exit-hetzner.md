@@ -665,7 +665,7 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > explicit icke-Local-värde. Lösningen har nu **0 Amazon-paket**. Config-switchen
 > `FieldEncryption:Provider "Kms"/"Local"` (nämnd tidigare i denna ADR) är
 > reducerad till enbart `"Local"`. Prod-master-nyckelns skyddsmodell kvarstår
-> och ägs av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. **TD-102**)
+> och ägs av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) (f.d. TD-102)
 > — självständig från den borttagna KMS-providern.
 
 > **Truth-sync 2026-08-08 (ADR 0124 / [#1237](https://github.com/klasolsson81/jobbliggaren/issues/1237)):
@@ -678,7 +678,8 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > bort **2026-08-15**, så meningen på raden ovan är sann igen och `NoAmazonReferenceTests`
 > är åter ett **totalförbud**, inte en allow-list. Mätt i trackade filer:
 > `Directory.Packages.props:126` (*"AWSSDK-ytan är TOM och är återigen ett förbud, inte en
-> allow-list"*) och `:285` · `NoAmazonReferenceTests` · `BUILD.md` §3.1. Blocket dateras i
+> allow-list"*) och `:285` (*"AWSSDK.SimpleEmailV2 togs bort 2026-08-15"*) ·
+> `NoAmazonReferenceTests` · `BUILD.md` §3.1. Blocket dateras i
 > stället för att strykas, därför att det är proveniens för **varför allow-listen fanns** —
 > och för att en tredje truth-sync ovanpå en andra är precis den tillväxt §13 finns för att
 > hindra.
@@ -696,8 +697,7 @@ reversibilitet). `AWSSDK.SecretsManager` rensas när Migrate re-homas (TD-105).
 > **Vad som INTE är överskrivet, och det är merparten:** fält-krypteringen är
 > fortsatt Local-only (`LocalDataKeyProvider`), `KmsDataKeyProvider` är fortsatt
 > borttagen, och KMS, Secrets Manager, S3, Bedrock samt varje
-> `AWSSDK.Extensions.*`/`AWS.Logger.*` är fortsatt bannade — nu av en allow-list i
-> `NoAmazonReferenceTests` i stället för av ett blankettförbud. #802:s faktiska
+> `AWSSDK.Extensions.*`/`AWS.Logger.*` är fortsatt bannade. #802:s faktiska
 > invariant (ingen AWS i krypteringsvägen) står orörd; det som föll var den bredare
 > läsningen "noll paket", som aldrig var #802:s ärende.
 >
@@ -1643,7 +1643,8 @@ sina två omgraderingsarmar) står oförändrade och behöver fortfarande ett ö
   samma STOPP-disciplin.
 - **ADR 0049** — TD-13 envelope-encryption. KMS-beroendet **LÖST** via ADR 0066
   `LocalDataKeyProvider` (ej längre migrations-blocker). Kvarvarande Hetzner-
-  prod-härdning + rotation = **TD-102** (ADR 0049-amendment-scope, M-2/M-3).
+  prod-härdning + rotation ägs av [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)
+  (f.d. TD-102, ADR 0049-amendment-scope, M-2/M-3).
 - **ADR 0066** — AWS dev-stack-teardown. Löste KMS-beroendet (`LocalDataKeyProvider`)
   och gjorde rollback-storyn ("behåll AWS körande") ogiltig. Komplementär:
   ADR 0066 var temporär semester-pause, ADR 0050 är permanent provider-exit.

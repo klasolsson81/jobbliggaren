@@ -367,9 +367,8 @@ public static partial class RateLimitingExtensions
             // Auth-gated → anonym fångas av RequireAuthorization (NoLimiter bypass). Parametrar
             // IOptions-bundna (§5.1).
             // ⚠ TALET, HUR MÅNGA RUTTER SOM DELAR HINKEN OCH HUR MAN RÄKNAR OM DET STÅR I
-            // RateLimitingOptions.CompanyBrowse — och bara där. Den här kommentaren upprepade
-            // "15/min", vilket är BURSTEN: den uthålliga takten är 12/min (#1654). Två hem för samma
-            // tal är hur det ena hann bli falskt utan att någon såg det.
+            // RateLimitingOptions.CompanyBrowse — och bara där. Den här kommentaren upprepade det
+            // (#1654), och hann bli falsk. Två hem för samma tal är hur det går till.
             options.AddPolicy(CompanyBrowsePolicy, ctx =>
             {
                 var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

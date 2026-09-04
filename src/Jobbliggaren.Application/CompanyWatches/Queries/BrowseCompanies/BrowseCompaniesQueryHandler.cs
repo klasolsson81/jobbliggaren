@@ -2,9 +2,7 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
-using Jobbliggaren.Domain.CompanyWatches;
 using Mediator;
-using Microsoft.EntityFrameworkCore;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 
@@ -26,10 +24,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 /// <b>IDOR posture (ADR 0031).</b> "Criterion does not exist" and "criterion belongs to somebody else"
 /// both return <c>null</c> — literally the same value, so the response can never be used as an
 /// existence oracle for another user's criterion ids (the endpoint maps null → 404, never 403). A
-/// cross-user attempt is still DETECTED: the miss is re-probed without the owner predicate and, if the
-/// id exists, recorded via <see cref="IFailedAccessLogger.LogCrossUserAttempt"/> (the house
-/// fetch-then-check pattern; a single <c>Id == id &amp;&amp; UserId == userId</c> predicate would
-/// silently throw that probing signal away).
+/// cross-user attempt is still DETECTED — by <see cref="CriterionOwnerScopedLoader"/>, which owns the
+/// posture for all four criterion read handlers and carries the reasoning.
 /// </para>
 ///
 /// <para>
@@ -49,38 +45,15 @@ public sealed class BrowseCompaniesQueryHandler(
     public async ValueTask<PagedResult<CompanyBrowseDto>?> Handle(
         BrowseCompaniesQuery query, CancellationToken cancellationToken)
     {
-        // Fail-closed: no authenticated user → not-found. Never fall back to Guid.Empty, which would
-        // scope the read to a "user" that any unauthenticated caller shares.
-        if (!currentUser.UserId.HasValue)
-            return null;
-
-        var userId = currentUser.UserId.Value;
-        var criterionId = new CompanyWatchCriterionId(query.CriterionId);
-
-        // Hard delete (G1/C-D8) removes the row outright — a missing criterion is genuinely absent,
-        // not soft-hidden. Nothing hides rows from this read: the vestigial DeletedAt query filter
-        // that once had to be argued away here no longer exists (demolished with the column).
-        var criterion = await db.CompanyWatchCriteria
-            .AsNoTracking()
-            .Where(c => c.Id == criterionId && c.UserId == userId)
-            .FirstOrDefaultAsync(cancellationToken);
+        // The owner-scoped load + ADR 0031 cross-user probe are single-sourced (#1559): four read
+        // handlers now run the same IDOR posture, and a copy that drops the probe returns the same
+        // value while silently discarding the signal.
+        var criterion = await CriterionOwnerScopedLoader.LoadForCurrentUserAsync(
+            db, currentUser, failedAccessLogger,
+            query.CriterionId, "BrowseCompanies", cancellationToken);
 
         if (criterion is null)
-        {
-            // Failed-access detection (ADR 0031): tell an unknown id apart from a cross-user probe —
-            // WITHOUT telling the caller apart. The response below is identical either way.
-            var existsForSomebodyElse = await db.CompanyWatchCriteria
-                .AsNoTracking()
-                .AnyAsync(c => c.Id == criterionId, cancellationToken);
-
-            if (existsForSomebodyElse)
-            {
-                failedAccessLogger.LogCrossUserAttempt(
-                    "CompanyWatchCriterion", query.CriterionId, userId, "BrowseCompanies");
-            }
-
             return null;
-        }
 
         // criterion.Criteria is the EF-ignored computed VO over the aggregate's two text[] backing
         // fields. The port turns its two arrays into the `sni_codes && @sni` / `= ANY(@kommun)` SQL

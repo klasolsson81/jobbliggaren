@@ -6,6 +6,7 @@ import { getServerSession } from "@/lib/auth/session";
 import {
   browseCriterionCompanies,
   getCompanyWatchCriteria,
+  getCriterionAdCount,
   getCriterionReference,
 } from "@/lib/api/company-criteria";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
@@ -71,10 +72,14 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
   // The browse read is the authority on existence (404 → notFound). The criteria list + reference are
   // fetched to resolve the human title; if either degrades, the title falls back rather than failing
   // the page.
-  const [browseResult, criteriaResult, referenceResult] = await Promise.all([
+  const [browseResult, criteriaResult, referenceResult, adCountResult] = await Promise.all([
     browseCriterionCompanies(id, page),
     getCompanyWatchCriteria(),
     getCriterionReference(),
+    // #1559 — the ad dimension. A degraded read must not fail the page: the company browse is this
+    // route's authority on existence, so a failed ad count renders a civil "cannot be shown" line
+    // and never a false 0 (the same posture as a degraded reference tree above).
+    getCriterionAdCount(id),
   ]);
 
   switch (browseResult.kind) {
@@ -133,6 +138,31 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
         <h2 className="text-h2 text-text-primary tabular-nums">
           {t("browse.magnitudeHeadline", { count: magnitudeText })}
         </h2>
+
+        {/* #1559 — the ad dimension of the same criterion, and the ONLY destination its ads have:
+            /jobb has no SNI axis, its ?employer= producer refuses above 400 org.nrs, and its
+            municipality axis is the ad's WORKPLACE while this kommun is the company's registered
+            SEAT. The number is a link exactly when there is something to look at; a 0 states the
+            fact without offering an empty page, and a degraded read says so rather than showing a
+            false 0 (#859 — a rendered magnitude is true or absent). */}
+        {adCountResult.kind === "ok" ? (
+          adCountResult.data.magnitude > 0 ? (
+            <p className="jp-matchline tabular-nums mt-2">
+              <Link
+                href={`/foretag/smarta-bevakningar/${id}/annonser`}
+                aria-label={t("ads.linkAria")}
+              >
+                {t("ads.linkLabel", {
+                  count: formatMagnitude(format, adCountResult.data),
+                })}
+              </Link>
+            </p>
+          ) : (
+            <p className="jp-matchline mt-2">{t("ads.none")}</p>
+          )
+        ) : (
+          <p className="jp-matchline mt-2">{t("ads.countUnavailable")}</p>
+        )}
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
             necessarily where the company operates). */}

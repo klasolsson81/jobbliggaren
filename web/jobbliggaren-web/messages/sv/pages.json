@@ -436,6 +436,26 @@
         "saving": "Sparar…",
         "cancel": "Avbryt"
       },
+      "ads": {
+        "lede": "Aktiva annonser från företagen som matchar din bevakning.",
+        "magnitudeHeadline": "{count} aktiva annonser",
+        "backLink": "Tillbaka till bevakningen",
+        "linkLabel": "{count} aktiva annonser från dessa företag",
+        "linkAria": "Visa annonserna från företagen som matchar bevakningen",
+        "none": "Inga aktiva annonser från dessa företag just nu.",
+        "countUnavailable": "Antalet annonser kan inte visas just nu.",
+        "loadErrorTitle": "Kunde inte ladda annonserna",
+        "loadErrorBody": "Ett fel uppstod. Försök igen om en stund.",
+        "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
+        "source": "Källa: SCB, egen bearbetning.",
+        "seatExplainer": "Urvalet utgår från företagets registrerade säteskommun. Annonsens arbetsort kan vara en annan.",
+        "seatHelpTitle": "Om urvalet",
+        "seatHelpBody1": "Annonserna kommer från företag vars registrerade säte enligt SCB ligger i en av bevakningens kommuner.",
+        "seatHelpBody2": "Var arbetet utförs framgår av annonsen och behöver inte vara samma kommun som sätet.",
+        "seatHelpAria": "Hur är annonserna utvalda?",
+        "emptyTitle": "Inga aktiva annonser just nu.",
+        "emptyBody": "Företagen som matchar din bevakning har inga aktiva annonser. Prova att bredda bevakningens branscher eller kommuner."
+      },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",
         "magnitudeHeadline": "{count} företag matchar din bevakning",
@@ -480,6 +500,11 @@
     "smartaBevakningar": {
       "meta": {
         "title": "Smarta bevakningar"
+      },
+      "ads": {
+        "meta": {
+          "title": "Annonser från bevakningen"
+        }
       },
       "detail": {
         "meta": {

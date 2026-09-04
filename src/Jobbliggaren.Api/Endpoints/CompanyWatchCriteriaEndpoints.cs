@@ -7,10 +7,13 @@ using Jobbliggaren.Application.CompanyWatches.Commands.CreateCompanyWatchCriteri
 using Jobbliggaren.Application.CompanyWatches.Commands.DeleteCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Commands.UpdateCompanyWatchCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
+using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionMatchMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
 using Jobbliggaren.Application.CompanyWatches.Queries.PreviewCriterionMatchMagnitude;
+using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -98,6 +101,47 @@ public static class CompanyWatchCriteriaEndpoints
             return Results.Ok(new CompanyBrowseResponse(companies, magnitude));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
+        // #1559 — the criterion's ACTIVE ads (the companies it matches, and what they are hiring
+        // for), mirroring the /companies split above: TWO mediator sends composed into one response
+        // (§2.3). The page's PagedResult.TotalCount is a PAGINATION quantity capped at 2000 and is
+        // never rendered; the honest headline is the magnitude, with its OWN ceiling
+        // (CriterionAdMagnitudeDto.Ceiling — the ad question, not the company one). null → 404 for
+        // unknown AND cross-user ids alike. The magnitude re-check catches the race where the
+        // criterion is deleted between the two sends.
+        group.MapGet("/{id:guid}/ads", async (
+            Guid id, IMediator mediator, int page = 1, int pageSize = 20,
+            CancellationToken ct = default) =>
+        {
+            var ads = await mediator.Send(new BrowseCriterionAdsQuery(id, page, pageSize), ct);
+            if (ads is null)
+                return Results.NotFound();
+
+            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
+            if (magnitude is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude));
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
+
+        // #1559 — the ad magnitude ALONE, for the criterion detail page, which renders the number and
+        // links to /ads without reading a single ad. Deliberately not served by calling /ads with a
+        // one-row page: that is the "count-only caller passes PageSize: 1 and reads TotalCount"
+        // mechanism the browse port's own contract REVOKES, because under the pagination cap it
+        // reports MaxPage x 1 instead of the truth. Same browse cost profile as its siblings, so the
+        // same rate-limit bucket.
+        //
+        // (The port is named in that contract's docblock, not here: OrganizationNumberSurfacingGuard
+        // fails the build on an Api source that NAMES a raw-org.nr-producing port, because naming one
+        // is how an endpoint would inject it and bypass the handler's masking. The rule is a plain
+        // name scan, so it catches a mention in prose too — deliberately, since a guard that tries to
+        // tell prose from code is a guard with a hole in it.)
+        group.MapGet("/{id:guid}/ad-count", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
+            return magnitude is null ? Results.NotFound() : Results.Ok(magnitude);
+        }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
+
         // The picker's live magnitude preview over an UNSAVED criterion (Fork G3's second
         // consumer). POST-as-read (the /companies/lookup precedent — the predicate is a body,
         // never a URL). Same shared validation as create; Result carries the Domain's Validation
@@ -149,6 +193,16 @@ public static class CompanyWatchCriteriaEndpoints
     private sealed record CompanyBrowseResponse(
         PagedResult<CompanyBrowseDto> Companies,
         CriterionMatchMagnitudeDto Magnitude);
+
+    /// <summary>
+    /// #1559 — the composed AD browse response, the exact sibling of <see cref="CompanyBrowseResponse"/>
+    /// and for the same reason: the page and the honest magnitude arrive as different members with
+    /// different documented meanings, so the FE cannot mistake the capped pagination count for the
+    /// number it renders.
+    /// </summary>
+    private sealed record CriterionAdBrowseResponse(
+        PagedResult<JobAdDto> Ads,
+        CriterionAdMagnitudeDto Magnitude);
 
     private sealed record UpdateCriterionBody(string? Label, UpdateCriterionCriteriaBody? Criteria);
 

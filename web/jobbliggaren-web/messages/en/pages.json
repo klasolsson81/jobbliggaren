@@ -436,6 +436,26 @@
         "saving": "Saving…",
         "cancel": "Cancel"
       },
+      "ads": {
+        "lede": "Active job ads from the companies matching your watch.",
+        "magnitudeHeadline": "{count} active job ads",
+        "backLink": "Back to the watch",
+        "linkLabel": "{count} active job ads from these companies",
+        "linkAria": "Show the ads from the companies matching this watch",
+        "none": "No active job ads from these companies right now.",
+        "countUnavailable": "The number of ads cannot be shown right now.",
+        "loadErrorTitle": "Could not load the ads",
+        "loadErrorBody": "An error occurred. Try again in a moment.",
+        "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
+        "source": "Source: Statistics Sweden, own processing.",
+        "seatExplainer": "The selection uses the company's registered seat municipality. The ad's workplace may be elsewhere.",
+        "seatHelpTitle": "About the selection",
+        "seatHelpBody1": "The ads come from companies whose registered seat according to Statistics Sweden is in one of the watch's municipalities.",
+        "seatHelpBody2": "Where the work is performed is stated in the ad and need not be the same municipality as the seat.",
+        "seatHelpAria": "How were these ads selected?",
+        "emptyTitle": "No active job ads right now.",
+        "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities."
+      },
       "browse": {
         "lede": "Active companies in the register that match your watch.",
         "magnitudeHeadline": "{count} companies match your watch",
@@ -480,6 +500,11 @@
     "smartaBevakningar": {
       "meta": {
         "title": "Smart watches"
+      },
+      "ads": {
+        "meta": {
+          "title": "Ads from the watch"
+        }
       },
       "detail": {
         "meta": {

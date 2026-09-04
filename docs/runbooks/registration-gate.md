@@ -356,12 +356,6 @@ API call are not the same instrument**, and 2026-08-16 measured the API half onl
 the project network) with the browser half operator-attested. If you take the API route, say so
 in the cell rather than letting "through the app" cover both.
 
-Also verify before the flip, because it cannot be verified from a worktree: that the
-processing register (`docs/runbooks/gdpr-processing-register.md`, gitignored, main checkout
-only) already covers account registration. The published policy describes account processing
-under Art. 6(1)(b), so this most likely adds no new activity — but that is scheduling, not a
-measurement, and it has not been taken.
-
 ## 5. Rollback
 
 Every *configuration* failure above is a boot refusal whose message names the key and the

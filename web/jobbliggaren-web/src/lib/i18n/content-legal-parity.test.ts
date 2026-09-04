@@ -384,10 +384,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * rubriken. Det är ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt
    * sedan 2026-08-28 och är därmed inte längre en hypotes i en kommentar (code-reviewer Minor 7).
    *
-   * ✅ **Instruktionen är UTFÖRD I DEN HÄR ÄNDRINGEN:** markör-halvan är struken i samma ändring
-   * som flippar copyn, och golvet och path-pariteten är behållna. Flytten sker i STRATO:s panel
-   * utan PR, utan CI och utan deploy — den första aktiveringshändelsen i huset som ingen release
-   * grindar — så ordningen mellan copyn och posten är det enda som håller policyn ärlig.
+   * ✅ **Instruktionen är UTFÖRD I DEN HÄR ÄNDRINGEN:** golvet och path-pariteten är behållna.
+   * Flytten sker i STRATO:s panel utan PR, utan CI och utan deploy — den första
+   * aktiveringshändelsen i huset som ingen release grindar — så ordningen mellan copyn och
+   * posten är det enda som håller policyn ärlig.
    *
    * ⚠ **DEN OPERATIVA YTAN ÄR `docs/runbooks/vps-deploy-stack.md` RAD 36:s MX-BEN, INTE DEN
    * HÄR FILEN** (#183 led 5, 2026-08-28). Docblocket ovan talar till den som kör CI. Raden

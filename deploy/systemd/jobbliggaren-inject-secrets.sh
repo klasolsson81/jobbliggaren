@@ -573,7 +573,7 @@ if [[ "${1:-}" == "--check" ]]; then
         log "         Outbound mail is failing SILENTLY right now — api and worker are healthy,"
         log "         --check finds every file present, and each send fails per-message. If the"
         log "         registration gate is open, account confirmation and password reset are both"
-        log "         dead and the published rights channel does not receive."
+        log "         dead."
         expiring=1
       elif (( remaining_days <= EXPIRY_NOTICE_DAYS )); then
         # NOTICE, NOT A FAULT — and it deliberately does NOT set `expiring`, so this run still

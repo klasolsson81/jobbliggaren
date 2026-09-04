@@ -2134,7 +2134,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
         (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
-        medan `NullEmailSender` är den levande defaulten.
+        medan `NullEmailSender` var den levande defaulten när villkoret skrevs.
         **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
         hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
         presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
@@ -2197,7 +2197,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
         paritets-editen åt endera hållet landar rött.
         ⚠ **Detta stänger INTE punkt 5.5, och inte heller B-ii gör det.** Villkor (a) upphör
-        alltjämt först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerar fortfarande
+        först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerade då fortfarande
         ett utlovat utskick som defaultkonfigurationen inte kan göra — B-ii döljer dem i **ett**
         vägrat läge, den ändrar ingen sträng och når inte den publicerade copyn i normalläget),
         (b) är orörd, och **`Test`-divergensen står kvar**: den tekniska spärren undantar
@@ -2208,7 +2208,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
         Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
-        GDPR-grind), båda öppna och `mvp`. *(Raden namngav tidigare **#1087**, som stängs med
+        GDPR-grind). *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
         #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
@@ -2218,7 +2218,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Det är plikten som står här, aldrig registrets tillstånd** — ett trackat påstående om en
         gitignorerad fils innehåll kan varken CI, en PR-granskare eller en parallell session
         verifiera. Triggern fyrade **2026-08-16**, inte i framtiden: villkoret var alltså öppet
-        under det fönstret. Villkor (a) står kvar — 5.5 är inte urladdad.
+        under det fönstret.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med

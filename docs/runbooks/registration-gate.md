@@ -350,8 +350,7 @@ writing a display name leaves `user_data_keys` unchanged and would either look l
 path or tick this row on nothing. Use a cover letter on `/ansokningar`, or a CV import on
 `/cv`.
 
-Then read it back on a fresh page load, and check that `user_data_keys` has one row more than
-before the write.
+Then read it back on a fresh page load.
 Record what you ran and what it returned — the row is stamped from that. ⚠ **A page load and an
 API call are not the same instrument**, and 2026-08-16 measured the API half only (curl inside
 the project network) with the browser half operator-attested. If you take the API route, say so

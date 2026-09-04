@@ -53,8 +53,8 @@ interface Props {
  * <para/> **Why this is a route and not a `/jobb` link.** Klas asked for "en länk som visar
  * annonserna" (#1559) and `/jobb` cannot express this set: it has no SNI axis at all; its only
  * company axis is `?employer=`, whose producer refuses above `MAX_CONCEPT_IDS` = 400 org.nrs on an
- * every-value-or-none doctrine, against criteria that routinely match thousands of companies;
- * and its `municipality` axis is the AD's workplace while a criterion's kommun is the
+ * every-value-or-none doctrine; and its `municipality` axis is the AD's workplace while a
+ * criterion's kommun is the
  * company's REGISTERED SEAT. Every link buildable from those axes is partial or false, so the
  * criterion's own id is the destination and no new `/jobb` axis is minted
  * (senior-cto-advisor 2026-09-04).
@@ -154,19 +154,19 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 
-        {/* The house's load-bearing "what you see is narrower than reality" primitive, not the
-            13px sibling treatment: the counter-claim has to stand against an h1 that says
-            "i Göteborg" while the list can hold a job in Linköping. */}
-        <p className="jp-transparency-note jp-transparency-note--inline-control mt-3">
+        {/* The house's load-bearing "what you see is narrower than reality" primitive: the
+            counter-claim has to stand against an h1 that says "i Göteborg" while the list can hold a
+            job in Linköping. NOT --inline-control — that modifier centres a SINGLE line against its
+            control, and this sentence wraps at every viewport, which puts the leading icon in the gap
+            between the two lines. The base binds it to line one. */}
+        <p className="jp-transparency-note mt-3">
           <Info size={16} aria-hidden="true" />
-          <span>
-            {t("ads.seatExplainer")}
-            <InfoDialog
-              title={t("ads.seatHelpTitle")}
-              paragraphs={[t("ads.seatHelpBody1"), t("ads.seatHelpBody2")]}
-              ariaLabel={t("ads.seatHelpAria")}
-            />
-          </span>
+          <span>{t("ads.seatExplainer")}</span>
+          <InfoDialog
+            title={t("ads.seatHelpTitle")}
+            paragraphs={[t("ads.seatHelpBody1"), t("ads.seatHelpBody2")]}
+            ariaLabel={t("ads.seatHelpAria")}
+          />
         </p>
 
         {ads.items.length === 0 ? (

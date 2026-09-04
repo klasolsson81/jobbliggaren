@@ -67,19 +67,19 @@ public class BrowseCriterionAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ReOrdersTheLoadedAds_NewestFirst_RegardlessOfTheIdArraysOrder()
+    public async Task Handle_FollowsThePortsSequence_EvenWhenItDisagreesWithPublishedAt()
     {
-        // THE assertion this handler exists to make safe. `WHERE id = ANY(...)` does not preserve the
-        // array's order, so the handler re-states the port's published order rather than trusting the
-        // ids to arrive sorted. The ids are handed over in the WRONG order on purpose: if the re-order
-        // were dropped, the rows would come back in whatever order the load produced and this test
-        // would see the seeded order instead of the published one.
+        // The handler does NOT sort — it re-sequences by the port's ordinal, and this pins that on
+        // the PublishedAt axis (its sibling pins it on the id axis). The port is made to hand over an
+        // order that published_at would not produce: any handler that re-derived "newest first"
+        // would return them sorted and fail here.
+        //
+        // Newest-first is the PORT's guarantee, not this handler's: it is pinned on the SQL by
+        // AdIdsQuery_OrdersByATotalKey and end-to-end by Ad_browse_orders_newest_first_across_the_wire.
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
         var criterion = await SeedCriterionAsync(db, Owner, ct);
 
-        // Seeded in a THIRD order — neither the expected order nor its reverse — so the assertion
-        // cannot be satisfied by insertion order if the re-order is dropped (test-writer V4).
         var oldest = SeedAd(db, "Äldst", "A AB", publishedAt: T0.AddDays(-30));
         var newest = SeedAd(db, "Nyast", "B AB", publishedAt: T0.AddDays(-1));
         var middle = SeedAd(db, "Mitten", "C AB", publishedAt: T0.AddDays(-10));
@@ -90,7 +90,7 @@ public class BrowseCriterionAdsQueryHandlerTests
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
 
         result.ShouldNotBeNull();
-        result.Items.Select(i => i.Title).ShouldBe(["Nyast", "Mitten", "Äldst"]);
+        result.Items.Select(i => i.Title).ShouldBe(["Äldst", "Mitten", "Nyast"]);
     }
 
     [Fact]
@@ -117,11 +117,17 @@ public class BrowseCriterionAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AdsSharingAPublishedAt_AreOrderedByIdSoThePageIsTotallyOrdered()
+    public async Task Handle_PreservesThePortsSequence_NeverAReDerivedOrder()
     {
-        // The tiebreak half of the order. Every other ordering test seeds distinct PublishedAt
-        // values, so `.ThenBy(j => j.Id)` can be deleted with all of them green — and a non-total
-        // order plus OFFSET drops and duplicates rows across pages (test-writer V7).
+        // The tiebreak half, and the oracle is the PORT'S sequence rather than a re-derivation of it.
+        // An earlier version asserted `.OrderBy(g => g)` — the CLR's Guid order — which is a THIRD
+        // order: Postgres compares uuid bytewise while Guid.CompareTo reads the first field as a
+        // signed Int32, so the two disagree on about half of all pairs. That oracle mirrored the
+        // implementation and would have pinned the divergence in place instead of measuring it
+        // (code-reviewer / dotnet-architect re-check, 2026-09-04).
+        //
+        // The ids are handed over in an order the CLR comparer would NOT produce, so a handler that
+        // re-derived the order instead of following the array would be visible here.
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
         var criterion = await SeedCriterionAsync(db, Owner, ct);
@@ -130,14 +136,17 @@ public class BrowseCriterionAdsQueryHandlerTests
         var a = SeedAd(db, "Först", "A AB", publishedAt: sameInstant);
         var b = SeedAd(db, "Sedan", "B AB", publishedAt: sameInstant);
 
-        var port = PortReturning([a, b], totalCount: 2);
+        // Whichever of the two the CLR would sort LAST is put FIRST on the wire.
+        var clrOrder = new[] { a.Value, b.Value }.OrderBy(g => g).ToList();
+        var portOrder = new[] { new JobAdId(clrOrder[1]), new JobAdId(clrOrder[0]) };
+
+        var port = PortReturning(portOrder, totalCount: 2);
 
         var result = await HandlerFor(db, Owner, port)
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
 
         result.ShouldNotBeNull();
-        result.Items.Select(i => i.Id).ShouldBe(
-            new[] { a.Value, b.Value }.OrderBy(g => g).ToList());
+        result.Items.Select(i => i.Id).ShouldBe(portOrder.Select(i => i.Value).ToList());
     }
 
     [Fact]

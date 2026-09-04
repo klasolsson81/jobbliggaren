@@ -23,11 +23,15 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// </para>
 ///
 /// <para>
-/// <b>The re-order is not redundant.</b> <c>WHERE id = ANY(...)</c> does not preserve the array's
-/// order, so the second query re-states the port's published order — <c>PublishedAt</c> descending,
-/// then <c>Id</c> — rather than trusting the ids to arrive sorted. Both orders are TOTAL and equal by
-/// construction; a page ordered differently from the one it was paginated against would drop and
-/// duplicate rows across pages, which is the failure the port appends its PK to avoid.
+/// <b>The page is re-sequenced by the port's ORDINAL, never by a re-derived key.</b>
+/// <c>WHERE id = ANY(...)</c> does not preserve the array's order, so the loaded rows must be put
+/// back in the order the port published — and the only faithful way is to follow
+/// <c>page.Items</c> itself. Every attempt to re-derive it produces a DIFFERENT order: it cannot be
+/// expressed in the query at all (<c>ThenBy(j =&gt; j.Id)</c> throws in-process, <c>j.Id.Value</c>
+/// 500s against Postgres, <c>EF.Property&lt;Guid&gt;</c> binds the column on one provider and the CLR
+/// property on the other), and sorting in memory silently introduces a THIRD one — Postgres compares
+/// <c>uuid</c> bytewise while <c>Guid.CompareTo</c> reads the first field as a signed <c>Int32</c>,
+/// so the two disagree on about half of all pairs.
 /// </para>
 ///
 /// <para>
@@ -77,9 +81,14 @@ public sealed class BrowseCriterionAdsQueryHandler(
                 j.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        var items = rows
-            .OrderByDescending(d => d.PublishedAt)
-            .ThenBy(d => d.Id)
+        // Follow the port's sequence. A row the port named and this load did not return has been
+        // deleted between the two round-trips; it drops out here explicitly rather than shifting
+        // everything after it.
+        var byId = rows.ToDictionary(d => d.Id);
+        var items = page.Items
+            .Select(id => byId.GetValueOrDefault(id.Value))
+            .Where(d => d is not null)
+            .Select(d => d!)
             .ToList();
 
         return new PagedResult<JobAdDto>(items, page.TotalCount, page.Page, page.PageSize);

@@ -106,8 +106,8 @@ public interface ICompanyWatchBrowseQuery
     /// </para>
     ///
     /// <para>
-    /// <b>The order is TOTAL and is part of the contract</b>, because the caller re-orders the rows it
-    /// loads rather than preserving this array's order: <c>published_at DESC, id</c>. A non-total
+    /// <b>The order is TOTAL and is part of the contract</b>: <c>published_at DESC, id</c>, and the
+    /// caller re-sequences its loaded rows by THIS array rather than re-deriving the order. A non-total
     /// order plus OFFSET can drop or duplicate rows across pages (the same reason
     /// <see cref="BrowseAsync"/> appends the PK), and a caller ordering differently would paginate
     /// against one order while reading another.

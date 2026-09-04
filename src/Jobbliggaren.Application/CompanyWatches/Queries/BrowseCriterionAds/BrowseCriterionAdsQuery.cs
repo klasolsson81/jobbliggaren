@@ -16,9 +16,9 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// <b>Why this surface exists at all rather than a link to <c>/jobb</c></b> (senior-cto-advisor
 /// 2026-09-04, closing the issue's open question 1). <c>/jobb</c> cannot express this set: it has no
 /// SNI axis; its only company axis is <c>?employer=</c>, whose producer refuses above
-/// <c>MAX_CONCEPT_IDS</c> = 400 org.nrs on an every-value-or-none doctrine, against criteria that
-/// routinely match thousands of companies; and its <c>municipality</c> axis is the AD's
-/// workplace while a criterion's kommun is the company's REGISTERED SEAT. Any link built from those
+/// <c>MAX_CONCEPT_IDS</c> = 400 org.nrs on an every-value-or-none doctrine; and its
+/// <c>municipality</c> axis is the AD's workplace while a criterion's kommun is the company's
+/// REGISTERED SEAT. Any link built from those
 /// axes would be partial or false, so the criterion's own id is the destination. The structural
 /// sibling is <c>/foretag/bevakade/nya</c> (#1576), which exists for the same reason.
 /// </para>

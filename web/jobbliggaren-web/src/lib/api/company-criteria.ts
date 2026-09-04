@@ -6,11 +6,15 @@ import {
   listCompanyWatchCriteriaResultSchema,
   criterionReferenceSchema,
   companyBrowseResponseSchema,
+  criterionAdBrowseResponseSchema,
+  criterionAdMagnitudeSchema,
   criterionMagnitudeSchema,
   createCriterionResultSchema,
   type ListCompanyWatchCriteriaResult,
   type CriterionReference,
   type CompanyBrowseResponse,
+  type CriterionAdBrowseResponse,
+  type CriterionAdMagnitude,
   type CriterionMagnitude,
   type CriterionPredicateInput,
 } from "@/lib/dto/company-criteria";
@@ -112,6 +116,68 @@ export async function browseCriterionCompanies(
       res,
       companyBrowseResponseSchema,
       "GET /api/v1/me/company-watch-criteria/{id}/companies",
+      { includeNotFound: true },
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * #1559 — browse the ACTIVE job ads posted by the companies a saved criterion matches, newest first.
+ * Same detail-endpoint semantics as {@link browseCriterionCompanies}: a 404 (unknown id OR another
+ * user's id) is surfaced as `notFound`, never distinguished. The response composes the paginated ad
+ * page and the honest ad magnitude.
+ */
+export async function browseCriterionAds(
+  criterionId: string,
+  page: number,
+): Promise<ApiResult<CriterionAdBrowseResponse>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  // Allowlist-guard: reject a non-GUID before it reaches the backend URL (SSRF/path-injection).
+  if (!isValidId(criterionId)) return { kind: "notFound" };
+
+  const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `${BASE}/${encodeURIComponent(criterionId)}/ads?page=${safePage}&pageSize=20`,
+    );
+    return await responseToResult(
+      res,
+      criterionAdBrowseResponseSchema,
+      "GET /api/v1/me/company-watch-criteria/{id}/ads",
+      { includeNotFound: true },
+    );
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+/**
+ * #1559 — the criterion's ad magnitude ALONE, for the detail page, which renders the number and links
+ * to the ads without reading one. Deliberately not `browseCriterionAds(id, 1)` with the page thrown
+ * away: that would pay for twenty ad rows nobody renders, and reading the page's `totalCount` instead
+ * is the capped pagination quantity, not the magnitude.
+ */
+export async function getCriterionAdCount(
+  criterionId: string,
+): Promise<ApiResult<CriterionAdMagnitude>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+  if (!isValidId(criterionId)) return { kind: "notFound" };
+
+  try {
+    const res = await authedFetch(
+      sessionId,
+      `${BASE}/${encodeURIComponent(criterionId)}/ad-count`,
+    );
+    return await responseToResult(
+      res,
+      criterionAdMagnitudeSchema,
+      "GET /api/v1/me/company-watch-criteria/{id}/ad-count",
       { includeNotFound: true },
     );
   } catch {

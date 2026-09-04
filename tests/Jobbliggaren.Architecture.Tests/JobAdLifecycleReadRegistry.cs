@@ -150,6 +150,17 @@ public static class JobAdLifecycleReadRegistry
                     + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
+            ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.Handle"] =
+                One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
+                    + "(/foretag/smarta-bevakningar/[id]/annonser, #1559). NO Status predicate at this "
+                    + "site, and it is INHERITED rather than absent: the ids come from the browse "
+                    + "port's join, whose SQL carries `j.status = @ad_status` as its whole ad-side "
+                    + "exclusion, and the headline count on the same screen is produced by the SAME "
+                    + "predicate in the same statement family. Re-stating Active here would create a "
+                    + "second gate that could drift from the one that produced the ids — and an "
+                    + "archived ad rendered under a count that excluded it is #864 read from the "
+                    + "other end. Pinned end-to-end by CompanyWatchCriteriaEndpointsTests"
+                    + ".Ad_browse_excludes_archived_ads_and_unmatched_employers.")),
             ["Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob.ScanUserAsync"] =
                 One(Active(".Where(j.Status == Active && CreatedAt > since && watchedOrgNrs.Contains(orgNr)) — new-ad scan for followed companies.")),
             ["Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQueryHandler.Handle"] =

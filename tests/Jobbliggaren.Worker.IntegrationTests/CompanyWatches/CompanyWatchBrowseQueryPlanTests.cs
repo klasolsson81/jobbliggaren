@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
@@ -110,6 +112,20 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     private const string FillerSni = "99999";
     private const int SeededRows = 2000;
     private const int ProbeMatches = 2;
+
+    // #1559 — the ad pins. AdOrgNr is the FIRST probe-SNI company the register seed produces
+    // ($"55{i:D8}" at i = 0), so the ads below join a row the criterion genuinely matches.
+    private const string AdOrgNr = "5500000000";
+    private const int AdRows = 5;
+
+    // Enough job_ads that driving the join from THAT side is no longer the cheapest plan — see the
+    // filler-ads comment in SeededContextWithAdsAsync for why a small seed pins the opposite of
+    // production. The semantic pins deliberately do NOT pay for this: they assert rows, not plans.
+    private const int PlanRegimeAds = 20_000;
+
+    // A kommun no seeded row sits in — what makes the kommun conjunct's zero a discrimination
+    // rather than an empty fixture.
+    private const string OtherKommun = "1480";
 
     [Fact]
     public async Task ItemsQuery_UsesTheSniGinIndex()
@@ -422,6 +438,288 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             ct);
 
         AssertServedByGin(plan, "magnitude");
+    }
+
+    [Fact]
+    public async Task AdIdsQuery_UsesTheSniGinIndex()
+    {
+        // #1559 — a THIRD command text, therefore a THIRD plan. The ad query joins job_ads onto the
+        // register, and a join gives the planner a whole new set of orderings to choose from: it may
+        // drive from job_ads and probe the register by org.nr, never touching the GIN index at all.
+        // The existing pins cannot see that — they EXPLAIN register-only statements.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildAdIdsCommand(conn, spec, page: 1, pageSize: 20),
+            ct);
+
+        AssertServedByGin(plan, "ad ids");
+    }
+
+    [Fact]
+    public async Task AdCountQuery_UsesTheSniGinIndex()
+    {
+        // The ad count is its own statement (a capped subquery shape), serving BOTH the pagination cap
+        // and the headline magnitude. Pinning only the id query would leave the number free to regress
+        // into a register scan while the list stayed fast — and the number is the thing every criterion
+        // detail page renders, whether or not anyone opens the list.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildAdCountCommand(conn, spec, cap: 10_000),
+            ct);
+
+        AssertServedByGin(plan, "ad count");
+    }
+
+    [Fact]
+    public void AdIdsQuery_OrdersByATotalKey()
+    {
+        // Same guarantee as ItemsQuery_OrdersByATotalKey, same reason it is asserted on the SQL rather
+        // than the plan: published_at is FAR from unique here (a bulk ingest stamps a whole batch
+        // identically), Postgres sorts are not stable, and an OFFSET walk over a non-total order
+        // silently drops and duplicates ads ACROSS pages. j.id is the PK — it is what makes it total.
+        //
+        // It is also a CONTRACT, not just an internal property: BrowseCriterionAdsQueryHandler loads
+        // the ids and RE-STATES this order (`WHERE id = ANY(...)` does not preserve array order), so a
+        // change here silently paginates against one order while rendering another.
+        using var conn = new NpgsqlConnection();
+        using var cmd = CompanyWatchBrowseQuery.BuildAdIdsCommand(
+            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]), page: 1, pageSize: 20);
+
+        cmd.CommandText.ShouldContain(
+            "ORDER BY j.published_at DESC, j.id",
+            customMessage:
+                "The ad query's ORDER BY is no longer TOTAL. published_at is not unique (a bulk ingest "
+                + "stamps a batch identically) and Postgres sorts are not stable, so an OFFSET walk "
+                + "over a non-total order silently drops and duplicates ads across pages. Keep j.id "
+                + "(the PK) as the tiebreak — and remember BrowseCriterionAdsQueryHandler re-states "
+                + "this exact order when it loads the rows.");
+    }
+
+    [Fact]
+    public async Task AdQueries_CountAnAdOnce_EvenWhenSeveralOfTheCriterionsSniCodesMatchItsCompany()
+    {
+        // The join key is company_register.organization_number, the table's PRIMARY KEY — so an ad
+        // joins at most one register row and is counted ONCE however many of the criterion's SNI codes
+        // its company carries. Were the key not unique, `sni_codes && @sni` would fan the join out and
+        // EVERY number on this surface would be inflated by a factor nobody could see from the copy.
+        //
+        // This is a SEMANTIC pin, so it EXECUTES rather than EXPLAINs: the multi-SNI company below
+        // carries both ProbeSni and FillerSni, and the criterion asks for both.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var bothCodes = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var count = await port.CountActiveAdsAsync(bothCodes, ceiling: 10_000, ct);
+        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(bothCodes, 1, 20), ct);
+
+        // AdRows ads exist in total, all Active, all at companies this criterion matches.
+        count.ShouldBe(AdRows);
+        page.Items.Count.ShouldBe(AdRows);
+        page.Items.Distinct().Count().ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task AdQueries_ExcludeArchivedAds()
+    {
+        // `j.status = @ad_status` is the WHOLE ad-side exclusion — JobAd has no soft-delete axis and no
+        // query filter (#821). Drop that conjunct and a retracted ad reappears in both the count and
+        // the list, with every other test in this file still green (they all EXPLAIN, and an EXPLAIN
+        // cannot see which rows come back).
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        // BASELINE, measured here rather than inherited from a sibling test: without it a fixture
+        // that stopped matching the criterion at all would read 0 before and 0 after, and the pin
+        // would be vacuously green (test-writer V5).
+        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(AdRows);
+
+        // Parameterised, and the status comes from the SmartEnum rather than a hand-typed literal:
+        // a renamed member must break the build, not silently exclude the row for being garbage.
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
+            [JobAdStatus.Archived.Value, AdOrgNr], ct);
+
+        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(0);
+        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 20), ct)).Items.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task AdQueries_ExcludeADeregisteredCompany_EvenWhenItsAdsAreActive()
+    {
+        // `c.status = @status` is a documented DPIA M-D6 rule — a de-registered company is NEVER
+        // surfaced — and until this test it was carried by a comment and by nothing else: every
+        // seeded register row is Active, so the conjunct could be DELETED with the whole suite green
+        // (test-writer L1). The ads stay Active on purpose: the exclusion must come from the
+        // REGISTER side, not from the ad side, which its own pin already covers.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(AdRows);
+
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE company_register SET status = {0} WHERE organization_number = {1};",
+            [nameof(CompanyRegisterStatus.Deregistered), AdOrgNr], ct);
+
+        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(0);
+        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 20), ct)).Items.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task AdQueries_ExcludeACompanySeatedInAnotherKommun()
+    {
+        // The kommun axis, same vacuity as the status one: every seeded row sits in SeededKommun, so
+        // `c.sate_kommun_code = ANY(@kommun)` could be deleted with the suite green (test-writer L1).
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var elsewhere = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [OtherKommun]);
+
+        (await port.CountActiveAdsAsync(elsewhere, ceiling: 10_000, ct)).ShouldBe(0);
+        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(elsewhere, 1, 20), ct))
+            .Items.ShouldBeEmpty();
+
+        // ...and the same ads ARE reachable through the kommun they actually sit in, so the zero
+        // above is the predicate discriminating rather than the fixture being empty.
+        var here = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        (await port.CountActiveAdsAsync(here, ceiling: 10_000, ct)).ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task AdQueries_MatchAnSniCodeExactly_NeverAsAPrefix()
+    {
+        // `&&` is array overlap on WHOLE elements, and the GIN pins measure the operator's FORM, not
+        // its semantics. A four-digit parent of a five-digit register code must match nothing —
+        // otherwise a criterion for one division would silently pull in every code beneath it.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var prefix = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni[..4]], [SeededKommun]);
+
+        (await port.CountActiveAdsAsync(prefix, ceiling: 10_000, ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task AdCount_SaturatesAtTheCallersCeiling_NeverReportsMore()
+    {
+        // The handler test proves the handler COMPARES against its ceiling; only this one proves the
+        // SQL can produce the capped number at all (test-writer L2). Delete `LIMIT @count_cap` from
+        // AdCountSql and this is the test that notices.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.CountActiveAdsAsync(spec, ceiling: AdRows - 2, ct)).ShouldBe(AdRows - 2);
+        (await port.CountActiveAdsAsync(spec, ceiling: AdRows + 100, ct)).ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task AdBrowse_TotalCountCanNeverAdvertiseAPageTheValidatorWouldReject()
+    {
+        // `TotalPages = ceil(TotalCount / PageSize)` while the validator 400s past MaxPage, so the
+        // count MUST cap at MaxPage x PageSize — CompanyBrowseCriteria calls that a CORRECTNESS
+        // requirement, not a perf tweak, and on the ad path nothing measured it (test-writer L2).
+        // pageSize 1 makes the cap reachable with a seed this suite can afford.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: 0, probeAds: CompanyBrowseCriteria.MaxPage + 5);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 1), ct);
+
+        page.TotalCount.ShouldBe(CompanyBrowseCriteria.MaxServableRows(1));
+        page.TotalPages.ShouldBe(CompanyBrowseCriteria.MaxPage);
+    }
+
+    /// <summary>
+    /// #1559 — the register seed PLUS job_ads rows that actually join to it. The ad pins need both
+    /// sides populated: with an empty <c>job_ads</c> the planner can answer the join from that side
+    /// alone and never look at the register, which would make a GIN pin vacuous.
+    ///
+    /// <para>
+    /// The ads are attached to the register's FIRST probe-SNI company, and one register row is given
+    /// BOTH SNI codes so the fan-out pin above has a company that two of the criterion's codes match.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Bulk-inserted, and that is in bounds (CLAUDE.md §5 <c>Tests:</c>).</b> The state the pins
+    /// rest on — an Active <c>job_ads</c> row carrying an org.nr, and (in the archived pin) the same
+    /// row at <c>Archived</c> — is state <c>src/</c> DOES produce: the Platsbanken ingest writes the
+    /// first through <c>JobAd.Import</c>, and <c>ArchiveExternalJobAdCommandHandler</c> writes the
+    /// second. The seam is convenience, not a premise the assertion needs; the register side seeds
+    /// through the production upsert for the same reason <see cref="SeededContextAsync"/> does.
+    /// </para>
+    /// </summary>
+    private async Task<ScopedContext> SeededContextWithAdsAsync(
+        CancellationToken ct, int fillerAds = 0, int probeAds = AdRows)
+    {
+        var ctx = await SeededContextAsync(ct);
+
+        // The probe company gets the second code too — one row, two matching codes.
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE company_register SET sni_codes = ARRAY['" + ProbeSni + "','" + FillerSni + "'] "
+            + "WHERE organization_number = '" + AdOrgNr + "';", ct);
+
+        await ctx.Db.Database.ExecuteSqlRawAsync("DELETE FROM job_ads;", ct);
+
+        // Ads carrying that org.nr. organization_number is the mapped column JobAdSearchComposition
+        // reads, so this is the same key production's ingest writes.
+        var seed =
+            "INSERT INTO job_ads ("
+            + "id, title, company_name, description, url, source, external_source, external_id, "
+            + "raw_payload, status, published_at, expires_at, created_at, remote, organization_number) "
+            + "SELECT gen_random_uuid(), 'Roll ' || i, 'Probe AB', 'beskrivning', "
+            + "'https://example.com/jobs/' || i, 'Platsbanken', 'Platsbanken', 'ext-' || i, "
+            + "jsonb_build_object(), 'Active', now() - (i || ' days')::interval, "
+            + "now() + interval '60 days', "
+            + "now(), false, '" + AdOrgNr + "' "
+            + "FROM generate_series(1, " + probeAds + ") AS i;";
+        await ctx.Db.Database.ExecuteSqlRawAsync(seed, ct);
+
+        // FILLER ADS — the difference between a pin and an artefact of the test's own smallness.
+        // With a handful of ads the planner drives from job_ads and reaches the register by PK, never
+        // touching the GIN index: correct at that scale, and the exact OPPOSITE of what production
+        // does. Measured 2026-09-04 against the dev stack (register 1 066 938 rows, job_ads 41 597
+        // Active), both regimes reach the register through the GIN index — a selective criterion
+        // drives FROM it, a broad one has it bitmap-scanned and hashed. Filler ads restore the size
+        // ratio that makes a job_ads-driven plan unattractive. The generic-plan pin above learned this
+        // same lesson the same way; see its comment.
+        if (fillerAds > 0)
+        {
+            var filler =
+                "INSERT INTO job_ads ("
+                + "id, title, company_name, description, url, source, external_source, external_id, "
+                + "raw_payload, status, published_at, expires_at, created_at, remote, organization_number) "
+                + "SELECT gen_random_uuid(), 'Filler ' || i, 'Filler AB', 'beskrivning', "
+                + "'https://example.com/filler/' || i, 'Platsbanken', 'Platsbanken', 'filler-' || i, "
+                + "jsonb_build_object(), 'Active', now() - (i % 200 || ' days')::interval, "
+                + "now() + interval '60 days', now(), false, lpad((900000 + i)::text, 10, '0') "
+                + "FROM generate_series(1, " + fillerAds + ") AS i;";
+            await ctx.Db.Database.ExecuteSqlRawAsync(filler, ct);
+        }
+
+        await ctx.Db.Database.ExecuteSqlRawAsync("ANALYZE job_ads;", ct);
+        await ctx.Db.Database.ExecuteSqlRawAsync("ANALYZE company_register;", ct);
+
+        return ctx;
     }
 
     private static void AssertServedByGin(string plan, string which)

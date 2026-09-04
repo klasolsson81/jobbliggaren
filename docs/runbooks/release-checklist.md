@@ -2135,9 +2135,6 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
         (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
         medan `NullEmailSender` var den levande defaulten när villkoret skrevs.
-        ⚠ **VILLKORET ÄR URLADDAT SEDAN 2026-08-16 — se urladdningsnoten nedan. Allt som följer i
-        den här punkten fram till den noten är protokollet över fönstret då villkoret var öppet,
-        skrivet i sin egen samtid. Läs det som historik, inte som drift.**
         **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
         hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
         presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
@@ -2210,22 +2207,6 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
-        ⚠ **VILLKOR (a) ÄR URLADDAT 2026-08-16** (`security-auditor` 2026-09-04, mot #1648).
-        **Grunden är armen, aldrig förmågan** — `:148-151` förbjuder uttryckligen `CanDeliver` som
-        predikat, och §2.5:s statusblock `:152-153` recordar att `Email:Provider` sattes till
-        `Scaleway` på lådan den dagen med utskicken mätta leverantörssidigt. Det är exakt den
-        händelse upphörandeklausulen ovan namnger. `:218`/`:220`/`:224` är orörda och sanna under
-        den armen.
-        ⚠ **LAPSE — urladdningen är en DATERAD MÄTNING, ingen stående garanti.** Villkoret
-        återuppstår i samma stund den registrerade armen inte längre är en riktig extern provider.
-        **`CanDeliver` mäter inte det, och får inte användas som lapse-signal:**
-        `ConsoleEmailSender` svarar `true` utan att nå någon processor, och `AuthOptionsValidator`
-        returnerar `Success` för Development **och Test** före sin andra regel — medan den här
-        grinden räknar en nåbar `Test`-host som produktionsstart (`:2093-2096`). En osatt
-        `Email:Provider` på en sådan host läser alltså `true` medan strängarna är falska: en
-        under-triggning, den riktning `:168-170` namnger som den farliga. **Mätningen ärvs aldrig
-        framåt** — armen läses om vid nästa §2.5-avläsning och vid varje lapse-kontroll, med
-        `sudo docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' jobbliggaren-api | grep Email__Provider`.
         Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
         GDPR-grind). *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
@@ -2237,10 +2218,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Det är plikten som står här, aldrig registrets tillstånd** — ett trackat påstående om en
         gitignorerad fils innehåll kan varken CI, en PR-granskare eller en parallell session
         verifiera. Triggern fyrade **2026-08-16**, inte i framtiden: villkoret var alltså öppet
-        under det fönstret. **Villkor (a) är urladdat 2026-08-16** (se (a) ovan). ⚠ **Läs det inte
-        som klartecken att öppna registreringen:** §2.5 är oförändrat opasserad, och ADR 0132:s
-        bindning lapsar vid förutsättning 5:s trigger (b) — **definitionens hem är förutsättning 5,
-        upprepa den inte här.**
+        under det fönstret.
       Bocka aldrig 5.5 på att §2.5 är ogrindad — det är två olika trigger.
 - [ ] **6. Tidsordning — två olika fall, blanda dem inte:**
       - **(a) Första prod-taggen:** flippen deployas **samtidigt** med

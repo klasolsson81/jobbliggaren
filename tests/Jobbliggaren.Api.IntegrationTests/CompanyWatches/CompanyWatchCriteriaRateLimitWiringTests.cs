@@ -49,9 +49,13 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         PolicyFor(routes, "GET", r => r.EndsWith("companies", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
         // GET  /{id}/ads      -> #1559, the same register join plus an ad load: the CompanyBrowse
-        //                         bucket, deliberately shared rather than given its own (a second
-        //                         bucket would hand one user 3x the register joins the cap exists
-        //                         to limit — security-auditor 2026-09-04).
+        //                         bucket, deliberately shared rather than given its own. Name the
+        //                         counterfactual or the multiplier is meaningless: a bucket PER
+        //                         criteria route hands one user 45/min register joins instead of
+        //                         15 — 3x the thing the cap exists to limit (security-auditor
+        //                         2026-09-04). Splitting only /ads off would be 2x; this comment
+        //                         said "a second bucket" while quoting the 3x figure until #1654
+        //                         measured the two apart.
         PolicyFor(routes, "GET", r => r.EndsWith("ads", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CompanyBrowsePolicy);
         // GET  /{id}/ad-count  -> the headline number alone; same bucket, same reason.

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { pagedResultWithTotalPages } from "@/lib/dto/_helpers";
+import { jobAdDtoSchema } from "@/lib/dto/job-ads";
 
 /**
  * #560 PR-3 (CTO Fork G5/G6) — criteria-based company watches ("smarta bevakningar"). Zod mirrors of
@@ -132,6 +133,33 @@ export type CompanyBrowseResponse = z.infer<typeof companyBrowseResponseSchema>;
 
 /** `POST /` returns the created criterion's id. */
 export const createCriterionResultSchema = z.object({ id: z.string() });
+
+// ── The criterion's ads (GET /{id}/ads, GET /{id}/ad-count) ─────────────────
+
+/**
+ * #1559 — the honest magnitude of a criterion's ACTIVE AD set (mirrors backend
+ * `CriterionAdMagnitudeDto`): how many active job ads the companies this criterion matches have
+ * right now. Structurally identical to {@link criterionMagnitudeSchema} and deliberately a SEPARATE
+ * schema: they answer different questions (ads vs companies) at their own ceilings, and one shared
+ * type would let a surface render one where it means the other. `formatMagnitude` takes either.
+ */
+export const criterionAdMagnitudeSchema = z.object({
+  magnitude: z.number().int().nonnegative(),
+  saturated: z.boolean(),
+});
+export type CriterionAdMagnitude = z.infer<typeof criterionAdMagnitudeSchema>;
+
+/**
+ * The composed ad-browse response (mirrors the Api's `CriterionAdBrowseResponse`): the paginated ad
+ * page and the honest ad magnitude, side by side — the same shape, and the same reason, as
+ * {@link companyBrowseResponseSchema}. `ads.totalCount` SATURATES at the pagination cap and is a
+ * pagination quantity ONLY; the headline number is `magnitude`.
+ */
+export const criterionAdBrowseResponseSchema = z.object({
+  ads: pagedResultWithTotalPages(jobAdDtoSchema),
+  magnitude: criterionAdMagnitudeSchema,
+});
+export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
 
 // ── The wire predicate (create / update / preview input) ────────────────────
 

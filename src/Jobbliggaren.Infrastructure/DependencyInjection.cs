@@ -1142,9 +1142,9 @@ public static class DependencyInjection
         // #1633 — EF Core's default level for these two events describes a failed statement, not
         // this system's semantics. A UNIQUE violation is an EXPECTED outcome here: six catch sites
         // in five files absorb 23505 by design (ADR 0032 §5's race-safe upsert and its four
-        // siblings), and each one already writes its own correctly levelled record. EF cannot know
-        // that — it logs before the catch runs — so the correction belongs at the only seam that
-        // can speak for EF's events. The MECHANISM is untouched; only the level is.
+        // siblings). EF cannot know that — it logs before the catch runs — so the correction
+        // belongs at the only seam that can speak for EF's events. The MECHANISM is untouched;
+        // only the level is.
         //
         // Information, not Debug: Debug asserts "no long-term value", which is false of a GENUINE
         // save failure. Information is true of both, and the volume is taken by the category rules
@@ -1154,7 +1154,7 @@ public static class DependencyInjection
         // docs/runbooks/performance-measurement.md §D, rather than a second code-baked axis.
         //
         // What carries a genuine failure instead: LoggingBehavior.LogFailed (Error, with the
-        // exception) on every Mediator path, and each job's own catch off it.
+        // exception) on every Mediator path.
         services.AddDbContext<AppDbContext>((sp, options) =>
             options
                 .UseNpgsql(connectionString,

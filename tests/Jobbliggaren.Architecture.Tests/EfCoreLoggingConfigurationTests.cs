@@ -132,12 +132,30 @@ public class EfCoreLoggingConfigurationTests
     {
         var logger = BuildLogger(host, EfUpdateCategory);
 
-        // Warning is the floor, not None. This category also carries EF's own update warnings —
-        // among them the optimistic-concurrency and cascade-delete diagnostics — which #1633's
-        // volume argument does not reach: they are not emitted per absorbed collision.
+        // Warning is the floor, not None. #1633 re-levels exactly two events in AddPersistence;
+        // everything else this category carries is untouched by that argument, because none of it
+        // is emitted per absorbed collision.
         logger.IsEnabled(LogLevel.Warning).ShouldBeTrue(
             $"{host}: this category must stay at Warning, not None — #1633 silences the two " +
             "events it re-levelled in AddPersistence, not the category's own warnings.");
+    }
+
+    [Theory]
+    [MemberData(nameof(Hosts))]
+    public void HostConfiguration_DbCommandCategory_StillSurfacesWarnings(string host)
+    {
+        var logger = BuildLogger(host, DbCommandCategory);
+
+        // The floor #752 left here, re-aimed at the property that SURVIVED #1633. The deleted
+        // predecessor guarded it via CommandError, which is now Information for AppDbContext —
+        // but AppIdentityDbContext is NOT re-levelled (AddPersistence configures AppDbContext
+        // alone), so its CommandError still arrives at Error in this same shared category. A
+        // duplicate registration racing past Identity's own pre-check is therefore audible only
+        // while this floor holds, and criterion 4 of #1633 leans on exactly that.
+        logger.IsEnabled(LogLevel.Warning).ShouldBeTrue(
+            $"{host}: Warning is the floor, not None. Setting this category to None would " +
+            "silence AppIdentityDbContext's genuine UserNameIndex race as collateral — the one " +
+            "EF record on that path that names the violated constraint.");
     }
 
     [Theory]
@@ -230,15 +248,41 @@ public class EfCoreLoggingConfigurationTests
             "capable of going red.");
     }
 
+    [Fact]
+    public void AddPersistence_ResolvedTwice_YieldsOneOptionsCacheKey()
+    {
+        // ADR 0049 Mekanik-not 5c: two options-cache keys mean two internal EF providers, which
+        // the comment above AddDbContext calls a production-real leak. ConfigureWarnings joins the
+        // options, so it joins that key — reasoning says it is invariant (the lambda captures
+        // nothing, both levels are compile-time constants), but the invariant Klas named is proven
+        // by measurement, not by reasoning (CLAUDE.md §9.4). This goes red the day the options
+        // lambda starts capturing per-resolution state.
+        using var provider = BuildProvider();
+        using var first = provider.CreateScope();
+        using var second = provider.CreateScope();
+
+        WarningsExtension(first).Info.GetServiceProviderHashCode()
+            .ShouldBe(WarningsExtension(second).Info.GetServiceProviderHashCode());
+    }
+
     // --- Harness ------------------------------------------------------------------------------
 
     /// <summary>
-    /// Runs the SHIPPED <c>AddPersistence</c> and returns the warnings configuration its
-    /// <c>DbContextOptions</c> carries. No database is touched: <c>UseNpgsql</c> only records the
-    /// connection string, and the two interceptors the options lambda resolves are parameterless
-    /// singletons registered by <c>AddPersistence</c> itself.
+    /// Runs the SHIPPED <c>AddPersistence</c>. No database is touched: <c>UseNpgsql</c> only
+    /// records the connection string, and the two interceptors the options lambda resolves are
+    /// parameterless singletons registered by <c>AddPersistence</c> itself.
+    ///
+    /// <para>
+    /// <b>The dictionary is a contract, not a convenience.</b> <c>BuildServiceProvider()</c>
+    /// defaults to <c>validateOnBuild: false</c> and <c>ValidateOnStart</c> runs at host start, so
+    /// nothing here is instantiated — the only throw that reaches this call is an UNCONDITIONAL
+    /// eager read in <c>AddPersistence</c>, today just the connection string. CLAUDE.md §11's
+    /// dev-boot contract expects new fail-fast options to land in exactly this shared module, so
+    /// the next one must be added below. A missing key surfaces as a throw from this harness, which
+    /// reads like a logging regression and is not one.
+    /// </para>
     /// </summary>
-    private static WarningsConfiguration BuildWarningsConfiguration()
+    private static ServiceProvider BuildProvider()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -248,15 +292,22 @@ public class EfCoreLoggingConfigurationTests
             })
             .Build();
 
-        using var provider = new ServiceCollection()
+        return new ServiceCollection()
             .AddPersistence(configuration)
             .BuildServiceProvider();
+    }
 
-        var options = provider.GetRequiredService<DbContextOptions<AppDbContext>>();
+    private static CoreOptionsExtension WarningsExtension(IServiceScope scope) =>
+        scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>()
+            .FindExtension<CoreOptionsExtension>()
+            .ShouldNotBeNull("every DbContextOptions carries a CoreOptionsExtension");
 
-        return options.FindExtension<CoreOptionsExtension>()
-            .ShouldNotBeNull("every DbContextOptions carries a CoreOptionsExtension")
-            .WarningsConfiguration;
+    private static WarningsConfiguration BuildWarningsConfiguration()
+    {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+
+        return WarningsExtension(scope).WarningsConfiguration;
     }
 
     private static ILogger BuildLogger(string host, string category, bool withDevelopmentOverlay = false)

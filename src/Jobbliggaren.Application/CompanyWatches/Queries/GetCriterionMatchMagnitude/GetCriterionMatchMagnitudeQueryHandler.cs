@@ -20,10 +20,9 @@ public sealed class GetCriterionMatchMagnitudeQueryHandler(
     public async ValueTask<CriterionMatchMagnitudeDto?> Handle(
         GetCriterionMatchMagnitudeQuery query, CancellationToken cancellationToken)
     {
-        // Single-sourced owner-scoped load + ADR 0031 probe (#1559) — see CriterionOwnerScopedLoader.
         var criterion = await CriterionOwnerScopedLoader.LoadForCurrentUserAsync(
             db, currentUser, failedAccessLogger,
-            query.CriterionId, "GetCriterionMatchMagnitude", cancellationToken);
+            query.CriterionId, CriterionReadOperation.GetCriterionMatchMagnitude, cancellationToken);
 
         if (criterion is null)
             return null;

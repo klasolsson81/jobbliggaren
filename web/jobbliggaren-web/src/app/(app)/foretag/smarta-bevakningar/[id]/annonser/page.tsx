@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, getFormatter } from "next-intl/server";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import {
   browseCriterionAds,
@@ -40,7 +40,6 @@ const EMPTY_REFERENCE: CriterionReference = {
 };
 
 interface Props {
-  // Next.js 16 App Router: params and searchParams are Promises (async dynamic APIs).
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
@@ -54,8 +53,8 @@ interface Props {
  * <para/> **Why this is a route and not a `/jobb` link.** Klas asked for "en länk som visar
  * annonserna" (#1559) and `/jobb` cannot express this set: it has no SNI axis at all; its only
  * company axis is `?employer=`, whose producer refuses above `MAX_CONCEPT_IDS` = 400 org.nrs on an
- * every-value-or-none doctrine, against a criterion that matched 3 981 companies in the measured
- * case; and its `municipality` axis is the AD's workplace while a criterion's kommun is the
+ * every-value-or-none doctrine, against criteria that routinely match thousands of companies;
+ * and its `municipality` axis is the AD's workplace while a criterion's kommun is the
  * company's REGISTERED SEAT. Every link buildable from those axes is partial or false, so the
  * criterion's own id is the destination and no new `/jobb` axis is minted
  * (senior-cto-advisor 2026-09-04).
@@ -96,10 +95,24 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
     case "notFound":
       notFound();
     case "rateLimited":
-      return <ErrorShell title={t("ads.loadErrorTitle")} body={t("ads.rateLimited")} />;
+      return (
+        <ErrorShell
+          title={t("ads.loadErrorTitle")}
+          body={t("ads.rateLimited")}
+          backHref={`/foretag/smarta-bevakningar/${id}`}
+          backLabel={t("ads.backLink")}
+        />
+      );
     case "forbidden":
     case "error":
-      return <ErrorShell title={t("ads.loadErrorTitle")} body={t("ads.loadErrorBody")} />;
+      return (
+        <ErrorShell
+          title={t("ads.loadErrorTitle")}
+          body={t("ads.loadErrorBody")}
+          backHref={`/foretag/smarta-bevakningar/${id}`}
+          backLabel={t("ads.backLink")}
+        />
+      );
   }
 
   const { ads, magnitude } = adsResult.data;
@@ -141,22 +154,30 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 
-        {/* Mandatory selection explainer: the ads are chosen by the COMPANY's registered seat, never
-            by the ad's workplace. See the route docblock — this closes the implicature the headline
-            would otherwise carry. */}
-        <p className="mt-2 flex items-center gap-1 text-body-sm text-text-primary">
-          {t("ads.seatExplainer")}
-          <InfoDialog
-            title={t("ads.seatHelpTitle")}
-            paragraphs={[t("ads.seatHelpBody1"), t("ads.seatHelpBody2")]}
-            ariaLabel={t("ads.seatHelpAria")}
-          />
+        {/* The house's load-bearing "what you see is narrower than reality" primitive, not the
+            13px sibling treatment: the counter-claim has to stand against an h1 that says
+            "i Göteborg" while the list can hold a job in Linköping. */}
+        <p className="jp-transparency-note jp-transparency-note--inline-control mt-3">
+          <Info size={16} aria-hidden="true" />
+          <span>
+            {t("ads.seatExplainer")}
+            <InfoDialog
+              title={t("ads.seatHelpTitle")}
+              paragraphs={[t("ads.seatHelpBody1"), t("ads.seatHelpBody2")]}
+              ariaLabel={t("ads.seatHelpAria")}
+            />
+          </span>
         </p>
 
         {ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
             <div className="jp-empty__title">{t("ads.emptyTitle")}</div>
             <p className="jp-empty__body text-body-sm text-text-primary">{t("ads.emptyBody")}</p>
+            <div className="jp-empty__actions">
+              <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
+                {t("ads.backLink")}
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-4">
@@ -189,16 +210,25 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   );
 }
 
-/** Parse a `?page=` search param to a positive integer, defaulting to 1. */
 function parsePageParam(raw: string | string[] | undefined): number {
   const value = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
   return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
-function ErrorShell({ title, body }: { title: string; body: string }) {
+function ErrorShell({ title, body, backHref, backLabel }: {
+  title: string;
+  body: string;
+  backHref: string;
+  backLabel: string;
+}) {
   return (
     <div className="jp-container jp-page">
-      {/* role="alert" — parity with the sibling routes' civic notice. */}
+      {/* The back link lives here too: the ok-branch's copy is unreachable in this arm, and without
+          it the error screen has no way back to the watch except the global nav. */}
+      <Link href={backHref} className="jp-backlink mb-4">
+        <ArrowLeft size={16} aria-hidden="true" />
+        {backLabel}
+      </Link>
       <div
         role="alert"
         className="rounded-md border border-danger-600/30 bg-danger-50 px-6 py-4 text-danger-700">

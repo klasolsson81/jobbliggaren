@@ -66,6 +66,7 @@ const getJobAd = vi.fn();
 const getResumeById = vi.fn();
 const getParsedResume = vi.fn();
 const browseCriterionCompanies = vi.fn();
+const browseCriterionAds = vi.fn();
 
 // Spread the real module and override one export: the pages import siblings from these
 // same modules, and a bare factory would blank them.
@@ -86,6 +87,7 @@ vi.mock("@/lib/api/company-criteria", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/company-criteria")>()),
   browseCriterionCompanies: (...args: unknown[]) =>
     browseCriterionCompanies(...args),
+  browseCriterionAds: (...args: unknown[]) => browseCriterionAds(...args),
 }));
 
 /**
@@ -170,6 +172,14 @@ const ROUTES: readonly DetailRoute[] = [
     // `parsePageParam(undefined)` is 1.
     extraLoaderArgs: [1],
     importer: () => import("./foretag/smarta-bevakningar/[id]/page"),
+  },
+  {
+    path: "/foretag/smarta-bevakningar/[id]/annonser",
+    loader: browseCriterionAds,
+    ownTitle: svPages.foretag.smartaBevakningar.ads.meta.title,
+    // Paginated like its parent, and for the same reason its existence read takes the page.
+    extraLoaderArgs: [1],
+    importer: () => import("./foretag/smarta-bevakningar/[id]/annonser/page"),
   },
 ];
 

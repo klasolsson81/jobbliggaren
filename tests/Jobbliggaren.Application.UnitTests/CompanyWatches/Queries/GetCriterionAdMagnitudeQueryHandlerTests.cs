@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -47,8 +48,10 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
         result.Magnitude.ShouldBe(167);
         result.Saturated.ShouldBeFalse();
 
-        // The ceiling is the AD question's own constant, passed from the single source — never
-        // re-stated at the call site, and never the company magnitude's.
+        // The ceiling is passed from its single source rather than re-stated at the call site.
+        // It does NOT distinguish the two constants: CriterionAdMagnitudeDto.Ceiling and
+        // CriterionMatchMagnitudeDto.Ceiling are both 10 000 today, so swapping them keeps this
+        // green. Which constant is used is a compile-time fact, not a runtime one (test-writer V3).
         await port.Received(1).CountActiveAdsAsync(
             Arg.Is<CompanyWatchCriteriaSpec>(s => s != null
                 && s.SniCodes.SequenceEqual(SniIt)
@@ -131,7 +134,7 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
         // Detected (ADR 0031), and the operation name is THIS surface's — a shared constant would
         // erase which surface was probed.
         failedAccess.Received(1).LogCrossUserAttempt(
-            "CompanyWatchCriterion", theirs.Id.Value, Owner, nameof(GetCriterionAdMagnitudeQuery));
+            "CompanyWatchCriterion", theirs.Id.Value, Owner, CriterionReadOperation.GetCriterionAdMagnitude);
 
         // The register is never joined on behalf of a stranger.
         await port.DidNotReceiveWithAnyArgs().CountActiveAdsAsync(default!, default, CancellationToken.None);
@@ -160,7 +163,11 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
                 db, currentUser, Substitute.For<IFailedAccessLogger>(), port)
             .Handle(new GetCriterionAdMagnitudeQuery(criterion.Id.Value), ct);
 
-        // Fail-closed: no Guid.Empty fallback an unauthenticated caller could share a scope with.
+        // What this measures is the null-user arm, NOT the Guid.Empty fallback the loader's own
+        // docblock warns about — a criterion owned by Guid.Empty cannot exist
+        // (CompanyWatchCriterionTests pins that Create refuses it), so no test at this layer can
+        // distinguish the fallback (test-writer V1: the proposed shape is unbuildable, and the
+        // guarantee is the Domain's, not this handler's).
         result.ShouldBeNull();
         await port.DidNotReceiveWithAnyArgs().CountActiveAdsAsync(default!, default, CancellationToken.None);
     }

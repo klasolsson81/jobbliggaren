@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Domain.JobAds;
 
 namespace Jobbliggaren.Application.CompanyWatches.Abstractions;
 
@@ -118,7 +119,7 @@ public interface ICompanyWatchBrowseQuery
     /// honest headline number is <see cref="CountActiveAdsAsync"/>, with its own ceiling.
     /// </para>
     /// </summary>
-    ValueTask<PagedResult<Guid>> BrowseAdIdsAsync(
+    ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
         CompanyBrowseCriteria criteria, CancellationToken cancellationToken);
 
     /// <summary>
@@ -145,7 +146,6 @@ public interface ICompanyWatchBrowseQuery
     ValueTask<int> CountActiveAdsAsync(
         CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
 }
-
 
 /// <summary>
 /// Browse input: the Domain predicate + transport paging. Paging is deliberately NOT a Domain concept

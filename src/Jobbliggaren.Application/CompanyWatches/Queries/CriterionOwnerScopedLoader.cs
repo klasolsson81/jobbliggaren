@@ -13,8 +13,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// three-step procedure — load for THIS user, and on a miss re-probe without the owner predicate to
 /// tell an unknown id apart from a cross-user probe WITHOUT telling the caller apart. That is an IDOR
 /// posture, not a convenience: a copy that drops the second step still returns the right value and
-/// passes every semantic test while silently discarding the probing signal. CLAUDE.md §3.6's
-/// rule-of-three is met, and the repo's own "two copies, not three" precedent
+/// passes every semantic test while silently discarding the probing signal. The repo's own
+/// "two copies, not three" precedent
 /// (<c>ListCompanyWatchesQueryHandler.PnrShapedAdPredicate</c>) was justified by an OBSTACLE — LinqKit
 /// being off the BUILD.md §3.1 allowlist. There is no obstacle here.
 /// </para>
@@ -27,15 +27,39 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// </para>
 ///
 /// <para>
+/// <b>READ handlers only.</b> The command handlers keep their own copy on purpose: they need a
+/// TRACKED entity (<c>Remove</c>, <c>UpdateCriteria</c>) and this load is <c>AsNoTracking</c>, so
+/// calling it from a command would hand back a detached aggregate whose mutation silently does not
+/// save.
+/// </para>
+///
+/// <para>
 /// <b>Counts-only logging (DPIA C-D5).</b> The probe logs the criterion id and the user id — never an
 /// org.nr and never a company name; nothing from the register passes through here at all.
 /// </para>
 /// </summary>
+/// <summary>
+/// The surface names recorded on a cross-user attempt (ADR 0031). One value per read surface, and
+/// deliberately NOT <c>nameof</c>: the two original values predate this type and carry no
+/// <c>Query</c> suffix, so deriving the new ones from type names would put two shapes in one audit
+/// column and break continuity with the log history already written under the old values.
+/// </summary>
+internal static class CriterionReadOperation
+{
+    public const string BrowseCompanies = "BrowseCompanies";
+    public const string GetCriterionMatchMagnitude = "GetCriterionMatchMagnitude";
+    public const string BrowseCriterionAds = "BrowseCriterionAds";
+    public const string GetCriterionAdMagnitude = "GetCriterionAdMagnitude";
+}
+
 internal static class CriterionOwnerScopedLoader
 {
     /// <param name="operation">
-    /// The name recorded on a cross-user attempt. Each call site passes its OWN query name so the
-    /// audit trail says which surface was probed — a shared constant would erase exactly that.
+    /// The name recorded on a cross-user attempt — one value per surface, from
+    /// <see cref="CriterionReadOperation"/>, so the audit trail says which surface was probed. The
+    /// constants exist because the value is a magic string otherwise (§5) and because the four call
+    /// sites had drifted into two shapes: <c>nameof(SomeQuery)</c> carries a <c>Query</c> suffix the
+    /// original two values do not, and a log filter keyed on either shape silently misses the other.
     /// </param>
     public static async Task<CompanyWatchCriterion?> LoadForCurrentUserAsync(
         IAppDbContext db,

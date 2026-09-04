@@ -103,7 +103,7 @@ public static class CompanyWatchCriteriaEndpoints
 
         // #1559 — the criterion's ACTIVE ads (the companies it matches, and what they are hiring
         // for), mirroring the /companies split above: TWO mediator sends composed into one response
-        // (§2.3). The page's PagedResult.TotalCount is a PAGINATION quantity capped at 2000 and is
+        // (§2.3). The page's PagedResult.TotalCount is a PAGINATION quantity and is
         // never rendered; the honest headline is the magnitude, with its OWN ceiling
         // (CriterionAdMagnitudeDto.Ceiling — the ad question, not the company one). null → 404 for
         // unknown AND cross-user ids alike. The magnitude re-check catches the race where the

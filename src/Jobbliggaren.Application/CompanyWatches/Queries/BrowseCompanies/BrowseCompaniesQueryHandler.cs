@@ -45,12 +45,9 @@ public sealed class BrowseCompaniesQueryHandler(
     public async ValueTask<PagedResult<CompanyBrowseDto>?> Handle(
         BrowseCompaniesQuery query, CancellationToken cancellationToken)
     {
-        // The owner-scoped load + ADR 0031 cross-user probe are single-sourced (#1559): four read
-        // handlers now run the same IDOR posture, and a copy that drops the probe returns the same
-        // value while silently discarding the signal.
         var criterion = await CriterionOwnerScopedLoader.LoadForCurrentUserAsync(
             db, currentUser, failedAccessLogger,
-            query.CriterionId, "BrowseCompanies", cancellationToken);
+            query.CriterionId, CriterionReadOperation.BrowseCompanies, cancellationToken);
 
         if (criterion is null)
             return null;

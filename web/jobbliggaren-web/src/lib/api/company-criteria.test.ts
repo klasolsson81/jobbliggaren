@@ -15,6 +15,8 @@ import {
   getCompanyWatchCriteria,
   getCriterionReference,
   browseCriterionCompanies,
+  browseCriterionAds,
+  getCriterionAdCount,
   previewCriterionCount,
   createCriterion,
   updateCriterion,
@@ -210,6 +212,128 @@ describe("browseCriterionCompanies — register run", () => {
   it("200 malformed body → error", async () => {
     global.fetch = vi.fn().mockResolvedValue(jsonResponse({ companies: {} }));
     expect(await browseCriterionCompanies(VALID_ID, 1)).toEqual({ kind: "error" });
+  });
+});
+
+// ── browseCriterionAds / getCriterionAdCount ────────────────────────────────
+
+describe("browseCriterionAds — the criterion's ad run", () => {
+  const ad = {
+    id: "aaaaaaaa-1111-2222-3333-444444444444",
+    title: "Systemingenjör",
+    companyName: "Acme AB",
+    url: "https://example.com/jobs/1",
+    source: "Platsbanken",
+    status: "Active",
+    publishedAt: "2026-08-20T08:00:00+00:00",
+    expiresAt: "2026-09-20T08:00:00+00:00",
+    createdAt: "2026-08-20T09:00:00+00:00",
+  };
+  const response = {
+    ads: { items: [ad], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 },
+    magnitude: { magnitude: 167, saturated: false },
+  };
+
+  it("no session → unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await browseCriterionAds(VALID_ID, 1)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("non-GUID id → notFound without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await browseCriterionAds("../admin", 1)).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 composed response (page + magnitude) → ok", async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(response));
+    const result = await browseCriterionAds(VALID_ID, 1);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.ads.totalPages).toBe(1);
+      expect(result.data.ads.items[0]!.title).toBe("Systemingenjör");
+      expect(result.data.magnitude).toEqual({ magnitude: 167, saturated: false });
+    }
+  });
+
+  it("clamps a non-positive page to 1 in the query string", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response));
+    global.fetch = fetchMock;
+    await browseCriterionAds(VALID_ID, 0);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("page=1&pageSize=20");
+  });
+
+  it("404 (unknown OR cross-user id) → notFound", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
+    expect(await browseCriterionAds(VALID_ID, 1)).toEqual({ kind: "notFound" });
+  });
+
+  it("200 malformed body → error", async () => {
+    // The ad rows are validated by the SAME `jobAdDtoSchema` /jobb uses, so a wire skew on any of
+    // its fields degrades to a civil error rather than rendering a half-parsed ad. This is what
+    // makes the mirrored schema a guarantee instead of a hope.
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ ads: { items: [{ id: ad.id }] }, magnitude: {} }));
+    expect(await browseCriterionAds(VALID_ID, 1)).toEqual({ kind: "error" });
+  });
+});
+
+describe("getCriterionAdCount — the headline number alone", () => {
+  it("no session → unauthorized without a backend round-trip", async () => {
+    getSessionIdMock.mockResolvedValue(null);
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "unauthorized" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("non-GUID id → notFound without a backend round-trip", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    expect(await getCriterionAdCount("../admin")).toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("200 { magnitude, saturated } → ok, and asks the count route (never the ad page)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ magnitude: 167, saturated: false }));
+    global.fetch = fetchMock;
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({
+      kind: "ok",
+      data: { magnitude: 167, saturated: false },
+    });
+    // The detail page must not pay for twenty ad rows it never renders, and must not read the
+    // capped pagination `totalCount` as the magnitude — both are the same mistake in one call.
+    const url = String(fetchMock.mock.calls[0]![0]);
+    expect(url).toContain("/ad-count");
+    expect(url).not.toContain("pageSize");
+  });
+
+  it("saturated true survives the wire", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ magnitude: 10000, saturated: true }));
+    const result = await getCriterionAdCount(VALID_ID);
+    expect(result).toEqual({ kind: "ok", data: { magnitude: 10000, saturated: true } });
+  });
+
+  it("404 (unknown OR cross-user id) → notFound", async () => {
+    global.fetch = vi.fn().mockResolvedValue(emptyResponse(404));
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "notFound" });
+  });
+
+  it("200 malformed body → error, never a false 0", async () => {
+    // The detail page renders a civil "cannot be shown" line on `error`. A schema that let a
+    // malformed body through as `{ magnitude: 0 }` would render "Inga aktiva annonser" — a false
+    // statement rather than an absent one (#859).
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ magnitude: "many" }));
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
   });
 });
 

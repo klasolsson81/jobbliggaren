@@ -35,7 +35,7 @@ public sealed class GetCriterionAdMagnitudeQueryHandler(
     {
         var criterion = await CriterionOwnerScopedLoader.LoadForCurrentUserAsync(
             db, currentUser, failedAccessLogger,
-            query.CriterionId, nameof(GetCriterionAdMagnitudeQuery), cancellationToken);
+            query.CriterionId, CriterionReadOperation.GetCriterionAdMagnitude, cancellationToken);
 
         if (criterion is null)
             return null;

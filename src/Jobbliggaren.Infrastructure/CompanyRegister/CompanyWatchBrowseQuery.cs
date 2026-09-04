@@ -265,7 +265,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     private const string AdCountSql =
         "SELECT count(*) FROM (SELECT 1 " + AdsFromWhere + " LIMIT @count_cap) t;";
 
-    public async ValueTask<PagedResult<Guid>> BrowseAdIdsAsync(
+    public async ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
         CompanyBrowseCriteria criteria, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(criteria);
@@ -281,17 +281,17 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
             totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        var ids = new List<Guid>();
+        var ids = new List<JobAdId>();
         await using (var idsCmd = BuildAdIdsCommand(
             connection, criteria.Criteria, criteria.Page, criteria.PageSize))
         {
             await using var reader = await idsCmd
                 .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-                ids.Add(reader.GetGuid(0));
+                ids.Add(new JobAdId(reader.GetGuid(0)));
         }
 
-        return new PagedResult<Guid>(ids, totalCount, criteria.Page, criteria.PageSize);
+        return new PagedResult<JobAdId>(ids, totalCount, criteria.Page, criteria.PageSize);
     }
 
     public async ValueTask<int> CountActiveAdsAsync(
@@ -345,7 +345,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// <summary>
     /// Binds the ad-side status. Separate from <see cref="BindPredicate"/> because that routine is
     /// shared with the three register-only statements, none of which has an <c>@ad_status</c>
-    /// placeholder — Npgsql throws on a parameter the statement does not name.
+    /// placeholder.
     ///
     /// <para>
     /// The value comes from <c>JobAdStatus.Active</c>, not a literal (§5 magic strings):

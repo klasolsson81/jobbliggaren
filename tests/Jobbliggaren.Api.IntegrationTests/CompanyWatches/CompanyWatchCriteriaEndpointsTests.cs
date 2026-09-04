@@ -387,17 +387,26 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         unknownCount.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    [Fact]
-    public async Task Ad_browse_rejects_a_page_beyond_the_bound()
+    [Theory]
+    [InlineData("page=101")]
+    [InlineData("page=0")]
+    [InlineData("pageSize=101")]
+    [InlineData("pageSize=0")]
+    public async Task Ad_browse_rejects_transport_bounds_with_400_never_500(string query)
     {
-        // The validator's bound and the port's count cap are one knowledge piece: page 101 is a 400,
-        // which is what makes "TotalPages never exceeds MaxPage" true rather than hopeful.
+        // The validator's bounds and the port's count cap are one knowledge piece: rejecting the
+        // out-of-range page is what makes "TotalPages never exceeds MaxPage" true rather than
+        // hopeful. And the failure MODE matters as much as the rejection — CompanyBrowseCriteria's
+        // constructor throws ArgumentOutOfRangeException, so a missing validator rule is not a
+        // permissive 200 but a 500. Only the pageSize bound could actually produce one before this
+        // test existed (test-writer §3).
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var id = await CreateAsync(ct);
 
-        (await _client.GetAsync($"{Endpoint}/{id}/ads?page=101", ct)).StatusCode
-            .ShouldBe(HttpStatusCode.BadRequest);
+        var response = await _client.GetAsync($"{Endpoint}/{id}/ads?{query}", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     /// <summary>
@@ -425,8 +434,8 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
             for (var i = 0; i < count; i++)
             {
                 var externalId = $"ext-{Guid.NewGuid():N}";
-                // The org.nr reaches the column through the FACETS, which is the ACL's own path —
-                // not a hand-set property.
+                // The org.nr reaches the column the way production's ACL puts it there: parsed OUT
+                // of the payload, not handed in as a separate argument beside it.
                 var payload = $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}}}}";
                 var import = JobAd.Import(
                     title: $"Roll {offset}",
@@ -435,7 +444,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
                     url: $"https://example.com/jobs/{externalId}",
                     external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
                     rawPayload: payload,
-                    facets: TestFacets.From(organizationNumber: orgNr),
+                    facets: TestFacets.FromPayload(payload),
                     publishedAt: published.AddDays(-offset),
                     expiresAt: published.AddDays(60),
                     clock: new FixedClock(published.AddDays(-offset)),
@@ -444,7 +453,11 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
                 import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
 
                 if (status == JobAdStatus.Archived)
-                    import.Value.Archive(new FixedClock(published));
+                {
+                    var archived = import.Value.Archive(new FixedClock(published));
+                    archived.IsSuccess.ShouldBeTrue(
+                        $"seed: JobAd.Archive måste lyckas ({archived.Error?.Code})");
+                }
 
                 db.JobAds.Add(import.Value);
                 offset++;

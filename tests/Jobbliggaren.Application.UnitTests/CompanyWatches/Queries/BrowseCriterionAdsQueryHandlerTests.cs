@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -38,7 +39,7 @@ public class BrowseCriterionAdsQueryHandlerTests
 
         var ad = SeedAd(db, "Utvecklare", "Acme AB", publishedAt: T0.AddDays(-1));
 
-        var port = PortReturning([ad.Value], totalCount: 1);
+        var port = PortReturning([ad], totalCount: 1);
 
         var result = await HandlerFor(db, Owner, port)
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 1, PageSize: 20), ct);
@@ -77,11 +78,13 @@ public class BrowseCriterionAdsQueryHandlerTests
         await using var db = TestAppDbContextFactory.Create();
         var criterion = await SeedCriterionAsync(db, Owner, ct);
 
+        // Seeded in a THIRD order — neither the expected order nor its reverse — so the assertion
+        // cannot be satisfied by insertion order if the re-order is dropped (test-writer V4).
         var oldest = SeedAd(db, "Äldst", "A AB", publishedAt: T0.AddDays(-30));
         var newest = SeedAd(db, "Nyast", "B AB", publishedAt: T0.AddDays(-1));
         var middle = SeedAd(db, "Mitten", "C AB", publishedAt: T0.AddDays(-10));
 
-        var port = PortReturning([oldest.Value, middle.Value, newest.Value], totalCount: 3);
+        var port = PortReturning([oldest, middle, newest], totalCount: 3);
 
         var result = await HandlerFor(db, Owner, port)
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
@@ -91,11 +94,61 @@ public class BrowseCriterionAdsQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_EmptyPage_ShortCircuits_ButStillCarriesThePortsTotalCount()
+    public async Task Handle_ReturnsOnlyTheIdsThePortGave_NeverEveryAd()
     {
-        // Page 100 of a two-row set: no ids, so no ad load is worth a round-trip — but the pagination
-        // total is the PORT's answer and must survive the short-circuit, or the pager would collapse
-        // to "0 rows" on any page past the end.
+        // `.Where(j => page.Items.Contains(j.Id))` is the ONLY thing stopping this handler from
+        // projecting the whole job_ads table. Without a second seeded ad the filter can be deleted
+        // with every other test in this class still green (test-writer V6).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        var wanted = SeedAd(db, "Efterfrågad", "A AB", publishedAt: T0.AddDays(-1));
+        SeedAd(db, "Icke efterfrågad", "B AB", publishedAt: T0.AddDays(-2));
+
+        var port = PortReturning([wanted], totalCount: 1);
+
+        var result = await HandlerFor(db, Owner, port)
+            .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
+
+        result.ShouldNotBeNull();
+        result.Items.Count.ShouldBe(1);
+        result.Items.Single().Id.ShouldBe(wanted.Value);
+    }
+
+    [Fact]
+    public async Task Handle_AdsSharingAPublishedAt_AreOrderedByIdSoThePageIsTotallyOrdered()
+    {
+        // The tiebreak half of the order. Every other ordering test seeds distinct PublishedAt
+        // values, so `.ThenBy(j => j.Id)` can be deleted with all of them green — and a non-total
+        // order plus OFFSET drops and duplicates rows across pages (test-writer V7).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        var sameInstant = T0.AddDays(-3);
+        var a = SeedAd(db, "Först", "A AB", publishedAt: sameInstant);
+        var b = SeedAd(db, "Sedan", "B AB", publishedAt: sameInstant);
+
+        var port = PortReturning([a, b], totalCount: 2);
+
+        var result = await HandlerFor(db, Owner, port)
+            .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
+
+        result.ShouldNotBeNull();
+        result.Items.Select(i => i.Id).ShouldBe(
+            new[] { a.Value, b.Value }.OrderBy(g => g).ToList());
+    }
+
+    [Fact]
+    public async Task Handle_EmptyPage_CarriesThePortsTotalCountAndPageNumber()
+    {
+        // Page 100 of a two-row set. What this pins is that the PORT's pagination total survives an
+        // empty page — otherwise the pager would collapse to "0 rows" on any page past the end.
+        // It does NOT pin the short-circuit itself: deleting that early return leaves this green,
+        // because an empty id set produces the same result through the query path. The
+        // short-circuit is an optimisation, and on InMemory there is no command to count
+        // (test-writer V2 — the name says what is measured).
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
         var criterion = await SeedCriterionAsync(db, Owner, ct);
@@ -140,7 +193,7 @@ public class BrowseCriterionAdsQueryHandlerTests
             .Handle(new BrowseCriterionAdsQuery(theirs.Id.Value, 1, 20), ct);
 
         failedAccess.Received(1).LogCrossUserAttempt(
-            "CompanyWatchCriterion", theirs.Id.Value, Owner, nameof(BrowseCriterionAdsQuery));
+            "CompanyWatchCriterion", theirs.Id.Value, Owner, CriterionReadOperation.BrowseCriterionAds);
 
         await port.DidNotReceiveWithAnyArgs().BrowseAdIdsAsync(default!, CancellationToken.None);
 
@@ -171,11 +224,11 @@ public class BrowseCriterionAdsQueryHandlerTests
     }
 
     private static ICompanyWatchBrowseQuery PortReturning(
-        Guid[] ids, int totalCount, int page = 1, int pageSize = 20)
+        JobAdId[] ids, int totalCount, int page = 1, int pageSize = 20)
     {
         var port = Substitute.For<ICompanyWatchBrowseQuery>();
         port.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<Guid>(ids, totalCount, page, pageSize));
+            .Returns(new PagedResult<JobAdId>(ids, totalCount, page, pageSize));
         return port;
     }
 

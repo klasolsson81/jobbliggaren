@@ -19,9 +19,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// JOIN is the only half that needs <c>company_register</c> — which is not a <c>DbSet</c> on
 /// <see cref="IAppDbContext"/> (DPIA C-D4 / M-C5) and therefore unreachable from here. Projecting the
 /// ad columns inside the register's Infrastructure file instead would give the job-ad read shape a
-/// second home beside the Application-side projection every other ad surface uses. The precedent is
-/// <c>ListNewFollowedCompanyAdsQueryHandler</c> (#1576), which projects <see cref="JobAdDto"/> the
-/// same way over the same aggregate.
+/// second home beside the Application-side projection every other ad surface uses.
 /// </para>
 ///
 /// <para>
@@ -51,7 +49,7 @@ public sealed class BrowseCriterionAdsQueryHandler(
     {
         var criterion = await CriterionOwnerScopedLoader.LoadForCurrentUserAsync(
             db, currentUser, failedAccessLogger,
-            query.CriterionId, nameof(BrowseCriterionAdsQuery), cancellationToken);
+            query.CriterionId, CriterionReadOperation.BrowseCriterionAds, cancellationToken);
 
         if (criterion is null)
             return null;
@@ -64,13 +62,9 @@ public sealed class BrowseCriterionAdsQueryHandler(
         if (page.Items.Count == 0)
             return new PagedResult<JobAdDto>([], page.TotalCount, page.Page, page.PageSize);
 
-        var ids = page.Items.Select(id => new JobAdId(id)).ToList();
-
-        var items = await db.JobAds
+        var rows = await db.JobAds
             .AsNoTracking()
-            .Where(j => ids.Contains(j.Id))
-            .OrderByDescending(j => j.PublishedAt)
-            .ThenBy(j => j.Id)
+            .Where(j => page.Items.Contains(j.Id))
             .Select(j => new JobAdDto(
                 j.Id.Value,
                 j.Title,
@@ -82,6 +76,11 @@ public sealed class BrowseCriterionAdsQueryHandler(
                 j.ExpiresAt,
                 j.CreatedAt))
             .ToListAsync(cancellationToken);
+
+        var items = rows
+            .OrderByDescending(d => d.PublishedAt)
+            .ThenBy(d => d.Id)
+            .ToList();
 
         return new PagedResult<JobAdDto>(items, page.TotalCount, page.Page, page.PageSize);
     }

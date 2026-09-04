@@ -147,21 +147,18 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             false 0 (#859 — a rendered magnitude is true or absent). */}
         {adCountResult.kind === "ok" ? (
           adCountResult.data.magnitude > 0 ? (
-            <p className="jp-matchline tabular-nums mt-2">
-              <Link
-                href={`/foretag/smarta-bevakningar/${id}/annonser`}
-                aria-label={t("ads.linkAria")}
-              >
+            <p className="jp-matchline tabular-nums">
+              <Link href={`/foretag/smarta-bevakningar/${id}/annonser`}>
                 {t("ads.linkLabel", {
                   count: formatMagnitude(format, adCountResult.data),
                 })}
               </Link>
             </p>
           ) : (
-            <p className="jp-matchline mt-2">{t("ads.none")}</p>
+            <p className="jp-matchline">{t("ads.none")}</p>
           )
         ) : (
-          <p className="jp-matchline mt-2">{t("ads.countUnavailable")}</p>
+          <p className="jp-matchline">{t("ads.countUnavailable")}</p>
         )}
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not

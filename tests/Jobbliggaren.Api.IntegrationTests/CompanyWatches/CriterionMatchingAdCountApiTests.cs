@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -149,6 +148,10 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
 
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
 
+        // The criterion HAS three active ads; none of them match. Without this line a fixture that
+        // stopped joining would read identically -- "no matching ads" and "no ads" are the same 0.
+        count.GetProperty("ads").GetProperty("magnitude").GetInt32().ShouldBe(3);
+
         // A real 0, and it is a DIFFERENT wire shape from the not-assessed arm above. Collapsing the
         // two is the whole hazard: one means "nothing matches you", the other "we did not measure".
         count.GetProperty("matching").GetProperty("count").GetInt32().ShouldBe(0);
@@ -160,49 +163,17 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task The_port_refuses_an_oversized_set_rather_than_returning_a_prefix()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var group = NewGroup();
-        var region = NewRegion();
-        var orgNr = NewOrgNr();
-
-        await SeedRegisterAsync(orgNr, ct);
-        await SeedAdsAsync(orgNr, matching: 2, unmatched: 1, group, region, ct);
-
-        await AuthenticateAsync(ct);
-        await SetPreferencesAsync(group, region, ct);
-        var id = await CreateCriterionAsync(ct);
-
-        // Seeding past MaxSetSize would cost thousands of rows on a shared database, so this asserts
-        // the port's own refusal at a bound the fixture can reach. The SIZE GATE that normally spares
-        // this query entirely reads the ad magnitude and is pinned in
-        // GetMyMatchingAdCountForCriterionQueryHandlerTests; the probe below is what still catches a
-        // set that grew after that magnitude was measured.
-        CriterionMatchingAdSet.MaxSetSize.ShouldBeGreaterThan(3);
-
-        var withinBound = await _client.GetFromJsonAsync<JsonElement>(
-            $"{Endpoint}/{id}/ad-count", ct);
-        withinBound.GetProperty("matching").GetProperty("count").GetInt32().ShouldBe(2);
-
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var port = new CompanyWatchBrowseQuery(db);
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([SniOwn], [KommunGoteborg]);
-
-        // The port itself is where the refusal lives, and it refuses rather than handing back the
-        // first two of three -- a prefix that would have been graded and counted as if complete.
-        (await port.ListActiveAdIdsAsync(spec, maxSetSize: 2, ct)).ShouldBeNull();
-        (await port.ListActiveAdIdsAsync(spec, maxSetSize: 3, ct))!.Count.ShouldBe(3);
-    }
-
-    [Fact]
     public async Task Another_users_criterion_is_404_on_both_ad_routes()
     {
         var ct = TestContext.Current.CancellationToken;
         await SeedRegisterAsync(NewOrgNr(), ct);
         await AuthenticateAsync(ct);
         var theirId = await CreateCriterionAsync(ct);
+
+        // The owner reaches it, so the 404s below are the cross-user gate and not a route that
+        // answers 404 for everybody.
+        (await _client.GetAsync($"{Endpoint}/{theirId}/ad-count", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
 
         var other = _factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(other, ct: ct);
@@ -310,9 +281,9 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
 
     /// <summary>
     /// Seeds Active ads through the production ingest entry point (<c>JobAd.Import</c>). The org.nr
-    /// and the grade shadows reach their columns the way production's ACL puts them there — parsed
-    /// OUT of the payload — because those columns are STORED generated and a hand-set value would be
-    /// a premise production cannot produce (CLAUDE.md §5 <c>Tests:</c>).
+    /// and the grade facets are parsed OUT of the payload by <c>TestFacets.FromPayload</c>, whose
+    /// paths are pinned against the real ACL elsewhere — so the seeded state is one <c>src/</c>
+    /// produces rather than a hand-set shape (CLAUDE.md §5 <c>Tests:</c>).
     /// </summary>
     private async Task SeedAdsAsync(
         string orgNr, int matching, int unmatched, string group, string region, CancellationToken ct)

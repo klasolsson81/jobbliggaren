@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
@@ -477,6 +478,51 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task AdIdSetQuery_UsesTheSniGinIndex()
+    {
+        // #1656 (b) — a FOURTH command text, therefore a FOURTH plan, and the one whose plan the
+        // whole cost story rests on. It differs from the ad-id page query in the two ways a planner
+        // cares about: no OFFSET, and a LIMIT three orders of magnitude larger. A large LIMIT makes a
+        // job_ads-driven plan far more attractive than a LIMIT 20 does, and the existing pins cannot
+        // see that -- they EXPLAIN the other three statements.
+        //
+        // Not cosmetic: two readings of this query on different statistics states came back 27 ms and
+        // 11 881 ms, because one planned an index walk and the other a sort over the whole match set.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildAdIdSetCommand(
+                conn, spec, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
+            ct);
+
+        AssertServedByGin(plan, "ad id set");
+    }
+
+    [Fact]
+    public void AdIdSetQuery_OrdersByATotalKey()
+    {
+        // The set query and the page query share AdsOrderBy, and this is what that sharing is FOR:
+        // the filtered view paginates the SET while the unfiltered view paginates the PAGE query, so
+        // two different orders would sequence one against the other. Asserted on the SQL rather than
+        // the plan for the same reason its sibling is -- and because a MISSING order cannot be seen
+        // behaviourally here: the fixture inserts newest-first, so heap order and published_at DESC
+        // coincide.
+        using var conn = new NpgsqlConnection();
+        using var cmd = CompanyWatchBrowseQuery.BuildAdIdSetCommand(
+            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]),
+            maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize);
+
+        cmd.CommandText.ShouldContain(
+            "ORDER BY j.published_at DESC, j.id",
+            customMessage:
+                "The ad-set query's ORDER BY is no longer TOTAL, or no longer shared with the page "
+                + "query. The filtered view cuts its page from THIS sequence while the unfiltered view "
+                + "pages the other statement; two orders means one is sequenced against the other.");
+    }
+
+    [Fact]
     public void AdIdsQuery_OrdersByATotalKey()
     {
         // Same guarantee as ItemsQuery_OrdersByATotalKey, same reason it is asserted on the SQL rather
@@ -708,6 +754,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, AdRows), ct);
 
         set.ShouldNotBeNull();
+        set.Count.ShouldBe(AdRows);
         set.ShouldBe(page.Items);
     }
 

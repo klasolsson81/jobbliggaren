@@ -105,7 +105,7 @@ Komplett skala, line-heights och Tailwind-mappning → **jobbpilot-design-tokens
 ## 5. Spacing och layout (sammanfattning)
 
 - **4px-baserad skala.** Vanliga värden: 8, 12, 16, 24, 28, 48, 64.
-- **Border-radius:** sm 2px (inputs/badges), md 4px (default — knappar, panels, sökruta), lg 6px (större paneler/dropdowns), pill 9999px (endast statusprickar/pills). Inga andra radier — inga 8/10/12px.
+- **Border-radius:** golvet är `--jp-r-md` för rader/kort/knappar, modaler går på `--jp-r-lg`, och pill är undantaget. **Radier över `--jp-r-lg` är förbjudna** — `--jp-r-xl` (12px, "endast hero") togs bort med ADR 0052:s amendment 2026-07-26 när hero-plattan blev `--jp-r-md`. Komplett skala med px-värden → **jobbpilot-design-tokens** (ADR 0052 Beslut 4 + impl-note; `HANDOVER-v3.md` §4/§5.6).
 - **App shell (Variant B):** vänster sidebar 240px med `border-right` hairline, topbar 56px, innehåll max-width 1080px.
 - **Formulär:** max-width 640px, labels alltid ovanför inputs.
 - Desktop-first — touch (≤768px) bumpar hit-targets till 44px, ledger-tabeller stackas (utvecklaransvar).

@@ -64,7 +64,7 @@ or does it add cognitive load?**
 | Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, purple, cyan accents |
 | Direct Swedish copy | Emojis, exclamation marks, "Let's go!" |
 | Tables and lists | Card layouts everywhere |
-| `border-radius: 4px` | 16px+ rounded corners |
+| `border-radius` via `--jp-r-*` | radii above `--jp-r-lg` |
 | Muted status colors | Glow, drop shadow, glassmorphism |
 | Breadcrumbs + hierarchy | Flat pages without context |
 | Source Sans 3 / JetBrains Mono | Display fonts, scripts, Inter/Roboto/Arial |

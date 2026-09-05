@@ -119,7 +119,7 @@ color: text-text-secondary
 ```
 bg-surface-primary
 border border-border-default
-rounded-md (4px)
+rounded-md
 p-4
 ```
 
@@ -221,7 +221,7 @@ Application status → Badge variant mapping:
 
 ```
 Overlay:  bg-black/45
-Panel:    bg-surface-primary rounded-lg (6px) border border-border-default
+Panel:    bg-surface-primary rounded-lg border border-border-default
 Header:   px-6 pt-6 pb-0
 Body:     px-6 py-4
 Footer:   px-6 pb-6 flex justify-end gap-2
@@ -406,7 +406,7 @@ field: flex column gap 6px; label 14px/500 text-secondary;
 ```
 flex; gap 12px; padding 14px 16px
 bg brand-50; border 1px brand-100; border-left 3px brand-600
-border-radius var(--jp-r-md) (4px)
+border-radius var(--jp-r-md)
 title 16px/500 text-primary; text 14px text-secondary
 cta brand-700 underlined
 ```

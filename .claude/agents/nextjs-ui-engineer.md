@@ -33,7 +33,7 @@ Actively reject, even when requested: gradient backgrounds (`bg-linear-to-*` —
 sole exception: hero plate `--jp-hero-gradient` per ADR 0068), glassmorphism
 (`backdrop-blur`, `bg-white/10`), glow effects, violet/indigo primaries, neon
 borders, animated gradients, `shadow-2xl`-everywhere, emoji in JSX, prominent
-"Powered by AI" badges, hero typography >48px in app UI, radius >6px (pills/
+"Powered by AI" badges, hero typography >48px in app UI, radius > 8px (pills/
 badges exempt). On rejection: name the DESIGN.md rule and propose a civic
 alternative (solid token colors, 1px `border-border` separation, typographic
 weight, spacing). Exceptions require Klas + a DESIGN.md update first.
@@ -57,7 +57,7 @@ weight, spacing). Exceptions require Klas + a DESIGN.md update first.
 - Tokens only: `bg-background`, `text-foreground`, `border-border`, `text-h1`/
   `text-h2`/`text-body` — never palette defaults (`bg-slate-100`) or hex. If a
   token is missing, escalate to Klas before substituting a default.
-- Radius: `rounded-sm|md|lg` (2/4/6px) — never `rounded-xl`+.
+- Radius: `rounded-sm|md|lg` — never `rounded-xl`+.
 - v4 renamed gradients to `bg-linear-to-*` (forbidden in app UI regardless).
 - No `content` array needed (Oxide auto-detects).
 

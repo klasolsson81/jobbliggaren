@@ -212,7 +212,7 @@ for data fetching (a page's **initial data** — see §4 for the delivered poll 
 short-lived-client-read shapes, which this does not reach) · `console.log` in production · emoji in UI copy ·
 exclamation marks (civic tone) · gradients/drop shadows > `shadow-sm`/glow/
 glassmorphism — **sole exception:** the hero plate's dark-green gradient
-(`--jp-hero-gradient`, scoped per ADR 0068) · radius > 6px except pills/badges
+(`--jp-hero-gradient`, scoped per ADR 0068) · radius > 8px except pills/badges
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv/`) · direct DOM manipulation.
 

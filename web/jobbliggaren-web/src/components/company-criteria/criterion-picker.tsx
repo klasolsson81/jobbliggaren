@@ -26,10 +26,31 @@ import type {
  *
  * 300 sits in a measured gap: it excludes every non-selective query (`er` 665, `in` 649, `ni` 516,
  * `an` 405, `ve` 397) and admits every query that has actually narrowed something (`st` 275,
- * `ha` 181, `tr` 167, `verksamhet` 152, `dat` 22, `sys` 2). Above roughly a third of the catalogue the
+ * `ha` 181, `tr` 167, `verksamhet` 162, `dat` 25, `sys` 4). Above roughly a third of the catalogue the
  * filter has selected nothing, and the tree is the better rendering of "most of the catalogue".
+ *
+ * Counts of 3+ characters now span two match surfaces (name and alias, #1115) and were re-measured
+ * on 2026-09-05; the 1-2 character counts are name-only and unchanged, since aliases do not answer
+ * below ALIAS_MIN_QUERY.
  */
 const MAX_FILTER_MATCHES = 300;
+
+/**
+ * Aliases (#1115) answer queries of this length and up; names still match at ONE character.
+ *
+ * **This is not a MIN_QUERY revival.** The constant above rejects length as a proxy for cardinality,
+ * and rightly: `MIN_QUERY = 2` suppressed the whole filter — exact name matches included — on a
+ * cardinality guess. Nothing here gates the filter. `c` still returns 507 rows and every 1-2
+ * character count in the docblock above is unchanged.
+ *
+ * It bounds ONE match surface to its own domain: an alias resolves a WORD, and a 1-2 character
+ * fragment is not one. Measured, that costs zero coverage — every term on the demand list is 4+
+ * characters, and all 17 probed gap words resolve with the bound as without it. Without it `st`
+ * went 275 → 318 and crossed the ceiling above, which is the regression this prevents.
+ *
+ * MAX_FILTER_MATCHES remains the only cardinality guard.
+ */
+const ALIAS_MIN_QUERY = 3;
 
 interface CriterionPickerProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;
@@ -103,11 +124,26 @@ export function CriterionPicker({
   // Matches at EVERY level (#999): a section, a division and a leaf can all carry the searched word,
   // and the control this replaced searched all three. Leaf-only matching is why "hard to find" survived
   // the last two rounds — you had to already know the detail code's exact wording.
+  //
+  // A row matches on its NAME, or (#1115) on one of its ALIASES — the everyday words SNI, which
+  // classifies activities, has no word for. `matchedAlias` is undefined when the name matched, and
+  // that is what the row renders on: a row is annotated only when it appeared for a reason its own
+  // visible text does not already show.
   const filteredOptions = useMemo(() => {
     if (!isFiltering) return [];
-    return options.filter((option) =>
-      option.name.toLocaleLowerCase("sv-SE").includes(trimmed),
-    );
+    const out: Array<{ option: CriterionOption; matchedAlias?: string }> = [];
+    for (const option of options) {
+      if (option.name.toLocaleLowerCase("sv-SE").includes(trimmed)) {
+        out.push({ option });
+        continue;
+      }
+      if (trimmed.length < ALIAS_MIN_QUERY) continue;
+      const hit = option.aliases.find((alias) =>
+        alias.toLocaleLowerCase("sv-SE").includes(trimmed),
+      );
+      if (hit) out.push({ option, matchedAlias: hit });
+    }
+    return out;
   }, [options, trimmed, isFiltering]);
 
   const tooMany = filteredOptions.length > MAX_FILTER_MATCHES;
@@ -213,7 +249,7 @@ export function CriterionPicker({
           ) : showFilterList ? (
             // No nested `role="group"` here: the <section> above already carries `groupAria`, and two
             // nested groups with the same label make AT announce the axis name three times over.
-            filteredOptions.map((option) => {
+            filteredOptions.map(({ option, matchedAlias }) => {
               // Tri-state, not a boolean: a matched division is "mixed" when only some of its leaves
               // are selected, and rendering that as unchecked would let a click silently deselect the
               // part already chosen. `groupTriState` is the same derivation the tree rows use.
@@ -232,8 +268,13 @@ export function CriterionPicker({
                   // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
                   // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
                   // mind: the name no longer tracks the JSX, so anything visible added to this row has
-                  // to be added here too, or the label stops containing the visible text.
-                  aria-label={`${option.code} ${option.name}`}
+                  // to be added here too, or the label stops containing the visible text. The alias
+                  // (#1115) is exactly such an addition, so it is appended here when it is rendered.
+                  aria-label={
+                    matchedAlias
+                      ? `${option.code} ${option.name} ${t("matchedVia", { term: matchedAlias })}`
+                      : `${option.code} ${option.name}`
+                  }
                   tabIndex={0}
                   onClick={() => onToggle(option.leafCodes)}
                   onKeyDown={(e) => {
@@ -245,7 +286,7 @@ export function CriterionPicker({
                   // Indentation is a SECONDARY cue only. In a filtered list the ancestors are not
                   // rendered, so equal indent on two rows can suggest a sibling relationship that does
                   // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
-                  // carries the level in text: its length says which level it is (`A` / `62` / `62010`),
+                  // carries the level in text: its length says which level it is (`A` / `62` / `62100`),
                   // it lands in the row's accessible name, and two codes side by side settle whether the
                   // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
@@ -255,7 +296,24 @@ export function CriterionPicker({
                   <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
                     {option.code}
                   </span>
-                  <span>{option.name}</span>
+                  <span className="min-w-0 truncate">{option.name}</span>
+                  {/* Why this row is here at all. Without it a row appears containing none of the
+                      typed characters — a result with no visible reason, which AGENTS.md §5 rules
+                      out for match surfaces ("matched/missing keywords are always surfaced"). It
+                      also keeps the alias honest: the SNI concept stays the row, and the alias is
+                      shown as the search word that led to it, never as a claim about the concept.
+
+                      TRUNCATED, and it has to be: SCB's entries are whole sentences — 1 216 of the
+                      16 080 exceed 90 characters, and the longest under 62201 is 130. Rendered
+                      untruncated at 1280 the row measured scrollWidth 979 against clientWidth 524
+                      and grew from 44 px to 82 px, breaking both the row rhythm and the panel.
+                      The name keeps priority; the aria-label above carries the term in FULL, so a
+                      screen reader gets the whole phrase whatever the viewport clips. */}
+                  {matchedAlias && (
+                    <span className="ms-auto max-w-[45%] shrink-0 truncate ps-2 text-caption text-text-secondary">
+                      {t("matchedVia", { term: matchedAlias })}
+                    </span>
+                  )}
                 </div>
               );
             })

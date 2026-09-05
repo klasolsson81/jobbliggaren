@@ -390,3 +390,136 @@ describe("CriterionPicker — the selection contract", () => {
     );
   });
 });
+
+/**
+ * #1115 — the alias surface. SNI classifies ACTIVITIES, so the words users hold ("systemutveckl")
+ * matched 0 of the real 944 node names. These rows exist so a concept the user has a different word
+ * for is reachable, and every one of them pins a property that keeps the layer a LOOKUP AID rather
+ * than the SNI↔SSYK crosswalk #560 bind 4 forbids: the SNI concept stays the row, the alias is shown
+ * as the search word that led to it, and the emitted selection is still the node's own leaf codes.
+ */
+const ALIASED_REFERENCE: CriterionReference = {
+  ...REFERENCE,
+  sni: [
+    {
+      code: "J",
+      name: "Informations- och kommunikationsverksamhet",
+      divisions: [
+        {
+          code: "62",
+          name: "Dataprogrammering, datakonsultverksamhet",
+          leaves: [
+            {
+              code: "62010",
+              name: "Datakonsultverksamhet",
+              // Shaped like the real SCB entry under 62201, head-first with a qualifier.
+              aliases: ["Agil systemutveckling", "Systemutveckling, data"],
+            },
+            { code: "62020", name: "Systemutveckling" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const ALIASED_NODES = buildSniNodes(ALIASED_REFERENCE);
+const ALIASED_OPTIONS = flattenCriterionOptions(ALIASED_NODES);
+
+function renderAliased(
+  props: Partial<React.ComponentProps<typeof CriterionPicker>> = {},
+) {
+  return renderPicker({
+    nodes: ALIASED_NODES,
+    options: ALIASED_OPTIONS,
+    ...props,
+  });
+}
+
+describe("CriterionPicker — the alias surface (#1115)", () => {
+  it("surfaces a row whose NAME does not contain the query, via its alias", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+
+    // "Datakonsultverksamhet" contains no "agil" — the row is here only because of the alias.
+    expect(
+      screen.getByRole("checkbox", { name: /62010 Datakonsultverksamhet/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows WHY the row matched, and puts it in the accessible name too", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+
+    // Visible: a row that contains none of the typed characters would otherwise be a result with no
+    // reason. The row's aria-label is author-set, so anything visible added must be added there too
+    // or the accessible name stops containing the visible text (WCAG 2.5.3).
+    expect(screen.getByText("matchar Agil systemutveckling")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62010 Datakonsultverksamhet matchar Agil systemutveckling",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT annotate a row the query already explains", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "datakonsult");
+
+    // The name carries the query, so the row needs no explanation and gains no chrome.
+    expect(
+      screen.getByRole("checkbox", { name: "62010 Datakonsultverksamhet" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^matchar /)).not.toBeInTheDocument();
+  });
+
+  it("keeps aliases silent below the word threshold, while names still match", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    // "ag" is a fragment, not a word. Were aliases to answer it, `st` went 275 -> 318 against the
+    // real catalogue and crossed MAX_FILTER_MATCHES — the regression ALIAS_MIN_QUERY prevents.
+    await user.type(screen.getByLabelText("Sök bransch"), "ag");
+
+    expect(screen.queryByText(/^matchar /)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Datakonsultverksamhet/ }),
+    ).not.toBeInTheDocument();
+    // The name surface is untouched by the threshold: "da" still matches at two characters.
+    await user.clear(screen.getByLabelText("Sök bransch"));
+    await user.type(screen.getByLabelText("Sök bransch"), "da");
+    expect(
+      screen.getByRole("checkbox", { name: /62010 Datakonsultverksamhet/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("emits the node's own leaf codes when an alias-matched row is toggled", async () => {
+    const { onToggle } = renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "agil");
+    await user.click(
+      screen.getByRole("checkbox", { name: /62010 Datakonsultverksamhet/ }),
+    );
+
+    // The alias never reaches the selection — bind 4's actual guarantee is that the user picks the
+    // SNI node, and what leaves this component is that node's code and nothing else.
+    expect(onToggle).toHaveBeenCalledWith(["62010"]);
+  });
+
+  it("matches a compound TAIL, which is how Swedish users type", async () => {
+    renderAliased();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "utveckling");
+
+    // "utveckling" is not a word-prefix of "systemutveckling" — it is a substring. A word-prefix
+    // rule measured 10 -> 1 rows for `konsult` and 2 -> 0 for `omsorg` against the real catalogue,
+    // which is why alias matching is substring above the threshold rather than prefix.
+    expect(
+      screen.getByRole("checkbox", {
+        name: "62010 Datakonsultverksamhet matchar Agil systemutveckling",
+      }),
+    ).toBeInTheDocument();
+  });
+});

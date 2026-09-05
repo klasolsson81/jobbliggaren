@@ -15,6 +15,10 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 import type { JobAdMatchBatch, MatchGrade } from "@/lib/dto/job-ad-match";
 import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
+import {
+  buildCriterionAdsHref,
+  parseCriterionAdsScope,
+} from "@/lib/company-criteria/criterion-ads-href";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -28,8 +32,14 @@ import { notFoundMetadata } from "@/lib/metadata/not-found-title";
  */
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { id } = await params;
-  const { page: pageParam } = await searchParams;
-  const result = await browseCriterionAds(id, parsePageParam(pageParam));
+  const { page: pageParam, visa: visaParam } = await searchParams;
+  // The SAME arguments the page uses. Measured 2026-09-05: identical reads collapse to one request
+  // and divergent ones do not, so an axis omitted here doubles this route's backend cost.
+  const result = await browseCriterionAds(
+    id,
+    parsePageParam(pageParam),
+    parseCriterionAdsScope(visaParam) === "matching",
+  );
   if (result.kind === "notFound") return notFoundMetadata();
 
   const t = await getTranslations("pages");
@@ -91,7 +101,8 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   const { id } = await params;
   const { page: pageParam, visa: visaParam } = await searchParams;
   const page = parsePageParam(pageParam);
-  const onlyMatching = parseVisaParam(visaParam);
+  const scope = parseCriterionAdsScope(visaParam);
+  const onlyMatching = scope === "matching";
 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
@@ -208,12 +219,26 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
             and the actionable next step is to narrow it. Not role="alert" — nothing failed. */}
         {matching?.tooBroad && (
-          <p className="jp-matchline">{t("ads.matchingTooBroad")}</p>
+          <p className="jp-matchline">
+            {t("ads.matchingTooBroadOnList")}{" "}
+            <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+              {t("ads.matchingTooBroadCta")}
+            </Link>
+          </p>
+        )}
+
+        {matching !== null && matching.count === null && !matching.tooBroad && (
+          <p className="jp-matchline">
+            {t("ads.matchingNotAssessedOnList")}{" "}
+            <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
+              {tMatch("settingsCta")}
+            </Link>
+          </p>
         )}
 
         {matchingCount !== null && (
           <p className="jp-matchline">
-            <Link className="jp-nudgelink" href={`/foretag/smarta-bevakningar/${id}/annonser`}>
+            <Link className="jp-nudgelink" href={buildCriterionAdsHref(id, 1, "all")}>
               {t("ads.showAll")}
             </Link>
           </p>
@@ -253,7 +278,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
             {/* `.jp-matchline`, the form `/foretag/bevakade/nya` uses for the same sentence —
                 never `.jp-transparency-note`, whose flex layout for a leading icon tears the CTA
                 out of the sentence. */}
-            {showMatchNudge && (
+            {showMatchNudge && matching === null && (
               <p className="jp-matchline">
                 {tMatch("noStatedOccupation")}{" "}
                 <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
@@ -273,9 +298,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
               showTotalCount={false}
               // The axis rides every page href. Without it page 2 would silently drop the filter
               // and show more ads than page 1 promised.
-              buildHref={(targetPage) =>
-                buildAdsHref(id, targetPage, onlyMatching)
-              }
+              buildHref={(targetPage) => buildCriterionAdsHref(id, targetPage, scope)}
             />
           </div>
         )}
@@ -293,29 +316,6 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 function parsePageParam(raw: string | string[] | undefined): number {
   const value = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
   return Number.isInteger(value) && value > 0 ? value : 1;
-}
-
-/**
- * The one matching axis this route has (#1656 (b)). Absence and every unrecognised value mean "all
- * ads" — a filter nobody asked for must never appear.
- *
- * Deliberately NOT named `baraMatchade`: on `/jobb` that name maps to `onlyMatched`, which the list
- * handler expands to the whole filterable band (Grund and Relaterat included) — WIDER than the
- * `>= Good` this route's count is computed at. One word meaning two different sets is how "9
- * matchande" ends up landing on more than nine.
- */
-function parseVisaParam(raw: string | string[] | undefined): boolean {
-  return raw === "matchande";
-}
-
-/** One builder for this route's hrefs, so no caller can drop the axis. */
-function buildAdsHref(id: string, page: number, onlyMatching: boolean): string {
-  const base = `/foretag/smarta-bevakningar/${id}/annonser`;
-  const params = new URLSearchParams();
-  if (page > 1) params.set("page", String(page));
-  if (onlyMatching) params.set("visa", "matchande");
-  const query = params.toString();
-  return query.length > 0 ? `${base}?${query}` : base;
 }
 
 function ErrorShell({ title, body, backHref, backLabel }: {

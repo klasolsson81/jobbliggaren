@@ -442,7 +442,7 @@
         "backLink": "Tillbaka till bevakningen",
         "linkLabel": "{count} aktiva annonser från dessa företag",
         "none": "Inga aktiva annonser från dessa företag just nu.",
-        "countUnavailable": "Antalet annonser kan inte visas just nu. Ladda om sidan om en stund.",
+        "countUnavailable": "Annonssiffrorna kan inte visas just nu. Ladda om sidan om en stund.",
         "loadErrorTitle": "Kunde inte ladda annonserna",
         "loadErrorBody": "Ett fel uppstod. Försök igen om en stund.",
         "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
@@ -454,12 +454,15 @@
         "seatHelpAria": "Hur är annonserna utvalda?",
         "emptyTitle": "Inga aktiva annonser just nu.",
         "emptyBody": "Företagen som matchar din bevakning har inga aktiva annonser. Prova att bredda bevakningens branscher eller kommuner.",
-        "matchingLinkAria": "{label} i den här bevakningen",
+        "matchingLinkAria": "Visa de {count} annonser som matchar dig",
         "matchingHeadline": "{count, plural, =0 {Inga matchande annonser} one {# matchande annons} other {# matchande annonser}}",
-        "matchingTooBroad": "Bevakningen är för bred för att vi ska kunna räkna hur många annonser som matchar dig. Smalna av branscherna eller kommunerna.",
+        "matchingTooBroad": "Bevakningen är för bred för att vi ska kunna räkna hur många annonser som matchar dig. Prova att välja färre branscher eller kommuner.",
         "showAll": "Visa alla annonser",
         "matchingEmptyTitle": "Inga annonser matchar dig just nu.",
-        "matchingEmptyBody": "Ingen av bevakningens aktiva annonser når upp till en bra matchning mot din profil. Prova att bredda bevakningen eller se över dina matchningsinställningar."
+        "matchingEmptyBody": "Ingen av bevakningens aktiva annonser når upp till en bra matchning mot din profil. Prova att bredda bevakningen eller se över dina matchningsinställningar.",
+        "matchingTooBroadCta": "Ändra bevakningen",
+        "matchingTooBroadOnList": "Bevakningen är för bred för att vi ska kunna räkna hur många annonser som matchar dig, så alla aktiva annonser visas här. Prova att välja färre branscher eller kommuner.",
+        "matchingNotAssessedOnList": "Du har inte angett vilka yrken du söker inom, så alla aktiva annonser visas här."
       },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",

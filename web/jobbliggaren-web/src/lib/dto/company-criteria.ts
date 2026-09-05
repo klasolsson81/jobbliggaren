@@ -149,26 +149,6 @@ export const criterionAdMagnitudeSchema = z.object({
 });
 export type CriterionAdMagnitude = z.infer<typeof criterionAdMagnitudeSchema>;
 
-/**
- * The composed ad-browse response (mirrors the Api's `CriterionAdBrowseResponse`): the paginated ad
- * page and the honest ad magnitude, side by side — the same shape, and the same reason, as
- * {@link companyBrowseResponseSchema}. `ads.totalCount` SATURATES at the pagination cap and is a
- * pagination quantity ONLY; the headline number is `magnitude`.
- */
-/**
- * #1656 (b) — how many of the criterion's active ads match ME (>= Good), mirroring backend
- * `MyMatchingAdCountDto`. Deliberately NOT a magnitude schema and deliberately carrying no
- * `saturated`: this number is EXACT or ABSENT. The underlying ad set is refused rather than
- * truncated when it grows too broad, so there is no "+" arm to render.
- *
- * Three states, and a surface must not collapse any two of them:
- * - `count: n`, `tooBroad: false` — exactly n ads match. `0` is a real answer.
- * - `count: null`, `tooBroad: false` — NOT ASSESSED (no stated occupation). Render the nudge,
- *   never a zero. Same shape and same meaning as `companyWatchSchema.matchingAdCount`.
- * - `count: null`, `tooBroad: true` — the watch is too broad to grade. Also never a zero.
- *
- * `nullable()`, never `optional()`: the wire shape does not vary with the answer (ADR 0120).
- */
 export const myMatchingAdCountSchema = z
   .object({
     count: z.number().int().nonnegative().nullable(),
@@ -194,6 +174,26 @@ export const criterionAdCountResponseSchema = z.object({
 });
 export type CriterionAdCountResponse = z.infer<typeof criterionAdCountResponseSchema>;
 
+/**
+ * The composed ad-browse response (mirrors the Api's `CriterionAdBrowseResponse`): the paginated ad
+ * page and the honest ad magnitude, side by side — the same shape, and the same reason, as
+ * {@link companyBrowseResponseSchema}. `ads.totalCount` SATURATES at the pagination cap and is a
+ * pagination quantity ONLY; the headline number is `magnitude`.
+ */
+/**
+ * #1656 (b) — how many of the criterion's active ads match ME (>= Good), mirroring backend
+ * `MyMatchingAdCountDto`. Deliberately NOT a magnitude schema and deliberately carrying no
+ * `saturated`: this number is EXACT or ABSENT. The underlying ad set is refused rather than
+ * truncated when it grows too broad, so there is no "+" arm to render.
+ *
+ * Three states, and a surface must not collapse any two of them:
+ * - `count: n`, `tooBroad: false` — exactly n ads match. `0` is a real answer.
+ * - `count: null`, `tooBroad: false` — NOT ASSESSED (no stated occupation). Render the nudge,
+ *   never a zero. Same shape and same meaning as `companyWatchSchema.matchingAdCount`.
+ * - `count: null`, `tooBroad: true` — the watch is too broad to grade. Also never a zero.
+ *
+ * `nullable()`, never `optional()`: the wire shape does not vary with the answer (ADR 0120).
+ */
 export const criterionAdBrowseResponseSchema = z.object({
   ads: pagedResultWithTotalPages(jobAdDtoSchema),
   magnitude: criterionAdMagnitudeSchema,

@@ -314,13 +314,48 @@ describe("BevakningAdsPage — the matching view", () => {
   it("delivers the unfiltered list with an explanation when the watch is too broad", async () => {
     await renderWithVisa("matchande", { count: null, tooBroad: true });
 
+    // The consequence is stated: the list is unfiltered, not empty and not filtered.
     expect(
-      screen.getByText(/Bevakningen är för bred för att vi ska kunna räkna/),
+      screen.getByText(/så alla aktiva annonser visas här/),
     ).toBeInTheDocument();
     // The list is still there. An empty page here would say "nothing matches you", which is not
     // what a refusal means.
     expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
     expect(screen.queryByText(/matchande annonser$/)).toBeNull();
+  });
+
+  it("says the list is unfiltered when no occupation is stated", async () => {
+    // The other INERT arm. Without the consequence clause the user asked for a filtered list, got
+    // an unfiltered one, and nothing on the page accounts for the difference.
+    await renderWithVisa("matchande", { count: null, tooBroad: false });
+
+    expect(
+      screen.getByText(/så alla aktiva annonser visas här/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ställ in matchning" })).toBeInTheDocument();
+    expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
+  });
+
+  it("explains an EMPTY filtered list rather than reusing the unfiltered empty state", async () => {
+    browseCriterionAds.mockResolvedValue({
+      kind: "ok" as const,
+      data: {
+        ads: { items: [], page: 1, pageSize: 20, totalCount: 0 },
+        magnitude: { magnitude: 5, saturated: false },
+        matching: { count: 0, tooBroad: false },
+      },
+    });
+    render(
+      await BevakningAdsPage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({ visa: "matchande" }),
+      }),
+    );
+
+    // "The watch has no ads" and "none of its ads match you" are different facts, and the criterion
+    // here HAS five ads.
+    expect(screen.getByText("Inga annonser matchar dig just nu.")).toBeInTheDocument();
+    expect(screen.queryByText("Inga aktiva annonser just nu.")).toBeNull();
   });
 
   it("keeps the axis on every pagination href", async () => {

@@ -16,6 +16,7 @@ import { CompanyBrowseList } from "@/components/company-criteria/company-browse-
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
+import { buildCriterionAdsHref } from "@/lib/company-criteria/criterion-ads-href";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -159,7 +160,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
         {adCountResult.kind === "ok" ? (
           adCountResult.data.ads.magnitude > 0 ? (
             <p className="jp-matchline tabular-nums">
-              <Link href={`/foretag/smarta-bevakningar/${id}/annonser`}>
+              <Link className="jp-countlink" href={buildCriterionAdsHref(id, 1, "all")}>
                 {t("ads.linkLabel", {
                   count: formatMagnitude(format, adCountResult.data.ads),
                 })}
@@ -180,7 +181,12 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             above already says the numbers cannot be shown. */}
         {matching !== null &&
           (matching.tooBroad ? (
-            <p className="jp-matchline">{t("ads.matchingTooBroad")}</p>
+            <p className="jp-matchline">
+              {t("ads.matchingTooBroad")}{" "}
+              <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+                {t("ads.matchingTooBroadCta")}
+              </Link>
+            </p>
           ) : matching.count === null ? (
             <p className="jp-matchline">
               {tWatch("matchNudge")}{" "}
@@ -193,11 +199,9 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
               {matching.count > 0 ? (
                 <Link
                   className="jp-countlink"
-                  href={`/foretag/smarta-bevakningar/${id}/annonser?visa=matchande`}
+                  href={buildCriterionAdsHref(id, 1, "matching")}
                   prefetch={false}
-                  aria-label={t("ads.matchingLinkAria", {
-                    label: tWatch("matchingAds", { count: matching.count }),
-                  })}
+                  aria-label={t("ads.matchingLinkAria", { count: matching.count })}
                 >
                   {tWatch("matchingAds", { count: matching.count })}
                 </Link>

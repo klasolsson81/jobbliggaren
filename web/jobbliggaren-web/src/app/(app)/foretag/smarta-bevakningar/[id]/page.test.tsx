@@ -187,7 +187,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
 
     expect(
       screen.getByText(
-        "Antalet annonser kan inte visas just nu. Ladda om sidan om en stund.",
+        "Annonssiffrorna kan inte visas just nu. Ladda om sidan om en stund.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
@@ -242,7 +242,11 @@ describe("BevakningBrowsePage — the personal match count", () => {
   it("renders the count as a link to the MATCHING view, not the whole ad list", async () => {
     await renderWith({ count: 9, tooBroad: false });
 
-    const link = screen.getByRole("link", { name: /9 matchande annonser/ });
+    // The accessible name NAMES THE DESTINATION; the visible text is the count sentence. Asserting
+    // both keeps them from drifting into each other.
+    const link = screen.getByRole("link", {
+      name: "Visa de 9 annonser som matchar dig",
+    });
     // The axis is what makes the number true at its destination. Without it the link lands on all
     // twelve ads while the sentence beside it promises nine.
     expect(link).toHaveAttribute(
@@ -256,7 +260,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     await renderWith({ count: 0, tooBroad: false });
 
     expect(screen.getByText("Inga matchande annonser just nu")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /som matchar dig/ })).toBeNull();
   });
 
   it("nudges instead of claiming zero when no occupation is stated", async () => {
@@ -275,11 +279,15 @@ describe("BevakningBrowsePage — the personal match count", () => {
     expect(
       screen.getByText(/Bevakningen är för bred för att vi ska kunna räkna/),
     ).toBeInTheDocument();
+    // A refusal that names an action carries the way there — the arm two rows up already does.
+    expect(
+      screen.getByRole("link", { name: "Ändra bevakningen" }),
+    ).toHaveAttribute("href", "/foretag/smarta-bevakningar");
     // Neither of the other two no-number arms, and above all not a zero: this watch was not
     // measured, its owner has not failed to state an occupation, and nothing matched zero ads.
     expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
-    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /som matchar dig/ })).toBeNull();
   });
 
   it("says nothing about matching when the ad-count read degraded", async () => {

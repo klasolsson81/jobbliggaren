@@ -79,7 +79,8 @@ public class CaddyfileTokenScrubbingPinTests
     /// at all. Merging them would make one of the two facts below unsatisfiable.
     /// <para>
     /// <c>employer</c> (#1547): Översikt's summary links carry the user's WHOLE set of watched
-    /// org.nr in one URL, and they are its only producer. A single org.nr is public-register data
+    /// org.nr in one URL, and a recent-search replay (#1471) carries the employers one captured
+    /// search filtered on. A single org.nr is public-register data
     /// any visitor can type; the set is "whom this user watches" — ADR 0087 D8(b) personal data
     /// about the user, protected there by owner-scoped access and an Art. 17 cascade, neither of
     /// which reaches an edge log.

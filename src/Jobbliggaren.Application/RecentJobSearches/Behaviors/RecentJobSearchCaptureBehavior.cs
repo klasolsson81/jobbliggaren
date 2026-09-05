@@ -2,7 +2,6 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Abstractions;
 using Jobbliggaren.Application.RecentJobSearches.Common;
-using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.SavedSearches;
@@ -153,13 +152,14 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // replayability: a criteria with employer stripped hashes IDENTICALLY to a genuine
         // employer-less search on the same other dimensions, so filtering would find that row
         // and Bump() it - silently corrupting LastSeenCount and LastViewedAt on a DIFFERENT,
-        // real search (code-reviewer). Skip also stores strictly less and stays correct if the
-        // replay path is ever completed (security-auditor). The SEARCH still runs: refusing it
+        // real search (code-reviewer). Skip also stores strictly less, and the replay path reads
+        // the column through the same gate (EmployerAxisGate, #1471), so a value refused here has
+        // no second route to the wire (security-auditor). The SEARCH still runs: refusing it
         // would break a legitimate filter on a sole trader's ads, which are real ads.
         //
         // OrganizationNumber.IsPersonnummerShaped is the house's single-sourced discriminator,
         // and this was the one PERSISTENCE SINK that never consulted it.
-        if ((capt.Employer ?? []).Any(IsPersonnummerShapedOrUnparseable))
+        if ((capt.Employer ?? []).Any(EmployerAxisGate.IsWithheld))
             return response;
 
         // Same sink and the same skip-reason as the employer guard above, so that block governs
@@ -260,20 +260,6 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         Level = LogLevel.Warning,
         Message = "RecentJobSearch auto-capture misslyckades för {MessageType} (best-effort, query orörd). ExceptionType={ExceptionType}")]
     private static partial void LogCaptureFailed(ILogger logger, string exceptionType, string messageType);
-
-    /// <summary>
-    /// #841 / ADR 0087 D8(c) - true when the value is a personnummer, OR cannot be parsed at all.
-    /// Both are in the name because they are two facts: the house keeps them apart where it counts
-    /// them (ScbLegalEntityFilter buckets invalid and pnr-shaped separately), and fusing them
-    /// silently is what makes a call site read as narrower than it is. Delegates to the domain's
-    /// own detector rather than re-deriving the rule, so this axis and every other org.nr surface
-    /// refuse on exactly the same predicate (#844: a rule with two normalisers is two rules).
-    /// </summary>
-    private static bool IsPersonnummerShapedOrUnparseable(string employer)
-    {
-        var orgNr = OrganizationNumber.Create(employer);
-        return orgNr.IsFailure || orgNr.Value.IsPersonnummerShaped();
-    }
 
     // The single-line flag predicate, in ONE home. Both string-bearing guards below the employer
     // one call it, so this file no longer carries the same expression twice while citing #844

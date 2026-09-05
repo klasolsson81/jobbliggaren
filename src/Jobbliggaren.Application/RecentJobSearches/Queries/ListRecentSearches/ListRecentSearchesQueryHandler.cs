@@ -65,12 +65,33 @@ public sealed class ListRecentSearchesQueryHandler(
         var dtos = new List<RecentJobSearchDto>(items.Count);
         foreach (var r in items)
         {
+            // #1471 — ONE criteria object per row, and all three consumers read it: the count
+            // (CountAsync), the projection the replay href is built from, and the label. The
+            // entity's axes used to be copied into each by hand, and every divergence between
+            // the copies shipped as a defect (#1407 dropped remote from the projection, #1471
+            // dropped employer), so no consumer reads the entity's axes on its own any more.
+            //
+            // Employer passes the same gate the capture behavior persists through (ADR 0087
+            // D8(c), masked arm): a row written before A2 (2026-08-19) can still carry a
+            // personnummer-shaped value, and it reaches none of the three. The count is then
+            // computed on the same masked criterion the click runs, so count == replay holds
+            // for that row too.
+            var replay = new JobAdFilterCriteria(
+                OccupationGroup: r.OccupationGroup,
+                Municipality: r.Municipality,
+                Region: r.Region,
+                EmploymentType: r.EmploymentType,
+                WorktimeExtent: r.WorktimeExtent,
+                Employer: EmployerAxisGate.Surfaceable(r.Employer),
+                Remote: r.Remote,
+                Q: r.Q);
+
             var occupationGroupLabels = await taxonomy.ResolveLabelsAsync(
-                r.OccupationGroup, cancellationToken);
+                replay.OccupationGroup, cancellationToken);
             var municipalityLabels = await taxonomy.ResolveLabelsAsync(
-                r.Municipality, cancellationToken);
+                replay.Municipality, cancellationToken);
             var regionLabels = await taxonomy.ResolveLabelsAsync(
-                r.Region, cancellationToken);
+                replay.Region, cancellationToken);
 
             // F6 P5 P4 svans-PR4 (2026-05-24, Klas perf-feedback /oversikt 7-10s):
             // Per-row COUNT är sekventiell (CTO Variant A 2026-05-20 — cap=20
@@ -95,54 +116,33 @@ public sealed class ListRecentSearchesQueryHandler(
             // håller den borta från kritisk väg är IncludeCount=false ovan, inget annat.
             int currentCount = 0;
             if (query.IncludeCount)
-            {
-                // ADR 0067 Fas C2: radens egna dimensioner in i filter-SPOT:en
-                // (C1:s tomma-listor-läge täppt).
-                currentCount = await search.CountAsync(
-                    new JobAdFilterCriteria(
-                        OccupationGroup: r.OccupationGroup,
-                        Municipality: r.Municipality,
-                        Region: r.Region,
-                        // ADR 0067 Beslut 6 (Fas B2) — Klass 2 i count-filtret.
-                        EmploymentType: r.EmploymentType,
-                        WorktimeExtent: r.WorktimeExtent,
-                        // #311 PR-2b C1 (ADR 0087 D6): PR-2:s CONTAINED-seam (Employer: []) ersatt —
-                        // RecentJobSearch bär nu employer_list → en återbesökt sökning räknar
-                        // arbetsgivar-filtrerat.
-                        Employer: r.Employer,
-                        // #551 PR-D (ADR 0087 D6-paritet): PR-B:s deferrade seam (Remote: false) ersatt —
-                        // RecentJobSearch bär nu remote-kolumnen → en återbesökt distans-sökning räknar
-                        // distans-filtrerat (samma filter som reproduceras vid klick).
-                        Remote: r.Remote,
-                        Q: r.Q),
-                    cancellationToken);
-            }
+                currentCount = await search.CountAsync(replay, cancellationToken);
 
             var newCount = Math.Max(0, currentCount - r.LastSeenCount);
             var label = DeriveLabel(
-                r.Q, r.OccupationGroup, occupationGroupLabels,
-                municipalityLabels, regionLabels, r.Remote,
-                r.EmploymentType, r.WorktimeExtent,
-                occupationFields);
+                replay, occupationGroupLabels, municipalityLabels, regionLabels, occupationFields);
 
+            // Named throughout: eight positional lists in a row is the transposition trap
+            // JobAdFilterCriteria's own docblock names, and the raw dimensions below are the
+            // replay — a swapped pair would count one search and run another.
             dtos.Add(new RecentJobSearchDto(
-                r.Id.Value,
-                r.Q,
-                OccupationGroupList: r.OccupationGroup,
-                MunicipalityList: r.Municipality,
-                RegionList: r.Region,
-                // ADR 0067 Beslut 6 (Fas B2) — råa Klass 2-listor (inga labels, Fas E).
-                EmploymentTypeList: r.EmploymentType,
-                WorktimeExtentList: r.WorktimeExtent,
-                Remote: r.Remote,
+                Id: r.Id.Value,
+                Q: replay.Q,
+                OccupationGroupList: replay.OccupationGroup,
+                MunicipalityList: replay.Municipality,
+                RegionList: replay.Region,
+                EmploymentTypeList: replay.EmploymentType,
+                WorktimeExtentList: replay.WorktimeExtent,
+                EmployerList: replay.Employer,
+                Remote: replay.Remote,
                 OccupationGroupLabels: occupationGroupLabels,
                 MunicipalityLabels: municipalityLabels,
                 RegionLabels: regionLabels,
-                r.SortBy,
-                label,
-                currentCount,
-                newCount,
-                r.LastViewedAt));
+                SortBy: r.SortBy,
+                Label: label,
+                CurrentCount: currentCount,
+                NewCount: newCount,
+                LastViewedAt: r.LastViewedAt));
         }
 
         return dtos;
@@ -161,24 +161,23 @@ public sealed class ListRecentSearchesQueryHandler(
     // dimension som namnger raden och HUR delarna hänger ihop; orden som renderar
     // det är locale-copy och ligger i messages/{sv,en}/jobads.json. Grenen namnges
     // explicit i deskriptorn — även q-grenen — så FE aldrig härleder om den.
+    //
+    // #1471: the criteria handed in is the SAME object the count ran on and the projection is
+    // built from, so the label cannot name an axis the click drops, nor drop one the count kept.
     private static RecentSearchLabelDto DeriveLabel(
-        string? q,
-        IReadOnlyList<string> occupationGroupIds,
+        JobAdFilterCriteria criteria,
         IReadOnlyList<TaxonomyLabelDto> occupationGroupLabels,
         IReadOnlyList<TaxonomyLabelDto> municipalityLabels,
         IReadOnlyList<TaxonomyLabelDto> regionLabels,
-        bool remote,
-        IReadOnlyList<string> employmentTypeIds,
-        IReadOnlyList<string> worktimeExtentIds,
         IReadOnlyList<TaxonomyOccupationFieldDto>? occupationFields)
     {
-        if (!string.IsNullOrWhiteSpace(q))
-            return Single(RecentSearchLabelKind.Query, Named(q));
+        if (!string.IsNullOrWhiteSpace(criteria.Q))
+            return Single(RecentSearchLabelKind.Query, Named(criteria.Q));
         if (occupationGroupLabels.Count > 0)
         {
-            if (occupationGroupIds.Count > 1 && occupationFields is not null)
+            if (criteria.OccupationGroup.Count > 1 && occupationFields is not null)
             {
-                var selected = occupationGroupIds.ToHashSet(StringComparer.Ordinal);
+                var selected = criteria.OccupationGroup.ToHashSet(StringComparer.Ordinal);
                 var wholeField = occupationFields.FirstOrDefault(f =>
                     f.OccupationGroups.Count == selected.Count
                     && f.OccupationGroups.All(g => selected.Contains(g.ConceptId)));
@@ -187,10 +186,11 @@ public sealed class ListRecentSearchesQueryHandler(
             }
             return Single(RecentSearchLabelKind.Dimensions, WithMoreCount(occupationGroupLabels));
         }
-        if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || remote)
-            return DeriveOrtLabel(municipalityLabels, regionLabels, remote);
-        if (employmentTypeIds.Count > 0 || worktimeExtentIds.Count > 0)
-            return DeriveRefinementLabel(employmentTypeIds, worktimeExtentIds);
+        if (municipalityLabels.Count > 0 || regionLabels.Count > 0 || criteria.Remote)
+            return DeriveOrtLabel(municipalityLabels, regionLabels, criteria.Remote);
+        if (criteria.EmploymentType.Count > 0 || criteria.WorktimeExtent.Count > 0
+            || criteria.Employer.Count > 0)
+            return DeriveRefinementLabel(criteria.EmploymentType, criteria.WorktimeExtent, criteria.Employer);
         return new RecentSearchLabelDto(RecentSearchLabelKind.All, RecentSearchLabelJoin.None, []);
     }
 
@@ -214,16 +214,23 @@ public sealed class ListRecentSearchesQueryHandler(
     // del är satt — samma call-site-invariant som WithMoreCount.
     private static RecentSearchLabelDto DeriveRefinementLabel(
         IReadOnlyList<string> employmentTypeIds,
-        IReadOnlyList<string> worktimeExtentIds)
+        IReadOnlyList<string> worktimeExtentIds,
+        IReadOnlyList<string> employers)
     {
-        // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning.
-        // Per axel före fogningen — en hopslagen lista bryter "+N":s enhet, samma skäl som i
-        // DeriveOrtLabel.
-        var parts = new List<RecentSearchLabelPartDto>(2);
+        // Kanonisk filter-SPOT-ordning (JobAdFilterCriteria): anställningsform → omfattning →
+        // arbetsgivare. Per axel före fogningen — en hopslagen lista bryter "+N":s enhet, samma
+        // skäl som i DeriveOrtLabel.
+        var parts = new List<RecentSearchLabelPartDto>(3);
         if (employmentTypeIds.Count > 0)
             parts.Add(CodedWithMoreCount(employmentTypeIds));
         if (worktimeExtentIds.Count > 0)
             parts.Add(CodedWithMoreCount(worktimeExtentIds));
+        // #1471 — value-free, unlike its two siblings: the value is an org.nr, and for an enskild
+        // firma that is the holder's personnummer (#841), so the part carries neither Text nor
+        // ConceptId (Klas 2026-08-23). MoreCount counts the same unit as every other part.
+        if (employers.Count > 0)
+            parts.Add(new RecentSearchLabelPartDto(
+                RecentSearchLabelPartKind.Employer, Text: null, ConceptId: null, employers.Count - 1));
 
         return new RecentSearchLabelDto(
             RecentSearchLabelKind.Dimensions,

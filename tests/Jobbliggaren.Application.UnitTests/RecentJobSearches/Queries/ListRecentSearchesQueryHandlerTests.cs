@@ -501,6 +501,9 @@ public class ListRecentSearchesQueryHandlerTests
             ["EmploymentType"] = (Axis(employmentType: ["tillsvidare"]), "Dimensions/None:<code:tillsvidare>"),
             ["WorktimeExtent"] = (Axis(worktimeExtent: ["heltid"]), "Dimensions/None:<code:heltid>"),
             ["Remote"] = (Axis(remote: true), "Dimensions/None:<remote>"),
+            // #1471 — värdefri som Remote: labeln namnger axeln, aldrig org.nr:et. Formen
+            // pinnas här, värdet i Handle_NeverPutsTheEmployerOrgNumberInTheLabel.
+            ["Employer"] = (Axis(employer: ["5566010101"]), "Dimensions/None:<employer>"),
         };
 
     // SortBy SMALNAR inte: två rader som skiljer sig bara i sortering kör samma filter mot
@@ -508,24 +511,6 @@ public class ListRecentSearchesQueryHandlerTests
     // form, så tystnad FÄLLER i stället för att passera.
     private static readonly HashSet<string> NotNarrowing =
         new(StringComparer.Ordinal) { "SortBy" };
-
-    // Axlar som SMALNAR men ändå inte får namnge raden. Skild mängd från NotNarrowing, och
-    // skillnaden är inte kosmetisk: Employer smalnar (JobAdSearchComposition AND:ar den), så
-    // en post där vore ett falskt påstående inuti en guard.
-    //
-    // Grunden per post är REFERENTEN, inte smalnandet, och den pekar i stället för att
-    // upprepa: varför axeln inte projiceras alls ägs av
-    // RecentJobSearchProjectionParityTests.NotSurfaced, och två hem för ett kunskapsstycke
-    // driftar isär.
-    private static readonly IReadOnlyDictionary<string, (SearchCriteria Criteria, string Ground)>
-        NotReplayed = new Dictionary<string, (SearchCriteria, string)>(StringComparer.Ordinal)
-        {
-            ["Employer"] = (
-                Axis(employer: ["5566010101"]),
-                "Bärs inte av buildRecentSearchHref, så en label som namnger axeln namnger ett "
-                + "filter klicket släpper. Varför axeln inte projiceras alls: "
-                + "RecentJobSearchProjectionParityTests.NotSurfaced[\"Employer\"]."),
-        };
 
     private static SearchCriteria Axis(
         IReadOnlyList<string>? occupationGroup = null,
@@ -615,11 +600,14 @@ public class ListRecentSearchesQueryHandlerTests
     // #1430 — labeln är struktur, inte prosa, så pinnarna assertar på strukturen. Shape är en
     // FÖRLUSTFRI, läsbar projektion av deskriptorn: "Kind/Join:del|del", där en Named-del är
     // sitt namn plus "+N" när den står för fler val, distans-delen är "<remote>" (den bär
-    // inget namn — vilket ord den renderas som ägs av locale:n), och en Coded-del är
-    // "<code:id>" (den bär koden, och ordet ägs likaså av locale:n, #1537).
+    // inget namn — vilket ord den renderas som ägs av locale:n), arbetsgivar-delen är
+    // "<employer>" plus "+N" (den bär inget värde, #1471), och en Coded-del är "<code:id>"
+    // (den bär koden, och ordet ägs likaså av locale:n, #1537).
     //
     // Coded får en EGEN form i stället för att rendera sitt id naket: annars hade en
-    // regression tillbaka till Named, med en text som råkar vara lika, gått grön här.
+    // regression tillbaka till Named, med en text som råkar vara lika, gått grön här. Och en
+    // okänd delform KASTAR i stället för att falla tillbaka på Text: en textlös del hade annars
+    // formats till tomma strängen och testet gått grönt på ingenting.
     //
     // Medvetet INTE en prosa-rendering: att återskapa "Göteborg eller distans" här hade
     // asserterat mot en sträng produktionen inte längre producerar, och pinnen hade mätt
@@ -632,10 +620,15 @@ public class ListRecentSearchesQueryHandlerTests
         var parts = label.Parts.Select(p => p.Kind switch
         {
             RecentSearchLabelPartKind.Remote => "<remote>",
+            RecentSearchLabelPartKind.Employer => p.MoreCount > 0
+                ? $"<employer>+{p.MoreCount}"
+                : "<employer>",
             RecentSearchLabelPartKind.Coded => p.MoreCount > 0
                 ? $"<code:{p.ConceptId}>+{p.MoreCount}"
                 : $"<code:{p.ConceptId}>",
-            _ => p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text,
+            RecentSearchLabelPartKind.Named => p.MoreCount > 0 ? $"{p.Text}+{p.MoreCount}" : p.Text,
+            _ => throw new InvalidOperationException(
+                $"Shape känner inte igen delformen {p.Kind} — lägg till en gren."),
         });
 
         return $"{label.Kind}/{label.Join}:{string.Join("|", parts)}";
@@ -649,14 +642,6 @@ public class ListRecentSearchesQueryHandlerTests
         return data;
     }
 
-    public static TheoryData<string> NotReplayedAxes()
-    {
-        var data = new TheoryData<string>();
-        foreach (var axis in NotReplayed.Keys)
-            data.Add(axis);
-        return data;
-    }
-
     [Theory]
     [MemberData(nameof(NarrowingAxes))]
     public async Task Handle_NamesTheRowByItsOnlySetAxis(string axis)
@@ -664,18 +649,6 @@ public class ListRecentSearchesQueryHandlerTests
         var (criteria, expected) = AxisCases[axis];
 
         (await LabelOfAsync(criteria)).ShouldBe(expected);
-    }
-
-    // Uteslutningen ska FÖRBJUDA, inte ursäkta — samma ribba som systerguarden i
-    // RecentJobSearchProjectionParityTests. Varje NotReplayed-post bevisas frånvarande ur
-    // labeln.
-    [Theory]
-    [MemberData(nameof(NotReplayedAxes))]
-    public async Task Handle_DoesNotNameAnAxisTheReplayDrops(string axis)
-    {
-        var (criteria, ground) = NotReplayed[axis];
-
-        (await LabelOfAsync(criteria)).ShouldBe("All/None:", ground);
     }
 
     [Fact]
@@ -692,33 +665,23 @@ public class ListRecentSearchesQueryHandlerTests
         axes.ShouldNotBeEmpty(
             "guarden mäter ingenting om SearchCriteria inte exponerar några axlar");
 
-        var overlap = AxisCases.Keys
-            .Where(NotReplayed.ContainsKey)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        overlap.ShouldBeEmpty(
-            "en axel kan inte både namnge raden och vara undantagen från att göra det. "
-            + $"I båda mängderna: {string.Join(", ", overlap)}");
-
         var uncovered = axes
-            .Where(name => !AxisCases.ContainsKey(name) && !NotReplayed.ContainsKey(name))
+            .Where(name => !AxisCases.ContainsKey(name))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         uncovered.ShouldBeEmpty(
-            "varje smalnande SearchCriteria-axel behöver antingen ett fall i AxisCases eller "
-            + "en deklarerad grund i NotReplayed, annars kan en rad vars enda satta axel är "
-            + $"den namnges \"Alla annonser\" utan att någon test faller. Saknas: {string.Join(", ", uncovered)}");
+            "varje smalnande SearchCriteria-axel behöver ett fall i AxisCases, annars kan en rad "
+            + "vars enda satta axel är den namnges \"Alla annonser\" utan att någon test faller. "
+            + $"Saknas: {string.Join(", ", uncovered)}");
 
         var stale = AxisCases.Keys
-            .Concat(NotReplayed.Keys)
             .Where(name => !axes.Contains(name, StringComparer.Ordinal))
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         stale.ShouldBeEmpty(
-            $"AxisCases/NotReplayed namnger axlar SearchCriteria inte längre har: {string.Join(", ", stale)}");
+            $"AxisCases namnger axlar SearchCriteria inte längre har: {string.Join(", ", stale)}");
     }
 
     // Nyckeln måste vara den axel fallet FAKTISKT sätter. Utan den bindningen jämför
@@ -729,7 +692,6 @@ public class ListRecentSearchesQueryHandlerTests
     {
         var cases = AxisCases
             .Select(kv => (kv.Key, kv.Value.Criteria))
-            .Concat(NotReplayed.Select(kv => (kv.Key, kv.Value.Criteria)))
             .ToArray();
 
         cases.ShouldNotBeEmpty("bindningen mäter ingenting utan fall att binda");
@@ -778,10 +740,28 @@ public class ListRecentSearchesQueryHandlerTests
         label.ShouldBe("Dimensions/Conjunction:<code:tillsvidare>+1|<code:heltid>");
     }
 
+    // #1471 — arbetsgivaren är en förfiningsaxel som de två andra och fogas som dem: sist, i
+    // filter-SPOT:ens ordning, med Conjunction. Räknaren står på delen, aldrig ett värde.
+    [Fact]
+    public async Task Handle_CountsSeveralEmployers_WithoutNamingAny()
+    {
+        var label = await LabelOfAsync(Axis(employer: ["5566010101", "5560125790"]));
+
+        label.ShouldBe("Dimensions/None:<employer>+1");
+    }
+
+    [Fact]
+    public async Task Handle_ConjoinsTheEmployerPartAfterTheOtherRefinementAxes()
+    {
+        var label = await LabelOfAsync(
+            Axis(employmentType: ["tillsvidare"], employer: ["5566010101"]));
+
+        label.ShouldBe("Dimensions/Conjunction:<code:tillsvidare>|<employer>");
+    }
+
     // Org.nr:et får aldrig nå labeln — den ÄR svarstext, och RecentSearchesTests assertar på
-    // värdet i hela svarskroppen. Den här pinnen är VÄRDE-formad och överlever därför
-    // NotReplayed-posten: landar replay-armen (ADR 0087 D8(c)) och posten tas bort, står den
-    // här kvar och fäller fortfarande om axeln skulle namnges med sitt råa värde.
+    // värdet i label-subträdet. Den här pinnen är VÄRDE-formad, så den pinnar Employer-delen
+    // (#1471) oberoende av formen: axeln namnges, men aldrig med sitt råa värde.
     [Fact]
     public async Task Handle_NeverPutsTheEmployerOrgNumberInTheLabel()
     {

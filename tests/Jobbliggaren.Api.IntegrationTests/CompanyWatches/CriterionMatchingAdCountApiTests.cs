@@ -160,7 +160,7 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Too_broad_refuses_the_number_and_still_delivers_the_ads()
+    public async Task The_port_refuses_an_oversized_set_rather_than_returning_a_prefix()
     {
         var ct = TestContext.Current.CancellationToken;
         var group = NewGroup();
@@ -174,10 +174,11 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         await SetPreferencesAsync(group, region, ct);
         var id = await CreateCriterionAsync(ct);
 
-        // Seeding past MaxSetSize would cost thousands of rows on a shared database, so the bound is
-        // lowered to the fixture instead: the refusal is a property of the port's LIMIT, and this
-        // asserts the whole pipeline honours it. The production value is pinned where it is used
-        // (GetMyMatchingAdCountForCriterionQueryHandlerTests).
+        // Seeding past MaxSetSize would cost thousands of rows on a shared database, so this asserts
+        // the port's own refusal at a bound the fixture can reach. The SIZE GATE that normally spares
+        // this query entirely reads the ad magnitude and is pinned in
+        // GetMyMatchingAdCountForCriterionQueryHandlerTests; the probe below is what still catches a
+        // set that grew after that magnitude was measured.
         CriterionMatchingAdSet.MaxSetSize.ShouldBeGreaterThan(3);
 
         var withinBound = await _client.GetFromJsonAsync<JsonElement>(
@@ -212,6 +213,35 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         (await other.GetAsync($"{Endpoint}/{theirId}/ad-count", ct)).StatusCode
             .ShouldBe(HttpStatusCode.NotFound);
         (await other.GetAsync($"{Endpoint}/{theirId}/ads?onlyMatching=true", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task A_deleted_criterion_is_404_on_both_ad_routes()
+    {
+        // #1656 (b) moved the magnitude to the FIRST send on both routes, so the deleted-criterion
+        // path now runs through a different send than it used to. The property is unchanged and is
+        // asserted rather than assumed: whichever send sees the criterion gone answers null, and the
+        // route 404s. (The mid-request race — deleted BETWEEN two sends — cannot be provoked over
+        // HTTP; it is the same null-to-404 mapping, taken by the later send.)
+        var ct = TestContext.Current.CancellationToken;
+        var orgNr = NewOrgNr();
+
+        await SeedRegisterAsync(orgNr, ct);
+        await AuthenticateAsync(ct);
+        var id = await CreateCriterionAsync(ct);
+
+        // Alive first, so the 404s below are the deletion and not a fixture that never worked.
+        (await _client.GetAsync($"{Endpoint}/{id}/ad-count", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.OK);
+
+        (await _client.DeleteAsync($"{Endpoint}/{id}", ct)).IsSuccessStatusCode.ShouldBeTrue();
+
+        (await _client.GetAsync($"{Endpoint}/{id}/ad-count", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.NotFound);
+        (await _client.GetAsync($"{Endpoint}/{id}/ads?onlyMatching=true", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.NotFound);
+        (await _client.GetAsync($"{Endpoint}/{id}/ads", ct)).StatusCode
             .ShouldBe(HttpStatusCode.NotFound);
     }
 

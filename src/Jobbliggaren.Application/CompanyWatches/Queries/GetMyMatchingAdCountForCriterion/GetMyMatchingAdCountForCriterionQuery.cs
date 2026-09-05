@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Mediator;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
@@ -27,7 +28,22 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountFo
 /// from the <c>IQuery&lt;T?&gt;</c> shape, which both sides share.
 /// </para>
 /// </summary>
-public sealed record GetMyMatchingAdCountForCriterionQuery(Guid CriterionId)
+/// <param name="AdMagnitude">
+/// The criterion's ACTIVE-ad magnitude, measured by the caller and handed in. It is not an
+/// optimisation detail: the request already pays for this number to render the headline beside this
+/// one, and asking the register a second time to learn the same fact is what made a refusal cost
+/// seconds instead of nothing (measured 2026-09-05). The DTO travels, never a bare <c>int</c> — the
+/// other number in reach is a pagination total that coincides with the bound at one page size and
+/// not at another.
+/// <para>
+/// It is a MEASUREMENT, never a verdict. Whether the set is too broad is decided inside
+/// <c>CriterionMatchingAdSet</c>, so this query cannot carry a second opinion about it. And it
+/// grants no access: the handler still loads the criterion owner-scoped and 404s before this number
+/// is read, so a magnitude measured for someone else's criterion buys nothing.
+/// </para>
+/// </param>
+public sealed record GetMyMatchingAdCountForCriterionQuery(
+    Guid CriterionId, CriterionAdMagnitudeDto AdMagnitude)
     : IQuery<MyMatchingAdCountDto?>, IAuthenticatedRequest;
 
 /// <summary>

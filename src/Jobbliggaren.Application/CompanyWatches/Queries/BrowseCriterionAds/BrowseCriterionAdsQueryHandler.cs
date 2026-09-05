@@ -79,10 +79,16 @@ public sealed class BrowseCriterionAdsQueryHandler(
         if (criterion is null)
             return null;
 
+        // The magnitude is the gate's input and the caller owns measuring it (§2.3 composition). A
+        // filtered request without one is a wiring mistake, not a user error: answering it anyway
+        // would silently re-introduce the second register probe this parameter exists to remove.
         if (query.OnlyMatching)
         {
+            ArgumentNullException.ThrowIfNull(query.AdMagnitude, nameof(query.AdMagnitude));
+
             var resolved = await CriterionMatchingAdSet.ResolveAsync(
-                profileBuilder, perUserSearch, browse, criterion.Criteria, cancellationToken);
+                profileBuilder, perUserSearch, browse, criterion.Criteria, query.AdMagnitude,
+                cancellationToken);
 
             // Only the Resolved arm can honour the filter. NotAssessed and SetTooLarge fall through
             // to the unfiltered browse below — see the class docblock for why that is not an empty

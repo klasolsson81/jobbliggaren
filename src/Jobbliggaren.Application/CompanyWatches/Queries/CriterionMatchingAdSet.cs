@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -62,24 +63,79 @@ internal static class CriterionMatchingAdSet
     internal const int MaxSetSize = 2_000;
 
     /// <summary>
-    /// Resolves the criterion's matching ads. The order of the two guards is part of the contract:
-    /// <b>assessability is decided BEFORE the register is touched</b>, so a user who has stated no
-    /// occupation never pays for a scan whose result could not be graded anyway.
+    /// The invariant the whole short-circuit rests on, checked at first use rather than trusted.
+    ///
+    /// <para>
+    /// The gate reads <c>magnitude &gt;= MaxSetSize</c>, and that comparison is EXACT only while the
+    /// bound sits at or below the ceiling the count saturates at. Above it, a saturated count would
+    /// compare as "too broad" for every criterion that reached the ceiling — including ones whose
+    /// true ad set fits — and the surface would quietly stop answering a question it can answer.
+    /// A silent universal refusal is the shape that survives a test suite, so it fails loudly here.
+    /// </para>
+    /// </summary>
+    static CriterionMatchingAdSet()
+    {
+        if (MaxSetSize > CriterionAdMagnitudeDto.Ceiling)
+        {
+            throw new InvalidOperationException(
+                $"MaxSetSize ({MaxSetSize}) överstiger CriterionAdMagnitudeDto.Ceiling "
+                + $"({CriterionAdMagnitudeDto.Ceiling}). Grinden jämför mot ett tal som mättar vid "
+                + "taket, så över det blir jämförelsen obestämbar och varje mättat kriterium skulle "
+                + "vägras — tyst.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves the criterion's matching ads. The order of the three guards is part of the contract,
+    /// and each one exists to avoid work the next would waste.
+    ///
+    /// <para>
+    /// <b>Assessability first</b>, so a caller who has stated no occupation never pays for a scan
+    /// whose result could not be graded. <b>Then the size gate</b>, from
+    /// <paramref name="adMagnitude"/> — a number the request has ALREADY measured for the headline,
+    /// so the refusal costs nothing rather than the ordered set query it replaces (measured
+    /// 2026-09-05: that query costs seconds on a criterion this gate refuses, and its own LIMIT
+    /// cannot reduce it because the cost is the register join plus the sort over the whole match
+    /// set). <b>Then the probe.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The gate never replaces the probe.</b> The port still asks for one row more than it can
+    /// accept, so a set that grew between the count and the query is refused rather than truncated.
+    /// The gate can only skip a query whose answer the count already determined; it can never admit
+    /// one the probe would have refused, and the race resolves in the safe direction.
+    /// </para>
+    ///
+    /// <para>
+    /// <paramref name="adMagnitude"/> is the DTO and not a bare <c>int</c> on purpose: the other
+    /// number in reach is <c>PagedResult.TotalCount</c> from the ad browse, which is capped at
+    /// <c>MaxServableRows(pageSize)</c> — a value that happens to equal <see cref="MaxSetSize"/> at
+    /// page size 20 and does not at page size 100. A typed parameter makes that substitution
+    /// impossible instead of merely unlikely.
+    /// </para>
     /// </summary>
     public static async Task<CriterionMatchingAds> ResolveAsync(
         IMatchProfileBuilder profileBuilder,
         IPerUserJobAdSearchQuery perUserSearch,
         ICompanyWatchBrowseQuery browse,
         CompanyWatchCriteriaSpec criteria,
+        CriterionAdMagnitudeDto adMagnitude,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentNullException.ThrowIfNull(adMagnitude);
 
         // Api-side, so BuildFullForSortAsync (ICurrentUser-scoped), never the Worker's
         // BuildFullForUserIdAsync — parity NewFollowedCompanyAdSet.ResolveMatchingAsync.
         var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return new CriterionMatchingAds.NotAssessed();
+
+        // The rule lives HERE and nowhere else: a caller hands over the measurement, never the
+        // verdict. A handler comparing a number to MaxSetSize itself would be a second authority on
+        // "too broad", which is exactly what one definition-owner exists to prevent.
+        if (adMagnitude.Magnitude >= MaxSetSize)
+            return new CriterionMatchingAds.SetTooLarge();
 
         var ids = await browse.ListActiveAdIdsAsync(criteria, MaxSetSize, cancellationToken);
 

@@ -2,7 +2,9 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -42,6 +44,9 @@ public class BrowseCriterionAdsMatchingArmTests
     private static readonly string[] SniIt = ["62010"];
     private static readonly string[] KommunStockholm = ["0180"];
 
+    // Under the bound, so the size gate admits and these arms exercise the path beyond it.
+    private static readonly CriterionAdMagnitudeDto Fits = new(12, Saturated: false);
+
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
     private readonly ICompanyWatchBrowseQuery _browse = Substitute.For<ICompanyWatchBrowseQuery>();
@@ -79,7 +84,7 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(new HashSet<JobAdId> { a1, a3, a5 });
 
         var result = await Sut(db, Owner).Handle(
-            new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 1, PageSize: 2, OnlyMatching: true),
+            new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 1, PageSize: 2, OnlyMatching: true, AdMagnitude: Fits),
             ct);
 
         result.ShouldNotBeNull();
@@ -117,7 +122,7 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(new HashSet<JobAdId> { a1, a3, a5 });
 
         var result = await Sut(db, Owner).Handle(
-            new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 2, PageSize: 2, OnlyMatching: true),
+            new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 2, PageSize: 2, OnlyMatching: true, AdMagnitude: Fits),
             ct);
 
         result.ShouldNotBeNull();
@@ -152,7 +157,7 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(new HashSet<JobAdId> { oldest, newest, middle });
 
         var result = await Sut(db, Owner).Handle(
-            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true, AdMagnitude: Fits), ct);
 
         result.ShouldNotBeNull();
         result.Items.Select(i => i.Title).ShouldBe(["Nyast", "Mitten", "Äldst"]);
@@ -172,7 +177,7 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
 
         var result = await Sut(db, Owner).Handle(
-            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true, AdMagnitude: Fits), ct);
 
         result.ShouldNotBeNull();
         // The filter is INERT, not empty. An empty page would assert that nothing matches this
@@ -197,10 +202,52 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
 
         var result = await Sut(db, Owner).Handle(
-            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true, AdMagnitude: Fits), ct);
 
         result.ShouldNotBeNull();
         result.Items.Select(i => i.Title).ShouldBe(["Utvecklare"]);
+    }
+
+    [Fact]
+    public async Task Handle_OnlyMatching_TooBroad_DeliversTheUnfilteredList_WithoutASecondRegisterQuery()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+        var ad = SeedAd(db, "Utvecklare", T0.AddDays(-1));
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _browse.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
+
+        var atBound = new CriterionAdMagnitudeDto(CriterionMatchingAdSet.MaxSetSize, Saturated: false);
+        var result = await Sut(db, Owner).Handle(
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true, AdMagnitude: atBound),
+            ct);
+
+        result.ShouldNotBeNull();
+        result.Items.Select(i => i.Title).ShouldBe(["Utvecklare"]);
+
+        // The gate decided it from the magnitude the request already measured. The ordered set query
+        // it replaces is the one that costs seconds on exactly this criterion.
+        await _browse.DidNotReceiveWithAnyArgs()
+            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Handle_OnlyMatching_WithoutAMagnitude_FailsLoudly()
+    {
+        // A filtered request with no measurement is a wiring mistake. Answering it would mean
+        // measuring the set size a second time -- the duplication the parameter exists to remove --
+        // so it throws instead of silently costing what it was added to save.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await Sut(db, Owner).Handle(
+                new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct));
     }
 
     [Fact]

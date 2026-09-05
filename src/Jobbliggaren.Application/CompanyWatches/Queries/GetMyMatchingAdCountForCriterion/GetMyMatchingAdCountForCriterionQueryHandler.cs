@@ -47,7 +47,8 @@ public sealed class GetMyMatchingAdCountForCriterionQueryHandler(
             return null;
 
         var resolved = await CriterionMatchingAdSet.ResolveAsync(
-            profileBuilder, perUserSearch, browse, criterion.Criteria, cancellationToken);
+            profileBuilder, perUserSearch, browse, criterion.Criteria, query.AdMagnitude,
+            cancellationToken);
 
         // The switch is exhaustive over a CLOSED hierarchy, so the discard arm is unreachable rather
         // than a default: a fourth kind cannot be declared outside CriterionMatchingAds. It throws

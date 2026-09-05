@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.Matching.Abstractions;
@@ -49,6 +50,10 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
     private static readonly string[] SniIt = ["62010"];
     private static readonly string[] KommunStockholm = ["0180"];
 
+    // An ad magnitude comfortably under the bound: the gate admits, so these arms exercise the
+    // path beyond it. The gate's own arm supplies its own number.
+    private static readonly CriterionAdMagnitudeDto Fits = new(12, Saturated: false);
+
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
     private readonly ICompanyWatchBrowseQuery _browse = Substitute.For<ICompanyWatchBrowseQuery>();
@@ -84,7 +89,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(new HashSet<JobAdId> { a1, a3 });
 
         var result = await Sut(db, Owner).Handle(
-            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, Fits), ct);
 
         result.ShouldNotBeNull();
         // Two of three, never three: the count is the GRADED subset, not the criterion's ad set.
@@ -112,7 +117,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(ProfilelessProfile());
 
         var result = await Sut(db, Owner).Handle(
-            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, Fits), ct);
 
         result.ShouldNotBeNull();
         // NOT a zero. A zero would tell the user nothing matches them; the truth is that they have
@@ -130,8 +135,12 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_SetTooLarge_RefusesTheQuestion_AndGradesNothing()
+    public async Task Handle_GateAdmitsButProbeRefuses_StillRefuses()
     {
+        // The RACE arm, and the reason the probe survives the gate: the count said the set fits, the
+        // set grew before the query ran, and the port refused. Were the gate allowed to replace the
+        // probe, this is the request that would have counted a truncated prefix.
+
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
         var criterion = await SeedCriterionAsync(db, Owner, ct);
@@ -144,7 +153,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns<IReadOnlyList<JobAdId>?>((IReadOnlyList<JobAdId>?)null);
 
         var result = await Sut(db, Owner).Handle(
-            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, Fits), ct);
 
         result.ShouldNotBeNull();
         result.TooBroad.ShouldBeTrue();
@@ -171,7 +180,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns<IReadOnlyList<JobAdId>?>([]);
 
         var result = await Sut(db, Owner).Handle(
-            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, Fits), ct);
 
         result.ShouldNotBeNull();
         // An empty set is a real answer and must not be confused with the refusal, whose empty
@@ -195,7 +204,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         var failedAccess = Substitute.For<IFailedAccessLogger>();
 
         var result = await Sut(db, Stranger, failedAccess).Handle(
-            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, Fits), ct);
 
         // null RESPONSE is the authorization signal (→ 404), a different null from the DTO's
         // Count. Unknown and cross-user are the same answer, so the route is never an existence
@@ -206,6 +215,72 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         await _browse.DidNotReceiveWithAnyArgs()
             .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
         await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_MagnitudeAtTheBound_RefusesWithoutTouchingTheRegister()
+    {
+        // The GATE arm. The number is one the request already measured for the headline, so a
+        // criterion too broad to grade costs no register query at all — measured 2026-09-05, the
+        // ordered set query it replaces costs seconds on exactly these criteria, and its own LIMIT
+        // cannot reduce that (the cost is the join plus the sort over the whole match set).
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+
+        var atBound = new CriterionAdMagnitudeDto(CriterionMatchingAdSet.MaxSetSize, Saturated: false);
+        var result = await Sut(db, Owner).Handle(
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, atBound), ct);
+
+        result.ShouldNotBeNull();
+        result.TooBroad.ShouldBeTrue();
+        result.Count.ShouldBeNull();
+
+        // The whole point of the gate: no second question to the register.
+        await _browse.DidNotReceiveWithAnyArgs()
+            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Handle_MagnitudeOneUnderTheBound_IsStillAnswered()
+    {
+        // The boundary asserted from the other side, so the gate cannot creep into refusing sets it
+        // can serve. `>=` means exactly MaxSetSize refuses and one under is answered.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        var ad = new JobAdId(Guid.NewGuid());
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _browse.ListActiveAdIdsAsync(
+                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<JobAdId>?>([ad]);
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new HashSet<JobAdId> { ad });
+
+        var underBound = new CriterionAdMagnitudeDto(
+            CriterionMatchingAdSet.MaxSetSize - 1, Saturated: false);
+        var result = await Sut(db, Owner).Handle(
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value, underBound), ct);
+
+        result.ShouldNotBeNull();
+        result.Count.ShouldBe(1);
+        result.TooBroad.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void TheGateIsExactOnlyBecauseTheBoundSitsUnderTheCountsCeiling()
+    {
+        // The invariant the short-circuit rests on. Above the ceiling the count SATURATES, so
+        // `magnitude >= MaxSetSize` would be true for every criterion that reached it — including
+        // ones whose real ad set fits — and the surface would silently stop answering.
+        CriterionMatchingAdSet.MaxSetSize.ShouldBeLessThanOrEqualTo(CriterionAdMagnitudeDto.Ceiling);
     }
 
     [Fact]

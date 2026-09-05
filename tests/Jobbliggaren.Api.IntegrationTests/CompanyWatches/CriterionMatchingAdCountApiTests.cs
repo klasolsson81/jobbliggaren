@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -214,6 +215,24 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
             .ShouldBe(HttpStatusCode.NotFound);
         (await _client.GetAsync($"{Endpoint}/{id}/ads", ct)).StatusCode
             .ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public void The_resolver_lives_exactly_one_request()
+    {
+        // The memo is a CORRECTNESS mechanism, not a cache, and a one-word registration change kills
+        // it without failing any outcome assertion. Transient gives every handler its own resolver --
+        // two measurements at two instants again, which is the divergence the type exists to close.
+        // Singleton lets a memo keyed on criterion id outlive the user whose profile it was built
+        // for. Asserted behaviourally so both mutations die, not by reading the descriptor back.
+        using var first = _factory.Services.CreateScope();
+        var a = first.ServiceProvider.GetRequiredService<CriterionMatchingAdSetResolver>();
+        var b = first.ServiceProvider.GetRequiredService<CriterionMatchingAdSetResolver>();
+        a.ShouldBeSameAs(b);
+
+        using var second = _factory.Services.CreateScope();
+        second.ServiceProvider.GetRequiredService<CriterionMatchingAdSetResolver>()
+            .ShouldNotBeSameAs(a);
     }
 
     // ── Fixture ────────────────────────────────────────────────────────────────────────────────

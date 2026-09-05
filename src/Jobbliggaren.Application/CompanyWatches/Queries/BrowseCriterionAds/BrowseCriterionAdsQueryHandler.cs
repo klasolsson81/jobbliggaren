@@ -38,7 +38,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// <para>
 /// <b>#1656 (b) — the "bara matchande" arm.</b> When
 /// <see cref="BrowseCriterionAdsQuery.OnlyMatching"/> is set, the page comes from
-/// <see cref="CriterionMatchingAdSet"/> instead: the WHOLE matching set is resolved first and the
+/// <see cref="CriterionMatchingAdSetResolver"/> instead: the WHOLE matching set is resolved first and the
 /// PAGE is cut from it. Filtering the loaded page would be a different (and false) surface — at
 /// pageSize 20 it would describe the page rather than the watch, which ADR 0120 forbids and which
 /// would make "N matchar dig" disagree with what the user lands on.

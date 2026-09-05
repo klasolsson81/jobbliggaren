@@ -32,7 +32,7 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// </summary>
 /// <param name="OnlyMatching">
 /// #1656 (b) — when <c>true</c>, the page is cut from the ads that match the CALLER (&gt;= Good) via
-/// <c>CriterionMatchingAdSet</c>, not from the criterion's whole ad set. The whole matching set is
+/// <c>CriterionMatchingAdSetResolver</c>, not from the criterion's whole ad set. The whole matching set is
 /// resolved before the page is cut: a filter applied to an already-loaded page would describe the
 /// PAGE rather than the watch (ADR 0120), and the number linking here would then land on a
 /// different set than it counted.

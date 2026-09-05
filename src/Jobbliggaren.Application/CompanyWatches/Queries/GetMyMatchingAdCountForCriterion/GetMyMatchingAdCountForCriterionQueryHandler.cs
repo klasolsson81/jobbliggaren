@@ -6,11 +6,11 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountFo
 
 /// <summary>
 /// #1656 (b) — owner-scoped load (<see cref="CriterionOwnerScopedLoader"/> carries the ADR 0031
-/// posture and its cross-user probe), then <see cref="CriterionMatchingAdSet"/>.
+/// posture and its cross-user probe), then <see cref="CriterionMatchingAdSetResolver"/>.
 ///
 /// <para>
 /// <b>This handler computes nothing itself, and that is the point.</b> The set, the grade and the
-/// refusal all live in <see cref="CriterionMatchingAdSet"/>, which the filtered ad browse consumes
+/// refusal all live in <see cref="CriterionMatchingAdSetResolver"/>, which the filtered ad browse consumes
 /// too — so the number here and the list the user lands on cannot run different predicates. That
 /// divergence is the defect class this surface has already shipped twice (#1407, #1471), and Klas's
 /// condition for #1656 is that the number links to exactly those ads.

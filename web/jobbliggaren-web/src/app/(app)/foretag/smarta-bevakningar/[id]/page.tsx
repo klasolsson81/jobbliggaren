@@ -201,7 +201,6 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
                   className="jp-countlink"
                   href={buildCriterionAdsHref(id, 1, "matching")}
                   prefetch={false}
-                  aria-label={t("ads.matchingLinkAria", { count: matching.count })}
                 >
                   {tWatch("matchingAds", { count: matching.count })}
                 </Link>

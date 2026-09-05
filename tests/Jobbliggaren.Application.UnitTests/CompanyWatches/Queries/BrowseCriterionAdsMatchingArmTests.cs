@@ -240,6 +240,39 @@ public class BrowseCriterionAdsMatchingArmTests
     }
 
     [Fact]
+    public async Task Handle_OnlyMatching_CapsTheTotalAtWhatTheSurfaceCanServe()
+    {
+        // TotalPages = ceil(TotalCount / PageSize) while the validator 400s past MaxPage, so an
+        // uncapped total advertises pages the pager cannot fetch -- not slow, FALSE. The unfiltered
+        // arm gets the cap from the port; this arm has to apply it itself, and at pageSize 20 against
+        // a small set the cap is inert, so only a small page size can see it.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        var ids = Enumerable.Range(0, 150).Select(_ => new JobAdId(Guid.NewGuid())).ToList();
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        MagnitudeIs(ids.Count);
+        _browse.ListActiveAdIdsAsync(
+                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<JobAdId>?>(ids);
+        _perUserSearch.FilterToMatchingAsync(
+                Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ids.ToHashSet());
+
+        var result = await Sut(db, Owner).Handle(
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 1, OnlyMatching: true), ct);
+
+        result.ShouldNotBeNull();
+        // 150 matching ads at pageSize 1: the surface can serve 100, so that is what the pager may
+        // advertise. Uncapped it would offer 150 pages of which 100 are fetchable.
+        result.TotalCount.ShouldBe(CompanyBrowseCriteria.MaxServableRows(1));
+    }
+
+    [Fact]
     public async Task Handle_WithoutTheFlag_NeverResolvesTheMatchingSet()
     {
         var ct = TestContext.Current.CancellationToken;

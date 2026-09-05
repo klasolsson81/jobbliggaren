@@ -454,7 +454,6 @@
         "seatHelpAria": "How were these ads selected?",
         "emptyTitle": "No active job ads right now.",
         "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities.",
-        "matchingLinkAria": "Show the {count} job ads that match you",
         "matchingHeadline": "{count, plural, =0 {No matching job ads} one {# matching job ad} other {# matching job ads}}",
         "matchingTooBroad": "This watch is too broad for us to count how many job ads match you. Try choosing fewer industries or municipalities.",
         "showAll": "Show all job ads",

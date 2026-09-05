@@ -10,6 +10,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
 
@@ -360,6 +361,19 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         MyMatchingAdCountDto.TooBroadToCount.Count.ShouldBeNull();
         MyMatchingAdCountDto.TooBroadToCount.TooBroad.ShouldBeTrue();
         MyMatchingAdCountDto.Counted(0).Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public void AddApplication_DoesNotRegisterTheResolver_BecauseBothHostsCallIt()
+    {
+        // The memo is keyed on criterion id while its value is per-user, so it is safe exactly where
+        // a scope IS a request. Api's is; a Worker scope is not -- DigestDispatchJob iterates users
+        // inside one. AddApplication() is called by BOTH hosts, so the registration lives in the Api
+        // composition root and the Worker container cannot resolve the type at all.
+        Jobbliggaren.Application.Common.DependencyInjection
+            .AddApplication(new ServiceCollection())
+            .Any(d => d.ServiceType == typeof(CriterionMatchingAdSetResolver))
+            .ShouldBeFalse();
     }
 
     private GetMyMatchingAdCountForCriterionQueryHandler Sut(

@@ -288,11 +288,11 @@ public sealed class RateLimitingOptions
     /// <para><b>#1656 (b) — the per-view token counts above are UNCHANGED; what one token buys on the
     /// two AD routes is not.</b> The personal match count was composed into the EXISTING sends rather
     /// than given a fifth route, so the detail page stays at 2 tokens and /annonser at 1 whether or not
-    /// its matching axis is set. On the routes that resolve it, one token now also buys a grade query
-    /// over at most <c>CriterionMatchingAdSetResolver.MaxSetSize</c> ad ids. The REGISTER half is read
-    /// once per request however many sends ask, because the resolver is scoped — and a criterion too
-    /// broad to grade is refused from that same reading rather than a second one. Whether 15 still
-    /// holds against the new per-token row cost is security-auditor's call, not this file's.</para>
+    /// its matching axis is set. On the routes that resolve it, one token additionally buys the
+    /// criterion's ad-id set and a grade pass over it. Each of those is read ONCE per request however
+    /// many sends ask, because the resolver is scoped — and a criterion too broad to grade is refused
+    /// without reading the set at all. Whether 15 still holds against the new per-token row cost is
+    /// security-auditor's call, not this file's.</para>
     /// </summary>
     public PolicyOptions CompanyBrowse { get; init; } = new()
     {

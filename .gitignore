@@ -174,3 +174,7 @@ loadtest-reports/
 # Gate M-7 (#1201): the heartbeat capability URL. Only the .example template is tracked.
 # (`deploy/detection/detection.env` stood here and was struck 2026-08-12: `*.env` above already
 #  covers it, and a rule that does no work reads as though it does.)
+
+# #1115 — the SNI-sok page cache the alias generator fetches into. The committed JSON asset
+# is the source of truth; this is 6 MB of scraped HTML that any run can rebuild.
+tools/sni-aliases/.cache/

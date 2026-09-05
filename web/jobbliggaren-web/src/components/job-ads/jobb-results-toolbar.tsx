@@ -126,7 +126,8 @@ interface JobbResultsToolbarProps {
    * bevarar det, och renderas som EN toolbar-lokal avtagbar chip (samma
    * mönster som grad-chipsen — ALDRIG via buildChipModels, som är SPOT med
    * hero-fältets in-field-chips). Filtret sätts av bevakningsradens och Översiktens
-   * räknelänkar (`company-jobs-href.ts`), aldrig av toolbaren själv.
+   * räknelänkar (`company-jobs-href.ts`), typeaheadens arbetsgivarförslag och en replayad
+   * senaste sökning (`recent-search-href.ts`, #1471), aldrig av toolbaren själv.
    */
   employer: ReadonlyArray<string>;
   /**
@@ -367,24 +368,15 @@ export function JobbResultsToolbar({
     commit(removeChipFromState(urlState, chip));
   }
 
-  // #454 PR-0 — arbetsgivar-chipens ×. Navigering UTAN commit-intent, samma väg som
-  // grad-chipsen — och av samma skäl: en fångad arbetsgivarsökning går inte att köra igen.
-  // `RecentJobSearchDto` bär inget employer-fält alls, och `recent-search-href.ts` utelämnar
-  // det, så raden i Senaste sökningar skulle länka till en BREDARE sökning än den utger sig
-  // för att vara.
-  //
-  // ⚠ Detta är andra omskrivningen. Båda de tidigare skälen var falska, mätta 2026-08-19.
-  // Det första sa att employer är "runtime-view-state satt av företagskortets länk" — den
-  // företagskortets länk finns fortfarande inte; sedan #1547 är enda producenten av ett
-  // employer-värde bevakningsradens `buildCompanyJobsHref`. Det andra sa att en committad sökning
-  // inte ska auto-capturas — men `commit()`:s egen docblock i den här filen säger
-  // motsatsen som ett Klas-val (E2j, 2026-06-12): ta bort chip / Rensa / byt sort ÄR
-  // avsiktliga sökningar som fångas, och `removeChip` anropar `commit`. För varje chip utom
-  // detta. Formen har varit rätt hela tiden; det är skälet som har varit fel två gånger.
+  // #454 PR-0 — the employer chip's ×. Commit-intent like every other SEARCH chip (E2j, Klas
+  // 2026-06-12: removing a filter IS a deliberate search and is captured); the grade chips are
+  // runtime view-state and keep navigating without commit. The exception that stood here rested
+  // on a captured employer search not being replayable; since #1471 the replay carries the
+  // axis, so the exception has no ground left.
   // Clears the WHOLE axis: it is set as one set (every watched company or none), so a
   // per-value × would leave a filter the user cannot name and never asked for.
   function removeEmployer() {
-    navigate({ ...urlState, employer: [] });
+    commit({ ...urlState, employer: [] });
   }
 
   // E2i (Klas-beslut 2026-06-11, ersätter E2e-domen "q bevaras"): q-orden
@@ -570,7 +562,7 @@ export function JobbResultsToolbar({
 
         {/* Arbetsgivar-chip (#454 PR-0, toolbar-lokal som grad-chipsen —
             ALDRIG via buildChipModels, SPOT med hero-fältets in-field-chips).
-            × navigerar utan commit-intent (removeEmployer). Civic-ikon: Building2. */}
+            Civic-ikon: Building2. */}
         {employers.length > 0 && (
           <span className="jp-filterchip">
             <Building2 size={12} aria-hidden="true" />

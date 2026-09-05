@@ -331,17 +331,17 @@ export function withCommitFlag(href: string): string {
  * ⚠ SKYDDET SOM STOD HÄR ÄR BORTA, mätt 2026-08-19. Det löd: "det lastbärande skyddet
  * är att FE-producenterna aldrig emitterar en pnr-shaped länk (IsProtectedIdentity-gaten)
  * och backend-maskningen". Den producenten var `company-lookup.tsx:204/:210`, raderad i
- * `aca39970` (#997/#1030) — grinden vaktade en tom mängd fram till #1547. Sedan #1546 finns
- * TVÅ producenter, med OLIKA grindar: `buildCompanyJobsHref` (`company-jobs-href.ts`),
+ * `aca39970` (#997/#1030) — grinden vaktade en tom mängd fram till #1547. Producenterna har
+ * OLIKA grindar: `buildCompanyJobsHref` (`company-jobs-href.ts`),
  * anropad från bevakningsraden, gatar hos ANROPAREN på
  * `!isProtectedIdentity && organizationNumber`; typeaheadens arbetsgivarförslag
- * (`composeSuggestionChip`) gatar i fyra led.
- * En tredje producent måste bära en egen grind — ingen ärvs. Utöver den round-trippar
+ * (`composeSuggestionChip`) gatar i fyra led; en replayad senaste sökning
+ * (`recent-search-href.ts`, #1471) gatar på servern (`EmployerAxisGate`).
+ * En ny producent måste bära en egen grind — ingen ärvs. Utöver den round-trippar
  * `buildJobbHref`, `buildPageHref` och toolbarens
  * `commit()` round-trippar värdet ur URL:en, så en handskriven param återkommitteras av varje
  * toolbar-handling som bär commit-intent. Vilka de är avgörs av `commit()` mot `navigate()` i
- * `jobb-results-toolbar.tsx`, inte av en lista här — i skrivande stund navigerar arbetsgivarens
- * eget × och grad-chipsen, allt annat committar. Backend-maskningen (ADR 0087 D8(c)) når inte
+ * `jobb-results-toolbar.tsx`, inte av en lista här. Backend-maskningen (ADR 0087 D8(c)) når inte
  * hit heller.
  *
  * Det som FAKTISKT skyddar sedan 2026-08-19 är persistens-grinden i

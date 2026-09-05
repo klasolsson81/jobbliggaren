@@ -159,14 +159,15 @@ public class RecentSearchesTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Searching_jobs_with_employer_only_persists_org_nr_to_column_without_surfacing_it()
+    public async Task Searching_jobs_with_employer_only_persists_org_nr_to_column_and_surfaces_it_for_replay()
     {
         // #311 PR-2b C1 (ADR 0087 D6): a committed ?employer= search captures a RecentJobSearch AND
         // persists the org.nr into the employer_list text[] column — the ONLY DB-level proof of the
         // shadow-backing-field + migration round-trip (the ListRecentSearches unit tests use EF
-        // In-Memory, which never exercises text[]). The org.nr is deliberately NOT surfaced on the
-        // wire (RecentJobSearchDto has no employer field — ADR 0087 D8(c): a user-owned org.nr is
-        // never displayed un-flagged), so the round-trip is verified by reading the column directly.
+        // In-Memory, which never exercises text[]). #1471: the axis ALSO reaches the wire, as
+        // `employerList`, so the replay href can carry it — the same three legs the remote sibling
+        // below asserts. What may reach it is a legal-entity org.nr only (ADR 0087 D8(c), masked
+        // arm — EmployerAxisGate); the label never carries the value under any form.
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
@@ -181,17 +182,16 @@ public class RecentSearchesTests(ApiFactory factory)
         var listResponse = await _client.GetAsync("/api/v1/me/recent-searches", ct);
         var items = await listResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
         items.GetArrayLength().ShouldBe(1);
-        // ...but the org.nr is NOT on the wire. Asserted on the VALUE, not on two spellings:
-        // every guard upstream of here (RecentJobSearchProjectionParityTests.NotSurfaced,
-        // RecentJobSearchDtoContractTests.SurfacedProperties) reasons about property NAMES, so a
-        // projection called `Employers` or `EmployerOrgNumbers` carrying r.Employer passes all of
-        // them. This is the one layer where the value itself is observable, so this is where the
-        // spelling axis closes. Shape over name — same form as JobAdPublicSurfaceGuardTests.
-        items[0].GetRawText().Contains(orgNr, StringComparison.Ordinal).ShouldBeFalse(
-            "no recent-search projection may carry the employer org.nr to the wire under ANY "
-            + "property name — for an enskild firma the value is the holder's personnummer (#841).");
-        items[0].TryGetProperty("employer", out _).ShouldBeFalse();
-        items[0].TryGetProperty("employerList", out _).ShouldBeFalse();
+        // ...and the org.nr reaches the wire under exactly one name, the replay's.
+        items[0].GetProperty("employerList").EnumerateArray()
+            .Select(e => e.GetString())
+            .ShouldBe([orgNr]);
+        // The LABEL never carries it. Asserted on the VALUE, in the one subtree that is rendered
+        // as text on three surfaces: the unit-level pin (Handle_NeverPutsTheEmployerOrgNumberInTheLabel)
+        // reasons about the label's shape, this reads what System.Text.Json actually emitted.
+        items[0].GetProperty("label").GetRawText().Contains(orgNr, StringComparison.Ordinal).ShouldBeFalse(
+            "the recent-search label may name the employer axis but never its value — for an "
+            + "enskild firma the value is the holder's personnummer (#841).");
 
         // The employer_list text[] column round-trips through real Postgres: read this user's row.
         using var scope = factory.Services.CreateScope();
@@ -210,8 +210,6 @@ public class RecentSearchesTests(ApiFactory factory)
         // column round-trip end-to-end (the ListRecentSearches unit tests use EF In-Memory).
         // #1407: the axis now ALSO reaches the wire, so the replay href can carry it. That is the whole
         // round-trip a user sees — column write, projection, wire — and it is asserted on both legs.
-        // Contrast Searching_jobs_with_employer_only_persists_org_nr_to_column_without_surfacing_it:
-        // that axis stays off the wire on purpose (RecentJobSearchProjectionParityTests owns why).
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);

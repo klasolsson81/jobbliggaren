@@ -69,12 +69,6 @@ forbids it, and this file is the path it prescribes instead.
    part on the site answering `401` on every path; removing Basic auth for a demo makes that
    finding blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.
-6. **Registration collects personal data before it explains itself.** `/registrera` carries
-   no Art. 13 first-layer notice and no link to the policy; the footer link is site chrome,
-   not a collection-point notice. While both accounts are Klas's own, controller and data
-   subject coincide and this is not a breach — **it becomes one at the first registrant who
-   is not Klas.** So the gate is opened for the operator's own two accounts only, and closed
-   again afterwards (step 10), until the notice ships.
 
 ## 3. The visit
 
@@ -321,8 +315,7 @@ running it.**
 closed a `false` there is accepted silently and disables the login gate). Accounts and logins
 survive a closed gate; closing it refuses new registrations only.
 
-Closed is the default rather than a preference, and preconditions 5 and 6 are the reason:
-until the rights channel receives and `/registrera` carries its Art. 13 notice, the gate is
+Closed is the default rather than a preference: the gate is
 opened for a visit and not left open between them. Leaving it open is available, but it is a
 deliberate exception with K2 as the only thing in front of it — and K2's plaintext now sits in
 a file whose audience is every future CC session.

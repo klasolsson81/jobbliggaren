@@ -380,7 +380,8 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
   });
 
   // #454 PR-0 — toolbar-lokal arbetsgivar-chip (grad-chips-mönstret): renderas
-  // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × navigerar utan commit.
+  // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × committar som varje annan sök-chip (#1471;
+  // grad-chipsen är runtime-view-state och navigerar fortsatt utan commit).
   describe("arbetsgivar-chip (#454 PR-0)", () => {
     it("renderar chippen med formaterat org.nr när employer är satt", () => {
       renderToolbar({ employer: ["5560125790"] });
@@ -429,7 +430,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       return user
         .click(screen.getByRole("button", { name: "Ta bort filter 2 arbetsgivare" }))
         .then(() => {
-          expect(pushMock).toHaveBeenCalledWith("/jobb");
+          expect(pushMock).toHaveBeenCalledWith("/jobb?commit=true");
         });
     });
 
@@ -438,7 +439,7 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
       expect(screen.queryByText(/Arbetsgivare /)).toBeNull();
     });
 
-    it("× tar bort employer ur URL:en (navigate, utan commit) och bevarar övrig state", async () => {
+    it("× tar bort employer ur URL:en med commit-intent (E2j) och bevarar övrig state", async () => {
       const user = userEvent.setup();
       renderToolbar({
         employer: ["5560125790"],
@@ -450,8 +451,9 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
           name: "Ta bort filter Arbetsgivare 556012-5790",
         }),
       );
-      // employer borta, grad-filtret kvar; ingen ?commit=true (runtime-view-state).
-      expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong");
+      // employer borta, grad-filtret kvar; ?commit=true som varje annan chip — sedan #1471
+      // bär replayen arbetsgivar-axeln, så undantaget från E2j har ingen grund kvar.
+      expect(pushMock).toHaveBeenCalledWith("/jobb?matchGrades=Strong&commit=true");
     });
 
     it("sort-byte bevarar employer (param-bevarande-basen)", async () => {

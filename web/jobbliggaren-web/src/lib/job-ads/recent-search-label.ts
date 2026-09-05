@@ -16,6 +16,16 @@ export interface RecentSearchLabelCopy {
   readonly remoteLeading: string;
   /** The distance facet after another part, e.g. "distans" / "remote". */
   readonly remoteInline: string;
+  /** One employer where it LEADS the label, e.g. "En arbetsgivare" / "One employer". */
+  readonly employerLeading: string;
+  /** One employer after another part, e.g. "en arbetsgivare" / "one employer". */
+  readonly employerInline: string;
+  /**
+   * Several employers, counted rather than named, e.g. "3 arbetsgivare" / "3 employers".
+   * Only ever called with a count of two or more — a single employer takes the positional
+   * word above — so the copy needs no singular form.
+   */
+  readonly employerCount: (count: number) => string;
   /** Joins the final two alternatives of a union. Carries its own spacing, e.g. " eller ". */
   readonly or: string;
   /** Separates the earlier parts, and separates conjoined axes. Carries its own spacing. */
@@ -44,6 +54,9 @@ type RecentSearchLabelKey =
   | "label.all"
   | "label.remoteLeading"
   | "label.remoteInline"
+  | "label.employerLeading"
+  | "label.employerInline"
+  | "label.employerCount"
   | "label.or"
   | "label.separator"
   | "label.more";
@@ -61,6 +74,9 @@ export function recentSearchLabelCopy(
     all: t("label.all"),
     remoteLeading: t("label.remoteLeading"),
     remoteInline: t("label.remoteInline"),
+    employerLeading: t("label.employerLeading"),
+    employerInline: t("label.employerInline"),
+    employerCount: (count) => t("label.employerCount", { count }),
     or: t("label.or"),
     separator: t("label.separator"),
     more: (count) => t("label.more", { count }),
@@ -77,6 +93,14 @@ function renderPart(
   // where the part sits, and the catalogue owns both forms per locale.
   if (part.kind === "Remote") {
     return index === 0 ? copy.remoteLeading : copy.remoteInline;
+  }
+
+  // Same shape as the distance facet, for a stronger reason: the value is an org.nr, and for a
+  // sole trader that is the holder's personnummer, so the part never names it (Klas 2026-08-23,
+  // #1471). One employer takes the positional word; several are counted, never listed.
+  if (part.kind === "Employer") {
+    if (part.moreCount > 0) return copy.employerCount(part.moreCount + 1);
+    return index === 0 ? copy.employerLeading : copy.employerInline;
   }
 
   // `Named` carries a resolved name, Swedish in every locale; `Coded` carries only an id.

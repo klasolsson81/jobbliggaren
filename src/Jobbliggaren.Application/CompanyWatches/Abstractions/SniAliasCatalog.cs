@@ -36,7 +36,7 @@ public sealed class SniAliasCatalog
         ArgumentException.ThrowIfNullOrWhiteSpace(demandVersion);
         ArgumentNullException.ThrowIfNull(aliases);
 
-        Version = version;
+        AliasVersion = version;
         SniVersion = sniVersion;
         DemandVersion = demandVersion;
         Aliases = aliases;
@@ -51,8 +51,10 @@ public sealed class SniAliasCatalog
                 StringComparer.Ordinal);
     }
 
-    /// <summary>Alias dataset version ("2025.alias.v1").</summary>
-    public string Version { get; }
+    /// <summary>Alias dataset version ("2025.alias.v1"). Named for its dataset rather than
+    /// <c>Version</c>, so that <c>catalog.Version</c> never means two different things depending on
+    /// which catalog the reader is holding.</summary>
+    public string AliasVersion { get; }
 
     /// <summary>The SNI dataset version this alias set was built against. Pinned equal to
     /// <see cref="SniReferenceCatalog.Version"/> at host build, so re-versioning SNI cannot silently
@@ -72,8 +74,24 @@ public sealed class SniAliasCatalog
 }
 
 /// <summary>
+/// Where an alias row's terms came from. A closed set, and it lives here beside the type that
+/// carries it rather than as a string list in the adapter: which provenances are admissible is a
+/// modelling decision, not a parsing detail. Adding a third is a decision about where alias
+/// vocabulary may come from at all, and it belongs in the same change as tools/sni-aliases/.
+/// </summary>
+public enum SniAliasSource
+{
+    /// <summary>Reproduced verbatim from SCB SNI-sök's own example register (CC0).</summary>
+    Scb,
+
+    /// <summary>Written by this repo for demand words SCB does not carry, under the entry
+    /// conditions enumerated in tools/sni-aliases/authored-terms.json.</summary>
+    Authored,
+}
+
+/// <summary>
 /// One alias row: the SNI code, where the terms came from, and the terms themselves. Terms are
 /// stored exactly as the source published them — normalisation is a matching concern and never
 /// changes the stored string, so what the UI shows is what SCB wrote.
 /// </summary>
-public sealed record SniAlias(string Code, string Source, IReadOnlyList<string> Terms);
+public sealed record SniAlias(string Code, SniAliasSource Source, IReadOnlyList<string> Terms);

@@ -13,10 +13,15 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
 public sealed record GetCriterionReferenceQuery()
     : IQuery<CriterionReferenceDto>, IAuthenticatedRequest;
 
-/// <summary>The full picker tree. Version stamps surfaced so a stale FE cache is diagnosable.</summary>
+/// <summary>The full picker tree. One version stamp per dataset, so a stale FE cache is diagnosable
+/// for each of them — <c>DemandVersion</c> is the dated list the alias extract was selected by, and
+/// without it on the wire "which demand list produced this coverage?" cannot be answered from a
+/// running host at all.</summary>
 public sealed record CriterionReferenceDto(
     string SniVersion,
     string KommunVersion,
+    string AliasVersion,
+    string DemandVersion,
     IReadOnlyList<SniSectionDto> Sni,
     IReadOnlyList<LanDto> Lan);
 

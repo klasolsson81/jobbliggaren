@@ -62,6 +62,14 @@ The reference payload is inlined into the RSC Flight payload of `/foretag/sok` *
 existing 17 kB reference already spends over half of it. Any whole-register shape is ~5x that
 budget, on two pages, permanently.
 
+Measured on the shipped extract (prod build, authenticated `/foretag/sok`, fetch-cache cleared
+between runs, control probe in both directions, 2026-09-05): the **document** goes from 61 192 B
+gzip without the aliases to **66 648 B with them, +5 456 B**. The `/reference` payload itself goes
+17 032 → 22 548 B gzip. Note both figures are already ~2x the 30 720 B budget before this asset
+existed — that overrun is repo state, filed as
+[#1672](https://github.com/klasolsson81/jobbliggaren/issues/1672), and `/foretag/sok` is auth-gated
+so Lighthouse never audits it.
+
 Two filters were tried and **measured worthless** before landing on the demand list: dropping terms
 already contained in their own node's name retained 99.4%, and dropping terms contained in *any*
 node name retained 99.4% too. SCB's phrases are too specific to collide with SNI's names.
@@ -104,7 +112,7 @@ bounded context, and neither map is a mapping of the other.
 
 | aliasVersion | date | notes |
 |---|---|---|
-| `2025.alias.v1` | 2026-09-05 | First extract. SNI `2025.v1`, demand `2026-09-05.v1`. 142 rows / 335 terms over 142 codes; 36.8 kB raw, 6.9 kB gzip. 9 of 37 demand terms had zero SCB coverage; 6 authored, 3 rejected with reasons in `authored-terms.json`. |
+| `2025.alias.v1` | 2026-09-05 | First extract. SNI `2025.v1`, demand `2026-09-05.v1`. 142 rows / 335 terms over 142 codes; 37.8 kB raw, 6.9 kB gzip. 9 of 37 demand terms had zero SCB coverage; 6 authored, 3 rejected with reasons in `authored-terms.json`. |
 
 `sniVersion` in the asset is pinned equal to the SNI catalogue's own at host build
 (`CriterionReferenceProvider`), so re-versioning SNI without regenerating here fails the host rather

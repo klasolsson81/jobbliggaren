@@ -76,7 +76,7 @@ public class CriterionReferenceAliasTests
     {
         var catalog = CriterionReferenceLoader.LoadAliasesFrom(Json(MinimalValid));
 
-        catalog.Version.ShouldBe("test.alias.v1");
+        catalog.AliasVersion.ShouldBe("test.alias.v1");
         catalog.SniVersion.ShouldBe("test.v1");
         catalog.DemandVersion.ShouldBe("test.demand.v1");
         catalog.TermsFor("62201").ShouldBe(["Agil systemutveckling"]);
@@ -97,12 +97,18 @@ public class CriterionReferenceAliasTests
         // The picker wants one list per code; the rows keep their provenance for review.
         catalog.TermsFor("62201").ShouldBe(["Agil systemutveckling", "påhittad term"]);
         catalog.Aliases.Count.ShouldBe(2);
-        catalog.Aliases.Select(static a => a.Source).ShouldBe(["scb", "authored"]);
+        catalog.Aliases.Select(static a => a.Source).ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored]);
     }
 
     [Theory]
     [InlineData("\"source\": \"scb\"", "\"source\": \"jobtech\"")]
     [InlineData("\"source\": \"scb\"", "\"source\": \"\"")]
+    // NUMERIC strings are what Enum.TryParse would let through, in two different ways: "7" parses
+    // to an undefined (SniAliasSource)7, and "1" parses to a DEFINED value (Authored) the asset
+    // never named. Both existing rows are non-numeric and stay green either way, which is why these
+    // two have to exist — the second one is the case Enum.IsDefined alone would still admit.
+    [InlineData("\"source\": \"scb\"", "\"source\": \"7\"")]
+    [InlineData("\"source\": \"scb\"", "\"source\": \"1\"")]
     public void LoadAliasesFrom_Throws_WhenTheSourceIsNotOneThisRepoRecognises(string find, string replaceWith)
     {
         // A third provenance is a decision about where alias vocabulary may come from, not a typo:
@@ -197,7 +203,11 @@ public class CriterionReferenceAliasTests
             CriterionReferenceLoader.LoadKommuner(),
             CriterionReferenceLoader.LoadAliases());
 
-        provider.Aliases.SniVersion.ShouldBe(provider.Sni.Version);
+        // NOT `SniVersion == Sni.Version` — the constructor throws when they differ, so reaching
+        // that assertion would already imply it and it could never fail. These can: a gutted or
+        // demand-filtered-to-nothing asset builds a provider just fine.
+        provider.Aliases.Aliases.ShouldNotBeEmpty();
+        provider.Aliases.TermsFor("62201").ShouldNotBeEmpty();
     }
 
     // ── Real-asset pins ─────────────────────────────────────────────────────
@@ -243,10 +253,8 @@ public class CriterionReferenceAliasTests
     {
         var aliases = CriterionReferenceLoader.LoadAliases();
 
-        aliases.Aliases.Select(static a => a.Source).Distinct().Order(StringComparer.Ordinal)
-            .ShouldBe(["authored", "scb"]);
-        aliases.Aliases.ShouldContain(static a => a.Source == "authored");
-        aliases.Aliases.ShouldContain(static a => a.Source == "scb");
+        aliases.Aliases.Select(static a => a.Source).Distinct().Order()
+            .ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored]);
     }
 
     [Fact]
@@ -285,7 +293,7 @@ public class CriterionReferenceAliasTests
         // unambiguous, otherwise the division. A SECTION is too coarse to be a useful answer — it is
         // a fifth of the economy — so an authored row landing there is a grading mistake.
         var authored = CriterionReferenceLoader.LoadAliases().Aliases
-            .Where(static a => a.Source == "authored")
+            .Where(static a => a.Source == SniAliasSource.Authored)
             .ToList();
 
         authored.ShouldNotBeEmpty();
@@ -293,12 +301,33 @@ public class CriterionReferenceAliasTests
     }
 
     [Fact]
+    public void RealAsset_CarriesTheAuthoredCodesTheResidueWasWrittenFor()
+    {
+        // The authored half comes from a hand-written in-repo file, so this pin moves only when
+        // someone edits authored-terms.json in the same commit — the SNI count-pin discipline.
+        // It is also the guard against a HALF-truncated extract: a parser that kept one phrase per
+        // page would leave every existence pin green while 193 terms vanished.
+        var authored = CriterionReferenceLoader.LoadAliases().Aliases
+            .Where(static a => a.Source == SniAliasSource.Authored)
+            .Select(static a => a.Code)
+            .Order(StringComparer.Ordinal);
+
+        authored.ShouldBe(["16", "41", "43", "43210", "62"]);
+    }
+
+    [Fact]
     public void RealAsset_TermsAreStoredVerbatim_NotLowercasedOrTruncated()
     {
         var aliases = CriterionReferenceLoader.LoadAliases();
 
-        // Normalisation is a matching concern. If the stored strings were folded, the row could not
-        // show the user the term SCB actually published — which is what decision C renders.
-        aliases.TermsFor("62201").ShouldContain("Agil systemutveckling");
+        // Normalisation is a matching concern. If the stored strings were folded or clipped, the row
+        // could not show the user the term SCB actually published.
+        //
+        // Asserted as PROPERTIES, not as one exact sentence: SCB may reword any single entry, and a
+        // hardcoded phrase would then fail for a reason that has nothing to do with verbatim storage.
+        // The exact string is already pinned, robustly, by ResolvesTheWordThatOpenedTheIssue.
+        var terms = aliases.Aliases.SelectMany(static a => a.Terms).ToList();
+        terms.ShouldContain(static t => t.Any(char.IsUpper), "termerna är gemenfällda");
+        terms.ShouldContain(static t => t.Length > 60, "termerna är avkortade");
     }
 }

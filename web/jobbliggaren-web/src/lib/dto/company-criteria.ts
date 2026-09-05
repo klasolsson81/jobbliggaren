@@ -94,6 +94,9 @@ const lanSchema = z.object({
 export const criterionReferenceSchema = z.object({
   sniVersion: z.string(),
   kommunVersion: z.string(),
+  // Optional for the same rolling-deploy reason as `aliasesSchema`: an old backend sends neither.
+  aliasVersion: z.string().optional(),
+  demandVersion: z.string().optional(),
   sni: z.array(sniSectionSchema),
   lan: z.array(lanSchema),
 });

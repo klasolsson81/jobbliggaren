@@ -26,7 +26,32 @@ const OUT = path.join(REF, "sni-aliases-2025.v1.json");
 const BASE = "https://snisok.scb.se";
 const UA =
   "jobbliggaren-sni-alias-generator/1.0 (+https://github.com/klasolsson81/jobbliggaren/issues/1115)";
-const FETCHED_AT = "2026-09-05";
+
+
+/**
+ * The date the cached pages were actually fetched — the newest cache mtime, not a constant somebody
+ * has to remember to edit. `fetchedAt` is the asset's only dated measurement of its source, and a
+ * date nobody maintains cannot be told from one that has decayed.
+ */
+const STAMP = path.join(CACHE, "fetched-at.txt");
+
+/**
+ * The date the pages were actually FETCHED, written by the fetch itself.
+ *
+ * Deliberately not the cache's mtime: mtime is a write date, so a cache that was copied, restored
+ * from a backup or checked out elsewhere would date a fetch that never happened — and this is the
+ * asset's only dated measurement of its source. Deliberately not a hardcoded constant either: one
+ * nobody remembers to edit decays silently. A stamp the fetch writes is the only form that is both
+ * true and self-maintaining, and its absence is loud.
+ */
+function fetchedAt() {
+  if (!fs.existsSync(STAMP))
+    die(
+      `${path.relative(ROOT, STAMP).split(path.sep).join("/")} saknas — kör med --refetch, `
+        + "så skrivs hämtdatumet av hämtningen själv.",
+    );
+  return fs.readFileSync(STAMP, "utf8").trim();
+}
 
 const lc = (s) => s.toLocaleLowerCase("sv-SE");
 const ordinal = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -58,6 +83,7 @@ async function page(code) {
   if (!res.ok) die(`${BASE}/${code} svarade ${res.status}`);
   const html = await res.text();
   fs.writeFileSync(f, html);
+  fs.writeFileSync(STAMP, new Date().toISOString().slice(0, 10));
   await sleep(120); // deliberate: 835 pages against a public authority's site
   return html;
 }
@@ -78,7 +104,7 @@ const decode = (s) =>
     .replace(/&[a-zA-Z]+;/g, (m) => NAMED[m] ?? m);
 
 /** The "Exempel på vad som ingår i denna SNI-kod" list — one flat <ul> after that <h2>. */
-export function extractPhrases(html) {
+function extractPhrases(html) {
   const at = html.indexOf("Exempel p");
   if (at < 0) return [];
   const ul = html.indexOf("<ul>", at);
@@ -101,11 +127,13 @@ const short = demandTerms.filter((t) => t.length < 4);
 if (short.length) die(`efterfrågetermer kortare än 4 tecken: ${short.join(", ")}`);
 
 const scbByCode = new Map();
+let pagesWithPhrases = 0;
 const coverage = new Map(demandTerms.map((t) => [t, 0]));
 
 console.log(`Läser ${sni.leaves.length} detaljgrupper...`);
 for (const leaf of sni.leaves) {
   const phrases = extractPhrases(await page(leaf.code));
+  if (phrases.length) pagesWithPhrases++;
   const own = lc(leaf.name);
   const keep = new Set();
   for (const p of phrases) {
@@ -119,6 +147,20 @@ for (const leaf of sni.leaves) {
   }
   if (keep.size) scbByCode.set(leaf.code, [...keep].sort(ordinal));
 }
+
+// A silent [] from extractPhrases is the failure mode README's "the generator is the review
+// artefact" claim exists to exclude: if SCB re-templates the page, every one of the 835 parses
+// returns nothing, scbByCode is empty, all six authored terms still satisfy condition 1 (which
+// REQUIRES zero coverage), and a gutted asset writes, loads and validates clean. The floor is
+// deliberately far below the current 814 — it catches a broken parser, not a shrinking register.
+// Counts PARSED pages, not codes that survived the demand filter — the latter is a property of
+// demand-terms.json and legitimately small (137 today).
+if (pagesWithPhrases < 400)
+  die(
+    `bara ${pagesWithPhrases} av ${sni.leaves.length} sidor gav exempel — parsern matchar sannolikt inte `
+      + `SCB:s markup längre. Kontrollera "Exempel på vad som ingår i denna SNI-kod" på `
+      + `${BASE}/62201 innan assetet skrivs om.`,
+  );
 
 // --- authored residue --------------------------------------------------------
 // Entry condition (CTO 2026-09-05, decision D): a word may be authored ONLY where it is on the
@@ -152,8 +194,8 @@ const aliases = [
 const doc = {
   "//":
     `Search aliases over the SNI 2025 branch names (#1115). Two sources, and the "source" field says which per row. ` +
-    `"scb": entries reproduced verbatim from SCB SNI-sök (${BASE}/<code>), section "Exempel på vad som ingår i denna SNI-kod", fetched ${FETCHED_AT}; ` +
-    `SCB open data is CC0 (policy since 2021-07-01) and the SNI-sök pages carry no separate licence notice — verified ${FETCHED_AT}. ` +
+    `"scb": entries reproduced verbatim from SCB SNI-sök (${BASE}/<code>), section "Exempel på vad som ingår i denna SNI-kod", fetched ${fetchedAt()}; ` +
+    `SCB open data is CC0 (policy since 2021-07-01) and the SNI-sök pages carry no separate licence notice — verified ${fetchedAt()}. ` +
     `"authored": written by this repo for demand words SCB does not carry at all, enumerated with rationale in tools/sni-aliases/authored-terms.json. ` +
     `NOT A CROSSWALK: every code is an SNI 2025 code present in sni-2025.v1.json, no SSYK/JobTech concept id appears anywhere in this file, ` +
     `and nothing derives or preselects — the user still picks the SNI node. The /jobb occupation synonyms (SearchSynonyms:Occupations in appsettings.json) ` +
@@ -163,11 +205,27 @@ const doc = {
   sniVersion: sni.sniVersion,
   aliasVersion: "2025.alias.v1",
   demandVersion: demand.demandVersion,
-  fetchedAt: FETCHED_AT,
+  fetchedAt: fetchedAt(),
   aliases,
 };
 
 const json = JSON.stringify(doc, null, 1) + "\n";
+// `aliasVersion` is hand-set, so nothing stops a regenerated extract from shipping new content
+// under the old stamp — and the provider only pins `sniVersion`, so nothing downstream would notice
+// either. tools/taxonomy-snapshot bumps its version per extract; this is the same discipline,
+// enforced rather than remembered.
+if (fs.existsSync(OUT)) {
+  const previous = readJson(OUT);
+  if (
+    JSON.stringify(previous.aliases) !== JSON.stringify(doc.aliases)
+    && previous.aliasVersion === doc.aliasVersion
+  )
+    die(
+      `innehållet har ändrats men aliasVersion står kvar på "${doc.aliasVersion}". `
+        + "Höj den i generate.mjs och notera extraktet i tools/sni-aliases/README.md.",
+    );
+}
+
 fs.writeFileSync(OUT, json);
 
 // --- report ------------------------------------------------------------------
@@ -177,7 +235,7 @@ console.log(`\nSkrev ${path.relative(ROOT, OUT).replace(/\\/g, "/")}`);
 console.log(
   `  ${aliases.length} rader, ${termCount} termer över ${new Set(aliases.map((a) => a.code)).size} koder`,
 );
-console.log(`  ${(json.length / 1024).toFixed(1)} kB rå, ${(gz / 1024).toFixed(1)} kB gzip`);
+console.log(`  ${(Buffer.byteLength(json) / 1024).toFixed(1)} kB rå, ${(gz / 1024).toFixed(1)} kB gzip`);
 
 const zero = [...coverage].filter(([, n]) => n === 0).map(([t]) => t);
 console.log(`\nEfterfrågetermer utan SCB-täckning (${zero.length}/${coverage.size}): ${zero.join(", ") || "(inga)"}`);

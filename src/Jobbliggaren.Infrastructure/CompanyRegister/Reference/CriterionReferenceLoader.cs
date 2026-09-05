@@ -31,11 +31,6 @@ internal static partial class CriterionReferenceLoader
     private const string AliasResourceName =
         "Jobbliggaren.Infrastructure.CompanyRegister.Reference.sni-aliases-2025.v1.json";
 
-    // The only two provenances an alias row may declare (#1115). A third value is a malformed
-    // asset, not a new source: adding one is a decision about where alias vocabulary may come
-    // from, and it belongs in tools/sni-aliases/ and this list together.
-    private static readonly string[] AliasSources = ["scb", "authored"];
-
     // Mirrors CompanyWatchCriteriaSpec's guards ([0-9], never \d — Unicode digits must not pass;
     // \z, never $ — an embedded newline must not pass). The dataset must satisfy the SAME format
     // the Domain enforces on user input, or "exists in the catalog" and "storable on a criterion"
@@ -100,15 +95,27 @@ internal static partial class CriterionReferenceLoader
             throw new InvalidOperationException("Alias-assetet saknar demandVersion.");
 
         var aliases = new List<SniAlias>(file.Aliases.Count);
-        var seen = new HashSet<(string Code, string Source)>();
+        var seen = new HashSet<(string Code, SniAliasSource Source)>();
         foreach (var a in file.Aliases)
         {
             if (a.Code is null || !IsSniCodeShaped(a.Code))
                 throw new InvalidOperationException($"Ogiltig SNI-kod i alias-assetet: '{a.Code}'.");
-            if (a.Source is null || Array.IndexOf(AliasSources, a.Source) < 0)
+            // The admissible set is SniAliasSource in Application — one home for the decision, and
+            // this parse is the only place a wire string becomes one.
+            // Matched against the declared NAMES, not via Enum.TryParse. TryParse also accepts a
+            // numeric string, and neither of its failure modes is acceptable on a wire contract:
+            // "7" parses to an undefined (SniAliasSource)7, and "1" parses to a defined value
+            // (Authored) that the asset never said — an ordinal smuggled in where a name belongs.
+            // Adding Enum.IsDefined would close only the first. A name lookup closes both.
+            var source = Enum.GetValues<SniAliasSource>()
+                .Where(v => string.Equals(v.ToString(), a.Source, StringComparison.OrdinalIgnoreCase))
+                .Select(static v => (SniAliasSource?)v)
+                .FirstOrDefault();
+            if (source is null)
                 throw new InvalidOperationException(
-                    $"Alias för '{a.Code}' bär okänd källa '{a.Source}'. Tillåtna: {string.Join(", ", AliasSources)}.");
-            if (!seen.Add((a.Code, a.Source)))
+                    $"Alias för '{a.Code}' bär okänd källa '{a.Source}'. "
+                    + $"Tillåtna: {string.Join(", ", Enum.GetNames<SniAliasSource>()).ToLowerInvariant()}.");
+            if (!seen.Add((a.Code, source.Value)))
                 throw new InvalidOperationException(
                     $"Alias för '{a.Code}' med källa '{a.Source}' är deklarerat två gånger.");
             if (a.Terms.Count == 0)
@@ -122,7 +129,7 @@ internal static partial class CriterionReferenceLoader
                 terms.Add(term.Trim());
             }
 
-            aliases.Add(new SniAlias(a.Code, a.Source, terms));
+            aliases.Add(new SniAlias(a.Code, source.Value, terms));
         }
 
         return new SniAliasCatalog(file.AliasVersion, file.SniVersion, file.DemandVersion, aliases);

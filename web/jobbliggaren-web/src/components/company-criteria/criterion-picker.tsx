@@ -52,6 +52,32 @@ const MAX_FILTER_MATCHES = 300;
  */
 const ALIAS_MIN_QUERY = 3;
 
+/**
+ * The part of an alias worth showing: the comma- or parenthesis-delimited segment that contains the
+ * query.
+ *
+ * SCB writes its entries as whole classified sentences — "Datakonsultverksamhet, (IT-konsult,
+ * ITkonsult, ADB-konsult), systemdesign" — and the everyday synonym the user actually typed is
+ * usually one clause inside, often inside the parentheses. Rendering the whole term and clipping it
+ * showed the OPENING of the sentence, which is the one part that never had to contain the query:
+ * measured over the shipped asset, 279 of 335 terms overflowed and `it-konsult` produced 8 rows of
+ * which 0 displayed the typed word, one of them tautologically reading
+ * "Datakonsultverksamhet · matchar Datakonsultverksamhet, (…".
+ *
+ * The segment contains the query BY CONSTRUCTION, so the row can always answer "why am I here".
+ * Measured: 750 of 1 017 segments are 27 characters or fewer, median 15 ("IT-konsult" 10,
+ * "undersköterska" 14, "Agil systemutveckling" 21). Truncation stays as the last resort for the rest.
+ *
+ * The stored term is untouched — this is a rendering choice, and the asset keeps SCB's wording whole.
+ */
+function matchedSegment(term: string, query: string): string {
+  const segments = term
+    .split(/[,()]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return segments.find((s) => s.toLocaleLowerCase("sv-SE").includes(query)) ?? term;
+}
+
 interface CriterionPickerProps {
   readonly nodes: ReadonlyArray<CriterionTreeNode>;
   /**
@@ -141,7 +167,7 @@ export function CriterionPicker({
       const hit = option.aliases.find((alias) =>
         alias.toLocaleLowerCase("sv-SE").includes(trimmed),
       );
-      if (hit) out.push({ option, matchedAlias: hit });
+      if (hit) out.push({ option, matchedAlias: matchedSegment(hit, trimmed) });
     }
     return out;
   }, [options, trimmed, isFiltering]);
@@ -270,9 +296,13 @@ export function CriterionPicker({
                   // mind: the name no longer tracks the JSX, so anything visible added to this row has
                   // to be added here too, or the label stops containing the visible text. The alias
                   // (#1115) is exactly such an addition, so it is appended here when it is rendered.
+                  // The comma is for prosody: without it a screen reader runs the name and the
+                  // annotation together into one sentence. The segment, not the whole term, keeps
+                  // the label scannable by ear — the untrimmed form put the same 130-character tail
+                  // on eight consecutive rows.
                   aria-label={
                     matchedAlias
-                      ? `${option.code} ${option.name} ${t("matchedVia", { term: matchedAlias })}`
+                      ? `${option.code} ${option.name}, ${t("matchedVia", { term: matchedAlias })}`
                       : `${option.code} ${option.name}`
                   }
                   tabIndex={0}
@@ -296,21 +326,28 @@ export function CriterionPicker({
                   <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
                     {option.code}
                   </span>
-                  <span className="min-w-0 truncate">{option.name}</span>
+                  {/* `min-w-0` so the flex row may shrink it, but NOT `truncate`: the name is the
+                      primary content, and an unclipped name is already this component's own form — the tree
+                      view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
+                      7 of 25 names and `partihandel` 4 of 56, on rows carrying no annotation at
+                      all, which is a regression on a surface this delta only passes through. */}
+                  <span className="min-w-0">{option.name}</span>
                   {/* Why this row is here at all. Without it a row appears containing none of the
                       typed characters — a result with no visible reason, which AGENTS.md §5 rules
                       out for match surfaces ("matched/missing keywords are always surfaced"). It
                       also keeps the alias honest: the SNI concept stays the row, and the alias is
                       shown as the search word that led to it, never as a claim about the concept.
 
-                      TRUNCATED, and it has to be: SCB's entries are whole sentences — 1 216 of the
-                      16 080 exceed 90 characters, and the longest under 62201 is 130. Rendered
-                      untruncated at 1280 the row measured scrollWidth 979 against clientWidth 524
-                      and grew from 44 px to 82 px, breaking both the row rhythm and the panel.
-                      The name keeps priority; the aria-label above carries the term in FULL, so a
-                      screen reader gets the whole phrase whatever the viewport clips. */}
+                      It renders the matched SEGMENT (see matchedSegment above), so it contains the
+                      typed word by construction. Truncation is the last resort for the segments
+                      that are still long: 113 of the 335 shipped terms exceed 90 characters and the
+                      longest is 240, so some clipping is unavoidable — but it now clips a clause
+                      that already showed the answer, not the opening of a sentence that never did.
+
+                      It is also the element that SHRINKS. The name is primary content and must not
+                      give way to a secondary annotation. */}
                   {matchedAlias && (
-                    <span className="ms-auto max-w-[45%] shrink-0 truncate ps-2 text-caption text-text-secondary">
+                    <span className="ms-auto min-w-0 max-w-[45%] shrink truncate ps-2 text-caption text-text-secondary">
                       {t("matchedVia", { term: matchedAlias })}
                     </span>
                   )}

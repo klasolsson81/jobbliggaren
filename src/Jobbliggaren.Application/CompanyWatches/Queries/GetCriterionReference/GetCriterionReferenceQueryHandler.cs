@@ -58,6 +58,7 @@ public sealed class GetCriterionReferenceQueryHandler(ICriterionReferenceProvide
             .ToList();
 
         return ValueTask.FromResult(new CriterionReferenceDto(
-            sni.Version, kommuner.Version, sections, lan));
+            sni.Version, kommuner.Version, aliases.AliasVersion, aliases.DemandVersion,
+            sections, lan));
     }
 }

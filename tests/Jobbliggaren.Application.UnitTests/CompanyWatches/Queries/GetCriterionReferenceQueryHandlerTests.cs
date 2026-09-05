@@ -40,8 +40,9 @@ public class GetCriterionReferenceQueryHandlerTests
         provider.Aliases.Returns(new SniAliasCatalog(
             "2025.alias.v1", "2025.v1", "2026-09-05.v1",
             [
-                new SniAlias("62201", "scb", ["Agil systemutveckling"]),
-                new SniAlias("62", "authored", ["mjukvara"]),
+                new SniAlias("62201", SniAliasSource.Scb, ["Agil systemutveckling"]),
+                new SniAlias("62", SniAliasSource.Authored, ["mjukvara"]),
+                new SniAlias("K", SniAliasSource.Authored, ["it-bransch"]),
             ]));
 
         var tree = await new GetCriterionReferenceQueryHandler(provider)
@@ -70,6 +71,14 @@ public class GetCriterionReferenceQueryHandlerTests
         it.Aliases.ShouldBe(["mjukvara"]);
         it.Leaves.Single(static l => l.Code == "62201").Aliases.ShouldBe(["Agil systemutveckling"]);
         it.Leaves.Single(static l => l.Code == "62100").Aliases.ShouldBeEmpty();
+        // The SECTION level too, in the non-empty direction: pinned only as ShouldBeEmpty, the
+        // projection could be replaced with `[]` and the whole suite would stay green.
+        k.Aliases.ShouldBe(["it-bransch"]);
         tree.Sni.Single(static s => s.Code == "A").Aliases.ShouldBeEmpty();
+
+        // The version stamps the DTO now carries, so "which demand list produced this?" is
+        // answerable from a running host rather than only from a test.
+        tree.AliasVersion.ShouldBe("2025.alias.v1");
+        tree.DemandVersion.ShouldBe("2026-09-05.v1");
     }
 }

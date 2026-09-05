@@ -298,8 +298,7 @@ export function CriterionPicker({
                   // (#1115) is exactly such an addition, so it is appended here when it is rendered.
                   // The comma is for prosody: without it a screen reader runs the name and the
                   // annotation together into one sentence. The segment, not the whole term, keeps
-                  // the label scannable by ear — the untrimmed form put the same 130-character tail
-                  // on eight consecutive rows.
+                  // the label scannable by ear.
                   aria-label={
                     matchedAlias
                       ? `${option.code} ${option.name}, ${t("matchedVia", { term: matchedAlias })}`
@@ -320,7 +319,7 @@ export function CriterionPicker({
                   // it lands in the row's accessible name, and two codes side by side settle whether the
                   // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                  className="jp-criterionrow flex cursor-pointer items-center gap-2.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0"
+                  className="jp-criterionrow flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
                 >
                   <CheckBox state={state} />
                   <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
@@ -331,7 +330,7 @@ export function CriterionPicker({
                       view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
                       7 of 25 names and `partihandel` 4 of 56, on rows carrying no annotation at
                       all, which is a regression on a surface this delta only passes through. */}
-                  <span className="min-w-0">{option.name}</span>
+                  <span className="min-w-0 break-words">{option.name}</span>
                   {/* Why this row is here at all. Without it a row appears containing none of the
                       typed characters — a result with no visible reason, which AGENTS.md §5 rules
                       out for match surfaces ("matched/missing keywords are always surfaced"). It
@@ -344,10 +343,19 @@ export function CriterionPicker({
                       longest is 240, so some clipping is unavoidable — but it now clips a clause
                       that already showed the answer, not the opening of a sentence that never did.
 
-                      It is also the element that SHRINKS. The name is primary content and must not
-                      give way to a secondary annotation. */}
+                      Two arms, both measured. From `sm` up it sits at the end of the row and does
+                      NOT shrink: letting it give way clipped 9 of 10 rows on `undersköterska` at
+                      1280, and holding it firm makes the name wrap instead — 0 clipped, 0 overflow.
+                      Below `sm` there is no width to share, so it wraps onto its OWN line rather
+                      than being squeezed: keeping it inline at 390 left `träff …` visible and
+                      nothing else, which is the same "row with no visible reason" the annotation
+                      exists to prevent, and forcing it inline with `shrink-0` blew rows to 255 px.
+
+                      `break-words` on the name is what makes the narrow arm safe: without it the
+                      longest word painted 24-30 px INTO this box at 390, which the old `truncate`
+                      had been hiding rather than preventing. */}
                   {matchedAlias && (
-                    <span className="ms-auto min-w-0 max-w-[45%] shrink truncate ps-2 text-caption text-text-secondary">
+                    <span className="w-full min-w-0 truncate text-caption text-text-secondary sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
                       {t("matchedVia", { term: matchedAlias })}
                     </span>
                   )}

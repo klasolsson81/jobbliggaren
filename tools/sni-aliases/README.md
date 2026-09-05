@@ -65,8 +65,8 @@ budget, on two pages, permanently.
 Measured on the shipped extract (prod build, authenticated `/foretag/sok`, fetch-cache cleared
 between runs, control probe in both directions, 2026-09-05): the **document** goes from 61 192 B
 gzip without the aliases to **66 648 B with them, +5 456 B**. The `/reference` payload itself goes
-17 032 → 22 548 B gzip. Note both figures are already ~2x the 30 720 B budget before this asset
-existed — that overrun is repo state, filed as
+17 032 → 22 548 B gzip. The document was already ~2x the 30 720 B budget before this
+asset existed — that overrun is repo state, filed as
 [#1672](https://github.com/klasolsson81/jobbliggaren/issues/1672), and `/foretag/sok` is auth-gated
 so Lighthouse never audits it.
 

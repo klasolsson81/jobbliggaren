@@ -32,7 +32,8 @@ public class CriterionReferenceAliasTests
           "demandVersion": "test.demand.v1",
           "aliases": [
             { "code": "62201", "source": "scb", "terms": [ "Agil systemutveckling" ] },
-            { "code": "43", "source": "authored", "terms": [ "rörmokare" ] }
+            { "code": "43", "source": "authored", "terms": [ "rörmokare" ] },
+            { "code": "J", "source": "authored", "terms": [ "it-bransch" ] }
           ]
         }
         """;
@@ -81,6 +82,11 @@ public class CriterionReferenceAliasTests
         catalog.DemandVersion.ShouldBe("test.demand.v1");
         catalog.TermsFor("62201").ShouldBe(["Agil systemutveckling"]);
         catalog.TermsFor("43").ShouldBe(["rörmokare"]);
+        // The SECTION arm of IsSniCodeShaped. Without a section in this fixture the arm is
+        // dead-testable: deleting `SectionPattern().IsMatch(code) ||` left the whole suite green,
+        // because "62201" matches the leaf arm, "43" the two-digit arm, and the "W" negative is
+        // rejected either way.
+        catalog.TermsFor("J").ShouldBe(["it-bransch"]);
         catalog.TermsFor("01110").ShouldBeEmpty();
     }
 
@@ -96,8 +102,11 @@ public class CriterionReferenceAliasTests
 
         // The picker wants one list per code; the rows keep their provenance for review.
         catalog.TermsFor("62201").ShouldBe(["Agil systemutveckling", "påhittad term"]);
-        catalog.Aliases.Count.ShouldBe(2);
-        catalog.Aliases.Select(static a => a.Source).ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored]);
+        // Three rows in the fixture (the section row is untouched by this replacement), two of
+        // which share code 62201 and are what the merge above collapses.
+        catalog.Aliases.Count.ShouldBe(3);
+        catalog.Aliases.Where(static a => a.Code == "62201").Select(static a => a.Source)
+            .ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored]);
     }
 
     [Theory]
@@ -253,8 +262,8 @@ public class CriterionReferenceAliasTests
     {
         var aliases = CriterionReferenceLoader.LoadAliases();
 
-        aliases.Aliases.Select(static a => a.Source).Distinct().Order()
-            .ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored]);
+        aliases.Aliases.Select(static a => a.Source).Distinct()
+            .ShouldBe([SniAliasSource.Scb, SniAliasSource.Authored], ignoreOrder: true);
     }
 
     [Fact]
@@ -305,8 +314,6 @@ public class CriterionReferenceAliasTests
     {
         // The authored half comes from a hand-written in-repo file, so this pin moves only when
         // someone edits authored-terms.json in the same commit — the SNI count-pin discipline.
-        // It is also the guard against a HALF-truncated extract: a parser that kept one phrase per
-        // page would leave every existence pin green while 193 terms vanished.
         var authored = CriterionReferenceLoader.LoadAliases().Aliases
             .Where(static a => a.Source == SniAliasSource.Authored)
             .Select(static a => a.Code)
@@ -325,7 +332,7 @@ public class CriterionReferenceAliasTests
         //
         // Asserted as PROPERTIES, not as one exact sentence: SCB may reword any single entry, and a
         // hardcoded phrase would then fail for a reason that has nothing to do with verbatim storage.
-        // The exact string is already pinned, robustly, by ResolvesTheWordThatOpenedTheIssue.
+        //
         var terms = aliases.Aliases.SelectMany(static a => a.Terms).ToList();
         terms.ShouldContain(static t => t.Any(char.IsUpper), "termerna är gemenfällda");
         terms.ShouldContain(static t => t.Length > 60, "termerna är avkortade");

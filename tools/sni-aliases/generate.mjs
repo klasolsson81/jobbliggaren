@@ -74,6 +74,10 @@ if (demand.measuredAgainst !== sni.sniVersion)
 // --- fetch -------------------------------------------------------------------
 fs.mkdirSync(CACHE, { recursive: true });
 const refetch = process.argv.includes("--refetch");
+// Cleared once at the start of a full refetch, then written by the FIRST fetch, so the stamp dates
+// the extract's oldest page rather than its newest: a warm cache with one page re-fetched must not
+// re-date 834 pages that are older.
+if (refetch && fs.existsSync(path.join(CACHE, "fetched-at.txt"))) fs.rmSync(path.join(CACHE, "fetched-at.txt"));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function page(code) {
@@ -83,7 +87,7 @@ async function page(code) {
   if (!res.ok) die(`${BASE}/${code} svarade ${res.status}`);
   const html = await res.text();
   fs.writeFileSync(f, html);
-  fs.writeFileSync(STAMP, new Date().toISOString().slice(0, 10));
+  if (!fs.existsSync(STAMP)) fs.writeFileSync(STAMP, new Date().toISOString().slice(0, 10));
   await sleep(120); // deliberate: 835 pages against a public authority's site
   return html;
 }

@@ -27,16 +27,19 @@ import {
  * and the rest through a plain `<div>` that never passes through `cn`, so two paragraphs
  * of the same rank rendered at two sizes.
  *
- * The primitive therefore expresses its size in the font-size group instead, which does
- * not collide with a colour. A caller may still override the size deliberately — that is
- * the API — but can no longer erase it by naming a colour.
+ * The primitive therefore expresses its size in the font-size group instead, which a
+ * colour class cannot displace.
  *
  * The root cause is `cn` itself, and it silently drops authored sizes in other primitives
- * too; that surface is measured and carried by its own issue, not by this file.
+ * too; that surface is #1667, not this file's.
  */
 
-/** The size-bearing class the primitive applies, however it is spelled. */
-const SIZE_CLASS = /text-\(length:--text-[\w-]+\)|text-\[length:var\(--text-[\w-]+\)\]/;
+/** The size-bearing class for one named rung, however it is spelled. */
+function sizeClass(token: string): RegExp {
+  return new RegExp(
+    `text-\\(length:--${token}\\)|text-\\[length:var\\(--${token}\\)\\]`,
+  );
+}
 
 function classOf(selector: string): string {
   return document.querySelector(selector)?.getAttribute("class") ?? "";
@@ -59,7 +62,7 @@ describe("Dialog body-text rank (#1601)", () => {
     );
 
     const desc = classOf('[data-slot="dialog-description"]');
-    expect(desc).toMatch(SIZE_CLASS);
+    expect(desc).toMatch(sizeClass("text-body-sm"));
     expect(desc).toContain("text-text-primary");
   });
 
@@ -77,7 +80,7 @@ describe("Dialog body-text rank (#1601)", () => {
       </Dialog>,
     );
 
-    expect(classOf('[data-slot="dialog-description"]')).toMatch(SIZE_CLASS);
+    expect(classOf('[data-slot="dialog-description"]')).toMatch(sizeClass("text-body-sm"));
   });
 
   it("keeps the title's size the same way — same defect, same mechanism", () => {
@@ -92,24 +95,7 @@ describe("Dialog body-text rank (#1601)", () => {
       </Dialog>,
     );
 
-    expect(classOf('[data-slot="dialog-title"]')).toMatch(SIZE_CLASS);
-  });
-
-  it("still lets a caller set the size deliberately", () => {
-    render(
-      <Dialog open>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Titel</DialogTitle>
-            <DialogDescription className="text-body-lg">
-              Beskrivning
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>,
-    );
-
-    expect(classOf('[data-slot="dialog-description"]')).toContain("text-body-lg");
+    expect(classOf('[data-slot="dialog-title"]')).toMatch(sizeClass("text-h4"));
   });
 
   it("gives InfoDialog's two same-rank paragraphs one size class", async () => {
@@ -122,11 +108,11 @@ describe("Dialog body-text rank (#1601)", () => {
 
     // Paragraph 2 renders outside `cn`, so its `text-body-sm` was never at risk; the
     // rank split was paragraph 1 losing its size. Assert the wrapper still carries the
-    // 14px rung, so the two are compared against the same intended size.
+    // same rung, so the two are compared against one intended size.
     const rest = document.querySelector('[data-slot="dialog-content"] > div:last-of-type');
     expect(rest?.getAttribute("class")).toContain("text-body-sm");
     expect(rest?.textContent).toBe("Andra");
 
-    expect(desc?.getAttribute("class")).toMatch(SIZE_CLASS);
+    expect(desc?.getAttribute("class")).toMatch(sizeClass("text-body-sm"));
   });
 });

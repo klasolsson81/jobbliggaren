@@ -109,9 +109,9 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 // namespace, so a bare rung classifies as a COLOUR and collides with the colour class
 // beside it — dropping the size inside this default string, before any caller is
 // involved. The `length:` hint puts it in the font-size group, where a colour cannot
-// displace it and a caller can still override the size on purpose. The token is
-// unchanged; only which merge group it lands in is. `cn` itself drops authored sizes in
-// six other primitives the same way — that surface is #1667, not this file's.
+// displace it. The token is unchanged; only which merge group it lands in is. `cn`
+// itself drops authored sizes in other primitives the same way — that surface is
+// #1667, not this file's.
 function DialogTitle({
   className,
   ...props
@@ -120,7 +120,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-(length:--text-h4) leading-6 font-medium text-text-primary",
+        "text-(length:--text-h4) leading-6 font-bold text-text-primary",
         className
       )}
       {...props}

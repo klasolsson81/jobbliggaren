@@ -70,12 +70,10 @@ interface Props {
  * kommuner. They are jobs at companies SEATED there. A true number under a false implicature is the
  * same defect as a false number.
  *
- * <para/> **The per-card match mark is `/jobb`'s overlay, reused as-is (#1656 (a)).** The same
- * `getJobAdMatchTags` → `MatchChip` path paints every per-ad match mark the product has, so the
- * same ad reads the same here as on `/jobb`. No count and no "only matching" filter: the page is
- * paginated at 20, so either would silently be about the page, not the watch — the false
- * implicature the `showTotalCount={false}` below already refuses once. The aggregate is #1656 (b),
- * bound and untouched.
+ * <para/> **The per-card match mark is `/jobb`'s overlay, reused as-is (#1656 (a)).** No count and
+ * no "only matching" filter: the page is paginated at 20, so either would silently be about the
+ * page, not the watch — the false implicature the `showTotalCount={false}` below already refuses
+ * once. The aggregate is #1656 (b), bound and untouched.
  *
  * <para/> 404 (unknown OR another user's id — never an enumeration oracle) → notFound().
  * unauthorized → /logga-in. rateLimited/error → civic notice.
@@ -96,8 +94,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
-  // rather than failing the page — parity with the parent route. The profile read is cache()-deduped
-  // with the app shell's, so it costs no round-trip of its own.
+  // rather than failing the page — parity with the parent route.
   const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
     browseCriterionAds(id, page),
     getCompanyWatchCriteria(),

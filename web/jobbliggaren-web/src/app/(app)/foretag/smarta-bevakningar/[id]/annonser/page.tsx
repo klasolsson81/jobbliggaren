@@ -89,14 +89,15 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   const format = await getFormatter();
 
   const { id } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, visa: visaParam } = await searchParams;
   const page = parsePageParam(pageParam);
+  const onlyMatching = parseVisaParam(visaParam);
 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
   // rather than failing the page — parity with the parent route.
   const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
-    browseCriterionAds(id, page),
+    browseCriterionAds(id, page, onlyMatching),
     getCompanyWatchCriteria(),
     getCriterionReference(),
     getMyProfile(),
@@ -130,7 +131,13 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
       );
   }
 
-  const { ads, magnitude } = adsResult.data;
+  const { ads, magnitude, matching } = adsResult.data;
+
+  // The count when the filter was HONOURED, as opposed to merely requested — and null otherwise, so
+  // one narrowing carries both facts. The filter is inert for a caller who has stated no occupation
+  // and for a watch too broad to grade; both get the unfiltered list, so the headline and the empty
+  // state must describe THAT list, not the one that was asked for.
+  const matchingCount = matching !== null ? matching.count : null;
   const reference = referenceResult.kind === "ok" ? referenceResult.data : EMPTY_REFERENCE;
 
   // Three states, and they must not collapse into two. A stated occupation → the chips. A profile
@@ -189,9 +196,28 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.backLink")}
         </Link>
 
+        {/* The filtered headline reads the PERSONAL count, never `ads.totalCount` — that one is a
+            pagination quantity by contract even here, where it happens to equal the set (ADR 0120
+            clause 4). The unfiltered headline is unchanged. */}
         <h2 className="text-h2 text-text-primary tabular-nums">
-          {t("ads.magnitudeHeadline", { count: magnitudeText })}
+          {matchingCount !== null
+            ? t("ads.matchingHeadline", { count: matchingCount })
+            : t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
+
+        {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
+            and the actionable next step is to narrow it. Not role="alert" — nothing failed. */}
+        {matching?.tooBroad && (
+          <p className="jp-matchline">{t("ads.matchingTooBroad")}</p>
+        )}
+
+        {matchingCount !== null && (
+          <p className="jp-matchline">
+            <Link className="jp-nudgelink" href={`/foretag/smarta-bevakningar/${id}/annonser`}>
+              {t("ads.showAll")}
+            </Link>
+          </p>
+        )}
 
         {/* The house's load-bearing "what you see is narrower than reality" primitive: the
             counter-claim has to stand against an h1 that says "i Göteborg" while the list can hold a
@@ -210,8 +236,12 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
         {ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
-            <div className="jp-empty__title">{t("ads.emptyTitle")}</div>
-            <p className="jp-empty__body text-body-sm text-text-primary">{t("ads.emptyBody")}</p>
+            <div className="jp-empty__title">
+              {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}
+            </div>
+            <p className="jp-empty__body text-body-sm text-text-primary">
+              {matchingCount !== null ? t("ads.matchingEmptyBody") : t("ads.emptyBody")}
+            </p>
             <div className="jp-empty__actions">
               <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
                 {t("ads.backLink")}
@@ -241,10 +271,10 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
               // honestly says "10 000+" would put two disagreeing numbers on one screen. The
               // magnitude above is this surface's number.
               showTotalCount={false}
+              // The axis rides every page href. Without it page 2 would silently drop the filter
+              // and show more ads than page 1 promised.
               buildHref={(targetPage) =>
-                targetPage <= 1
-                  ? `/foretag/smarta-bevakningar/${id}/annonser`
-                  : `/foretag/smarta-bevakningar/${id}/annonser?page=${targetPage}`
+                buildAdsHref(id, targetPage, onlyMatching)
               }
             />
           </div>
@@ -263,6 +293,29 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 function parsePageParam(raw: string | string[] | undefined): number {
   const value = typeof raw === "string" ? Number.parseInt(raw, 10) : NaN;
   return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+/**
+ * The one matching axis this route has (#1656 (b)). Absence and every unrecognised value mean "all
+ * ads" — a filter nobody asked for must never appear.
+ *
+ * Deliberately NOT named `baraMatchade`: on `/jobb` that name maps to `onlyMatched`, which the list
+ * handler expands to the whole filterable band (Grund and Relaterat included) — WIDER than the
+ * `>= Good` this route's count is computed at. One word meaning two different sets is how "9
+ * matchande" ends up landing on more than nine.
+ */
+function parseVisaParam(raw: string | string[] | undefined): boolean {
+  return raw === "matchande";
+}
+
+/** One builder for this route's hrefs, so no caller can drop the axis. */
+function buildAdsHref(id: string, page: number, onlyMatching: boolean): string {
+  const base = `/foretag/smarta-bevakningar/${id}/annonser`;
+  const params = new URLSearchParams();
+  if (page > 1) params.set("page", String(page));
+  if (onlyMatching) params.set("visa", "matchande");
+  const query = params.toString();
+  return query.length > 0 ? `${base}?${query}` : base;
 }
 
 function ErrorShell({ title, body, backHref, backLabel }: {

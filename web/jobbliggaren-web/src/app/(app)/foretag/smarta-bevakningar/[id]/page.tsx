@@ -15,6 +15,7 @@ import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { CompanyBrowseList } from "@/components/company-criteria/company-browse-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -63,6 +64,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages.foretag.criteria");
+  // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
+  // reuses that surface's own sentences rather than minting a second vocabulary for one question.
+  // `matchNudge` promises "matchande annonser" and this page keeps that promise: its count links to
+  // the filtered view. (Arm (a)'s ads page could not, which is why it uses /jobb's wording instead.)
+  const tWatch = await getTranslations("jobads.companyWatches");
   const format = await getFormatter();
 
   const { id } = await params;
@@ -115,6 +121,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
 
   const magnitudeText = formatMagnitude(format, magnitude);
 
+  // A degraded ad-count read yields no personal count either: the two numbers arrive in one
+  // response, so there is nothing to say about matching that the "cannot be shown" line above does
+  // not already say.
+  const matching = adCountResult.kind === "ok" ? adCountResult.data.matching : null;
+
   return (
     <>
       <section className="jp-pagehero">
@@ -146,11 +157,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             fact without offering an empty page, and a degraded read says so rather than showing a
             false 0 (#859 — a rendered magnitude is true or absent). */}
         {adCountResult.kind === "ok" ? (
-          adCountResult.data.magnitude > 0 ? (
+          adCountResult.data.ads.magnitude > 0 ? (
             <p className="jp-matchline tabular-nums">
               <Link href={`/foretag/smarta-bevakningar/${id}/annonser`}>
                 {t("ads.linkLabel", {
-                  count: formatMagnitude(format, adCountResult.data),
+                  count: formatMagnitude(format, adCountResult.data.ads),
                 })}
               </Link>
             </p>
@@ -160,6 +171,41 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
         ) : (
           <p className="jp-matchline">{t("ads.countUnavailable")}</p>
         )}
+
+        {/* #1656 (b) — the PERSONAL count, in the same form the ordinary company watch renders it
+            (`company-watch-row.tsx`). Four states and none of them collapses into another: a number
+            (0 included), "you have stated no occupation", and "this watch is too broad to grade".
+            The last two are NOT zeros — a 0 would read as "nothing matches you" when the truth is
+            that nothing was measured. A degraded ad-count read renders neither, because the line
+            above already says the numbers cannot be shown. */}
+        {matching !== null &&
+          (matching.tooBroad ? (
+            <p className="jp-matchline">{t("ads.matchingTooBroad")}</p>
+          ) : matching.count === null ? (
+            <p className="jp-matchline">
+              {tWatch("matchNudge")}{" "}
+              <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
+                {tWatch("matchNudgeCta")}
+              </Link>
+            </p>
+          ) : (
+            <p className="jp-matchline tabular-nums">
+              {matching.count > 0 ? (
+                <Link
+                  className="jp-countlink"
+                  href={`/foretag/smarta-bevakningar/${id}/annonser?visa=matchande`}
+                  prefetch={false}
+                  aria-label={t("ads.matchingLinkAria", {
+                    label: tWatch("matchingAds", { count: matching.count }),
+                  })}
+                >
+                  {tWatch("matchingAds", { count: matching.count })}
+                </Link>
+              ) : (
+                tWatch("matchingAds", { count: matching.count })
+              )}
+            </p>
+          ))}
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
             necessarily where the company operates). */}

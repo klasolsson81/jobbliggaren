@@ -453,7 +453,13 @@
         "seatHelpBody2": "Where the work is performed is stated in the ad and need not be the same municipality as the seat.",
         "seatHelpAria": "How were these ads selected?",
         "emptyTitle": "No active job ads right now.",
-        "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities."
+        "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities.",
+        "matchingLinkAria": "{label} in this watch",
+        "matchingHeadline": "{count, plural, =0 {No matching job ads} one {# matching job ad} other {# matching job ads}}",
+        "matchingTooBroad": "This watch is too broad for us to count how many job ads match you. Narrow down the industries or municipalities.",
+        "showAll": "Show all job ads",
+        "matchingEmptyTitle": "No job ads match you right now.",
+        "matchingEmptyBody": "None of the watch's active job ads reach a good match against your profile. Try broadening the watch or reviewing your matching settings."
       },
       "browse": {
         "lede": "Active companies in the register that match your watch.",

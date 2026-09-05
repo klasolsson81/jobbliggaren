@@ -7,14 +7,14 @@ import {
   criterionReferenceSchema,
   companyBrowseResponseSchema,
   criterionAdBrowseResponseSchema,
-  criterionAdMagnitudeSchema,
+  criterionAdCountResponseSchema,
   criterionMagnitudeSchema,
   createCriterionResultSchema,
   type ListCompanyWatchCriteriaResult,
   type CriterionReference,
   type CompanyBrowseResponse,
   type CriterionAdBrowseResponse,
-  type CriterionAdMagnitude,
+  type CriterionAdCountResponse,
   type CriterionMagnitude,
   type CriterionPredicateInput,
 } from "@/lib/dto/company-criteria";
@@ -132,6 +132,7 @@ export async function browseCriterionCompanies(
 export async function browseCriterionAds(
   criterionId: string,
   page: number,
+  onlyMatching = false,
 ): Promise<ApiResult<CriterionAdBrowseResponse>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
@@ -143,7 +144,8 @@ export async function browseCriterionAds(
   try {
     const res = await authedFetch(
       sessionId,
-      `${BASE}/${encodeURIComponent(criterionId)}/ads?page=${safePage}&pageSize=20`,
+      `${BASE}/${encodeURIComponent(criterionId)}/ads?page=${safePage}&pageSize=20`
+        + `&onlyMatching=${onlyMatching}`,
     );
     return await responseToResult(
       res,
@@ -157,14 +159,17 @@ export async function browseCriterionAds(
 }
 
 /**
- * #1559 — the criterion's ad magnitude ALONE, for the detail page, which renders the number and links
- * to the ads without reading one. Deliberately not `browseCriterionAds(id, 1)` with the page thrown
- * away: that would pay for twenty ad rows nobody renders, and reading the page's `totalCount` instead
- * is the capped pagination quantity, not the magnitude.
+ * #1559 / #1656 (b) — the criterion's two AD numbers, for the detail page, which renders them and
+ * links onward without reading a single ad. Deliberately not `browseCriterionAds(id, 1)` with the
+ * page thrown away: that would pay for twenty ad rows nobody renders, and reading the page's
+ * `totalCount` instead is the capped pagination quantity, not the magnitude.
+ *
+ * ONE call for both numbers, deliberately: the routes on this group share a single rate-limit
+ * bucket, so a second request here would spend the detail page's allowance for nothing.
  */
 export async function getCriterionAdCount(
   criterionId: string,
-): Promise<ApiResult<CriterionAdMagnitude>> {
+): Promise<ApiResult<CriterionAdCountResponse>> {
   const sessionId = await getSessionId();
   if (!sessionId) return { kind: "unauthorized" };
   if (!isValidId(criterionId)) return { kind: "notFound" };
@@ -176,7 +181,7 @@ export async function getCriterionAdCount(
     );
     return await responseToResult(
       res,
-      criterionAdMagnitudeSchema,
+      criterionAdCountResponseSchema,
       "GET /api/v1/me/company-watch-criteria/{id}/ad-count",
       { includeNotFound: true },
     );

@@ -155,9 +155,53 @@ export type CriterionAdMagnitude = z.infer<typeof criterionAdMagnitudeSchema>;
  * {@link companyBrowseResponseSchema}. `ads.totalCount` SATURATES at the pagination cap and is a
  * pagination quantity ONLY; the headline number is `magnitude`.
  */
+/**
+ * #1656 (b) — how many of the criterion's active ads match ME (>= Good), mirroring backend
+ * `MyMatchingAdCountDto`. Deliberately NOT a magnitude schema and deliberately carrying no
+ * `saturated`: this number is EXACT or ABSENT. The underlying ad set is refused rather than
+ * truncated when it grows too broad, so there is no "+" arm to render.
+ *
+ * Three states, and a surface must not collapse any two of them:
+ * - `count: n`, `tooBroad: false` — exactly n ads match. `0` is a real answer.
+ * - `count: null`, `tooBroad: false` — NOT ASSESSED (no stated occupation). Render the nudge,
+ *   never a zero. Same shape and same meaning as `companyWatchSchema.matchingAdCount`.
+ * - `count: null`, `tooBroad: true` — the watch is too broad to grade. Also never a zero.
+ *
+ * `nullable()`, never `optional()`: the wire shape does not vary with the answer (ADR 0120).
+ */
+export const myMatchingAdCountSchema = z
+  .object({
+    count: z.number().int().nonnegative().nullable(),
+    tooBroad: z.boolean(),
+  })
+  // The backend DTO rejects this combination in its constructor, so it cannot be produced. The ACL
+  // boundary rejects it too, because the one way it could ever arrive is the one that matters: a
+  // count computed over a TRUNCATED set, which is a floor. Rendering a floor as an exact number is
+  // the defect the refusal bound exists to prevent, and "cannot be shown" beats a wrong number.
+  .refine((m) => !(m.tooBroad && m.count !== null), {
+    message: "tooBroad utesluter ett count",
+  });
+export type MyMatchingAdCount = z.infer<typeof myMatchingAdCountSchema>;
+
+/**
+ * #1656 (b) — the criterion's two AD numbers side by side (`GET /{id}/ad-count`): how many active
+ * ads exist, and how many of them match me. Two members because they are two questions with two
+ * honesty rules — `ads` saturates and may render "10 000+", `matching` is exact or absent.
+ */
+export const criterionAdCountResponseSchema = z.object({
+  ads: criterionAdMagnitudeSchema,
+  matching: myMatchingAdCountSchema,
+});
+export type CriterionAdCountResponse = z.infer<typeof criterionAdCountResponseSchema>;
+
 export const criterionAdBrowseResponseSchema = z.object({
   ads: pagedResultWithTotalPages(jobAdDtoSchema),
   magnitude: criterionAdMagnitudeSchema,
+  // `null` means the caller did not ask for the matching view (ADR 0120's corollary: null is "we
+  // did not ask", not an error). Present whenever `onlyMatching` was requested — including the two
+  // arms where the filter is INERT, which is how the page knows to explain itself instead of
+  // showing an unexplained unfiltered list.
+  matching: myMatchingAdCountSchema.nullable(),
 });
 export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
 

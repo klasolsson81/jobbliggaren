@@ -858,9 +858,6 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ✅ **VÄG (a) ÄR UPPFYLLD 2026-09-04** (`security-auditor`s ruling samma dag), med de tre
            konjunkterna avbockade var för sig: *finns* ✅ · *tar emot* ✅ (17:33, lagring 1,09 → 10 kB)
            · *läses* ✅.
-           ⚠ **KVARSTÅR, ETT EGET FYND OCH INGET ÅTERSTÅENDE BEN I (a):** instrumentets andra halva
-           ovan — catch-all-kontrollen — är inte körd. Utfallet recordas i `vps-deploy-stack.md`
-           rad 36:s Measured-cell.
            *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
            grammatik är "grön = inget led bär KVAR" hade den markerat ett **vägval** på en
            förutsättning som fortfarande är **osignerad och Major** — samma glyf, två jobb, och det

@@ -43,7 +43,7 @@ by the driving session or rendered here.
 (`bg-linear-to-*` — sole exception: the hero plate gradient `--jp-hero-gradient`
 per ADR 0068), glassmorphism (`backdrop-blur`, `bg-white/20`), glow/colored
 shadows, violet/indigo/purple/neon accents, `shadow-2xl`+, hero typography in
-app views, emoji in JSX, prominent AI badges, radius > 6px (pills/badges
+app views, emoji in JSX, prominent AI badges, radius > 8px (pills/badges
 exempt). Verify the positives: solid token colors, subtle borders, typographic
 hierarchy, 4px spacing grid.
 

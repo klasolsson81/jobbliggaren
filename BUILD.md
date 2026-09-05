@@ -1255,7 +1255,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 - Grön accent `#15603F` som enda interaktionsfärg (`--jp-accent-*`-ramp, ADR 0068 — ersätter tidigare myndighetsblå)
 - Inga emojis i UI, inga exklamationstecken, inga gradients (enda undantag: hero-plattans scopade gröna gradient, ADR 0068)
 - Rak svensk copy: kvantifierad information först
-- `border-radius`: golv för rader/kort/knappar, modal ett steg över, pills/badges undantagna (ADR 0052 Beslut 4 + impl-note 2026-07-26, som tog bort 12px-hero-steget)
+- `border-radius`: golv för rader/kort/knappar, modal ett steg över, pills/badges undantagna (ADR 0052 Beslut 4 + Amendment 2026-07-26 (#1054), som tog bort 12px-hero-steget)
 - Exakta tokens (färg/typografi/spacing/radius) ägs av DESIGN.md + design-skills
 
 ---

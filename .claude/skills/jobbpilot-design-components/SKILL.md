@@ -259,7 +259,7 @@ For status indicators, counts, and categorization.
 | Info / Neutral | `bg-info-50 text-info-700` |
 | Brand | `bg-brand-50 text-brand-700` |
 
-Always `rounded-pill` — explicit exception to the 6px radius rule.
+Always `rounded-pill` — explicit exception to the radius ceiling (AGENTS.md §5).
 
 ### Alert
 

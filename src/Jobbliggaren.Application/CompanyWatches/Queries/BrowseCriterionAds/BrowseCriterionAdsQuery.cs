@@ -30,7 +30,19 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// behaviors (<c>PagedResultContractTests</c>).
 /// </para>
 /// </summary>
-public sealed record BrowseCriterionAdsQuery(Guid CriterionId, int Page, int PageSize)
+/// <param name="OnlyMatching">
+/// #1656 (b) — when <c>true</c>, the page is cut from the ads that match the CALLER (&gt;= Good) via
+/// <c>CriterionMatchingAdSet</c>, not from the criterion's whole ad set. The whole matching set is
+/// resolved before the page is cut: a filter applied to an already-loaded page would describe the
+/// PAGE rather than the watch (ADR 0120), and the number linking here would then land on a
+/// different set than it counted.
+/// <para>
+/// It is INERT — the unfiltered list is delivered — for a caller who has stated no occupation, and
+/// for a criterion whose ad set is too broad to grade. Neither is an empty page: see the handler.
+/// </para>
+/// </param>
+public sealed record BrowseCriterionAdsQuery(
+    Guid CriterionId, int Page, int PageSize, bool OnlyMatching = false)
     : IQuery<PagedResult<JobAdDto>?>, IAuthenticatedRequest;
 
 /// <summary>

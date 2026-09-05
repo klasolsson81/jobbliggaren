@@ -103,7 +103,10 @@
       "remoteInline": "distans",
       "or": " eller ",
       "separator": ", ",
-      "more": "+{count} till"
+      "more": "+{count} till",
+      "employerLeading": "Arbetsgivare",
+      "employerInline": "arbetsgivare",
+      "employerCount": "{count} arbetsgivare"
     },
     "chip": {
       "label": "Senaste sökningar",

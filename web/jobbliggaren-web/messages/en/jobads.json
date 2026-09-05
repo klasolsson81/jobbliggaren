@@ -103,7 +103,10 @@
       "remoteInline": "remote",
       "or": " or ",
       "separator": ", ",
-      "more": "+{count} more"
+      "more": "+{count} more",
+      "employerLeading": "Employer",
+      "employerInline": "employer",
+      "employerCount": "{count} employers"
     },
     "chip": {
       "label": "Recent searches",

@@ -25,6 +25,7 @@ function makeDto(extra?: Partial<RecentJobSearchDto>): RecentJobSearchDto {
     regionList: ["CifL_Rzy_Mku"],
     employmentTypeList: ["gro4_cWF_6D7"],
     worktimeExtentList: ["6YE1_gAC_R2G"],
+    employerList: [],
     remote: false,
     occupationGroupLabels: [
       { conceptId: "MVqp_eS8_kDZ", label: "Mjukvaruutveckling" },
@@ -104,6 +105,39 @@ describe("RecentSearchRow", () => {
     expect(screen.getByText(/42/)).toBeInTheDocument();
     expect(screen.getByText(/träffar/)).toBeInTheDocument();
     expect(screen.queryByText(/nya/)).not.toBeInTheDocument();
+  });
+
+  // #1471 — the three legs a user meets on one row: the heading names the employer axis
+  // (through the real sv catalogue, value-free), the remove button names the same string
+  // (WCAG 2.5.3), and "Kör igen" carries the org.nr the count was computed with. The value is
+  // in the href and nowhere in the rendered text.
+  it("names an employer search value-free and replays it with the employer axis", () => {
+    render(
+      <RecentSearchRow
+        item={makeDto({
+          q: null,
+          employmentTypeList: [],
+          worktimeExtentList: [],
+          employerList: ["5566010101"],
+          label: {
+            kind: "Dimensions",
+            join: "None",
+            parts: [{ kind: "Employer", text: null, conceptId: null, moreCount: 0 }],
+          },
+        })}
+        onDeleted={() => undefined}
+        onDeleteFailed={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Arbetsgivare" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ta bort sökningen: Arbetsgivare" }),
+    ).toBeInTheDocument();
+    const href =
+      screen.getByRole("link", { name: /Kör igen/ }).getAttribute("href") ?? "";
+    expect(href).toContain("employer=5566010101");
+    expect(document.body.textContent).not.toContain("5566010101");
   });
 
   it("replay href carries Klass 2 (employmentType + worktimeExtent) so 'Kör igen' keeps the filter", () => {

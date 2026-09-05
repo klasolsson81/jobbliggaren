@@ -15,6 +15,7 @@ function makeRecent(
     regionList: [],
     employmentTypeList: [],
     worktimeExtentList: [],
+    employerList: [],
     remote: false,
     occupationGroupLabels: [],
     municipalityLabels: [],
@@ -56,6 +57,20 @@ describe("buildRecentSearchHref (#294 — shared replay href)", () => {
     // asserts the axis IS carried.
     const href = buildRecentSearchHref(makeRecent({ remote: false }));
     expect(href).not.toContain("distans");
+  });
+
+  it("carries the employer axis so the replay reproduces what the count counted (#1471)", () => {
+    // The whole list, in the one-param-per-axis form every other list axis uses: the count was
+    // computed over every employer the search filtered on, so the click must be too.
+    const href = buildRecentSearchHref(
+      makeRecent({ employerList: ["5566010101", "5560125790"] }),
+    );
+    expect(href).toContain("employer=5566010101.5560125790");
+  });
+
+  it("omits employer when the captured search did not have it", () => {
+    const href = buildRecentSearchHref(makeRecent({ employerList: [] }));
+    expect(href).not.toContain("employer");
   });
 
   it("never carries a grade filter (matchGrades is runtime view-state, not a saved-search concern)", () => {

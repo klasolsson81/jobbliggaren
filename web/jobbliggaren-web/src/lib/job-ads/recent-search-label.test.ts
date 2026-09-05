@@ -20,6 +20,9 @@ function copyFrom(catalogue: typeof svJobads): RecentSearchLabelCopy {
     all: c.all,
     remoteLeading: c.remoteLeading,
     remoteInline: c.remoteInline,
+    employerLeading: c.employerLeading,
+    employerInline: c.employerInline,
+    employerCount: (count) => c.employerCount.replace("{count}", String(count)),
     or: c.or,
     separator: c.separator,
     more: (count) => c.more.replace("{count}", String(count)),
@@ -52,6 +55,14 @@ const coded = (conceptId: string, moreCount = 0): RecentSearchLabelPart => ({
   kind: "Coded",
   text: null,
   conceptId,
+  moreCount,
+});
+// The employer axis carries no value at all (#1471): the org.nr is, for a sole trader, the
+// holder's personnummer, so the part says only that the axis is set and how many it stands for.
+const employer = (moreCount = 0): RecentSearchLabelPart => ({
+  kind: "Employer",
+  text: null,
+  conceptId: null,
   moreCount,
 });
 
@@ -118,6 +129,27 @@ describe("buildRecentSearchLabel", () => {
       ],
     ])("renderar %j", (expected, input) => {
       expect(buildRecentSearchLabel(input, en)).toBe(expected);
+    });
+  });
+
+  // #1471 — arbetsgivar-delen är värdefri i båda locales: ledande form versaliserad, efterställd
+  // form gemen (samma positionsregel som distans), och flera arbetsgivare RÄKNAS i stället för
+  // att listas. Ordet är copy; ett org.nr når aldrig hit (Klas-beslut 2026-08-23).
+  describe("arbetsgivar-delen (#1471) — namnger axeln, aldrig värdet", () => {
+    it.each([
+      ["Arbetsgivare", label("Dimensions", "None", employer()), sv],
+      ["Employer", label("Dimensions", "None", employer()), en],
+      ["2 arbetsgivare", label("Dimensions", "None", employer(1)), sv],
+      ["3 employers", label("Dimensions", "None", employer(2)), en],
+      ["Heltid, arbetsgivare", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), sv],
+      ["Full-time, employer", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), en],
+      [
+        "Heltid, 2 arbetsgivare",
+        label("Dimensions", "Conjunction", coded(FULL_TIME), employer(1)),
+        sv,
+      ],
+    ])("renderar %j", (expected, input, copy) => {
+      expect(buildRecentSearchLabel(input, copy)).toBe(expected);
     });
   });
 

@@ -3,6 +3,8 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -160,7 +162,7 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
         var port = Substitute.For<ICompanyWatchBrowseQuery>();
 
         var result = await new GetCriterionAdMagnitudeQueryHandler(
-                db, currentUser, Substitute.For<IFailedAccessLogger>(), port)
+                db, currentUser, Substitute.For<IFailedAccessLogger>(), Resolver(port))
             .Handle(new GetCriterionAdMagnitudeQuery(criterion.Id.Value), ct);
 
         // What this measures is the null-user arm, NOT the Guid.Empty fallback the loader's own
@@ -181,8 +183,13 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
         return new GetCriterionAdMagnitudeQueryHandler(
-            db, currentUser, failedAccess ?? Substitute.For<IFailedAccessLogger>(), port);
+            db, currentUser, failedAccess ?? Substitute.For<IFailedAccessLogger>(), Resolver(port));
     }
+
+    private static CriterionMatchingAdSetResolver Resolver(ICompanyWatchBrowseQuery port) =>
+        new(Substitute.For<IMatchProfileBuilder>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
+            port);
 
     private static async Task<CompanyWatchCriterion> SeedCriterionAsync(
         AppDbContext db, Guid userId, CancellationToken ct)

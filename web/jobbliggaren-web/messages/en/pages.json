@@ -442,7 +442,7 @@
         "backLink": "Back to the watch",
         "linkLabel": "{count} active job ads from these companies",
         "none": "No active job ads from these companies right now.",
-        "countUnavailable": "The number of ads cannot be shown right now. Reload the page in a moment.",
+        "countUnavailable": "The ad numbers cannot be shown right now. Reload the page in a moment.",
         "loadErrorTitle": "Could not load the ads",
         "loadErrorBody": "An error occurred. Try again in a moment.",
         "rateLimited": "Too many requests right now. Wait a moment and reload the page.",
@@ -453,7 +453,15 @@
         "seatHelpBody2": "Where the work is performed is stated in the ad and need not be the same municipality as the seat.",
         "seatHelpAria": "How were these ads selected?",
         "emptyTitle": "No active job ads right now.",
-        "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities."
+        "emptyBody": "The companies matching your watch have no active ads. Try widening the watch's industries or municipalities.",
+        "matchingHeadline": "{count, plural, =0 {No matching job ads} one {# matching job ad} other {# matching job ads}}",
+        "matchingTooBroad": "This watch is too broad for us to count how many job ads match you. Try choosing fewer industries or municipalities.",
+        "showAll": "Show all job ads",
+        "matchingEmptyTitle": "No job ads match you right now.",
+        "matchingEmptyBody": "None of the watch's active job ads reach a good match against your profile. Try broadening the watch or reviewing your matching settings.",
+        "matchingTooBroadCta": "Change the watch",
+        "matchingTooBroadOnList": "This watch is too broad for us to count how many job ads match you, so all active job ads are shown here. Try choosing fewer industries or municipalities.",
+        "matchingNotAssessedOnList": "You have not stated which occupations you are looking for, so all active job ads are shown here."
       },
       "browse": {
         "lede": "Active companies in the register that match your watch.",

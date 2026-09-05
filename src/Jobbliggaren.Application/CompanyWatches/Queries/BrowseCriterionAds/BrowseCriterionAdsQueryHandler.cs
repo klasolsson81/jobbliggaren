@@ -2,6 +2,7 @@ using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
@@ -35,6 +36,23 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// </para>
 ///
 /// <para>
+/// <b>#1656 (b) — the "bara matchande" arm.</b> When
+/// <see cref="BrowseCriterionAdsQuery.OnlyMatching"/> is set, the page comes from
+/// <see cref="CriterionMatchingAdSetResolver"/> instead: the WHOLE matching set is resolved first and the
+/// PAGE is cut from it. Filtering the loaded page would be a different (and false) surface — at
+/// pageSize 20 it would describe the page rather than the watch, which ADR 0120 forbids and which
+/// would make "N matchar dig" disagree with what the user lands on.
+/// </para>
+///
+/// <para>
+/// <b>The filter is INERT rather than empty in the two unanswerable arms</b> (parity the follow
+/// rail's RF-5 under-fork (i)): a user who has stated no occupation, and a criterion too broad to
+/// grade, both get the UNFILTERED list. Returning an empty page there would say "nothing matches
+/// you", which is not what either arm means. The composed response's <c>Matching</c> member is what
+/// tells the surface which arm it is in, so it can say so instead of implying a zero.
+/// </para>
+///
+/// <para>
 /// <b>No org.nr crosses this handler.</b> The port returns ad ids and <see cref="JobAdDto"/> carries
 /// no organisation number, so the personnummer guard (ADR 0087 D8(c)) has nothing to mask here — the
 /// raw org.nr of a matched sole trader stays server-side inside the join, exactly as it does for the
@@ -45,7 +63,8 @@ public sealed class BrowseCriterionAdsQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IFailedAccessLogger failedAccessLogger,
-    ICompanyWatchBrowseQuery browse)
+    ICompanyWatchBrowseQuery browse,
+    CriterionMatchingAdSetResolver resolver)
     : IQueryHandler<BrowseCriterionAdsQuery, PagedResult<JobAdDto>?>
 {
     public async ValueTask<PagedResult<JobAdDto>?> Handle(
@@ -58,17 +77,63 @@ public sealed class BrowseCriterionAdsQueryHandler(
         if (criterion is null)
             return null;
 
+        if (query.OnlyMatching)
+        {
+            var resolved = await resolver.MatchingAsync(
+                query.CriterionId, criterion.Criteria, cancellationToken);
+
+            // Only the Resolved arm can honour the filter. NotAssessed and SetTooLarge fall through
+            // to the unfiltered browse below — see the class docblock for why that is not an empty
+            // page.
+            if (resolved is CriterionMatchingAds.Resolved matching)
+            {
+                var ordinal = matching.Matching
+                    .Skip((query.Page - 1) * query.PageSize)
+                    .Take(query.PageSize)
+                    .ToList();
+
+                // The TOTAL is the matching SET, not the page — and it carries the same
+                // MaxServableRows cap the port applies on the unfiltered arm, so TotalPages <=
+                // MaxPage stays true by construction on both. Never rendered as a magnitude: the
+                // surface reads the composed response's Matching member.
+                return await LoadPageAsync(
+                    ordinal,
+                    Math.Min(
+                        matching.Matching.Count,
+                        CompanyBrowseCriteria.MaxServableRows(query.PageSize)),
+                    query.Page,
+                    query.PageSize,
+                    cancellationToken);
+            }
+        }
+
         var page = await browse.BrowseAdIdsAsync(
             new CompanyBrowseCriteria(criterion.Criteria, query.Page, query.PageSize),
             cancellationToken);
 
+        return await LoadPageAsync(
+            page.Items, page.TotalCount, page.Page, page.PageSize, cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads and projects the ads named by <paramref name="ordinal"/>, in THAT order. Shared by both
+    /// arms so the projection and the re-sequencing have one home: a second copy would be a second
+    /// place for the ordinal rule above to be got wrong.
+    /// </summary>
+    private async Task<PagedResult<JobAdDto>> LoadPageAsync(
+        IReadOnlyList<JobAdId> ordinal,
+        int totalCount,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
         // An empty page short-circuits: `= ANY('{}')` would be a round-trip that cannot match a row.
-        if (page.Items.Count == 0)
-            return new PagedResult<JobAdDto>([], page.TotalCount, page.Page, page.PageSize);
+        if (ordinal.Count == 0)
+            return new PagedResult<JobAdDto>([], totalCount, page, pageSize);
 
         var rows = await db.JobAds
             .AsNoTracking()
-            .Where(j => page.Items.Contains(j.Id))
+            .Where(j => ordinal.Contains(j.Id))
             .Select(j => new JobAdDto(
                 j.Id.Value,
                 j.Title,
@@ -85,12 +150,12 @@ public sealed class BrowseCriterionAdsQueryHandler(
         // deleted between the two round-trips; it drops out here explicitly rather than shifting
         // everything after it.
         var byId = rows.ToDictionary(d => d.Id);
-        var items = page.Items
+        var items = ordinal
             .Select(id => byId.GetValueOrDefault(id.Value))
             .Where(d => d is not null)
             .Select(d => d!)
             .ToList();
 
-        return new PagedResult<JobAdDto>(items, page.TotalCount, page.Page, page.PageSize);
+        return new PagedResult<JobAdDto>(items, totalCount, page, pageSize);
     }
 }

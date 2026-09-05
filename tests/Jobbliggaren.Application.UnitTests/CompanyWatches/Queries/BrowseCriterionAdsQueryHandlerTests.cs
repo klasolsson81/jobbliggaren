@@ -4,6 +4,8 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
+using Jobbliggaren.Application.JobAds.Abstractions;
+using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
@@ -225,7 +227,7 @@ public class BrowseCriterionAdsQueryHandlerTests
         var port = Substitute.For<ICompanyWatchBrowseQuery>();
 
         var result = await new BrowseCriterionAdsQueryHandler(
-                db, currentUser, Substitute.For<IFailedAccessLogger>(), port)
+                db, currentUser, Substitute.For<IFailedAccessLogger>(), port, Resolver(port))
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
 
         result.ShouldBeNull();
@@ -249,9 +251,17 @@ public class BrowseCriterionAdsQueryHandlerTests
     {
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId);
+        // The resolver is inert for every arm in this class: OnlyMatching is false, so the handler
+        // never reaches it. #1656 (b)'s filtered arm has its own class, which wires it for real.
         return new BrowseCriterionAdsQueryHandler(
-            db, currentUser, failedAccess ?? Substitute.For<IFailedAccessLogger>(), port);
+            db, currentUser, failedAccess ?? Substitute.For<IFailedAccessLogger>(), port,
+            Resolver(port));
     }
+
+    private static CriterionMatchingAdSetResolver Resolver(ICompanyWatchBrowseQuery port) =>
+        new(Substitute.For<IMatchProfileBuilder>(),
+            Substitute.For<IPerUserJobAdSearchQuery>(),
+            port);
 
     private static async Task<CompanyWatchCriterion> SeedCriterionAsync(
         AppDbContext db, Guid userId, CancellationToken ct)

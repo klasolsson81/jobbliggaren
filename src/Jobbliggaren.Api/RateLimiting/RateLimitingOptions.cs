@@ -246,7 +246,7 @@ public sealed class RateLimitingOptions
     /// <summary>
     /// GET /me/company-watch-criteria/{id}/companies, /{id}/ads, /{id}/ad-count (#560 PR-3, #1559)
     /// and POST /companies/search (#560 search wave, CTO F1) — FOUR routes, ONE bucket, over the same
-    /// 1.17M-row register join: the heaviest read in the house (#875 measured it). Never folded into
+    /// register join: the heaviest read in the house (#875 measured it). Never folded into
     /// MeListRead — a browse scan-burst must not consume the budget /oversikt's ~7-call fan-out lives
     /// on. Partitioned per UserId; anonymous -> NoLimiter, which is safe ONLY because UseRateLimiter is
     /// registered AFTER UseAuthorization (Program.cs) and all four routes are RequireAuthorization-
@@ -284,6 +284,15 @@ public sealed class RateLimitingOptions
     /// An ADDITIONAL call on any of these pages spends a token off the SAME 12/min: divide 12 by the new
     /// per-view total BEFORE adding it, and re-run the measurement above. Raising PermitLimit is a
     /// security-auditor decision (BLOCKING), never a fix for a page that got chattier.</para>
+    ///
+    /// <para><b>#1656 (b) — the per-view token counts above are UNCHANGED; what one token buys on the
+    /// two AD routes is not.</b> The personal match count was composed into the EXISTING sends rather
+    /// than given a fifth route, so the detail page stays at 2 tokens and /annonser at 1 whether or not
+    /// its matching axis is set. On the routes that resolve it, one token additionally buys the
+    /// criterion's ad-id set and a grade pass over it. Each of those is read ONCE per request however
+    /// many sends ask, because the resolver is scoped — and a criterion too broad to grade is refused
+    /// without reading the set at all. Whether 15 still holds against the new per-token row cost is
+    /// security-auditor's call, not this file's.</para>
     /// </summary>
     public PolicyOptions CompanyBrowse { get; init; } = new()
     {

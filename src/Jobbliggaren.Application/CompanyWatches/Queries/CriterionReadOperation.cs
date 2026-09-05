@@ -12,4 +12,5 @@ internal static class CriterionReadOperation
     public const string GetCriterionMatchMagnitude = "GetCriterionMatchMagnitude";
     public const string BrowseCriterionAds = "BrowseCriterionAds";
     public const string GetCriterionAdMagnitude = "GetCriterionAdMagnitude";
+    public const string GetMyMatchingAdCountForCriterion = "GetMyMatchingAdCountForCriterion";
 }

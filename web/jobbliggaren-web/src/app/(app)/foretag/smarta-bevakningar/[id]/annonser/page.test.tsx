@@ -93,6 +93,10 @@ function okBrowse(items: JobAdDto[]) {
     data: {
       ads: { items, page: 1, pageSize: 20, totalCount: items.length },
       magnitude: { magnitude: items.length, saturated: false },
+      // #1656 (b) — `null` is "the caller did not ask for the matching view", which is every arm in
+      // this class. The member is always PRESENT on the wire (the schema declares it nullable, never
+      // optional), so the fixture carries it rather than leaving it undefined.
+      matching: null,
     },
   };
 }
@@ -241,5 +245,145 @@ describe("BevakningAdsPage — the per-card match mark", () => {
     expect(getJobAdMatchTags).not.toHaveBeenCalled();
     expect(screen.getByText("Inga aktiva annonser just nu.")).toBeInTheDocument();
     expect(screen.queryByText(/inte angett vilka yrken/)).toBeNull();
+  });
+});
+
+/**
+ * #1656 (b) — the `?visa=matchande` axis.
+ *
+ * <para/> What is pinned is that the axis reaches the BACKEND (the filter is a set question the
+ * page cannot answer itself), that the headline then reads the personal count rather than the
+ * pagination `totalCount`, that pagination carries the axis, and that the two INERT arms deliver
+ * the unfiltered list with an explanation instead of an empty page or a false zero.
+ *
+ * <para/> The axis value is asserted literally. `baraMatchade` means a WIDER band on `/jobb`
+ * (Grund and Relaterat included) than the `>= Good` this count is computed at, so the two names
+ * must not converge.
+ */
+describe("BevakningAdsPage — the matching view", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCompanyWatchCriteria.mockResolvedValue({ kind: "error" });
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getJobAdMatchTags.mockResolvedValue({ entries: {} });
+    getMyProfile.mockResolvedValue({
+      kind: "ok",
+      data: { hasStatedDesiredOccupation: true },
+    });
+  });
+
+  function browseWith(items: JobAdDto[], matching: unknown) {
+    return { ...okBrowse(items), data: { ...okBrowse(items).data, matching } };
+  }
+
+  async function renderWithVisa(visa: string | undefined, matching: unknown) {
+    browseCriterionAds.mockResolvedValue(browseWith([ad("a1", "Systemutvecklare")], matching));
+    render(
+      await BevakningAdsPage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve(visa === undefined ? {} : { visa }),
+      }),
+    );
+  }
+
+  it("asks the backend for the matching set and heads the page with THAT count", async () => {
+    await renderWithVisa("matchande", { count: 9, tooBroad: false });
+
+    expect(browseCriterionAds).toHaveBeenCalledWith("c1", 1, true);
+    // Nine, not the one row this page happens to hold: the headline is the whole matching set.
+    expect(screen.getByText("9 matchande annonser")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Visa alla annonser" }),
+    ).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+  });
+
+  it("does not filter when the axis is absent", async () => {
+    await renderWithVisa(undefined, null);
+
+    expect(browseCriterionAds).toHaveBeenCalledWith("c1", 1, false);
+    expect(screen.queryByText(/matchande annonser/)).toBeNull();
+  });
+
+  it("degrades an unrecognised axis value to the whole list", async () => {
+    // A filter nobody asked for must never appear. `baraMatchade` is specifically NOT this axis.
+    await renderWithVisa("baraMatchade", null);
+
+    expect(browseCriterionAds).toHaveBeenCalledWith("c1", 1, false);
+  });
+
+  it("delivers the unfiltered list with an explanation when the watch is too broad", async () => {
+    await renderWithVisa("matchande", { count: null, tooBroad: true });
+
+    // The consequence is stated: the list is unfiltered, not empty and not filtered.
+    expect(
+      screen.getByText(/så alla aktiva annonser visas här/),
+    ).toBeInTheDocument();
+    // The list is still there. An empty page here would say "nothing matches you", which is not
+    // what a refusal means.
+    expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
+    expect(screen.queryByText(/matchande annonser$/)).toBeNull();
+  });
+
+  it("says the list is unfiltered when no occupation is stated", async () => {
+    // The other INERT arm. Without the consequence clause the user asked for a filtered list, got
+    // an unfiltered one, and nothing on the page accounts for the difference.
+    await renderWithVisa("matchande", { count: null, tooBroad: false });
+
+    expect(
+      screen.getByText(/så alla aktiva annonser visas här/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ställ in matchning" })).toBeInTheDocument();
+    expect(screen.getByText("Systemutvecklare")).toBeInTheDocument();
+  });
+
+  it("explains an EMPTY filtered list rather than reusing the unfiltered empty state", async () => {
+    browseCriterionAds.mockResolvedValue({
+      kind: "ok" as const,
+      data: {
+        ads: { items: [], page: 1, pageSize: 20, totalCount: 0 },
+        magnitude: { magnitude: 5, saturated: false },
+        matching: { count: 0, tooBroad: false },
+      },
+    });
+    render(
+      await BevakningAdsPage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({ visa: "matchande" }),
+      }),
+    );
+
+    // "The watch has no ads" and "none of its ads match you" are different facts, and the criterion
+    // here HAS five ads.
+    expect(screen.getByText("Inga annonser matchar dig just nu.")).toBeInTheDocument();
+    expect(screen.queryByText("Inga aktiva annonser just nu.")).toBeNull();
+  });
+
+  it("keeps the axis on every pagination href", async () => {
+    browseCriterionAds.mockResolvedValue({
+      kind: "ok" as const,
+      data: {
+        ads: {
+          items: [ad("a1", "Systemutvecklare")],
+          page: 1,
+          pageSize: 20,
+          totalCount: 40,
+        },
+        magnitude: { magnitude: 40, saturated: false },
+        matching: { count: 40, tooBroad: false },
+      },
+    });
+    render(
+      await BevakningAdsPage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({ visa: "matchande" }),
+      }),
+    );
+
+    // Page 2 without the axis would quietly show more ads than page 1 promised.
+    const next = screen.getAllByRole("link").find((a) => a.getAttribute("href")?.includes("page=2"));
+    expect(next).toBeDefined();
+    expect(next!.getAttribute("href")).toBe(
+      "/foretag/smarta-bevakningar/c1/annonser?page=2&visa=matchande",
+    );
   });
 });

@@ -20,13 +20,21 @@ public sealed record CriterionReferenceDto(
     IReadOnlyList<SniSectionDto> Sni,
     IReadOnlyList<LanDto> Lan);
 
+/// <summary>
+/// Search aliases for this node (#1115) — words a user may type that the node's own <c>Name</c>
+/// does not contain, carried on every level because an everyday word can name a whole division as
+/// readily as one leaf. Empty for most nodes. A LOOKUP AID: it widens what the filter shows, and
+/// the selection the picker emits is still the node's own code (#560 bind 4).
+/// </summary>
 public sealed record SniSectionDto(
-    string Code, string Name, IReadOnlyList<SniDivisionDto> Divisions);
+    string Code, string Name, IReadOnlyList<SniDivisionDto> Divisions, IReadOnlyList<string> Aliases);
 
+/// <inheritdoc cref="SniSectionDto"/>
 public sealed record SniDivisionDto(
-    string Code, string Name, IReadOnlyList<SniLeafDto> Leaves);
+    string Code, string Name, IReadOnlyList<SniLeafDto> Leaves, IReadOnlyList<string> Aliases);
 
-public sealed record SniLeafDto(string Code, string Name);
+/// <inheritdoc cref="SniSectionDto"/>
+public sealed record SniLeafDto(string Code, string Name, IReadOnlyList<string> Aliases);
 
 public sealed record LanDto(string Code, string Name, IReadOnlyList<KommunDto> Kommuner);
 

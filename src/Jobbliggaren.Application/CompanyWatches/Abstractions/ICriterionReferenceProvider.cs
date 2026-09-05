@@ -29,4 +29,13 @@ public interface ICriterionReferenceProvider
     SniReferenceCatalog Sni { get; }
 
     KommunReferenceCatalog Kommuner { get; }
+
+    /// <summary>
+    /// Search aliases over the SNI names (#1115) — everyday and occupational words SNI itself does
+    /// not carry, so the picker's filter can find a concept the user has a different word for. A
+    /// LOOKUP AID over existing concepts: it widens what the filter shows and nothing else, so
+    /// unlike <see cref="Sni"/> it is not consulted by the existence-validator and never reaches a
+    /// stored criterion or the <c>sni</c> URL axis.
+    /// </summary>
+    SniAliasCatalog Aliases { get; }
 }

@@ -37,6 +37,12 @@ public class GetCriterionReferenceQueryHandlerTests
                 new KommunEntry("0184", "Solna", "01"),
                 new KommunEntry("1480", "Göteborg", "14"),
             ]));
+        provider.Aliases.Returns(new SniAliasCatalog(
+            "2025.alias.v1", "2025.v1", "2026-09-05.v1",
+            [
+                new SniAlias("62201", "scb", ["Agil systemutveckling"]),
+                new SniAlias("62", "authored", ["mjukvara"]),
+            ]));
 
         var tree = await new GetCriterionReferenceQueryHandler(provider)
             .Handle(new GetCriterionReferenceQuery(), ct);
@@ -56,5 +62,14 @@ public class GetCriterionReferenceQueryHandlerTests
         stockholm.Kommuner.Select(static k => k.Code).ShouldBe(["0180", "0184"]);
         tree.Lan.Single(static l => l.Code == "14")
             .Kommuner.ShouldHaveSingleItem().Name.ShouldBe("Göteborg");
+
+        // #1115 — aliases ride the SAME projection, attached at whichever level the asset put them.
+        // A code with none carries an empty list, never null: the picker filters over every option
+        // without a per-row guard.
+        var it = k.Divisions.Single(static d => d.Code == "62");
+        it.Aliases.ShouldBe(["mjukvara"]);
+        it.Leaves.Single(static l => l.Code == "62201").Aliases.ShouldBe(["Agil systemutveckling"]);
+        it.Leaves.Single(static l => l.Code == "62100").Aliases.ShouldBeEmpty();
+        tree.Sni.Single(static s => s.Code == "A").Aliases.ShouldBeEmpty();
     }
 }

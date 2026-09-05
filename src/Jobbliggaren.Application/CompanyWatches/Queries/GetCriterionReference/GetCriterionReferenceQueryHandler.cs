@@ -16,13 +16,14 @@ public sealed class GetCriterionReferenceQueryHandler(ICriterionReferenceProvide
     {
         var sni = reference.Sni;
         var kommuner = reference.Kommuner;
+        var aliases = reference.Aliases;
 
         var leavesByDivision = sni.Leaves
             .GroupBy(static l => l.DivisionCode, StringComparer.Ordinal)
             .ToDictionary(
                 static g => g.Key,
-                static g => (IReadOnlyList<SniLeafDto>)g
-                    .Select(static l => new SniLeafDto(l.Code, l.Name))
+                g => (IReadOnlyList<SniLeafDto>)g
+                    .Select(l => new SniLeafDto(l.Code, l.Name, aliases.TermsFor(l.Code)))
                     .ToList(),
                 StringComparer.Ordinal);
 
@@ -32,13 +33,15 @@ public sealed class GetCriterionReferenceQueryHandler(ICriterionReferenceProvide
                 g => g.Key,
                 g => (IReadOnlyList<SniDivisionDto>)g
                     .Select(d => new SniDivisionDto(
-                        d.Code, d.Name, leavesByDivision.GetValueOrDefault(d.Code, [])))
+                        d.Code, d.Name, leavesByDivision.GetValueOrDefault(d.Code, []),
+                        aliases.TermsFor(d.Code)))
                     .ToList(),
                 StringComparer.Ordinal);
 
         var sections = sni.Sections
             .Select(s => new SniSectionDto(
-                s.Code, s.Name, divisionsBySection.GetValueOrDefault(s.Code, [])))
+                s.Code, s.Name, divisionsBySection.GetValueOrDefault(s.Code, []),
+                aliases.TermsFor(s.Code)))
             .ToList();
 
         var kommunerByLan = kommuner.Kommuner

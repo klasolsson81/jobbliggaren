@@ -28,6 +28,14 @@ internal static partial class CriterionReferenceLoader
     private const string KommunResourceName =
         "Jobbliggaren.Infrastructure.CompanyRegister.Reference.scb-kommuner-2026.v1.json";
 
+    private const string AliasResourceName =
+        "Jobbliggaren.Infrastructure.CompanyRegister.Reference.sni-aliases-2025.v1.json";
+
+    // The only two provenances an alias row may declare (#1115). A third value is a malformed
+    // asset, not a new source: adding one is a decision about where alias vocabulary may come
+    // from, and it belongs in tools/sni-aliases/ and this list together.
+    private static readonly string[] AliasSources = ["scb", "authored"];
+
     // Mirrors CompanyWatchCriteriaSpec's guards ([0-9], never \d — Unicode digits must not pass;
     // \z, never $ — an embedded newline must not pass). The dataset must satisfy the SAME format
     // the Domain enforces on user input, or "exists in the catalog" and "storable on a criterion"
@@ -64,6 +72,66 @@ internal static partial class CriterionReferenceLoader
         using var stream = OpenResource(KommunResourceName);
         return LoadKommunerFrom(stream);
     }
+
+    internal static SniAliasCatalog LoadAliases()
+    {
+        using var stream = OpenResource(AliasResourceName);
+        return LoadAliasesFrom(stream);
+    }
+
+    /// <summary>
+    /// Test seam — see <see cref="LoadSniFrom"/>. Validates the alias asset's FORM only: that every
+    /// code is shaped like an SNI section/division/leaf, that the source is one this repo
+    /// recognises, and that no row is empty. Whether a code actually EXISTS in SNI 2025 is checked
+    /// where both catalogs are in hand (<c>CriterionReferenceProvider</c>) — a form check here
+    /// cannot see the other dataset, and splitting it that way keeps this seam drivable from a
+    /// synthetic stream.
+    /// </summary>
+    internal static SniAliasCatalog LoadAliasesFrom(Stream stream)
+    {
+        var file = JsonSerializer.Deserialize<SniAliasFile>(stream, JsonOptions)
+            ?? throw new InvalidOperationException("Alias-assetet deserialiserade till null.");
+
+        if (string.IsNullOrWhiteSpace(file.AliasVersion))
+            throw new InvalidOperationException("Alias-assetet saknar aliasVersion.");
+        if (string.IsNullOrWhiteSpace(file.SniVersion))
+            throw new InvalidOperationException("Alias-assetet saknar sniVersion.");
+        if (string.IsNullOrWhiteSpace(file.DemandVersion))
+            throw new InvalidOperationException("Alias-assetet saknar demandVersion.");
+
+        var aliases = new List<SniAlias>(file.Aliases.Count);
+        var seen = new HashSet<(string Code, string Source)>();
+        foreach (var a in file.Aliases)
+        {
+            if (a.Code is null || !IsSniCodeShaped(a.Code))
+                throw new InvalidOperationException($"Ogiltig SNI-kod i alias-assetet: '{a.Code}'.");
+            if (a.Source is null || Array.IndexOf(AliasSources, a.Source) < 0)
+                throw new InvalidOperationException(
+                    $"Alias för '{a.Code}' bär okänd källa '{a.Source}'. Tillåtna: {string.Join(", ", AliasSources)}.");
+            if (!seen.Add((a.Code, a.Source)))
+                throw new InvalidOperationException(
+                    $"Alias för '{a.Code}' med källa '{a.Source}' är deklarerat två gånger.");
+            if (a.Terms.Count == 0)
+                throw new InvalidOperationException($"Alias för '{a.Code}' ({a.Source}) saknar termer.");
+
+            var terms = new List<string>(a.Terms.Count);
+            foreach (var term in a.Terms)
+            {
+                if (string.IsNullOrWhiteSpace(term))
+                    throw new InvalidOperationException($"Alias för '{a.Code}' bär en tom term.");
+                terms.Add(term.Trim());
+            }
+
+            aliases.Add(new SniAlias(a.Code, a.Source, terms));
+        }
+
+        return new SniAliasCatalog(file.AliasVersion, file.SniVersion, file.DemandVersion, aliases);
+    }
+
+    /// <summary>An alias may hang off any picker level — a leaf where the source named one, a
+    /// division where the everyday word spans several leaves.</summary>
+    private static bool IsSniCodeShaped(string code) =>
+        SectionPattern().IsMatch(code) || TwoDigitPattern().IsMatch(code) || SniLeafPattern().IsMatch(code);
 
     /// <summary>Test seam — drives synthetic malformed assets through the REAL path (parity
     /// <c>BranschgruppLoader.LoadFrom</c>).</summary>
@@ -239,4 +307,30 @@ internal sealed record KommunFile
         [property: JsonPropertyName("code")] string? Code = null,
         [property: JsonPropertyName("name")] string? Name = null,
         [property: JsonPropertyName("lanCode")] string? LanCode = null);
+}
+
+/// <summary>Deserialisation form for the alias asset (#1115) — Infrastructure-only, parity
+/// <see cref="SniFile"/>. The top-level "//" attribution key is maintainer documentation and is
+/// deliberately not mapped.</summary>
+internal sealed record SniAliasFile
+{
+    [JsonPropertyName("aliasVersion")]
+    public string AliasVersion { get; init; } = "";
+
+    [JsonPropertyName("sniVersion")]
+    public string SniVersion { get; init; } = "";
+
+    [JsonPropertyName("demandVersion")]
+    public string DemandVersion { get; init; } = "";
+
+    [JsonPropertyName("aliases")]
+    public IReadOnlyList<AliasEntryFile> Aliases { get; init; } = [];
+
+    internal sealed record AliasEntryFile(
+        [property: JsonPropertyName("code")] string? Code = null,
+        [property: JsonPropertyName("source")] string? Source = null,
+        [property: JsonPropertyName("terms")] IReadOnlyList<string>? TermsRaw = null)
+    {
+        public IReadOnlyList<string> Terms => TermsRaw ?? [];
+    }
 }

@@ -1,8 +1,5 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
-using Jobbliggaren.Application.CompanyWatches.Abstractions;
-using Jobbliggaren.Application.JobAds.Abstractions;
-using Jobbliggaren.Application.Matching.Abstractions;
 using Mediator;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
@@ -30,9 +27,7 @@ public sealed class GetMyMatchingAdCountForCriterionQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IFailedAccessLogger failedAccessLogger,
-    ICompanyWatchBrowseQuery browse,
-    IPerUserJobAdSearchQuery perUserSearch,
-    IMatchProfileBuilder profileBuilder)
+    CriterionMatchingAdSetResolver resolver)
     : IQueryHandler<GetMyMatchingAdCountForCriterionQuery, MyMatchingAdCountDto?>
 {
     public async ValueTask<MyMatchingAdCountDto?> Handle(
@@ -46,9 +41,8 @@ public sealed class GetMyMatchingAdCountForCriterionQueryHandler(
         if (criterion is null)
             return null;
 
-        var resolved = await CriterionMatchingAdSet.ResolveAsync(
-            profileBuilder, perUserSearch, browse, criterion.Criteria, query.AdMagnitude,
-            cancellationToken);
+        var resolved = await resolver.MatchingAsync(
+            query.CriterionId, criterion.Criteria, cancellationToken);
 
         // The switch is exhaustive over a CLOSED hierarchy, so the discard arm is unreachable rather
         // than a default: a fourth kind cannot be declared outside CriterionMatchingAds. It throws

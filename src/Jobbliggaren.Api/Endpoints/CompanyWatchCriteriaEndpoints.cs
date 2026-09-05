@@ -116,29 +116,31 @@ public static class CompanyWatchCriteriaEndpoints
         // shape must not vary with the filter). It is also what tells the surface which arm it is
         // in, since the filter is INERT (unfiltered list) for an unassessable caller and for a
         // criterion too broad to grade.
-        // The MAGNITUDE goes first, and the order is load-bearing rather than stylistic (#1656 (b)).
-        // It is the number the matching gate reads, so measuring it first is what lets an oversized
-        // criterion be refused without a second register query -- the one that made a refusal cost
-        // seconds. The deleted-between-sends re-check is unaffected: whichever send is SECOND
-        // returning null is the criterion disappearing mid-request, and it 404s either way.
+        // #1656 (b) — `onlyMatching` pages the ads that match the CALLER instead of the whole set,
+        // and the personal count rides along as `Matching`, null when the caller did not ask (ADR
+        // 0120's corollary; nullable rather than absent, so the wire shape does not vary with the
+        // filter). The sends share one scoped resolver, so the register is read once however many of
+        // them run -- the composition can no longer measure the same fact twice.
+        //
+        // The BROWSE stays first: it is this route's own surface, and a cross-user probe must be
+        // recorded against it rather than against whichever send happened to be ordered ahead of it.
         group.MapGet("/{id:guid}/ads", async (
             Guid id, IMediator mediator, int page = 1, int pageSize = 20,
             bool onlyMatching = false, CancellationToken ct = default) =>
         {
-            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
-            if (magnitude is null)
+            var ads = await mediator.Send(
+                new BrowseCriterionAdsQuery(id, page, pageSize, onlyMatching), ct);
+            if (ads is null)
                 return Results.NotFound();
 
-            var ads = await mediator.Send(
-                new BrowseCriterionAdsQuery(id, page, pageSize, onlyMatching, magnitude), ct);
-            if (ads is null)
+            var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
+            if (magnitude is null)
                 return Results.NotFound();
 
             MyMatchingAdCountDto? matching = null;
             if (onlyMatching)
             {
-                matching = await mediator.Send(
-                    new GetMyMatchingAdCountForCriterionQuery(id, magnitude), ct);
+                matching = await mediator.Send(new GetMyMatchingAdCountForCriterionQuery(id), ct);
                 if (matching is null)
                     return Results.NotFound();
             }
@@ -175,10 +177,7 @@ public static class CompanyWatchCriteriaEndpoints
             if (magnitude is null)
                 return Results.NotFound();
 
-            // The magnitude this route already measured IS the matching gate's input, so the second
-            // send costs no register query of its own for a criterion too broad to grade.
-            var matching = await mediator.Send(
-                new GetMyMatchingAdCountForCriterionQuery(id, magnitude), ct);
+            var matching = await mediator.Send(new GetMyMatchingAdCountForCriterionQuery(id), ct);
             if (matching is null)
                 return Results.NotFound();
 

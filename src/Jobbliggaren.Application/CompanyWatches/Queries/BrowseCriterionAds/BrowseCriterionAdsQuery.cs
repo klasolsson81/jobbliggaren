@@ -2,7 +2,6 @@ using FluentValidation;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
-using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 
@@ -42,18 +41,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// for a criterion whose ad set is too broad to grade. Neither is an empty page: see the handler.
 /// </para>
 /// </param>
-/// <param name="AdMagnitude">
-/// Required when <paramref name="OnlyMatching"/> is set, and ignored otherwise: the criterion's
-/// ad magnitude, measured once by the caller so the size gate costs no second register query. See
-/// <c>GetMyMatchingAdCountForCriterionQuery</c> for why it travels as the DTO and why it is a
-/// measurement rather than a verdict.
-/// </param>
 public sealed record BrowseCriterionAdsQuery(
-    Guid CriterionId,
-    int Page,
-    int PageSize,
-    bool OnlyMatching = false,
-    CriterionAdMagnitudeDto? AdMagnitude = null)
+    Guid CriterionId, int Page, int PageSize, bool OnlyMatching = false)
     : IQuery<PagedResult<JobAdDto>?>, IAuthenticatedRequest;
 
 /// <summary>

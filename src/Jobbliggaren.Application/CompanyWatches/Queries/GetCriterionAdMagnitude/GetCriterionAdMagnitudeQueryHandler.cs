@@ -1,6 +1,6 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
-using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Mediator;
 
 namespace Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
@@ -27,7 +27,7 @@ public sealed class GetCriterionAdMagnitudeQueryHandler(
     IAppDbContext db,
     ICurrentUser currentUser,
     IFailedAccessLogger failedAccessLogger,
-    ICompanyWatchBrowseQuery browse)
+    CriterionMatchingAdSetResolver resolver)
     : IQueryHandler<GetCriterionAdMagnitudeQuery, CriterionAdMagnitudeDto?>
 {
     public async ValueTask<CriterionAdMagnitudeDto?> Handle(
@@ -40,10 +40,7 @@ public sealed class GetCriterionAdMagnitudeQueryHandler(
         if (criterion is null)
             return null;
 
-        var magnitude = await browse.CountActiveAdsAsync(
-            criterion.Criteria, CriterionAdMagnitudeDto.Ceiling, cancellationToken);
-
-        return new CriterionAdMagnitudeDto(
-            magnitude, Saturated: magnitude >= CriterionAdMagnitudeDto.Ceiling);
+        return await resolver.MagnitudeAsync(
+            query.CriterionId, criterion.Criteria, cancellationToken);
     }
 }

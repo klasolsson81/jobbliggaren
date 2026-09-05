@@ -246,7 +246,7 @@ public sealed class RateLimitingOptions
     /// <summary>
     /// GET /me/company-watch-criteria/{id}/companies, /{id}/ads, /{id}/ad-count (#560 PR-3, #1559)
     /// and POST /companies/search (#560 search wave, CTO F1) — FOUR routes, ONE bucket, over the same
-    /// 1.17M-row register join: the heaviest read in the house (#875 measured it). Never folded into
+    /// register join: the heaviest read in the house (#875 measured it). Never folded into
     /// MeListRead — a browse scan-burst must not consume the budget /oversikt's ~7-call fan-out lives
     /// on. Partitioned per UserId; anonymous -> NoLimiter, which is safe ONLY because UseRateLimiter is
     /// registered AFTER UseAuthorization (Program.cs) and all four routes are RequireAuthorization-
@@ -285,14 +285,14 @@ public sealed class RateLimitingOptions
     /// per-view total BEFORE adding it, and re-run the measurement above. Raising PermitLimit is a
     /// security-auditor decision (BLOCKING), never a fix for a page that got chattier.</para>
     ///
-    /// <para><b>#1656 (b) — the token counts above are UNCHANGED, the ROW cost of one of them is not.</b>
-    /// The personal match count was composed into the EXISTING /ad-count send rather than given a fifth
-    /// route, precisely so the detail page stays at 2 tokens and the sustained 6 detail views/min holds.
-    /// What that one token now buys is more work: /ad-count additionally reads the criterion's ad-id set
-    /// and grades it. The set is bounded by <c>CriterionMatchingAdSet.MaxSetSize</c> and an oversized
-    /// criterion is REFUSED before the grading runs, so the cost is bounded rather than proportional to
-    /// the register — but it is no longer proportional to a page either. Whether 15 still holds against
-    /// the new per-token row cost is security-auditor's call, not this file's.</para>
+    /// <para><b>#1656 (b) — the per-view token counts above are UNCHANGED; what one token buys on the
+    /// two AD routes is not.</b> The personal match count was composed into the EXISTING sends rather
+    /// than given a fifth route, so the detail page stays at 2 tokens and /annonser at 1 whether or not
+    /// its matching axis is set. On the routes that resolve it, one token now also buys a grade query
+    /// over at most <c>CriterionMatchingAdSetResolver.MaxSetSize</c> ad ids. The REGISTER half is read
+    /// once per request however many sends ask, because the resolver is scoped — and a criterion too
+    /// broad to grade is refused from that same reading rather than a second one. Whether 15 still
+    /// holds against the new per-token row cost is security-auditor's call, not this file's.</para>
     /// </summary>
     public PolicyOptions CompanyBrowse { get; init; } = new()
     {

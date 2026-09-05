@@ -4,7 +4,6 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
-using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -65,8 +64,7 @@ public sealed class BrowseCriterionAdsQueryHandler(
     ICurrentUser currentUser,
     IFailedAccessLogger failedAccessLogger,
     ICompanyWatchBrowseQuery browse,
-    IPerUserJobAdSearchQuery perUserSearch,
-    IMatchProfileBuilder profileBuilder)
+    CriterionMatchingAdSetResolver resolver)
     : IQueryHandler<BrowseCriterionAdsQuery, PagedResult<JobAdDto>?>
 {
     public async ValueTask<PagedResult<JobAdDto>?> Handle(
@@ -79,16 +77,10 @@ public sealed class BrowseCriterionAdsQueryHandler(
         if (criterion is null)
             return null;
 
-        // The magnitude is the gate's input and the caller owns measuring it (§2.3 composition). A
-        // filtered request without one is a wiring mistake, not a user error: answering it anyway
-        // would silently re-introduce the second register probe this parameter exists to remove.
         if (query.OnlyMatching)
         {
-            ArgumentNullException.ThrowIfNull(query.AdMagnitude, nameof(query.AdMagnitude));
-
-            var resolved = await CriterionMatchingAdSet.ResolveAsync(
-                profileBuilder, perUserSearch, browse, criterion.Criteria, query.AdMagnitude,
-                cancellationToken);
+            var resolved = await resolver.MatchingAsync(
+                query.CriterionId, criterion.Criteria, cancellationToken);
 
             // Only the Resolved arm can honour the filter. NotAssessed and SetTooLarge fall through
             // to the unfiltered browse below — see the class docblock for why that is not an empty
@@ -100,12 +92,18 @@ public sealed class BrowseCriterionAdsQueryHandler(
                     .Take(query.PageSize)
                     .ToList();
 
-                // The TOTAL is the whole matching set, not the page — the set is exact (the port
-                // refuses rather than truncating), so this pagination quantity happens to equal the
-                // magnitude. It is still a pagination quantity and is still never rendered as one:
-                // the surface reads the composed response's Matching member.
+                // The TOTAL is the matching SET, not the page — and it carries the same
+                // MaxServableRows cap the port applies on the unfiltered arm, so TotalPages <=
+                // MaxPage stays true by construction on both. Never rendered as a magnitude: the
+                // surface reads the composed response's Matching member.
                 return await LoadPageAsync(
-                    ordinal, matching.Matching.Count, query.Page, query.PageSize, cancellationToken);
+                    ordinal,
+                    Math.Min(
+                        matching.Matching.Count,
+                        CompanyBrowseCriteria.MaxServableRows(query.PageSize)),
+                    query.Page,
+                    query.PageSize,
+                    cancellationToken);
             }
         }
 

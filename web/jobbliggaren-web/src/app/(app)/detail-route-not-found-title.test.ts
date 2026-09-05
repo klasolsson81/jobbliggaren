@@ -177,8 +177,10 @@ const ROUTES: readonly DetailRoute[] = [
     path: "/foretag/smarta-bevakningar/[id]/annonser",
     loader: browseCriterionAds,
     ownTitle: svPages.foretag.smartaBevakningar.ads.meta.title,
-    // Paginated like its parent, and for the same reason its existence read takes the page.
-    extraLoaderArgs: [1],
+    // Paginated like its parent, and for the same reason its existence read takes the page. It also
+    // takes the matching axis (#1656 (b)): the metadata read and the page read must ask the SAME
+    // question, or they stop collapsing into one request and the route costs two.
+    extraLoaderArgs: [1, false],
     importer: () => import("./foretag/smarta-bevakningar/[id]/annonser/page"),
   },
 ];

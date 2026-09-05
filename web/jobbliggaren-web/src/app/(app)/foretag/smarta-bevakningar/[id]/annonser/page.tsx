@@ -15,6 +15,10 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 import type { JobAdMatchBatch, MatchGrade } from "@/lib/dto/job-ad-match";
 import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
+import {
+  buildCriterionAdsHref,
+  parseCriterionAdsScope,
+} from "@/lib/company-criteria/criterion-ads-href";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -28,8 +32,14 @@ import { notFoundMetadata } from "@/lib/metadata/not-found-title";
  */
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { id } = await params;
-  const { page: pageParam } = await searchParams;
-  const result = await browseCriterionAds(id, parsePageParam(pageParam));
+  const { page: pageParam, visa: visaParam } = await searchParams;
+  // The SAME arguments the page uses. Measured 2026-09-05: identical reads collapse to one request
+  // and divergent ones do not, so an axis omitted here doubles this route's backend cost.
+  const result = await browseCriterionAds(
+    id,
+    parsePageParam(pageParam),
+    parseCriterionAdsScope(visaParam) === "matching",
+  );
   if (result.kind === "notFound") return notFoundMetadata();
 
   const t = await getTranslations("pages");
@@ -89,14 +99,16 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   const format = await getFormatter();
 
   const { id } = await params;
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, visa: visaParam } = await searchParams;
   const page = parsePageParam(pageParam);
+  const scope = parseCriterionAdsScope(visaParam);
+  const onlyMatching = scope === "matching";
 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
   // rather than failing the page — parity with the parent route.
   const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
-    browseCriterionAds(id, page),
+    browseCriterionAds(id, page, onlyMatching),
     getCompanyWatchCriteria(),
     getCriterionReference(),
     getMyProfile(),
@@ -130,7 +142,13 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
       );
   }
 
-  const { ads, magnitude } = adsResult.data;
+  const { ads, magnitude, matching } = adsResult.data;
+
+  // The count when the filter was HONOURED, as opposed to merely requested — and null otherwise, so
+  // one narrowing carries both facts. The filter is inert for a caller who has stated no occupation
+  // and for a watch too broad to grade; both get the unfiltered list, so the headline and the empty
+  // state must describe THAT list, not the one that was asked for.
+  const matchingCount = matching !== null ? matching.count : null;
   const reference = referenceResult.kind === "ok" ? referenceResult.data : EMPTY_REFERENCE;
 
   // Three states, and they must not collapse into two. A stated occupation → the chips. A profile
@@ -189,9 +207,42 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.backLink")}
         </Link>
 
+        {/* The filtered headline reads the PERSONAL count, never `ads.totalCount` — that one is a
+            pagination quantity by contract even here, where it happens to equal the set (ADR 0120
+            clause 4). The unfiltered headline is unchanged. */}
         <h2 className="text-h2 text-text-primary tabular-nums">
-          {t("ads.magnitudeHeadline", { count: magnitudeText })}
+          {matchingCount !== null
+            ? t("ads.matchingHeadline", { count: matchingCount })
+            : t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
+
+        {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
+            and the actionable next step is to narrow it. Not role="alert" — nothing failed. */}
+        {matching?.tooBroad && (
+          <p className="jp-matchline">
+            {t("ads.matchingTooBroadOnList")}{" "}
+            <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+              {t("ads.matchingTooBroadCta")}
+            </Link>
+          </p>
+        )}
+
+        {matching !== null && matching.count === null && !matching.tooBroad && (
+          <p className="jp-matchline">
+            {t("ads.matchingNotAssessedOnList")}{" "}
+            <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
+              {tMatch("settingsCta")}
+            </Link>
+          </p>
+        )}
+
+        {matchingCount !== null && (
+          <p className="jp-matchline">
+            <Link className="jp-nudgelink" href={buildCriterionAdsHref(id, 1, "all")}>
+              {t("ads.showAll")}
+            </Link>
+          </p>
+        )}
 
         {/* The house's load-bearing "what you see is narrower than reality" primitive: the
             counter-claim has to stand against an h1 that says "i Göteborg" while the list can hold a
@@ -210,8 +261,12 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
         {ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
-            <div className="jp-empty__title">{t("ads.emptyTitle")}</div>
-            <p className="jp-empty__body text-body-sm text-text-primary">{t("ads.emptyBody")}</p>
+            <div className="jp-empty__title">
+              {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}
+            </div>
+            <p className="jp-empty__body text-body-sm text-text-primary">
+              {matchingCount !== null ? t("ads.matchingEmptyBody") : t("ads.emptyBody")}
+            </p>
             <div className="jp-empty__actions">
               <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
                 {t("ads.backLink")}
@@ -223,7 +278,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
             {/* `.jp-matchline`, the form `/foretag/bevakade/nya` uses for the same sentence —
                 never `.jp-transparency-note`, whose flex layout for a leading icon tears the CTA
                 out of the sentence. */}
-            {showMatchNudge && (
+            {showMatchNudge && matching === null && (
               <p className="jp-matchline">
                 {tMatch("noStatedOccupation")}{" "}
                 <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
@@ -241,11 +296,9 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
               // honestly says "10 000+" would put two disagreeing numbers on one screen. The
               // magnitude above is this surface's number.
               showTotalCount={false}
-              buildHref={(targetPage) =>
-                targetPage <= 1
-                  ? `/foretag/smarta-bevakningar/${id}/annonser`
-                  : `/foretag/smarta-bevakningar/${id}/annonser?page=${targetPage}`
-              }
+              // The axis rides every page href. Without it page 2 would silently drop the filter
+              // and show more ads than page 1 promised.
+              buildHref={(targetPage) => buildCriterionAdsHref(id, targetPage, scope)}
             />
           </div>
         )}

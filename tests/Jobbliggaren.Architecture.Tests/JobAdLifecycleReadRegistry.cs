@@ -150,7 +150,7 @@ public static class JobAdLifecycleReadRegistry
                     + "cannot diverge from the count that shares it. A surface that RENDERS the ads "
                     + "owes the decision more than one that counts them: an archived ad here would be "
                     + "a visible row the count did not count — #864 read from the other end.")),
-            ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.Handle"] =
+            ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
                 One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
                     + "(/foretag/smarta-bevakningar/[id]/annonser, #1559). NO Status predicate at this "
                     + "site, and it is INHERITED rather than absent: the ids come from the browse "
@@ -160,7 +160,12 @@ public static class JobAdLifecycleReadRegistry
                     + "second gate that could drift from the one that produced the ids — and an "
                     + "archived ad rendered under a count that excluded it is #864 read from the "
                     + "other end. Pinned end-to-end by CompanyWatchCriteriaEndpointsTests"
-                    + ".Ad_browse_excludes_archived_ads_and_unmatched_employers.")),
+                    + ".Ad_browse_excludes_archived_ads_and_unmatched_employers. "
+                    + "#1656 (b): the site moved from Handle to this shared loader, and it now serves "
+                    + "BOTH arms. The filtered arm's ids inherit the SAME exclusion twice over — "
+                    + "ListActiveAdIdsAsync carries the identical `AdsFromWhere`, and "
+                    + "FilterToMatchingAsync re-applies Status == Active on top — so neither arm "
+                    + "can hand this loader an archived ad.")),
             ["Jobbliggaren.Application.CompanyWatches.Jobs.CompanyWatchScan.CompanyWatchScanJob.ScanUserAsync"] =
                 One(Active(".Where(j.Status == Active && CreatedAt > since && watchedOrgNrs.Contains(orgNr)) — new-ad scan for followed companies.")),
             ["Jobbliggaren.Application.Companies.Queries.LookupCompany.LookupCompanyQueryHandler.Handle"] =

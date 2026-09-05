@@ -13,6 +13,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Authorization;
 using Jobbliggaren.Application.Common.Behaviors;
 using Jobbliggaren.Application.Common.Exceptions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
@@ -59,6 +60,18 @@ builder.Logging.AddJobbliggarenLogging(builder.Configuration);
 
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
+
+// #1656 (b) — SCOPED so the criterion's ad magnitude and its matching set are measured at most once
+// per request however many handlers ask. Two resolutions are two measurements at two instants, and a
+// response whose count and list came from different instants is the divergence the type exists to
+// close.
+//
+// Registered HERE and not in AddApplication(), which both hosts call: the memo is keyed on criterion
+// id while its value is per-user (the profile comes from ICurrentUser), so it is safe exactly where a
+// scope IS a request. A Worker scope is not one -- DigestDispatchJob iterates users inside a single
+// scope -- so the Worker container must not be able to resolve it at all.
+builder.Services.AddScoped<CriterionMatchingAdSetResolver>();
+
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddMediator(options =>
 {

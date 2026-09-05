@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
@@ -477,6 +478,51 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     }
 
     [Fact]
+    public async Task AdIdSetQuery_UsesTheSniGinIndex()
+    {
+        // #1656 (b) — a FOURTH command text, therefore a FOURTH plan, and the one whose plan the
+        // whole cost story rests on. It differs from the ad-id page query in the two ways a planner
+        // cares about: no OFFSET, and a LIMIT three orders of magnitude larger. A large LIMIT makes a
+        // job_ads-driven plan far more attractive than a LIMIT 20 does, and the existing pins cannot
+        // see that -- they EXPLAIN the other three statements.
+        //
+        // Not cosmetic: two readings of this query on different statistics states came back 27 ms and
+        // 11 881 ms, because one planned an index walk and the other a sort over the whole match set.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildAdIdSetCommand(
+                conn, spec, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
+            ct);
+
+        AssertServedByGin(plan, "ad id set");
+    }
+
+    [Fact]
+    public void AdIdSetQuery_OrdersByATotalKey()
+    {
+        // The set query and the page query share AdsOrderBy, and this is what that sharing is FOR:
+        // the filtered view paginates the SET while the unfiltered view paginates the PAGE query, so
+        // two different orders would sequence one against the other. Asserted on the SQL rather than
+        // the plan for the same reason its sibling is -- and because a MISSING order cannot be seen
+        // behaviourally here: the fixture inserts newest-first, so heap order and published_at DESC
+        // coincide.
+        using var conn = new NpgsqlConnection();
+        using var cmd = CompanyWatchBrowseQuery.BuildAdIdSetCommand(
+            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]),
+            maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize);
+
+        cmd.CommandText.ShouldContain(
+            "ORDER BY j.published_at DESC, j.id",
+            customMessage:
+                "The ad-set query's ORDER BY is no longer TOTAL, or no longer shared with the page "
+                + "query. The filtered view cuts its page from THIS sequence while the unfiltered view "
+                + "pages the other statement; two orders means one is sequenced against the other.");
+    }
+
+    [Fact]
     public void AdIdsQuery_OrdersByATotalKey()
     {
         // Same guarantee as ItemsQuery_OrdersByATotalKey, same reason it is asserted on the SQL rather
@@ -647,6 +693,94 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
         page.TotalCount.ShouldBe(CompanyBrowseCriteria.MaxServableRows(1));
         page.TotalPages.ShouldBe(CompanyBrowseCriteria.MaxPage);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_ReturnsTheWholeSet_WhenItFitsTheBoundExactly()
+    {
+        // #1656 (b) — the boundary is asserted at EXACTLY the bound, not comfortably inside it. The
+        // statement asks for `LIMIT maxSetSize + 1` and the reader refuses on the extra row, so an
+        // off-by-one in either place is a set of AdRows that comes back null (or, worse, a set of
+        // AdRows - 1 that comes back looking complete).
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var ids = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows, ct);
+
+        ids.ShouldNotBeNull();
+        ids.Count.ShouldBe(AdRows);
+        ids.Distinct().Count().ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_RefusesTheWholeSet_RatherThanReturningAPrefix()
+    {
+        // The property the count's honesty rests on. A prefix here would be graded and counted, and
+        // the resulting number would be a FLOOR rendered as an exact figure -- which is the defect
+        // the refusal bound exists to prevent, and which no other test in this repo could see.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        // One under the true size: the set does not fit.
+        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows - 1, ct)).ShouldBeNull();
+
+        // And a bound that comfortably fits still returns everything -- so the null above is the
+        // refusal and not a fixture that stopped matching the criterion (test-writer V5).
+        var roomy = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        roomy.ShouldNotBeNull();
+        roomy.Count.ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_PublishesTheSameTotalOrderAsThePageQuery()
+    {
+        // Both statements share AdsOrderBy, and this is what that sharing is FOR: the filtered view
+        // paginates the set while the unfiltered view paginates the page query. Two different orders
+        // would sequence one against the other, which is the trap BrowseCriterionAdsQueryHandler
+        // already documents one step downstream.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var set = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, AdRows), ct);
+
+        set.ShouldNotBeNull();
+        set.Count.ShouldBe(AdRows);
+        set.ShouldBe(page.Items);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_ExcludesArchivedAds_LikeItsSiblings()
+    {
+        // The set inherits the SAME `j.status = @ad_status` conjunct as the count and the page,
+        // because it carries the same AdsFromWhere. Asserted rather than assumed: this set is what
+        // gets GRADED, so an archived ad slipping in would be counted as a match and then rendered.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct))!.Count.ShouldBe(AdRows);
+
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
+            [JobAdStatus.Archived.Value, AdOrgNr], ct);
+
+        // Empty, and emphatically NOT null: an empty set is "no ads match this criterion", while
+        // null would claim the watch was too broad to answer.
+        var afterArchive = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        afterArchive.ShouldNotBeNull();
+        afterArchive.ShouldBeEmpty();
     }
 
     /// <summary>

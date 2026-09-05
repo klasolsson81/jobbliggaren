@@ -69,6 +69,18 @@ forbids it, and this file is the path it prescribes instead.
    part on the site answering `401` on every path; removing Basic auth for a demo makes that
    finding blocking in the same moment, and nothing warns. Treat the credential in
    `docs/test-accounts.local.md` accordingly.
+6. *(Retired 2026-09-05. The number is left vacant rather than reused: ADR 0132 cites
+   "preconditions 5 and 6" of this file **by number**, so a new point 6 would silently
+   re-point that citation at an unrelated obligation.)*
+7. **The dev-only tooling gate has been read and answered.** `release-checklist.md` §2.7 owns it —
+   the routes, the teardown order and the verification — and **this precondition restates none
+   of it.** It is named here because nothing else links the two, and both halves of that gap
+   are load-bearing: the gate turns on **the event this procedure performs** (its own words:
+   *"Ingen av dem får finnas när riktiga användare gör det"*), while the flag it gates was
+   turned on for this box by Klas-direktiv 2026-08-27 — **after** this file was written, so no
+   reader of either document meets the other. Read the gate, decide, and record the decision
+   before step 2. **The decision is Klas's**, because turning the flag on was his; a finding
+   that the pair does not fire the gate is an answer, and only an unread gate is an omission.
 
 ## 3. The visit
 

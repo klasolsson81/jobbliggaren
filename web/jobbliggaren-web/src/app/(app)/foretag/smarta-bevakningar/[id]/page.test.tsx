@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../messages/sv/pages.json";
+import svJobads from "../../../../../../messages/sv/jobads.json";
 import BevakningBrowsePage from "./page";
 
 const browseCriterionCompanies = vi.fn();
@@ -10,8 +11,16 @@ const getCriterionReference = vi.fn();
 const getCriterionAdCount = vi.fn();
 
 vi.mock("next-intl/server", () => ({
-  getTranslations: async (namespace?: "pages") =>
-    createTranslator({ locale: "sv", messages: { pages: svPages }, namespace }),
+  getTranslations: async (namespace?: string) =>
+    createTranslator({
+      locale: "sv",
+      messages: { pages: svPages, jobads: svJobads },
+      namespace: namespace as
+        | "pages"
+        | "pages.foretag.criteria"
+        | "jobads.companyWatches"
+        | undefined,
+    }),
   getFormatter: async () => ({
     number: (n: number) => new Intl.NumberFormat("sv-SE").format(n),
   }),
@@ -119,7 +128,10 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     browseCriterionCompanies.mockResolvedValue(okBrowse);
     getCriterionAdCount.mockResolvedValue({
       kind: "ok",
-      data: { magnitude: 167, saturated: false },
+      data: {
+        ads: { magnitude: 167, saturated: false },
+        matching: { count: null, tooBroad: false },
+      },
     });
 
     render(
@@ -139,7 +151,10 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     browseCriterionCompanies.mockResolvedValue(okBrowse);
     getCriterionAdCount.mockResolvedValue({
       kind: "ok",
-      data: { magnitude: 0, saturated: false },
+      data: {
+        ads: { magnitude: 0, saturated: false },
+        matching: { count: null, tooBroad: false },
+      },
     });
 
     render(
@@ -176,5 +191,110 @@ describe("BevakningBrowsePage — the pager states no total", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
+  });
+});
+
+/**
+ * #1656 (b) — the PERSONAL count on the criterion detail page.
+ *
+ * <para/> Klas's condition (2026-09-05) is that this works "på samma sätt som vanlig
+ * företagsbevakning", so what is pinned is the FOUR-STATE gate that surface has, plus the one thing
+ * this surface adds: a watch too broad to grade. Three of the four render no number, and the whole
+ * point is that none of them renders a ZERO instead — a `0` would say "nothing matches you" where
+ * the truth is "nothing was measured".
+ *
+ * <para/> The count is asserted on its rendered TEXT and its link TARGET, never on a class name: a
+ * number that renders without reaching the matching view is the count-to-landing divergence this
+ * arm exists to close (#1407, #1471).
+ */
+describe("BevakningBrowsePage — the personal match count", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    browseCriterionCompanies.mockReset();
+    getCompanyWatchCriteria.mockReset();
+    getCriterionReference.mockReset();
+    getCriterionAdCount.mockReset();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCompanyWatchCriteria.mockResolvedValue({ kind: "ok", data: [] });
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+  });
+
+  async function renderWith(matching: unknown) {
+    getCriterionAdCount.mockResolvedValue({
+      kind: "ok",
+      data: { ads: { magnitude: 12, saturated: false }, matching },
+    });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+  }
+
+  it("renders the count as a link to the MATCHING view, not the whole ad list", async () => {
+    await renderWith({ count: 9, tooBroad: false });
+
+    const link = screen.getByRole("link", { name: /9 matchande annonser/ });
+    // The axis is what makes the number true at its destination. Without it the link lands on all
+    // twelve ads while the sentence beside it promises nine.
+    expect(link).toHaveAttribute(
+      "href",
+      "/foretag/smarta-bevakningar/c1/annonser?visa=matchande",
+    );
+    expect(screen.getByText("9 matchande annonser just nu")).toBeInTheDocument();
+  });
+
+  it("states a zero without offering a link to an empty list", async () => {
+    await renderWith({ count: 0, tooBroad: false });
+
+    expect(screen.getByText("Inga matchande annonser just nu")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+  });
+
+  it("nudges instead of claiming zero when no occupation is stated", async () => {
+    await renderWith({ count: null, tooBroad: false });
+
+    expect(
+      screen.getByText(/Du har inte angett vilka yrken du söker inom/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ställ in matchning" })).toBeInTheDocument();
+    expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
+  });
+
+  it("refuses the question for a watch too broad to grade, and renders no number", async () => {
+    await renderWith({ count: null, tooBroad: true });
+
+    expect(
+      screen.getByText(/Bevakningen är för bred för att vi ska kunna räkna/),
+    ).toBeInTheDocument();
+    // Neither of the other two no-number arms, and above all not a zero: this watch was not
+    // measured, its owner has not failed to state an occupation, and nothing matched zero ads.
+    expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /matchande annonser/ })).toBeNull();
+  });
+
+  it("says nothing about matching when the ad-count read degraded", async () => {
+    // Both numbers arrive in one response, so a failed read leaves nothing to say that the
+    // "cannot be shown" line does not already say. Silence beats a second error sentence.
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.queryByText(/matchande annonser/)).toBeNull();
+    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
   });
 });

@@ -649,6 +649,93 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         page.TotalPages.ShouldBe(CompanyBrowseCriteria.MaxPage);
     }
 
+    [Fact]
+    public async Task ListActiveAdIds_ReturnsTheWholeSet_WhenItFitsTheBoundExactly()
+    {
+        // #1656 (b) — the boundary is asserted at EXACTLY the bound, not comfortably inside it. The
+        // statement asks for `LIMIT maxSetSize + 1` and the reader refuses on the extra row, so an
+        // off-by-one in either place is a set of AdRows that comes back null (or, worse, a set of
+        // AdRows - 1 that comes back looking complete).
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var ids = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows, ct);
+
+        ids.ShouldNotBeNull();
+        ids.Count.ShouldBe(AdRows);
+        ids.Distinct().Count().ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_RefusesTheWholeSet_RatherThanReturningAPrefix()
+    {
+        // The property the count's honesty rests on. A prefix here would be graded and counted, and
+        // the resulting number would be a FLOOR rendered as an exact figure -- which is the defect
+        // the refusal bound exists to prevent, and which no other test in this repo could see.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        // One under the true size: the set does not fit.
+        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows - 1, ct)).ShouldBeNull();
+
+        // And a bound that comfortably fits still returns everything -- so the null above is the
+        // refusal and not a fixture that stopped matching the criterion (test-writer V5).
+        var roomy = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        roomy.ShouldNotBeNull();
+        roomy.Count.ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_PublishesTheSameTotalOrderAsThePageQuery()
+    {
+        // Both statements share AdsOrderBy, and this is what that sharing is FOR: the filtered view
+        // paginates the set while the unfiltered view paginates the page query. Two different orders
+        // would sequence one against the other, which is the trap BrowseCriterionAdsQueryHandler
+        // already documents one step downstream.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        var set = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, AdRows), ct);
+
+        set.ShouldNotBeNull();
+        set.ShouldBe(page.Items);
+    }
+
+    [Fact]
+    public async Task ListActiveAdIds_ExcludesArchivedAds_LikeItsSiblings()
+    {
+        // The set inherits the SAME `j.status = @ad_status` conjunct as the count and the page,
+        // because it carries the same AdsFromWhere. Asserted rather than assumed: this set is what
+        // gets GRADED, so an archived ad slipping in would be counted as a match and then rendered.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct))!.Count.ShouldBe(AdRows);
+
+        await ctx.Db.Database.ExecuteSqlRawAsync(
+            "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
+            [JobAdStatus.Archived.Value, AdOrgNr], ct);
+
+        // Empty, and emphatically NOT null: an empty set is "no ads match this criterion", while
+        // null would claim the watch was too broad to answer.
+        var afterArchive = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
+        afterArchive.ShouldNotBeNull();
+        afterArchive.ShouldBeEmpty();
+    }
+
     /// <summary>
     /// #1559 — the register seed PLUS job_ads rows that actually join to it. The ad pins need both
     /// sides populated: with an empty <c>job_ads</c> the planner can answer the join from that side

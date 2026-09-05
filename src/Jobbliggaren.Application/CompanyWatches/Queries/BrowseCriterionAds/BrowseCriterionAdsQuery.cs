@@ -2,6 +2,7 @@ using FluentValidation;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 
@@ -30,7 +31,29 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// behaviors (<c>PagedResultContractTests</c>).
 /// </para>
 /// </summary>
-public sealed record BrowseCriterionAdsQuery(Guid CriterionId, int Page, int PageSize)
+/// <param name="OnlyMatching">
+/// #1656 (b) — when <c>true</c>, the page is cut from the ads that match the CALLER (&gt;= Good) via
+/// <c>CriterionMatchingAdSet</c>, not from the criterion's whole ad set. The whole matching set is
+/// resolved before the page is cut: a filter applied to an already-loaded page would describe the
+/// PAGE rather than the watch (ADR 0120), and the number linking here would then land on a
+/// different set than it counted.
+/// <para>
+/// It is INERT — the unfiltered list is delivered — for a caller who has stated no occupation, and
+/// for a criterion whose ad set is too broad to grade. Neither is an empty page: see the handler.
+/// </para>
+/// </param>
+/// <param name="AdMagnitude">
+/// Required when <paramref name="OnlyMatching"/> is set, and ignored otherwise: the criterion's
+/// ad magnitude, measured once by the caller so the size gate costs no second register query. See
+/// <c>GetMyMatchingAdCountForCriterionQuery</c> for why it travels as the DTO and why it is a
+/// measurement rather than a verdict.
+/// </param>
+public sealed record BrowseCriterionAdsQuery(
+    Guid CriterionId,
+    int Page,
+    int PageSize,
+    bool OnlyMatching = false,
+    CriterionAdMagnitudeDto? AdMagnitude = null)
     : IQuery<PagedResult<JobAdDto>?>, IAuthenticatedRequest;
 
 /// <summary>

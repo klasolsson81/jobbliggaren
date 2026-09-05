@@ -11,6 +11,7 @@ using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionMatchMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
 using Jobbliggaren.Application.CompanyWatches.Queries.PreviewCriterionMatchMagnitude;
 using Jobbliggaren.Application.JobAds.Queries;
@@ -108,19 +109,41 @@ public static class CompanyWatchCriteriaEndpoints
         // (CriterionAdMagnitudeDto.Ceiling — the ad question, not the company one). null → 404 for
         // unknown AND cross-user ids alike. The magnitude re-check catches the race where the
         // criterion is deleted between the two sends.
+        //
+        // #1656 (b) — `onlyMatching` pages the ads that match the CALLER instead of the whole set.
+        // The personal count rides along as `Matching` and is null when the caller did not ask: ADR
+        // 0120's own corollary, and the reason the member is nullable rather than absent (the wire
+        // shape must not vary with the filter). It is also what tells the surface which arm it is
+        // in, since the filter is INERT (unfiltered list) for an unassessable caller and for a
+        // criterion too broad to grade.
+        // The MAGNITUDE goes first, and the order is load-bearing rather than stylistic (#1656 (b)).
+        // It is the number the matching gate reads, so measuring it first is what lets an oversized
+        // criterion be refused without a second register query -- the one that made a refusal cost
+        // seconds. The deleted-between-sends re-check is unaffected: whichever send is SECOND
+        // returning null is the criterion disappearing mid-request, and it 404s either way.
         group.MapGet("/{id:guid}/ads", async (
             Guid id, IMediator mediator, int page = 1, int pageSize = 20,
-            CancellationToken ct = default) =>
+            bool onlyMatching = false, CancellationToken ct = default) =>
         {
-            var ads = await mediator.Send(new BrowseCriterionAdsQuery(id, page, pageSize), ct);
-            if (ads is null)
-                return Results.NotFound();
-
             var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
             if (magnitude is null)
                 return Results.NotFound();
 
-            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude));
+            var ads = await mediator.Send(
+                new BrowseCriterionAdsQuery(id, page, pageSize, onlyMatching, magnitude), ct);
+            if (ads is null)
+                return Results.NotFound();
+
+            MyMatchingAdCountDto? matching = null;
+            if (onlyMatching)
+            {
+                matching = await mediator.Send(
+                    new GetMyMatchingAdCountForCriterionQuery(id, magnitude), ct);
+                if (matching is null)
+                    return Results.NotFound();
+            }
+
+            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude, matching));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
         // #1559 — the ad magnitude ALONE, for the criterion detail page, which renders the number and
@@ -135,11 +158,31 @@ public static class CompanyWatchCriteriaEndpoints
         // is how an endpoint would inject it and bypass the handler's masking. The rule is a plain
         // name scan, so it catches a mention in prose too — deliberately, since a guard that tries to
         // tell prose from code is a guard with a hole in it.)
+        //
+        // #1656 (b) — it now COMPOSES a second send and answers BOTH ad questions at once: how many
+        // active ads the criterion has, and how many of them match the caller. Two questions, two
+        // DTOs, two doctrines (the first saturates at its ceiling, the second is exact or absent),
+        // one response — the §2.3 composition this endpoint family already uses twice above.
+        //
+        // Deliberately NOT a fifth route. The four routes on this group share ONE rate-limit bucket
+        // whose derivation is dated and security-auditor-owned; its own text says an ADDITIONAL call
+        // on these pages spends a token off the same allowance and that the margin is bought back by
+        // removing a call, not by raising the limit. Composing costs the detail page nothing.
         group.MapGet("/{id:guid}/ad-count", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
             var magnitude = await mediator.Send(new GetCriterionAdMagnitudeQuery(id), ct);
-            return magnitude is null ? Results.NotFound() : Results.Ok(magnitude);
+            if (magnitude is null)
+                return Results.NotFound();
+
+            // The magnitude this route already measured IS the matching gate's input, so the second
+            // send costs no register query of its own for a criterion too broad to grade.
+            var matching = await mediator.Send(
+                new GetMyMatchingAdCountForCriterionQuery(id, magnitude), ct);
+            if (matching is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CriterionAdCountResponse(magnitude, matching));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
         // The picker's live magnitude preview over an UNSAVED criterion (Fork G3's second
@@ -202,7 +245,19 @@ public static class CompanyWatchCriteriaEndpoints
     /// </summary>
     private sealed record CriterionAdBrowseResponse(
         PagedResult<JobAdDto> Ads,
-        CriterionAdMagnitudeDto Magnitude);
+        CriterionAdMagnitudeDto Magnitude,
+        MyMatchingAdCountDto? Matching);
+
+    /// <summary>
+    /// #1656 (b) — the criterion's two AD numbers side by side: how many active ads exist, and how
+    /// many of them match the caller. Separate members because they are separate questions with
+    /// separate honesty rules — <see cref="CriterionAdMagnitudeDto"/> saturates and renders "10 000+",
+    /// <see cref="MyMatchingAdCountDto"/> is exact or absent and never carries a "+". One shared type
+    /// would let a surface render one where it means the other.
+    /// </summary>
+    private sealed record CriterionAdCountResponse(
+        CriterionAdMagnitudeDto Ads,
+        MyMatchingAdCountDto Matching);
 
     private sealed record UpdateCriterionBody(string? Label, UpdateCriterionCriteriaBody? Criteria);
 

@@ -145,6 +145,45 @@ public interface ICompanyWatchBrowseQuery
     /// </summary>
     ValueTask<int> CountActiveAdsAsync(
         CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #1656 (b) — the criterion's ACTIVE ad ids as a WHOLE ORDERED SET (same order as
+    /// <see cref="BrowseAdIdsAsync"/>, same predicate), or <c>null</c> when that set is larger than
+    /// <paramref name="maxSetSize"/>.
+    ///
+    /// <para>
+    /// <b>It REFUSES; it never truncates, and that distinction is the whole method</b>
+    /// (senior-cto-advisor 2026-09-05, ADR 0120 clause 5). The caller grades this set to answer "how
+    /// many of these ads match ME". A count over a TRUNCATED input is a FLOOR wearing a magnitude's
+    /// clothes: grade a prefix of a larger set, get 300, and "300" is false while "300+" reads as
+    /// approximately 300. That is why the bound cannot sit on the OUTPUT the way
+    /// <see cref="CountActiveAdsAsync"/>'s ceiling does — a saturating count is honest because
+    /// "&gt;= ceiling" is TRUE, and a truncated count has no such true reading.
+    /// </para>
+    ///
+    /// <para>
+    /// So the refusal is structural rather than policed: the statement selects
+    /// <c>LIMIT maxSetSize + 1</c> and returns <c>null</c> the moment the extra row exists. <b>No code
+    /// path can return a prefix</b>, which is what makes the hazard unrepresentable instead of a rule
+    /// somebody has to remember. <c>null</c> means "too broad to answer", NEVER "nothing matched" —
+    /// an empty set is an empty list.
+    /// </para>
+    ///
+    /// <para>
+    /// Ids and nothing else, for the reason <see cref="BrowseAdIdsAsync"/> gives: the join is the only
+    /// half that needs the register, so the join is the only thing this method does. No org.nr crosses
+    /// the Application boundary on this path (ADR 0087 D8(c) has nothing to mask — an ad id is an
+    /// opaque Guid over public Platsbanken data).
+    /// </para>
+    ///
+    /// <para>
+    /// Unpaged BY DESIGN, and that is not the "unpaginated list fetch" §5 forbids: the set is bounded
+    /// by <paramref name="maxSetSize"/> at the database, and a PAGE could not answer the question at
+    /// all — a count over one page is about the page, not the watch (ADR 0120).
+    /// </para>
+    /// </summary>
+    ValueTask<IReadOnlyList<JobAdId>?> ListActiveAdIdsAsync(
+        CompanyWatchCriteriaSpec criteria, int maxSetSize, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -186,7 +225,7 @@ public sealed record CompanyBrowseCriteria(
     /// <summary>
     /// Deep-offset ceiling — a DELIBERATE divergence from <c>GetApplicationsQueryValidator</c>, which
     /// caps <c>PageSize</c> but leaves <c>Page</c> unbounded. That hole is harmless there
-    /// (<c>applications</c> is per-user and small). It is NOT harmless against a 1,17M-row register:
+    /// (<c>applications</c> is per-user and small). It is NOT harmless against the register:
     /// an <c>OFFSET 5_000_000</c> still makes Postgres produce AND SORT every preceding row before
     /// discarding it. §5 already forbids "unpaginated list fetches"; an unbounded OFFSET is the same
     /// sin with a LIMIT on it.
@@ -200,9 +239,9 @@ public sealed record CompanyBrowseCriteria(
     /// <para>
     /// <b>This cap is a CORRECTNESS requirement, not a performance tweak</b> (senior-cto-advisor
     /// 2026-07-13). <see cref="PagedResult{T}.TotalPages"/> is <c>ceil(TotalCount / PageSize)</c>, and
-    /// <see cref="MaxPage"/> makes any page beyond 100 a 400. With an UNCAPPED count and a bound-legal
-    /// broad criterion (1000 SNI × 290 kommuner matches all 1 170 000 rows), the pager would advertise
-    /// <c>58 500</c> pages of which <c>100</c> are fetchable — an authoritative number the system that
+    /// <see cref="MaxPage"/> makes any page beyond 100 a 400. With an UNCAPPED count, a bound-legal
+    /// broad criterion matches far more rows than this surface can serve, so the pager would advertise
+    /// many times the <c>100</c> pages that are fetchable — an authoritative number the system that
     /// emitted it does not back. That is the same failure shape as the vacuous <c>JobAd.DeletedAt</c>
     /// filter (#805-3): not slow, FALSE. Capping the count at <c>MaxPage × PageSize</c> makes
     /// <c>TotalPages ≤ MaxPage</c> true BY CONSTRUCTION — the pager cannot advertise a page the

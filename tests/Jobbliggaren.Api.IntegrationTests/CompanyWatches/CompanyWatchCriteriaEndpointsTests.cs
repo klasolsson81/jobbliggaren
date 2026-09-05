@@ -330,8 +330,10 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
         var id = await CreateAsync(ct);
 
+        // #1656 (b) — /ad-count composes two questions now. `ads` is this assertion's; `matching`
+        // has its own oracle in CriterionMatchingAdCountApiTests.
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
-        count.GetProperty("magnitude").GetInt32().ShouldBe(2);
+        count.GetProperty("ads").GetProperty("magnitude").GetInt32().ShouldBe(2);
 
         var body = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ads", ct);
         var items = body.GetProperty("ads").GetProperty("items");

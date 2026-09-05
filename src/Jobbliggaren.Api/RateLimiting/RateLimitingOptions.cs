@@ -284,6 +284,15 @@ public sealed class RateLimitingOptions
     /// An ADDITIONAL call on any of these pages spends a token off the SAME 12/min: divide 12 by the new
     /// per-view total BEFORE adding it, and re-run the measurement above. Raising PermitLimit is a
     /// security-auditor decision (BLOCKING), never a fix for a page that got chattier.</para>
+    ///
+    /// <para><b>#1656 (b) — the token counts above are UNCHANGED, the ROW cost of one of them is not.</b>
+    /// The personal match count was composed into the EXISTING /ad-count send rather than given a fifth
+    /// route, precisely so the detail page stays at 2 tokens and the sustained 6 detail views/min holds.
+    /// What that one token now buys is more work: /ad-count additionally reads the criterion's ad-id set
+    /// and grades it. The set is bounded by <c>CriterionMatchingAdSet.MaxSetSize</c> and an oversized
+    /// criterion is REFUSED before the grading runs, so the cost is bounded rather than proportional to
+    /// the register — but it is no longer proportional to a page either. Whether 15 still holds against
+    /// the new per-token row cost is security-auditor's call, not this file's.</para>
     /// </summary>
     public PolicyOptions CompanyBrowse { get; init; } = new()
     {

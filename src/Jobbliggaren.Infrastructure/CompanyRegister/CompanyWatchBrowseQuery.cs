@@ -117,13 +117,13 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// The count is CAPPED at <c>MaxPage * pageSize</c> — and that is a CORRECTNESS requirement, not a
     /// perf tweak (senior-cto-advisor 2026-07-13). <c>PagedResult.TotalPages</c> is
     /// <c>ceil(TotalCount / PageSize)</c> while <c>CompanyBrowseCriteria.MaxPage</c> makes page 101 a
-    /// 400. An UNCAPPED count over a bound-legal broad criterion (1000 SNI x 290 kommuner matches all
-    /// 1 170 000 rows) would have the pager advertise 58 500 pages of which 100 are fetchable: an
-    /// authoritative number the system that emitted it does not back — the #805-3 shape, not slow but
+    /// 400. An UNCAPPED count over a bound-legal broad criterion — one matching far more rows than
+    /// this surface can serve — would have the pager advertise many times the 100 pages that are
+    /// fetchable: an authoritative number the system that emitted it does not back — the #805-3 shape, not slow but
     /// FALSE. The cap makes <c>TotalPages &lt;= MaxPage</c> true by construction.
     ///
     /// <para>
-    /// It is also, incidentally, what keeps the count off an exact <c>count(*)</c> over 1,17M rows. That
+    /// It is also, incidentally, what keeps the count off an exact <c>count(*)</c> over the whole register. That
     /// is a welcome side effect and NOT the reason — a cap justified by latency is a cap someone removes
     /// the day an index lands.
     /// </para>
@@ -248,13 +248,38 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     // ingest stamps many ads identically), Postgres sorts are not stable, and a non-total order
     // plus OFFSET can drop or duplicate rows ACROSS pages. j.id is the PK — it makes the order
     // total. The port's doc publishes this order because the CALLER re-orders by it.
+    //
+    // SHARED by the page query and the whole-set query, and that sharing is load-bearing (#1656 (b)):
+    // the filtered view paginates the SET while the unfiltered view paginates the PAGE query, so two
+    // different orders here would sequence one against the other. Same lesson as
+    // BrowseCriterionAdsQueryHandler's re-sequencing note, one step upstream.
+    private const string AdsOrderBy = """
+
+        ORDER BY j.published_at DESC, j.id
+        """;
+
     private const string AdIdsSql =
         "SELECT j.id "
         + AdsFromWhere
+        + AdsOrderBy
         + """
 
-        ORDER BY j.published_at DESC, j.id
         LIMIT @limit OFFSET @offset;
+        """;
+
+    /// <summary>
+    /// #1656 (b) — the WHOLE ordered ad-id set, bounded by <c>LIMIT @set_limit</c>. The caller binds
+    /// <c>maxSetSize + 1</c> so the extra row is the REFUSAL signal: the set is returned only when it
+    /// fits, never as a prefix (see the port's docblock for why a truncated input cannot be counted
+    /// honestly). Same <see cref="AdsFromWhere"/> and same <see cref="AdsOrderBy"/> as the page query.
+    /// </summary>
+    private const string AdIdSetSql =
+        "SELECT j.id "
+        + AdsFromWhere
+        + AdsOrderBy
+        + """
+
+        LIMIT @set_limit;
         """;
 
     /// <summary>
@@ -305,6 +330,52 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         await using var cmd = BuildAdCountCommand(connection, criteria, ceiling);
         var scalar = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<IReadOnlyList<JobAdId>?> ListActiveAdIdsAsync(
+        CompanyWatchCriteriaSpec criteria, int maxSetSize, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxSetSize, 1);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = BuildAdIdSetCommand(connection, criteria, maxSetSize);
+        await using var reader = await cmd
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        // Read at most maxSetSize rows. The (maxSetSize + 1)-th row is not DATA — it is the signal
+        // that the set does not fit, and reaching it abandons the whole answer rather than returning
+        // what was read so far. Returning the prefix is precisely the failure this method exists to
+        // make impossible.
+        var ids = new List<JobAdId>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (ids.Count == maxSetSize)
+                return null;
+
+            ids.Add(new JobAdId(reader.GetGuid(0)));
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// The whole-set query, exactly as production emits it (the EXPLAIN pin covers this command too).
+    /// <c>@set_limit</c> is bound to <c>maxSetSize + 1</c>: the statement deliberately asks for ONE
+    /// row more than the caller can accept, because "there is another row" is the only way a single
+    /// round-trip can distinguish a set that fits from one that does not.
+    /// </summary>
+    internal static NpgsqlCommand BuildAdIdSetCommand(
+        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int maxSetSize)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = AdIdSetSql;
+        BindPredicate(cmd, spec);
+        BindAdStatus(cmd);
+        cmd.Parameters.AddWithValue("@set_limit", NpgsqlDbType.Integer, maxSetSize + 1);
+        return cmd;
     }
 
     /// <summary>

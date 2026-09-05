@@ -232,6 +232,10 @@ describe("browseCriterionAds — the criterion's ad run", () => {
   const response = {
     ads: { items: [ad], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 },
     magnitude: { magnitude: 167, saturated: false },
+    // #1656 (b) — null is "the caller did not ask for the matching view". Always present on the
+    // wire: the schema declares it nullable, never optional, so the shape cannot vary with the
+    // filter.
+    matching: null,
   };
 
   it("no session → unauthorized without a backend round-trip", async () => {
@@ -247,6 +251,22 @@ describe("browseCriterionAds — the criterion's ad run", () => {
     global.fetch = fetchMock;
     expect(await browseCriterionAds("../admin", 1)).toEqual({ kind: "notFound" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults to the unfiltered view and says so on the wire", async () => {
+    // #1656 (b) — a filter nobody asked for must never be applied. The parameter is explicit rather
+    // than omitted so the request states the axis instead of relying on a backend default.
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response));
+    global.fetch = fetchMock;
+    await browseCriterionAds(VALID_ID, 1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("onlyMatching=false");
+  });
+
+  it("asks for the matching view when the caller does", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(response));
+    global.fetch = fetchMock;
+    await browseCriterionAds(VALID_ID, 1, true);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain("onlyMatching=true");
   });
 
   it("200 composed response (page + magnitude) → ok", async () => {
@@ -299,15 +319,14 @@ describe("getCriterionAdCount — the headline number alone", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("200 { magnitude, saturated } → ok, and asks the count route (never the ad page)", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(jsonResponse({ magnitude: 167, saturated: false }));
+  it("200 { ads, matching } → ok, and asks the count route (never the ad page)", async () => {
+    const body = {
+      ads: { magnitude: 167, saturated: false },
+      matching: { count: 9, tooBroad: false },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body));
     global.fetch = fetchMock;
-    expect(await getCriterionAdCount(VALID_ID)).toEqual({
-      kind: "ok",
-      data: { magnitude: 167, saturated: false },
-    });
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "ok", data: body });
     // The detail page must not pay for twenty ad rows it never renders, and must not read the
     // capped pagination `totalCount` as the magnitude — both are the same mistake in one call.
     const url = String(fetchMock.mock.calls[0]![0]);
@@ -316,11 +335,38 @@ describe("getCriterionAdCount — the headline number alone", () => {
   });
 
   it("saturated true survives the wire", async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(jsonResponse({ magnitude: 10000, saturated: true }));
+    const body = {
+      ads: { magnitude: 10000, saturated: true },
+      matching: { count: null, tooBroad: true },
+    };
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "ok", data: body });
+  });
+
+  it("the two ad numbers keep their own doctrines: saturating vs exact-or-absent", async () => {
+    // #1656 (b) — one schema for both would let a surface render the ad magnitude where it means
+    // the personal count. `ads` may saturate and render "10 000+"; `matching` carries no
+    // `saturated` at all, because its set is REFUSED rather than truncated and its number is
+    // therefore exact whenever it is present.
+    const body = {
+      ads: { magnitude: 10000, saturated: true },
+      matching: { count: 12, tooBroad: false },
+    };
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
     const result = await getCriterionAdCount(VALID_ID);
-    expect(result).toEqual({ kind: "ok", data: { magnitude: 10000, saturated: true } });
+    expect(result).toEqual({ kind: "ok", data: body });
+  });
+
+  it("a matching count beside tooBroad is rejected, never rendered as a floor", async () => {
+    // The state the backend DTO forbids in its constructor. If it ever reached the wire, a truncated
+    // floor would be rendered as an exact count -- the defect the refusal bound exists to prevent.
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ads: { magnitude: 5, saturated: false },
+        matching: { count: 3, tooBroad: true },
+      }),
+    );
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
   });
 
   it("404 (unknown OR cross-user id) → notFound", async () => {
@@ -332,7 +378,9 @@ describe("getCriterionAdCount — the headline number alone", () => {
     // The detail page renders a civil "cannot be shown" line on `error`. A schema that let a
     // malformed body through as `{ magnitude: 0 }` would render "Inga aktiva annonser" — a false
     // statement rather than an absent one (#859).
-    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ magnitude: "many" }));
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ ads: { magnitude: "many" }, matching: { count: null, tooBroad: false } }),
+    );
     expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
   });
 });

@@ -361,12 +361,14 @@ public static partial class RateLimitingExtensions
             });
 
             // Partition: UserId (claim "sub"). #560 PR-3 (CTO Fork G4) — dedikerad bucket för
-            // register-browsen, husets tyngsta läsning (1,17M rader; 25–163 ms/anrop). Aldrig
-            // fold-in i MeListRead (bulkhead — en scan-burst får inte svälta /oversikts ~7-anrops-
-            // fan-out). TokenBucket (#875 villkor 3: populerar Retry-After; SlidingWindow gör
-            // inte det), QueueLimit=0 (kö = memory-DoS). Auth-gated → anonym fångas av
-            // RequireAuthorization (NoLimiter bypass). Parametrar IOptions-bundna (§5.1).
-            // security-auditor BLOCKING verifierar tal (CTO-riktvärde 15/min).
+            // register-browsen, husets tyngsta läsning. Aldrig fold-in i MeListRead (bulkhead — en
+            // scan-burst får inte svälta /oversikts ~7-anrops-fan-out). TokenBucket (#875 villkor 3:
+            // populerar Retry-After; SlidingWindow gör inte det), QueueLimit=0 (kö = memory-DoS).
+            // Auth-gated → anonym fångas av RequireAuthorization (NoLimiter bypass). Parametrar
+            // IOptions-bundna (§5.1).
+            // ⚠ TALET, HUR MÅNGA RUTTER SOM DELAR HINKEN OCH HUR MAN RÄKNAR OM DET STÅR I
+            // RateLimitingOptions.CompanyBrowse — och bara där. Den här kommentaren upprepade det
+            // (#1654), och hann bli falsk. Två hem för samma tal är hur det går till.
             options.AddPolicy(CompanyBrowsePolicy, ctx =>
             {
                 var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;

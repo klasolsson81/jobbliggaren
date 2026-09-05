@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries.GetTaxonomyTree;
+using Jobbliggaren.Application.RecentJobSearches.Common;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 
@@ -122,7 +123,7 @@ public sealed class ListRecentSearchesQueryHandler(
             var label = DeriveLabel(
                 replay, occupationGroupLabels, municipalityLabels, regionLabels, occupationFields);
 
-            // Named throughout: eight positional lists in a row is the transposition trap
+            // Named throughout: a run of positional lists is the transposition trap
             // JobAdFilterCriteria's own docblock names, and the raw dimensions below are the
             // replay — a swapped pair would count one search and run another.
             dtos.Add(new RecentJobSearchDto(

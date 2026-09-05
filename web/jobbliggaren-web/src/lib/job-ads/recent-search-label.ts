@@ -16,9 +16,9 @@ export interface RecentSearchLabelCopy {
   readonly remoteLeading: string;
   /** The distance facet after another part, e.g. "distans" / "remote". */
   readonly remoteInline: string;
-  /** One employer where it LEADS the label, e.g. "Arbetsgivare" / "Employer". */
+  /** One employer where it LEADS the label, e.g. "En arbetsgivare" / "One employer". */
   readonly employerLeading: string;
-  /** One employer after another part, e.g. "arbetsgivare" / "employer". */
+  /** One employer after another part, e.g. "en arbetsgivare" / "one employer". */
   readonly employerInline: string;
   /**
    * Several employers, counted rather than named, e.g. "3 arbetsgivare" / "3 employers".

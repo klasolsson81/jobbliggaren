@@ -1,6 +1,6 @@
 using Jobbliggaren.Domain.CompanyWatches;
 
-namespace Jobbliggaren.Application.RecentJobSearches;
+namespace Jobbliggaren.Application.RecentJobSearches.Common;
 
 /// <summary>
 /// The one predicate deciding which values of the employer axis may leave the request that

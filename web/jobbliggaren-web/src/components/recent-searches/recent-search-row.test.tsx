@@ -130,9 +130,9 @@ describe("RecentSearchRow", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Arbetsgivare" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "En arbetsgivare" })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Ta bort sökningen: Arbetsgivare" }),
+      screen.getByRole("button", { name: "Ta bort sökningen: En arbetsgivare" }),
     ).toBeInTheDocument();
     const href =
       screen.getByRole("link", { name: /Kör igen/ }).getAttribute("href") ?? "";

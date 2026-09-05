@@ -13,6 +13,22 @@ import {
  * stripped space is invisible in a JSON diff. Reading the shipped values means losing one
  * fails here rather than on the page.
  */
+/**
+ * The catalogue's own `{count, plural, one {…} other {…}}` shape, resolved the way next-intl does on
+ * the page, so the SHIPPED string is what renders here too (same doctrine as the words below). Any
+ * other shape throws: a plain `{count}` message would otherwise pass through untouched and the
+ * assertion would print the placeholder instead of naming the drift.
+ */
+function icuPlural(message: string, count: number): string {
+  const m = /^\{count, plural,(.*)\}$/.exec(message);
+  if (!m) throw new Error(`not an ICU plural: ${message}`);
+  const branches = new Map<string, string>();
+  for (const b of m[1]!.matchAll(/(\w+) \{([^}]*)\}/g)) branches.set(b[1]!, b[2]!);
+  const branch = (count === 1 ? branches.get("one") : undefined) ?? branches.get("other");
+  if (branch === undefined) throw new Error(`no other-branch: ${message}`);
+  return branch.replace("#", String(count));
+}
+
 function copyFrom(catalogue: typeof svJobads): RecentSearchLabelCopy {
   const c = catalogue.recent.label;
   const coded: Record<string, string> = catalogue.enums.codedTaxonomy;
@@ -22,7 +38,7 @@ function copyFrom(catalogue: typeof svJobads): RecentSearchLabelCopy {
     remoteInline: c.remoteInline,
     employerLeading: c.employerLeading,
     employerInline: c.employerInline,
-    employerCount: (count) => c.employerCount.replace("{count}", String(count)),
+    employerCount: (count) => icuPlural(c.employerCount, count),
     or: c.or,
     separator: c.separator,
     more: (count) => c.more.replace("{count}", String(count)),
@@ -134,15 +150,18 @@ describe("buildRecentSearchLabel", () => {
 
   // #1471 — arbetsgivar-delen är värdefri i båda locales: ledande form versaliserad, efterställd
   // form gemen (samma positionsregel som distans), och flera arbetsgivare RÄKNAS i stället för
-  // att listas. Ordet är copy; ett org.nr når aldrig hit (Klas-beslut 2026-08-23).
+  // att listas. Ordet är copy; ett org.nr når aldrig hit (Klas-beslut 2026-08-23). Räkneordet
+  // "En"/"en" är design-reviewers (2026-09-05): utan det läses delen som filterchipet
+  // "Arbetsgivare {namn}" med ett värde som inte laddat, och "Heltid, arbetsgivare" räknar upp
+  // ett värde och en kategori.
   describe("arbetsgivar-delen (#1471) — namnger axeln, aldrig värdet", () => {
     it.each([
-      ["Arbetsgivare", label("Dimensions", "None", employer()), sv],
-      ["Employer", label("Dimensions", "None", employer()), en],
+      ["En arbetsgivare", label("Dimensions", "None", employer()), sv],
+      ["One employer", label("Dimensions", "None", employer()), en],
       ["2 arbetsgivare", label("Dimensions", "None", employer(1)), sv],
       ["3 employers", label("Dimensions", "None", employer(2)), en],
-      ["Heltid, arbetsgivare", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), sv],
-      ["Full-time, employer", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), en],
+      ["Heltid, en arbetsgivare", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), sv],
+      ["Full-time, one employer", label("Dimensions", "Conjunction", coded(FULL_TIME), employer()), en],
       [
         "Heltid, 2 arbetsgivare",
         label("Dimensions", "Conjunction", coded(FULL_TIME), employer(1)),

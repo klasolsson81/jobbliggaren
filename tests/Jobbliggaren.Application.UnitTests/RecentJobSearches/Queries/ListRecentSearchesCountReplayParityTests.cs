@@ -39,6 +39,16 @@ public class ListRecentSearchesCountReplayParityTests
     // house discriminator). The same value RecentSearchesTests persists through real Postgres.
     private const string LegalEntityOrgNr = "5566010101";
 
+    // Third digit < '2' — the house discriminator (OrganizationNumber.IsPersonnummerShaped).
+    // The actor that produces a row carrying this value — alone or beside a legal entity — is
+    // not the current writer: RecentJobSearchCaptureBehavior has refused a personnummer-shaped
+    // employer since A2 (2026-08-19), and
+    // RecentJobSearchCaptureBehaviorTests.Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing
+    // (the mixed list: ..._BesideALegalEntity_CapturesNothingAtAll) pins that. Rows written before
+    // that date can carry one — LRU-capped, never purged — and the two cases below are what the
+    // handler does with them: ADR 0087 D8(c)'s masked arm, on every consumer.
+    private const string PersonnummerShapedOrgNr = "1010101010";
+
     // Every JobAdFilterCriteria axis → the RecentJobSearchDto property the replay reads it from.
     // Declared rather than derived, so a new axis with no row here FAILS below: an inclusion
     // spec cannot notice that it is measuring nothing, and silence must not pass.
@@ -83,17 +93,9 @@ public class ListRecentSearchesCountReplayParityTests
         AssertCountAndReplayAgree(counted, dto);
     }
 
-    // Third digit < '2' — the house discriminator (OrganizationNumber.IsPersonnummerShaped).
-    private const string PersonnummerShapedOrgNr = "1010101010";
-
     [Fact]
     public async Task Handle_WithholdsAPersonnummerShapedEmployer_FromCountAndReplayAlike()
     {
-        // The actor that produced this row is not the current writer: RecentJobSearchCaptureBehavior
-        // has refused a personnummer-shaped employer since A2 (2026-08-19), and
-        // RecentJobSearchCaptureBehaviorTests.Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing
-        // pins that. Rows written before that date can carry one — LRU-capped, never purged — and
-        // this is what the handler does with them: ADR 0087 D8(c)'s masked arm, on every consumer.
         var (counted, dto) = await RunAsync(EveryAxisSet(employer: [PersonnummerShapedOrgNr]));
 
         counted.Employer.ShouldBeEmpty("the count must not run on a value the wire will not carry");

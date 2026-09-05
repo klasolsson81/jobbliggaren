@@ -160,15 +160,28 @@ public class RecentJobSearchCaptureBehaviorTests
     [InlineData("0001010101")]   // pnr-shaped, third digit 0
     public async Task Handle_PersonnummerShapedEmployer_RunsTheSearchButCapturesNothing(string employer)
     {
-        // Not a hypothetical premise: `?employer=` is a FORMAT gate with zero producers left
-        // (company-lookup.tsx was deleted in aca39970), so every live value in it comes from a
-        // hand-typed URL or an old bookmark - exactly what this argument is.
+        // Not a hypothetical premise: `?employer=` is a FORMAT gate, so a personnummer-shaped value
+        // in it comes from a hand-typed URL or an old bookmark - exactly what this argument is.
         await HandleAsync(new FakeSearchQuery(
             Q: null, OccupationGroup: null, Municipality: null, Region: null,
             Employer: [employer]));
 
         // The SEARCH ran (HandleAsync returns the handler's response); only the persistence is
         // skipped. Refusing the search would break a legitimate filter on a sole trader's ads.
+        await _capturer.DidNotReceive().CaptureAsync(
+            Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_PersonnummerShapedEmployerBesideALegalEntity_CapturesNothingAtAll()
+    {
+        // The gate is `.Any`, not `.All`: one personnummer-shaped value in a multi-employer list
+        // refuses the whole capture. This is the pin ListRecentSearchesCountReplayParityTests'
+        // mixed case names as the reason its row can only be pre-A2 (#1471).
+        await HandleAsync(new FakeSearchQuery(
+            Q: null, OccupationGroup: null, Municipality: null, Region: null,
+            Employer: ["5566010101", "1010101010"]));
+
         await _capturer.DidNotReceive().CaptureAsync(
             Arg.Any<Guid>(), Arg.Any<SearchCriteria>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }

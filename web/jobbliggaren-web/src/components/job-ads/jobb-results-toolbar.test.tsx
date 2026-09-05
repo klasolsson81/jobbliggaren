@@ -380,7 +380,8 @@ describe("JobbResultsToolbar — träffar + chips + sort", () => {
   });
 
   // #454 PR-0 — toolbar-lokal arbetsgivar-chip (grad-chips-mönstret): renderas
-  // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × committar som varje annan chip (#1471).
+  // när ?employer= är aktiv, formaterad NNNNNN-NNNN, × committar som varje annan sök-chip (#1471;
+  // grad-chipsen är runtime-view-state och navigerar fortsatt utan commit).
   describe("arbetsgivar-chip (#454 PR-0)", () => {
     it("renderar chippen med formaterat org.nr när employer är satt", () => {
       renderToolbar({ employer: ["5560125790"] });

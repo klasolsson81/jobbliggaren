@@ -108,7 +108,7 @@ public enum RecentSearchLabelPartKind
 /// <summary>
 /// One part of the label: what names it, plus how many further selections it stands for.
 /// </summary>
-/// <param name="Kind">Which of <paramref name="Text"/> and <paramref name="ConceptId"/> is set.</param>
+/// <param name="Kind">Which of <paramref name="Text"/> and <paramref name="ConceptId"/> is set, if either.</param>
 /// <param name="Text">
 /// The resolved register label. Set exactly when <paramref name="Kind"/> is
 /// <see cref="RecentSearchLabelPartKind.Named"/>.

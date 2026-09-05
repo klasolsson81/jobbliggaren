@@ -369,22 +369,25 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * räknat golv är det enda som fäller en tystnad."*
    *
    * ⚠ **TERMEN FÅR ALDRIG VIKAS IN I `EMAIL_PROVIDER_ANY`.** Den unionen driver den LEVANDE
-   * grenens negativa pinne, och den här behandlingen är genuint mörk: apex-MX är
-   * `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8 2026-08-28), så STRATO tar inte emot något för
-   * domänen. En invikning gör sviten **osatisfierbar** — samma löv skulle behöva både bära och
-   * inte bära markören. Samma skäl förbjuder invikning i värdspärrens negativa loop.
+   * grenens negativa pinne. Behandlingen var genuint mörk när spärren skrevs — apex-MX
+   * `blackhole.tem.scaleway.com` (mätt mot 8.8.8.8 2026-08-28), så STRATO tog inte emot något för
+   * domänen, och en invikning hade då gjort sviten **osatisfierbar**. ⚠ **Det skälet upphör med
+   * MX-flytten, som den här ändringen åtföljer. Förbudet står kvar på sitt andra ben:** varje spärr
+   * här är term-scopad, och en union gör den termen till ett delat hem som ingen läsare har krävt.
+   * Samma skäl förbjuder invikning i värdspärrens negativa loop.
    *
    * ⚠ **SEKTIONEN BLANDAR NU MÖRKT OCH LEVANDE, och e-postspärrens docblock förutsåg fallet**
    * (*"en sektion som någon gång blandar en mörk och en levande behandling får bara EN
    * polaritet"*). `Mottagare av uppgifter` rymmer netcup (levande), Scaleway ×2 (levande), SCB
-   * (mörk) och STRATO (mörk), medan `consentGated` klassar hela sektionen som levande på
+   * (mörk) och STRATO (mörk när spärren skrevs; **levande från MX-flytten, som den här ändringen
+   * åtföljer**), medan `consentGated` klassar hela sektionen som levande på
    * rubriken. Det är ofarligt **enbart** för att varje spärr är term-scopad. Fallet är verkligt
    * sedan 2026-08-28 och är därmed inte längre en hypotes i en kommentar (code-reviewer Minor 7).
    *
-   * **Testet ska FALLA vid MX-flytten, och det är hela poängen.** Flytten sker i STRATO:s panel
-   * utan PR, utan CI och utan deploy — den är den första aktiveringshändelsen i huset som ingen
-   * release grindar. Copyns markör är då det enda som håller policyn ärlig. Stryk markör-halvan i
-   * samma ändring som flippar copyn, och **behåll golvet och path-pariteten**.
+   * ✅ **Instruktionen är UTFÖRD I DEN HÄR ÄNDRINGEN:** golvet och path-pariteten är behållna.
+   * Flytten sker i STRATO:s panel utan PR, utan CI och utan deploy — den första
+   * aktiveringshändelsen i huset som ingen release grindar — så ordningen mellan copyn och
+   * posten är det enda som håller policyn ärlig.
    *
    * ⚠ **DEN OPERATIVA YTAN ÄR `docs/runbooks/vps-deploy-stack.md` RAD 36:s MX-BEN, INTE DEN
    * HÄR FILEN** (#183 led 5, 2026-08-28). Docblocket ovan talar till den som kör CI. Raden
@@ -395,7 +398,7 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
    * `basic_auth`-block bär mot `release-checklist.md` §2.5 punkt 1 led (e) förutsättning 5.
    * **Raden bär ordningen och vad flytten kostar. Läs den där; ämnena återges inte här.**
    */
-  it("inbound-biträdet STRATO är namngivet i policyn och bär markören tills MX flyttas (#183)", () => {
+  it("inbound-biträdet STRATO är namngivet i policyn, med golv och path-paritet (#183)", () => {
     // Den PART-BÄRANDE formen, aldrig varumärket: Art. 13(1)(e) kräver den juridiska personen,
     // och repot bar `STRATO AG` i en tracked runbook till 2026-08-28. Mätt mot avtalsdokumentet
     // självt (DPA v3.6, tecknat 2026-01-29): STRATO GmbH, Otto-Ostrowski-Straße 7, Berlin.
@@ -416,10 +419,6 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     // Docblocket ovan förbjuder att TERMEN viks in i en annan spärr; det här fäller det andra
     // fallet, som förbudet inte täcker: ett LÖV som namnger både `STRATO GmbH` och en part vars
     // spärr FÖRBJUDER markören — `netcup GmbH` (värdspärren) eller `Scaleway` i den levande grenen.
-    // Den här spärren kräver markören positivt på samma löv, så sviten blir osatisfierbar, varvid
-    // den "uppenbara" utvägen är att försvaga en av spärrarna. Assertionen fäller i stället vid den
-    // commit som skriver lövet, och åtgärden är att dela stycket i två: sektionens egen praxis är
-    // en mottagare per stycke. Skopa INTE bort täckning för att lösa det.
     // `consentGated` bor inne i e-post-spärrens block; predikatet återskapas här ur samma
     // modulnivå-hjälpare (`sectionHeadingOf`) i stället för att hissas — en hissning hade gjort
     // e-post-spärrens diskriminator till ett delat hem utan att någon läsare krävde det.
@@ -438,10 +437,10 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     expect(sv.map(([path]) => path).filter((path) => forbidsMarkerSv.has(path))).toEqual([]);
     expect(en.map(([path]) => path).filter((path) => forbidsMarkerEn.has(path))).toEqual([]);
 
-    // Invariant 2, POSITIV pinne: behandlingen är mörk, så varje omnämnande bär markörmeningen.
-    // Presens här hade hävdat en behandling som inte sker (ADR 0090 D3, spegelvänt).
-    for (const [path, paragraph] of sv) expect(paragraph, path).toMatch(SV_STATUS_MARKER);
-    for (const [path, paragraph] of en) expect(paragraph, path).toMatch(EN_STATUS_MARKER);
+    // Invariant 2 i NEGATIV polaritet — samma ratificerade markörformer som e-post-spärren binder.
+    // Delat hem med den positiva assertionen, se konstanternas doc-kommentar överst.
+    for (const [path, item] of sv) expect(item, path).not.toMatch(SV_STATUS_MARKER);
+    for (const [path, item] of en) expect(item, path).not.toMatch(EN_STATUS_MARKER);
   });
 
   /**

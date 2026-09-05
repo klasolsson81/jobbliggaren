@@ -178,8 +178,9 @@
 		# release-checklist.md re-graded the dead Art. 12 rights channel on 2026-08-16
 		# against a measured operating state, and one of the measurements is that this site
 		# answers 401 on every path. Remove or bypass this block — even briefly, even for a
-		# demo — and the blackholed contact address becomes blocking in that same moment,
-		# with nothing to warn: the finding is filed against a state that stopped being true.
+		# demo — and that fires the checklist's trigger (c), so the finding becomes blocking in
+		# that same moment, with nothing to warn: it is filed against a state that stopped
+		# being true.
 		# The published channel gets a reader before this comes off, not after.
 		#
 		# A SECOND GDPR CONCLUSION LIVED HERE FOR ONE DAY AND IS NOW SPENT (#183 E5 →

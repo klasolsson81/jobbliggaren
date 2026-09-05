@@ -102,6 +102,17 @@
     <EmbeddedResource Include="CompanyRegister\Reference\scb-kommuner-2026.v1.json">
       <LogicalName>Jobbliggaren.Infrastructure.CompanyRegister.Reference.scb-kommuner-2026.v1.json</LogicalName>
     </EmbeddedResource>
+    <!-- #1115 — search aliases over the SNI names, so the picker's filter finds a concept the user
+         has a different word for ("systemutveckl" matched 0 of 944 nodes). NOT a crosswalk: every
+         code is an SNI 2025 code present in sni-2025.v1.json and no SSYK/JobTech concept id appears
+         in the asset (#560 bind 4). Two sources per the "source" field — SCB SNI-sök's own
+         "Exempel på vad som ingår i denna SNI-kod" register (CC0), plus a small authored residue
+         for demand words SCB does not carry. Only terms matching a dated demand list ship, not
+         SCB's whole register: the whole register measured 86-88 kB gzip against ADR 0045's locked
+         30 720 B document budget. Regenerate: node tools/sni-aliases/generate.mjs -->
+    <EmbeddedResource Include="CompanyRegister\Reference\sni-aliases-2025.v1.json">
+      <LogicalName>Jobbliggaren.Infrastructure.CompanyRegister.Reference.sni-aliases-2025.v1.json</LogicalName>
+    </EmbeddedResource>
     <!-- #311 PR-5 (ADR 0087 D4) — curated brand-group catalogue (org.nr -> group alias). Members are
          public AB org.nrs only (the loader fails host build on a personnummer-shaped one). Curated via
          reviewed PR; this shipped asset is deliberately EMPTY (the mechanism ships before any group). -->

@@ -45,18 +45,36 @@ export type ListCompanyWatchCriteriaResult = z.infer<
 
 // A single reference leaf/node: SCB code + Swedish name. Both required (the picker renders the name;
 // a missing name would render a blank checkbox row).
-const sniLeafSchema = z.object({ code: z.string(), name: z.string() });
+//
+// `aliases` (#1115) are search words the node's own name does not contain — SNI classifies activities,
+// so "systemutveckl" matched 0 of 944 names. Every level carries them, because an everyday word can
+// name a division as readily as one leaf.
+//
+// OPTIONAL, not defaulted, and the difference is a claim about the wire rather than ergonomics: during
+// a rolling deploy a new frontend talks to an old backend that has not shipped the asset, and the field
+// is then genuinely absent. Modelling it as always-present would make the type say something the wire
+// does not guarantee. Consumers read it through `?? []`, and the picker degrades to today's name-only
+// filter rather than to a parse error that would blank the whole control.
+const aliasesSchema = z.array(z.string()).optional();
+
+const sniLeafSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  aliases: aliasesSchema,
+});
 
 const sniDivisionSchema = z.object({
   code: z.string(),
   name: z.string(),
   leaves: z.array(sniLeafSchema),
+  aliases: aliasesSchema,
 });
 
 const sniSectionSchema = z.object({
   code: z.string(),
   name: z.string(),
   divisions: z.array(sniDivisionSchema),
+  aliases: aliasesSchema,
 });
 
 const kommunSchema = z.object({ code: z.string(), name: z.string() });
@@ -76,6 +94,9 @@ const lanSchema = z.object({
 export const criterionReferenceSchema = z.object({
   sniVersion: z.string(),
   kommunVersion: z.string(),
+  // Optional for the same rolling-deploy reason as `aliasesSchema`: an old backend sends neither.
+  aliasVersion: z.string().optional(),
+  demandVersion: z.string().optional(),
   sni: z.array(sniSectionSchema),
   lan: z.array(lanSchema),
 });

@@ -1361,7 +1361,8 @@ public static class DependencyInjection
         services.AddSingleton<Jobbliggaren.Application.CompanyWatches.Abstractions.ICriterionReferenceProvider>(
             new CompanyRegister.Reference.CriterionReferenceProvider(
                 CompanyRegister.Reference.CriterionReferenceLoader.LoadSni(),
-                CompanyRegister.Reference.CriterionReferenceLoader.LoadKommuner()));
+                CompanyRegister.Reference.CriterionReferenceLoader.LoadKommuner(),
+                CompanyRegister.Reference.CriterionReferenceLoader.LoadAliases()));
 
         // #311 PR-5 (ADR 0087 D4) — the curated brand-group catalogue behind IBrandGroupProvider. Same
         // eager-INSTANCE fail-loud posture as the reference provider above: BrandGroupLoader runs HERE,

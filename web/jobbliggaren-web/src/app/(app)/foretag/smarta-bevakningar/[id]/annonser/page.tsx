@@ -8,7 +8,11 @@ import {
   getCompanyWatchCriteria,
   getCriterionReference,
 } from "@/lib/api/company-criteria";
+import { getMyProfile } from "@/lib/api/me";
+import { getJobAdMatchTags } from "@/lib/api/job-ad-match";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 import type { CriterionReference } from "@/lib/dto/company-criteria";
+import type { JobAdMatchBatch, MatchGrade } from "@/lib/dto/job-ad-match";
 import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
@@ -39,6 +43,8 @@ const EMPTY_REFERENCE: CriterionReference = {
   lan: [],
 };
 
+const NO_MATCH_TAGS: JobAdMatchBatch = { entries: {} };
+
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -64,6 +70,13 @@ interface Props {
  * kommuner. They are jobs at companies SEATED there. A true number under a false implicature is the
  * same defect as a false number.
  *
+ * <para/> **The per-card match mark is `/jobb`'s overlay, reused as-is (#1656 (a)).** The same
+ * `getJobAdMatchTags` → `MatchChip` path paints every per-ad match mark the product has, so the
+ * same ad reads the same here as on `/jobb`. No count and no "only matching" filter: the page is
+ * paginated at 20, so either would silently be about the page, not the watch — the false
+ * implicature the `showTotalCount={false}` below already refuses once. The aggregate is #1656 (b),
+ * bound and untouched.
+ *
  * <para/> 404 (unknown OR another user's id — never an enumeration oracle) → notFound().
  * unauthorized → /logga-in. rateLimited/error → civic notice.
  */
@@ -72,6 +85,9 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages.foretag.criteria");
+  // The nudge copy is /jobb's own ("…hur väl annonser matchar din profil"), never the follow
+  // dialog's "…för att se matchande annonser" — that one promises a set this page does not render.
+  const tMatch = await getTranslations("jobads.ui.match");
   const format = await getFormatter();
 
   const { id } = await params;
@@ -80,11 +96,13 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
-  // rather than failing the page — parity with the parent route.
-  const [adsResult, criteriaResult, referenceResult] = await Promise.all([
+  // rather than failing the page — parity with the parent route. The profile read is cache()-deduped
+  // with the app shell's, so it costs no round-trip of its own.
+  const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
     browseCriterionAds(id, page),
     getCompanyWatchCriteria(),
     getCriterionReference(),
+    getMyProfile(),
   ]);
 
   switch (adsResult.kind) {
@@ -117,6 +135,30 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
   const { ads, magnitude } = adsResult.data;
   const reference = referenceResult.kind === "ok" ? referenceResult.data : EMPTY_REFERENCE;
+
+  // Three states, and they must not collapse into two. A stated occupation → the chips. A profile
+  // that says none is stated → the nudge. A profile read that FAILED → neither: the nudge would then
+  // tell the user they have stated no occupation when the page does not know that, and a chip-less
+  // list under it would read as "nothing matches". Silence is the only honest arm there.
+  const hasStatedDesiredOccupation =
+    profileResult.kind === "ok" && profileResult.data.hasStatedDesiredOccupation;
+  const showMatchNudge =
+    profileResult.kind === "ok" && !profileResult.data.hasStatedDesiredOccupation;
+
+  // A one-step waterfall, as on /jobb: the ids exist only once the browse has resolved. Without a
+  // stated occupation no ad can earn a grade, so the call is skipped rather than answered empty.
+  // `includeRelated` stays false — this route has no `?relaterade=` axis, so "Relaterat yrke" never
+  // appears here. A failed batch degrades to no chips inside `getJobAdMatchTags` itself.
+  const matchTags =
+    hasStatedDesiredOccupation && ads.items.length > 0
+      ? await getJobAdMatchTags(
+          ads.items.map((it) => it.id),
+          false,
+        )
+      : NO_MATCH_TAGS;
+  const matchGradeById = new Map<string, MatchGrade>(
+    Object.entries(matchTags.entries).map(([adId, entry]) => [adId, entry.grade] as const),
+  );
 
   const criterion =
     criteriaResult.kind === "ok"
@@ -181,7 +223,18 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-4">
-            <JobAdList jobAds={ads.items} />
+            {/* `.jp-matchline`, the form `/foretag/bevakade/nya` uses for the same sentence —
+                never `.jp-transparency-note`, whose flex layout for a leading icon tears the CTA
+                out of the sentence. */}
+            {showMatchNudge && (
+              <p className="jp-matchline">
+                {tMatch("noStatedOccupation")}{" "}
+                <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
+                  {tMatch("settingsCta")}
+                </Link>
+              </p>
+            )}
+            <JobAdList jobAds={ads.items} matchGradeById={matchGradeById} />
             <JobAdPagination
               page={ads.page}
               pageSize={ads.pageSize}

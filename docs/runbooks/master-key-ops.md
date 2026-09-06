@@ -1,8 +1,9 @@
 # Master-key operations — injection, rotation, recovery
 
 **Scope:** the field-encryption master key and the three pseudonymisation peppers on the
-production box. Owned by [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)
-(ADR 0050 gates B-1, M-3; ADR 0049 `Amendment 2026-08-09`).
+production box. **This runbook owns itself** — #198 closed 2026-09-06 on Klas's decision. Its
+decisions live in ADR 0049 `Amendment 2026-08-09` (ADR 0050 gates B-1, M-3, M-2); its
+measurements in [`vps-deploy-stack.md`](vps-deploy-stack.md) §5 rows 21–27 and 32b.
 **Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg.
 **Related:** [`vps-deploy-stack.md`](vps-deploy-stack.md) (the stack itself) ·
 [`vps-base-hardening.md`](vps-base-hardening.md) §7–§8 (the memory hygiene this depends on).
@@ -84,7 +85,7 @@ list is clean". The cost above is then the crash-loop **without** the alarm.
 | `…/AuditPseudonymization__PepperBase64` | pepper |
 | `…/CompanyWatchPseudonymization__PepperBase64` | pepper |
 | `…/CvReviewFingerprintPseudonymization__PepperBase64` | pepper |
-| `…/Email__Scaleway__SecretKey` | **the transactional-mail key, and the only secret here that DIES ON A DATE.** Scaleway caps an API key at one year and has no instance-role equivalent. **Current key: expires `2027-08-16`** (issued 2026-08-16, access key `…P9DRX`, bearer = the IAM *application* `Jobbliggaren`; read in the console 2026-08-16, #183 E4). Rotation is **#198**'s. `EMAIL_SCALEWAY_KEY_EXPIRES_AT` in `deploy/.env` carries the same date and `--check` reads it: **expired** exits non-zero onto the fault surface, while the advance notice is a journal line at exit 0 — the split, and why a lead time may not latch that surface, is argued once in that script's `EXPIRY_NOTICE_DAYS` header. **So this row is a record and NOT a reminder with a reader:** nothing pages anyone before the key dies. That half is [#1267](https://github.com/klasolsson81/jobbliggaren/issues/1267)'s calendar-obligation class — this row satisfies its AC 1 (the date is registered); its AC 2, the reminder itself, is not built |
+| `…/Email__Scaleway__SecretKey` | **the transactional-mail key, and the only secret here that DIES ON A DATE.** Scaleway caps an API key at one year and has no instance-role equivalent. **Current key: expires `2027-08-16`** (issued 2026-08-16, access key `…P9DRX`, bearer = the IAM *application* `Jobbliggaren`; read in the console 2026-08-16, #183 E4). Rotation is **`release-checklist.md` §2.5 point 1 leg (e) precondition 3**'s, not this runbook's. `EMAIL_SCALEWAY_KEY_EXPIRES_AT` in `deploy/.env` carries the same date and `--check` reads it: **expired** exits non-zero onto the fault surface, while the advance notice is a journal line at exit 0 — the split, and why a lead time may not latch that surface, is argued once in that script's `EXPIRY_NOTICE_DAYS` header. **So this row is a record and NOT a reminder with a reader:** nothing pages anyone before the key dies. That half is [#1267](https://github.com/klasolsson81/jobbliggaren/issues/1267)'s calendar-obligation class — this row satisfies its AC 1 (the date is registered); its AC 2, the reminder itself, is not built |
 | `…/Email__Scaleway__ProjectId` | project selector, **not a secret and NOT on a rotation clock** — it changes only if the project does. Delivered through the same seam as the key above and therefore easy to sweep into one "rotate the Scaleway credentials" step; they are two lifecycles and the injection script's `SCALEWAY_SECRET_KEYS` comment is that distinction's home |
 | `/run/app-secrets` | the same directory as api and worker see it (read-only bind mount) |
 | `/run/jobbliggaren/host-secrets/Backup__RcloneConfigBase64` | **#197, and mounted into no container.** `0400 root:root` in a `0700 root:root` directory. Injected by the same script, in the same run — but demanded by `--check-host` and by no other predicate, so its absence gates its **own** timer and nothing else (#1329) |

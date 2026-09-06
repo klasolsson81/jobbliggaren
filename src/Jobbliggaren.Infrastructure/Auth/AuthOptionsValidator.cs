@@ -80,7 +80,8 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
                 + "registrering utan e-postbekräftelse skapar konton bundna till adresser "
                 + "registranten inte bevisligen äger, och exponerar duplikat-oraklet på en publik "
                 + "IP. Sätt Auth__RequireEmailConfirmation=true OCH en riktig Email:Provider "
-                + "(förutsättningarna ägs av #734), eller lämna registreringen stängd.");
+                + "(förutsättningarna: docs/runbooks/registration-gate.md), eller lämna registreringen "
+                + "stängd.");
         }
 
         // The RequireEmailConfirmation clause is stated rather than inherited from the branch above,
@@ -94,8 +95,8 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
                 + $"{emailSender.GetType().Name}). Utan leverans skapas kontot, inloggningen spärras "
                 + "på EmailConfirmed och aktiveringslänken når ingen — kontot blir permanent onåbart, "
                 + "och återsändningen är lika tyst. Sätt Email__Provider=Scaleway med "
-                + "Email__Scaleway-nycklarna (förutsättningarna ägs av #734, prod-flippens "
-                + "GDPR-grind av #183), eller lämna registreringen stängd.");
+                + "Email__Scaleway-nycklarna (förutsättningarna: docs/runbooks/registration-gate.md, "
+                + "GDPR-grinden: release-checklist.md §2.5), eller lämna registreringen stängd.");
         }
 
         return ValidateOptionsResult.Success;

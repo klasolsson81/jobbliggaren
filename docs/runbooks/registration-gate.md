@@ -28,15 +28,15 @@ forbids it, and this file is the path it prescribes instead.
    `deploy/.env.example`'s outbound-email block, whose inject-before-you-edit order is not
    restated here. **Setting that value IS the prod flip:** `release-checklist.md` §2.5 is the
    gate on it and Klas is the only one who may take it, never CC — so this precondition is
-   not CC-satisfiable, and nothing below discharges it. Taking the flip belongs to
-   [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook only needs it
-   to already be done. Read §2.5 itself for where that gate stands. Unsatisfied — including a
+   not CC-satisfiable, and nothing below discharges it. Taking the flip is Klas's, and its
+   GDPR gate is `release-checklist.md` §2.5 (#183 closed 2026-09-06); this runbook only needs
+   it to already be done. Read §2.5 itself for where that gate stands. Unsatisfied — including a
    flip taken outside that gate — this procedure does not start. Under `Console` the api
    resolves `NullEmailSender`, which cannot deliver, and opening the gate is a boot refusal.
 2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
-   project id, generated in the Scaleway console. Producing them is the operator's step and
-   belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
-   only needs them to already exist.
+   project id, generated in the Scaleway console. Producing them is the operator's step
+   (`master-key-ops.md`'s secrets table records the current key); this runbook only needs them
+   to already exist.
 3. **Two real, external mailboxes, and the second must be an alias of the first — for the two
    accounts this procedure itself creates.** Use an
    ordinary external address for the operator account, and a `+`-suffixed alias of that same
@@ -73,7 +73,8 @@ forbids it, and this file is the path it prescribes instead.
    checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
    there that the schedule still reads as it did before setting the knob. Either the mailbox
    receives, or the policy publishes a channel that does
-   ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
+   (`release-checklist.md` §2.5 point 1 leg (e) precondition 5 owns the mailbox; #183 closed
+   2026-09-06) — or Klas
    accepts the risk for this recipient set and records it, **which is his decision alone**.
    Whichever applies, it is written down before the knob is set.
    ⚠ **The K2 credential carries more than one GDPR conclusion, and this file counts none of
@@ -95,6 +96,8 @@ forbids it, and this file is the path it prescribes instead.
    the gate, decide, and record the decision **in an ADR or a CLAUDE.md update** before step 2.
    **The decision is Klas's**, because turning the flag on was his; a finding
    that the pair does not fire the gate is an answer, and only an unread gate is an omission.
+   **Answered 2026-09-06 (Klas; derivation ADR 0138, local): `reset-my-data` stays until he says otherwise.** §2.7's
+   text is unchanged; this line records who deferred it and when.
 
 ## 3. The visit
 

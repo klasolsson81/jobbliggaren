@@ -250,9 +250,16 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **den här punkten**;
+      #183 STÄNGD 2026-09-06 på Klas-beslut, se stycket nedan).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
+      ⛔ **KLAS-BESLUT 2026-09-06 — #183 STÄNGD; LEDEN ÄGER SIG SJÄLVA.** Ingen gradering
+      ändras — `security-auditor`s domar står som skrivna. Vad som inte längre finns är en issue
+      som läsare; den som bockar ett led skriver det här.
+      **SES-IAM-nycklarna:** Klas 2026-09-06, *"Finns inga nycklar kvar"* — #183:s beslut 3 av
+      2026-08-15 har därmed inget objekt. E4:s Scaleway-konsolrunbok författas ur vad Klas gör
+      nästa gång han står i konsolen, och har ingen issue. Härledning: ADR 0138 (lokal).
       - **biträdesavtal med Scaleway på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-15 mot
         Scaleways egna avtalsdokument: DPA:n (gällande version daterad 2024-06-01; ingen senare
         revision hittad) är avtalsdokument **nr 1** i GTS:ens prioritetsordning (version
@@ -317,7 +324,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ⚠ **Kadensen har ingen ägare och ingen påminnare — ersättningskontrollens svagaste punkt.**
         En kalenderförpliktelse utan påminnare körs inte. Den hör ihop med #1267 AC 2:s påminnarhalva,
         som inte är byggd; lägg den där, fila ingen egen post;
-      - dokumenterad **Kap. V-grund** — **KVAR (omprövning ligger i #183:s E3-PR)**. ⚠ **Den
+      - dokumenterad **Kap. V-grund** — **KVAR**. ⚠ **Den
         tidigare statusen "UPPLÖST 2026-08-08" gällde AWS och ärvs INTE** — den domen sa att
         överföringen **ska** redovisas trots `eu-north-1`, med grund **SCC Art. 46(2)(c)**,
         eftersom `BUILD.md` §15.1:s tillämpade standard behandlar ett **US-ägt** biträde som en
@@ -492,7 +499,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ompinnad till `Scaleway SAS` i samma ändring, så en halvflippad katalog kan inte bli grön;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
-        (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        (TD-116 stängdes 2026-07-26; residualen ägs av det här ledet — #183 stängd 2026-09-06.)
         ⚠ **LEDET ÄR RETROAKTIVT SEDAN 2026-08-16 OCH DET ÄR EN ANNAN SORTS LED NU.**
         CC1-lanen flippade `Email:Provider` till Scaleway under registreringsbesöket, med Klas
         vid terminalen, medan led (a), (b), (c) och (e) alla bar KVAR — vilket preambelns
@@ -529,7 +536,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         obligatoriskt under Scaleway, frånvaro fail-loud. Delningen tystnad/förvarning ratificeras.
         **Rotationsförfarandet finns inte** — `master-key-ops.md` §4 är masternyckeln, en annan
         livscykel. Ett registrerat datum plus en närvarokontroll är en **inventering, inte en
-        rotationsstrategi**. #198 äger förfarandet, #1267 AC 2 påminnaren; ingendera är byggd.
+        rotationsstrategi**. Förfarandet ägs av det här ledet (#198 stängd 2026-09-06), #1267 AC 2
+        påminnaren; ingendera är byggd.
         **Förutsättning 4 — SIGNERAS DELVIS.** API-referenshalvan ratificeras och är oberoende
         verifierad i vår ände: armen sänder en fast nyttolast utan spårningsfält
         (`ScalewayEmailSender.cs:311-318`). **Changeloghalvan är inte redundant och är omätt** —
@@ -595,7 +603,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         av att ingen spårningsyta finns i TEM-projektet · den delade grunden för
         `EmailChangeConfirmation` i ROPA:n med matchande Art. 13(1)(d)-copy · Art. 14-stycket i
         mallen · och antingen en levererande `kontakt@`-brevlåda eller en publicerad kanal som
-        levererar. Rotationsförfarandet (#198) och påminnaren (#1267 AC 2) grindar inte ledet men
+        levererar. Rotationsförfarandet (förutsättning 3) och påminnaren (#1267 AC 2) grindar inte ledet men
         står kvar som skyldigheter. Ingenting mer krävs.
         **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
         2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
@@ -753,7 +761,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ögonblicket**, inte en Minor.
         3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
            nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
-           återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den
+           återregistreras här så den inte tappas; ägs av den här förutsättningen. **Sedan 2026-08-15 gäller den
            `Email:Scaleway:SecretKey`.** ⚠ **`ProjectId` roterar INTE och ska inte behandlas som en
            nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
            med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
@@ -858,6 +866,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ✅ **VÄG (a) ÄR UPPFYLLD 2026-09-04** (`security-auditor`s ruling samma dag), med de tre
            konjunkterna avbockade var för sig: *finns* ✅ · *tar emot* ✅ (17:33, lagring 1,09 → 10 kB)
            · *läses* ✅.
+           **Läsaren (Art. 12(3)) — Klas-beslut 2026-09-06, enda hemmet:** Klas själv, *"alltid
+           vid nya mail"*, med notis i mobilen. Ingen kadens utöver det och ingen mekanism på
+           lådan; det är en mänsklig praxis, och den här raden namnger vems.
            *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
            grammatik är "grön = inget led bär KVAR" hade den markerat ett **vägval** på en
            förutsättning som fortfarande är **osignerad och Major** — samma glyf, två jobb, och det
@@ -1985,6 +1996,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       det bär ingen signatur av henne. Läs det inte som att fristen upphört: det som skett är att
       Klas valt rutt och skrivit ned grunden, vilket är precis vad Art. 5(2) kräver av honom.
 
+      ⚠ **Klas-beslut 2026-09-06 om M-7:** *"Ja, ingen blocker"* — flippen tas utan ett nytt
+      beviljande före **första riktiga användardata** (hennes konverteringshändelse, inte ett
+      kontoantal). Graderingen är hennes och står; beslutet är hans som personuppgiftsansvarig
+      (Art. 24(1)). Härledning: ADR 0138 (lokal); M-7:s hem är #1201.
+
       ⚠ **Lapsvillkor — TRE mekanismer, och den ena ersätter inte den andra.** En enda
       villkorsmening är ingen triggeruppsättning (`security-auditor` M-1, ADR 0133).
       - **(i) Datumet, och det fyrar på kalendern:** `security-auditor`s M1 arm (i) **konverterar till
@@ -1995,6 +2011,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - **(ii) Villkoret:** blir lanseringen skjuten utan att notisen gjorts nåbar kommer posten
         tillbaka — grunden ovan hänger på att lanseringen faktiskt tar bort basic_auth.
         **Läsare: Klas.** Ingen automatik upptäcker det.
+        **Klas 2026-09-06:** lanseringen ligger *"mest troligen efter"* 2026-09-17 — *"ingen
+        blocker"*. Perioden mellan fristen och lanseringen bär han som personuppgiftsansvarig;
+        M1 arm (i):s gradering från den dagen står oförändrad. Härledning: ADR 0138 (lokal).
       - **(iii) Grunden själv — tre av dess fyra fakta har INGEN egen trigger**
         (`security-auditor` 2026-09-06): att `/kontaktperson-i-annons` förblir utanför
         `PROTECTED_PREFIXES` (ett `(app)`-flytt eller ett nytt prefix tystar notisen utan att något
@@ -2299,8 +2318,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
-        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
-        GDPR-grind). *(Raden namngav tidigare **#1087**, som stängs med
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **§2.5 punkt 1** (e-post-prod-flippens
+        GDPR-grind; #183 stängd 2026-09-06). *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
         #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
@@ -2390,6 +2409,13 @@ borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
 operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
 e-postadress. Ingen av dem får finnas när riktiga användare gör det.
+
+⛔ **KLAS-BESLUT 2026-09-06, och det gäller `reset-my-data` ensamt:** *"Ja den får vara kvar.
+Jag kommer säga till när CC ska ta bort den."* Rivningen nedan körs på Klas ord, inte på
+händelsen. Residualen under beslutet, mätt i koden av `security-auditor` 2026-09-06: en
+autentiserad, ägarskopad, irreversibel radering av användarens eget CV-/sök-/matchningsdata
+utan bekräftelsesteg, nåbar för en riktig användare. `confirm-email` omfattas inte — den är
+Development-grindad i två oberoende lager och onåbar på lådan. Härledning: ADR 0138 (lokal).
 
 **Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
 overksamt inom en omstart; en halvriven kodbas är inte.

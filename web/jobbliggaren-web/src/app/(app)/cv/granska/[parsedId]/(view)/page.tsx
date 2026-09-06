@@ -136,6 +136,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
+            {/* Samma Beta-markör som den kanoniska granskningen, och den hör HIT först:
+                importflödet landar här FÖRE befordran, så det här är den granskning en
+                användare läser först. En omärkt yta hävdar implicit att den inte är beta,
+                vilket hade inverterat markörens syfte (design-reviewer, PR #1684). */}
+            <div className="jp-pagehero__kicker">{t("cv.review.beta")}</div>
             <h1 className="jp-pagehero__title">{t("cv.review.title")}</h1>
             <p className="jp-pagehero__lede">{t("cv.review.lede")}</p>
           </div>
@@ -166,7 +171,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         <CvBlockReason reason={parsed.blockReason} className="jp-cvaction--flush" />
 
         <div className="jp-cv-preview-actions">
-          <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
+          <CvPreview
+            originalUrl={`/api/cv/parsed/${parsedId}/original`}
+            fileName={parsed.sourceFileName}
+          />
         </div>
 
         {/* Kompletterar blocket ovan, upprepar det inte: det säger VILKEN grind som föll,

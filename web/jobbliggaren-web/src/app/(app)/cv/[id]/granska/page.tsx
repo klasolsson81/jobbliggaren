@@ -132,7 +132,18 @@ export default async function CanonicalCvReviewPage({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
+            {/* The plate's contrast decision for a small label is already made and already
+                scoped: `.jp-pagehero__kicker` is a mono overline in `--jp-hero-ink-soft`.
+                A `.jp-tag` here would carry `--jp-ink-2` onto the gradient, the same way
+                `.jp-btn--secondary` does — which is why the hero re-scopes every on-plate
+                token it uses. Reusing the kicker needs no new rule and no `guard-allow`. */}
+            <div className="jp-pagehero__kicker">{t("cv.granska.beta")}</div>
             <h1 className="jp-pagehero__title">{t("cv.granska.title")}</h1>
+            {/* En naken "BETA" konstaterar något användaren inte kan agera på: sidan
+                fäller omdömen om användarens CV, så betastatusen är ett förbehåll om just
+                de omdömenas tillförlitlighet (design-reviewer, PR #1684). Meningen bor i
+                ledet och inte i ett eget stycke — då reserverar `PageHeroSkeleton` rätt
+                bandhöjd utan en ny prop, eftersom skelettet redan renderar samma sträng. */}
             <p className="jp-pagehero__lede">{t("cv.granska.lede")}</p>
           </div>
         </div>

@@ -385,15 +385,23 @@ if (builder.Environment.IsDevelopment() || reverseProxy.HttpsEnabled)
     app.UseHttpsRedirection();
 }
 
-// Fas 4b PR-9b (DPIA #659 M-F2, security-auditor Minor 4): the original-file download path
-// (/api/v1/resumes/files/...) must carry `Cache-Control: no-store` + `X-Content-Type-Options:
-// nosniff` on EVERY response — the 200, the 404, the 401 auth challenge, and a 405 — not only the
-// happy path the endpoint delegate sees. Registered BEFORE UseAuthentication and using OnStarting
-// so the headers are stamped even on framework-generated responses (the auth challenge
-// short-circuits before the delegate). Path-scoped so no other endpoint is affected.
+// Fas 4b PR-9b (DPIA #659 M-F2, security-auditor Minor 4): the original-file download paths
+// (/api/v1/resumes/{id}/original and /api/v1/resumes/parsed/{parsedId}/original) must carry
+// `Cache-Control: no-store` + `X-Content-Type-Options: nosniff` on EVERY response — the 200, the
+// 404, the 401 auth challenge, and a 405 — not only the happy path the endpoint delegate sees.
+// Registered BEFORE UseAuthentication and using OnStarting so the headers are stamped even on
+// framework-generated responses (the auth challenge short-circuits before the delegate).
+//
+// Matched on the LAST segment, not a prefix: the two routes differ in their id form, so `original`
+// is the only thing they share. The comparison is case-insensitive and tolerates a trailing slash
+// because ASP.NET routing is too — under-matching here would silently drop the M-F2 headers from a
+// request that still reaches the endpoint, so the predicate is deliberately the looser of the two
+// (no other /api/v1/resumes route ends in `original`).
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Path.StartsWithSegments("/api/v1/resumes/files"))
+    if (ctx.Request.Path.StartsWithSegments("/api/v1/resumes")
+        && ctx.Request.Path.Value is { } resumesPath
+        && resumesPath.TrimEnd('/').EndsWith("/original", StringComparison.OrdinalIgnoreCase))
     {
         ctx.Response.OnStarting(static state =>
         {

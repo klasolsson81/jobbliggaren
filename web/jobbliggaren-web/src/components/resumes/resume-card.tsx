@@ -34,14 +34,14 @@ function isKnownTemplate(value: string): value is KnownTemplate {
  *    den info; vi kan inte rendera "+N" utan content-fetch — utelämnas medvetet)
  *  - jp-cv__meta: "N sektioner" (NORMAL font) + språkkod "SV"/"EN" (MONO)
  *    + "Uppd. YYYY-MM-DD" (MONO) — per HANDOVER §3 (mono endast för data)
- *  - jp-cv__actions: Granska → /cv/{id}/granska (primär) + Förhandsgranska,
- *    och högerskjutet Byt namn + Radera. Redigera-länken till /cv/{id} är
+ *  - jp-cv__actions: Granska → /cv/{id}/granska (primär) + Ladda ner CV-filen,
+ *    därefter Byt namn + Radera. Redigera-länken till /cv/{id} är
  *    borttagen (#1373) — se kommentaren vid raden.
  *
- * Förhandsgranska-knapp (TD-112 / #202): den befordrade Resume-griden saknar ett
- * parsedId, men konsumerar nu render-by-Resume-id-vägen
- * `/api/cv/{id}/preview` (BFF → `GET /api/v1/resumes/{id}/render`) via samma
- * `CvPreview`-modal som de parsade ytorna (`/cv/granska/[parsedId]`-familjen).
+ * Nedladdnings-knapp: den befordrade Resume-griden saknar ett parsedId och
+ * konsumerar därför den kanoniska original-vägen `/api/cv/{id}/original`
+ * (BFF → `GET /api/v1/resumes/{id}/original`) via samma `CvPreview`-modal som de
+ * parsade ytorna (`/cv/granska/[parsedId]`-familjen).
  * Trigger-storleken är `--sm` för att matcha resten av actions-raden
  * (design-koherens). Den matchades tidigare mot Redigera-knappen, som #1373 tog
  * bort; `jp-btn--sm` och shadcn-knapparnas `size="sm"` är båda 36px höga, så
@@ -172,14 +172,14 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           <span>{t("card.reviewCta")}</span>
         </Link>
         <CvPreview
-          previewUrl={`/api/cv/${resume.id}/preview`}
+          originalUrl={`/api/cv/${resume.id}/original`}
           atsTextUrl={`/api/cv/${resume.id}/ats-text`}
-          initialProfile="Ats"
+          fileName={resume.name}
           triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
           triggerIconSize={14}
           triggerAriaLabel={t("preview.triggerAria", { name: resume.name })}
         />
-        <div className="ms-auto flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <RenameResumeForm
             resumeId={resume.id}
             currentName={resume.name}

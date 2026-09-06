@@ -1,7 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ResumeCard } from "./resume-card";
 import type { ResumeListItemDto } from "@/lib/types/resumes";
+
+/**
+ * CvPreview is mocked so its PROPS can be asserted. Without this the card's wiring is
+ * untested: changing `originalUrl` back to the old `/preview` render path compiles and
+ * passes every other test in the suite, silently restoring the generated-PDF regression
+ * this whole change exists to fix (measured by test-writer on PR #1684). The trigger's
+ * own label is asserted from the real component elsewhere.
+ */
+const cvPreviewProps = vi.fn();
+vi.mock("@/components/resumes/cv-preview", () => ({
+  CvPreview: (props: Record<string, unknown>) => {
+    cvPreviewProps(props);
+    return <button type="button">{String(props.triggerAriaLabel ?? "")}</button>;
+  },
+}));
 
 const baseResume: ResumeListItemDto = {
   id: "resume-1",
@@ -113,7 +128,7 @@ describe("ResumeCard (F6 P3a v3)", () => {
       screen.getByRole("link", { name: `Granska CV: ${cv}` }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: `Förhandsgranska ${cv}` }),
+      screen.getByRole("button", { name: `Ladda ner CV-filen: ${cv}` }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: `Byt namn på ${cv}` }),
@@ -123,13 +138,19 @@ describe("ResumeCard (F6 P3a v3)", () => {
     ).toBeInTheDocument();
   });
 
-  it("renderar Förhandsgranska-knapp (render-by-Resume-id levererad, TD-112)", () => {
+  it("nedladdnings-triggern får ORIGINALFILENS väg, aldrig render-vägen", () => {
+    cvPreviewProps.mockClear();
     render(<ResumeCard resume={baseResume} />);
-    // Preview-triggern (CvPreview) finns på det befordrade kortet — render-by-Resume-id-
-    // vägen (/api/cv/{id}/preview) ersatte den tidigare borttagna stuben (#202).
-    expect(
-      screen.getByRole("button", { name: /Förhandsgranska/ }),
-    ).toBeInTheDocument();
+
+    expect(cvPreviewProps).toHaveBeenCalledTimes(1);
+    const props = cvPreviewProps.mock.calls[0]![0] as Record<string, unknown>;
+    // Klas-direktiv 2026-09-06: kortet ska ge användaren HENNES EGEN fil. `/preview` är
+    // vår genererade rendering och är precis det som skulle bort.
+    expect(props.originalUrl).toBe(`/api/cv/${baseResume.id}/original`);
+    expect(String(props.originalUrl)).not.toContain("/preview");
+    expect(props.atsTextUrl).toBe(`/api/cv/${baseResume.id}/ats-text`);
+    // Namnet gör den hämtade filen identifierbar i nedladdningsmappen.
+    expect(props.fileName).toBe(baseResume.name);
   });
 
   // #1373: dessa två pinnar är rättighetsgarantier, inte layout. Grunden bor i den

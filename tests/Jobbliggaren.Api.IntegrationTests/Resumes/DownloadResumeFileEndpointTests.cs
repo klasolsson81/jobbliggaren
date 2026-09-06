@@ -206,7 +206,9 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         (await clientB.GetAsync($"/api/v1/resumes/{ownSourceless}/original", ct))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
-        // Nothing so far may have logged.
+        // LOAD-BEARING AND ORDER-DEPENDENT: this must stay between the silent cases above and
+        // the cross-user hits below. Moved down past (b) it stops proving that a caller's OWN
+        // source-less resume logs nothing — silently, because the later count would still pass.
         capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ShouldBeEmpty();
 
         // (c) A's real ids on both keys: cross-user 404s that MUST log.
@@ -216,6 +218,14 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         var events = capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ToList();
+        // Named per arm BEFORE the count, so a red test says which key stopped logging rather than
+        // "expected 2, was 1". Count then remains what it actually is: the duplicate guard.
+        events.ShouldContain(
+            e => e.Message.Contains("operation=DownloadParsedResumeOriginal"),
+            "the STAGING arm logged no failed-access event");
+        events.ShouldContain(
+            e => e.Message.Contains("operation=DownloadResumeOriginal"),
+            "the CANONICAL arm logged no failed-access event");
         events.Count.ShouldBe(2);
 
         // The logged id is the one the CALLER supplied, per key. That is the whole point of the

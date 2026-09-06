@@ -430,6 +430,15 @@ public static class ErasureCascadeRegistry
             ["company_watch_criteria.sni_codes"] = ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criteria.kommun_codes"] = ErasureColumnDisposition.NotRecruiterData,
 
+            // #1681 (ADR 0139) — the criterion's two MATERIALISED tables. Both are written ONLY by
+            // CompanyWatchCriterionMaterialiser out of company_register; no request body, no user
+            // text, reaches either. See the written ground for why the org.nr column is a closed
+            // domain HERE while company_watches.organization_number one table over is searched.
+            ["company_watch_criterion_members.organization_number"] =
+                ErasureColumnDisposition.NotRecruiterData,
+            ["company_watch_criterion_materialisations.state"] =
+                ErasureColumnDisposition.NotRecruiterData,
+
             // #1435 - company_watches left the wholesale-exclusion list. target_type is a two-value
             // enum persisted BY NAME and never bound from a request body; brand_group_id is gated
             // by BOTH a slug regex and a catalogue existence check on its only write path. Those
@@ -1015,6 +1024,33 @@ public static class ErasureCascadeRegistry
                 "Closed domain: sni_codes and kommun_codes are SCB/SNI industry codes and kommun "
                 + "codes from fixed code lists. The criterion IS its codes; the only free-text column "
                 + "on this table is `label`, which is searched.",
+
+            ["company_watch_criterion_members:NotRecruiterData"] =
+                "Closed domain: `organization_number` is a ten-digit legal-entity org.nr, and the "
+                + "ground is NOT the one company_watches.organization_number uses one table over - "
+                + "THAT column is SEARCHED precisely because for an enskild firma an org.nr IS her "
+                + "personnummer. Here the same datum cannot arrive in `organization_number`, for two "
+                + "reasons that are independent and both pinned. (1) PROVENANCE: every value is "
+                + "copied from "
+                + "company_register, which is legal-entities-only at ingest (ADR 0091 - SCB is "
+                + "queried with Juridisk form != 10 and ScbLegalEntityFilter drops any pnr-shaped "
+                + "org.nr before persistence, pinned at the third-digit boundary). No user authors "
+                + "into this table at all; the only write path is the materialisation job. "
+                + "(2) THIS TABLE'S OWN GUARD: the job re-applies "
+                + "OrganizationNumber.IsPersonnummerShaped() at its own write boundary and DROPS + "
+                + "COUNTS the value class (CompanyWatchCriterionMemberFilter, unit-pinned at the same "
+                + "boundary, count surfaced on the state row). That second guard exists exactly so "
+                + "this ground does not rest on another subsystem's ingest invariant - the #454 "
+                + "lesson - and it is what makes 'a natural person's identifier cannot be here' a "
+                + "claim about THIS write path rather than about a neighbour's. Neither reason is "
+                + "'we judged it unlikely': both are read off the write path.",
+
+            ["company_watch_criterion_materialisations:NotRecruiterData"] =
+                "Closed domain: `state` is the two-member MaterialisationState enum "
+                + "(Materialised / TooBroad) stored BY NAME (HasConversion<string>, max 20), written "
+                + "only by the materialisation job from a value it computed itself. No request body "
+                + "binds it and there is no free-text column on this table - the other three columns "
+                + "are two counts and a timestamp.",
 
             ["taxonomy_concepts:NotRecruiterData"] =
                 "Closed domain: concept_id / parent_concept_id are taxonomy identifiers, label is "

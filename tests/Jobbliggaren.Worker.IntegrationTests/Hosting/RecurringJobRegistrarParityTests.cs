@@ -39,9 +39,13 @@ public class RecurringJobRegistrarParityTests
         var manager = Substitute.For<IRecurringJobManager>();
         // #560 — the registrar now reads the SCB refresh cron from IOptions<ScbRegisterOptions>; the
         // exact cron is irrelevant to the id-parity assertion (any non-empty value works).
+        // #1681 — and the materialisation cron from its OWN IOptions section, which is the whole
+        // point of that section existing (security-auditor Major 3): the job must not inherit
+        // ScbRegister:Enabled=false. The exact cron is irrelevant to the id-parity assertion.
         var registrar = new RecurringJobRegistrar(
             manager,
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "30 5 * * *" }),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);

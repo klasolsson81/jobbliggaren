@@ -1,0 +1,242 @@
+using System.Data;
+using System.Text.Json;
+using Jobbliggaren.Domain.CompanyWatches;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
+
+namespace Jobbliggaren.Infrastructure.CompanyRegister;
+
+/// <summary>
+/// #1681 (ADR 0139) — persistence for the criterion-membership materialisation. Raw parametrized
+/// PostgreSQL against the concrete <see cref="AppDbContext"/>, exactly like
+/// <see cref="ScbCompanyRegisterStore"/> and <see cref="CompanyWatchBrowseQuery"/>: neither
+/// <c>company_register</c> nor these two tables is a <c>DbSet</c> on <c>IAppDbContext</c> (DPIA C-D4).
+/// The EF configurations exist for the migration schema, not for a read path.
+/// </summary>
+internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
+{
+    /// <summary>
+    /// Explicit, reviewed — never inherited. A raw <see cref="NpgsqlCommand"/> does NOT pick up EF's
+    /// <c>SetCommandTimeout</c>; it silently takes the connection-string default, the trap
+    /// <see cref="ScbCompanyRegisterStore"/> documents and sets explicitly around.
+    ///
+    /// <para>
+    /// 120 s, matching <see cref="ScbCompanyRegisterStore.CommandTimeoutSeconds"/> rather than the
+    /// browse's 30 s, and the difference is the point: the browse's ceiling is sized for an
+    /// INTERACTIVE request where a spurious 500 is worse than a slow answer, while these commands run
+    /// in a background job where nothing is waiting and the only question is how long a genuinely
+    /// hung statement may hold a pooled connection. Measured against it, the margin is large: the
+    /// widest bound-legal criterion's selection is 11-30 ms and a full 1 000-member replace is
+    /// 30,67 ms p95 (docs/reviews/2026-09-06-1681-membership-measurement.md), so 120 s is ~4 000x the
+    /// measured worst case. It is a backstop against the unpredicted — a cold cache, stale statistics,
+    /// a plan regression — not headroom over a known cost. Never 0/infinite: a hung command must still
+    /// fail loud.
+    /// </para>
+    /// </summary>
+    internal const int CommandTimeoutSeconds = 120;
+
+    private static readonly JsonSerializerOptions BatchJson = new();
+
+    /// <summary>
+    /// The candidate selection: which ACTIVE register companies match this criterion, bounded by the
+    /// breadth gate. Returns <c>null</c> when the set is larger than
+    /// <paramref name="maxMembers"/> — REFUSED, never truncated.
+    ///
+    /// <para>
+    /// <b>The refusal is STRUCTURAL, not policed</b> — the same mechanism, and the same reasoning, as
+    /// <c>ICompanyWatchBrowseQuery.ListActiveAdIdsAsync</c> (senior-cto-advisor 2026-09-05, ADR 0120
+    /// clause 5). The statement asks for <c>LIMIT maxMembers + 1</c>, and the existence of that extra
+    /// row IS the signal; no code path can return a prefix. A truncated member set would be far worse
+    /// than a refused one: every count derived from it would be a FLOOR wearing a magnitude's clothes,
+    /// and unlike a saturating count it would have no true reading at all.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>No <c>ORDER BY</c>, deliberately</b> — an absence that looks like a bug and is not. The
+    /// result is a SET: either it fits, in which case every row comes back and the order is
+    /// meaningless, or it does not, in which case only the count matters. Adding an ORDER BY would
+    /// force Postgres to materialise and sort the whole match set before the LIMIT could stop it,
+    /// which is exactly the 7 066 ms failure #875 was built to remove — and it would do so to
+    /// establish an ordering no caller reads.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The predicate is <see cref="CompanyWatchBrowseQuery.FromWhere"/> itself, and the bindings
+    /// are its <see cref="CompanyWatchBrowseQuery.BindPredicate"/>.</b> Not a copy: a copy is how the
+    /// materialised membership and the live browse come to answer the same question differently, which
+    /// is the #1407/#1471 divergence class ADR 0139 exists to close on the OTHER axis (two surfaces,
+    /// one source). Sharing the text alone would only be half the guarantee — a statement binding
+    /// different VALUES under identical text is the failure the count/page SPOT was built against, and
+    /// it is the half you cannot see by reading either statement. It also inherits, for free, the
+    /// positive-polarity <c>status = @status</c> whose docblock explains why the negative form would
+    /// silently start surfacing a future third <c>CompanyRegisterStatus</c> member, and the fail-loud
+    /// empty-axis guard.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> SelectCandidatesAsync(
+        CompanyWatchCriteriaSpec criteria, int maxMembers, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxMembers, 1);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = CandidatesSql;
+        CompanyWatchBrowseQuery.BindPredicate(cmd, criteria);
+        cmd.Parameters.AddWithValue("@member_limit", NpgsqlDbType.Integer, maxMembers + 1);
+
+        await using var reader = await cmd
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        var candidates = new List<string>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            // The (maxMembers + 1)-th row is not DATA — it is the proof the set does not fit, and
+            // reaching it abandons the whole answer rather than keeping what was read.
+            if (candidates.Count == maxMembers)
+                return null;
+
+            candidates.Add(reader.GetString(0));
+        }
+
+        return candidates;
+    }
+
+    private const string CandidatesSql =
+        "SELECT organization_number "
+        + CompanyWatchBrowseQuery.FromWhere
+        + """
+
+        LIMIT @member_limit;
+        """;
+
+    /// <summary>
+    /// Writes one criterion's conclusion: REPLACES its member set and upserts its state row, in ONE
+    /// transaction.
+    ///
+    /// <para>
+    /// <b>Replace, never supplement</b> (security-auditor Major 5c). The <c>DELETE</c> is
+    /// unconditional and runs on every path, including the <c>TooBroad</c> path where
+    /// <paramref name="organizationNumbers"/> is empty. A criterion the user narrowed — or widened
+    /// past the gate — must stop counting the companies it no longer matches: stale members are both
+    /// an accuracy defect (Art. 5(1)(d)) and derived personal data kept past its purpose
+    /// (Art. 5(1)(e)). Writing the delete as a separate statement rather than folding it into an
+    /// upsert is deliberate: an <c>ON CONFLICT</c> upsert would leave orphans behind by construction,
+    /// and there is no shape of it that removes a row the new set does not contain.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>One transaction, so the two tables cannot disagree.</b> The failure this prevents is not
+    /// hypothetical: a crash between the member write and the state write would leave a set of members
+    /// alongside a state row saying <c>TooBroad</c> (a count that must not be rendered, next to
+    /// material to render it from), or an empty member set marked <c>Materialised</c> with a non-zero
+    /// count — an honest-looking zero that is a lie. Both are silent.
+    /// </para>
+    ///
+    /// <para>
+    /// The insert carries the whole batch as ONE <c>jsonb</c> parameter via
+    /// <c>jsonb_to_recordset</c> — the <see cref="ScbCompanyRegisterStore"/> idiom — so a full
+    /// 1 000-member set is one round trip with no 65k-parameter ceiling and no per-row change
+    /// tracking. Measured at 30,67 ms p95 for a full replace.
+    /// </para>
+    /// </summary>
+    public async Task ReplaceAsync(
+        Guid criterionId,
+        IReadOnlyList<string> organizationNumbers,
+        MaterialisationState state,
+        int excludedPersonnummerShaped,
+        DateTimeOffset materialisedAt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(organizationNumbers);
+        if (state == MaterialisationState.TooBroad && organizationNumbers.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "En TooBroad-materialisering får inte bära medlemmar — grinden avstår från att lagra "
+                + "mängden, och en lagrad mängd bredvid TooBroad är exakt det tillstånd läsvägen "
+                + "aldrig får se.");
+        }
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection
+            .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (var deleteCmd = connection.CreateCommand())
+        {
+            deleteCmd.Transaction = transaction;
+            deleteCmd.CommandTimeout = CommandTimeoutSeconds;
+            deleteCmd.CommandText =
+                "DELETE FROM company_watch_criterion_members WHERE criterion_id = @criterion_id;";
+            deleteCmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId);
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (organizationNumbers.Count > 0)
+        {
+            var payload = JsonSerializer.Serialize(
+                organizationNumbers.Select(o => new BatchRow(o)), BatchJson);
+
+            await using var insertCmd = connection.CreateCommand();
+            insertCmd.Transaction = transaction;
+            insertCmd.CommandTimeout = CommandTimeoutSeconds;
+            insertCmd.CommandText = """
+                INSERT INTO company_watch_criterion_members (criterion_id, organization_number)
+                SELECT @criterion_id, r.organization_number
+                FROM jsonb_to_recordset(@batch::jsonb) AS r(organization_number text);
+                """;
+            insertCmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId);
+            insertCmd.Parameters.AddWithValue("@batch", NpgsqlDbType.Jsonb, payload);
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var stateCmd = connection.CreateCommand())
+        {
+            stateCmd.Transaction = transaction;
+            stateCmd.CommandTimeout = CommandTimeoutSeconds;
+            // state is stored BY NAME (varchar) — .ToString() on the enum, matching the EF
+            // HasConversion<string>() the configuration declares.
+            stateCmd.CommandText = """
+                INSERT INTO company_watch_criterion_materialisations (
+                    criterion_id, state, member_count, excluded_personnummer_shaped, materialised_at)
+                VALUES (@criterion_id, @state, @member_count, @excluded_pnr, @materialised_at)
+                ON CONFLICT (criterion_id) DO UPDATE SET
+                    state                       = EXCLUDED.state,
+                    member_count                = EXCLUDED.member_count,
+                    excluded_personnummer_shaped = EXCLUDED.excluded_personnummer_shaped,
+                    materialised_at             = EXCLUDED.materialised_at;
+                """;
+            stateCmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId);
+            stateCmd.Parameters.AddWithValue("@state", NpgsqlDbType.Text, state.ToString());
+            stateCmd.Parameters.AddWithValue(
+                "@member_count", NpgsqlDbType.Integer, organizationNumbers.Count);
+            stateCmd.Parameters.AddWithValue(
+                "@excluded_pnr", NpgsqlDbType.Integer, excludedPersonnummerShaped);
+            stateCmd.Parameters.AddWithValue(
+                "@materialised_at", NpgsqlDbType.TimestampTz, materialisedAt);
+            await stateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    {
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        return connection;
+    }
+
+    // The jsonb_to_recordset row shape. The property name must match the recordset column name.
+    private sealed record BatchRow(string organization_number)
+    {
+        // REDACTED (#883). The member name is snake_case because jsonb_to_recordset matches recordset
+        // columns by property NAME, but the compiler-generated ToString() would then print a raw
+        // org.nr for a plain {X} MEL placeholder. Pinned by OrgNrRecordLoggingGuardTests.
+        public override string ToString() => "BatchRow(org.nr redacted)";
+    }
+}

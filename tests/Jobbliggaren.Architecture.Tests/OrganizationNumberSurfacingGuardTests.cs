@@ -141,6 +141,17 @@ public class OrganizationNumberSurfacingGuardTests
         // gate rather than a discipline. It is also the compensating control the #883 CTO bind (D2)
         // leaned on to keep the OrganizationNumber VO's raw ToString() out of scope — so the list must
         // actually cover the VO's callers.
+        // #1681 (ADR 0139; security-auditor Minor 9, 2026-09-06) — the criterion-membership
+        // materialisation. THREE files, because the raw org.nr transits all three: the store reads
+        // every matched company's org.nr out of company_register and writes it into the member table,
+        // the write-boundary filter holds each value while deciding whether it is personnummer-shaped,
+        // and the orchestrator holds the filtered list on its way to the store. All three log counts
+        // and criterion GUIDs only — never a value — and this scan is what makes that a build gate
+        // rather than a discipline. Without the entry the scan is SILENTLY VACUOUS for the newest
+        // path that reads raw org.nr in the whole codebase.
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMemberStore.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMemberFilter.cs",
+        "src/Jobbliggaren.Infrastructure/CompanyRegister/CompanyWatchCriterionMaterialiser.cs",
         "src/Jobbliggaren.Infrastructure/JobAds/RecruiterErasureMatchQuery.cs",
         "src/Jobbliggaren.Application/JobAds/Commands/EraseRecruiterAds/EraseRecruiterAdsCommandHandler.cs",
     ];

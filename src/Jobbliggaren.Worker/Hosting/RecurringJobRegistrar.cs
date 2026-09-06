@@ -32,6 +32,7 @@ namespace Jobbliggaren.Worker.Hosting;
 ///   05:00   — backfill-field-encryption (30-min padding efter purge)
 ///   06:00   — digest-dispatch-daily (Strong-digest, daglig kadens, ADR 0080 Vag 4 PR-4b)
 ///   06:00 mån — digest-dispatch-weekly (Strong-digest, veckovis kadens — civic-default)
+///   05:30   — materialise-company-watch-criteria (kriterium -> org.nr, ADR 0139; EGEN options-sektion)
 ///
 /// 30-min-padding mellan jobben eliminerar kollision på Hangfire-dashboard
 /// vid pålastnings-toppar — även om jobben rör olika tabeller är padding
@@ -48,6 +49,7 @@ namespace Jobbliggaren.Worker.Hosting;
 public sealed partial class RecurringJobRegistrar(
     IRecurringJobManager manager,
     IOptions<ScbRegisterOptions> scbOptions,
+    IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
     ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -157,6 +159,25 @@ public sealed partial class RecurringJobRegistrar(
             RecurringJobIds.SyncScbCompanyRegister,
             job => job.RunAsync(CancellationToken.None),
             scbOptions.Value.SyncCadenceCron);
+
+        // #1681 (ADR 0139) — materialisera kriterium → org.nr ur läsvägen. Config-driven cron
+        // (CompanyWatchMaterialisation:CadenceCron; default dagligen 05:30 UTC — efter
+        // parsed-resume-retention 05:15, 30 min före digest-fönstret 06:00).
+        //
+        // EGEN options-sektion, och det är själva poängen (security-auditor Major 3, 2026-09-06):
+        // den närliggande designen — räkna om medlemskapet i slutet av en registersynk — knyter
+        // jobbet till ScbRegister:Enabled, som defaultar FALSE. I defaultläget hade jobbet då aldrig
+        // kört: enda uppdateringen vore användarens egen redigering, och ett avregistrerat bolag hade
+        // räknats i hennes /oversikt obegränsat (DPIA R-D6, Art. 5(1)(d)) — precis den mitigering
+        // jobbet finns för att ersätta. Därför läser det här anropet INGET ur ScbRegister:*.
+        //
+        // Registreras ovillkorligt: kill-switchen sitter i jobbet (Enabled, default true) och
+        // degraderar ärligt, medan en registrering som försvinner ur schemat i stället skulle driva
+        // isär mot RecurringJobIds-allowlisten (registrar-id-mängden == All är ett test).
+        manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
+            RecurringJobIds.MaterialiseCompanyWatchCriteria,
+            job => job.RunAsync(CancellationToken.None),
+            materialisationOptions.Value.CadenceCron);
 
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.

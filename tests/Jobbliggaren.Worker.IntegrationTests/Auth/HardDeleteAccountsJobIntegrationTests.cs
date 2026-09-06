@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Security;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Auditing;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -469,6 +470,15 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // ADR 0080), plus CompanyWatch (FK-less by UserId, ADR 0087 D3, #311 PR-3) and
         // FollowedCompanyAdHit (FK-less by UserId, ADR 0087 D5, #311 PR-4), and
         // CompanyWatchCriterion (FK-less by UserId, #560 Fork A1, DPIA Part D C-D1).
+        //
+        // #1681 (ADR 0139; security-auditor Major 5(b), 2026-09-06) — and the criterion's two
+        // MATERIALISED tables. Those are NOT FK-less by UserId: they hang off the criterion by a
+        // DB-level FK with ON DELETE CASCADE, so nothing in HardDeleteAccountAsync mentions them and
+        // AccountHardDeleteCascadeFitnessTests cannot see them either (its partition is over
+        // AggregateRoots, and under ADR 0139's Infrastructure-scoped form these are read models).
+        // That is exactly why the auditor made this oracle MANDATORY rather than recommended: it is
+        // the ONLY thing in the repo that measures whether derived personal data about the user
+        // survives her account deletion (Art. 17, Art. 5(1)(e)).
         // Together with the SavedSearches/RecentJobSearches/SavedJobAds/ParsedResume
         // tests above, all 10 CascadeMap aggregates are now covered both structurally
         // (build-time) and behaviorally (here) — symmetric layers.
@@ -532,6 +542,31 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             db.CompanyWatchCriteria.Add(secondCriterion);
 
             await db.SaveChangesAsync(ct);
+
+            // #1681 — one ACTIVE register company matching the FIRST criterion, so the
+            // materialisation below has something real to write. Seeded through the same raw-SQL
+            // shape ScbCompanyRegisterStore's upsert emits.
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO company_register (
+                    organization_number, company_name, sate_kommun_code, sate_kommun_name,
+                    sni_codes, reklamsparr, scb_status_raw, status, synced_at, created_at)
+                VALUES ('5560000001', 'IT-bolaget AB', '0180', NULL,
+                        ARRAY['62010'], false, '1', 'Active', now(), now());
+                """, ct);
+        }
+
+        // #1681 — run the PRODUCTION materialiser to create the derived rows. Deliberately not a
+        // hand-written INSERT: the state under test must be one src/ produces (CLAUDE.md §5 Tests:),
+        // and hand-seeding it here would make the assertion rest on a premise production never emits.
+        using (var materialiseScope = _fixture.Services.CreateScope())
+        {
+            var materialiser = materialiseScope.ServiceProvider
+                .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+            var materialisation = await materialiser.MaterialiseAsync(ct);
+            materialisation.MembersWritten.ShouldBe(1,
+                "seed: materialiseringen måste ha skrivit exakt en medlemsrad, annars är "
+                + "efterkontrollen nedan vakuöst grön");
         }
 
         // Resume — its initial Master ResumeVersion carries DEK-encrypted content
@@ -580,6 +615,14 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             criterionCount.ShouldBe(2,
                 "seed must persist exactly two company_watch_criteria rows before the job runs — "
                 + "two, so a cascade that erased only one would not pass");
+
+            // #1681 — the derived rows exist before the job runs. Without this pre-condition the
+            // post-condition below would pass on an empty table, which is the vacuous-green shape
+            // this suite already guards against everywhere else.
+            (await CountCriterionMembersAsync(preDb, ct)).ShouldBe(1,
+                "seed must persist exactly one company_watch_criterion_members row before the job runs");
+            (await CountCriterionMaterialisationsAsync(preDb, ct)).ShouldBe(2,
+                "seed must persist a materialisation state row for BOTH criteria before the job runs");
         }
 
         await RunJobAsync(now, ct);
@@ -626,7 +669,33 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             "CompanyWatchCriterion (FK-löst by UserId, #560 Fork A1) ska hard-raderas vid konto-radering "
             + "(GDPR Art. 17, DPIA Part D C-D1) — annars orphan:as profileringsnära PII (vilka branscher "
             + "och orter användaren jobbsöker i) efter konto-radering");
+
+        // #1681 (security-auditor Major 5(b)) — the derived tables go with the criterion, via the
+        // DB-level FK cascade and nothing else. No line of HardDeleteAccountAsync names these
+        // tables; if the FK were dropped or weakened to NO ACTION, the criterion delete would either
+        // fail or leave the members behind, and this is the assertion that would catch it.
+        (await CountCriterionMembersAsync(verifyDb, ct)).ShouldBe(0,
+            "company_watch_criterion_members ska raderas när kriteriet raderas vid konto-radering "
+            + "(GDPR Art. 17 / Art. 5(1)(e), ADR 0139) — härledd personuppgift om användaren får "
+            + "inte överleva kriteriet den härleddes ur");
+        (await CountCriterionMaterialisationsAsync(verifyDb, ct)).ShouldBe(0,
+            "company_watch_criterion_materialisations ska raderas på samma sätt — annars blir en "
+            + "halv materialisering kvar efter att kontot är borta");
     }
+
+    // #1681 — the two materialisation tables are Infrastructure-internal and deliberately NOT DbSets
+    // on IAppDbContext (DPIA C-D4 firewall), so they are counted with raw SQL rather than LINQ. That
+    // is the same reason the production read path goes through ICompanyWatchBrowseQuery.
+    private static async Task<int> CountCriterionMembersAsync(AppDbContext db, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM company_watch_criterion_members;")
+            .ToListAsync(ct))[0];
+
+    private static async Task<int> CountCriterionMaterialisationsAsync(
+        AppDbContext db, CancellationToken ct) =>
+        (await db.Database
+            .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM company_watch_criterion_materialisations;")
+            .ToListAsync(ct))[0];
 
     // ─── Helpers ───
 

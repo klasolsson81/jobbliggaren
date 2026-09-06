@@ -46,9 +46,19 @@ public class ScbCompanyRegisterLayerTests
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
+        // Two entries, and the allowlist is CLOSED — a new public type in this namespace fails the
+        // build until a human puts it here on purpose. #1681 (ADR 0139) added the second:
+        // CompanyWatchMaterialisationOptions is a config contract the Worker binds, exactly like its
+        // neighbour, and it is a SEPARATE section precisely so the materialisation job does not
+        // inherit ScbRegister:Enabled=false (security-auditor Major 3). Everything else the #1681 wave
+        // introduced — the member/state POCOs, their EF configurations, the write-boundary filter, the
+        // store and the orchestrator — stays internal and is covered by this same assertion.
         publicTypes.ShouldBe(
-            ["Jobbliggaren.Infrastructure.CompanyRegister.ScbRegisterOptions"],
-            $"only ScbRegisterOptions may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
+            [
+                "Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchMaterialisationOptions",
+                "Jobbliggaren.Infrastructure.CompanyRegister.ScbRegisterOptions",
+            ],
+            $"only the two options contracts may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
     }
 
     [Fact]
@@ -69,6 +79,16 @@ public class ScbCompanyRegisterLayerTests
             .ToList();
 
         dbSetTypeArgNames.ShouldNotContain("ScbCompanyRegisterEntry");
+
+        // #1681 (ADR 0139) — the same cheap regression pin for the materialisation tables. The
+        // fail-closed generalisation below already covers them BY CONSTRUCTION (they are
+        // Infrastructure types, so a DbSet of either fails it); these two lines exist for the case
+        // the generalisation cannot see, which is someone MOVING the type into the Domain assembly to
+        // get it onto the port. That is not hypothetical: it was the rejected Application-readable
+        // form, and security-auditor's Major 2 was precisely that it would have left this guard green
+        // while the property it documents (IAppDbContext.cs:47-52) became false.
+        dbSetTypeArgNames.ShouldNotContain("CompanyWatchCriterionMember");
+        dbSetTypeArgNames.ShouldNotContain("CompanyWatchCriterionMaterialisation");
     }
 
     [Fact]

@@ -1759,8 +1759,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       [#1201](https://github.com/klasolsson81/jobbliggaren/issues/1201) gate M-7 ·
       [#1199](https://github.com/klasolsson81/jobbliggaren/issues/1199):s
       övriga led (policy-copy, ROPA, `BUILD.md`, paritetstestet) ·
-      [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som äger själva laddningen
-      och bär den mätta grindlistan i sin kropp.
+      [#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240), som ägde själva laddningen.
+      ⚠ **Kroppens grindlista är överspelad** — tre av dess fyra grindar var urladdade när den lästes
+      om 2026-09-06, och issuen är sedan dess omformulerad till svepet som pekar om de stale
+      låd-utsagorna hit. **För KORPUSLADDNINGENS state läs den här punkten, aldrig #1240:s
+      kropp** — kroppen bär fortfarande andra mätningar som är routade till `security-auditor`.
       ⛔ **M-7 KONVERTERAR TILL `Blocker` VID FÖRSTA RIKTIGA ANVÄNDARDATA — `security-auditor`s dom
       2026-08-17, och den är hennes att sätta.** Den här raden påstod motsatsen till dess.
       #1201:s eskalering är en **disjunktion med två armar**: *"M-7 becomes a `Blocker` if ADR 0123

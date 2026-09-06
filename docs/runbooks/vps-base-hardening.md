@@ -8,7 +8,10 @@
 This runbook covers turning a freshly provisioned, password-exposed root server into an
 access-controlled host with a proven rescue path. It is deliberately written to be executed
 against a box that carries **no application data**, and it stops where the deploy work
-starts. The deploy stack, reverse proxy, certificates and secret injection are owned by
+starts. ⚠ **The production box has carried application data since 2026-08-17**
+(`release-checklist.md` §2.6 point 3.5), so a re-run against **it** no longer meets that
+premise; a freshly provisioned host still does.
+The deploy stack, reverse proxy, certificates and secret injection are owned by
 [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) and are **not** in scope here.
 
 ---
@@ -94,7 +97,8 @@ key existed; the key was then injected, rotated to `local-v3`, and the journal m
 all four secrets. §8 still closes the two mechanisms that would page it to disk. ⚠ **Closing B-1
 did not release the first real data**, and neither did discharging Art. 28: the corpus load is owned
 by **Klas's explicit written GO** — a decision, not a derivable state
-(`release-checklist.md` §2.6 point 3.5); #1240 owns the load itself.
+(`release-checklist.md` §2.6 point 3.5). **That GO was given 2026-08-17 and the load has
+happened**; the record is point 3.5's and is not restated here.
 **No discharged gate, ticked box or closed issue is permission.**
 
 ### Not in scope
@@ -1002,7 +1006,9 @@ rather than discovered:
   HTTP-01 dies, and M-5's origin-IP lockdown has no mechanism left without a CDN. The residual
   exposure (no DDoS absorption, no origin hiding) is written out in that amendment's §5 —
   tracked, and readable without the local ADRs — and is re-read by the
-  mandatory second security audit before first real data.
+  mandatory second security audit, owed **before first real data**. ⚠ **That arrived
+  2026-08-17** (`release-checklist.md` §2.6 point 3.5), so the re-read is overdue rather than
+  upcoming.
 - **`fail2ban` is not installed**, although ADR 0050 gate M-6 lists it. With
   `AuthenticationMethods publickey`, `AllowUsers jpadmin`, `PermitRootLogin no` and port 22
   restricted to one source address, it would defend an authentication path that does not exist

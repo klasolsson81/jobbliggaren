@@ -58,10 +58,7 @@ forbids it, and this file is the path it prescribes instead.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
-   ⚠ **A self-registration must clear that same challenge, on someone else's device.** Opening
-   the gate for anyone but the operator therefore has two shapes: the credential reaches them,
-   or `basic_auth` comes off. This file neither grades that nor chooses between them:
-   `deploy/caddy/Caddyfile` carries it at the block an operator would be editing.
+   ⚠ **A self-registration must clear that same challenge, on someone else's device.**
 5. **A rights channel that receives, or a recorded decision that it does not.**
    `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
    channel, and it is Reply-To on every message this procedure causes to be sent.
@@ -169,8 +166,7 @@ yet. Step 7 is what resolves it.
 
 ⚠ **With that knob left blank there is no such Warning, and its absence is not a fault.**
 `IdempotentAdminRoleSeeder` gates the whole lookup on the value being non-blank, so a blank one
-never reaches it and logs nothing. A silent seeder is the correct reading of a
-gate-only visit, not a broken boot.
+never reaches it.
 
 **5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/registrera`,
 through the K2 challenge: the operator's own account first (the address from step 2), then

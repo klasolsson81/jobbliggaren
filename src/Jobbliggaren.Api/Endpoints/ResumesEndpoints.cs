@@ -363,10 +363,10 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
 
-        group.MapGet("/parsed/{parsedId:guid}/original", async (
-            Guid parsedId, IMediator mediator, CancellationToken ct) =>
+        group.MapGet("/parsed/{id:guid}/original", async (
+            Guid id, IMediator mediator, CancellationToken ct) =>
         {
-            var dto = await mediator.Send(new DownloadParsedResumeOriginalQuery(parsedId), ct);
+            var dto = await mediator.Send(new DownloadParsedResumeOriginalQuery(id), ct);
             return dto is null
                 ? Results.NotFound()
                 : Results.File(dto.Content, dto.ContentType, dto.FileName, enableRangeProcessing: false);

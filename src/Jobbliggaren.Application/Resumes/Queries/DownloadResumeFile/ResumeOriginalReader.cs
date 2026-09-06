@@ -24,21 +24,29 @@ namespace Jobbliggaren.Application.Resumes.Queries.DownloadResumeFile;
 internal static class ResumeOriginalReader
 {
     /// <summary>
-    /// The authenticated caller's <see cref="JobSeekerId"/>, or <c>default</c> when there is no
-    /// user or no job-seeker row. Every caller treats <c>default</c> as "return null" — the same
-    /// fail-closed shape the sibling resume handlers use.
+    /// The authenticated caller, or <c>null</c> when there is no user or no job-seeker row. Every
+    /// caller treats <c>null</c> as "return null" — the same fail-closed shape the sibling resume
+    /// handlers use.
+    ///
+    /// <para>Both values come back together deliberately. The caller needs the
+    /// <see cref="JobSeekerId"/> to scope its query and the user id to write a failed-access event,
+    /// and returning only the first would make the second a null-forgiving <c>!</c> whose guarantee
+    /// lives in THIS file rather than in the caller's — a contract the compiler cannot see. A
+    /// nullable tuple carries the guarantee in the type instead.</para>
     /// </summary>
-    public static async Task<JobSeekerId> ResolveOwnerAsync(
+    public static async Task<(JobSeekerId JobSeekerId, Guid UserId)?> ResolveOwnerAsync(
         IAppDbContext db, ICurrentUser currentUser, CancellationToken cancellationToken)
     {
-        if (!currentUser.UserId.HasValue)
-            return default;
+        if (currentUser.UserId is not { } userId)
+            return null;
 
-        return await db.JobSeekers
+        var jobSeekerId = await db.JobSeekers
             .AsNoTracking()
-            .Where(js => js.UserId == currentUser.UserId.Value)
+            .Where(js => js.UserId == userId)
             .Select(js => js.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+        return jobSeekerId == default ? null : (jobSeekerId, userId);
     }
 
     /// <summary>

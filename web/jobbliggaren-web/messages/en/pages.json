@@ -112,8 +112,9 @@
       "updatedAt": "Last updated"
     },
     "review": {
+      "beta": "Beta",
       "title": "Review imported CV",
-      "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text.",
+      "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text. The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
       "nextStepTitle": "Next step",
@@ -160,7 +161,7 @@
     "granska": {
       "beta": "Beta",
       "title": "Review of your CV",
-      "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Nothing changes in your CV automatically.",
+      "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Nothing changes in your CV automatically. The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
       "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
       "loading": "Loading the review…",

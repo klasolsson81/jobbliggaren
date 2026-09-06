@@ -51,7 +51,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 // Client islands with their own suites; the page test is about which blocks render.
-vi.mock("@/components/resumes/cv-preview", () => ({ CvPreview: () => null }));
+// Prop-capturing rather than `() => null`: a null mock never inspects props, so pointing
+// this surface back at the generated-render path would pass the whole suite (test-writer,
+// PR #1684).
+const cvPreviewProps = vi.fn();
+vi.mock("@/components/resumes/cv-preview", () => ({
+  CvPreview: (props: Record<string, unknown>) => {
+    cvPreviewProps(props);
+    return null;
+  },
+}));
 vi.mock("@/components/resumes/cv-review-panel", () => ({ CvReviewPanel: () => null }));
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
@@ -103,6 +112,44 @@ beforeEach(() => {
   getCvReview.mockReset();
   getServerSession.mockResolvedValue({ email: "a@b.se", roles: [] });
   getCvReview.mockResolvedValue({ kind: "error" });
+});
+
+describe("/cv/granska/[parsedId] — the original file reaches CvPreview", () => {
+  it("passes the PARSED original path and no atsTextUrl", async () => {
+    cvPreviewProps.mockClear();
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    render(await invoke());
+
+    expect(cvPreviewProps).toHaveBeenCalledTimes(1);
+    const props = cvPreviewProps.mock.calls[0]![0] as Record<string, unknown>;
+    // Klas-direktiv 2026-09-06: the staging surface shows the user's OWN file. `/preview`
+    // is our generated rendering and is exactly what had to go.
+    expect(props.originalUrl).toBe(`/api/cv/parsed/${PARSED_ID}/original`);
+    expect(String(props.originalUrl)).not.toContain("/preview");
+    // No canonical id here, so no ATS-text tab — and therefore no tab row at all.
+    expect(props.atsTextUrl).toBeUndefined();
+    // The file name the page already renders, so the download is identifiable.
+    expect(props.fileName).toBe("cv.pdf");
+  });
+});
+
+describe("/cv/granska/[parsedId] — the Beta marker", () => {
+  it("marks the staging review Beta, because it is the one a user meets FIRST", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    const { container } = render(await invoke());
+
+    // The import flow lands here BEFORE promotion, so an unmarked staging surface would
+    // implicitly claim it is not beta while the canonical one says it is — inverting the
+    // marker's purpose (design-reviewer, PR #1684).
+    const kicker = container.querySelector(".jp-pagehero__kicker");
+    expect(kicker).not.toBeNull();
+    expect(kicker!.textContent).toBe("Beta");
+    // The reservation itself is the sentence, and it lives in the lede so the skeleton
+    // reserves the right band height without a second paragraph.
+    expect(screen.getByText(/Granskningen är ny och byggs vidare/)).toBeInTheDocument();
+  });
 });
 
 describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {

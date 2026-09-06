@@ -38,10 +38,11 @@ public sealed class DownloadParsedResumeOriginalQueryHandler(
     public async ValueTask<ResumeFileDownloadDto?> Handle(
         DownloadParsedResumeOriginalQuery query, CancellationToken cancellationToken)
     {
-        var jobSeekerId = await ResumeOriginalReader.ResolveOwnerAsync(db, currentUser, cancellationToken);
-        if (jobSeekerId == default)
+        if (await ResumeOriginalReader.ResolveOwnerAsync(db, currentUser, cancellationToken)
+            is not { } owner)
             return null;
 
+        var jobSeekerId = owner.JobSeekerId;
         var parsedResumeId = new ParsedResumeId(query.ParsedResumeId);
         var file = await db.ResumeFiles
             .AsNoTracking()
@@ -60,7 +61,7 @@ public sealed class DownloadParsedResumeOriginalQueryHandler(
             if (exists)
             {
                 failedAccessLogger.LogCrossUserAttempt(
-                    "ParsedResume", query.ParsedResumeId, currentUser.UserId!.Value,
+                    "ParsedResume", query.ParsedResumeId, owner.UserId,
                     "DownloadParsedResumeOriginal");
             }
 

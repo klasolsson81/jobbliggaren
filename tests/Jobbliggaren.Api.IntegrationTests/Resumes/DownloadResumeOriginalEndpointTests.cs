@@ -165,8 +165,8 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         // The canonical MIME resolved from the file signature at import (M-F2), never a
-        // client-declared value. The web client branches on exactly this header to decide whether
-        // the original can be shown inline or must be offered as a download.
+        // client-declared value. The web client reads this header to pick the download's file
+        // extension; it never decides from the stored filename.
         response.Content.Headers.ContentType.ShouldNotBeNull();
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/pdf");
     }
@@ -328,6 +328,44 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
         notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
         ShouldCarryNoStore(notFound);
         ShouldCarryNoSniff(notFound);
+    }
+
+    // 7b ----------------------------------------------------------------
+    [Fact]
+    public async Task Download_original_with_trailing_slash_still_carries_m_f2_headers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await ImportAndPromoteAsync(_client, ct);
+
+        // Endpoint routing trims a trailing slash, so this request still REACHES the endpoint and
+        // still serves decrypted bytes. The header middleware matches on the path string, so it has
+        // to trim too — without `TrimEnd('/')` the bytes would go out with neither `no-store` nor
+        // `nosniff`. The 200 assertion is the positive control: on a 404 this test would pass
+        // vacuously and measure nothing.
+        var response = await _client.GetAsync($"{DownloadUrl(resumeId)}/", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ShouldCarryNoStore(response);
+        ShouldCarryNoSniff(response);
+    }
+
+    // 7c ----------------------------------------------------------------
+    [Fact]
+    public async Task Download_original_with_uppercase_segment_still_carries_m_f2_headers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await ImportAndPromoteAsync(_client, ct);
+
+        // Routing is case-insensitive, so this also reaches the endpoint. An `Ordinal` comparison in
+        // the middleware would miss it and drop both M-F2 headers off a live PII response. Same
+        // positive control: the 200 is asserted first.
+        var response = await _client.GetAsync($"/api/v1/resumes/{resumeId}/ORIGINAL", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ShouldCarryNoStore(response);
+        ShouldCarryNoSniff(response);
     }
 
     // 8 -----------------------------------------------------------------

@@ -139,6 +139,11 @@ export default async function CanonicalCvReviewPage({
                 token it uses. Reusing the kicker needs no new rule and no `guard-allow`. */}
             <div className="jp-pagehero__kicker">{t("cv.granska.beta")}</div>
             <h1 className="jp-pagehero__title">{t("cv.granska.title")}</h1>
+            {/* En naken "BETA" konstaterar något användaren inte kan agera på: sidan
+                fäller omdömen om användarens CV, så betastatusen är ett förbehåll om just
+                de omdömenas tillförlitlighet (design-reviewer, PR #1684). Meningen bor i
+                ledet och inte i ett eget stycke — då reserverar `PageHeroSkeleton` rätt
+                bandhöjd utan en ny prop, eftersom skelettet redan renderar samma sträng. */}
             <p className="jp-pagehero__lede">{t("cv.granska.lede")}</p>
           </div>
         </div>

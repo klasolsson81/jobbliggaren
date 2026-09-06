@@ -112,8 +112,9 @@
       "updatedAt": "Senast uppdaterad"
     },
     "review": {
+      "beta": "Beta",
       "title": "Granska importerat CV",
-      "lede": "Det här är en deterministisk granskning av ditt importerade CV. Inget har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra, med citerad evidens ur din egen text.",
+      "lede": "Det här är en deterministisk granskning av ditt importerade CV. Inget har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra, med citerad evidens ur din egen text. Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
       "nextStepTitle": "Nästa steg",
@@ -160,7 +161,7 @@
     "granska": {
       "beta": "Beta",
       "title": "Granskning av ditt CV",
-      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Inget ändras i ditt CV automatiskt.",
+      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Inget ändras i ditt CV automatiskt. Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
       "loading": "Läser in granskningen…",

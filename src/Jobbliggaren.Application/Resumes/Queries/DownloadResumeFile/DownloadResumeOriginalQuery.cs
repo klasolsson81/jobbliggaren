@@ -16,10 +16,11 @@ namespace Jobbliggaren.Application.Resumes.Queries.DownloadResumeFile;
 // ("graduation", DPIA M-F3), so a canonical resume keeps its file long after the parse row is
 // gone. Resolving via ParsedResumes would 404 exactly the promoted CVs this endpoint exists for.
 //
-// An original is legitimately absent for a template-built resume (no SourceParsedResumeId at all),
-// for a parse whose personnummer scan was declined at the 5b consent gate, and for imports
-// predating PR-9a. Null is the honest answer for all of them and the surface renders an empty
-// state, never a broken frame.
+// An original is legitimately absent for a template-built resume (no SourceParsedResumeId at all)
+// and for imports predating PR-9a. Null is the honest answer for both and the surface renders an
+// empty state. A declined personnummer consent is NOT one of the causes here: ParsedResume.Promote
+// refuses a parse with a flagged personnummer whatever the user consented to, so every resume that
+// has a SourceParsedResumeId at all came from a clean parse, whose original was always captured.
 //
 // IRequiresFieldEncryptionKey: the handler decrypts the Form C envelope via IBinaryFieldOpener,
 // which peeks the owner DEK FieldEncryptionKeyPrefetchBehavior warms — so the marker is mandatory

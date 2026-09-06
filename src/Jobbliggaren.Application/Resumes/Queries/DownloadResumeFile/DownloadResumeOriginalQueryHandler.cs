@@ -24,9 +24,10 @@ namespace Jobbliggaren.Application.Resumes.Queries.DownloadResumeFile;
 /// this endpoint serves. Soft-deleted resumes are excluded by the aggregate's global query filter,
 /// so a deleted CV stops serving its original without a second predicate here.</para>
 ///
-/// <para>A null <c>SourceParsedResumeId</c> (a template-built resume) and a missing file row (a
-/// declined personnummer consent, or an import predating PR-9a) are BOTH ordinary absence, not
-/// access failures: they return null and log nothing.</para>
+/// <para>A null <c>SourceParsedResumeId</c> (a template-built resume) and a missing file row (an
+/// import predating PR-9a) are BOTH ordinary absence, not access failures: they return null and log
+/// nothing. A declined personnummer consent cannot reach this arm — <c>ParsedResume.Promote</c>
+/// refuses a flagged parse outright — so it is only an absence cause on the staging sibling.</para>
 /// </summary>
 public sealed class DownloadResumeOriginalQueryHandler(
     IAppDbContext db,
@@ -38,10 +39,11 @@ public sealed class DownloadResumeOriginalQueryHandler(
     public async ValueTask<ResumeFileDownloadDto?> Handle(
         DownloadResumeOriginalQuery query, CancellationToken cancellationToken)
     {
-        var jobSeekerId = await ResumeOriginalReader.ResolveOwnerAsync(db, currentUser, cancellationToken);
-        if (jobSeekerId == default)
+        if (await ResumeOriginalReader.ResolveOwnerAsync(db, currentUser, cancellationToken)
+            is not { } owner)
             return null;
 
+        var jobSeekerId = owner.JobSeekerId;
         var resumeId = new ResumeId(query.ResumeId);
         var sourceParsedResumeId = await db.Resumes
             .AsNoTracking()
@@ -61,7 +63,7 @@ public sealed class DownloadResumeOriginalQueryHandler(
             if (belongsToAnotherUser)
             {
                 failedAccessLogger.LogCrossUserAttempt(
-                    "Resume", query.ResumeId, currentUser.UserId!.Value, "DownloadResumeOriginal");
+                    "Resume", query.ResumeId, owner.UserId, "DownloadResumeOriginal");
             }
 
             return null;

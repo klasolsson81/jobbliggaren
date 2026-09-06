@@ -77,9 +77,9 @@ forbids it, and this file is the path it prescribes instead.
    of it.** It is named here because nothing else links the two, and both halves of that gap
    are load-bearing: the gate turns on **the event this procedure performs** (its own words:
    *"Ingen av dem får finnas när riktiga användare gör det"*), while the flag it gates was
-   turned on for this box by Klas-direktiv 2026-08-27 — **after** this file was written, so no
-   reader of either document meets the other. Read the gate, decide, and record the decision
-   before step 2. **The decision is Klas's**, because turning the flag on was his; a finding
+   turned on for this box by Klas-direktiv 2026-08-27 — **after** this file was written. Read
+   the gate, decide, and record the decision **in an ADR or a CLAUDE.md update** before step 2.
+   **The decision is Klas's**, because turning the flag on was his; a finding
    that the pair does not fire the gate is an answer, and only an unread gate is an omission.
 
 ## 3. The visit

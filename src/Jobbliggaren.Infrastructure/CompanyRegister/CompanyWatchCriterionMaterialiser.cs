@@ -98,9 +98,6 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            if (page.Count == 0)
-                break;
-
             foreach (var criterion in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -131,6 +128,13 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 }
             }
 
+            // ONE exit, and it is total: a page shorter than the page size is the last page, and
+            // that includes an empty one (0 < pageSize always). A second `page.Count == 0` break
+            // used to sit above the loop and was REMOVED rather than kept as belt-and-braces --
+            // measured 2026-09-06, with both present, deleting either left the paging test green,
+            // because each silently covered for the other. A redundant exit is worse than no
+            // redundancy: it makes the termination guarantee unmeasurable, and dropping the
+            // remaining one is an infinite loop in operation.
             if (page.Count < pageSize)
                 break;
         }

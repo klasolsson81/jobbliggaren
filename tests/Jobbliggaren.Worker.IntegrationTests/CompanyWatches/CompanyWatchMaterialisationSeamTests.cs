@@ -67,10 +67,13 @@ public class CompanyWatchMaterialisationSeamTests(WorkerTestFixture fixture)
 
     [Theory]
     // The corpus size relative to the page size is the whole point. 4 with page size 2 is an EXACT
-    // MULTIPLE: the `page.Count < pageSize` shortcut never fires, so termination rests entirely on
-    // the empty-page break — the mutant that is an infinite loop in production. 5 is the
-    // non-multiple, where the shortcut is what terminates. 1 is the single short page. Running all
-    // three is what makes both exits load-bearing rather than one covering for the other.
+    // MULTIPLE, so the last page fetched is EMPTY and termination depends on the loop's single exit
+    // treating an empty page as short. 5 is the non-multiple, where the last page is partial. 1 is
+    // the single short page, and 0 criteria (via the other suites) is the empty corpus.
+    //
+    // This theory is also what MEASURED the loop's redundancy: an earlier version had two exits, and
+    // deleting either left every case green because each covered for the other. The redundant one is
+    // gone, so the mutation of what remains is now genuinely fatal (verified 2026-09-06).
     [InlineData(4, 2)]
     [InlineData(5, 2)]
     [InlineData(1, 2)]
@@ -98,8 +101,9 @@ public class CompanyWatchMaterialisationSeamTests(WorkerTestFixture fixture)
         var result = await RunWithPageSizeAsync(pageSize, deadline.Token);
 
         // CriteriaSeen counts what the LOOP visited, so a page that is skipped or re-walked shows up
-        // here. Dropping `offset += pageSize` or `Skip(offset)` re-walks page one forever; dropping
-        // the empty-page break never exits on the exact multiple. Both hit the deadline.
+        // here. Dropping `offset += pageSize` or `Skip(offset)` re-walks page one forever, and
+        // dropping the single exit never terminates at all — each hits the deadline above rather
+        // than hanging the suite. Both verified by mutation, 2026-09-06.
         result.CriteriaSeen.ShouldBe(criterionCount);
         result.CriteriaMaterialised.ShouldBe(criterionCount);
         result.MembersWritten.ShouldBe(criterionCount);

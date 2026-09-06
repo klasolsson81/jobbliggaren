@@ -178,7 +178,7 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           triggerIconSize={14}
           triggerAriaLabel={t("preview.triggerAria", { name: resume.name })}
         />
-        <div className="ms-auto flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <RenameResumeForm
             resumeId={resume.id}
             currentName={resume.name}

@@ -129,7 +129,7 @@
 > upphävd, men av ett annat direktiv och med **vald** ersättare — sedan 2026-08-15
 > **Scaleway Transactional Email i `fr-par`** (ADR 0131; AWS SES var ersättaren
 > 2026-08-08 till 2026-08-15 och föll när AWS permanent vägrade häva sandbox-läget),
-> ägd av #183 — se §13.4. Faktisk
+> ägd av §13.4 (#183 stängd 2026-09-06). Faktisk
 > provisionering är fortsatt framtida Klas-gatat arbete (ADR 0050 Sekvensering:
 > Hetzner sist, vid MVP före beta-testare). AWS-kolumnerna i ADR/sessions/
 > research bevaras som historik.
@@ -143,7 +143,7 @@
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
 | Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
-| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198)) |
+| Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (ADR 0049 `Amendment 2026-08-09`, `master-key-ops.md`; [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) stängd 2026-09-06) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
 | DNS / CDN / proxy | — | Cloudflare gratis-tier "Full (strict)" framför Caddy-origin på CAX31 |
 | Backup | — | Nattlig klient-side-krypterad `pg_dump` → **mål inte valt, ägs av [#197](https://github.com/klasolsson81/jobbliggaren/issues/197)** (kraven i §13.4) |
@@ -1287,7 +1287,7 @@ Se [`DESIGN.md`](./DESIGN.md) för komplett specifikation: färgtokens, typograf
 
 **Secrets-hantering per miljö:**
 - `local`: `appsettings.Local.json` (gitignored) + `.env` för frontend; committade defaults i `appsettings.Development.json`
-- permanent miljö (netcup): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk ([#198](https://github.com/klasolsson81/jobbliggaren/issues/198))
+- permanent miljö (netcup): self-managed på VPS (systemd-credentials / sops+age, ADR 0050 + [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)); master-nyckel aldrig plaintext-på-disk (ADR 0049 `Amendment 2026-08-09`; [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) stängd 2026-09-06)
 - `IConfiguration`-abstraktionen gör att koden är identisk oavsett källa; endast DI-registreringen skiljer
 
 ### 13.3 GDPR-flöden

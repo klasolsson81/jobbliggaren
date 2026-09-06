@@ -254,14 +254,12 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       #183 STÄNGD 2026-09-06 på Klas-beslut, se stycket nedan).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
-      ⛔ **KLAS-BESLUT 2026-09-06 — #183 STÄNGD; LEDEN ÄGER SIG SJÄLVA.** Flippen togs
-      2026-08-16, så punkten grindar ingen kommande handling: den är en **lanseringschecklista**,
-      och statusen läses på leden, som förut. Ingen gradering ändras — led (a), (b), (c) och (e)
-      bär KVAR i sin egen text, och `security-auditor`s domar står som skrivna. Vad som inte
-      längre finns är en issue som läsare; den som bockar ett led skriver det här.
+      ⛔ **KLAS-BESLUT 2026-09-06 — #183 STÄNGD; LEDEN ÄGER SIG SJÄLVA.** Ingen gradering
+      ändras — `security-auditor`s domar står som skrivna. Vad som inte längre finns är en issue
+      som läsare; den som bockar ett led skriver det här.
       **SES-IAM-nycklarna:** Klas 2026-09-06, *"Finns inga nycklar kvar"* — #183:s beslut 3 av
       2026-08-15 har därmed inget objekt. E4:s Scaleway-konsolrunbok författas ur vad Klas gör
-      nästa gång han står i konsolen, och har ingen issue. Beslutets hem: ADR 0138.
+      nästa gång han står i konsolen, och har ingen issue. Härledning: ADR 0138 (lokal).
       - **biträdesavtal med Scaleway på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-15 mot
         Scaleways egna avtalsdokument: DPA:n (gällande version daterad 2024-06-01; ingen senare
         revision hittad) är avtalsdokument **nr 1** i GTS:ens prioritetsordning (version
@@ -326,7 +324,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ⚠ **Kadensen har ingen ägare och ingen påminnare — ersättningskontrollens svagaste punkt.**
         En kalenderförpliktelse utan påminnare körs inte. Den hör ihop med #1267 AC 2:s påminnarhalva,
         som inte är byggd; lägg den där, fila ingen egen post;
-      - dokumenterad **Kap. V-grund** — **KVAR (omprövning ligger i #183:s E3-PR)**. ⚠ **Den
+      - dokumenterad **Kap. V-grund** — **KVAR**. ⚠ **Den
         tidigare statusen "UPPLÖST 2026-08-08" gällde AWS och ärvs INTE** — den domen sa att
         överföringen **ska** redovisas trots `eu-north-1`, med grund **SCC Art. 46(2)(c)**,
         eftersom `BUILD.md` §15.1:s tillämpade standard behandlar ett **US-ägt** biträde som en
@@ -538,7 +536,8 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         obligatoriskt under Scaleway, frånvaro fail-loud. Delningen tystnad/förvarning ratificeras.
         **Rotationsförfarandet finns inte** — `master-key-ops.md` §4 är masternyckeln, en annan
         livscykel. Ett registrerat datum plus en närvarokontroll är en **inventering, inte en
-        rotationsstrategi**. #198 äger förfarandet, #1267 AC 2 påminnaren; ingendera är byggd.
+        rotationsstrategi**. Förfarandet ägs av det här ledet (#198 stängd 2026-09-06), #1267 AC 2
+        påminnaren; ingendera är byggd.
         **Förutsättning 4 — SIGNERAS DELVIS.** API-referenshalvan ratificeras och är oberoende
         verifierad i vår ände: armen sänder en fast nyttolast utan spårningsfält
         (`ScalewayEmailSender.cs:311-318`). **Changeloghalvan är inte redundant och är omätt** —
@@ -604,7 +603,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         av att ingen spårningsyta finns i TEM-projektet · den delade grunden för
         `EmailChangeConfirmation` i ROPA:n med matchande Art. 13(1)(d)-copy · Art. 14-stycket i
         mallen · och antingen en levererande `kontakt@`-brevlåda eller en publicerad kanal som
-        levererar. Rotationsförfarandet (#198) och påminnaren (#1267 AC 2) grindar inte ledet men
+        levererar. Rotationsförfarandet (förutsättning 3) och påminnaren (#1267 AC 2) grindar inte ledet men
         står kvar som skyldigheter. Ingenting mer krävs.
         **Namngivna förutsättningar för sign-off (security-auditor + code-reviewer
         2026-08-09, #1169) — hon signerar inte utan dem.** *(Medvetet utan numeral: listan räknar
@@ -762,7 +761,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ögonblicket**, inte en Minor.
         3. **Nyckelrotation för den statiska providernyckeln** — ingen instance role finns, så
            nyckeln är långlivad per definition. Skyldigheten är oförändrad sedan 2026-08-08 och
-           återregistreras här så den inte tappas; ägs även av #198. **Sedan 2026-08-15 gäller den
+           återregistreras här så den inte tappas; ägs av den här förutsättningen. **Sedan 2026-08-15 gäller den
            `Email:Scaleway:SecretKey`.** ⚠ **`ProjectId` roterar INTE och ska inte behandlas som en
            nyckel** — det är en identifierare, inte en hemlighet, men den injiceras som en egen fil
            med egen livscykel (E2) och loggas aldrig. De två har alltså skilda regimer trots att de
@@ -1989,13 +1988,15 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       eller att M1 vore urladdad** (`security-auditor` 2026-09-06, eskalerad till Klas).
 
       ⚠ **Vad beslutet INTE gör.** Det upphäver ingen gradering: `security-auditor`s M1 står som
-      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. ⚠ **Klas-beslut
-      2026-09-06 om M-7:** *"Ja, ingen blocker"* — flippen tas utan ett nytt beviljande före det
-      första självregistrerade kontot. Graderingen är hennes och står; beslutet är hans som
-      personuppgiftsansvarig (Art. 24(1)). Hem: ADR 0138. Det är ett beslut av
+      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. Det är ett beslut av
       **personuppgiftsansvarig om sin egen behandling** (Art. 24(1)) — inte en §9.6-acceptans, och
       det bär ingen signatur av henne. Läs det inte som att fristen upphört: det som skett är att
       Klas valt rutt och skrivit ned grunden, vilket är precis vad Art. 5(2) kräver av honom.
+
+      ⚠ **Klas-beslut 2026-09-06 om M-7:** *"Ja, ingen blocker"* — flippen tas utan ett nytt
+      beviljande före **första riktiga användardata** (hennes konverteringshändelse, inte ett
+      kontoantal). Graderingen är hennes och står; beslutet är hans som personuppgiftsansvarig
+      (Art. 24(1)). Härledning: ADR 0138 (lokal); M-7:s hem är #1201.
 
       ⚠ **Lapsvillkor — TRE mekanismer, och den ena ersätter inte den andra.** En enda
       villkorsmening är ingen triggeruppsättning (`security-auditor` M-1, ADR 0133).
@@ -2009,7 +2010,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Läsare: Klas.** Ingen automatik upptäcker det.
         **Klas 2026-09-06:** lanseringen ligger *"mest troligen efter"* 2026-09-17 — *"ingen
         blocker"*. Perioden mellan fristen och lanseringen bär han som personuppgiftsansvarig;
-        M1 arm (i):s gradering från den dagen står oförändrad. Hem: ADR 0138.
+        M1 arm (i):s gradering från den dagen står oförändrad. Härledning: ADR 0138 (lokal).
       - **(iii) Grunden själv — tre av dess fyra fakta har INGEN egen trigger**
         (`security-auditor` 2026-09-06): att `/kontaktperson-i-annons` förblir utanför
         `PROTECTED_PREFIXES` (ett `(app)`-flytt eller ett nytt prefix tystar notisen utan att något
@@ -2406,10 +2407,12 @@ borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
 e-postadress. Ingen av dem får finnas när riktiga användare gör det.
 
-⛔ **KLAS-BESLUT 2026-09-06:** *"Ja den får vara kvar. Jag kommer säga till när CC ska ta bort
-den."* `reset-my-data` står kvar på lådan genom flippen, och rivningen nedan körs på Klas ord,
-inte på händelsen. Grindens text ovan är oförändrad; det här stycket daterar vem som sköt upp
-den och när. Hem: ADR 0138.
+⛔ **KLAS-BESLUT 2026-09-06, och det gäller `reset-my-data` ensamt:** *"Ja den får vara kvar.
+Jag kommer säga till när CC ska ta bort den."* Rivningen nedan körs på Klas ord, inte på
+händelsen. Residualen under beslutet, mätt i koden av `security-auditor` 2026-09-06: en
+autentiserad, ägarskopad, irreversibel radering av användarens eget CV-/sök-/matchningsdata
+utan bekräftelsesteg, nåbar för en riktig användare. `confirm-email` omfattas inte — den är
+Development-grindad i två oberoende lager och onåbar på lådan. Härledning: ADR 0138 (lokal).
 
 **Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
 overksamt inom en omstart; en halvriven kodbas är inte.

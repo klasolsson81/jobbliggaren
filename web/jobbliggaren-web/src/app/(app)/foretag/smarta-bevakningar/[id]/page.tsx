@@ -122,6 +122,18 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
 
   const magnitudeText = formatMagnitude(format, magnitude);
 
+  // #1681 part 2 — narrowed once, here, rather than re-asserted inside the JSX. `ads.magnitude` is
+  // non-null only when the criterion was actually counted; its two no-number states are `tooBroad`
+  // and `notMaterialised`, which the render branches on before ever reaching the number. Narrowing
+  // in a local keeps the render free of non-null assertions, which would be claims the type system
+  // cannot check.
+  const ads = adCountResult.kind === "ok" ? adCountResult.data.ads : null;
+  const adsCount = ads?.magnitude ?? null;
+  const adsCountText =
+    ads !== null && ads.magnitude !== null
+      ? formatMagnitude(format, { magnitude: ads.magnitude, saturated: ads.saturated })
+      : null;
+
   // A degraded ad-count read yields no personal count either: the two numbers arrive in one
   // response, so there is nothing to say about matching that the "cannot be shown" line above does
   // not already say.
@@ -157,20 +169,30 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             SEAT. The number is a link exactly when there is something to look at; a 0 states the
             fact without offering an empty page, and a degraded read says so rather than showing a
             false 0 (#859 — a rendered magnitude is true or absent). */}
-        {adCountResult.kind === "ok" ? (
-          adCountResult.data.ads.magnitude > 0 ? (
-            <p className="jp-matchline tabular-nums">
-              <Link className="jp-countlink" href={buildCriterionAdsHref(id, 1, "all")}>
-                {t("ads.linkLabel", {
-                  count: formatMagnitude(format, adCountResult.data.ads),
-                })}
-              </Link>
-            </p>
-          ) : (
-            <p className="jp-matchline">{t("ads.none")}</p>
-          )
-        ) : (
+        {/* #1681 part 2 (ADR 0139) — the ad numbers are read from a MATERIALISED company set, so
+            "no number" now has three different reasons and each gets its own sentence. A 0 is only
+            ever rendered for a criterion we actually counted; "för bred" is a refusal the user can
+            act on; "räknas fram inom kort" is ignorance that resolves itself. Collapsing any of
+            them into a zero is the defect ADR 0120 exists against. The order matters: the two
+            no-number states are checked BEFORE the `> 0` test, because `magnitude` is null in both
+            and `null > 0` is false — which would silently render "inga aktiva annonser". */}
+        {ads === null ? (
           <p className="jp-matchline">{t("ads.countUnavailable")}</p>
+        ) : ads.tooBroad ? (
+          /* Reads as one statement with the company magnitude above it: "N företag matchar din
+             bevakning" followed by "för bred för att räkna annonserna". The company count is the
+             EVIDENCE for the refusal, not a number contradicting it. */
+          <p className="jp-matchline">{t("ads.adsTooBroad")}</p>
+        ) : ads.notMaterialised ? (
+          <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
+        ) : adsCount !== null && adsCount > 0 && adsCountText !== null ? (
+          <p className="jp-matchline tabular-nums">
+            <Link className="jp-countlink" href={buildCriterionAdsHref(id, 1, "all")}>
+              {t("ads.linkLabel", { count: adsCountText })}
+            </Link>
+          </p>
+        ) : (
+          <p className="jp-matchline">{t("ads.none")}</p>
         )}
 
         {/* #1656 (b) — the PERSONAL count, in the same form the ordinary company watch renders it
@@ -187,6 +209,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
                 {t("ads.matchingTooBroadCta")}
               </Link>
             </p>
+          ) : matching.notMaterialised ? (
+            /* #1681 part 2 — deliberately WITHOUT the "ändra bevakningen" call to action the
+               too-broad arm carries. Nothing is wrong with this watch; it simply has not been
+               counted yet, and inviting the user to edit it would be advice that cannot help. */
+            <p className="jp-matchline">{t("ads.matchingNotMaterialised")}</p>
           ) : matching.count === null ? (
             <p className="jp-matchline">
               {tWatch("matchNudge")}{" "}

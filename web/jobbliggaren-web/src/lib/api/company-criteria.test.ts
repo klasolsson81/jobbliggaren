@@ -56,7 +56,31 @@ describe("getCompanyWatchCriteria — list read", () => {
     label: "IT i Stockholm",
     createdAt: "2026-07-14T08:00:00+00:00",
     updatedAt: "2026-07-15T09:00:00+00:00",
+    // #1681 part 2 — each row now carries the same two numbers the detail page shows, in the same
+    // shapes, so the list and the detail page cannot disagree about one watch.
+    ads: { magnitude: 42, saturated: false, tooBroad: false, notMaterialised: false },
+    matching: { count: 7, tooBroad: false, notMaterialised: false },
   };
+
+  it("#1681 — a criterion nobody has counted yet survives the wire as unknown, not as 0", async () => {
+    // The state EVERY criterion is in between its creation (or a predicate edit) and the next
+    // materialisation run, so the list meets it constantly rather than rarely. A `0` here would
+    // read as "this watch has no ads", which is a claim nothing has measured.
+    const fresh = {
+      ...criterion,
+      ads: { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      matching: { count: null, tooBroad: false, notMaterialised: true },
+    };
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([fresh]));
+    const result = await getCompanyWatchCriteria();
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data[0]!.ads.magnitude).toBeNull();
+      expect(result.data[0]!.ads.notMaterialised).toBe(true);
+      expect(result.data[0]!.matching.count).toBeNull();
+      expect(result.data[0]!.matching.notMaterialised).toBe(true);
+    }
+  });
 
   it("no session → unauthorized without a backend round-trip", async () => {
     getSessionIdMock.mockResolvedValue(null);
@@ -231,7 +255,7 @@ describe("browseCriterionAds — the criterion's ad run", () => {
   };
   const response = {
     ads: { items: [ad], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 },
-    magnitude: { magnitude: 167, saturated: false },
+    magnitude: { magnitude: 167, saturated: false, tooBroad: false, notMaterialised: false },
     // #1656 (b) — null is "the caller did not ask for the matching view". Always present on the
     // wire: the schema declares it nullable, never optional, so the shape cannot vary with the
     // filter.
@@ -276,7 +300,12 @@ describe("browseCriterionAds — the criterion's ad run", () => {
     if (result.kind === "ok") {
       expect(result.data.ads.totalPages).toBe(1);
       expect(result.data.ads.items[0]!.title).toBe("Systemingenjör");
-      expect(result.data.magnitude).toEqual({ magnitude: 167, saturated: false });
+      expect(result.data.magnitude).toEqual({
+        magnitude: 167,
+        saturated: false,
+        tooBroad: false,
+        notMaterialised: false,
+      });
     }
   });
 
@@ -321,8 +350,8 @@ describe("getCriterionAdCount — the headline number alone", () => {
 
   it("200 { ads, matching } → ok, and asks the count route (never the ad page)", async () => {
     const body = {
-      ads: { magnitude: 167, saturated: false },
-      matching: { count: 9, tooBroad: false },
+      ads: { magnitude: 167, saturated: false, tooBroad: false, notMaterialised: false },
+      matching: { count: 9, tooBroad: false, notMaterialised: false },
     };
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(body));
     global.fetch = fetchMock;
@@ -336,8 +365,8 @@ describe("getCriterionAdCount — the headline number alone", () => {
 
   it("saturated true survives the wire", async () => {
     const body = {
-      ads: { magnitude: 10000, saturated: true },
-      matching: { count: null, tooBroad: true },
+      ads: { magnitude: 10000, saturated: true, tooBroad: false, notMaterialised: false },
+      matching: { count: null, tooBroad: true, notMaterialised: false },
     };
     global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
     expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "ok", data: body });
@@ -349,8 +378,8 @@ describe("getCriterionAdCount — the headline number alone", () => {
     // `saturated` at all, because its set is REFUSED rather than truncated and its number is
     // therefore exact whenever it is present.
     const body = {
-      ads: { magnitude: 10000, saturated: true },
-      matching: { count: 12, tooBroad: false },
+      ads: { magnitude: 10000, saturated: true, tooBroad: false, notMaterialised: false },
+      matching: { count: 12, tooBroad: false, notMaterialised: false },
     };
     global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
     const result = await getCriterionAdCount(VALID_ID);
@@ -362,8 +391,57 @@ describe("getCriterionAdCount — the headline number alone", () => {
     // floor would be rendered as an exact count -- the defect the refusal bound exists to prevent.
     global.fetch = vi.fn().mockResolvedValue(
       jsonResponse({
-        ads: { magnitude: 5, saturated: false },
-        matching: { count: 3, tooBroad: true },
+        ads: { magnitude: 5, saturated: false, tooBroad: false, notMaterialised: false },
+        matching: { count: 3, tooBroad: true, notMaterialised: false },
+      }),
+    );
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("#1681 — notMaterialised survives the wire, on BOTH numbers", async () => {
+    // The state every criterion is in between its creation (or a predicate edit) and the next
+    // materialisation run. It must reach the surface intact: the detail page renders "räknas fram
+    // inom kort" for it, which is a different sentence from "för bred" and is NOT a zero.
+    const body = {
+      ads: { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      matching: { count: null, tooBroad: false, notMaterialised: true },
+    };
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(body));
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "ok", data: body });
+  });
+
+  it("#1681 — an ad magnitude beside its own refusal is rejected, never rendered", async () => {
+    // The backend constructor forbids it. The ACL rejects it too, because the one way it could
+    // arrive is the one that matters: a number standing next to the reason there is no number.
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ads: { magnitude: 5, saturated: false, tooBroad: true, notMaterialised: false },
+        matching: { count: null, tooBroad: true, notMaterialised: false },
+      }),
+    );
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("#1681 — tooBroad and notMaterialised together are rejected: they are different answers", async () => {
+    // "We refused this watch" and "we have not counted it yet" are not the same fact, and a body
+    // claiming both describes no state the product has. Collapsing them would let the surface offer
+    // "narrow your watch" as advice for a watch that is merely waiting to be counted.
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ads: { magnitude: null, saturated: false, tooBroad: true, notMaterialised: true },
+        matching: { count: null, tooBroad: false, notMaterialised: false },
+      }),
+    );
+    expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
+  });
+
+  it("#1681 — an answerable magnitude MUST carry a number", async () => {
+    // The mirror of the rejection above: no refusal flag set, yet no number either. That is a
+    // measurement thrown away, and rendering it would mean inventing one.
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ads: { magnitude: null, saturated: false, tooBroad: false, notMaterialised: false },
+        matching: { count: 0, tooBroad: false, notMaterialised: false },
       }),
     );
     expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
@@ -379,7 +457,10 @@ describe("getCriterionAdCount — the headline number alone", () => {
     // malformed body through as `{ magnitude: 0 }` would render "Inga aktiva annonser" — a false
     // statement rather than an absent one (#859).
     global.fetch = vi.fn().mockResolvedValue(
-      jsonResponse({ ads: { magnitude: "many" }, matching: { count: null, tooBroad: false } }),
+      jsonResponse({
+        ads: { magnitude: "many", saturated: false, tooBroad: false, notMaterialised: false },
+        matching: { count: null, tooBroad: false, notMaterialised: false },
+      }),
     );
     expect(await getCriterionAdCount(VALID_ID)).toEqual({ kind: "error" });
   });

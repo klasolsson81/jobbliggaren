@@ -188,7 +188,11 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
     : null;
   const title = userLabel.length > 0 ? userLabel : (derived ?? t("row.untitled"));
 
-  const magnitudeText = formatMagnitude(format, magnitude);
+  // #1681 part 2 (ADR 0139) — the magnitude may have no number at all now: the criterion can be too
+  // broad to materialise, or not yet materialised for its current predicate. `formatMagnitude` takes
+  // a counted magnitude, so it is only reached in the arm that has one.
+  const magnitudeUnanswerable = magnitude.tooBroad || magnitude.notMaterialised;
+  const magnitudeText = magnitudeUnanswerable ? null : formatMagnitude(format, magnitude);
 
   return (
     <>
@@ -213,7 +217,14 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         <h2 className="text-h2 text-text-primary tabular-nums">
           {matchingCount !== null
             ? t("ads.matchingHeadline", { count: matchingCount })
-            : t("ads.magnitudeHeadline", { count: magnitudeText })}
+            : magnitudeUnanswerable
+              ? // A headline is owed even when there is no number: rendering "0 aktiva annonser"
+                // for a watch nobody counted is the dishonest zero, and rendering nothing would
+                // leave the page without its subject.
+                magnitude.tooBroad
+                ? t("ads.adsTooBroad")
+                : t("ads.adsNotMaterialised")
+              : t("ads.magnitudeHeadline", { count: magnitudeText! })}
         </h2>
 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
@@ -227,7 +238,17 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </p>
         )}
 
-        {matching !== null && matching.count === null && !matching.tooBroad && (
+        {/* #1681 part 2 — the watch has not been counted yet, so the filter had nothing to apply and
+            the unfiltered list is what is shown. No call to action: unlike the too-broad arm above
+            there is nothing for the user to change. */}
+        {matching?.notMaterialised && (
+          <p className="jp-matchline">{t("ads.matchingNotMaterialisedOnList")}</p>
+        )}
+
+        {matching !== null &&
+          matching.count === null &&
+          !matching.tooBroad &&
+          !matching.notMaterialised && (
           <p className="jp-matchline">
             {t("ads.matchingNotAssessedOnList")}{" "}
             <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
@@ -259,7 +280,10 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           />
         </p>
 
-        {ads.items.length === 0 ? (
+        {/* An empty list under an unanswerable magnitude is NOT "nothing found" — the headline above
+            already said why there is no list, and repeating the empty state would assert a zero the
+            page has just declined to claim. */}
+        {ads.items.length === 0 && !magnitudeUnanswerable ? (
           <div className="jp-empty mt-6">
             <div className="jp-empty__title">
               {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}

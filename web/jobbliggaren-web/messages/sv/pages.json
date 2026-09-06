@@ -463,7 +463,11 @@
         "matchingEmptyBody": "Ingen av bevakningens aktiva annonser når upp till en bra matchning mot din profil. Prova att bredda bevakningen eller se över dina matchningsinställningar.",
         "matchingTooBroadCta": "Ändra bevakningen",
         "matchingTooBroadOnList": "Bevakningen är för bred för att vi ska kunna räkna hur många annonser som matchar dig, så alla aktiva annonser visas här. Prova att välja färre branscher eller kommuner.",
-        "matchingNotAssessedOnList": "Du har inte angett vilka yrken du söker inom, så alla aktiva annonser visas här."
+        "matchingNotAssessedOnList": "Du har inte angett vilka yrken du söker inom, så alla aktiva annonser visas här.",
+        "adsNotMaterialised": "Siffrorna för den här bevakningen räknas fram inom kort. Titta in igen om en stund.",
+        "matchingNotMaterialised": "Vi har inte räknat den här bevakningen än, så vi vet inte hur många annonser som matchar dig. Siffrorna kommer inom kort.",
+        "matchingNotMaterialisedOnList": "Vi har inte räknat den här bevakningen än, så alla aktiva annonser visas här.",
+        "adsTooBroad": "Bevakningen är för bred för att vi ska kunna räkna annonserna. Prova att välja färre branscher eller kommuner."
       },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",

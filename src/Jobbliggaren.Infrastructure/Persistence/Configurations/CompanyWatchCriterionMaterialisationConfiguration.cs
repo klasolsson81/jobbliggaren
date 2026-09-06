@@ -51,6 +51,18 @@ internal sealed class CompanyWatchCriterionMaterialisationConfiguration
             .HasColumnName("materialised_at")
             .IsRequired();
 
+        // #1681 part 2 — the staleness guard's discriminator. Fixed-width lower-case hex SHA-256, so
+        // the length comes from the type rather than a literal repeated here and in the migration
+        // (CriteriaFingerprint.Length is the SSOT). NOT nullable: every row is written by a run that
+        // knew its predicate, so a NULL would be a state no writer can produce — and a nullable column
+        // would silently invite one, whereupon the read's mismatch check would have to grow a
+        // third branch for "we don't know what this was computed from", which is exactly the
+        // ambiguity the state enum exists to prevent.
+        builder.Property(m => m.CriteriaFingerprint)
+            .HasColumnName("criteria_fingerprint")
+            .HasMaxLength(Application.CompanyWatches.Abstractions.CriteriaFingerprint.Length)
+            .IsRequired();
+
         // Major 5(a) again, for the same reason and with the same force: the state row is derived
         // personal data about the user (it says something about a predicate she saved), so it must not
         // outlive its criterion either. Cascading BOTH tables from the same principal means criterion

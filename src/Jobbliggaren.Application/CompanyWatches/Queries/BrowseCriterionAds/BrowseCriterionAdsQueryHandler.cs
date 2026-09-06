@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -108,11 +109,33 @@ public sealed class BrowseCriterionAdsQueryHandler(
         }
 
         var page = await browse.BrowseAdIdsAsync(
-            new CompanyBrowseCriteria(criterion.Criteria, query.Page, query.PageSize),
+            new CompanyWatchCriterionId(query.CriterionId),
+            CriteriaFingerprint.Of(criterion.Criteria),
+            query.Page,
+            query.PageSize,
             cancellationToken);
 
+        // #1681 part 2 — a criterion that is too broad, or not materialised for its CURRENT
+        // predicate, has no ad list to show. It returns an EMPTY page rather than null, and the
+        // distinction matters twice over.
+        //
+        // `null` here means 404 at the endpoint, and this criterion EXISTS — answering 404 would make
+        // the route an existence oracle in reverse, telling the owner their own watch is gone because
+        // a background job has not run yet.
+        //
+        // An empty page is not the same as "no ads matched", either, and the FE must not render its
+        // empty state for it. What keeps that honest is the COMPOSED response: this endpoint returns
+        // the page beside the magnitude, and the magnitude carries these same two states explicitly
+        // (`tooBroad` / `notMaterialised`). The surface branches on those BEFORE the empty state — the
+        // same shape the "bara matchande" arm already uses, where an inert filter yields a list plus a
+        // line explaining why.
+        if (page.State != CriterionMaterialisationState.Materialised)
+            return new PagedResult<JobAdDto>([], 0, query.Page, query.PageSize);
+
+        var resolvedPage = page.Page!;
         return await LoadPageAsync(
-            page.Items, page.TotalCount, page.Page, page.PageSize, cancellationToken);
+            resolvedPage.Items, resolvedPage.TotalCount, resolvedPage.Page, resolvedPage.PageSize,
+            cancellationToken);
     }
 
     /// <summary>

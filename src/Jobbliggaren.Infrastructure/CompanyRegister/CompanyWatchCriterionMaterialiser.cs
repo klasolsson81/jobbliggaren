@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -188,6 +189,13 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     private async Task<CriterionOutcome> MaterialiseOneAsync(
         CompanyWatchCriterion criterion, CancellationToken cancellationToken)
     {
+        // #1681 part 2 — the predicate this run is resolving, stamped onto the row it writes so a
+        // later read can tell "these members are for the criterion on screen" from "these members are
+        // for a predicate its owner has since edited". Computed ONCE per criterion, here, from the
+        // same spec the candidate selection below uses — so the stamp cannot describe a different
+        // predicate than the one that produced the members.
+        var fingerprint = CriteriaFingerprint.Of(criterion.Criteria);
+
         var candidates = await store.SelectCandidatesAsync(
                 criterion.Criteria, CompanyWatchCriterionMember.MaxPerCriterion, cancellationToken)
             .ConfigureAwait(false);
@@ -198,7 +206,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
             // was widened), and the state row records the refusal so the read side renders "för bred"
             // instead of a number, or a zero, or nothing at all.
             await store.ReplaceAsync(
-                    criterion.Id.Value, [], MaterialisationState.TooBroad, 0, clock.UtcNow,
+                    criterion.Id.Value, [], MaterialisationState.TooBroad, 0, clock.UtcNow, fingerprint,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -209,7 +217,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
 
         await store.ReplaceAsync(
                 criterion.Id.Value, filtered.OrganizationNumbers, MaterialisationState.Materialised,
-                filtered.ExcludedPersonnummerShaped, clock.UtcNow, cancellationToken)
+                filtered.ExcludedPersonnummerShaped, clock.UtcNow, fingerprint, cancellationToken)
             .ConfigureAwait(false);
 
         // Hoisted into a token-free local for the reason given at excludedByShapeGuard above: the

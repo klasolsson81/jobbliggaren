@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -162,6 +163,7 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
         MaterialisationState state,
         int excludedPersonnummerShaped,
         DateTimeOffset materialisedAt,
+        CriteriaFingerprint criteriaFingerprint,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(organizationNumbers);
@@ -213,13 +215,16 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
             // HasConversion<string>() the configuration declares.
             stateCmd.CommandText = """
                 INSERT INTO company_watch_criterion_materialisations (
-                    criterion_id, state, member_count, excluded_personnummer_shaped, materialised_at)
-                VALUES (@criterion_id, @state, @member_count, @excluded_pnr, @materialised_at)
+                    criterion_id, state, member_count, excluded_personnummer_shaped, materialised_at,
+                    criteria_fingerprint)
+                VALUES (@criterion_id, @state, @member_count, @excluded_pnr, @materialised_at,
+                        @criteria_fingerprint)
                 ON CONFLICT (criterion_id) DO UPDATE SET
                     state                       = EXCLUDED.state,
                     member_count                = EXCLUDED.member_count,
                     excluded_personnummer_shaped = EXCLUDED.excluded_personnummer_shaped,
-                    materialised_at             = EXCLUDED.materialised_at;
+                    materialised_at             = EXCLUDED.materialised_at,
+                    criteria_fingerprint        = EXCLUDED.criteria_fingerprint;
                 """;
             stateCmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId);
             stateCmd.Parameters.AddWithValue("@state", NpgsqlDbType.Text, state.ToString());
@@ -229,6 +234,11 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
                 "@excluded_pnr", NpgsqlDbType.Integer, excludedPersonnummerShaped);
             stateCmd.Parameters.AddWithValue(
                 "@materialised_at", NpgsqlDbType.TimestampTz, materialisedAt);
+            // Written on EVERY path, TooBroad included: a refusal is about a PREDICATE, and it must
+            // stop applying the moment that predicate changes. Without the stamp here, a user who
+            // narrowed a too-broad watch would keep being told it is too broad until the next run.
+            stateCmd.Parameters.AddWithValue(
+                "@criteria_fingerprint", NpgsqlDbType.Text, criteriaFingerprint.Value);
             await stateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 

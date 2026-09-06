@@ -30,9 +30,19 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Queries;
 /// </para>
 ///
 /// <para>
-/// The two INERT arms are pinned as DELIVERY, not as emptiness. A caller who stated no occupation
-/// and a watch too broad to grade both get the unfiltered list: an empty page would say "nothing
-/// matches you", which is not what either arm means.
+/// The INERT arms are pinned as DELIVERY, not as emptiness. A caller who stated no occupation and a
+/// watch too broad to grade both get the unfiltered list: an empty page would say "nothing matches
+/// you", which is not what either arm means.
+/// </para>
+///
+/// <para>
+/// <b>#1681 part 2 (ADR 0139) added a THIRD inert arm, and it is the only one that cannot deliver a
+/// list.</b> When the criterion has not been materialised for its CURRENT predicate the filter is
+/// inert exactly as the other two are — the handler falls through to the unfiltered browse — but
+/// that browse has no member set to read either, so what comes back is an empty page. The two facts
+/// are separate and the second is not this arm's doing: the fall-through is pinned here, and the
+/// unfiltered arm's own no-page states are pinned in
+/// <c>BrowseCriterionAdsQueryHandlerTests.Handle_NotMaterialisedYet_IsAnEmptyPage_NeverA404</c>.
 /// </para>
 /// </summary>
 public class BrowseCriterionAdsMatchingArmTests
@@ -46,8 +56,10 @@ public class BrowseCriterionAdsMatchingArmTests
 
     private void MagnitudeIs(int count) =>
         _browse.CountActiveAdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(count);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdCount.Counted(
+                count, saturated: count >= CriterionAdMagnitudeDto.Ceiling));
 
     private readonly IMatchProfileBuilder _profileBuilder = Substitute.For<IMatchProfileBuilder>();
     private readonly IPerUserJobAdSearchQuery _perUserSearch = Substitute.For<IPerUserJobAdSearchQuery>();
@@ -79,8 +91,9 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(AssessableProfile());
         MagnitudeIs(12);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([a1, a2, a3, a4, a5]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([a1, a2, a3, a4, a5]));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -99,7 +112,7 @@ public class BrowseCriterionAdsMatchingArmTests
         // The unfiltered path is not taken at all — a handler that took both would pay twice and
         // could serve the wrong one.
         await _browse.DidNotReceiveWithAnyArgs()
-            .BrowseAdIdsAsync(default!, CancellationToken.None);
+            .BrowseAdIdsAsync(default, default, default, default, CancellationToken.None);
     }
 
     [Fact]
@@ -118,8 +131,9 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(AssessableProfile());
         MagnitudeIs(12);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([a1, a2, a3, a5]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([a1, a2, a3, a5]));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -149,10 +163,17 @@ public class BrowseCriterionAdsMatchingArmTests
 
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(AssessableProfile());
+        // The magnitude has to agree with the set the port hands over — the gate reads it before the
+        // set query runs. Before #1681 part 2 this stub could be omitted, because an unstubbed
+        // ValueTask<int> defaulted to 0 and the gate happened to admit; the port now answers with a
+        // three-state record whose default is null, so the omission is no longer survivable. The
+        // value is the fixture's own ad count rather than a number picked to pass.
+        MagnitudeIs(3);
         // The port publishes the order; the handler must follow THIS sequence.
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([newest, middle, oldest]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([newest, middle, oldest]));
         // A HashSet has its own iteration order and it is not the port's. Enumerating the set
         // instead of filtering the list is the mistake this arm pins.
         _perUserSearch.FilterToMatchingAsync(
@@ -177,8 +198,10 @@ public class BrowseCriterionAdsMatchingArmTests
 
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(ProfilelessProfile());
-        _browse.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
+        _browse.BrowseAdIdsAsync(
+                    Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                    Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.Resolved(new PagedResult<JobAdId>([ad], 1, 1, 20)));
 
         var result = await Sut(db, Owner).Handle(
             new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
@@ -201,10 +224,13 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(AssessableProfile());
         MagnitudeIs(12);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>((IReadOnlyList<JobAdId>?)null);
-        _browse.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.TooManyAds);
+        _browse.BrowseAdIdsAsync(
+                    Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                    Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.Resolved(new PagedResult<JobAdId>([ad], 1, 1, 20)));
 
         var result = await Sut(db, Owner).Handle(
             new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
@@ -214,7 +240,52 @@ public class BrowseCriterionAdsMatchingArmTests
     }
 
     [Fact]
-    public async Task Handle_OnlyMatching_TooBroad_DeliversTheUnfilteredList_WithoutASecondRegisterQuery()
+    public async Task Handle_OnlyMatching_NotMaterialised_FallsThroughToTheUnfilteredArm()
+    {
+        // #1681 part 2 — the third inert arm. The filter cannot be honoured (nothing was graded), so
+        // the handler must NOT cut a page from an empty matching set and present it as the answer:
+        // that page would say "none of these ads match you", about a watch nobody has counted.
+        //
+        // Both stubbed answers come from ONE state of the world — no materialisation exists for this
+        // criterion's current predicate — so the count and the page agree, exactly as the two
+        // statements do against real Postgres.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+        SeedAd(db, "Utvecklare", T0.AddDays(-1));
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _browse.CountActiveAdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdCount.NotMaterialised);
+        _browse.BrowseAdIdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.NotMaterialised);
+
+        var result = await Sut(db, Owner).Handle(
+            new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20, OnlyMatching: true), ct);
+
+        result.ShouldNotBeNull();
+        result.Items.ShouldBeEmpty();
+
+        // THE assertion: the unfiltered arm was ENTERED. Without it this test cannot tell a
+        // fall-through from a filtered page that happened to be empty — the two produce the same
+        // rows, and only one of them is honest.
+        await _browse.Received(1).BrowseAdIdsAsync(
+            new CompanyWatchCriterionId(criterion.Id.Value),
+            CriteriaFingerprint.Of(criterion.Criteria),
+            1, 20, Arg.Any<CancellationToken>());
+
+        // ...and no set was read for a criterion that has none.
+        await _browse.DidNotReceiveWithAnyArgs()
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Handle_OnlyMatching_TooBroad_DeliversTheUnfilteredList_WithoutASecondSetQuery()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
@@ -223,8 +294,10 @@ public class BrowseCriterionAdsMatchingArmTests
 
         _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
             .Returns(AssessableProfile());
-        _browse.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
+        _browse.BrowseAdIdsAsync(
+                    Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                    Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.Resolved(new PagedResult<JobAdId>([ad], 1, 1, 20)));
 
         MagnitudeIs(CriterionMatchingAdSetResolver.MaxSetSize + 1);
         var result = await Sut(db, Owner).Handle(
@@ -233,10 +306,15 @@ public class BrowseCriterionAdsMatchingArmTests
         result.ShouldNotBeNull();
         result.Items.Select(i => i.Title).ShouldBe(["Utvecklare"]);
 
-        // The gate decided it from the magnitude the request already measured. The ordered set query
-        // it replaces is the one that costs seconds on exactly this criterion.
+        // The gate decided it from the magnitude the request already measured, so the ordered set
+        // query is never issued. #1681 part 2 changed what that saving IS: before ADR 0139 the set
+        // query re-resolved the predicate against 1,07M register rows, and skipping it saved seconds
+        // on exactly this criterion; it is now a bounded index join over the materialised member set,
+        // so what the gate saves is a round trip whose answer the count already determined. Cheaper
+        // either way — and, more importantly, the gate can only skip a query whose outcome is already
+        // known. It can never admit one the probe would have refused.
         await _browse.DidNotReceiveWithAnyArgs()
-            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
     }
 
     [Fact]
@@ -256,8 +334,9 @@ public class BrowseCriterionAdsMatchingArmTests
             .Returns(AssessableProfile());
         MagnitudeIs(ids.Count);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>(ids);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved(ids));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -280,8 +359,10 @@ public class BrowseCriterionAdsMatchingArmTests
         var criterion = await SeedCriterionAsync(db, Owner, ct);
         var ad = SeedAd(db, "Utvecklare", T0.AddDays(-1));
 
-        _browse.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<JobAdId>([ad], 1, 1, 20));
+        _browse.BrowseAdIdsAsync(
+                    Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                    Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.Resolved(new PagedResult<JobAdId>([ad], 1, 1, 20)));
 
         var result = await Sut(db, Owner).Handle(
             new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
@@ -290,9 +371,9 @@ public class BrowseCriterionAdsMatchingArmTests
         // The default arm pays for neither the profile nor the set scan. A grade computed for a
         // page nobody asked to filter is pure cost on the route's shared rate-limit budget.
         await _browse.DidNotReceiveWithAnyArgs()
-            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
         await _browse.DidNotReceiveWithAnyArgs()
-            .CountActiveAdsAsync(default!, default, CancellationToken.None);
+            .CountActiveAdsAsync(default, default, default, CancellationToken.None);
         await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
     }
 

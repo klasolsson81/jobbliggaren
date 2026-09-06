@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
@@ -77,6 +79,38 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 /// </para>
 ///
 /// <para>
+/// <b>#1681 part 2 (ADR 0139) — the AD half of this suite no longer pins the GIN index, because the
+/// ad statements no longer read <c>company_register</c> at all.</b> The predicate's expensive half is
+/// resolved out of the request path by the materialisation job, so what is left is
+/// <c>members ⋈ job_ads</c>. The three ad pins therefore claim the OPPOSITE pair of facts: the
+/// member table's PK index is IN the plan, and <c>company_register</c> is NOT.
+///
+/// <para>
+/// <b>That absence assertion needs a positive control, and this file's own docblock explains why</b>
+/// (see the "never a negative 'no Seq Scan'" paragraph two above): a <c>ShouldNotContain</c> passes
+/// for every reason, including the ones that mean the instrument is broken — an EXPLAIN that failed,
+/// a plan that came back empty, a statement that did not run. <c>CompanyQueries_StillReadTheRegister_-
+/// SoTheAbsenceAssertionsCanFail</c> is that control: it EXPLAINs a still-register-backed statement
+/// through the SAME helper and asserts the token IS present. Without it, deleting the register from
+/// the world would turn all three ad pins green.
+/// </para>
+///
+/// <para>
+/// <b>Three ad-side predicate pins were RETIRED here rather than migrated, because the property
+/// MOVED</b> (CLAUDE.md §5 <c>Tests:</c> — the seam names the pin when it lives elsewhere). The
+/// de-registered-company exclusion (DPIA M-D6), the kommun axis and the exact-five-digit SNI match
+/// are no longer read-path conjuncts; they are decided when the member set is COMPUTED. They are
+/// pinned at their new homes: <c>CompanyWatchCriterionMaterialisationTests.Materialise_-
+/// RemovesADeregisteredCompany_OnTheNextRun_TheMD6Replacement</c> and
+/// <c>...Materialise_WritesExactlyTheMatchingActiveCompanies_AndAnHonestState</c> (which seeds a
+/// wrong-kommun company), plus <c>CompanyWatchBrowseQueryTests.Browse_MatchesExactFiveDigitSniCodes_-
+/// NeverAPrefix</c> and <c>...Browse_NeverReturnsADeregisteredCompany</c> — the candidate selection
+/// shares <c>CompanyWatchBrowseQuery.FromWhere</c> and <c>BindPredicate</c> with the register browse
+/// those two pin, so it is one predicate with one set of pins rather than two copies.
+/// </para>
+/// </para>
+///
+/// <para>
 /// <b>The #875 pins claim something different, and are instrumented differently.</b>
 /// <see cref="BroadCriterion_WalksTheNameIndexInOrder_AndStopsEarly"/> claims a plan CHOICE, so it runs
 /// with the planner's FULL search space — no GUC — because a choice made inside a prohibition is not
@@ -95,6 +129,15 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
     private const string GinIndexName = "ix_company_register_sni_codes_gin";
     private const string OverlapOperator = "&&";
+
+    // #1681 part 2 — the member table's PRIMARY KEY, (criterion_id, organization_number). It is what
+    // makes "the org.nr this criterion matched" an index-only lookup, and it is the plan node the
+    // breadth-gate bound was DERIVED against (Index Only Scan, Heap Fetches: 0).
+    private const string MemberPkIndexName = "pk_company_watch_criterion_members";
+
+    // The token whose ABSENCE the ad pins assert. It is the relation name, so it appears in a plan
+    // whether the register is reached by seq scan, bitmap or index.
+    private const string RegisterTable = "company_register";
 
     /// <summary>
     /// #875 — the btree that lets the planner walk the ORDER BY in index order and stop at LIMIT 20,
@@ -115,8 +158,15 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     private const int ProbeMatches = 2;
 
     // #1559 — the ad pins. AdOrgNr is the FIRST probe-SNI company the register seed produces
-    // ($"55{i:D8}" at i = 0), so the ads below join a row the criterion genuinely matches.
-    private const string AdOrgNr = "5500000000";
+    // ($"552{i:D7}" at i = 0), so the ads below join a row the criterion genuinely matches.
+    //
+    // #1681 part 2 — the seed's org.nr shape is now "552…" rather than "550…", and that is load-
+    // bearing rather than cosmetic. The materialisation writes members through
+    // CompanyWatchCriterionMemberFilter, whose personnummer-shape guard is
+    // OrganizationNumber.IsPersonnummerShaped() — third digit < '2'. Under the old shape EVERY
+    // seeded company was pnr-shaped, so every member set would have come back empty and every pin
+    // below would have measured an empty fixture rather than a plan.
+    private const string AdOrgNr = "5520000000";
     private const int AdRows = 5;
 
     // Enough job_ads that driving the join from THAT side is no longer the cheapest plan — see the
@@ -124,9 +174,16 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     // production. The semantic pins deliberately do NOT pay for this: they assert rows, not plans.
     private const int PlanRegimeAds = 20_000;
 
-    // A kommun no seeded row sits in — what makes the kommun conjunct's zero a discrimination
-    // rather than an empty fixture.
+    // A kommun no seeded row sits in. It used to make the read path's kommun conjunct measurable;
+    // since #1681 part 2 that conjunct lives in the materialisation, and this constant's job is to
+    // give the staleness pin a genuinely DIFFERENT predicate to edit the criterion to.
     private const string OtherKommun = "1480";
+
+    // #1681 part 2 — the digest of the criterion the fixture materialises. Computed the way
+    // production computes it, from a spec built by Create (not FromTrusted), so the value here and
+    // the value the materialiser stamped are the same by construction rather than by transcription.
+    private static readonly CriteriaFingerprint ProbeFingerprint = CriteriaFingerprint.Of(
+        CompanyWatchCriteriaSpec.Create([ProbeSni], [SeededKommun]).Value);
 
     [Fact]
     public async Task ItemsQuery_UsesTheSniGinIndex()
@@ -442,62 +499,111 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task AdIdsQuery_UsesTheSniGinIndex()
+    public async Task AdIdsQuery_ReadsTheMaterialisedMemberSet_AndNeverTheRegister()
     {
-        // #1559 — a THIRD command text, therefore a THIRD plan. The ad query joins job_ads onto the
-        // register, and a join gives the planner a whole new set of orderings to choose from: it may
-        // drive from job_ads and probe the register by org.nr, never touching the GIN index at all.
-        // The existing pins cannot see that — they EXPLAIN register-only statements.
-        var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
-
-        var plan = await ExplainAsync(
-            ctx.Db,
-            (conn, spec) => CompanyWatchBrowseQuery.BuildAdIdsCommand(conn, spec, page: 1, pageSize: 20),
-            ct);
-
-        AssertServedByGin(plan, "ad ids");
-    }
-
-    [Fact]
-    public async Task AdCountQuery_UsesTheSniGinIndex()
-    {
-        // The ad count is its own statement (a capped subquery shape), serving BOTH the pagination cap
-        // and the headline magnitude. Pinning only the id query would leave the number free to regress
-        // into a register scan while the list stayed fast — and the number is the thing every criterion
-        // detail page renders, whether or not anyone opens the list.
-        var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
-
-        var plan = await ExplainAsync(
-            ctx.Db,
-            (conn, spec) => CompanyWatchBrowseQuery.BuildAdCountCommand(conn, spec, cap: 10_000),
-            ct);
-
-        AssertServedByGin(plan, "ad count");
-    }
-
-    [Fact]
-    public async Task AdIdSetQuery_UsesTheSniGinIndex()
-    {
-        // #1656 (b) — a FOURTH command text, therefore a FOURTH plan, and the one whose plan the
-        // whole cost story rests on. It differs from the ad-id page query in the two ways a planner
-        // cares about: no OFFSET, and a LIMIT three orders of magnitude larger. A large LIMIT makes a
-        // job_ads-driven plan far more attractive than a LIMIT 20 does, and the existing pins cannot
-        // see that -- they EXPLAIN the other three statements.
+        // #1681 part 2 (ADR 0139) — THE pin for what the whole change buys, expressed as a plan.
+        // Before it, this statement joined job_ads onto a 1,07M-row register scan inside a request on
+        // the 300 ms budget; after it, the register is not in the plan at all and what remains is an
+        // index lookup against a pre-computed, breadth-gated org.nr set.
         //
-        // Not cosmetic: two readings of this query on different statistics states came back 27 ms and
-        // 11 881 ms, because one planned an index walk and the other a sort over the whole match set.
+        // The negative half is what the ADR claims and the positive half is what makes the claim
+        // measurable — see AssertReadsTheMemberSet, and see
+        // CompanyQueries_StillReadTheRegister_SoTheAbsenceAssertionsCanFail for the control that
+        // proves the absence assertion is capable of failing at all.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
 
-        var plan = await ExplainAsync(
-            ctx.Db,
-            (conn, spec) => CompanyWatchBrowseQuery.BuildAdIdSetCommand(
-                conn, spec, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
+        var plan = await ExplainMaterialisedAsync(
+            ctx,
+            (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdIdsCommand(conn, id, page: 1, pageSize: 20),
             ct);
 
-        AssertServedByGin(plan, "ad id set");
+        AssertReadsTheMemberSet(plan, "ad ids");
+    }
+
+    [Fact]
+    public async Task AdCountQuery_ReadsTheMaterialisedMemberSet_AndNeverTheRegister()
+    {
+        // The ad count is its own statement (a state row driving a capped subquery), serving BOTH the
+        // pagination cap and the headline magnitude. Pinning only the id query would leave the number
+        // free to regress back onto the register while the list stayed fast — and the number is the
+        // thing every criterion row renders, whether or not anyone opens the list.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainMaterialisedAsync(
+            ctx,
+            (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdCountCommand(conn, id, fp, cap: 10_000),
+            ct);
+
+        AssertReadsTheMemberSet(plan, "ad count");
+    }
+
+    [Fact]
+    public async Task AdIdSetQuery_ReadsTheMaterialisedMemberSet_AndNeverTheRegister()
+    {
+        // #1656 (b) — a THIRD command text, therefore a THIRD plan, and the one whose cost story the
+        // grading bound rests on. It differs from the ad-id page query in the two ways a planner cares
+        // about: no OFFSET, and a LIMIT three orders of magnitude larger. It also wraps the whole
+        // thing in a LEFT JOIN LATERAL, which is exactly where this codebase has been burned before
+        // (ADR 0139 rejected a batched form whose lateral sat over a jsonb_to_recordset function scan:
+        // no statistics, no index lookup, 40-50x). The other two pins cannot see any of that.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var plan = await ExplainMaterialisedAsync(
+            ctx,
+            (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdIdSetCommand(
+                conn, id, fp, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
+            ct);
+
+        AssertReadsTheMemberSet(plan, "ad id set");
+    }
+
+    [Fact]
+    public async Task CompanyQueries_StillReadTheRegister_SoTheAbsenceAssertionsCanFail()
+    {
+        // THE POSITIVE CONTROL, and it is not optional — this file's own docblock is written against
+        // exactly this failure mode one axis over ("a ShouldNotContain('Seq Scan') would PASS under
+        // the mutation"). An assertion that `company_register` is ABSENT from a plan passes for every
+        // reason there is: the statement changed, the EXPLAIN returned nothing, the helper broke, the
+        // fixture is empty. Without a statement that DOES carry the token, through the SAME helper,
+        // on the SAME connection, the three ad pins above would go green if the register ceased to
+        // exist.
+        //
+        // The company half is the control because it is STILL register-backed by decision, not by
+        // accident (senior-cto-advisor 2026-09-06, Decision 5): the member table stores only
+        // (criterion_id, organization_number) while the browse projects company_name, kommun and
+        // sni_codes, and CountMatchingCompaniesAsync additionally serves an UNSAVED criterion the
+        // picker previews. So this control is also a pin on that decision: the day someone moves the
+        // company half onto members, this test is what says so.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: PlanRegimeAds);
+
+        var itemsPlan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildItemsCommand(conn, spec, page: 1, pageSize: 20),
+            ct);
+
+        itemsPlan.ShouldContain(
+            RegisterTable,
+            customMessage:
+                "The company ITEMS plan no longer names " + RegisterTable + ". Either the company "
+                + "half stopped reading the register — which is a decision, not a refactor (CTO "
+                + $"2026-09-06 Decision 5) — or this instrument is broken, in which case the three "
+                + $"ad-side absence pins are currently vacuous.{Environment.NewLine}"
+                + $"Plan:{Environment.NewLine}{itemsPlan}");
+
+        var countPlan = await ExplainAsync(
+            ctx.Db,
+            (conn, spec) => CompanyWatchBrowseQuery.BuildCountCommand(conn, spec, pageSize: 20),
+            ct);
+
+        countPlan.ShouldContain(
+            RegisterTable,
+            customMessage:
+                $"The company COUNT plan no longer names {RegisterTable}. See the items assertion "
+                + $"above.{Environment.NewLine}Plan:{Environment.NewLine}{countPlan}");
     }
 
     [Fact]
@@ -511,7 +617,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // coincide.
         using var conn = new NpgsqlConnection();
         using var cmd = CompanyWatchBrowseQuery.BuildAdIdSetCommand(
-            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]),
+            conn, CompanyWatchCriterionId.New(), ProbeFingerprint,
             maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize);
 
         cmd.CommandText.ShouldContain(
@@ -535,7 +641,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // change here silently paginates against one order while rendering another.
         using var conn = new NpgsqlConnection();
         using var cmd = CompanyWatchBrowseQuery.BuildAdIdsCommand(
-            conn, CompanyWatchCriteriaSpec.FromTrusted([ProbeSni], [SeededKommun]), page: 1, pageSize: 20);
+            conn, CompanyWatchCriterionId.New(), page: 1, pageSize: 20);
 
         cmd.CommandText.ShouldContain(
             "ORDER BY j.published_at DESC, j.id",
@@ -550,26 +656,33 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     [Fact]
     public async Task AdQueries_CountAnAdOnce_EvenWhenSeveralOfTheCriterionsSniCodesMatchItsCompany()
     {
-        // The join key is company_register.organization_number, the table's PRIMARY KEY — so an ad
-        // joins at most one register row and is counted ONCE however many of the criterion's SNI codes
-        // its company carries. Were the key not unique, `sni_codes && @sni` would fan the join out and
-        // EVERY number on this surface would be inflated by a factor nobody could see from the copy.
+        // The set cannot double-count, and #1681 part 2 changed WHY. It used to rest on
+        // company_register.organization_number being the register's PRIMARY KEY, so `sni_codes && @sni`
+        // could not fan the join out. The register is gone from this path; the guarantee now rests on
+        // company_watch_criterion_members' PK (criterion_id, organization_number), which names each
+        // org.nr at most once per criterion — so `= ANY(that set)` matches each ad exactly once.
         //
-        // This is a SEMANTIC pin, so it EXECUTES rather than EXPLAINs: the multi-SNI company below
-        // carries both ProbeSni and FillerSni, and the criterion asks for both.
+        // The hazard is therefore absent BY CONSTRUCTION rather than avoided, but the fixture is kept
+        // adversarial anyway: the probe company carries BOTH of the criterion's SNI codes, so a
+        // materialisation that emitted one member row per matching code would inflate every number on
+        // this surface by a factor nobody could see from the copy.
+        //
+        // This is a SEMANTIC pin, so it EXECUTES rather than EXPLAINs.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var bothCodes = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        var count = await port.CountActiveAdsAsync(bothCodes, ceiling: 10_000, ct);
-        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(bothCodes, 1, 20), ct);
+        var count = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct);
+        var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 20, ct);
 
-        // AdRows ads exist in total, all Active, all at companies this criterion matches.
-        count.ShouldBe(AdRows);
-        page.Items.Count.ShouldBe(AdRows);
-        page.Items.Distinct().Count().ShouldBe(AdRows);
+        // AdRows ads exist in total, all Active, all at a company this criterion matched.
+        count.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        count.Count.ShouldBe(AdRows);
+
+        page.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        page.Page!.Items.Count.ShouldBe(AdRows);
+        page.Page.Items.Distinct().Count().ShouldBe(AdRows);
     }
 
     [Fact]
@@ -577,18 +690,18 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     {
         // `j.status = @ad_status` is the WHOLE ad-side exclusion — JobAd has no soft-delete axis and no
         // query filter (#821). Drop that conjunct and a retracted ad reappears in both the count and
-        // the list, with every other test in this file still green (they all EXPLAIN, and an EXPLAIN
-        // cannot see which rows come back).
+        // the list, with every plan pin in this file still green (an EXPLAIN cannot see which rows
+        // come back).
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
         // BASELINE, measured here rather than inherited from a sibling test: without it a fixture
-        // that stopped matching the criterion at all would read 0 before and 0 after, and the pin
+        // whose materialisation had produced no members would read 0 before and 0 after, and the pin
         // would be vacuously green (test-writer V5).
-        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(AdRows);
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
 
         // Parameterised, and the status comes from the SmartEnum rather than a hand-typed literal:
         // a renamed member must break the build, not silently exclude the row for being garbage.
@@ -596,84 +709,37 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
             [JobAdStatus.Archived.Value, AdOrgNr], ct);
 
-        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(0);
-        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 20), ct)).Items.ShouldBeEmpty();
-    }
+        // ZERO, and emphatically a MATERIALISED zero: the criterion is still materialised, its member
+        // set is unchanged, and the honest answer is that those companies have no active ad right now.
+        // A refusal or an absent materialisation here would say something else entirely.
+        var after = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct);
+        after.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        after.Count.ShouldBe(0);
 
-    [Fact]
-    public async Task AdQueries_ExcludeADeregisteredCompany_EvenWhenItsAdsAreActive()
-    {
-        // `c.status = @status` is a documented DPIA M-D6 rule — a de-registered company is NEVER
-        // surfaced — and until this test it was carried by a comment and by nothing else: every
-        // seeded register row is Active, so the conjunct could be DELETED with the whole suite green
-        // (test-writer L1). The ads stay Active on purpose: the exclusion must come from the
-        // REGISTER side, not from the ad side, which its own pin already covers.
-        var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct);
-
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
-
-        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(AdRows);
-
-        await ctx.Db.Database.ExecuteSqlRawAsync(
-            "UPDATE company_register SET status = {0} WHERE organization_number = {1};",
-            [nameof(CompanyRegisterStatus.Deregistered), AdOrgNr], ct);
-
-        (await port.CountActiveAdsAsync(spec, ceiling: 10_000, ct)).ShouldBe(0);
-        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 20), ct)).Items.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public async Task AdQueries_ExcludeACompanySeatedInAnotherKommun()
-    {
-        // The kommun axis, same vacuity as the status one: every seeded row sits in SeededKommun, so
-        // `c.sate_kommun_code = ANY(@kommun)` could be deleted with the suite green (test-writer L1).
-        var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct);
-
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
-        var elsewhere = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [OtherKommun]);
-
-        (await port.CountActiveAdsAsync(elsewhere, ceiling: 10_000, ct)).ShouldBe(0);
-        (await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(elsewhere, 1, 20), ct))
-            .Items.ShouldBeEmpty();
-
-        // ...and the same ads ARE reachable through the kommun they actually sit in, so the zero
-        // above is the predicate discriminating rather than the fixture being empty.
-        var here = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
-        (await port.CountActiveAdsAsync(here, ceiling: 10_000, ct)).ShouldBe(AdRows);
-    }
-
-    [Fact]
-    public async Task AdQueries_MatchAnSniCodeExactly_NeverAsAPrefix()
-    {
-        // `&&` is array overlap on WHOLE elements, and the GIN pins measure the operator's FORM, not
-        // its semantics. A four-digit parent of a five-digit register code must match nothing —
-        // otherwise a criterion for one division would silently pull in every code beneath it.
-        var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct);
-
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
-        var prefix = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni[..4]], [SeededKommun]);
-
-        (await port.CountActiveAdsAsync(prefix, ceiling: 10_000, ct)).ShouldBe(0);
+        var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 20, ct);
+        page.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        page.Page!.Items.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task AdCount_SaturatesAtTheCallersCeiling_NeverReportsMore()
     {
-        // The handler test proves the handler COMPARES against its ceiling; only this one proves the
-        // SQL can produce the capped number at all (test-writer L2). Delete `LIMIT @count_cap` from
-        // AdCountSql and this is the test that notices.
+        // The handler test proves the DTO carries the flag; only this one proves the SQL can produce
+        // the capped number at all, and that the PORT sets Saturated from the cap it actually applied
+        // (#1681 part 2 moved that decision here from the resolver, which used to recompute it).
+        // Delete `LIMIT @count_cap` from the count statement and this is the test that notices.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        (await port.CountActiveAdsAsync(spec, ceiling: AdRows - 2, ct)).ShouldBe(AdRows - 2);
-        (await port.CountActiveAdsAsync(spec, ceiling: AdRows + 100, ct)).ShouldBe(AdRows);
+        var capped = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows - 2, ct);
+        capped.Count.ShouldBe(AdRows - 2);
+        capped.Saturated.ShouldBeTrue();
+
+        var roomy = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
+        roomy.Count.ShouldBe(AdRows);
+        roomy.Saturated.ShouldBeFalse();
     }
 
     [Fact]
@@ -681,18 +747,19 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     {
         // `TotalPages = ceil(TotalCount / PageSize)` while the validator 400s past MaxPage, so the
         // count MUST cap at MaxPage x PageSize — CompanyBrowseCriteria calls that a CORRECTNESS
-        // requirement, not a perf tweak, and on the ad path nothing measured it (test-writer L2).
+        // requirement, not a perf tweak, and on the ad path nothing else measures it (test-writer L2).
         // pageSize 1 makes the cap reachable with a seed this suite can afford.
         var ct = TestContext.Current.CancellationToken;
-        await using var ctx = await SeededContextWithAdsAsync(ct, fillerAds: 0, probeAds: CompanyBrowseCriteria.MaxPage + 5);
+        await using var ctx = await SeededContextWithAdsAsync(
+            ct, fillerAds: 0, probeAds: CompanyBrowseCriteria.MaxPage + 5);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, 1), ct);
+        var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 1, ct);
 
-        page.TotalCount.ShouldBe(CompanyBrowseCriteria.MaxServableRows(1));
-        page.TotalPages.ShouldBe(CompanyBrowseCriteria.MaxPage);
+        page.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        page.Page!.TotalCount.ShouldBe(CompanyBrowseCriteria.MaxServableRows(1));
+        page.Page.TotalPages.ShouldBe(CompanyBrowseCriteria.MaxPage);
     }
 
     [Fact]
@@ -700,19 +767,19 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     {
         // #1656 (b) — the boundary is asserted at EXACTLY the bound, not comfortably inside it. The
         // statement asks for `LIMIT maxSetSize + 1` and the reader refuses on the extra row, so an
-        // off-by-one in either place is a set of AdRows that comes back null (or, worse, a set of
+        // off-by-one in either place is a set of AdRows that comes back refused (or, worse, a set of
         // AdRows - 1 that comes back looking complete).
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        var ids = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows, ct);
+        var ids = await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows, ct);
 
-        ids.ShouldNotBeNull();
-        ids.Count.ShouldBe(AdRows);
-        ids.Distinct().Count().ShouldBe(AdRows);
+        ids.Refused.ShouldBeFalse();
+        ids.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        ids.Ids!.Count.ShouldBe(AdRows);
+        ids.Ids.Distinct().Count().ShouldBe(AdRows);
     }
 
     [Fact]
@@ -724,88 +791,258 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
         // One under the true size: the set does not fit.
-        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows - 1, ct)).ShouldBeNull();
+        var refused = await port.ListActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, AdRows - 1, ct);
+        refused.Refused.ShouldBeTrue();
+        refused.Ids.ShouldBeNull();
 
-        // And a bound that comfortably fits still returns everything -- so the null above is the
-        // refusal and not a fixture that stopped matching the criterion (test-writer V5).
-        var roomy = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
-        roomy.ShouldNotBeNull();
-        roomy.Count.ShouldBe(AdRows);
+        // ...and the refusal is THIS QUESTION's, not the criterion's: the materialisation stands.
+        // Reading the refusal as "för bred på bolagsnivå" would send the user to narrow a watch that
+        // the breadth gate accepted.
+        refused.State.ShouldBe(CriterionMaterialisationState.Materialised);
+
+        // And a bound that comfortably fits still returns everything -- so the refusal above is the
+        // bound and not a fixture that stopped matching the criterion (test-writer V5).
+        var roomy = await port.ListActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
+        roomy.Refused.ShouldBeFalse();
+        roomy.Ids!.Count.ShouldBe(AdRows);
     }
 
     [Fact]
     public async Task ListActiveAdIds_PublishesTheSameTotalOrderAsThePageQuery()
     {
-        // Both statements share AdsOrderBy, and this is what that sharing is FOR: the filtered view
-        // paginates the set while the unfiltered view paginates the page query. Two different orders
-        // would sequence one against the other, which is the trap BrowseCriterionAdsQueryHandler
-        // already documents one step downstream.
+        // Both statements share MaterialisedAdsOrderBy, and this is what that sharing is FOR: the
+        // filtered view paginates the set while the unfiltered view paginates the page query. Two
+        // different orders would sequence one against the other, which is the trap
+        // BrowseCriterionAdsQueryHandler already documents one step downstream.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        var set = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
-        var page = await port.BrowseAdIdsAsync(new CompanyBrowseCriteria(spec, 1, AdRows), ct);
+        var set = await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
+        var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, AdRows, ct);
 
-        set.ShouldNotBeNull();
-        set.Count.ShouldBe(AdRows);
-        set.ShouldBe(page.Items);
+        set.Ids.ShouldNotBeNull();
+        set.Ids.Count.ShouldBe(AdRows);
+        set.Ids.ShouldBe(page.Page!.Items);
     }
 
     [Fact]
     public async Task ListActiveAdIds_ExcludesArchivedAds_LikeItsSiblings()
     {
         // The set inherits the SAME `j.status = @ad_status` conjunct as the count and the page,
-        // because it carries the same AdsFromWhere. Asserted rather than assumed: this set is what
-        // gets GRADED, so an archived ad slipping in would be counted as a match and then rendered.
+        // because it carries the same MaterialisedAdsFromWhere. Asserted rather than assumed: this set
+        // is what gets GRADED, so an archived ad slipping in would be counted as a match and rendered.
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var spec = CompanyWatchCriteriaSpec.FromTrusted([ProbeSni, FillerSni], [SeededKommun]);
         var port = new CompanyWatchBrowseQuery(ctx.Db);
 
-        (await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct))!.Count.ShouldBe(AdRows);
+        (await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct))
+            .Ids!.Count.ShouldBe(AdRows);
 
         await ctx.Db.Database.ExecuteSqlRawAsync(
             "UPDATE job_ads SET status = {0} WHERE organization_number = {1};",
             [JobAdStatus.Archived.Value, AdOrgNr], ct);
 
-        // Empty, and emphatically NOT null: an empty set is "no ads match this criterion", while
-        // null would claim the watch was too broad to answer.
-        var afterArchive = await port.ListActiveAdIdsAsync(spec, maxSetSize: AdRows + 100, ct);
-        afterArchive.ShouldNotBeNull();
-        afterArchive.ShouldBeEmpty();
+        // Empty, and emphatically NOT a refusal and NOT an absent materialisation: an empty set is
+        // "no ads match this criterion", while either of the other two claims we cannot say.
+        var afterArchive = await port.ListActiveAdIdsAsync(
+            ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
+        afterArchive.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        afterArchive.Refused.ShouldBeFalse();
+        afterArchive.Ids.ShouldNotBeNull();
+        afterArchive.Ids.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task AdQueries_ReportNotMaterialised_WhenNoRunHasStampedTheCriterion()
+    {
+        // #1681 part 2 — the state EVERY criterion is in between its creation and the next run, and
+        // the one all three statements answer from the absence of a state row rather than from the
+        // absence of members. It must not read as a zero: "we have not counted this yet" and "these
+        // companies have no ads" are different facts and the surfaces render different copy.
+        //
+        // The criterion is created through the aggregate's own factory (the production create path)
+        // and the job is deliberately NOT run — no state row is hand-written here.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var fresh = await SeedCriterionAsync([ProbeSni], [SeededKommun], ct);
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.CountActiveAdsAsync(fresh, ProbeFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        (await port.ListActiveAdIdsAsync(fresh, ProbeFingerprint, 1_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        (await port.BrowseAdIdsAsync(fresh, ProbeFingerprint, 1, 20, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+
+        // The negative control: the SAME statements, on the SAME data, answer with a number for the
+        // criterion the job DID materialise. Without it this test would also pass against an empty
+        // job_ads table, or a broken join.
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
+    }
+
+    [Fact]
+    public async Task AdQueries_ReportTooBroad_WhenTheBreadthGateRefusedTheCriterion()
+    {
+        // The refusal, end to end. The breadth gate stores NO members and a TooBroad state row, so the
+        // three statements must answer "för bred" rather than the honest zero an empty member set
+        // would otherwise produce — which is precisely the dishonest zero ADR 0139 wrote the state
+        // table for.
+        //
+        // The broad criterion is [ProbeSni, FillerSni] x [SeededKommun], which matches every one of
+        // the SeededRows companies — over CompanyWatchCriterionMember.MaxPerCriterion.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var broadSpec = CompanyWatchCriteriaSpec.Create(
+            [ProbeSni, FillerSni], [SeededKommun]).Value;
+        SeededRows.ShouldBeGreaterThan(CompanyWatchCriterionMember.MaxPerCriterion,
+            "fixturen måste vara bredare än grinden, annars mäter testet ingen vägran");
+
+        var broad = await SeedCriterionAsync([ProbeSni, FillerSni], [SeededKommun], ct);
+        await RunMaterialiserAsync(ct);
+
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var fingerprint = CriteriaFingerprint.Of(broadSpec);
+
+        (await port.CountActiveAdsAsync(broad, fingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+        (await port.ListActiveAdIdsAsync(broad, fingerprint, 1_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+        (await port.BrowseAdIdsAsync(broad, fingerprint, 1, 20, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+
+        // ...and TooBroad is not NotMaterialised: the row EXISTS and says why.
+        (await port.CountActiveAdsAsync(broad, fingerprint, 10_000, ct))
+            .State.ShouldNotBe(CriterionMaterialisationState.NotMaterialised);
+    }
+
+    [Fact]
+    public async Task AdQueries_ReportNotMaterialised_AfterThePredicateIsEdited_NeverTheOldNumber()
+    {
+        // THE STALENESS GUARD, end to end, and the whole reason the discriminator is a FINGERPRINT.
+        // The member set left behind by a run is exact for a predicate its owner no longer has, so
+        // rendering its number would not be stale — it would be FALSE.
+        //
+        // The edit goes through CompanyWatchCriterion.UpdateCriteria, the production edit path, and
+        // the job is deliberately not re-run: what is measured is what a read sees in the window
+        // between the save and the next materialisation, which is a window every edit passes through.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        // BASELINE: before the edit the criterion answers with a real number.
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
+
+        var edited = CompanyWatchCriteriaSpec.Create([ProbeSni], [OtherKommun]).Value;
+        await UpdateCriteriaAsync(ctx.CriterionId, edited, ct);
+        var editedFingerprint = CriteriaFingerprint.Of(edited);
+
+        // The read asks about the criterion AS IT IS NOW, and the stored row was written for the
+        // predicate it had BEFORE. All three statements report ignorance.
+        (await port.CountActiveAdsAsync(ctx.CriterionId, editedFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        (await port.ListActiveAdIdsAsync(ctx.CriterionId, editedFingerprint, 1_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        (await port.BrowseAdIdsAsync(ctx.CriterionId, editedFingerprint, 1, 20, ct))
+            .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+
+        // The row is still there, and it still carries the OLD member set — which is exactly what
+        // makes the guard load-bearing rather than decorative: without it, that set would answer.
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
+
+        // ...and the next run heals it.
+        await RunMaterialiserAsync(ct);
+        (await port.CountActiveAdsAsync(ctx.CriterionId, editedFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.Materialised);
+    }
+
+    [Fact]
+    public async Task AdQueries_KeepTheirNumbers_AcrossAPureRename()
+    {
+        // The OTHER arm of the same guard, and the reason it is not a timestamp. Rename bumps
+        // UpdatedAt exactly as UpdateCriteria does, so an "is the row newer than the materialisation"
+        // guard would blank a working watch's numbers because its owner renamed it — a false refusal
+        // on the most common edit, and one that would repeat on every read until the next nightly run.
+        //
+        // Without this arm the fingerprint could be replaced by a timestamp comparison and every other
+        // test in this file would stay green.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var port = new CompanyWatchBrowseQuery(ctx.Db);
+
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
+
+        var updatedAtBefore = await RenameCriterionAsync(ctx.CriterionId, "Nytt namn", ct);
+
+        // The rename really did move the row's mtime — otherwise this test would prove nothing about
+        // the timestamp guard it exists to rule out.
+        updatedAtBefore.Before.ShouldBeLessThan(updatedAtBefore.After);
+
+        // ...and the numbers are untouched, because the PREDICATE is untouched.
+        var after = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct);
+        after.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        after.Count.ShouldBe(AdRows);
+
+        (await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct))
+            .Ids!.Count.ShouldBe(AdRows);
     }
 
     /// <summary>
-    /// #1559 — the register seed PLUS job_ads rows that actually join to it. The ad pins need both
-    /// sides populated: with an empty <c>job_ads</c> the planner can answer the join from that side
-    /// alone and never look at the register, which would make a GIN pin vacuous.
+    /// #1559 — the register seed PLUS job_ads rows that actually join to it, and (#1681 part 2) the
+    /// MATERIALISED member set the ad statements now read. All three sides have to be populated: with
+    /// an empty <c>job_ads</c> the planner can answer the join from that side alone, and with an empty
+    /// member set every ad pin below measures an empty fixture rather than a plan.
     ///
     /// <para>
     /// The ads are attached to the register's FIRST probe-SNI company, and one register row is given
-    /// BOTH SNI codes so the fan-out pin above has a company that two of the criterion's codes match.
+    /// BOTH SNI codes so the count-once pin above has a company that two of the criterion's codes
+    /// match.
     /// </para>
     ///
     /// <para>
-    /// <b>Bulk-inserted, and that is in bounds (CLAUDE.md §5 <c>Tests:</c>).</b> The state the pins
-    /// rest on — an Active <c>job_ads</c> row carrying an org.nr, and (in the archived pin) the same
-    /// row at <c>Archived</c> — is state <c>src/</c> DOES produce: the Platsbanken ingest writes the
-    /// first through <c>JobAd.Import</c>, and <c>ArchiveExternalJobAdCommandHandler</c> writes the
-    /// second. The seam is convenience, not a premise the assertion needs; the register side seeds
-    /// through the production upsert for the same reason <see cref="SeededContextAsync"/> does.
+    /// <b>The member and state rows are written by the PRODUCTION materialiser</b>
+    /// (<c>ICompanyWatchCriterionMaterialiser</c>, resolved from the fixture's real graph), never by
+    /// this suite — the same discipline <c>CompanyWatchCriterionMaterialisationTests</c> declares. So
+    /// the fingerprint, the member set and the state are exactly what a nightly run produces, and no
+    /// assertion below rests on a row shape production does not write (CLAUDE.md §5 <c>Tests:</c>).
+    /// The criterion itself is created through <c>CompanyWatchCriterion.Create</c>, the same call
+    /// <c>CreateCompanyWatchCriterionCommandHandler</c> makes.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The job_ads rows are bulk-inserted, and that is in bounds (CLAUDE.md §5 <c>Tests:</c>).</b>
+    /// The state the pins rest on — an Active <c>job_ads</c> row carrying an org.nr, and (in the
+    /// archived pins) the same row at <c>Archived</c> — is state <c>src/</c> DOES produce: the
+    /// Platsbanken ingest writes the first through <c>JobAd.Import</c>, and
+    /// <c>ArchiveExternalJobAdCommandHandler</c> writes the second. The seam is convenience, not a
+    /// premise the assertion needs; the register side seeds through the production upsert for the same
+    /// reason <see cref="SeededContextAsync"/> does.
     /// </para>
     /// </summary>
     private async Task<ScopedContext> SeededContextWithAdsAsync(
         CancellationToken ct, int fillerAds = 0, int probeAds = AdRows)
     {
         var ctx = await SeededContextAsync(ct);
+
+        // Criteria carry a FK cascade onto both derived tables, so deleting them here clears the
+        // member and state rows any earlier test in the serial "Worker" collection left behind. That
+        // is what makes the NotMaterialised pin below a measurement rather than a coincidence.
+        await ctx.Db.Database.ExecuteSqlRawAsync("DELETE FROM company_watch_criteria;", ct);
 
         // The probe company gets the second code too — one row, two matching codes.
         await ctx.Db.Database.ExecuteSqlRawAsync(
@@ -853,7 +1090,169 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         await ctx.Db.Database.ExecuteSqlRawAsync("ANALYZE job_ads;", ct);
         await ctx.Db.Database.ExecuteSqlRawAsync("ANALYZE company_register;", ct);
 
+        // #1681 part 2 — the criterion the ad statements are keyed on, and the member set the
+        // production job resolves for it. Run LAST, so the candidate selection plans against the
+        // statistics the two ANALYZEs above just refreshed; the run's own ANALYZE then covers the two
+        // materialisation tables, which is what the member-PK plan pins need.
+        ctx.CriterionId = await SeedCriterionAsync([ProbeSni], [SeededKommun], ct);
+        ctx.Fingerprint = ProbeFingerprint;
+        await RunMaterialiserAsync(ct);
+
         return ctx;
+    }
+
+    /// <summary>
+    /// Creates a criterion through the aggregate's own factory — the same call
+    /// <c>CreateCompanyWatchCriterionCommandHandler</c> makes — and saves it. A fresh user id per
+    /// criterion, so nothing here depends on the per-user cap.
+    /// </summary>
+    private async Task<CompanyWatchCriterionId> SeedCriterionAsync(
+        string[] sni, string[] kommun, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var spec = CompanyWatchCriteriaSpec.Create(sni, kommun);
+        spec.IsSuccess.ShouldBeTrue("seed: specen måste vara giltig");
+
+        var criterion = CompanyWatchCriterion.Create(
+            Guid.NewGuid(), spec.Value, null, new FixedClock(T0));
+        criterion.IsSuccess.ShouldBeTrue("seed: kriteriet måste kunna skapas");
+
+        db.CompanyWatchCriteria.Add(criterion.Value);
+        await db.SaveChangesAsync(ct);
+
+        return criterion.Value.Id;
+    }
+
+    /// <summary>The production materialisation job, from the fixture's real graph.</summary>
+    private async Task RunMaterialiserAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var materialiser = scope.ServiceProvider
+            .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+        await materialiser.MaterialiseAsync(ct);
+    }
+
+    /// <summary>
+    /// The aggregate's own predicate transition — the production edit path, not a column poke. The
+    /// staleness pin turns on this being the SAME call the update handler makes, because what it
+    /// measures is what a read sees between that save and the next materialisation run.
+    /// </summary>
+    private async Task UpdateCriteriaAsync(
+        CompanyWatchCriterionId id, CompanyWatchCriteriaSpec criteria, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var criterion = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == id, ct);
+        criterion.UpdateCriteria(criteria, new FixedClock(T0.AddDays(1))).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// The aggregate's own LABEL transition, and it returns the <c>UpdatedAt</c> stamps either side of
+    /// it. The rename pin needs both: without evidence that the rename MOVED the row's mtime, it
+    /// cannot rule out the timestamp guard it exists to rule out.
+    /// </summary>
+    private async Task<(DateTimeOffset Before, DateTimeOffset After)> RenameCriterionAsync(
+        CompanyWatchCriterionId id, string label, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var criterion = await db.CompanyWatchCriteria.SingleAsync(c => c.Id == id, ct);
+        var before = criterion.UpdatedAt;
+
+        criterion.Rename(label, new FixedClock(T0.AddDays(1))).IsSuccess.ShouldBeTrue();
+        await db.SaveChangesAsync(ct);
+
+        return (before, criterion.UpdatedAt);
+    }
+
+    // House idiom: a private fixed clock per suite (parity CompanyWatchCriterionMaterialisationTests).
+    // §5 forbids DateTime.UtcNow in production; the seed path takes the same injected
+    // IDateTimeProvider production does, so the timestamps a test writes are produced the way
+    // production produces them.
+    private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    /// <summary>
+    /// #1681 part 2 — the pair of facts the ad-side plans now claim, and they only work TOGETHER.
+    ///
+    /// <para>
+    /// The POSITIVE half names the member table's PK index, for exactly the reason the GIN assertions
+    /// are positive rather than a "no Seq Scan" negative (dotnet-architect Q1(a)): a negative passes
+    /// whenever some other path is available. The NEGATIVE half is what ADR 0139 actually claims — the
+    /// register is not in this plan at all — and it is the one that cannot validate itself, which is
+    /// why <c>CompanyQueries_StillReadTheRegister_SoTheAbsenceAssertionsCanFail</c> exists.
+    /// </para>
+    /// </summary>
+    private static void AssertReadsTheMemberSet(string plan, string which)
+    {
+        plan.ShouldContain(
+            MemberPkIndexName,
+            customMessage:
+                $"The {which} query's plan does NOT use {MemberPkIndexName}. The member lookup is then "
+                + "not the index lookup the breadth-gate bound was derived against (Index Only Scan, "
+                + "Heap Fetches: 0), and the bound's derivation no longer describes what runs. The "
+                + "usual causes are a missing ANALYZE on the materialisation tables (the job does one "
+                + "per completed run) and a rewrite of the `= ANY(ARRAY(subselect))` shape into a "
+                + $"JOIN — which the port's docblock forbids by name.{Environment.NewLine}"
+                + $"Plan:{Environment.NewLine}{plan}");
+
+        plan.ShouldNotContain(
+            RegisterTable,
+            customMessage:
+                $"The {which} query's plan reads {RegisterTable} again. That is ADR 0139 undone: the "
+                + "predicate's expensive half is back inside a request on the 300 ms MeListRead "
+                + "budget, and — worse — the criterion would then be answered from TWO resolutions of "
+                + "the same register predicate at two instants, which is the #1407/#1471 divergence "
+                + $"the materialisation exists to close.{Environment.NewLine}"
+                + $"Plan:{Environment.NewLine}{plan}");
+    }
+
+    /// <summary>
+    /// EXPLAINs one of the MATERIALISED ad statements, keyed on the criterion the fixture's
+    /// materialisation run wrote a member set for. Same instrument as <see cref="ExplainAsync"/> —
+    /// including <c>enable_seqscan = off</c>, and for the same reason: the member set in a fixture is
+    /// small enough that a sequential scan is genuinely the cheapest plan, so without the GUC the
+    /// eligibility claim would be untestable. What the pin guarantees is that the shape the port emits
+    /// is one the member PK CAN serve, which is precisely what a JOIN rewrite would not be.
+    /// </summary>
+    private static async Task<string> ExplainMaterialisedAsync(
+        ScopedContext ctx,
+        Func<NpgsqlConnection, CompanyWatchCriterionId, CriteriaFingerprint, NpgsqlCommand> build,
+        CancellationToken ct)
+    {
+        var connection = (NpgsqlConnection)ctx.Db.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(ct);
+
+        await using var tx = await connection.BeginTransactionAsync(ct);
+
+        await using (var guc = connection.CreateCommand())
+        {
+            guc.Transaction = tx;
+            guc.CommandText = "SET LOCAL enable_seqscan = off;";
+            await guc.ExecuteNonQueryAsync(ct);
+        }
+
+        await using var cmd = build(connection, ctx.CriterionId, ctx.Fingerprint);
+        cmd.Transaction = tx;
+        cmd.CommandText = "EXPLAIN " + cmd.CommandText;
+
+        var lines = new List<string>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+                lines.Add(reader.GetString(0));
+        }
+
+        await tx.RollbackAsync(ct);
+        return string.Join(Environment.NewLine, lines);
     }
 
     private static void AssertServedByGin(string plan, string which)
@@ -957,7 +1356,11 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var entries = Enumerable.Range(0, SeededRows)
             .Select(i => new ScbCompanyRegisterEntry
             {
-                OrganizationNumber = $"55{i:D8}",
+                // "552" + 7 digits = 10. The third digit is what
+                // OrganizationNumber.IsPersonnummerShaped() reads, and '2' is the first LEGAL-ENTITY
+                // value — see the AdOrgNr comment for why an "550…" seed would silently empty every
+                // materialised member set in this file.
+                OrganizationNumber = $"552{i:D7}",
                 // Decorrelated from org.nr order (code-reviewer, #875): a bulk insert in ascending i gives
                 // company_name a correlation of ~1.0, which makes the planner price this index's heap
                 // fetches as SEQUENTIAL — pricing the very plan we pin at its floor. The real register is
@@ -989,6 +1392,23 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     {
         public AppDbContext Db { get; } = db;
         public AsyncServiceScope Scope { get; } = scope;
+
+        /// <summary>
+        /// #1681 part 2 — the criterion the fixture's materialisation run wrote a member set for, and
+        /// the digest of the predicate it was written FROM. Both are what the ad statements are keyed
+        /// on, so carrying them here is what stops every ad test re-deriving the pair (and getting the
+        /// fingerprint subtly wrong once).
+        ///
+        /// <para>
+        /// Default (<c>Guid.Empty</c> / an empty digest) for a context built by
+        /// <see cref="SeededContextAsync"/> alone, which seeds no criterion — the register-side pins
+        /// never read either.
+        /// </para>
+        /// </summary>
+        public CompanyWatchCriterionId CriterionId { get; set; }
+
+        public CriteriaFingerprint Fingerprint { get; set; }
+
         public ValueTask DisposeAsync() => Scope.DisposeAsync();
     }
 }

@@ -31,43 +31,56 @@ public sealed record GetMyMatchingAdCountForCriterionQuery(Guid CriterionId)
     : IQuery<MyMatchingAdCountDto?>, IAuthenticatedRequest;
 
 /// <summary>
-/// The honest personal count. <see cref="Count"/> is EXACT when present — there is no saturation
+/// The honest personal count. <see cref="Count"/> is EXACT when present - there is no saturation
 /// arm and no ceiling marker, because the underlying set is refused rather than truncated when it
 /// grows too large (ADR 0120 clause 5).
 ///
 /// <para>
-/// Three states, and a consumer must not collapse any two of them:
+/// FOUR states since #1681 part 2, and a consumer must not collapse any two of them:
 /// <list type="bullet">
-/// <item><c>Count = n</c>, <c>TooBroad = false</c> — exactly <c>n</c> ads match. <c>n = 0</c> is a
-/// real answer.</item>
-/// <item><c>Count = null</c>, <c>TooBroad = false</c> — NOT ASSESSED: the user has stated no
-/// occupation, so matching is undefined. Parity <c>CompanyWatchDto.MatchingAdCount</c>, which is
-/// the shape Klas asked this surface to mirror; the FE renders the occupation nudge, never a
+/// <item><c>Count = n</c> - exactly <c>n</c> ads match. <c>n = 0</c> is a real answer.</item>
+/// <item><see cref="NotAssessed"/> - the user has stated no occupation, so matching is undefined.
+/// Parity <c>CompanyWatchDto.MatchingAdCount</c>; the FE renders the occupation nudge, never a
 /// zero.</item>
-/// <item><c>Count = null</c>, <c>TooBroad = true</c> — the watch matches more ads than the product
-/// will grade, so no honest number exists. Also never a zero.</item>
+/// <item><see cref="TooBroad"/> - the watch matches more than the product will grade, so no honest
+/// number exists. Also never a zero.</item>
+/// <item><see cref="NotMaterialised"/> - the criterion's company set has not been computed for its
+/// CURRENT predicate yet, so nothing could be graded. Distinct from <see cref="TooBroad"/> on
+/// purpose: "we refused" and "we have not looked yet" are different facts, and only one of them is
+/// something the user can act on by narrowing the watch.</item>
 /// </list>
-/// The fourth combination is rejected in the constructor rather than left to reviewers: a count
+/// Every other combination is rejected in the constructor rather than left to reviewers: a count
 /// that is simultaneously known and unanswerable is not a state this question has.
 /// </para>
 /// </summary>
-public sealed record MyMatchingAdCountDto(int? Count, bool TooBroad)
+public sealed record MyMatchingAdCountDto(int? Count, bool TooBroad, bool NotMaterialised)
 {
     public bool TooBroad { get; } = TooBroad;
+    public bool NotMaterialised { get; } = NotMaterialised;
 
-    public int? Count { get; } = !TooBroad || Count is null
-        ? Count
-        : throw new ArgumentException(
-            "TooBroad utesluter ett Count: en bevakning som är för bred för att graderas har inget "
-            + "tal, och ett tal bredvid TooBroad skulle vara ett golv utgivet för en exakt siffra.",
-            nameof(Count));
+    public int? Count { get; } = TooBroad && NotMaterialised
+        ? throw new ArgumentException(
+            "En bevakning kan inte samtidigt vara for bred och omaterialiserad.", nameof(TooBroad))
+        : (TooBroad || NotMaterialised) && Count is not null
+            ? throw new ArgumentException(
+                "En vagran utesluter ett Count: ett tal bredvid en vagran vore ett golv utgivet for "
+                + "en exakt siffra.",
+                nameof(Count))
+            : Count;
 
     /// <summary>Exactly <paramref name="count"/> ads match; <c>0</c> is a real answer.</summary>
-    public static MyMatchingAdCountDto Counted(int count) => new(count, TooBroad: false);
+    public static MyMatchingAdCountDto Counted(int count) =>
+        new(count, TooBroad: false, NotMaterialised: false);
 
-    /// <summary>No stated occupation — matching is undefined, and that is not a zero.</summary>
-    public static MyMatchingAdCountDto NotAssessed { get; } = new(null, TooBroad: false);
+    /// <summary>No stated occupation - matching is undefined, and that is not a zero.</summary>
+    public static MyMatchingAdCountDto NotAssessed { get; } =
+        new(null, TooBroad: false, NotMaterialised: false);
 
-    /// <summary>Too many ads to grade — no honest number exists, and that is not a zero either.</summary>
-    public static MyMatchingAdCountDto TooBroadToCount { get; } = new(null, TooBroad: true);
+    /// <summary>Too many ads to grade - no honest number exists, and that is not a zero either.</summary>
+    public static MyMatchingAdCountDto TooBroadToCount { get; } =
+        new(null, TooBroad: true, NotMaterialised: false);
+
+    /// <summary>Nothing materialised for the current predicate yet - unknown, and not a zero.</summary>
+    public static MyMatchingAdCountDto NotMaterialisedYet { get; } =
+        new(null, TooBroad: false, NotMaterialised: true);
 }

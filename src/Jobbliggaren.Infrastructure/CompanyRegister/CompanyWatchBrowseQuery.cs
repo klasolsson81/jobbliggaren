@@ -207,108 +207,184 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     }
 
     /// <summary>
-    /// #1559 — the criterion's ACTIVE-ad predicate: the SAME register half as <see cref="FromWhere"/>,
-    /// joined to <c>job_ads</c> on the org.nr, plus the ad's own Active gate.
+    /// #1559, re-based on the materialised member set by #1681 part 2 (ADR 0139) - the criterion's
+    /// ACTIVE-ad predicate. <b>It no longer touches <c>company_register</c> at all.</b>
     ///
     /// <para>
-    /// <b>It is a SEPARATE constant, not a reuse of <see cref="FromWhere"/> with a JOIN prefixed.</b>
-    /// The two differ in their FROM clause, so no textual composition could produce both without a
-    /// placeholder — and a WHERE text that reads correctly only after substitution is the shape that
-    /// makes the EXPLAIN pin stop covering production. The register predicate is instead kept in step
-    /// by <see cref="BindPredicate"/>, which binds BOTH families from one routine: a divergence in the
-    /// bound VALUES is the failure the count/page SPOT was built against, and it is the half that
-    /// cannot be seen by reading either statement.
+    /// <b>This is the whole point of ADR 0139, expressed as a FROM clause.</b> The predicate's
+    /// expensive half - resolving SNI-overlap AND kommun-membership against 1,07M register rows -
+    /// was moved out of the request path into a recurring job, so what is left here is an index join
+    /// against a pre-computed, breadth-gated org.nr set. Measured: the plan contains no
+    /// <c>company_register</c> node, its <c>InitPlan</c> is an Index Only Scan on the member PK with
+    /// <c>Heap Fetches: 0</c>, and the outer query is a Bitmap Index Scan on
+    /// <c>ix_job_ads_organization_number</c>
+    /// (<c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>, Result 3).
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>= ANY(ARRAY(subselect))</c>, not a JOIN against the member table, and that is a MEASURED
+    /// choice rather than a stylistic one</b> (senior-cto-advisor 2026-09-06). The two forms cross:
+    /// this one keeps the twin handler's exact plan and its cost grows with the criterion's ad set,
+    /// while a JOIN is driven by <c>job_ads</c> and costs the same whatever the member count - which
+    /// makes it flat but strictly worse at every size an ordinary criterion has. It is also the shape
+    /// the breadth gate's bound was DERIVED against, so this statement inherits that derivation
+    /// instead of owing a new one. <b>Do not "simplify" it into a JOIN.</b>
     /// </para>
     ///
     /// <para>
     /// <b><c>j.status = @ad_status</c> is the WHOLE ad-side exclusion.</b> <c>JobAd</c> has no
-    /// soft-delete axis and no query filter (#821) — a retracted ad is excluded by its Status, and
-    /// there is no <c>deleted_at</c> predicate to add here (ADR 0048 forbids a hand-rolled one). The
-    /// register side keeps its own positive-polarity <c>status = @status</c> for the reason
-    /// <see cref="FromWhere"/> gives.
+    /// soft-delete axis and no query filter (#821) - a retracted ad is excluded by its Status, and
+    /// there is no <c>deleted_at</c> predicate to add here (ADR 0048 forbids a hand-rolled one).
     /// </para>
     ///
     /// <para>
-    /// <b>The join key cannot double-count.</b> <c>company_register.organization_number</c> is the
-    /// table's PRIMARY KEY, so a given ad joins at most one register row and an ad is counted once
-    /// however many SNI codes of the criterion its company carries. Were it not the PK, the
-    /// array-overlap predicate would fan out and every number on this surface would be inflated.
+    /// <b>The set cannot double-count.</b> <c>company_watch_criterion_members</c> has PK
+    /// <c>(criterion_id, organization_number)</c>, so a criterion names each org.nr at most once and
+    /// <c>= ANY</c> over that set matches each ad exactly once. The register's array-overlap predicate
+    /// USED to carry this risk (one company matching several of the criterion's SNI codes); the
+    /// materialisation collapsed it to a set, so the hazard is now absent by construction rather than
+    /// avoided by the PK of a table this statement no longer reads.
     /// </para>
     /// </summary>
-    private const string AdsFromWhere = """
+    private const string MaterialisedAdsFromWhere = """
         FROM job_ads j
-        JOIN company_register c ON c.organization_number = j.organization_number
-        WHERE c.status = @status
-          AND c.sate_kommun_code = ANY(@kommun)
-          AND c.sni_codes && @sni
+        WHERE j.organization_number = ANY(ARRAY(
+                SELECT organization_number
+                FROM company_watch_criterion_members
+                WHERE criterion_id = @criterion_id))
           AND j.status = @ad_status
         """;
 
     // ORDER BY is TOTAL for the same reason ItemsSql's is: published_at is not unique (a bulk
     // ingest stamps many ads identically), Postgres sorts are not stable, and a non-total order
-    // plus OFFSET can drop or duplicate rows ACROSS pages. j.id is the PK — it makes the order
+    // plus OFFSET can drop or duplicate rows ACROSS pages. j.id is the PK - it makes the order
     // total. The port's doc publishes this order because the CALLER re-orders by it.
     //
     // SHARED by the page query and the whole-set query, and that sharing is load-bearing (#1656 (b)):
     // the filtered view paginates the SET while the unfiltered view paginates the PAGE query, so two
-    // different orders here would sequence one against the other. Same lesson as
-    // BrowseCriterionAdsQueryHandler's re-sequencing note, one step upstream.
-    private const string AdsOrderBy = """
+    // different orders here would sequence one against the other.
+    private const string MaterialisedAdsOrderBy = """
 
         ORDER BY j.published_at DESC, j.id
         """;
 
-    private const string AdIdsSql =
+    /// <summary>
+    /// The state gate every materialised read is wrapped in. Driving the statement FROM
+    /// <c>company_watch_criterion_materialisations</c> - rather than reading the ads and asking about
+    /// the state afterwards - is what makes the three honest answers come back in ONE round trip:
+    /// no row at all is "never materialised", a row whose state or fingerprint disqualifies it yields
+    /// no ad work at all, and only a row that passes both reaches the join.
+    ///
+    /// <para>
+    /// <b>The fingerprint comparison is IN the statement, not in C#</b>, so a mismatched predicate
+    /// costs nothing: Postgres evaluates it as a one-time filter and skips the ad scan entirely
+    /// (verified in the plan as <c>One-Time Filter</c>). Doing it in C# would have read the ads first
+    /// and thrown them away.
+    /// </para>
+    /// </summary>
+    private const string MaterialisedGate =
+        "m.state = @materialised_state AND m.criteria_fingerprint = @fingerprint";
+
+    /// <summary>
+    /// The capped ad count, wrapped in the state gate. <c>CASE</c> rather than a <c>WHERE</c> on the
+    /// outer row, because the outer row must come back even when the gate fails - its
+    /// <c>state</c> is the answer in that case, and filtering it away would make "too broad" and
+    /// "never materialised" indistinguishable (both would be zero rows).
+    /// </summary>
+    private const string MaterialisedAdCountSql =
+        "SELECT m.state, m.criteria_fingerprint, CASE WHEN "
+        + MaterialisedGate
+        + " THEN (SELECT count(*) FROM (SELECT 1 "
+        + MaterialisedAdsFromWhere
+        + """
+         LIMIT @count_cap) t) END AS ads
+        FROM company_watch_criterion_materialisations m
+        WHERE m.criterion_id = @criterion_id;
+        """;
+
+    /// <summary>
+    /// The whole ordered ad-id set, wrapped in the state gate via a LEFT JOIN LATERAL so the state row
+    /// survives an empty (or gated-away) ad set.
+    ///
+    /// <para>
+    /// <b>The lateral was measured, not assumed, because a lateral is exactly where this codebase has
+    /// been burned before.</b> ADR 0139 rejected a batched form whose lateral sat over a
+    /// <c>jsonb_to_recordset</c> function scan - the planner had no statistics for it and stopped
+    /// choosing the index lookup, costing 40-50x. This lateral is over a REAL table with a correlated
+    /// equality on its PK, and the plan is unchanged from the un-wrapped statement: same Index Only
+    /// Scan (<c>Heap Fetches: 0</c>), same Bitmap Index Scan, 44 buffers against 43. The gate appears
+    /// as a <c>One-Time Filter</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The outer ORDER BY is not redundant.</b> The lateral's own ORDER BY is what the LIMIT cuts
+    /// against, so it selects the right rows; but the published order is part of the port's CONTRACT,
+    /// and relying on a Nested Loop to preserve the inner order is relying on a plan shape rather than
+    /// on the statement. It re-sorts at most <c>maxSetSize + 1</c> rows.
+    /// </para>
+    /// </summary>
+    private const string MaterialisedAdIdSetSql =
+        """
+        SELECT m.state, m.criteria_fingerprint, a.id
+        FROM company_watch_criterion_materialisations m
+        LEFT JOIN LATERAL (
+        """
+        // A raw string literal does NOT keep the newline before its closing delimiter, so a fragment
+        // ending in a column name would butt straight up against MaterialisedAdsFromWhere's leading
+        // `FROM` and emit `j.published_atFROM job_ads j`. That is invisible when reading either
+        // literal, and it is why every fragment on this seam ends in an ordinary quoted string with a
+        // trailing space — the shape the sibling statements already use.
+        + "SELECT j.id, j.published_at "
+        + MaterialisedAdsFromWhere
+        + " AND "
+        + MaterialisedGate
+        + MaterialisedAdsOrderBy
+        + """
+         LIMIT @set_limit) a ON true
+        WHERE m.criterion_id = @criterion_id
+        ORDER BY a.published_at DESC, a.id;
+        """;
+
+    /// <summary>
+    /// One PAGE of ad ids. Unlike its two siblings this statement carries no state gate, and
+    /// deliberately: <see cref="BrowseAdIdsAsync"/> reads the state via
+    /// <see cref="MaterialisedAdCountSql"/> first (it needs the capped total anyway) and only issues
+    /// this one once the gate has passed - so the gate is paid for once rather than twice, and this
+    /// statement's plan stays byte-for-byte the shape the measurement covers.
+    /// </summary>
+    private const string MaterialisedAdIdsSql =
         "SELECT j.id "
-        + AdsFromWhere
-        + AdsOrderBy
+        + MaterialisedAdsFromWhere
+        + MaterialisedAdsOrderBy
         + """
 
         LIMIT @limit OFFSET @offset;
         """;
 
-    /// <summary>
-    /// #1656 (b) — the WHOLE ordered ad-id set, bounded by <c>LIMIT @set_limit</c>. The caller binds
-    /// <c>maxSetSize + 1</c> so the extra row is the REFUSAL signal: the set is returned only when it
-    /// fits, never as a prefix (see the port's docblock for why a truncated input cannot be counted
-    /// honestly). Same <see cref="AdsFromWhere"/> and same <see cref="AdsOrderBy"/> as the page query.
-    /// </summary>
-    private const string AdIdSetSql =
-        "SELECT j.id "
-        + AdsFromWhere
-        + AdsOrderBy
-        + """
-
-        LIMIT @set_limit;
-        """;
-
-    /// <summary>
-    /// The ad count, capped — the same statement shape as <see cref="CountSql"/> over the ad
-    /// predicate, so the pagination cap and the magnitude ceiling are again one statement differing
-    /// only in the bound <c>@count_cap</c>.
-    /// </summary>
-    private const string AdCountSql =
-        "SELECT count(*) FROM (SELECT 1 " + AdsFromWhere + " LIMIT @count_cap) t;";
-
-    public async ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
-        CompanyBrowseCriteria criteria, CancellationToken cancellationToken)
+    public async ValueTask<MaterialisedAdPage> BrowseAdIdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint,
+        int page, int pageSize, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(criteria);
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        // Separate count query BEFORE pagination (CLAUDE.md §3.6), same predicate, same bindings.
-        int totalCount;
-        await using (var countCmd = BuildAdCountCommand(
-            connection, criteria.Criteria, CompanyBrowseCriteria.MaxServableRows(criteria.PageSize)))
+        // Separate count query BEFORE pagination (CLAUDE.md 3.6) - and here it doubles as the state
+        // read, so the gate costs no extra round trip.
+        var counted = await ReadAdCountAsync(
+            connection, criterionId, fingerprint,
+            CompanyBrowseCriteria.MaxServableRows(pageSize), cancellationToken).ConfigureAwait(false);
+
+        if (counted.State != CriterionMaterialisationState.Materialised)
         {
-            var scalar = await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            totalCount = Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+            return counted.State == CriterionMaterialisationState.TooBroad
+                ? MaterialisedAdPage.TooBroad
+                : MaterialisedAdPage.NotMaterialised;
         }
 
         var ids = new List<JobAdId>();
-        await using (var idsCmd = BuildAdIdsCommand(
-            connection, criteria.Criteria, criteria.Page, criteria.PageSize))
+        await using (var idsCmd = BuildAdIdsCommand(connection, criterionId, page, pageSize))
         {
             await using var reader = await idsCmd
                 .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -316,48 +392,107 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
                 ids.Add(new JobAdId(reader.GetGuid(0)));
         }
 
-        return new PagedResult<JobAdId>(ids, totalCount, criteria.Page, criteria.PageSize);
+        return MaterialisedAdPage.Resolved(
+            new PagedResult<JobAdId>(ids, counted.Count!.Value, page, pageSize));
     }
 
-    public async ValueTask<int> CountActiveAdsAsync(
-        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken)
+    public async ValueTask<MaterialisedAdCount> CountActiveAdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint, int ceiling,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(criteria);
         ArgumentOutOfRangeException.ThrowIfLessThan(ceiling, 1);
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-        await using var cmd = BuildAdCountCommand(connection, criteria, ceiling);
-        var scalar = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        return Convert.ToInt32(scalar, System.Globalization.CultureInfo.InvariantCulture);
+        return await ReadAdCountAsync(connection, criterionId, fingerprint, ceiling, cancellationToken)
+            .ConfigureAwait(false);
     }
 
-    public async ValueTask<IReadOnlyList<JobAdId>?> ListActiveAdIdsAsync(
-        CompanyWatchCriteriaSpec criteria, int maxSetSize, CancellationToken cancellationToken)
+    private static async Task<MaterialisedAdCount> ReadAdCountAsync(
+        NpgsqlConnection connection,
+        CompanyWatchCriterionId criterionId,
+        CriteriaFingerprint fingerprint,
+        int cap,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(criteria);
+        await using var cmd = BuildAdCountCommand(connection, criterionId, fingerprint, cap);
+        await using var reader = await cmd
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        // No row = no materialisation has ever run for this criterion. It is NOT a zero, and the
+        // difference is the whole reason part 1 wrote a state table at all.
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            return MaterialisedAdCount.NotMaterialised;
+
+        var state = reader.GetString(0);
+        var storedFingerprint = reader.GetString(1);
+
+        if (state == MaterialisationState.TooBroad.ToString())
+            return MaterialisedAdCount.TooBroad;
+
+        // A row whose fingerprint does not match was computed from a predicate the user has since
+        // edited. Its member set is exact for a criterion that no longer exists, so the honest answer
+        // is that we do not know yet - never the old number, which would be false rather than stale.
+        if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
+            return MaterialisedAdCount.NotMaterialised;
+
+        // The gate passed, so the CASE produced a number. A NULL here would mean the SQL gate and the
+        // C# gate disagree, which is a bug rather than a state - fail loud instead of inventing a 0.
+        if (await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(
+                "Materialiserad rad utan annonstal: SQL-grinden och C#-grinden ar inte langre samma "
+                + "villkor. En 0 har vore ett pahittat tal.");
+        }
+
+        var count = reader.GetInt32(2);
+        return MaterialisedAdCount.Counted(count, saturated: count >= cap);
+    }
+
+    public async ValueTask<MaterialisedAdIds> ListActiveAdIdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint, int maxSetSize,
+        CancellationToken cancellationToken)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxSetSize, 1);
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var cmd = BuildAdIdSetCommand(connection, criteria, maxSetSize);
+        await using var cmd = BuildAdIdSetCommand(connection, criterionId, fingerprint, maxSetSize);
         await using var reader = await cmd
             .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
-        // Read at most maxSetSize rows. The (maxSetSize + 1)-th row is not DATA — it is the signal
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            return MaterialisedAdIds.NotMaterialised;
+
+        var state = reader.GetString(0);
+        var storedFingerprint = reader.GetString(1);
+
+        if (state == MaterialisationState.TooBroad.ToString())
+            return MaterialisedAdIds.TooBroad;
+
+        if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
+            return MaterialisedAdIds.NotMaterialised;
+
+        // The LEFT JOIN always yields one row. A NULL id on it means the lateral matched nothing,
+        // which for a gate that PASSED is an honest empty set - not a refusal, and not ignorance.
+        var ids = new List<JobAdId>();
+        if (await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false))
+            return MaterialisedAdIds.Resolved(ids);
+
+        ids.Add(new JobAdId(reader.GetGuid(2)));
+
+        // Read at most maxSetSize rows. The (maxSetSize + 1)-th row is not DATA - it is the signal
         // that the set does not fit, and reaching it abandons the whole answer rather than returning
         // what was read so far. Returning the prefix is precisely the failure this method exists to
         // make impossible.
-        var ids = new List<JobAdId>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             if (ids.Count == maxSetSize)
-                return null;
+                return MaterialisedAdIds.TooManyAds;
 
-            ids.Add(new JobAdId(reader.GetGuid(0)));
+            ids.Add(new JobAdId(reader.GetGuid(2)));
         }
 
-        return ids;
+        return MaterialisedAdIds.Resolved(ids);
     }
 
     /// <summary>
@@ -367,13 +502,13 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// round-trip can distinguish a set that fits from one that does not.
     /// </summary>
     internal static NpgsqlCommand BuildAdIdSetCommand(
-        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int maxSetSize)
+        NpgsqlConnection connection, CompanyWatchCriterionId criterionId,
+        CriteriaFingerprint fingerprint, int maxSetSize)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = AdIdSetSql;
-        BindPredicate(cmd, spec);
-        BindAdStatus(cmd);
+        cmd.CommandText = MaterialisedAdIdSetSql;
+        BindMaterialisedGate(cmd, criterionId, fingerprint);
         cmd.Parameters.AddWithValue("@set_limit", NpgsqlDbType.Integer, maxSetSize + 1);
         return cmd;
     }
@@ -384,12 +519,12 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// text rather than a hand-typed lookalike.
     /// </summary>
     internal static NpgsqlCommand BuildAdIdsCommand(
-        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int page, int pageSize)
+        NpgsqlConnection connection, CompanyWatchCriterionId criterionId, int page, int pageSize)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = AdIdsSql;
-        BindPredicate(cmd, spec);
+        cmd.CommandText = MaterialisedAdIdsSql;
+        cmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId.Value);
         BindAdStatus(cmd);
         cmd.Parameters.AddWithValue("@limit", NpgsqlDbType.Integer, pageSize);
         cmd.Parameters.AddWithValue("@offset", NpgsqlDbType.Integer, (page - 1) * pageSize);
@@ -397,20 +532,39 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     }
 
     /// <summary>
-    /// The ad-count query, exactly as production emits it — serving BOTH the pagination cap and the
+    /// The ad-count query, exactly as production emits it - serving BOTH the pagination cap and the
     /// magnitude ceiling, which is why the cap is a parameter here rather than derived inside (the
     /// two callers hold two different product answers to "how far do we count").
     /// </summary>
     internal static NpgsqlCommand BuildAdCountCommand(
-        NpgsqlConnection connection, CompanyWatchCriteriaSpec spec, int cap)
+        NpgsqlConnection connection, CompanyWatchCriterionId criterionId,
+        CriteriaFingerprint fingerprint, int cap)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText = AdCountSql;
-        BindPredicate(cmd, spec);
-        BindAdStatus(cmd);
+        cmd.CommandText = MaterialisedAdCountSql;
+        BindMaterialisedGate(cmd, criterionId, fingerprint);
         cmd.Parameters.AddWithValue("@count_cap", NpgsqlDbType.Integer, cap);
         return cmd;
+    }
+
+    /// <summary>
+    /// Binds the criterion, its predicate fingerprint and the two status values every gated
+    /// materialised statement shares. ONE routine for both statements, for the reason
+    /// <see cref="BindPredicate"/> exists on the register side: a divergence in the bound VALUES is
+    /// the half that cannot be seen by reading either statement.
+    /// </summary>
+    private static void BindMaterialisedGate(
+        NpgsqlCommand cmd, CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint)
+    {
+        cmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId.Value);
+        cmd.Parameters.AddWithValue("@fingerprint", NpgsqlDbType.Text, fingerprint.Value);
+        // The enum's own name, never a literal (5 magic strings): the column is written from
+        // MaterialisationState.ToString() by CompanyWatchCriterionMemberStore, so the two cannot
+        // drift apart without the type itself changing.
+        cmd.Parameters.AddWithValue(
+            "@materialised_state", NpgsqlDbType.Text, MaterialisationState.Materialised.ToString());
+        BindAdStatus(cmd);
     }
 
     /// <summary>
@@ -419,7 +573,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// placeholder.
     ///
     /// <para>
-    /// The value comes from <c>JobAdStatus.Active</c>, not a literal (§5 magic strings):
+    /// The value comes from <c>JobAdStatus.Active</c>, not a literal (5 magic strings):
     /// <c>job_ads.status</c> is persisted from that SmartEnum's own <c>Value</c>, so the two cannot
     /// drift apart without the type itself changing.
     /// </para>

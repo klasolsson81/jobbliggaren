@@ -18,8 +18,18 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Queries;
 
 /// <summary>
 /// #1559 — <see cref="BrowseCriterionAdsQueryHandler"/>: the criterion's own ad list. The port (which
-/// owns the register JOIN) is faked; the ad LOAD runs against the real <c>JobAds</c> set, because the
-/// re-order and the projection are this handler's own responsibility and are what a fake would hide.
+/// owns the join against the criterion's company set) is faked; the ad LOAD runs against the real
+/// <c>JobAds</c> set, because the re-order and the projection are this handler's own responsibility
+/// and are what a fake would hide.
+///
+/// <para>
+/// <b>#1681 part 2 (ADR 0139) — that join is no longer against <c>company_register</c>.</b> The
+/// predicate is resolved out of the request path by the materialisation job, so the port reads
+/// <c>members ⋈ job_ads</c> and answers with a <see cref="MaterialisedAdPage"/>: a page, or the
+/// reason there is none. This suite therefore pins one thing it could not before — that the two
+/// no-page states produce an EMPTY page rather than a 404, and that the criterion's key carries its
+/// current predicate's fingerprint.
+/// </para>
 /// </summary>
 public class BrowseCriterionAdsQueryHandlerTests
 {
@@ -57,14 +67,19 @@ public class BrowseCriterionAdsQueryHandlerTests
         row.CompanyName.ShouldBe("Acme AB");
         row.Status.ShouldBe(JobAdStatus.Active.Value);
 
-        // The port receives the criterion's OWN predicate and the request's transport bounds — the
-        // request can influence the paging and nothing else.
+        // The port receives the criterion's OWN key and the request's transport bounds — the request
+        // can influence the paging and nothing else.
+        //
+        // #1681 part 2 (ADR 0139) — that key is the criterion's id plus the FINGERPRINT of the
+        // predicate it carries right now, where it used to be the predicate itself. Strictly
+        // stronger: the id alone would be answered from a member set computed for a predicate its
+        // owner has since edited, which is the whole reason the fingerprint is an argument rather
+        // than something the port looks up for itself.
         await port.Received(1).BrowseAdIdsAsync(
-            Arg.Is<CompanyBrowseCriteria>(c => c != null
-                && c.Criteria.SniCodes.SequenceEqual(SniIt)
-                && c.Criteria.MunicipalityCodes.SequenceEqual(KommunStockholm)
-                && c.Page == 1
-                && c.PageSize == 20),
+            new CompanyWatchCriterionId(criterion.Id.Value),
+            CriteriaFingerprint.Of(criterion.Criteria),
+            1,
+            20,
             Arg.Any<CancellationToken>());
     }
 
@@ -177,6 +192,55 @@ public class BrowseCriterionAdsQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_NotMaterialisedYet_IsAnEmptyPage_NeverA404()
+    {
+        // #1681 part 2 — the criterion EXISTS; only its company set has not been computed for the
+        // predicate it carries right now. `null` here means 404 at the endpoint, and answering 404
+        // would make the route an existence oracle IN REVERSE: it would tell the owner their own
+        // watch is gone because a background job has not run yet.
+        //
+        // The empty page is not "no ads matched" either, and nothing in THIS response says which it
+        // is — the composed endpoint's magnitude carries `notMaterialised` explicitly, and the
+        // surface branches on that before it reaches its empty state. That composition is pinned at
+        // the endpoint; what is pinned here is that the page is empty rather than absent.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+        SeedAd(db, "Finns ändå", "A AB", publishedAt: T0);
+
+        var port = PortStateOnly(MaterialisedAdPage.NotMaterialised);
+
+        var result = await HandlerFor(db, Owner, port)
+            .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 1, PageSize: 20), ct);
+
+        result.ShouldNotBeNull();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+        result.Page.ShouldBe(1);
+        result.PageSize.ShouldBe(20);
+    }
+
+    [Fact]
+    public async Task Handle_TooBroadCriterion_IsAnEmptyPage_NeverA404()
+    {
+        // The other no-page state, separately: a guard keyed on only one of them would let the other
+        // fall through to `page.Page!` and throw a NullReferenceException on a live route.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+        SeedAd(db, "Finns ändå", "A AB", publishedAt: T0);
+
+        var port = PortStateOnly(MaterialisedAdPage.TooBroad);
+
+        var result = await HandlerFor(db, Owner, port)
+            .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, Page: 1, PageSize: 20), ct);
+
+        result.ShouldNotBeNull();
+        result.Items.ShouldBeEmpty();
+        result.TotalCount.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Handle_UnknownCriterion_ReturnsNotFound_AndLogsNoCrossUserAttempt()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -206,7 +270,7 @@ public class BrowseCriterionAdsQueryHandlerTests
         failedAccess.Received(1).LogCrossUserAttempt(
             "CompanyWatchCriterion", theirs.Id.Value, Owner, CriterionReadOperation.BrowseCriterionAds);
 
-        await port.DidNotReceiveWithAnyArgs().BrowseAdIdsAsync(default!, CancellationToken.None);
+        await port.DidNotReceiveWithAnyArgs().BrowseAdIdsAsync(default, default, default, default, CancellationToken.None);
 
         var unknownId = await HandlerFor(db, Owner, port, Substitute.For<IFailedAccessLogger>())
             .Handle(new BrowseCriterionAdsQuery(Guid.NewGuid(), 1, 20), ct);
@@ -231,15 +295,36 @@ public class BrowseCriterionAdsQueryHandlerTests
             .Handle(new BrowseCriterionAdsQuery(criterion.Id.Value, 1, 20), ct);
 
         result.ShouldBeNull();
-        await port.DidNotReceiveWithAnyArgs().BrowseAdIdsAsync(default!, CancellationToken.None);
+        await port.DidNotReceiveWithAnyArgs().BrowseAdIdsAsync(default, default, default, default, CancellationToken.None);
     }
 
     private static ICompanyWatchBrowseQuery PortReturning(
         JobAdId[] ids, int totalCount, int page = 1, int pageSize = 20)
     {
         var port = Substitute.For<ICompanyWatchBrowseQuery>();
-        port.BrowseAdIdsAsync(Arg.Any<CompanyBrowseCriteria>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<JobAdId>(ids, totalCount, page, pageSize));
+        port.BrowseAdIdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdPage.Resolved(
+                new PagedResult<JobAdId>(ids, totalCount, page, pageSize)));
+        return port;
+    }
+
+    /// <summary>
+    /// #1681 part 2 — a port answering with one of the two NO-PAGE states. Both are states
+    /// <c>CompanyWatchBrowseQuery</c> genuinely returns: <c>TooBroad</c> when the materialisation
+    /// job refused the criterion at the breadth gate, <c>NotMaterialised</c> when no run has stamped
+    /// the criterion's CURRENT predicate yet (its state row is absent, or its fingerprint no longer
+    /// matches). Both are produced end-to-end against real Postgres in
+    /// <c>CompanyWatchMaterialisedAdReadTests</c>.
+    /// </summary>
+    private static ICompanyWatchBrowseQuery PortStateOnly(MaterialisedAdPage answer)
+    {
+        var port = Substitute.For<ICompanyWatchBrowseQuery>();
+        port.BrowseAdIdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(answer);
         return port;
     }
 

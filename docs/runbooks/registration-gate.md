@@ -54,17 +54,14 @@ forbids it, and this file is the path it prescribes instead.
    opened rather than after.
    ⚠ **Writing that boundary down starts nothing.** It records which accounts this precondition
    can speak for, and which it never could. What must be discharged before a first
-   self-registration belongs to precondition 5 and the checklist — never to this file, and
-   never to CC.
+   self-registration belongs to precondition 5 and the checklist — never to CC.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
    ⚠ **A self-registration must clear that same challenge, on someone else's device.** Opening
    the gate for anyone but the operator therefore has two shapes: the credential reaches them,
-   or `basic_auth` comes off — and taking it off fires trigger (c) in the same moment, with
-   nothing to warn. This file neither grades that nor chooses between them: precondition 5's
-   credential note owns the grading, and `deploy/caddy/Caddyfile` carries it at the block an
-   operator would be editing.
+   or `basic_auth` comes off. This file neither grades that nor chooses between them:
+   `deploy/caddy/Caddyfile` carries it at the block an operator would be editing.
 5. **A rights channel that receives, or a recorded decision that it does not.**
    `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
    channel, and it is Reply-To on every message this procedure causes to be sent.
@@ -108,8 +105,7 @@ Ordered, and the order is load-bearing at steps 0 and 7.
 
 ⚠ **The list below does two jobs, and a visit may need only one of them.** Steps 0–4 and 10
 open the gate and close it again. Steps 5–9 create **the two accounts this procedure itself
-registers** — precondition 3's pair — and assign the operator Admin; that job was performed
-2026-08-16 and the box carries its result. A visit whose purpose is to let other people
+registers** — precondition 3's pair — and assign the operator Admin. A visit whose purpose is to let other people
 register themselves therefore runs 0–4 and 10, and nothing between them. Each step that differs
 between the two says so where it stands.
 
@@ -137,7 +133,7 @@ AUTH_REQUIRE_EMAIL_CONFIRMATION=true
 ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL=<the operator's own address>
 ```
 
-⚠ **The third key belongs to the bootstrap half — a visit that only opens the gate sets the two
+⚠ **The third key belongs to the bootstrap half — a visit that only opens the gate sets the
 `AUTH_` keys and leaves it blank.** It exists so step 7 can make the operator's own account an
 Admin, and step 7's own reasoning is why it is not needed twice: the role is persisted in the
 database, so once the log has confirmed the assignment the knob has no further work. Setting it
@@ -173,8 +169,7 @@ yet. Step 7 is what resolves it.
 
 ⚠ **With that knob left blank there is no such Warning, and its absence is not a fault.**
 `IdempotentAdminRoleSeeder` gates the whole lookup on the value being non-blank, so a blank one
-never reaches it and logs nothing; the seeder's only other line fires when it *creates* the
-Admin role, which on this box already exists. A silent seeder is the correct reading of a
+never reaches it and logs nothing. A silent seeder is the correct reading of a
 gate-only visit, not a broken boot.
 
 **5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/registrera`,
@@ -276,9 +271,8 @@ cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d -
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
 higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}` at
 container *creation*, so a restart re-runs the process against the env it already has. The last
-re-create before this point happened **while the gate line was still set** — step 7's second half
-on a visit that ran it, step 3's `up` on one that did not — so the live container carries `true`
-either way, and there is no rescuing re-create between then and here.
+re-create before this point happened **while the gate line was still set**, so the live container
+carries `true`, and there is no rescuing re-create between then and here.
 Commenting the line out and restarting leaves the gate **open** while `.env` says closed and the
 operator believes it is closed.
 

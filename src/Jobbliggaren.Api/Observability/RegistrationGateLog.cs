@@ -12,10 +12,6 @@ namespace Jobbliggaren.Api.Observability;
 /// reproduce the very defect this class was added for, one flag over.
 /// </para>
 /// <para>
-/// The measured motivation: <c>Auth:RequireEmailConfirmation</c> is declared without an initialiser
-/// and the <c>Auth</c> section exists only in <c>appsettings.Development.json</c>, so in the Production
-/// configuration the handler WOULD take the legacy instant-login branch — and nothing in the boot
-/// sequence said so. It is a property of the configuration, not of any one host's history.
 /// A posture only observable by attempting to register is a posture nobody checks.
 /// </para>
 /// <para>

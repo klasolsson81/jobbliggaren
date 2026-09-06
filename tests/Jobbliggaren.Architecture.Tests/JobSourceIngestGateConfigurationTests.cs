@@ -63,10 +63,9 @@ public class JobSourceIngestGateConfigurationTests
             "Art. 14 data about non-users, and loading them is gated on Klas's explicit written " +
             "GO (release-checklist.md 2.6 point 3.5) — a DECISION, not a derivable state: do NOT " +
             "read a discharged gate, a ticked box or a closed issue as permission, since four " +
-            "state-shaped conditions each failed open on 2026-08-16. That GO was given " +
-            "2026-08-17 and one box was flipped by operator override; a shipped default is not " +
-            "a box's state, and this one does not follow it. Removing the key restores the code " +
-            "default, which is true.");
+            "state-shaped conditions each failed open on 2026-08-16. A shipped default is not a " +
+            "box's state and does not follow it. Removing the key restores the code default, " +
+            "which is true.");
     }
 
     /// <summary>

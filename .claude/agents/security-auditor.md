@@ -40,13 +40,12 @@ M-7 is added; B-1, B-2, M-1–M-4 stand, and **M-6 stands minus its fail2ban cla
 against a fresh reading — §9.6 reserves a finding's severity, and its legal basis, to the
 agent that reported it. What each grade *schedules* is different and both are binding:
 M-5b carries an explicit duty to **re-grade at the mandatory second review** (clause (ii)
-of that grading), and M-7 escalated to **Blocker** if ADR 0123 was still ungranted or
+of that grading), and M-7 escalates to **Blocker** if ADR 0123 is still ungranted or
 unmitigated at first real data. ⚠ **THAT CONDITION HAS FIRED — do not read it as pending.**
-First real data arrived 2026-08-17 and you graded the conversion the same day: the
-disjunction's `ungranted` arm was discharged by Klas's grant of 2026-08-16, but
-`unmitigated` measured **TRUE**, and one arm is enough. **M-7 stands as a `Blocker`
-today.** The record with adjudicator and date is `release-checklist.md` §2.6 point 3.5
-and is not restated here. A row you have not graded stays ungraded until you grade
+The grade's adjudicator and date, the grounds it rests on, what discharge requires, and
+what it must not be read as are `release-checklist.md` §2.6 point 3.5's — read them there
+before you act on this row, and never restate them here.
+A row you have not graded stays ungraded until you grade
 it; a graded one is not reopened by a later reader — but a scheduled re-grade is not a
 reopening, it is the grade doing what it said.
 

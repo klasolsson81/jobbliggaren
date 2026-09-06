@@ -8,8 +8,9 @@
 This runbook covers turning a freshly provisioned, password-exposed root server into an
 access-controlled host with a proven rescue path. It is deliberately written to be executed
 against a box that carries **no application data**, and it stops where the deploy work
-starts. ⚠ **This host has carried application data since 2026-08-17**
-(`release-checklist.md` §2.6 point 3.5), so a re-run against it no longer meets that premise.
+starts. ⚠ **The production box has carried application data since 2026-08-17**
+(`release-checklist.md` §2.6 point 3.5), so a re-run against **it** no longer meets that
+premise; a freshly provisioned host still does.
 The deploy stack, reverse proxy, certificates and secret injection are owned by
 [#196](https://github.com/klasolsson81/jobbliggaren/issues/196) and are **not** in scope here.
 

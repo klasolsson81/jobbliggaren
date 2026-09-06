@@ -28,9 +28,8 @@ ADR 0050 `Amendment 2026-08-04` §7 is the binding requirement set).
 > stamp, and the schema as it will actually be on the day. CI possesses no private key by design
 > (§1), so it can prove none of that. **Gate M-4 is closed by the ops half, not by this note**, and
 > it was owed **before first real data**. ⚠ **That arrived 2026-08-17**
-> (`release-checklist.md` §2.6 point 3.5), so the ops half is **overdue, not upcoming**.
-> When it has run, record the date here and fill the
-> verification rows in `vps-deploy-stack.md` §5.
+> (`release-checklist.md` §2.6 point 3.5), so the ops half is **overdue, not upcoming**. When it
+> has run, record the date here and fill the verification rows in `vps-deploy-stack.md` §5.
 
 ---
 
@@ -784,10 +783,10 @@ two halves that prove different things:
   the retention layout and the decryption path — none of which CI can see.
 
 **The ops half was owed before first real data, and that arrived 2026-08-17**
-(`release-checklist.md` §2.6 point 3.5) — so run it now, and again after any change to the
-target, the recipient, or the master key. Record each run in `vps-deploy-stack.md` §5 with
-the date and the
-counts from step 5 — **(b2), not (b)**, is the one that carries the erasure claim; a row without
+(`release-checklist.md` §2.6 point 3.5) — so it is overdue, and §5's decryption-machine
+question gates it. Run it again after any change to the target, the recipient, or the master key.
+Record each run in `vps-deploy-stack.md` §5 with the date and the counts from step 5 —
+**(b2), not (b)**, is the one that carries the erasure claim; a row without
 a date is a claim that cannot be told from one that has decayed.
 
 ---
@@ -867,6 +866,5 @@ a date is a claim that cannot be told from one that has decayed.
    artefact's existence as evidence it is complete;** the journal for that run is the evidence.
 8. **Where decryption happens once real data exists — and it does, since 2026-08-17**
    (`release-checklist.md` §2.6 point 3.5). The workstation is inside the trust boundary
-   (ADR 0123). That was acceptable for a drill on an empty box; this box is no longer empty,
-   so the question is
-   **open** and security-auditor's to settle.
+   (ADR 0123). That was acceptable for a drill on an empty box; this box is no longer empty, so
+   the question is **open** and security-auditor's to settle.

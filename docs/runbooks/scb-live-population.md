@@ -581,10 +581,8 @@ Three independent facts, and each alone is sufficient:
   and the C# property default on `ScbRegisterOptions`. Removing the key restores
   `false`. ⚠ **Do not generalise this polarity to the other ingest gate.**
   `JobSourceIngestOptions.IngestEnabled` defaults **`true`** and is shipped off by
-  the Worker's Production overlay — ⚠ **which this box overrides from `.env`, so JobTech
-  ingestion has been ON since 2026-08-17** (`release-checklist.md` §2.6 point 3.5). The two
-  gates fail in opposite directions, and reasoning about one from the other is how a corpus
-  lands unasked.
+  the Worker's Production overlay — the two gates fail in opposite directions,
+  and reasoning about one from the other is how a corpus lands unasked.
 - **The client certificate is not on the box and nothing puts it there.**
   `ScbClientCertificateProvider` loads it from the OS certificate store
   (`X509Store(StoreName.My, …)`, `CurrentUser` by default) and it exists only on

@@ -427,8 +427,7 @@ export function CvPreview({
 
                   {/* EN ready-form för båda filtyperna: filen laddas ner, den visas
                       aldrig. `download` gör att blob:en sparas i stället för att
-                      renderas — ingen väg härifrån målar användarens bytes på vår
-                      origin. `.jp-modal__body` är redan en flex-kolumn med gap, så
+                      renderas. `.jp-modal__body` är redan en flex-kolumn med gap, så
                       blocket behöver ingen egen regel. */}
                   {status === "ready" && original && (
                     <>

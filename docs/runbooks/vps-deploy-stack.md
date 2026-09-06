@@ -914,7 +914,8 @@ re-run all five or record none.
   box**, which has not happened yet — the rows in [`host-detection.md`](./host-detection.md) §7
   are what discharge it, not this merge. #1175 still owns the sink,
   the off-box corpus, and the retention that would survive a root attacker.
-- **Gate B-1's cutover — and the corpus still waits for it.** #198 shipped the repair (see §2
+- **Gate B-1's cutover.** ⚠ **The corpus no longer waits for it** — it was loaded 2026-08-17
+  (`release-checklist.md` §2.6 point 3.5). #198 shipped the repair (see §2
   and [`master-key-ops.md`](master-key-ops.md)), but **shipping a mechanism is not closing a
   gate**: the key is not moved on this box until the operator performs the cutover, and B-1 is
   discharged only when rows 21–25 in §5 carry measurements. **The cutover HAS since been

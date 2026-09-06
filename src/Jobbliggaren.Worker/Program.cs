@@ -105,7 +105,7 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>()
 // registry-free company-watch scan). Wrapper + module in the same commit (TD-103: Worker
 // ValidateOnBuild=false → a missing dep fails first at Hangfire-invocation, verified manually in dev).
 builder.Services.AddScbCompanyRegister(builder.Configuration);
-builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
 // #1681 (ADR 0139) — the criterion-membership materialisation wrapper. Registered
 // EXPLICITLY, parity every sibling above: without this the job still ran, but only
 // because Hangfire.AspNetCore falls back on ActivatorUtilities.GetServiceOrCreate-

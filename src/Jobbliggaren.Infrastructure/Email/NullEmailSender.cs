@@ -72,7 +72,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// the same stranded account — <c>ScalewayEmailSender</c> answers <see langword="true"/>
 /// unconditionally, and the domain publishes DMARC <c>p=reject</c> without <c>rua=</c> (measured
 /// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s Scaleway arm), so a From address outside
-/// the verified identity fails silently. Case 4 is owned by #183/#734, never by this gate.</item>
+/// the verified identity fails silently. Case 4 is owned by <c>release-checklist.md</c> §2.5 and <c>registration-gate.md</c>, never by this gate.</item>
 /// <item><c>ResendEmailConfirmationCommandHandler</c> — same stranding, and it must keep returning
 /// a uniform 202 for anti-enumeration reasons, so it cannot signal the failure to the caller at
 /// all. It no longer writes a <c>User.EmailConfirmationResent</c> audit row for a link that reached

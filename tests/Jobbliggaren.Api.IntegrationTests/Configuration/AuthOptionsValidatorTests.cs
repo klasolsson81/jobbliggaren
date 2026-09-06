@@ -26,7 +26,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// <item>open WITH email confirmation but a sender that cannot deliver — the account is created,
 /// login is blocked on <c>EmailConfirmed</c>, and the activation link reaches nobody.</item>
 /// </list>
-/// Prerequisites are owned by #734.
+/// Prerequisites are owned by <c>docs/runbooks/registration-gate.md</c>.
 /// <para>
 /// The predicate is unit-tested exhaustively here rather than through a failing host: the Production
 /// smoke fixture exists to prove the host DOES boot, so a refusal case cannot live in it. What the
@@ -84,7 +84,7 @@ public class AuthOptionsValidatorTests
         var result = ValidatorFor(environmentName).Validate(null, Options(open: true, confirm: false));
 
         result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("#734");
+        result.FailureMessage.ShouldContain("registration-gate.md");
         result.FailureMessage.ShouldContain(environmentName);
         // Rule 1's remedy key, in ENV-VAR form with the double underscore. The colon form
         // ("Auth:RequireEmailConfirmation=true") is a substring of rule 2's message too, so it
@@ -106,7 +106,7 @@ public class AuthOptionsValidatorTests
 
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain(environmentName);
-        result.FailureMessage.ShouldContain("#734");
+        result.FailureMessage.ShouldContain("registration-gate.md");
         // The remedy an operator can act on, and the sender that was actually registered.
         result.FailureMessage.ShouldContain("Email__Provider=Scaleway");
         result.FailureMessage.ShouldContain(nameof(NullEmailSender));

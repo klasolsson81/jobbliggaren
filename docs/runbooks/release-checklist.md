@@ -1651,8 +1651,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
       (`security-auditor` 2026-08-09). Grinden biter vid **det tidigare av**:
-      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 51 347 rekryterar-kontaktposter
-        över 27 160 annonser, Art. 14-uppgifter om icke-användare), och
+      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 47 918 rekryterar-kontaktposter
+        över 71 054 annonser, mätt count-only på lådan 2026-09-06, Art. 14-uppgifter om
+        icke-användare), och
       - **(ii) första konfigurationen utanför `Development` som sätter `Auth:RegistrationsOpen=true`**.
 
       **(i) är den tidigare, och det är den ingen mental modell håller:** rekryterar-PII når

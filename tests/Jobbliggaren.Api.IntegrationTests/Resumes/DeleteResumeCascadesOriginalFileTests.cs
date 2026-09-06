@@ -45,7 +45,12 @@ public class DeleteResumeCascadesOriginalFileTests(ApiFactory factory)
         return bytes;
     }
 
-    private static string DownloadUrl(Guid fileId) => $"/api/v1/resumes/files/{fileId}/original";
+    // The STAGING key, deliberately, even though this test promotes to a Resume: after the delete
+    // the resume row is soft-deleted, so the canonical route would 404 for that reason alone and
+    // the assertion could not tell a cascaded file from a merely hidden resume. Keyed on the parse,
+    // a 404 means one thing only — the resume_files row is gone.
+    private static string DownloadUrl(string parsedResumeId) =>
+        $"/api/v1/resumes/parsed/{parsedResumeId}/original";
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
@@ -141,7 +146,7 @@ public class DeleteResumeCascadesOriginalFileTests(ApiFactory factory)
         (await ResolveSourceParsedResumeIdAsync(resumeId, ct)).ShouldBe(Guid.Parse(parsedId));
 
         // Sanity: the original is downloadable before the delete.
-        (await _client.GetAsync(DownloadUrl(fileId), ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await _client.GetAsync(DownloadUrl(parsedId), ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // Delete the CV — the cascade hard-deletes the coupled original in the SAME UnitOfWork.
         // No owner DEK is warmed anywhere above; the erasure still succeeds (DEK-free read path).
@@ -152,6 +157,6 @@ public class DeleteResumeCascadesOriginalFileTests(ApiFactory factory)
         (await ResumeFileRowExistsAsync(fileId, ct)).ShouldBeFalse();
 
         // ... and the download now 404s (the row no longer exists for anyone).
-        (await _client.GetAsync(DownloadUrl(fileId), ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await _client.GetAsync(DownloadUrl(parsedId), ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 }

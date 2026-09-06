@@ -336,20 +336,37 @@ public static class ResumesEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.MeListReadPolicy);
 
-        // Owner-scoped download of a stored ORIGINAL CV file (Fas 4b PR-9b, ADR 0100 §D3 read-path,
+        // Owner-scoped reads of a stored ORIGINAL CV file (Fas 4b PR-9b, ADR 0100 §D3 read-path,
         // DPIA #659 M-F2) — the exact uploaded PDF/DOCX, decrypted from its Form C envelope via the
-        // owner-warmed DEK (DownloadResumeFileQuery is IRequiresFieldEncryptionKey), returned as the
-        // raw bytes (Results.File — never JSON) with a fixed, server-derived content-type and an
-        // RFC 6266 attachment filename (already personnummer-redacted at rest, re-redacted in the
-        // handler belt-and-braces). Owner-scoped, IDOR fail-closed (unknown/cross-user → 404, no
-        // enumeration oracle; cross-user attempt logged). Never cached: the path-scoped header
-        // middleware (Program.cs, registered before auth) stamps `no-store` + `nosniff` on EVERY
-        // response path — 200, 404, the 401 challenge, and a 405 — which the endpoint delegate alone
-        // could not cover. Heavy DEK-decrypting read → ResumeRenderPolicy bucket (parity /render).
-        group.MapGet("/files/{id:guid}/original", async (
+        // owner-warmed DEK (both queries are IRequiresFieldEncryptionKey), returned as the raw bytes
+        // (Results.File — never JSON) with a fixed, server-derived content-type and an RFC 6266
+        // attachment filename (already personnummer-redacted at rest, re-redacted in the handler
+        // belt-and-braces). Owner-scoped, IDOR fail-closed (unknown/cross-user → 404, no enumeration
+        // oracle; cross-user attempt logged). Never cached: the path-scoped header middleware
+        // (Program.cs, registered before auth) stamps `no-store` + `nosniff` on EVERY response path
+        // — 200, 404, the 401 challenge, and a 405 — which the endpoint delegate alone could not
+        // cover. Heavy DEK-decrypting read → ResumeRenderPolicy bucket (parity /render).
+        //
+        // TWO routes, one per id form, because the two surfaces that show a user their own file
+        // carry two different ids: the CV hub's cards hold a ResumeId, the import staging view holds
+        // a ParsedResumeId. The prior `/files/{id}/original` route keyed on ResumeFileId, which no
+        // surface has ever held and no client could produce — an unreachable authenticated endpoint
+        // over decrypted PII, which is the class this file's own /render comment rejects. It is
+        // retired here rather than kept beside these two: one piece of knowledge, one read path.
+        group.MapGet("/{id:guid}/original", async (
             Guid id, IMediator mediator, CancellationToken ct) =>
         {
-            var dto = await mediator.Send(new DownloadResumeFileQuery(id), ct);
+            var dto = await mediator.Send(new DownloadResumeOriginalQuery(id), ct);
+            return dto is null
+                ? Results.NotFound()
+                : Results.File(dto.Content, dto.ContentType, dto.FileName, enableRangeProcessing: false);
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.ResumeRenderPolicy);
+
+        group.MapGet("/parsed/{parsedId:guid}/original", async (
+            Guid parsedId, IMediator mediator, CancellationToken ct) =>
+        {
+            var dto = await mediator.Send(new DownloadParsedResumeOriginalQuery(parsedId), ct);
             return dto is null
                 ? Results.NotFound()
                 : Results.File(dto.Content, dto.ContentType, dto.FileName, enableRangeProcessing: false);

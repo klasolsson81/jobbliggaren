@@ -17,16 +17,17 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 
 // Fas 4b PR-9b (ADR 0100 §D3 read-path, DPIA #659 M-F2) — HTTP wiring + M-F2 posture for the
-// owner-scoped original-file download (GET /api/v1/resumes/files/{id}/original). A captured
-// ResumeFile is seeded through the REAL PR-9a seal write-path (POST /api/v1/resumes/import), so
-// these tests prove the import → seal → decrypt-on-download round-trip end-to-end against real
-// Postgres + the production field-encryption interceptors. Mirrors the sibling resume-endpoint
-// tests exactly: ResumeRenderEndpointTests (Results.File byte-body + IDOR), GetResumeAtsTextEndpointTests
+// owner-scoped original-file read on the STAGING key
+// (GET /api/v1/resumes/parsed/{parsedId}/original). A captured ResumeFile is seeded through the
+// REAL PR-9a seal write-path (POST /api/v1/resumes/import), so these tests prove the import → seal
+// → decrypt-on-download round-trip end-to-end against real Postgres + the production
+// field-encryption interceptors. Mirrors the sibling resume-endpoint tests exactly:
+// ResumeRenderEndpointTests (Results.File byte-body + IDOR), GetResumeAtsTextEndpointTests
 // (no-store header pins), GetParsedResumeEndpointTests (import + cross-user 404), and
 // SessionStoreUnavailableTests (the capturing-logger derived host for the failed-access assertion).
 //
-// The import response returns a ParsedResumeId, not a ResumeFileId — the coupling row is resolved
-// via the factory's service scope (ResumeFiles keyed by ParsedResumeId; ADR 0100 §D5 retention link).
+// The CANONICAL key (GET /api/v1/resumes/{id}/original) is covered by
+// DownloadResumeOriginalEndpointTests, which additionally has to promote the parse to a Resume.
 [Collection("Api")]
 public class DownloadResumeFileEndpointTests(ApiFactory factory)
 {
@@ -52,7 +53,14 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         return bytes;
     }
 
-    private static string DownloadUrl(Guid fileId) => $"/api/v1/resumes/files/{fileId}/original";
+    // The staging arm is keyed on the ParsedResumeId the import response already returns, so these
+    // tests no longer resolve a ResumeFileId out of the DbContext at all — the id under test is the
+    // one the surface actually holds. The Guid overload serves the unknown-id and unauthenticated
+    // probes, which have no import behind them.
+    private static string DownloadUrl(string parsedResumeId) =>
+        $"/api/v1/resumes/parsed/{parsedResumeId}/original";
+
+    private static string DownloadUrl(Guid parsedResumeId) => DownloadUrl(parsedResumeId.ToString());
 
     private static async Task<HttpClient> NewAuthedClientAsync(
         WebApplicationFactory<Program> f, CancellationToken ct)
@@ -88,24 +96,6 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
             .GetProperty("parsedResumeId").GetString()!;
     }
 
-    // The import response carries the ParsedResumeId; the ResumeFileId is the coupling row's key.
-    // Resolve it via the factory's DbContext (ResumeFiles is a plain, non-owner-filtered table;
-    // owner-scoping lives in the handler, not a global query filter — so this scope read is safe).
-    private async Task<Guid> ResolveResumeFileIdAsync(string parsedResumeId, CancellationToken ct)
-    {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var parsedId = new ParsedResumeId(Guid.Parse(parsedResumeId));
-        var fileId = await db.ResumeFiles
-            .AsNoTracking()
-            .Where(f => f.ParsedResumeId == parsedId)
-            .Select(f => f.Id)
-            .FirstOrDefaultAsync(ct);
-
-        fileId.ShouldNotBe(default); // the clean import must have captured an original
-        return fileId.Value;
-    }
-
     private static void ShouldCarryNoStore(HttpResponseMessage response)
     {
         response.Headers.CacheControl.ShouldNotBeNull();
@@ -126,9 +116,8 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var parsedId = await ImportAsync(_client, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
-        var response = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var response = await _client.GetAsync(DownloadUrl(parsedId), ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadAsByteArrayAsync(ct);
@@ -144,15 +133,14 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
 
         var clientA = await NewAuthedClientAsync(_factory, ct);
         var parsedId = await ImportAsync(clientA, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
         // User B cannot read A's original (fail-closed IDOR, no enumeration oracle).
         var clientB = await NewAuthedClientAsync(_factory, ct);
-        var getB = await clientB.GetAsync(DownloadUrl(fileId), ct);
+        var getB = await clientB.GetAsync(DownloadUrl(parsedId), ct);
         getB.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         // A still reads their own on the same id — B's attempt had no side effect on the row.
-        var getA = await clientA.GetAsync(DownloadUrl(fileId), ct);
+        var getA = await clientA.GetAsync(DownloadUrl(parsedId), ct);
         getA.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
@@ -165,7 +153,6 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         // User A owns a real captured original (imported through the real seal write-path).
         var clientA = await NewAuthedClientAsync(_factory, ct);
         var parsedId = await ImportAsync(clientA, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
         // User B runs on a derived host carrying an in-memory ILoggerProvider so the REAL
         // FailedAccessLogger output is captured (mirrors SessionStoreUnavailableTests' capturing host).
@@ -178,7 +165,7 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         // A's real file id: a cross-user 404 that MUST log the failed-access attempt.
-        var crossUser = await clientB.GetAsync(DownloadUrl(fileId), ct);
+        var crossUser = await clientB.GetAsync(DownloadUrl(parsedId), ct);
         crossUser.StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
         // Exactly one failed-access event (EventId 4001) — the cross-user attempt, never the unknown id.
@@ -187,9 +174,12 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var record = events[0];
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain("event_name=failed_access_attempt");
-        record.Message.ShouldContain("aggregate_type=ResumeFile");
-        record.Message.ShouldContain("operation=DownloadResumeFile");
-        record.Message.ShouldContain($"requested_aggregate_id={fileId}");
+        record.Message.ShouldContain("aggregate_type=ParsedResume");
+        record.Message.ShouldContain("operation=DownloadParsedResumeOriginal");
+        // The logged id is the one the CALLER supplied. That is the whole point of the probe: an
+        // attacker can only vary the id in the URL, so an oracle guard aimed at any other key would
+        // be guarding an id no request carries.
+        record.Message.ShouldContain($"requested_aggregate_id={parsedId}");
         // The unknown-id probe left no trace — the two 404s are indistinguishable to the client but
         // only the cross-user hit (row exists for someone else) is logged.
         record.Message.ShouldNotContain(unknownId.ToString());
@@ -202,9 +192,8 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var parsedId = await ImportAsync(_client, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
-        var ok = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var ok = await _client.GetAsync(DownloadUrl(parsedId), ct);
         ok.StatusCode.ShouldBe(HttpStatusCode.OK);
         ShouldCarryNoStore(ok);
 
@@ -220,9 +209,8 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var parsedId = await ImportAsync(_client, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
-        var ok = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var ok = await _client.GetAsync(DownloadUrl(parsedId), ct);
         ok.StatusCode.ShouldBe(HttpStatusCode.OK);
         ShouldCarryNoSniff(ok);
 
@@ -241,11 +229,10 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         // the magic bytes and stores the canonical "application/pdf" (never the client's declared MIME).
         var parsedId = await ImportAsync(
             _client, OriginalPdfBytes, "cv.pdf", "application/octet-stream", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
         // The download request tries to influence the content-type via a hostile Accept + a bogus
         // query param — neither is honoured; the server-derived content-type stands.
-        var request = new HttpRequestMessage(HttpMethod.Get, DownloadUrl(fileId) + "?contentType=text%2Fhtml");
+        var request = new HttpRequestMessage(HttpMethod.Get, DownloadUrl(parsedId) + "?contentType=text%2Fhtml");
         request.Headers.Accept.Clear();
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/html");
@@ -263,9 +250,8 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var parsedId = await ImportAsync(_client, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
-        var response = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var response = await _client.GetAsync(DownloadUrl(parsedId), ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var disposition = response.Content.Headers.ContentDisposition;
@@ -287,9 +273,8 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         // in the handler belt-and-braces, so the Content-Disposition can never carry the raw digits.
         var parsedId = await ImportAsync(
             _client, OriginalPdfBytes, "CV_811218-9876.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
-        var response = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var response = await _client.GetAsync(DownloadUrl(parsedId), ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var disposition = response.Content.Headers.ContentDisposition;
@@ -343,7 +328,6 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         var parsedId = await ImportAsync(_client, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
-        var fileId = await ResolveResumeFileIdAsync(parsedId, ct);
 
         // Tamper the stored ciphertext at rest: flip the last byte (the AES-GCM tag) so the opener's
         // Decrypt fails the tag check and throws CryptographicException. Reachable cleanly via SQL
@@ -353,12 +337,12 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await db.Database.ExecuteSqlRawAsync(
                 "UPDATE resume_files SET content = set_byte(content, length(content) - 1, "
-                + "get_byte(content, length(content) - 1) # 255) WHERE id = {0}",
-                [fileId],
+                + "get_byte(content, length(content) - 1) # 255) WHERE parsed_resume_id = {0}",
+                [Guid.Parse(parsedId)],
                 ct);
         }
 
-        var response = await _client.GetAsync(DownloadUrl(fileId), ct);
+        var response = await _client.GetAsync(DownloadUrl(parsedId), ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
         var raw = await response.Content.ReadAsStringAsync(ct);

@@ -459,7 +459,10 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         await RunAsync(ct);
         var first = (await ReadStateAsync(criterionId, ct))!.MaterialisedAt;
 
-        // From the injected clock, not a SQL now() and not a default.
+        // Not a default and not a constant. Deliberately NOT claimed: that the value came from the
+        // injected clock rather than a SQL now() — the fixture's IDateTimeProvider IS the system
+        // clock, so this assertion cannot tell those apart, and saying it could would be a comment
+        // asserting a discrimination the test does not have.
         first.ShouldBeGreaterThan(DateTimeOffset.MinValue);
         first.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
 
@@ -552,6 +555,64 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         await CorruptSniAxisAsync(corrupt, ct);
 
         await Should.ThrowAsync<InvalidOperationException>(async () => await RunAsync(ct));
+    }
+
+    [Fact]
+    public async Task Materialise_DoesNotThrow_WhenOneCriterionFailedButAnotherWasRefused()
+    {
+        // The THIRD conjunct of the total-failure guard (`tooBroad == 0`), which no fixture reached:
+        // one failed + one TooBroad + zero materialised. Drop that conjunct and this run throws,
+        // failing a Hangfire job that DID do useful work — refusing a criterion honestly is work,
+        // and the state row proves it. The other two conjuncts are covered by
+        // ContinuesWithTheRemainingCriteria (materialised > 0) and RefusesACriterionPastTheBreadthGate
+        // (failed == 0).
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterRangeAsync(
+            CompanyWatchCriterionMember.MaxPerCriterion + 1, KommunStockholm, SniIt, ct);
+
+        var broad = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+        var corrupt = await SeedCriterionAsync(Guid.NewGuid(), [SniBygg], [KommunGoteborg], ct);
+        await CorruptSniAxisAsync(corrupt, ct);
+
+        var result = await RunAsync(ct);
+
+        result.CriteriaFailed.ShouldBe(1);
+        result.CriteriaTooBroad.ShouldBe(1);
+        result.CriteriaMaterialised.ShouldBe(0);
+        (await ReadStateAsync(broad, ct))!.Parsed.ShouldBe(MaterialisationState.TooBroad);
+    }
+
+    [Fact]
+    public async Task Materialise_CountsInvalidCandidatesSeparately_FromPersonnummerShapedOnes()
+    {
+        // MembersExcludedInvalid was asserted NOWHERE, so setting it to a constant 0 in the result
+        // construction was green. It matters because the two counters carry different meanings: a
+        // non-zero pnr count is a SECURITY signal that the register's ingest guard has a hole, while
+        // a non-zero invalid count is data quality. Collapsing them makes the security signal
+        // unreadable.
+        //
+        // TEST PREMISE (CLAUDE.md §5 Tests:): the 9-digit register row is a state no path in src/
+        // produces — OrganizationNumber.Create refuses it at ingest, pinned in ScbLegalEntityFilter-
+        // Tests, and the column is varchar(10) which permits it. Declared unreachable; the assertion
+        // is confined to this filter's behaviour on hostile input, exactly as the pnr case is.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5510000002", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("556000003", KommunStockholm, [SniIt], CompanyRegisterStatus.Active));
+
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        var result = await RunAsync(ct);
+
+        result.MembersExcludedPersonnummerShaped.ShouldBe(1);
+        result.MembersExcludedInvalid.ShouldBe(1);
+        result.MembersWritten.ShouldBe(1);
+        (await ReadMembersAsync(criterionId, ct)).ShouldBe(["5560000001"]);
     }
 
     [Fact]

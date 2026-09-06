@@ -46,13 +46,6 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     IOptions<CompanyWatchMaterialisationOptions> options,
     ILogger<CompanyWatchCriterionMaterialiser> logger) : ICompanyWatchCriterionMaterialiser
 {
-    /// <summary>
-    /// Criteria loaded per keyset page. Large enough that the page count stays trivial at any
-    /// plausible corpus, small enough that one page is a bounded allocation even when every row
-    /// carries the maximum two text[] axes.
-    /// </summary>
-    private const int CriterionPageSize = 500;
-
     public async Task<CompanyWatchCriterionMaterialisationResult> MaterialiseAsync(
         CancellationToken cancellationToken)
     {
@@ -94,13 +87,14 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         // user-facing surface where the caller chooses the offset, whereas this walks its own table
         // once per night with offsets bounded by the corpus itself. ORDER BY the PK makes the walk
         // total and the run deterministic.
-        for (var offset = 0; ; offset += CriterionPageSize)
+        var pageSize = options.Value.CriterionPageSize;
+        for (var offset = 0; ; offset += pageSize)
         {
             var page = await db.CompanyWatchCriteria
                 .AsNoTracking()
                 .OrderBy(c => c.Id)
                 .Skip(offset)
-                .Take(CriterionPageSize)
+                .Take(pageSize)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -137,7 +131,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 }
             }
 
-            if (page.Count < CriterionPageSize)
+            if (page.Count < pageSize)
                 break;
         }
 
@@ -150,9 +144,11 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 + "skrevs. Körningen rapporteras som misslyckad så Hangfires retry kan lösa ut.");
         }
 
-        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded, and all three conditions hold
-        // here: these two tables are written by ONE periodic job, are read-only between runs, and
-        // criterion_id reaches both a WHERE and a join. Once per COMPLETED run, never per criterion.
+        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. All three conditions hold:
+        // these two tables have ONE periodic writer, carry no continuous DML between runs (the only
+        // other writer is the FK cascade on criterion deletion, which REMOVES rows and cannot re-arm
+        // autovacuum's analyze counter for the loader), and criterion_id reaches both a WHERE and a
+        // join. Once per COMPLETED run, never per criterion.
         // This is not hygiene theatre: the read plan the breadth-gate bound was DERIVED against is an
         // Index Only Scan on the member PK with Heap Fetches: 0, and that plan needs current statistics
         // and a set visibility map — so without this the measured plan is not guaranteed in operation.

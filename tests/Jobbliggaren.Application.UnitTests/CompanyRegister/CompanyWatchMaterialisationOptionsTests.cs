@@ -52,6 +52,21 @@ public class CompanyWatchMaterialisationOptionsTests
     }
 
     [Fact]
+    public void MaxPerCriterion_And_MaxPerUser_AreTheTwoFactorsOfTheDerivedBound()
+    {
+        // Parity CompanyWatchCriterionTests.MaxPerUser_IsTwenty: a DERIVED constant needs a literal
+        // pin, or every test that references it symbolically moves with it and a nudge is invisible.
+        //
+        // The two are pinned TOGETHER because they are the two factors of the derivation's second
+        // anchor — the block cost at the criterion cap against /oversikt's budget. Moving either
+        // without re-running docs/reviews/2026-09-06-1681-membership-measurement.md's protocol
+        // invalidates the bound, and this is what forces that confrontation instead of letting it
+        // pass silently.
+        CompanyWatchCriterionMember.MaxPerCriterion.ShouldBe(1000);
+        Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion.MaxPerUser.ShouldBe(20);
+    }
+
+    [Fact]
     public void CadenceCron_DefaultsToADailySlot_NotTheWeeklyRegisterCadence()
     {
         var options = new CompanyWatchMaterialisationOptions();

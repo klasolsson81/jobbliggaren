@@ -73,4 +73,21 @@ public sealed class CompanyWatchMaterialisationOptions
     /// </summary>
     [Required]
     public string CadenceCron { get; set; } = "30 5 * * *";
+
+    /// <summary>
+    /// Criteria loaded per page. Large enough that the page count stays trivial at any plausible
+    /// corpus, small enough that one page is a bounded allocation even when every row carries the
+    /// maximum two text[] axes.
+    ///
+    /// <para>
+    /// <b>Configurable for ONE reason: so the paging loop is reachable by a test</b> (test-writer,
+    /// 2026-09-06). At the shipped 500 no fixture could ever produce a second page, which left the
+    /// loop's termination and totality entirely unmeasured - and two of the surviving mutants there
+    /// (dropping the offset advance, dropping the empty-page break) are INFINITE LOOPS in operation,
+    /// while a third (dropping the ORDER BY) silently yields wrong member sets. A knob that exists
+    /// only to make a hazard observable is worth more than the tidiness of a constant.
+    /// </para>
+    /// </summary>
+    [Range(1, 10_000)]
+    public int CriterionPageSize { get; set; } = 500;
 }

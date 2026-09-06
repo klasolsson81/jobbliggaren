@@ -16,12 +16,13 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <c>PlatsbankenJobSource</c> maps <c>application_contacts</c> off the wire into Domain
 /// <c>AdContact</c>, and <c>UpsertExternalJobAdCommandHandler</c> persists them. Those records are
 /// the same personal data that ADR 0050's pre-beta-data gate B-1 covers. <b>B-1 CLOSED
-/// 2026-08-16</b>, and B-1 was never the only gate: the master key is no longer plaintext on
-/// disk (tmpfs, rotated to <c>local-v3</c>, measured in <c>vps-deploy-stack.md</c> rows 21-25).
-/// <b>The condition for loading is Klas's explicit
+/// 2026-08-16</b> — the master key is no longer plaintext on disk (tmpfs, rotated to
+/// <c>local-v3</c>, measured in <c>vps-deploy-stack.md</c> rows 21-25). <b>B-1 was never the only
+/// gate.</b> <b>The condition for loading is Klas's explicit
 /// written GO</b> — a DECISION, not a derivable state, and deliberately so: four state-shaped
 /// conditions each failed open on 2026-08-16 as their sub-condition discharged. Its home is
-/// <c>release-checklist.md</c> §2.6 point 3.5; #1240 owns the load itself.
+/// <c>release-checklist.md</c> §2.6 point 3.5; #1240 owns the load itself. The flip that
+/// satisfied this condition is recorded below.
 /// <b>No discharged gate, ticked box or closed issue is permission.</b> Klas
 /// confirmed the sequencing 2026-08-05: the stack may be deployed and every cutover proof taken,
 /// but recruiter contact records must not land until that GO is given. A deployed Worker registers
@@ -30,10 +31,9 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// </para>
 ///
 /// <para>
-/// <b>Dated record — 2026-08-17: the GO was given and the flip performed.</b> Klas, as
-/// controller, set <c>JOBTECH_INGEST_ENABLED=true</c> in <c>/opt/jobbliggaren/deploy/.env</c> on
-/// the Netcup box, and recruiter contact records landed from that date. The record carrying
-/// adjudicator and date is <c>release-checklist.md</c> §2.6 point 3.5, and is not restated here.
+/// <b>Dated record — 2026-08-17: the GO was given and the flip performed</b>, and recruiter
+/// contact records landed from that date. The record carrying adjudicator, date and place is
+/// <c>release-checklist.md</c> §2.6 point 3.5, and is not restated here.
 /// <b>That was one box's operator flip — not a shipped default, and not permission.</b> The
 /// Worker's Production overlay and <c>deploy/docker-compose.yml</c> both still ship
 /// <see langword="false"/>, and §2.6 point 3.5 forbids switching that box's ingestion back off on

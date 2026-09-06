@@ -984,7 +984,7 @@ re-run all five or record none.
   is itself the defect — and it has already happened once, in the direction of updating the row
   paragraph and leaving this one stale.** **Klas confirmed the sequencing
   2026-08-05: the stack may be deployed and every cutover proof taken with the key as it was,
-  because the box holds no user data — but the 51 347 recruiter contact records must not land
+  because the box holds no user data — but the recruiter contact records must not land
   ~~until B-1 is closed~~ ~~until `release-checklist.md`'s CORPUS GATE is ticked~~ ~~until **#1240**
   is closed~~ until **Klas gives an explicit written GO**.** ⚠ **Corrected FOUR times on 2026-08-16,
   each time by the previous correction's own

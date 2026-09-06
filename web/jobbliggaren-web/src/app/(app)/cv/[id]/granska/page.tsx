@@ -132,6 +132,12 @@ export default async function CanonicalCvReviewPage({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
+            {/* The plate's contrast decision for a small label is already made and already
+                scoped: `.jp-pagehero__kicker` is a mono overline in `--jp-hero-ink-soft`.
+                A `.jp-tag` here would carry `--jp-ink-2` onto the gradient, the same way
+                `.jp-btn--secondary` does — which is why the hero re-scopes every on-plate
+                token it uses. Reusing the kicker needs no new rule and no `guard-allow`. */}
+            <div className="jp-pagehero__kicker">{t("cv.granska.beta")}</div>
             <h1 className="jp-pagehero__title">{t("cv.granska.title")}</h1>
             <p className="jp-pagehero__lede">{t("cv.granska.lede")}</p>
           </div>

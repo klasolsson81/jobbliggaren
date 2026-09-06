@@ -4,30 +4,25 @@ import userEvent from "@testing-library/user-event";
 import { CvPreview } from "./cv-preview";
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
-const PREVIEW_URL = `/api/cv/parsed/${PARSED_ID}/preview`;
+const ORIGINAL_URL = `/api/cv/parsed/${PARSED_ID}/original`;
 // Den kanoniska ATS-textvyn ges bara för befordrade Resume (Fas 4b PR-8.3).
 const RESUME_ID = "22222222-2222-4222-8222-222222222222";
-const RESUME_PREVIEW_URL = `/api/cv/${RESUME_ID}/preview`;
+const RESUME_ORIGINAL_URL = `/api/cv/${RESUME_ID}/original`;
 const ATS_TEXT_URL = `/api/cv/${RESUME_ID}/ats-text`;
 const ATS_TEXT = "Anna Andersson\nBackend-utvecklare\nGöteborg";
 
+const PDF_CONTENT_TYPE = "application/pdf";
+const DOCX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 /** JSON-svar för ATS-textvyn ({ source, text }). En riktig Response duger här —
  *  komponenten läser bara `res.json()` (inte `.blob()`), så body-stream-quirken
- *  som gäller PDF-blobben (se pdfResponse) rör inte den här vägen. */
+ *  som gäller filblobben (se fileResponse) rör inte den här vägen. */
 function atsTextResponse(): Response {
   return new Response(JSON.stringify({ source: "Linearized", text: ATS_TEXT }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-/** Fetch-router: ATS-text-URL:en ger JSON, allt annat (preview) ger en PDF-blob.
- * `Mock<typeof fetch>` är både anropbar med fetch-signaturen (tilldelningen till
- * `global.fetch` typar rent) och bär `.mock.calls` typade som fetch-parametrar. */
-function routedFetch(): Mock<typeof fetch> {
-  return vi.fn().mockImplementation((url: string) =>
-    url.includes("/ats-text") ? atsTextResponse() : pdfResponse(),
-  ) as unknown as Mock<typeof fetch>;
 }
 
 /**
@@ -36,19 +31,30 @@ function routedFetch(): Mock<typeof fetch> {
  * blob-URL) och mockar fetch per test. Stubbarna restaureras i afterEach.
  *
  * 200-svaret är ett MINIMALT mock-objekt (inte en riktig `Response` runt en
- * `Blob`): komponenten läser bara `ok` + `blob()` på happy-path. En äkta
- * `new Response(new Blob(...))` läses tillbaka via `Blob.stream()`, vars
- * tillgänglighet skiljer sig mellan lokal Node och CI:s undici → "object.stream
- * is not a function" i CI. Mock-objektet kringgår body-maskineriet helt och är
- * miljöportabelt. `URL.createObjectURL` är ändå stubbad, så blob-innehållet
- * spelar ingen roll.
+ * `Blob`): komponenten läser bara `ok`, `headers.get("Content-Type")` och
+ * `blob()` på happy-path. En äkta `new Response(new Blob(...))` läses tillbaka
+ * via `Blob.stream()`, vars tillgänglighet skiljer sig mellan lokal Node och
+ * CI:s undici → "object.stream is not a function" i CI. Mock-objektet kringgår
+ * body-maskineriet helt och är miljöportabelt. `URL.createObjectURL` är ändå
+ * stubbad, så blob-innehållet spelar ingen roll.
+ *
+ * Content-Type är den enda signal komponenten grenar på — filnamnets ändelse
+ * konsulteras aldrig — så den är parametern här.
  */
-function pdfResponse(): Response {
+function fileResponse(contentType: string): Response {
   return {
     ok: true,
     status: 200,
-    blob: async () => new Blob(["pdf"], { type: "application/pdf" }),
+    headers: { get: (name: string) => (name === "Content-Type" ? contentType : null) },
+    blob: async () => new Blob(["file"], { type: contentType }),
   } as unknown as Response;
+}
+
+/** Fetch-router: ATS-text-URL:en ger JSON, allt annat (originalfilen) ger en PDF. */
+function routedFetch(): Mock<typeof fetch> {
+  return vi.fn().mockImplementation((url: string) =>
+    url.includes("/ats-text") ? atsTextResponse() : fileResponse(PDF_CONTENT_TYPE),
+  ) as unknown as Mock<typeof fetch>;
 }
 
 /** En kontrollerbar deferred för att hålla fetch pending (loading-state-test). */
@@ -60,7 +66,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
-describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
+describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
   const originalFetch = global.fetch;
   const originalCreate = URL.createObjectURL;
   const originalRevoke = URL.revokeObjectURL;
@@ -82,7 +88,7 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
   });
 
   it("renderar trigger-knappen 'Förhandsgranska' och visar INTE modalen initialt", () => {
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
 
     expect(
       screen.getByRole("button", { name: "Förhandsgranska" })
@@ -90,15 +96,13 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("öppnar modalen vid klick: role=dialog, aria-modal, namn + fetch mot ?profile=Ats", async () => {
+  it("öppnar modalen vid klick och hämtar ORIGINALET utan ?profile", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn().mockResolvedValue(pdfResponse());
+    const fetchMock = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE));
     global.fetch = fetchMock;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
@@ -106,289 +110,254 @@ describe("<CvPreview /> (Fas 4 STEG B-2 — Förhandsgranska CV)", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`/api/cv/parsed/${PARSED_ID}/preview?profile=Ats`);
+    // Originalfilen har ingen profilaxel: URL:en bär ingen query alls.
+    expect(url).toBe(ORIGINAL_URL);
   });
 
-  it("loading-state: 'CV:t läses in…' visas medan fetch är pending", async () => {
+  it("loading-state: 'Filen läses in…' visas medan fetch är pending", async () => {
     const user = userEvent.setup();
-    const d = deferred<Response>();
-    global.fetch = vi.fn().mockReturnValue(d.promise);
+    const pending = deferred<Response>();
+    global.fetch = vi.fn(() => pending.promise) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    // BrandSpinner-status renderar "CV:t läses in…" (sr-only + aria-hidden p).
-    expect(
-      await screen.findAllByText("CV:t läses in…")
-    ).not.toHaveLength(0);
+    // BrandSpinner-status renderar "Filen läses in…" (sr-only + aria-hidden p).
+    expect(await screen.findAllByText("Filen läses in…")).not.toHaveLength(0);
+    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
 
     // Lös upp så in-flight-fetchen inte läcker in i nästa test.
-    d.resolve(pdfResponse());
-    await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)");
+    pending.resolve(fileResponse(PDF_CONTENT_TYPE));
+    await screen.findByTitle("Din uppladdade originalfil");
   });
 
-  it("ready-state: iframe + 'Öppna i ny flik'-länk + createObjectURL anropad (Ats)", async () => {
+  it("pdf: iframe + 'Öppna i ny flik' + nedladdningslänk + createObjectURL anropad", async () => {
     const user = userEvent.setup();
-    global.fetch = vi.fn().mockResolvedValue(pdfResponse());
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    const iframe = await screen.findByTitle(
-      "Förhandsgranskning av CV (ATS-profil)"
-    );
-    expect(iframe).toBeInTheDocument();
-    expect(createObjectURL).toHaveBeenCalled();
+    const frame = await screen.findByTitle("Din uppladdade originalfil");
+    expect(frame).toHaveAttribute("src", "blob:mock");
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
 
-    const link = screen.getByRole("link", { name: "Öppna i ny flik" });
-    expect(link).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Öppna i ny flik" })).toHaveAttribute(
       "href",
-      `/api/cv/parsed/${PARSED_ID}/preview?profile=Ats`
+      "blob:mock"
     );
+    // Nedladdningen gör det integritetsmeddelandet redan lovar: att du kan hämta
+    // tillbaka din egen fil (content-legal.json, "originalfil").
+    const download = screen.getByRole("link", { name: "Ladda ner originalfilen" });
+    expect(download).toHaveAttribute("download", "original.pdf");
   });
 
-  it("profil-byte: klick på 'Visuell profil' hämtar om med ?profile=Visual och byter iframe-titel", async () => {
+  it("docx: INGEN iframe, utan civil förklaring + nedladdningslänk", async () => {
     const user = userEvent.setup();
-    // Färsk Response per anrop: en Response-body kan bara läsas (.blob()) en gång,
-    // och komponenten gör två separata fetchar (Ats → Visual). Ett delat
-    // Response-objekt skulle ge "body already used" vid andra anropet.
-    const fetchMock = vi.fn().mockImplementation(() => pdfResponse());
-    global.fetch = fetchMock;
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(DOCX_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
-    await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)");
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    await user.click(screen.getByRole("button", { name: "Visuell profil" }));
+    // En iframe hade gett en TYST tom ram — därför finns den inte alls här.
+    expect(
+      await screen.findByText(/Word-dokument och kan inte visas i webbläsaren/)
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
 
-    await screen.findByTitle("Förhandsgranskning av CV (Visuell profil)");
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    const [secondUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(secondUrl).toBe(
-      `/api/cv/parsed/${PARSED_ID}/preview?profile=Visual`
-    );
+    const download = screen.getByRole("link", { name: "Ladda ner originalfilen" });
+    expect(download).toHaveAttribute("download", "original.docx");
+  });
+
+  it("okänd content-type → fel-copy, aldrig en ram med okänt innehåll", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(fileResponse("text/html")) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+
+    expect(
+      await screen.findByText("Originalfilen kunde inte laddas. Försök igen om en stund.")
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+  });
+
+  it("404 → ärligt tomt tillstånd, inte ett fel", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 404 } as Response) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+
+    // Ett CV skapat i tjänsten, eller en import där filen aldrig sparades, HAR
+    // ingen originalfil. Det är ett vanligt utfall och sägs som ett sådant.
+    expect(
+      await screen.findByText(
+        "Vi har ingen originalfil sparad för det här CV:t. Importera ditt CV på nytt om du vill kunna öppna filen här."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
   });
 
   it("429 → civic copy med '30 sekunder', ingen iframe", async () => {
     const user = userEvent.setup();
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ retryAfterSeconds: 30 }), {
-        status: 429,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: "rateLimited", retryAfterSeconds: 30 }),
+    } as unknown as Response) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
     expect(await screen.findByText(/30 sekunder/)).toBeInTheDocument();
-    expect(
-      screen.queryByTitle("Förhandsgranskning av CV (ATS-profil)")
-    ).not.toBeInTheDocument();
-  });
-
-  it("404 → civic copy 'kunde inte hittas'", async () => {
-    const user = userEvent.setup();
-    global.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 404 }));
-
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
-
-    expect(await screen.findByText(/kunde inte hittas/)).toBeInTheDocument();
+    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
   });
 
   it("övrigt fel (500) → civic copy 'kunde inte laddas'", async () => {
     const user = userEvent.setup();
     global.fetch = vi
       .fn()
-      .mockResolvedValue(new Response(null, { status: 500 }));
+      .mockResolvedValue({ ok: false, status: 500 } as Response) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    expect(await screen.findByText(/kunde inte laddas/)).toBeInTheDocument();
+    expect(
+      await screen.findByText("Originalfilen kunde inte laddas. Försök igen om en stund.")
+    ).toBeInTheDocument();
   });
 
   it("Stäng-knappen stänger modalen, returnerar fokus till triggern och revokar blob-URL:en", async () => {
     const user = userEvent.setup();
-    global.fetch = vi.fn().mockResolvedValue(pdfResponse());
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
     const trigger = screen.getByRole("button", { name: "Förhandsgranska" });
     await user.click(trigger);
-    // Vänta till ready-state så en blob-URL faktiskt finns att revoka.
-    await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)");
+    await screen.findByTitle("Din uppladdade originalfil");
 
     await user.click(screen.getByRole("button", { name: "Stäng" }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
   });
 
   it("Esc stänger modalen", async () => {
     const user = userEvent.setup();
-    global.fetch = vi.fn().mockResolvedValue(pdfResponse());
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-    await user.click(
-      screen.getByRole("button", { name: "Förhandsgranska" })
-    );
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+    await screen.findByTitle("Din uppladdade originalfil");
 
     await user.keyboard("{Escape}");
 
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  // Textversion för ATS (Fas 4b PR-8.3): tredje fliken visas bara när atsTextUrl ges.
-  describe("ATS-textflik", () => {
-    it("visar INTE fliken 'Textversion för ATS' när atsTextUrl saknas (parsat CV)", async () => {
+  describe("vyval", () => {
+    it("visar INGEN flikrad när atsTextUrl saknas (parsat CV)", async () => {
       const user = userEvent.setup();
-      global.fetch = vi.fn().mockResolvedValue(pdfResponse());
+      global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
-      render(<CvPreview previewUrl={PREVIEW_URL} initialProfile="Ats" />);
-      await user.click(
-        screen.getByRole("button", { name: "Förhandsgranska" })
-      );
+      render(<CvPreview originalUrl={ORIGINAL_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+      await screen.findByTitle("Din uppladdade originalfil");
 
+      // En ensam flik är en kontroll som inte kontrollerar något.
+      expect(screen.queryByRole("group", { name: "Välj vy" })).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "Textversion för ATS" })
       ).not.toBeInTheDocument();
     });
 
-    it("visar fliken 'Textversion för ATS' när atsTextUrl ges (befordrat CV)", async () => {
+    it("profilflikarna ATS-profil/Visuell profil finns INTE längre", async () => {
       const user = userEvent.setup();
-      global.fetch = routedFetch();
+      global.fetch = routedFetch() as unknown as typeof fetch;
 
-      render(
-        <CvPreview
-          previewUrl={RESUME_PREVIEW_URL}
-          atsTextUrl={ATS_TEXT_URL}
-          initialProfile="Ats"
-        />
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Förhandsgranska" })
-      );
+      render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+      await screen.findByTitle("Din uppladdade originalfil");
 
-      expect(
-        screen.getByRole("button", { name: "Textversion för ATS" })
-      ).toBeInTheDocument();
+      // Originalet har ingen ATS-variant och ingen visuell variant — det är en fil.
+      expect(screen.queryByRole("button", { name: "ATS-profil" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Visuell profil" })).not.toBeInTheDocument();
+    });
+
+    it("visar flikarna Originalfil + Textversion för ATS när atsTextUrl ges", async () => {
+      const user = userEvent.setup();
+      global.fetch = routedFetch() as unknown as typeof fetch;
+
+      render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+
+      expect(screen.getByRole("group", { name: "Välj vy" })).toBeInTheDocument();
+      const original = screen.getByRole("button", { name: "Originalfil" });
+      expect(original).toHaveAttribute("aria-current", "true");
+      expect(screen.getByRole("button", { name: "Textversion för ATS" })).toBeInTheDocument();
     });
 
     it("aktivering hämtar atsTextUrl och renderar texten + banner-copyn", async () => {
       const user = userEvent.setup();
       const fetchMock = routedFetch();
-      global.fetch = fetchMock;
+      global.fetch = fetchMock as unknown as typeof fetch;
 
-      render(
-        <CvPreview
-          previewUrl={RESUME_PREVIEW_URL}
-          atsTextUrl={ATS_TEXT_URL}
-          initialProfile="Ats"
-        />
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Förhandsgranska" })
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Textversion för ATS" })
-      );
+      render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+      await screen.findByTitle("Din uppladdade originalfil");
 
-      // Banner-copyn (ATS läser en spalt, ren text) + den linjäriserade texten.
-      expect(
-        await screen.findByText(/Så här läser en ATS-parser ditt CV/)
-      ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
+
+      expect(await screen.findByText(/Så här läser en ATS-parser ditt CV/)).toBeInTheDocument();
       expect(screen.getByText(/Backend-utvecklare/)).toBeInTheDocument();
+      // Textvyn ersätter ramen — de två är olika dokument, aldrig två vyer av ett.
+      expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
 
-      // ATS-textfliken körde en GET mot ats-text-URL:en.
-      const atsCall = fetchMock.mock.calls.find(([url]) =>
+      const atsCalls = fetchMock.mock.calls.filter(([url]) =>
         String(url).includes("/ats-text")
       );
-      expect(atsCall?.[0]).toBe(ATS_TEXT_URL);
-      // Iframe:n (PDF) är borta när textfliken är aktiv.
-      expect(
-        screen.queryByTitle("Förhandsgranskning av CV (ATS-profil)")
-      ).not.toBeInTheDocument();
+      expect(atsCalls).toHaveLength(1);
     });
 
     it("404 på ats-text → civic copy 'Textversionen är inte tillgänglig ännu.'", async () => {
       const user = userEvent.setup();
       global.fetch = vi.fn().mockImplementation((url: string) =>
         url.includes("/ats-text")
-          ? new Response(null, { status: 404 })
-          : pdfResponse()
-      );
+          ? ({ ok: false, status: 404 } as Response)
+          : fileResponse(PDF_CONTENT_TYPE)
+      ) as unknown as typeof fetch;
 
-      render(
-        <CvPreview
-          previewUrl={RESUME_PREVIEW_URL}
-          atsTextUrl={ATS_TEXT_URL}
-          initialProfile="Ats"
-        />
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Förhandsgranska" })
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Textversion för ATS" })
-      );
+      render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+      await screen.findByTitle("Din uppladdade originalfil");
+
+      await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
 
       expect(
         await screen.findByText("Textversionen är inte tillgänglig ännu.")
       ).toBeInTheDocument();
     });
 
-    it("byte tillbaka till en PDF-profil återställer iframe:n", async () => {
+    it("byte tillbaka till Originalfil återställer ramen", async () => {
       const user = userEvent.setup();
-      global.fetch = routedFetch();
+      global.fetch = routedFetch() as unknown as typeof fetch;
 
-      render(
-        <CvPreview
-          previewUrl={RESUME_PREVIEW_URL}
-          atsTextUrl={ATS_TEXT_URL}
-          initialProfile="Ats"
-        />
-      );
-      await user.click(
-        screen.getByRole("button", { name: "Förhandsgranska" })
-      );
-      // PDF-iframe initialt (Ats).
-      await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)");
+      render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
+      await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+      await screen.findByTitle("Din uppladdade originalfil");
 
-      // Till textfliken → iframe borta.
-      await user.click(
-        screen.getByRole("button", { name: "Textversion för ATS" })
-      );
+      await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
       await screen.findByText(/Så här läser en ATS-parser ditt CV/);
-      expect(
-        screen.queryByTitle("Förhandsgranskning av CV (ATS-profil)")
-      ).not.toBeInTheDocument();
 
-      // Tillbaka till ATS-profil → PDF-iframe återställd.
-      await user.click(screen.getByRole("button", { name: "ATS-profil" }));
-      expect(
-        await screen.findByTitle("Förhandsgranskning av CV (ATS-profil)")
-      ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Originalfil" }));
+
+      expect(await screen.findByTitle("Din uppladdade originalfil")).toBeInTheDocument();
     });
   });
 });

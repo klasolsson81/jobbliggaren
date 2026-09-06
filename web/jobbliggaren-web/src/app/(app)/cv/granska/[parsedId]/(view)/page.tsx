@@ -166,7 +166,7 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
         <CvBlockReason reason={parsed.blockReason} className="jp-cvaction--flush" />
 
         <div className="jp-cv-preview-actions">
-          <CvPreview previewUrl={`/api/cv/parsed/${parsedId}/preview`} initialProfile={profile} />
+          <CvPreview originalUrl={`/api/cv/parsed/${parsedId}/original`} />
         </div>
 
         {/* Kompletterar blocket ovan, upprepar det inte: det säger VILKEN grind som föll,

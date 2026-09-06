@@ -172,9 +172,8 @@ export function ResumeCard({ resume }: ResumeCardProps) {
           <span>{t("card.reviewCta")}</span>
         </Link>
         <CvPreview
-          previewUrl={`/api/cv/${resume.id}/preview`}
+          originalUrl={`/api/cv/${resume.id}/original`}
           atsTextUrl={`/api/cv/${resume.id}/ats-text`}
-          initialProfile="Ats"
           triggerClassName="jp-btn jp-btn--secondary jp-btn--sm"
           triggerIconSize={14}
           triggerAriaLabel={t("preview.triggerAria", { name: resume.name })}

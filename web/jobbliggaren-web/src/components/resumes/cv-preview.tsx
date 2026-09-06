@@ -1,62 +1,80 @@
 "use client";
 
-// "use client": klient-ö för PDF-förhandsgranskning (Fas 4 STEG B-2,
-// "Förhandsgranska CV"). Kräver browser-API:er (fetch av binär blob,
-// URL.createObjectURL, AbortController), modal-state och tangentbords-/
+// "use client": klient-ö för förhandsgranskning av den uppladdade originalfilen
+// (Fas 4 STEG B-2, "Förhandsgranska CV"). Kräver browser-API:er (fetch av binär
+// blob, URL.createObjectURL, AbortController), modal-state och tangentbords-/
 // fokus-hantering — inget av detta kan göras i en Server Component.
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Eye, X } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
-import type { RenderProfile } from "@/lib/dto/parsed-resume";
 import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
 
 /**
- * CvPreview — trigger-knapp + klient-state-modal med en PDF-iframe (deterministisk
- * förhandsgranskning, INGEN AI — ADR 0071/0074). Hämtar PDF:en från en binär
- * BFF-route (server-only egress, ägar-scopad via session→Bearer), gör en
- * object-URL och visar den i en iframe. Källan är generisk via `previewUrl`:
- * `/api/cv/parsed/{parsedId}/preview` (parsad staging-artefakt) ELLER
- * `/api/cv/{id}/preview` (befordrad, kanonisk Resume — TD-112 / #202). Komponenten
- * äger ingen id-form; den lägger bara på `?profile=` på den givna routen.
+ * CvPreview — trigger-knapp + klient-state-modal som visar ANVÄNDARENS EGEN
+ * uppladdade fil (Klas-direktiv 2026-09-06). Hämtar filen från en binär BFF-route
+ * (server-only egress, ägar-scopad via session→Bearer), gör en object-URL och
+ * visar den. Källan är generisk via `originalUrl`:
+ * `/api/cv/parsed/{parsedId}/original` (importstaging) ELLER
+ * `/api/cv/{id}/original` (befordrad, kanonisk Resume). Komponenten äger ingen
+ * id-form.
  *
- * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en tredje flik
+ * Fram till 2026-09-06 visade den i stället vår EGEN genererade PDF
+ * (`/preview?profile=Ats|Visual`) — alltså inte filen användaren laddade upp. Med
+ * originalet som källa har profilaxeln ingen mening: en uppladdad fil har ingen
+ * ATS-variant och ingen visuell variant, den är precis en fil ("filen är helig",
+ * ADR 0093 §D5). Profilflikarna är därför borta. `?profile=` lever vidare på
+ * granskningssidan, där den styr SJÄLVA GRANSKNINGEN och inte den här vyn.
+ *
+ * Två utfall som den genererade renderingen aldrig hade, och som båda måste vara
+ * ärliga i stället för en trasig iframe:
+ *
+ * 1. **Filen kan saknas.** Ett CV skapat i tjänsten har ingen uppladdad fil alls;
+ *    en import vars personnummer-scan föll och där användaren avböjde lagring har
+ *    ingen heller (5b-samtyckesgrinden), och inte importer som föregår filarkivet.
+ *    404 är alltså ett VANLIGT svar och renderas som tomt tillstånd.
+ * 2. **Filen kan vara ett Word-dokument.** `CvFileKind` är exakt {Pdf, Docx}. En
+ *    iframe kan rendera pdf men inte docx (den ger tyst tom ram), och att rendera
+ *    om docx till något visningsbart vore ännu en "vår rendering av din fil" —
+ *    precis det direktivet finns för att få bort. Docx erbjuds som nedladdning.
+ *
+ * Vilket av de två det är avgörs på svarets `Content-Type`, som BFF:en snävar mot
+ * en allowlist innan den skickar vidare — aldrig på filnamnets ändelse.
+ *
+ * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en andra flik
  * till som hämtar den linjäriserade, redan pnr-redigerade CV-texten (JSON) och
- * visar den i en `<pre>`. Den aktiva fliken modelleras som `RenderProfile |
- * "atsText"` — vi vidgar ALDRIG `RenderProfile` (backend-validatorn känner bara
- * `Ats`/`Visual`). ATS-textfliken kör inte PDF-blob-hämtningen; ett byte tillbaka
- * till en PDF-profil återställer iframe-beteendet. `atsTextUrl` utelämnas för
- * parsade CV (ingen kanonisk id / ingen ats-text-endpoint) → fliken visas ej där.
+ * visar den i en `<pre>`. Den är kvar just för att den är KÄLLDISKRIMINERAD — den
+ * säger uttryckligen "så här läser en maskin det vi genererar", vilket är något
+ * annat än originalfilen och aldrig kan förväxlas med den (ADR 0093 §D8).
+ * `atsTextUrl` utelämnas för parsade CV → ingen flikrad alls där.
  *
  * Modal-mekaniken (scrim / role=dialog / aria-modal / focus-trap / focus-return /
  * body-scroll-lock / Esc) speglar `JobAdModalShell`. Skillnad: detta är en
  * KLIENT-STATE-modal (ingen route/searchParam-navigering), så fokus-retur till
  * trigger-knappen görs explicit i `close()` (JobAdModalShell förlitar sig på
- * `router.back()`). Profil-växeln speglar `.jp-segment`-utseendet men använder
- * `<button>` som byter vy-state utan att navigera.
+ * `router.back()`).
  *
- * Spinner-doktrin: PDF-renderingen är en känd-långsam, formlös väntan → öppna
- * modalen direkt + BrandSpinner + "läses in"-text (samma mönster som
- * ModalLoadingShell). ATS-textens JSON-hämtning är snabb → en enkel status-rad
- * (role=status), ingen spinner. Object-URL:er revokeras vid stängning, unmount
- * och profil-byte (ingen blob-läcka).
+ * Spinner-doktrin: filhämtningen är en känd-långsam, formlös väntan (den
+ * dekrypterar ett Form C-kuvert server-side) → öppna modalen direkt +
+ * BrandSpinner + "läses in"-text (samma mönster som ModalLoadingShell).
+ * ATS-textens JSON-hämtning är snabb → en enkel status-rad (role=status), ingen
+ * spinner. Object-URL:er revokeras vid stängning, unmount och vy-byte (ingen
+ * blob-läcka).
  */
 
 interface CvPreviewProps {
   /**
-   * Binär BFF-preview-route UTAN query, t.ex. `/api/cv/parsed/{parsedId}/preview`
-   * eller `/api/cv/{id}/preview`. `?profile=` läggs på av komponenten.
+   * Binär BFF-route för originalfilen UTAN query, t.ex.
+   * `/api/cv/parsed/{parsedId}/original` eller `/api/cv/{id}/original`.
    */
-  previewUrl: string;
+  originalUrl: string;
   /**
    * Same-origin BFF-route för den kanoniska ATS-textvyn (`/api/cv/{id}/ats-text`),
    * som returnerar `{ source, text }` JSON. Ges bara för befordrade Resume (den
    * har en kanonisk id); utelämnas för parsade CV → ingen ATS-textflik.
    */
   atsTextUrl?: string;
-  /** Initial profil (sidans `?profile=`-default — "Ats"). */
-  initialProfile: RenderProfile;
   /**
    * Klassnamn för trigger-knappen, så ytan kan matcha sina grann-knappar (t.ex.
    * `--sm` på ResumeCard intill Redigera-knappen). Default = full-storlek secondary.
@@ -76,56 +94,55 @@ interface CvPreviewProps {
   triggerAriaLabel?: string;
 }
 
-/** Den aktiva fliken: en PDF-profil eller ATS-textvyn. `RenderProfile` vidgas
- * ALDRIG (backend känner bara `Ats`/`Visual`) — `"atsText"` är ren klient-vy-state. */
-type ViewTab = RenderProfile | "atsText";
+/** Den aktiva fliken: originalfilen eller ATS-textvyn. */
+type ViewTab = "original" | "atsText";
 
-type PreviewStatus =
+type OriginalStatus =
   | "loading"
   | "ready"
   | "error"
   | "rateLimited"
-  | "notFound";
+  | "noOriginal";
 
 /** ATS-textflikens hämtnings-tillstånd. 429 viks in i `error` (civil "försök
- * igen om en stund") — fliken har ingen egen rate-limit-copy. */
+ *  igen om en stund") — fliken har ingen egen rate-limit-copy. */
 type AtsTextStatus = "loading" | "ready" | "notFound" | "error";
 
-const PROFILE_OPTIONS: ReadonlyArray<{
-  value: RenderProfile;
-  labelKey: "ats" | "visual";
-}> = [
-  { value: "Ats", labelKey: "ats" },
-  { value: "Visual", labelKey: "visual" },
-];
+/** De två filformer `CvFileSignature` kan lösa. Pdf visas inline, docx laddas ned. */
+type OriginalKind = "pdf" | "docx";
+
+/** Den hämtade filen: en object-URL plus vilken form den har. */
+interface LoadedOriginal {
+  url: string;
+  kind: OriginalKind;
+}
+
+/** Content-Type → filform. Speglar BFF-routens allowlist; allt annat är ett fel. */
+const KIND_BY_CONTENT_TYPE = new Map<string, OriginalKind>([
+  ["application/pdf", "pdf"],
+  [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "docx",
+  ],
+]);
 
 /** Default rate-limit-retry-fönster (sekunder) om 429-svarets body saknar ett
  *  parsbart värde — speglar backend-policyns fönster (paritet med
  *  `parseRetryAfter` i `_helpers`). */
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-function iframeTitle(
-  t: ReturnType<typeof useTranslations<"resumes.preview">>,
-  profile: RenderProfile,
-): string {
-  return profile === "Ats"
-    ? t("iframeTitleAts")
-    : t("iframeTitleVisual");
-}
-
 export function CvPreview({
-  previewUrl,
+  originalUrl,
   atsTextUrl,
-  initialProfile,
   triggerClassName = "jp-btn jp-btn--secondary",
   triggerIconSize = 16,
   triggerAriaLabel,
 }: CvPreviewProps) {
   const t = useTranslations("resumes.preview");
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<ViewTab>(initialProfile);
-  const [status, setStatus] = useState<PreviewStatus>("loading");
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [view, setView] = useState<ViewTab>("original");
+  const [status, setStatus] = useState<OriginalStatus>("loading");
+  const [original, setOriginal] = useState<LoadedOriginal | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(
     DEFAULT_RETRY_AFTER_SECONDS
   );
@@ -146,45 +163,54 @@ export function CvPreview({
     // Belt-and-braces: blob:en revokas även av fetch-effektens cleanup när
     // `open` faller — den extra revoken här är en spec-no-op (medvetet, så
     // ingen läcka kvarstår oavsett vilken stäng-väg som triggas).
-    setBlobUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
+    setOriginal((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
       return null;
     });
     setStatus("loading");
+    setView("original");
     triggerRef.current?.focus();
   };
 
-  // Hämta PDF:en vid öppning och vid profil-byte. ATS-textfliken kör INTE denna
-  // hämtning (den har sin egen effekt nedan). AbortController städar in-flight-
-  // fetchen vid stängning/unmount/vy-byte. Object-URL:er revokeras när de ersätts
-  // eller vid avmontering (ingen blob-läcka).
+  // Hämta originalfilen vid öppning. ATS-textfliken kör INTE denna hämtning (den
+  // har sin egen effekt nedan). AbortController städar in-flight-fetchen vid
+  // stängning/unmount/vy-byte. Object-URL:er revokeras när de ersätts eller vid
+  // avmontering (ingen blob-läcka).
   useEffect(() => {
     if (!open) return;
     if (view === "atsText") return;
-    const activeProfile = view;
 
     const controller = new AbortController();
     let createdUrl: string | null = null;
 
     const run = async () => {
       // Återställ till loading + rensa ev. inaktuell blob vid starten av varje
-      // hämtning (öppning eller profil-byte). Görs inuti den async-funktionen
-      // (inte synkront i effekt-kroppen) — undviker kaskad-renders.
+      // hämtning. Görs inuti den async-funktionen (inte synkront i effekt-kroppen)
+      // — undviker kaskad-renders.
       setStatus("loading");
-      setBlobUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
+      setOriginal((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
         return null;
       });
       try {
-        const res = await fetch(
-          `${previewUrl}?profile=${activeProfile}`,
-          { signal: controller.signal, cache: "no-store" }
-        );
+        const res = await fetch(originalUrl, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
 
         if (res.ok) {
+          // Formen avgörs på det SERVERHÄRLEDDA svaret, aldrig på filnamnet.
+          const contentType =
+            res.headers.get("Content-Type")?.split(";")[0]?.trim() ?? "";
+          const kind = KIND_BY_CONTENT_TYPE.get(contentType);
+          if (kind === undefined) {
+            setStatus("error");
+            return;
+          }
+
           const blob = await res.blob();
           createdUrl = URL.createObjectURL(blob);
-          setBlobUrl(createdUrl);
+          setOriginal({ url: createdUrl, kind });
           setStatus("ready");
           return;
         }
@@ -196,8 +222,10 @@ export function CvPreview({
           return;
         }
 
+        // 404 är inte ett fel här: CV skapade i tjänsten, och importer där filen
+        // aldrig sparades, har helt enkelt ingen originalfil.
         if (res.status === 404) {
-          setStatus("notFound");
+          setStatus("noOriginal");
           return;
         }
 
@@ -215,9 +243,9 @@ export function CvPreview({
       controller.abort();
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [open, view, previewUrl]);
+  }, [open, view, originalUrl]);
 
-  // Hämta ATS-textvyn (JSON) vid aktivering av textfliken. Egen effekt så PDF-
+  // Hämta ATS-textvyn (JSON) vid aktivering av textfliken. Egen effekt så fil-
   // och text-hämtningarna aldrig korsar tillstånd. AbortController städar in-
   // flight-fetchen vid stängning/unmount/vy-byte. Backend-endpointen kan saknas
   // lokalt (PR-8.2-syskon) → 404 mappas civilt till notFound.
@@ -350,27 +378,24 @@ export function CvPreview({
             </header>
 
             <div className="jp-modal__body">
-              <div
-                role="group"
-                aria-label={t("profileGroupLabel")}
-                className="jp-segment"
-              >
-                {PROFILE_OPTIONS.map((option) => {
-                  const isActive = option.value === view;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className="jp-segment__opt"
-                      data-active={isActive}
-                      aria-current={isActive ? "true" : undefined}
-                      onClick={() => setView(option.value)}
-                    >
-                      <span>{t(option.labelKey)}</span>
-                    </button>
-                  );
-                })}
-                {atsTextUrl && (
+              {/* Flikraden finns bara när det GÅR att välja: utan ATS-textvyn är
+                  originalfilen den enda vyn, och en ensam flik är en kontroll som
+                  inte kontrollerar något. */}
+              {atsTextUrl && (
+                <div
+                  role="group"
+                  aria-label={t("viewGroupLabel")}
+                  className="jp-segment"
+                >
+                  <button
+                    type="button"
+                    className="jp-segment__opt"
+                    data-active={!isAtsText}
+                    aria-current={!isAtsText ? "true" : undefined}
+                    onClick={() => setView("original")}
+                  >
+                    <span>{t("original")}</span>
+                  </button>
                   <button
                     type="button"
                     className="jp-segment__opt"
@@ -380,8 +405,8 @@ export function CvPreview({
                   >
                     <span>{t("atsText")}</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {!isAtsText && (
                 <>
@@ -394,20 +419,42 @@ export function CvPreview({
                     </div>
                   )}
 
-                  {status === "ready" && blobUrl && (
+                  {status === "ready" && original?.kind === "pdf" && (
                     <>
                       <iframe
-                        src={blobUrl}
-                        title={iframeTitle(t, view)}
+                        src={original.url}
+                        title={t("iframeTitleOriginal")}
                         className="jp-pdf-frame"
                       />
                       <p className="jp-pdf-frame__fallback">
                         <a
-                          href={`${previewUrl}?profile=${view}`}
+                          href={original.url}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
                           {t("openInNewTab")}
+                        </a>
+                        {" · "}
+                        <a href={original.url} download="original.pdf">
+                          {t("download")}
+                        </a>
+                      </p>
+                    </>
+                  )}
+
+                  {/* Word: ingen ram, ingen omrendering, bara filen. `.jp-modal__body`
+                      är redan en flex-kolumn med gap, så blocket behöver ingen egen
+                      regel — det är två syskon, inte en ny komponent. */}
+                  {status === "ready" && original?.kind === "docx" && (
+                    <>
+                      <p className="jp-lede">{t("wordBody")}</p>
+                      <p>
+                        <a
+                          className="jp-btn jp-btn--secondary"
+                          href={original.url}
+                          download="original.docx"
+                        >
+                          {t("download")}
                         </a>
                       </p>
                     </>
@@ -419,8 +466,8 @@ export function CvPreview({
                     </p>
                   )}
 
-                  {status === "notFound" && (
-                    <p className="jp-lede">{t("notFound")}</p>
+                  {status === "noOriginal" && (
+                    <p className="jp-lede">{t("noOriginal")}</p>
                   )}
 
                   {status === "error" && (

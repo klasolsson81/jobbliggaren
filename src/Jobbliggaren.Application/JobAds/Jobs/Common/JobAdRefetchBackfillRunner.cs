@@ -82,9 +82,8 @@ public sealed partial class JobAdRefetchBackfillRunner(
         // Ingestion gate (JobSourceIngestOptions) — the THIRD sender of
         // UpsertExternalJobAdCommand, and it refetches from the same source through the same
         // converter, so it carries the same recruiter contact records as the stream and
-        // snapshot jobs. Unlike those two it is admin-triggered rather than cron-driven, and it
-        // writes nothing on an empty corpus, so it was never the path that made the gate urgent
-        // — but a switch that documents itself as the master switch has to be one.
+        // snapshot jobs. Unlike those two it is admin-triggered rather than cron-driven, and a
+        // switch that documents itself as the master switch has to cover it too.
         if (!ingestOptions.Value.IngestEnabled)
         {
             LogIngestDisabled(logger, auditJobType);

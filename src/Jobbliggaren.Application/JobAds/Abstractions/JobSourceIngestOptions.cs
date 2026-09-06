@@ -21,7 +21,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// gate.</b> <b>The condition for loading is Klas's explicit
 /// written GO</b> — a DECISION, not a derivable state, and deliberately so: four state-shaped
 /// conditions each failed open on 2026-08-16 as their sub-condition discharged. Its home is
-/// <c>release-checklist.md</c> §2.6 point 3.5; #1240 owns the load itself. The flip that
+/// <c>release-checklist.md</c> §2.6 point 3.5. The flip that
 /// satisfied this condition is recorded below.
 /// <b>No discharged gate, ticked box or closed issue is permission.</b> Klas
 /// confirmed the sequencing 2026-08-05: the stack may be deployed and every cutover proof taken,
@@ -37,7 +37,8 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 /// <b>That was one box's operator flip — not a shipped default, and not permission.</b> The
 /// Worker's Production overlay and <c>deploy/docker-compose.yml</c> both still ship
 /// <see langword="false"/>, and §2.6 point 3.5 forbids switching that box's ingestion back off on
-/// this comment's strength just as squarely. <b>For state read #1240, never this comment.</b>
+/// this comment's strength just as squarely. <b>For state read §2.6 point 3.5, never this
+/// comment.</b>
 /// </para>
 /// </summary>
 public sealed class JobSourceIngestOptions

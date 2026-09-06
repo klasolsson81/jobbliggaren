@@ -230,8 +230,8 @@ var app = builder.Build();
 // account minted with no proof the registrant owns the address — which is the posture #734 exists to
 // prevent, and announcing only the gate would reproduce this class of defect one flag over. Measured
 // 2026-08-03: the Auth section exists only in appsettings.Development.json, so in the Production
-// configuration the handler WOULD take the legacy branch. No Production host has booted yet — that is
-// a property of the configuration, not a history.
+// configuration the handler WOULD take the legacy branch. That is a property of the configuration,
+// not of any one host's history.
 var authFlags = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
 var emailConfirmationState = authFlags.RequireEmailConfirmation ? "REQUIRED" : "NOT REQUIRED";
 if (authFlags.RegistrationsOpen && !app.Environment.IsDevelopment())

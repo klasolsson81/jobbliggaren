@@ -15,8 +15,8 @@ namespace Jobbliggaren.Api.Observability;
 /// The measured motivation: <c>Auth:RequireEmailConfirmation</c> is declared without an initialiser
 /// and the <c>Auth</c> section exists only in <c>appsettings.Development.json</c>, so in the Production
 /// configuration the handler WOULD take the legacy instant-login branch — and nothing in the boot
-/// sequence said so. (No Production host has booted yet; this is a property of the configuration, not
-/// a history.) A posture only observable by attempting to register is a posture nobody checks.
+/// sequence said so. It is a property of the configuration, not of any one host's history.
+/// A posture only observable by attempting to register is a posture nobody checks.
 /// </para>
 /// <para>
 /// Level is not cosmetic: CLOSED is routine and logs at Information, while OPEN outside Development is

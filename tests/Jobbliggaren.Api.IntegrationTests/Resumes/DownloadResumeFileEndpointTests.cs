@@ -161,11 +161,11 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
     // The enumeration-probe contract for BOTH keys, in ONE capture.
     //
     // Deliberately one test and not four: every derived WebApplicationFactory builds its own
-    // internal EF service provider, and the assembly already sits just under EF Core's cap of
-    // twenty (ManyServiceProvidersCreatedWarning is configured as an error). Splitting this into
-    // per-arm tests cost two more hosts and turned the whole integration suite red in CI while
-    // every filtered local run stayed green, because the count is cumulative across the assembly.
-    // CLAUDE.md §11 records the same constraint from the other side (#1190).
+    // internal EF service provider, and the suite sits one host under EF's ceiling. Splitting this
+    // into per-arm tests cost two more hosts and turned the whole integration suite red in CI while
+    // every filtered local run stayed green. The ceiling and its accommodation are explained where
+    // they are implemented — ApiFactory.cs, at the ConfigureWarnings call — and this comment does
+    // not restate them.
     //
     // Covering both arms in one capture is also the stronger assertion: it shows the two keys are
     // distinguishable in the ops channel, which two isolated captures could not.
@@ -206,9 +206,9 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
         (await clientB.GetAsync($"/api/v1/resumes/{ownSourceless}/original", ct))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
-        // LOAD-BEARING AND ORDER-DEPENDENT: this must stay between the silent cases above and
-        // the cross-user hits below. Moved down past (b) it stops proving that a caller's OWN
-        // source-less resume logs nothing — silently, because the later count would still pass.
+        // DIAGNOSTIC, and it has to sit here to be one: a (b) regression is caught either way by
+        // the count, the Single and the final ShouldNotContain below, but only this assertion
+        // localises it to (b) rather than surfacing it as "expected 2, was 3".
         capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ShouldBeEmpty();
 
         // (c) A's real ids on both keys: cross-user 404s that MUST log.

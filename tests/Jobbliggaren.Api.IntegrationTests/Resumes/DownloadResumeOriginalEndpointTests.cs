@@ -21,8 +21,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 //
 // The enumeration-probe contract for this key is asserted in DownloadResumeFileEndpointTests,
 // which proves BOTH keys in ONE capturing host: every derived WebApplicationFactory builds its own
-// internal EF service provider and the assembly sits just under EF Core's cap of twenty, so a
-// second capture here turned the whole suite red in CI while filtered local runs stayed green.
+// internal EF service provider and the suite sits one host under EF's ceiling, so a second capture
+// here turned the whole suite red in CI while filtered local runs stayed green. The ceiling itself
+// is explained at ApiFactory.cs's ConfigureWarnings call.
 //
 // Everything is seeded through REAL production entry points: POST /import (the PR-9a seal
 // write-path), POST /parsed/{id}/promote (which persists the provenance link), and POST /resumes

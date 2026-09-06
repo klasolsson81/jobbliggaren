@@ -37,25 +37,39 @@ forbids it, and this file is the path it prescribes instead.
    project id, generated in the Scaleway console. Producing them is the operator's step and
    belongs to [#183](https://github.com/klasolsson81/jobbliggaren/issues/183); this runbook
    only needs them to already exist.
-3. **Two real, external mailboxes, and the second must be an alias of the first.** Use an
+3. **Two real, external mailboxes, and the second must be an alias of the first — for the two
+   accounts this procedure itself creates.** Use an
    ordinary external address for the operator account, and a `+`-suffixed alias of that same
    inbox for the CC account. The alias is required rather than merely convenient:
    `release-checklist.md`'s reinstatement schedule turns on **an address the controller himself
    holds**, so a `+`-suffixed alias of the operator's own inbox satisfies (b) and (d) by one
    property rather than by two clauses that happen to intersect. A separate mailbox satisfies
    neither, whatever it is called.
+   ⚠ **It governs the two accounts the operator registers at step 5, and nobody else.** Once
+   the gate is open, whoever reaches `/registrera` registers with **their own** address:
+   nothing here chooses it and this precondition cannot reach it. Such an address is not one
+   the controller holds, so **(b) fires on the first such account, and (d) on the confirmation
+   mail to it.** The definitions are `release-checklist.md` §2.5 point 1 leg (e) precondition
+   5's and are **not restated here** — read there what firing them costs, before the gate is
+   opened rather than after.
+   ⚠ **Writing that boundary down starts nothing.** It records which accounts this precondition
+   can speak for, and which it never could. What must be discharged before a first
+   self-registration belongs to precondition 5 and the checklist — never to CC.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
    request to the site — including the one the confirmation link makes — is challenged
    first.
+   ⚠ **A self-registration must clear that same challenge, on someone else's device.**
 5. **A rights channel that receives, or a recorded decision that it does not.**
    `kontakt@jobbliggaren.se` is the published Art. 12 controller contact and the Art. 15–22
    channel, and it is Reply-To on every message this procedure causes to be sent.
    **`release-checklist.md` owns the escalation schedule and it was rewritten on 2026-08-16
    against a measured operating state — read it there, not here.** Its trigger (a) is
    `RegistrationsOpen=true` outside Development, which is what step 2 does, so this procedure
-   reaches it by design; its (b) turns on **an address the controller himself holds**, which is
-   what precondition 3's `+`-alias requirement guarantees and what step 5 registers — a role
-   label such as "CC verification address" earns no exemption on its own. **Its measurements expire: the
+   reaches it by design; its (b) turns on **an address the controller himself holds** — a role
+   label such as "CC verification address" earns no exemption on its own. Precondition 3's
+   `+`-alias requirement holds that property for the two accounts step 5 registers **and for
+   nothing beyond them**: it does not reach a self-registration once the gate is open, and (b)
+   fires there. **Its measurements expire: the
    checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
    there that the schedule still reads as it did before setting the knob. Either the mailbox
    receives, or the policy publishes a channel that does
@@ -86,6 +100,12 @@ forbids it, and this file is the path it prescribes instead.
 
 Ordered, and the order is load-bearing at steps 0 and 7.
 
+⚠ **The list below does two jobs, and a visit may need only one of them.** Steps 0–4 and 10
+open the gate and close it again. Steps 5–9 create **the two accounts this procedure itself
+registers** — precondition 3's pair — and assign the operator Admin. A visit whose purpose is to let other people
+register themselves therefore runs 0–4 and 10, and nothing between them. Each step that differs
+between the two says so where it stands.
+
 **0. Bring the box's clone up to date.**
 
 ```bash
@@ -109,6 +129,12 @@ AUTH_REGISTRATIONS_OPEN=true
 AUTH_REQUIRE_EMAIL_CONFIRMATION=true
 ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL=<the operator's own address>
 ```
+
+⚠ **The third key belongs to the bootstrap half — a visit that only opens the gate sets the
+`AUTH_` keys and leaves it blank.** It exists so step 7 can make the operator's own account an
+Admin, and step 7's own reasoning is why it is not needed twice: the role is persisted in the
+database, so once the log has confirmed the assignment the knob has no further work. Setting it
+again on a later visit re-asserts a standing grant for nothing.
 
 **3. Restart the api.** Only `api` reads the three keys above, and step 2 changes no `EMAIL_*`
 line, so `worker` — which shares those through the `x-app-email` anchor and consumes no
@@ -137,6 +163,10 @@ crash-looping, read the refusal: it names the offending key and the rule.
 Expect **also**, on this boot, a Warning from the admin seeder saying no matching user was
 found. That is correct: the address in `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` has no account
 yet. Step 7 is what resolves it.
+
+⚠ **With that knob left blank there is no such Warning, and its absence is not a fault.**
+`IdempotentAdminRoleSeeder` gates the whole lookup on the value being non-blank, so a blank one
+never reaches it.
 
 **5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/registrera`,
 through the K2 challenge: the operator's own account first (the address from step 2), then
@@ -236,9 +266,9 @@ cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d -
 
 ⚠ **`docker restart` cannot close the gate and will report success.** Same mechanism as step 7 and
 higher stakes: compose substitutes `Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}` at
-container *creation*, so a restart re-runs the process against the env it already has. Step 7's
-second half re-created the container **while the gate line was still set**, so at this point the
-live container definitely carries `true` — there is no rescuing re-create between the two steps.
+container *creation*, so a restart re-runs the process against the env it already has. The last
+re-create before this point happened **while the gate line was still set**, so the live container
+carries `true`, and there is no rescuing re-create between then and here.
 Commenting the line out and restarting leaves the gate **open** while `.env` says closed and the
 operator believes it is closed.
 
@@ -331,6 +361,11 @@ Closed is the default rather than a preference: the gate is
 opened for a visit and not left open between them. Leaving it open is available, but it is a
 deliberate exception with K2 as the only thing in front of it — and K2's plaintext now sits in
 a file whose audience is every future CC session.
+
+⚠ **That exception is the shape a visit for other people's registrations has to take.** They do
+not arrive inside a visit's window, so the gate cannot be opened and closed around them; it
+stays open for as long as they need. This step does not decide that and neither does this file:
+precondition 5 and the checklist own what an open gate costs, and the call is Klas's.
 
 ## 4. Verification row 23's second half
 

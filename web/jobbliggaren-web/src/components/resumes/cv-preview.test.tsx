@@ -26,9 +26,9 @@ function atsTextResponse(): Response {
 }
 
 /**
- * jsdom implementerar varken URL.createObjectURL / revokeObjectURL eller en
- * riktig PDF-iframe. Vi stubbar objekt-URL-API:erna (komponenten gör/revokar en
- * blob-URL) och mockar fetch per test. Stubbarna restaureras i afterEach.
+ * jsdom implementerar inte URL.createObjectURL / revokeObjectURL. Vi stubbar dem
+ * (komponenten gör/revokar en blob-URL för nedladdningslänken) och mockar fetch per
+ * test. Stubbarna restaureras i afterEach.
  *
  * 200-svaret är ett MINIMALT mock-objekt (inte en riktig `Response` runt en
  * `Blob`): komponenten läser bara `ok`, `headers.get("Content-Type")` och
@@ -124,49 +124,65 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     // BrandSpinner-status renderar "Filen läses in…" (sr-only + aria-hidden p).
     expect(await screen.findAllByText("Filen läses in…")).not.toHaveLength(0);
-    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
 
     // Lös upp så in-flight-fetchen inte läcker in i nästa test.
     pending.resolve(fileResponse(PDF_CONTENT_TYPE));
-    await screen.findByTitle("Din uppladdade originalfil");
+    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
   });
 
-  it("pdf: iframe + 'Öppna i ny flik' + nedladdningslänk + createObjectURL anropad", async () => {
+  it("pdf: nedladdningslänk med rätt ändelse, och INGEN renderande yta", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    const frame = await screen.findByTitle("Din uppladdade originalfil");
-    expect(frame).toHaveAttribute("src", "blob:mock");
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-
-    expect(screen.getByRole("link", { name: "Öppna i ny flik" })).toHaveAttribute(
-      "href",
-      "blob:mock"
-    );
     // Nedladdningen gör det integritetsmeddelandet redan lovar: att du kan hämta
     // tillbaka din egen fil (content-legal.json, "originalfil").
-    const download = screen.getByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    expect(download).toHaveAttribute("href", "blob:mock");
     expect(download).toHaveAttribute("download", "original.pdf");
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/precis som du laddade upp den/)).toBeInTheDocument();
   });
 
-  it("docx: INGEN iframe, utan civil förklaring + nedladdningslänk", async () => {
+  it("GDPR-grinden: användarens bytes renderas ALDRIG inline på vår origin", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
+
+    const { container } = render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
+    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+
+    // DPIA #659 M-F2 föreskriver RFC 6266 `attachment` ordagrant och är merge-blockerande;
+    // R-F6:s residual vilar på att en lagrad polyglot ALDRIG renderas inline från vår origin,
+    // och ADR 0101 §B5(a):s GO för hela resume_files-lagret är villkorat av M-F2.
+    //
+    // Pinnen sitter på FRÅNVARON AV EN RENDERANDE YTA, inte på svarshuvudet: `fetch()` läser
+    // aldrig `Content-Disposition`, så en kvarlämnad iframe hade renderat vidare medan headern
+    // såg efterlevande ut. Att bara mäta headern hade varit en halv mätning av en hel grind.
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(container.querySelector("embed")).toBeNull();
+    expect(container.querySelector("object")).toBeNull();
+    // Och ingen länk öppnar blob:en i en flik i stället för att spara den.
+    for (const link of Array.from(container.querySelectorAll("a[href^='blob:']"))) {
+      expect(link).toHaveAttribute("download");
+      expect(link).not.toHaveAttribute("target", "_blank");
+    }
+  });
+
+  it("docx: samma nedladdningsform, ändelsen kommer från content-type", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(DOCX_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    const { container } = render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
-    // En iframe hade gett en TYST tom ram — därför finns den inte alls här.
-    expect(
-      await screen.findByText(/Word-dokument och kan inte visas i webbläsaren/)
-    ).toBeInTheDocument();
-    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
-
-    const download = screen.getByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    // Ändelsen följer svarets content-type, aldrig filnamnet.
     expect(download).toHaveAttribute("download", "original.docx");
+    expect(container.querySelector("iframe")).toBeNull();
   });
 
   it("okänd content-type → fel-copy, aldrig en ram med okänt innehåll", async () => {
@@ -181,7 +197,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     expect(
       await screen.findByText("Originalfilen kunde inte laddas. Försök igen om en stund.")
     ).toBeInTheDocument();
-    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
   });
 
   it("404 → ärligt tomt tillstånd, inte ett fel", async () => {
@@ -200,10 +216,10 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
         "Vi har ingen originalfil sparad för det här CV:t. Importera ditt CV på nytt om du vill kunna öppna filen här."
       )
     ).toBeInTheDocument();
-    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
   });
 
-  it("429 → civic copy med '30 sekunder', ingen iframe", async () => {
+  it("429 → civic copy med '30 sekunder', ingen nedladdningslänk", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -215,7 +231,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
 
     expect(await screen.findByText(/30 sekunder/)).toBeInTheDocument();
-    expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
   });
 
   it("övrigt fel (500) → civic copy 'kunde inte laddas'", async () => {
@@ -239,7 +255,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     const trigger = screen.getByRole("button", { name: "Förhandsgranska" });
     await user.click(trigger);
-    await screen.findByTitle("Din uppladdade originalfil");
+    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
     await user.click(screen.getByRole("button", { name: "Stäng" }));
 
@@ -254,7 +270,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-    await screen.findByTitle("Din uppladdade originalfil");
+    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
     await user.keyboard("{Escape}");
 
@@ -268,7 +284,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={ORIGINAL_URL} />);
       await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-      await screen.findByTitle("Din uppladdade originalfil");
+      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
       // En ensam flik är en kontroll som inte kontrollerar något.
       expect(screen.queryByRole("group", { name: "Välj vy" })).not.toBeInTheDocument();
@@ -283,7 +299,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-      await screen.findByTitle("Din uppladdade originalfil");
+      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
       // Originalet har ingen ATS-variant och ingen visuell variant — det är en fil.
       expect(screen.queryByRole("button", { name: "ATS-profil" })).not.toBeInTheDocument();
@@ -310,14 +326,14 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-      await screen.findByTitle("Din uppladdade originalfil");
+      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
 
       expect(await screen.findByText(/Så här läser en ATS-parser ditt CV/)).toBeInTheDocument();
       expect(screen.getByText(/Backend-utvecklare/)).toBeInTheDocument();
       // Textvyn ersätter ramen — de två är olika dokument, aldrig två vyer av ett.
-      expect(screen.queryByTitle("Din uppladdade originalfil")).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
 
       const atsCalls = fetchMock.mock.calls.filter(([url]) =>
         String(url).includes("/ats-text")
@@ -335,7 +351,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-      await screen.findByTitle("Din uppladdade originalfil");
+      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
 
@@ -350,14 +366,14 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Förhandsgranska" }));
-      await screen.findByTitle("Din uppladdade originalfil");
+      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
       await screen.findByText(/Så här läser en ATS-parser ditt CV/);
 
       await user.click(screen.getByRole("button", { name: "Originalfil" }));
 
-      expect(await screen.findByTitle("Din uppladdade originalfil")).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Ladda ner originalfilen" })).toBeInTheDocument();
     });
   });
 });

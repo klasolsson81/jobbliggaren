@@ -27,20 +27,26 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * ADR 0093 §D5). Profilflikarna är därför borta. `?profile=` lever vidare på
  * granskningssidan, där den styr SJÄLVA GRANSKNINGEN och inte den här vyn.
  *
- * Två utfall som den genererade renderingen aldrig hade, och som båda måste vara
- * ärliga i stället för en trasig iframe:
+ * **Filen laddas ner, den visas aldrig i appen — och det är en grind, inte en
+ * smaksak.** DPIA #659 M-F2 föreskriver ordagrant RFC 6266 `attachment` och är
+ * märkt merge-blockerande; R-F6:s residual vilar på satsen "a stored HTML-in-PDF
+ * polyglot is never rendered inline from our origin", och ADR 0101 §B5(a):s GO för
+ * hela `resume_files`-lagret är villkorat av M-F2. En `blob:`-iframe hade renderat
+ * användaruppladdade bytes på vår egen origin och brutit det. `download`-attributet
+ * gör att blob:en sparas i stället för att målas.
  *
- * 1. **Filen kan saknas.** Ett CV skapat i tjänsten har ingen uppladdad fil alls;
- *    en import vars personnummer-scan föll och där användaren avböjde lagring har
- *    ingen heller (5b-samtyckesgrinden), och inte importer som föregår filarkivet.
- *    404 är alltså ett VANLIGT svar och renderas som tomt tillstånd.
- * 2. **Filen kan vara ett Word-dokument.** `CvFileKind` är exakt {Pdf, Docx}. En
- *    iframe kan rendera pdf men inte docx (den ger tyst tom ram), och att rendera
- *    om docx till något visningsbart vore ännu en "vår rendering av din fil" —
- *    precis det direktivet finns för att få bort. Docx erbjuds som nedladdning.
+ * ⚠ Att bara sätta `attachment` på BFF-svaret räcker INTE: `fetch()` läser aldrig
+ * `Content-Disposition`, så en kvarlämnad iframe hade renderat vidare medan headern
+ * såg efterlevande ut (security-auditor, PR #1684). Grinden bärs av att det inte
+ * finns någon renderande yta här, inte av headern ensam.
  *
- * Vilket av de två det är avgörs på svarets `Content-Type`, som BFF:en snävar mot
- * en allowlist innan den skickar vidare — aldrig på filnamnets ändelse.
+ * Filen kan dessutom SAKNAS: ett CV skapat i tjänsten har ingen uppladdad fil alls;
+ * en import vars personnummer-scan föll och där användaren avböjde lagring har ingen
+ * heller (5b-samtyckesgrinden), och inte importer som föregår filarkivet. 404 är
+ * alltså ett VANLIGT svar och renderas som tomt tillstånd.
+ *
+ * `Content-Type` (som BFF:en snävar mot en allowlist) avgör bara filändelsen på
+ * nedladdningen — aldrig filnamnets ändelse, och inte längre någon vy-gren.
  *
  * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en andra flik
  * till som hämtar den linjäriserade, redan pnr-redigerade CV-texten (JSON) och
@@ -419,40 +425,19 @@ export function CvPreview({
                     </div>
                   )}
 
-                  {status === "ready" && original?.kind === "pdf" && (
+                  {/* EN ready-form för båda filtyperna: filen laddas ner, den visas
+                      aldrig. `download` gör att blob:en sparas i stället för att
+                      renderas — ingen väg härifrån målar användarens bytes på vår
+                      origin. `.jp-modal__body` är redan en flex-kolumn med gap, så
+                      blocket behöver ingen egen regel. */}
+                  {status === "ready" && original && (
                     <>
-                      <iframe
-                        src={original.url}
-                        title={t("iframeTitleOriginal")}
-                        className="jp-pdf-frame"
-                      />
-                      <p className="jp-pdf-frame__fallback">
-                        <a
-                          href={original.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {t("openInNewTab")}
-                        </a>
-                        {" · "}
-                        <a href={original.url} download="original.pdf">
-                          {t("download")}
-                        </a>
-                      </p>
-                    </>
-                  )}
-
-                  {/* Word: ingen ram, ingen omrendering, bara filen. `.jp-modal__body`
-                      är redan en flex-kolumn med gap, så blocket behöver ingen egen
-                      regel — det är två syskon, inte en ny komponent. */}
-                  {status === "ready" && original?.kind === "docx" && (
-                    <>
-                      <p className="jp-lede">{t("wordBody")}</p>
+                      <p className="jp-lede">{t("readyBody")}</p>
                       <p>
                         <a
                           className="jp-btn jp-btn--secondary"
                           href={original.url}
-                          download="original.docx"
+                          download={`original.${original.kind}`}
                         >
                           {t("download")}
                         </a>

@@ -6585,20 +6585,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cv-preview-actions {
   display: flex;
 }
-/* PDF-iframe i CvPreview-modalen. Civic-utility: 1px-kant via surface-2-fyll,
-   liten radie, ingen shadow/gradient. Höjd cappas så modalen inte spränger. */
-.jp-pdf-frame {
-  width: 100%;
-  height: min(70vh, 800px);
-  border: 0;
-  border-radius: var(--jp-r-sm);
-  background: var(--jp-surface-2);
-}
-.jp-pdf-frame__fallback {
-  margin: 0;
-  font-size: var(--text-body-sm);
-}
-
 /* ── ATS-textflik i CvPreview-modalen (Fas 4b PR-8.3) ──────────────
    Ren, linjäriserad CV-text som en ATS-parser läser den. Mono för att
    understryka "plain text", pre-wrap bevarar radbrytningar och wrappar långa

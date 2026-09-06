@@ -72,11 +72,15 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
-    private static async Task<string> ImportAsync(HttpClient client, CancellationToken ct)
+    private static Task<string> ImportAsync(HttpClient client, CancellationToken ct) =>
+        ImportNamedAsync(client, "cv.pdf", ct);
+
+    private static async Task<string> ImportNamedAsync(
+        HttpClient client, string fileName, CancellationToken ct)
     {
         var part = new ByteArrayContent(OriginalPdfBytes);
         part.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
-        using var form = new MultipartFormDataContent { { part, "file", "cv.pdf" } };
+        using var form = new MultipartFormDataContent { { part, "file", fileName } };
         var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
         import.IsSuccessStatusCode.ShouldBeTrue();
         return (await import.Content.ReadFromJsonAsync<JsonElement>(ct))
@@ -165,6 +169,58 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
         // the original can be shown inline or must be offered as a download.
         response.Content.Headers.ContentType.ShouldNotBeNull();
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/pdf");
+    }
+
+    // 2b ----------------------------------------------------------------
+    [Fact]
+    public async Task Download_original_content_disposition_is_attachment_with_rfc5987_filename()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        var resumeId = await ImportAndPromoteAsync(_client, ct);
+
+        var response = await _client.GetAsync(DownloadUrl(resumeId), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var disposition = response.Content.Headers.ContentDisposition;
+        disposition.ShouldNotBeNull();
+        // Forced download (never inline) with both the quoted fallback and the RFC 5987 (filename*)
+        // form. DPIA #659 M-F2 requires "attachment" verbatim and R-F6's residual rests on a stored
+        // polyglot never being rendered inline from our origin — so this is pinned PER ARM, not
+        // inherited from the staging sibling: the header is produced by each endpoint delegate
+        // separately, and a shared middleware pin would not have caught one of them regressing.
+        disposition!.DispositionType.ShouldBe("attachment");
+        disposition.FileName.ShouldNotBeNull();
+        disposition.FileNameStar.ShouldNotBeNull();
+    }
+
+    // 2c ----------------------------------------------------------------
+    [Fact]
+    public async Task Download_original_filename_is_personnummer_redacted_in_header()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        // The filename embeds a REAL personnummer (811218-9876: valid date + Luhn). The body is
+        // clean, so the original IS captured; the filename is masked at rest (M-F1) and re-masked
+        // in ResumeOriginalReader belt-and-braces, so the Content-Disposition can never carry the
+        // raw digits on this arm either.
+        var parsedId = await ImportNamedAsync(_client, "CV_811218-9876.pdf", ct);
+        var promote = await _client.PostAsJsonAsync(
+            $"/api/v1/resumes/parsed/{parsedId}/promote", PromoteBody(), ct);
+        promote.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var resumeId = (await promote.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("id").GetString()!;
+
+        var response = await _client.GetAsync(DownloadUrl(resumeId), ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var disposition = response.Content.Headers.ContentDisposition;
+        disposition.ShouldNotBeNull();
+        var rawHeader = disposition!.ToString();
+        rawHeader.ShouldNotContain("811218");
+        rawHeader.ShouldNotContain("9876");
+        disposition.FileName.ShouldNotBeNull();
+        disposition.FileName!.ShouldContain("******-****");
     }
 
     // 3 -----------------------------------------------------------------

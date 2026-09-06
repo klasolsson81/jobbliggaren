@@ -44,8 +44,8 @@ function backendFile(contentType: string): Response {
  * The canonical-key BFF for the user's OWN uploaded file. The proxy itself lives in
  * `lib/http/original-file-proxy.ts` and is shared with the staging route, so this suite covers the
  * shared posture once, from a real route binding: the SSRF allowlist, the never-echo-the-body rule,
- * and the two things this proxy does that the delivered preview route does not — narrowing the
- * content type to an allowlist, and choosing the disposition from it.
+ * and the thing this proxy does that the delivered preview route does not: narrowing the content
+ * type to an allowlist. The disposition is `attachment` for every kind (DPIA #659 M-F2).
  */
 describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
   const originalFetch = global.fetch;
@@ -81,7 +81,7 @@ describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("200 pdf → inline, FÄRSKA headers, Bearer mot rätt backend-väg", async () => {
+  it("200 pdf → ATTACHMENT, FÄRSKA headers, Bearer mot rätt backend-väg", async () => {
     const fetchMock = vi.fn().mockResolvedValue(backendFile(PDF_CONTENT_TYPE));
     global.fetch = fetchMock;
 
@@ -93,14 +93,17 @@ describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
 
     expect(res.headers.get("Content-Type")).toBe(PDF_CONTENT_TYPE);
+    // DPIA #659 M-F2 föreskriver RFC 6266 `attachment` ordagrant och är merge-blockerande;
+    // R-F6:s residual vilar på att en lagrad polyglot aldrig renderas inline från vår origin.
+    // Proxyn får inte försvaga det på vägen ut, oavsett filtyp.
     expect(res.headers.get("Content-Disposition")).toBe(
-      'inline; filename="original.pdf"'
+      'attachment; filename="original.pdf"'
     );
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
 
-  it("200 docx → attachment (kan aldrig renderas inline)", async () => {
+  it("200 docx → attachment med ändelsen ur content-type", async () => {
     global.fetch = vi.fn().mockResolvedValue(backendFile(DOCX_CONTENT_TYPE));
 
     const res = await GET(makeRequest(), ctxFor(VALID_ID));
@@ -128,7 +131,7 @@ describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
     // Backendens Content-Disposition vidarebefordras aldrig: det lagrade namnet är
     // användartext, och en header är den enda plats där det kunde injicera.
     expect(res.headers.get("Content-Disposition")).toBe(
-      'inline; filename="original.pdf"'
+      'attachment; filename="original.pdf"'
     );
     expect(res.headers.get("Content-Disposition")).not.toContain("mitt CV");
   });

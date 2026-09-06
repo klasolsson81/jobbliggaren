@@ -22,7 +22,8 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  * 1. **The content type is re-derived from an allowlist, not echoed.** The backend already sends a
  *    server-derived canonical MIME (never the client-declared upload type, M-F2), and this narrows
  *    it a second time to the two kinds a CV can be. Anything else becomes a 502 rather than a
- *    content type the browser might sniff into something active.
+ *    content type the browser might sniff into something active. The disposition stays
+ *    `attachment` for both kinds — see below.
  * 2. **The filename is synthetic.** The stored name is user-controlled text (personnummer-redacted
  *    at rest, but still user-controlled), and putting it into a `Content-Disposition` header is the
  *    one place it could inject. The surfaces that need to NAME the file already hold a safe name of
@@ -93,14 +94,15 @@ export async function proxyOriginalFile(
     return NextResponse.json({ error: "error" }, { status: 502 });
   }
 
-  // PDF renders in place; DOCX cannot, so it is only ever offered as a download.
-  const disposition = extension === "pdf" ? "inline" : "attachment";
-
+  // `attachment` for BOTH kinds, never `inline`. DPIA #659 M-F2 prescribes RFC 6266 attachment
+  // verbatim and is marked merge-blocking, and R-F6's residual rests on the parenthesis "a stored
+  // HTML-in-PDF polyglot is never rendered inline from our origin" — the backend has always sent
+  // `attachment` for exactly that reason, and this proxy must not weaken it on the way out.
   return new NextResponse(backendRes.body, {
     status: 200,
     headers: {
       "Content-Type": backendContentType,
-      "Content-Disposition": `${disposition}; filename="original.${extension}"`,
+      "Content-Disposition": `attachment; filename="original.${extension}"`,
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     },

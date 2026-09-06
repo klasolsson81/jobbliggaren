@@ -74,6 +74,15 @@ public sealed class WorkerTestFixture : IAsyncLifetime
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Postgres"] = ConnectionString,
+                // #1681 — DISTINGUISHABLE values for the two options sections, so a test can prove
+                // the real AddPersistence binds the materialisation options from THEIR OWN section.
+                // A test that rebuilds the binding itself cannot fail when the composition root is
+                // mutated (test-writer, 2026-09-06); these three keys are what make the real seam
+                // measurable. The cron is deliberately NOT the shipped default and NOT the SCB one,
+                // so binding against either would be visible.
+                ["CompanyWatchMaterialisation:CadenceCron"] = "11 11 * * *",
+                ["ScbRegister:SyncCadenceCron"] = "0 6 * * 6",
+                ["ScbRegister:Enabled"] = "false",
                 // ADR 0066 — lokal envelope. FieldEncryptionOptionsValidator har
                 // .ValidateOnStart() (fail-closed) och kräver en giltig 32-byte
                 // master-nyckel i ALLA miljöer; grafen kör den räknande

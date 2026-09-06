@@ -46,9 +46,19 @@ public class ScbCompanyRegisterLayerTests
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
+        // Two entries, and the allowlist is CLOSED — a new public type in this namespace fails the
+        // build until a human puts it here on purpose. #1681 (ADR 0139) added the second:
+        // CompanyWatchMaterialisationOptions is a config contract the Worker binds, exactly like its
+        // neighbour, and it is a SEPARATE section precisely so the materialisation job does not
+        // inherit ScbRegister:Enabled=false (security-auditor Major 3). Everything else the #1681 wave
+        // introduced — the member/state POCOs, their EF configurations, the write-boundary filter, the
+        // store and the orchestrator — stays internal and is covered by this same assertion.
         publicTypes.ShouldBe(
-            ["Jobbliggaren.Infrastructure.CompanyRegister.ScbRegisterOptions"],
-            $"only ScbRegisterOptions may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
+            [
+                "Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchMaterialisationOptions",
+                "Jobbliggaren.Infrastructure.CompanyRegister.ScbRegisterOptions",
+            ],
+            $"only the two options contracts may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
     }
 
     [Fact]
@@ -69,6 +79,18 @@ public class ScbCompanyRegisterLayerTests
             .ToList();
 
         dbSetTypeArgNames.ShouldNotContain("ScbCompanyRegisterEntry");
+
+        // #1681 (ADR 0139) — the same cheap regression pin for the materialisation tables. The
+        // fail-closed generalisation below already covers them BY CONSTRUCTION (they are
+        // Infrastructure types, so a DbSet of either fails it); these two lines exist for the case
+        // the generalisation cannot see, which is someone MOVING the type into the Domain assembly to
+        // get it onto the port. That is not hypothetical: it was the rejected Application-readable
+        // form, and security-auditor's Major 2 was precisely that it would have left this guard green
+        // while the property it documents became false — the DPIA C-D4 / M-C5 firewall note on
+        // IAppDbContext, beside its CompanyWatchCriteria DbSet. Named symbolically, not by line: a line
+        // reference decays the next time a DbSet is added above it (code-reviewer, 2026-09-06).
+        dbSetTypeArgNames.ShouldNotContain("CompanyWatchCriterionMember");
+        dbSetTypeArgNames.ShouldNotContain("CompanyWatchCriterionMaterialisation");
     }
 
     [Fact]
@@ -124,6 +146,45 @@ public class ScbCompanyRegisterLayerTests
     private interface IFakePortWithInfraDbSet
     {
         Microsoft.EntityFrameworkCore.DbSet<FakeInfraReadModel> Registry { get; }
+    }
+
+    // #1681 (ADR 0139) — the materialisation wrapper's own attribute surface. Same reflection-only
+    // form as the two SCB pins below, and it exists for the same reason: the wrapper's entire job is
+    // to carry Hangfire filter attributes, and both of its properties are silently catastrophic if
+    // changed. Neither was pinned on the first pass (test-writer, 2026-09-06).
+    private static readonly MethodInfo MaterialisationWorkerRunAsync =
+        typeof(Jobbliggaren.Worker.Hosting.CompanyWatchCriterionMaterialisationWorker)
+            .GetMethod(nameof(Jobbliggaren.Worker.Hosting.CompanyWatchCriterionMaterialisationWorker.RunAsync))!;
+
+    [Fact]
+    public void MaterialisationWorker_RunAsync_CarriesDisableConcurrentExecution_With15MinTimeout()
+    {
+        // Two concurrent runs would interleave one criterion's DELETE with the other run's INSERT and
+        // leave the union of two resolutions — against which this attribute is the ONLY protection.
+        // 900 s is the ACQUISITION wait, not the hold: a measured run is seconds, so a duplicate that
+        // waits this long is evidence something is wrong rather than merely slow.
+        var disable = MaterialisationWorkerRunAsync
+            .GetCustomAttribute<DisableConcurrentExecutionAttribute>();
+
+        disable.ShouldNotBeNull(
+            "RunAsync must carry [DisableConcurrentExecution] — nothing else prevents two runs from "
+            + "interleaving a criterion's DELETE with another run's INSERT.");
+        disable.TimeoutSec.ShouldBe(15 * 60);
+    }
+
+    [Fact]
+    public void MaterialisationWorker_RunAsync_DoesNotSuppressAutomaticRetry_UnlikeTheScbSibling()
+    {
+        // A NEGATIVE pin, and it needs one precisely because the property is an ABSENCE. Its sibling
+        // two files away carries [AutomaticRetry(Attempts = 0)], so copy-pasting that here is the most
+        // likely real mutation — and it would silently delete the resilience posture the wrapper's
+        // docblock argues for at length. The grounds for the difference: this job makes no external
+        // call, costs seconds, and is idempotent by construction (every criterion is fully recomputed
+        // and REPLACED), so a retry is cheap and strictly reduces staleness — whereas the SCB refresh
+        // re-spends an ~11 h metered third-party budget per attempt.
+        MaterialisationWorkerRunAsync.GetCustomAttribute<AutomaticRetryAttribute>().ShouldBeNull(
+            "the materialisation job deliberately KEEPS Hangfire's default retry; suppressing it "
+            + "would be the SCB job's posture applied where its reasoning does not hold.");
     }
 
     [Fact]

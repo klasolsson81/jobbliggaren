@@ -89,6 +89,12 @@ public class OrgNrRecordLoggingGuardTests
     private static readonly Type BatchRowType = ResolveNestedType(
         "Jobbliggaren.Infrastructure.CompanyRegister.ScbCompanyRegisterStore", "BatchRow");
 
+    // #1681 (ADR 0139) — the materialisation store's own jsonb projection row. A SECOND private
+    // BatchRow, in a different class: the guard scans by type, not by name, so both are inventoried
+    // independently and neither inherits the other's coverage.
+    private static readonly Type MemberBatchRowType = ResolveNestedType(
+        "Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMemberStore", "BatchRow");
+
     private static readonly Type EmployerOrgNrRowType = ResolveNestedType(
         "Jobbliggaren.Infrastructure.JobAds.JobAdEmployerReader", "EmployerOrgNrRow");
 
@@ -413,6 +419,30 @@ public class OrgNrRecordLoggingGuardTests
                 new CompanyWatchDto(KnownId, Sentinel, false, "Region Stockholm", default, 2, 1, null,
                     Jobbliggaren.Domain.CompanyWatches.CompanyWatchTargetType.Employer, null).ToString(),
                 "Region Stockholm"),
+            // #1681 (ADR 0139) — the materialisation's two org.nr carriers, both proved
+            // BEHAVIOURALLY rather than exempted. The filter result is the riskier of the two: it
+            // holds a LIST of raw org.nr (up to MaxPerCriterion of them), so a single {X} placeholder
+            // would render an entire criterion's matched company set into the log. Its override keeps
+            // the type name plus the three counts, which is the diagnostic value and is not personal
+            // data.
+            (typeof(Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMemberFilterResult),
+                new Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchCriterionMemberFilterResult(
+                    [Sentinel], 1, 0).ToString(),
+                "CompanyWatchCriterionMemberFilterResult"),
+            // The store's private jsonb projection row. Constructed by reflection because it is
+            // private nested — the type is still inventoried by the structural guard, so exempting it
+            // would leave a hand-written override unproven, and a lying override passes the
+            // structural half by construction.
+            (MemberBatchRowType,
+                Activator.CreateInstance(
+                    MemberBatchRowType,
+                    // Public | NonPublic both: the record's primary constructor is PUBLIC, it is the
+                    // enclosing TYPE that is private, so NonPublic alone finds nothing.
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic,
+                    binder: null, args: [Sentinel], culture: null)!.ToString()!,
+                "BatchRow"),
             (typeof(LookupCompanyQuery), new LookupCompanyQuery(Sentinel).ToString(), "LookupCompanyQuery"),
             (typeof(FollowCompanyCommand), new FollowCompanyCommand(Sentinel).ToString(), "FollowCompanyCommand"),
             (typeof(CompaniesEndpoints.CompanyLookupRequest),

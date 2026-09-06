@@ -1328,6 +1328,35 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyWatches.Abstractions.ICompanyWatchBrowseQuery,
             CompanyRegister.CompanyWatchBrowseQuery>();
 
+        // #1681 (ADR 0139) — the criterion-membership materialisation. Registered HERE and not in
+        // AddScbCompanyRegister for the same reason the browse above is, and one more:
+        //
+        //  * AddScbCompanyRegister is the POPULATION channel and is gated on ScbRegister:Enabled.
+        //    Registering the materialiser there would make the job's very EXISTENCE depend on a flag
+        //    that defaults false, which is exactly the coupling security-auditor Major 3 (2026-09-06)
+        //    told us to break: a de-registered company would otherwise be counted indefinitely in the
+        //    default posture, with DPIA M-D6's structural mitigation already removed from the read
+        //    path by materialisation itself.
+        //  * The materialiser is the ENFORCEMENT POINT that replaces M-D6. An enforcement point must
+        //    not be conditionally absent.
+        //
+        // Its own options section, bound and validated here with the same ValidateOnStart discipline
+        // as ScbRegisterOptions. Be exact about what that buys, because an earlier version of this
+        // comment was not: [Required] on CadenceCron rejects null/empty only, so a SYNTACTICALLY
+        // BROKEN cron passes validation. What actually rejects it is Hangfire's AddOrUpdate in
+        // RecurringJobRegistrar.StartAsync, i.e. at Worker boot — and not on the Api, which binds the
+        // same options and validates them green. Scoped — it holds the request/job AppDbContext,
+        // parity the sibling ports.
+        services.AddOptions<CompanyRegister.CompanyWatchMaterialisationOptions>()
+            .Bind(configuration.GetSection(CompanyRegister.CompanyWatchMaterialisationOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddScoped<CompanyRegister.CompanyWatchCriterionMemberStore>();
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyWatchCriterionMaterialiser,
+            CompanyRegister.CompanyWatchCriterionMaterialiser>();
+
         // #560 company-search wave (CTO F1) — ICompanyRegisterSearchQuery: the GENERAL register
         // search (/foretag/sok; every axis optional, browse-all legal). A SEPARATE port from the
         // criterion browse above — opposite absent-axis semantics (omitted clause vs fail-loud),

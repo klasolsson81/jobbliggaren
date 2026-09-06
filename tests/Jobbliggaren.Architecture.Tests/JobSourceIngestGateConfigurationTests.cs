@@ -59,11 +59,13 @@ public class JobSourceIngestGateConfigurationTests
         BuildFrom(ShippedProductionOverlay).GetSection(JobTechSection).Bind(options);
 
         options.IngestEnabled.ShouldBeFalse(
-            "the deployed Worker must not ingest recruiter contact records until Klas gives an " +
-            "explicit written GO (release-checklist.md 2.6 point 3.5). That condition is a " +
-            "DECISION, not a derivable state: do NOT read a discharged gate, a ticked box or a " +
-            "closed issue as permission — four state-shaped conditions each failed open on " +
-            "2026-08-16. Removing the key restores the code default, which is true.");
+            "the SHIPPED Worker overlay must keep ingestion off. Recruiter contact records are " +
+            "Art. 14 data about non-users, and loading them is gated on Klas's explicit written " +
+            "GO (release-checklist.md 2.6 point 3.5) — a DECISION, not a derivable state: do NOT " +
+            "read a discharged gate, a ticked box or a closed issue as permission, since four " +
+            "state-shaped conditions each failed open on 2026-08-16. A shipped default is not a " +
+            "box's state and does not follow it. Removing the key restores the code default, " +
+            "which is true.");
     }
 
     /// <summary>

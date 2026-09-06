@@ -41,7 +41,11 @@ against a fresh reading — §9.6 reserves a finding's severity, and its legal b
 agent that reported it. What each grade *schedules* is different and both are binding:
 M-5b carries an explicit duty to **re-grade at the mandatory second review** (clause (ii)
 of that grading), and M-7 escalates to **Blocker** if ADR 0123 is still ungranted or
-unmitigated at first real data. A row you have not graded stays ungraded until you grade
+unmitigated at first real data. ⚠ **THAT CONDITION HAS FIRED — do not read it as pending.**
+The grade's adjudicator and date, the grounds it rests on, what discharge requires, and
+what it must not be read as are `release-checklist.md` §2.6 point 3.5's — read them there
+before you act on this row, and never restate them here.
+A row you have not graded stays ungraded until you grade
 it; a graded one is not reopened by a later reader — but a scheduled re-grade is not a
 reopening, it is the grade doing what it said.
 

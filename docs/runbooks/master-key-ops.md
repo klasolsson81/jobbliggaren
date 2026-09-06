@@ -1,8 +1,9 @@
 # Master-key operations — injection, rotation, recovery
 
 **Scope:** the field-encryption master key and the three pseudonymisation peppers on the
-production box. Owned by [#198](https://github.com/klasolsson81/jobbliggaren/issues/198)
-(ADR 0050 gates B-1, M-3; ADR 0049 `Amendment 2026-08-09`).
+production box. **This runbook owns itself** — #198 closed 2026-09-06 on Klas's decision. Its
+decisions live in ADR 0049 `Amendment 2026-08-09` (ADR 0050 gates B-1, M-3, M-2); its
+measurements in [`vps-deploy-stack.md`](vps-deploy-stack.md) §5 rows 21–27 and 32b.
 **Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg.
 **Related:** [`vps-deploy-stack.md`](vps-deploy-stack.md) (the stack itself) ·
 [`vps-base-hardening.md`](vps-base-hardening.md) §7–§8 (the memory hygiene this depends on).

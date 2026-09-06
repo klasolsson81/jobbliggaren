@@ -1,14 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Reflection;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
@@ -20,10 +16,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 //
 //   - the Resume.SourceParsedResumeId → ResumeFile.ParsedResumeId hop (ADR 0100 §D5) actually
 //     returns the same bytes the import sealed,
-//   - a resume with NO source parse is ordinary absence (404, and NOT a failed-access event),
-//   - the enumeration probe fires on the id the caller supplied (the ResumeId), not on some
-//     internal key no request carries,
+//   - a resume with NO source parse is ordinary absence (404),
 //   - a soft-deleted resume stops serving its original.
+//
+// The enumeration-probe contract for this key is asserted in DownloadResumeFileEndpointTests,
+// which proves BOTH keys in ONE capturing host: every derived WebApplicationFactory builds its own
+// internal EF service provider and the assembly sits just under EF Core's cap of twenty, so a
+// second capture here turned the whole suite red in CI while filtered local runs stayed green.
 //
 // Everything is seeded through REAL production entry points: POST /import (the PR-9a seal
 // write-path), POST /parsed/{id}/promote (which persists the provenance link), and POST /resumes
@@ -225,22 +224,20 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
 
     // 3 -----------------------------------------------------------------
     [Fact]
-    public async Task Download_original_for_a_resume_with_no_source_parse_is_404_and_not_an_access_event()
+    public async Task Download_original_for_a_resume_with_no_source_parse_returns_404()
     {
         var ct = TestContext.Current.CancellationToken;
-
-        await using var capturing = new CapturingLogApiFactory(_factory);
-        var client = await NewAuthedClientAsync(capturing, ct);
+        await AuthenticateAsync(ct);
         // Created directly: a real resume, owned by the caller, that never had an original.
-        var resumeId = await CreateSourcelessResumeAsync(client, ct);
+        var resumeId = await CreateSourcelessResumeAsync(_client, ct);
 
-        var response = await client.GetAsync(DownloadUrl(resumeId), ct);
+        var response = await _client.GetAsync(DownloadUrl(resumeId), ct);
 
-        // Ordinary absence, which the surface renders as an honest empty state.
+        // Ordinary absence, which the surface renders as an honest empty state. That this absence
+        // emits NO failed-access event is asserted in DownloadResumeFileEndpointTests' single
+        // capturing test, which covers both keys in one capture — the note there records why the
+        // capture is not duplicated per arm (EF Core's service-provider cap).
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        // And NOT a failed-access attempt: the caller owns the resume, so logging one here would
-        // fill the ops channel with every template-built CV the user opens.
-        capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ShouldBeEmpty();
     }
 
     // 4 -----------------------------------------------------------------
@@ -257,37 +254,6 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
 
         // A still reads their own on the same id — B's attempt had no side effect.
         (await clientA.GetAsync(DownloadUrl(resumeId), ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
-    }
-
-    // 5 -----------------------------------------------------------------
-    [Fact]
-    public async Task Download_original_cross_user_attempt_logs_the_requested_resume_id_but_unknown_id_does_not()
-    {
-        var ct = TestContext.Current.CancellationToken;
-
-        var clientA = await NewAuthedClientAsync(_factory, ct);
-        var resumeId = await ImportAndPromoteAsync(clientA, ct);
-
-        await using var capturing = new CapturingLogApiFactory(_factory);
-        var clientB = await NewAuthedClientAsync(capturing, ct);
-
-        // An unknown id first: a plain 404 that must NOT log (no enumeration oracle).
-        var unknownId = Guid.NewGuid();
-        (await clientB.GetAsync(DownloadUrl(unknownId), ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-
-        // A's real resume id: a cross-user 404 that MUST log.
-        (await clientB.GetAsync(DownloadUrl(resumeId), ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
-
-        var events = capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ToList();
-        events.Count.ShouldBe(1);
-        var record = events[0];
-        record.Level.ShouldBe(LogLevel.Warning);
-        record.Message.ShouldContain("event_name=failed_access_attempt");
-        record.Message.ShouldContain("aggregate_type=Resume");
-        record.Message.ShouldContain("operation=DownloadResumeOriginal");
-        // The probe is aimed at the id the CALLER supplied — the only id an attacker can vary.
-        record.Message.ShouldContain($"requested_aggregate_id={resumeId}");
-        record.Message.ShouldNotContain(unknownId.ToString());
     }
 
     // 6 -----------------------------------------------------------------
@@ -382,25 +348,5 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         ShouldCarryNoStore(response);
         ShouldCarryNoSniff(response);
-    }
-
-    /// <summary>
-    /// A derived host that reuses this factory's Testcontainers + service wiring (via the reflected
-    /// parent <c>ConfigureWebHost</c>) and adds an in-memory <see cref="CapturingLoggerProvider"/> so a
-    /// test can assert the REAL <c>FailedAccessLogger</c> event end-to-end. Mirrors
-    /// <c>DownloadResumeFileEndpointTests.CapturingLogApiFactory</c> exactly.
-    /// </summary>
-    private sealed class CapturingLogApiFactory(ApiFactory parent) : WebApplicationFactory<Program>
-    {
-        public CapturingLoggerProvider LogProvider { get; } = new();
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            typeof(ApiFactory)
-                .GetMethod("ConfigureWebHost", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(parent, [builder]);
-
-            builder.ConfigureLogging(logging => logging.AddProvider(LogProvider));
-        }
     }
 }

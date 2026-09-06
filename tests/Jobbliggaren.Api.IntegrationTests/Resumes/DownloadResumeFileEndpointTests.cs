@@ -95,6 +95,20 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
             .GetProperty("parsedResumeId").GetString()!;
     }
 
+    private static object PromoteBody(string name = "Importerat CV") =>
+        new
+        {
+            name,
+            content = new
+            {
+                personalInfo = new { fullName = "Anna Andersson", email = "anna@example.se", phone = (string?)null, location = "Stockholm" },
+                experiences = Array.Empty<object>(),
+                educations = Array.Empty<object>(),
+                skills = Array.Empty<object>(),
+                summary = (string?)null,
+            },
+        };
+
     private static void ShouldCarryNoStore(HttpResponseMessage response)
     {
         response.Headers.CacheControl.ShouldNotBeNull();
@@ -144,44 +158,89 @@ public class DownloadResumeFileEndpointTests(ApiFactory factory)
     }
 
     // 3 -----------------------------------------------------------------
+    // The enumeration-probe contract for BOTH keys, in ONE capture.
+    //
+    // Deliberately one test and not four: every derived WebApplicationFactory builds its own
+    // internal EF service provider, and the assembly already sits just under EF Core's cap of
+    // twenty (ManyServiceProvidersCreatedWarning is configured as an error). Splitting this into
+    // per-arm tests cost two more hosts and turned the whole integration suite red in CI while
+    // every filtered local run stayed green, because the count is cumulative across the assembly.
+    // CLAUDE.md §11 records the same constraint from the other side (#1190).
+    //
+    // Covering both arms in one capture is also the stronger assertion: it shows the two keys are
+    // distinguishable in the ops channel, which two isolated captures could not.
     [Fact]
-    public async Task Download_original_cross_user_attempt_logs_failed_access_event_but_unknown_id_does_not()
+    public async Task Cross_user_attempts_log_the_caller_supplied_id_on_both_keys_but_absences_do_not()
     {
         var ct = TestContext.Current.CancellationToken;
 
-        // User A owns a real captured original (imported through the real seal write-path).
+        // User A owns a real captured original (imported through the real seal write-path) and a
+        // promoted Resume over the same file, so both keys point at one row.
         var clientA = await NewAuthedClientAsync(_factory, ct);
         var parsedId = await ImportAsync(clientA, OriginalPdfBytes, "cv.pdf", "application/pdf", ct);
+        var promote = await clientA.PostAsJsonAsync(
+            $"/api/v1/resumes/parsed/{parsedId}/promote", PromoteBody(), ct);
+        promote.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var resumeId = (await promote.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("id").GetString()!;
 
         // User B runs on a derived host carrying an in-memory ILoggerProvider so the REAL
         // FailedAccessLogger output is captured (mirrors SessionStoreUnavailableTests' capturing host).
         await using var capturing = new CapturingLogApiFactory(_factory);
         var clientB = await NewAuthedClientAsync(capturing, ct);
 
-        // An unknown id first: a plain 404 that must NOT log (no enumeration oracle).
+        // (a) Unknown ids on both keys: plain 404s that must NOT log (no enumeration oracle).
         var unknownId = Guid.NewGuid();
-        var unknown = await clientB.GetAsync(DownloadUrl(unknownId), ct);
-        unknown.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await clientB.GetAsync(DownloadUrl(unknownId), ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await clientB.GetAsync($"/api/v1/resumes/{unknownId}/original", ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
-        // A's real file id: a cross-user 404 that MUST log the failed-access attempt.
-        var crossUser = await clientB.GetAsync(DownloadUrl(parsedId), ct);
-        crossUser.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        // (b) A resume B OWNS but which never had an original — ordinary absence, and logging it
+        // would fill the ops channel with every template-built CV a user opens.
+        var created = await clientB.PostAsJsonAsync(
+            "/api/v1/resumes", new { name = "Skapat CV", fullName = "Anna Andersson" }, ct);
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var ownSourceless = (await created.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("id").GetString()!;
+        (await clientB.GetAsync($"/api/v1/resumes/{ownSourceless}/original", ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
-        // Exactly one failed-access event (EventId 4001) — the cross-user attempt, never the unknown id.
+        // Nothing so far may have logged.
+        capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ShouldBeEmpty();
+
+        // (c) A's real ids on both keys: cross-user 404s that MUST log.
+        (await clientB.GetAsync(DownloadUrl(parsedId), ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await clientB.GetAsync($"/api/v1/resumes/{resumeId}/original", ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
         var events = capturing.LogProvider.Logs.Where(l => l.EventId.Id == 4001).ToList();
-        events.Count.ShouldBe(1);
-        var record = events[0];
-        record.Level.ShouldBe(LogLevel.Warning);
-        record.Message.ShouldContain("event_name=failed_access_attempt");
-        record.Message.ShouldContain("aggregate_type=ParsedResume");
-        record.Message.ShouldContain("operation=DownloadParsedResumeOriginal");
-        // The logged id is the one the CALLER supplied. That is the whole point of the probe: an
-        // attacker can only vary the id in the URL, so an oracle guard aimed at any other key would
-        // be guarding an id no request carries.
-        record.Message.ShouldContain($"requested_aggregate_id={parsedId}");
-        // The unknown-id probe left no trace — the two 404s are indistinguishable to the client but
-        // only the cross-user hit (row exists for someone else) is logged.
-        record.Message.ShouldNotContain(unknownId.ToString());
+        events.Count.ShouldBe(2);
+
+        // The logged id is the one the CALLER supplied, per key. That is the whole point of the
+        // probe: an attacker can only vary the id in the URL, so an oracle guard aimed at any
+        // other key would be guarding an id no request carries.
+        var staging = events.Single(e => e.Message.Contains("operation=DownloadParsedResumeOriginal"));
+        staging.Level.ShouldBe(LogLevel.Warning);
+        staging.Message.ShouldContain("event_name=failed_access_attempt");
+        staging.Message.ShouldContain("aggregate_type=ParsedResume");
+        staging.Message.ShouldContain($"requested_aggregate_id={parsedId}");
+
+        var canonical = events.Single(e => e.Message.Contains("operation=DownloadResumeOriginal"));
+        canonical.Level.ShouldBe(LogLevel.Warning);
+        canonical.Message.ShouldContain("event_name=failed_access_attempt");
+        canonical.Message.ShouldContain("aggregate_type=Resume");
+        canonical.Message.ShouldContain($"requested_aggregate_id={resumeId}");
+
+        // Neither probe left a trace of the unknown id or of B's own source-less resume: those
+        // 404s are indistinguishable to the client from the cross-user ones, but only the
+        // cross-user hits (a row exists for someone else) are logged.
+        foreach (var e in events)
+        {
+            e.Message.ShouldNotContain(unknownId.ToString());
+            e.Message.ShouldNotContain(ownSourceless);
+        }
     }
 
     // 4 -----------------------------------------------------------------

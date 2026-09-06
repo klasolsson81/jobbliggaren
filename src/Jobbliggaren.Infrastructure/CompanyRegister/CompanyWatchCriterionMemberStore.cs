@@ -138,6 +138,18 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// </para>
     ///
     /// <para>
+    /// <b>Nothing may touch EF's change tracker while this transaction is open</b>
+    /// (dotnet-architect, 2026-09-06). The transaction is begun on EF's UNDERLYING connection, so
+    /// <c>db.Database.CurrentTransaction</c> is <c>null</c> throughout and EF does not know it exists.
+    /// Npgsql auto-enlists commands in an open transaction, so a <c>SaveChangesAsync</c> issued inside
+    /// this window would silently join — and roll back with — a transaction EF cannot see, whereas
+    /// <c>db.Database.BeginTransactionAsync</c> would at least throw. There is no live hazard today
+    /// (the only EF work in the scope is the criterion page read, before the loop, and
+    /// <c>EnableRetryOnFailure</c> is not configured so no execution-strategy conflict arises), but
+    /// the condition was unwritten, and that is the kind the next person breaks without seeing it.
+    /// </para>
+    ///
+    /// <para>
     /// The insert carries the whole batch as ONE <c>jsonb</c> parameter via
     /// <c>jsonb_to_recordset</c> — the <see cref="ScbCompanyRegisterStore"/> idiom — so a full
     /// 1 000-member set is one round trip with no 65k-parameter ceiling and no per-row change
@@ -221,6 +233,36 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Refreshes the planner's statistics for BOTH materialisation tables. AGENTS.md §3.6's canonical
+    /// argument lives in <see cref="ScbCompanyRegisterStore.AnalyzeAsync"/> and is not restated here;
+    /// what matters is that its three conditions hold for these tables too — written by ONE periodic
+    /// job, read-only between runs, and <c>criterion_id</c> reaching both a <c>WHERE</c> and a join.
+    ///
+    /// <para>
+    /// The specific stake (dotnet-architect, 2026-09-06): the read plan the breadth-gate bound was
+    /// DERIVED against is an Index Only Scan on the member PK with <c>Heap Fetches: 0</c>. That plan
+    /// needs current statistics AND a set visibility map, and the write path is a per-criterion
+    /// DELETE + INSERT. Without this call the plan the bound rests on is not guaranteed in operation -
+    /// which would make the derivation true of the fixture and unproven of production.
+    /// </para>
+    ///
+    /// <para>
+    /// Called once per COMPLETED run, never per criterion. Plain <c>ANALYZE</c>, these two tables only,
+    /// schema-qualified; never <c>VACUUM ANALYZE</c> (a different change-reason).
+    /// </para>
+    /// </summary>
+    public async Task AnalyzeAsync(CancellationToken cancellationToken)
+    {
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText =
+            "ANALYZE public.company_watch_criterion_members;"
+            + "ANALYZE public.company_watch_criterion_materialisations;";
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)

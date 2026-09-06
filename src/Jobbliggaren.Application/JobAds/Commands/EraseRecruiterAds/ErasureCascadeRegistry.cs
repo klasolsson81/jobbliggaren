@@ -1049,8 +1049,8 @@ public static class ErasureCascadeRegistry
                 "Closed domain: `state` is the two-member MaterialisationState enum "
                 + "(Materialised / TooBroad) stored BY NAME (HasConversion<string>, max 20), written "
                 + "only by the materialisation job from a value it computed itself. No request body "
-                + "binds it and there is no free-text column on this table - the other three columns "
-                + "are two counts and a timestamp.",
+                + "binds it and there is no free-text column on this table - the other four columns "
+                + "are the criterion_id key, two counts and a timestamp.",
 
             ["taxonomy_concepts:NotRecruiterData"] =
                 "Closed domain: concept_id / parent_concept_id are taxonomy identifiers, label is "

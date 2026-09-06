@@ -70,6 +70,11 @@ public interface ICompanyWatchCriterionMaterialiser
 /// (#454).</param>
 /// <param name="MembersExcludedInvalid">Candidate org.nr dropped because they failed 10-digit
 /// validation.</param>
+/// <param name="CriteriaFailed">Criteria whose own materialisation threw and was skipped. A partial
+/// failure is survivable - one corrupt criterion must not deny every other user a fresh membership -
+/// but it must be VISIBLE, and a count on the result is what makes it so. If EVERY criterion failed,
+/// the run THROWS instead of returning: a run that wrote nothing and reported success is
+/// indistinguishable from a run that had nothing to do (dotnet-architect, 2026-09-06).</param>
 /// <param name="StartedAt">Run start (from <c>IDateTimeProvider</c>).</param>
 /// <param name="CompletedAt">Run completion (from <c>IDateTimeProvider</c>).</param>
 public sealed record CompanyWatchCriterionMaterialisationResult(
@@ -79,5 +84,6 @@ public sealed record CompanyWatchCriterionMaterialisationResult(
     int MembersWritten,
     int MembersExcludedPersonnummerShaped,
     int MembersExcludedInvalid,
+    int CriteriaFailed,
     DateTimeOffset StartedAt,
     DateTimeOffset CompletedAt);

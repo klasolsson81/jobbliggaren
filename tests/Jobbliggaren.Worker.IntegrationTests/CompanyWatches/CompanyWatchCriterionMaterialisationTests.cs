@@ -304,6 +304,12 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         // ingest invariant (#454). The state is reachable in the world the guard defends against — a
         // misconfigured SCB query, an unexpected SCB row, a future second writer — and the assertion
         // is about THIS filter's behaviour on such input, never about what production emits.
+        //
+        // The predicate itself is pinned ELSEWHERE, and §5 requires the seam to name it when it is:
+        // CompanyWatchCriterionMemberFilterTests
+        //   .Apply_ExcludesPersonnummerShaped_AtTheExactThirdDigitBoundary
+        // covers both sides of the third-digit boundary. Also ScbLegalEntityFilterTests, which pins
+        // that the CURRENT register writer does not produce this shape at all.
         var ct = TestContext.Current.CancellationToken;
         await ResetAsync(ct);
 
@@ -347,6 +353,233 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         (await ReadStateAsync(criterionId, ct))!.MemberCount.ShouldBe(2);
     }
 
+    [Fact]
+    public async Task Materialise_KeepsEachCriterionsMemberSetSeparate_AcrossTwoCriteriaInOneRun()
+    {
+        // THE test this suite was missing, and the gap was structural: every other case runs ONE
+        // criterion while the orchestrator is a loop over N (test-writer, 2026-09-06). With N=1,
+        // stripping `WHERE criterion_id = @criterion_id` from the store's DELETE stays GREEN — and in
+        // production that mutant makes one user's materialisation wipe every other user's member set,
+        // leaving each state row asserting a member_count whose rows are gone. Two criteria, two
+        // users, disjoint municipalities, one run.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5560000002", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5560000003", KommunGoteborg, [SniIt], CompanyRegisterStatus.Active));
+
+        var stockholm = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+        var goteborg = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunGoteborg], ct);
+
+        var result = await RunAsync(ct);
+
+        // The aggregates too: with N=1 everywhere, `materialised++` -> `materialised = 1` and every
+        // `+=` -> `=` survived. Summing over two criteria kills all six at once.
+        result.CriteriaSeen.ShouldBe(2);
+        result.CriteriaMaterialised.ShouldBe(2);
+        result.CriteriaFailed.ShouldBe(0);
+        result.MembersWritten.ShouldBe(3);
+
+        (await ReadMembersAsync(stockholm, ct)).ShouldBe(["5560000001", "5560000002"], ignoreOrder: true);
+        (await ReadMembersAsync(goteborg, ct)).ShouldBe(["5560000003"]);
+    }
+
+    [Fact]
+    public async Task Materialise_CountsTheTwoOutcomesSeparately_WhenOneCriterionIsTooBroad()
+    {
+        // The if/else branch counted per arm, in ONE run — so a mutant collapsing tooBroad into
+        // materialised (or either counter into an assignment) cannot hide behind a single-criterion
+        // fixture.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunGoteborg, [SniBygg], CompanyRegisterStatus.Active));
+        await SeedRegisterRangeAsync(
+            CompanyWatchCriterionMember.MaxPerCriterion + 1, KommunStockholm, SniIt, ct);
+
+        var narrow = await SeedCriterionAsync(Guid.NewGuid(), [SniBygg], [KommunGoteborg], ct);
+        var broad = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        var result = await RunAsync(ct);
+
+        result.CriteriaSeen.ShouldBe(2);
+        result.CriteriaMaterialised.ShouldBe(1);
+        result.CriteriaTooBroad.ShouldBe(1);
+        result.MembersWritten.ShouldBe(1);
+
+        (await ReadMembersAsync(narrow, ct)).ShouldBe(["5560000001"]);
+        (await ReadMembersAsync(broad, ct)).ShouldBeEmpty();
+        (await ReadStateAsync(broad, ct))!.Parsed.ShouldBe(MaterialisationState.TooBroad);
+    }
+
+    [Fact]
+    public async Task Materialise_ClearsTheExcludedPersonnummerCount_WhenTheOffendingRowIsGone()
+    {
+        // The DO UPDATE branch for excluded_personnummer_shaped. The pnr test runs the job ONCE, so it
+        // only ever exercises the INSERT arm — drop that column from the conflict list and the counter
+        // becomes STICKY: a plugged ingest hole would never clear the security signal, and the signal
+        // is the entire reason the filter counts rather than merely dropping.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5510000002", KommunStockholm, [SniIt], CompanyRegisterStatus.Active));
+
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        await RunAsync(ct);
+        (await ReadStateAsync(criterionId, ct))!.ExcludedPersonnummerShaped.ShouldBe(1);
+
+        await DeleteRegisterRowAsync("5510000002", ct);
+        await RunAsync(ct);
+
+        (await ReadStateAsync(criterionId, ct))!.ExcludedPersonnummerShaped.ShouldBe(0,
+            "räknaren måste nollställas när hålet är tätat — annars kan en gammal träff aldrig skiljas "
+            + "från en ny");
+    }
+
+    [Fact]
+    public async Task Materialise_StampsMaterialisedAtFromTheClock_AndAdvancesItOnEveryRun()
+    {
+        // materialised_at was asserted NOWHERE — the column was not even selected — so binding
+        // DateTimeOffset.MinValue, a constant, or dropping it from the conflict list were all green.
+        // The docblock calls it "the staleness axis" and #1681 part 2 renders how old an answer is out
+        // of it, so an unmeasured column would have shipped as a load-bearing one.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active));
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        await RunAsync(ct);
+        var first = (await ReadStateAsync(criterionId, ct))!.MaterialisedAt;
+
+        // From the injected clock, not a SQL now() and not a default.
+        first.ShouldBeGreaterThan(DateTimeOffset.MinValue);
+        first.ShouldBe(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(5));
+
+        await Task.Delay(TimeSpan.FromMilliseconds(20), ct);
+        await RunAsync(ct);
+
+        (await ReadStateAsync(criterionId, ct))!.MaterialisedAt.ShouldBeGreaterThan(first,
+            "conflict-grenen måste flytta fram stämpeln, annars åldras aldrig en materialisering");
+    }
+
+    [Fact]
+    public async Task Materialise_WhenDisabled_ReturnsAnEmptyRun_AndLeavesExistingRowsUntouched()
+    {
+        // The kill-switch, in its DANGEROUS direction. Deleting the whole `if (!Enabled)` block was a
+        // surviving mutant (inverting it is caught, deleting it is not), and the options docblock
+        // claims switching off "degrades honestly: existing state rows go stale" — which is only true
+        // if the disabled path leaves them ALONE rather than clearing them.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active));
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        await RunAsync(ct);
+        (await ReadMembersAsync(criterionId, ct)).Count.ShouldBe(1);
+        var stampBefore = (await ReadStateAsync(criterionId, ct))!.MaterialisedAt;
+
+        var result = await RunDisabledAsync(ct);
+
+        result.CriteriaSeen.ShouldBe(0);
+        result.CriteriaMaterialised.ShouldBe(0);
+        result.CriteriaTooBroad.ShouldBe(0);
+        result.MembersWritten.ShouldBe(0);
+        result.CriteriaFailed.ShouldBe(0);
+
+        (await ReadMembersAsync(criterionId, ct)).ShouldBe(["5560000001"],
+            "avstängd materialisering får inte RADERA en befintlig mängd — den ska bara sluta uppdatera den");
+        (await ReadStateAsync(criterionId, ct))!.MaterialisedAt.ShouldBe(stampBefore);
+    }
+
+    [Fact]
+    public async Task Materialise_ContinuesWithTheRemainingCriteria_WhenOneCriterionFails()
+    {
+        // The per-criterion catch, which was entirely unmeasured: removing the try/catch, or widening
+        // its filter to `when (true)` so cancellation is swallowed, both stayed green.
+        //
+        // TEST PREMISE (CLAUDE.md §5 Tests:). The failing criterion is one with an EMPTY SNI axis, a
+        // state NO path in src/ produces — CompanyWatchCriteriaSpec.Create forbids it and the create
+        // handler goes through Create. It is DECLARED UNREACHABLE by production, and declared so in
+        // production's own words: CompanyWatchBrowseQuery.BindPredicate exists to fail loud on exactly
+        // this shape, because "a browse against an empty axis returns zero rows silently instead of
+        // failing. The criterion is corrupt." So the actor is the database, not a domain method, and
+        // the assertion is confined to what §5 permits for an unreachable state: that the READ SIDE
+        // DEGRADES SAFELY — the other criteria still materialise and the run reports the failure -
+        // never a claim about what production emits.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5560000003", KommunGoteborg, [SniIt], CompanyRegisterStatus.Active));
+
+        var healthy = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+        var corrupt = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunGoteborg], ct);
+        await CorruptSniAxisAsync(corrupt, ct);
+
+        var result = await RunAsync(ct);
+
+        result.CriteriaSeen.ShouldBe(2);
+        result.CriteriaFailed.ShouldBe(1);
+        result.CriteriaMaterialised.ShouldBe(1);
+
+        (await ReadMembersAsync(healthy, ct)).ShouldBe(["5560000001"],
+            "ett trasigt kriterium får inte några andra användares medlemsmängder");
+        (await ReadStateAsync(corrupt, ct)).ShouldBeNull(
+            "det felande kriteriet behåller sitt tidigare tillstånd — här: inget");
+    }
+
+    [Fact]
+    public async Task Materialise_WhenEveryCriterionFails_Throws_SoTheRetryCanFire()
+    {
+        // The asymmetry dotnet-architect required: a partial failure is survivable, a total failure is
+        // not. Without the throw nothing ever leaves RunAsync, so the Hangfire default retry the
+        // Worker docblock deliberately KEEPS could never fire for the scenario it was kept for.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var corrupt = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+        await CorruptSniAxisAsync(corrupt, ct);
+
+        await Should.ThrowAsync<InvalidOperationException>(async () => await RunAsync(ct));
+    }
+
+    [Fact]
+    public async Task ReplaceAsync_Throws_WhenTooBroadIsPairedWithMembers_ButNotWhenItIsEmpty()
+    {
+        // The store's own defensive contract. It is unreachable through its ONE production caller
+        // (which always passes [] on the TooBroad path), so deleting the guard was a surviving mutant.
+        // Calling the guard's own predicate with the input it exists to reject is the same form §5
+        // sanctions for the pnr filter, so there is no premise problem. The negative control matters
+        // as much: an UNCONDITIONAL guard would also pass a throw-only assertion.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        using var scope = _fixture.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>();
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await store.ReplaceAsync(
+                criterionId.Value, ["5560000001"], MaterialisationState.TooBroad, 0,
+                DateTimeOffset.UtcNow, ct));
+
+        await store.ReplaceAsync(
+            criterionId.Value, [], MaterialisationState.TooBroad, 0, DateTimeOffset.UtcNow, ct);
+        (await ReadStateAsync(criterionId, ct))!.Parsed.ShouldBe(MaterialisationState.TooBroad);
+    }
+
     // ----- helpers -------------------------------------------------------------------------------
 
     private async Task<CompanyWatchCriterionMaterialisationResult> RunAsync(CancellationToken ct)
@@ -355,6 +588,48 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         var materialiser = scope.ServiceProvider
             .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
         return await materialiser.MaterialiseAsync(ct);
+    }
+
+    /// <summary>
+    /// The same orchestrator with Enabled=false. Constructed directly rather than through the scope,
+    /// because the kill-switch is an OPTIONS value and the fixture binds it enabled — the parity
+    /// precedent is ScbCompanyRegisterRefresherTests, which builds its refresher the same way to reach
+    /// the disabled arm. Everything else is resolved from the real graph, so only the switch differs.
+    /// </summary>
+    private async Task<CompanyWatchCriterionMaterialisationResult> RunDisabledAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var materialiser = new CompanyWatchCriterionMaterialiser(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>(),
+            scope.ServiceProvider.GetRequiredService<IDateTimeProvider>(),
+            Microsoft.Extensions.Options.Options.Create(
+                new CompanyWatchMaterialisationOptions { Enabled = false }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CompanyWatchCriterionMaterialiser>.Instance);
+
+        return await materialiser.MaterialiseAsync(ct);
+    }
+
+    /// <summary>
+    /// Empties the criterion's SNI axis directly in Postgres. See
+    /// <see cref="Materialise_ContinuesWithTheRemainingCriteria_WhenOneCriterionFails"/> for why this
+    /// state is declared unreachable and what may therefore be asserted about it.
+    /// </summary>
+    private async Task CorruptSniAxisAsync(CompanyWatchCriterionId id, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE company_watch_criteria SET sni_codes = ARRAY[]::text[] WHERE id = {0};",
+            [id.Value], ct);
+    }
+
+    private async Task DeleteRegisterRowAsync(string orgNr, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM company_register WHERE organization_number = {0};", [orgNr], ct);
     }
 
     private async Task ResetAsync(CancellationToken ct)
@@ -476,7 +751,7 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         var rows = await db.Database
             .SqlQueryRaw<StateRow>(
                 """
-                SELECT state, member_count, excluded_personnummer_shaped
+                SELECT state, member_count, excluded_personnummer_shaped, materialised_at
                 FROM company_watch_criterion_materialisations
                 WHERE criterion_id = {0};
                 """,
@@ -502,7 +777,8 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
     // No column aliases: the context applies the snake_case naming convention to unmapped SqlQuery
     // types too, so `State` binds to `state` and `MemberCount` to `member_count` by convention. An
     // alias would have to fight that rather than help it.
-    private sealed record StateRow(string State, int MemberCount, int ExcludedPersonnummerShaped)
+    private sealed record StateRow(
+        string State, int MemberCount, int ExcludedPersonnummerShaped, DateTimeOffset MaterialisedAt)
     {
         public MaterialisationState Parsed => Enum.Parse<MaterialisationState>(State);
     }

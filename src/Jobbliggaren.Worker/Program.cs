@@ -105,7 +105,13 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.CompanyWatchScanWorker>()
 // registry-free company-watch scan). Wrapper + module in the same commit (TD-103: Worker
 // ValidateOnBuild=false → a missing dep fails first at Hangfire-invocation, verified manually in dev).
 builder.Services.AddScbCompanyRegister(builder.Configuration);
-builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
+builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWorker>();
+// #1681 (ADR 0139) — the criterion-membership materialisation wrapper. Registered
+// EXPLICITLY, parity every sibling above: without this the job still ran, but only
+// because Hangfire.AspNetCore falls back on ActivatorUtilities.GetServiceOrCreate-
+// Instance — a package implementation detail, not a contract of this host, and one
+// nothing in the suite measures (code-reviewer, 2026-09-06).
+builder.Services.AddScoped<CompanyWatchCriterionMaterialisationWorker>();
 // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch (kadens-cap:ad sammanfattning). Två cron-ingångar
 // (Daglig/Veckovis) via DigestDispatchWorker; jobbet filtrerar konsenterade användare på den kadens
 // det anropas för (cron = fönstret). Cap via IOptions (Digest-sektionen, ValidateDataAnnotations +

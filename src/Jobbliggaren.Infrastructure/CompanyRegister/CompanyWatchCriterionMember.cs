@@ -54,59 +54,51 @@ internal sealed class CompanyWatchCriterionMember
     ///
     /// <para>
     /// <b>The bound is DERIVED, and the derivation is the point</b> (#1681's own acceptance list: the
-    /// bound must be derived, not chosen). Measured 2026-09-06 against a fixture reproducing dev's
-    /// exact shape (<c>company_register</c> 1 066 938 rows / 743 654 Active, <c>job_ads</c> 106 071 /
-    /// 41 597 Active over 9 130 distinct org.nr), p95 over 40 runs, never a warm singleton
-    /// (<c>docs/reviews/2026-09-04-1559-perf-test-writer.md:43</c> forbids a verdict on singletons).
-    /// Full protocol and every number: <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c>.
+    /// bound must be derived, not chosen). <b>The numbers live in ONE place</b> -
+    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c>, which carries the instrument, the
+    /// fixture's row counts, the sampling method, both statement shapes and every measurement. They are
+    /// deliberately NOT restated here: two homes for one measured value drift apart at the next
+    /// re-measurement (§5 <c>Comments:</c>), and an earlier version of this docblock was exactly that
+    /// second home (code-reviewer, 2026-09-06).
     /// </para>
     ///
     /// <para>
-    /// <b>Anchor 1 — the twin handler's cost class.</b> <c>ListCompanyWatchesQueryHandler</c>'s
-    /// bounded <c>= ANY(org.nr array)</c> GROUP BY over <c>job_ads</c> measures <b>0,24 ms p95</b> for
-    /// 20 followed companies. The same statement shape over a member set measures <b>1,49 ms</b> at
-    /// 1 000 members (6,2x the baseline — same order of magnitude, and the same plan: Bitmap Index
-    /// Scan on the org.nr index) and <b>4,23 ms</b> at 5 000 (17,6x — out of the class). The cost is
-    /// LINEAR in the member count, so the class boundary is a real boundary and not a cliff we
-    /// happened to land in front of.
+    /// <b>What belongs here is the ARGUMENT, because the constant is meaningless without it.</b> Two
+    /// independent anchors are computed in that report and they agree on 1 000:
+    /// <list type="number">
+    ///   <item><b>The twin handler's cost class.</b> <c>ListCompanyWatchesQueryHandler</c> answers the
+    ///     same question over a bounded org.nr set, so "inside its class" is the test. At the bound the
+    ///     statement keeps the baseline's exact PLAN — Bitmap Index Scan on the <c>job_ads</c> org.nr
+    ///     index — and stays within an order of magnitude of its cost; at five times the bound it does
+    ///     not.</item>
+    ///   <item><b>The budget at the criterion cap.</b> <c>CompanyWatchCriterion.MaxPerUser</c> is 20,
+    ///     so whatever one criterion costs, the surface that composes them pays twenty times. At the
+    ///     bound that is a block-sized share of <c>/oversikt</c>'s 300 ms p95 (ADR 0045 class (a)); at
+    ///     five times the bound it is most of the page's entire budget, for one block.</item>
+    /// </list>
     /// </para>
     ///
     /// <para>
-    /// <b>Anchor 2 — the budget at the criterion cap.</b> <c>CompanyWatchCriterion.MaxPerUser</c> is
-    /// 20, so a per-criterion read costs 20x on the surface that composes them: 20 x 1,49 ms =
-    /// <b>29,8 ms p95</b>, 9,9 % of <c>/oversikt</c>'s 300 ms p95 budget (ADR 0045 class (a)) — a
-    /// block-sized share. At 5 000 members it would be 84,6 ms (28 % of the whole budget for one
-    /// block); at 10 000, 431 ms — over budget on its own. Two independent anchors, one answer.
+    /// <b>The gate carries three loads, and the third is why it cannot be relaxed on a whim.</b> It is
+    /// the product's honest refusal; it is the read-cost bound above; and it is the <b>Art. 5(1)(c)
+    /// minimisation argument</b> — security-auditor is explicit that unbounded derived storage is not
+    /// "limited to what is necessary", so the per-user storage ceiling this constant sets IS that
+    /// argument's operative value rather than a performance note. The report measures all three.
     /// </para>
     ///
     /// <para>
-    /// <b>What the gate is worth, measured on BOTH sides.</b> Read: ungated (743 654 members) the same
-    /// statement is <b>2 068 ms p95</b>, so the gate is worth ~1 388x there. Job: the widest
-    /// bound-legal criterion's register selection under <c>LIMIT MaxPerCriterion + 1</c> costs
-    /// <b>11-30 ms</b> against the real 1 066 938-row register, versus the <b>6 556 ms</b> the ungated
-    /// live ad count cost — the early stop is what makes the refusal cheap. Storage: per-user derived
-    /// rows fall from 743 654 x 20 = 14,9M to 1 000 x 20 = <b>20 000</b>, a 744x reduction. That last
-    /// number is not a perf note: security-auditor is explicit that unbounded derived storage is not
-    /// "limited to what is necessary" (Art. 5(1)(c)), so <b>the gate IS the minimisation argument</b>,
-    /// and this constant is that argument's operative value.
+    /// <b>It also had to be shown USABLE</b>, since a bound that refuses ordinary use would be a bug
+    /// wearing a rationale. The report measures the real register's breadth distribution: the ordinary
+    /// criterion materialises with orders of magnitude to spare, while what refuses is genuinely broad
+    /// — a whole industry nationwide, or a big city — which is exactly the class whose ad count was
+    /// unaffordable to compute live. The refusal lands where the cost was.
     /// </para>
     ///
     /// <para>
-    /// <b>The product half, measured on the REAL register</b> (read-only, dev, 2026-09-06) rather than
-    /// assumed — a bound that refuses ordinary use would be a bug wearing a rationale. Of the 101 180
-    /// distinct (kommun, SNI) cells, <b>83 (0,08 %)</b> hold more than 1 000 Active companies; the
-    /// median cell holds 2 and the p95 cell 39. The ordinary criterion therefore materialises with
-    /// three orders of magnitude to spare. What refuses is genuinely broad: a whole industry
-    /// nationwide exceeds the bound for 203 of 830 SNI codes (24 %), and a whole municipality for 144
-    /// of 291 (49 %, the big cities). Those are precisely the criteria whose ad count was unaffordable
-    /// to compute live, so the refusal lands where the cost was.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Re-derive it; do not nudge it.</b> The bound is a function of three measured quantities —
-    /// the twin handler's cost class, <c>MaxPerUser</c>, and <c>/oversikt</c>'s budget. If
-    /// <c>job_ads</c> grows, if <c>MaxPerUser</c> moves, or if ADR 0045's budget changes, re-run the
-    /// protocol; a hand-adjusted constant silently stops satisfying whichever anchor it drifted past.
+    /// <b>Re-derive it; do not nudge it.</b> The bound is a function of three measured quantities — the
+    /// twin handler's cost class, <c>MaxPerUser</c>, and <c>/oversikt</c>'s budget. If <c>job_ads</c>
+    /// grows, if <c>MaxPerUser</c> moves, or if ADR 0045's budget changes, re-run the protocol in that
+    /// report; a hand-adjusted constant silently stops satisfying whichever anchor it drifted past.
     /// </para>
     /// </summary>
     public const int MaxPerCriterion = 1000;

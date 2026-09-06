@@ -26,11 +26,17 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// </para>
 ///
 /// <para>
-/// <b>A failing criterion does not fail the run.</b> One corrupt or unresolvable criterion must not
-/// deny every other user a fresh membership — but the failure is never swallowed either (§5 forbids a
-/// catch-all without action): it is logged with the criterion id, counted, and the criterion is left
-/// with whatever state it had, which the staleness stamp then reports honestly. This is the typed
-/// catch-and-log CLAUDE.md §3.6 sanctions, in the place it sanctions it.
+/// <b>A failing criterion does not fail the run; a WHOLLY failing run does.</b> One corrupt or
+/// unresolvable criterion must not deny every other user a fresh membership, so it is logged with the
+/// criterion id, counted onto
+/// <see cref="CompanyWatchCriterionMaterialisationResult.CriteriaFailed"/>, and skipped — the failure
+/// is never swallowed (§5 forbids a catch-all without action). But if NOTHING succeeded the method
+/// THROWS, and that asymmetry is the point (dotnet-architect, 2026-09-06): the Worker wrapper
+/// deliberately keeps Hangfire's default retry, justified by "a transient DB blip must not turn into a
+/// full day of stale membership" — and a broken connection fails every remaining criterion
+/// identically, so without the throw no exception would ever leave <c>RunAsync</c> and that retry
+/// could never fire for the one scenario it was retained for. A mitigation that cannot trigger is not
+/// a mitigation.
 /// </para>
 /// </summary>
 internal sealed partial class CompanyWatchCriterionMaterialiser(
@@ -40,6 +46,13 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     IOptions<CompanyWatchMaterialisationOptions> options,
     ILogger<CompanyWatchCriterionMaterialiser> logger) : ICompanyWatchCriterionMaterialiser
 {
+    /// <summary>
+    /// Criteria loaded per keyset page. Large enough that the page count stays trivial at any
+    /// plausible corpus, small enough that one page is a bounded allocation even when every row
+    /// carries the maximum two text[] axes.
+    /// </summary>
+    private const int CriterionPageSize = 500;
+
     public async Task<CompanyWatchCriterionMaterialisationResult> MaterialiseAsync(
         CancellationToken cancellationToken)
     {
@@ -49,16 +62,8 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         {
             LogDisabled(logger);
             return new CompanyWatchCriterionMaterialisationResult(
-                0, 0, 0, 0, 0, 0, startedAt, clock.UtcNow);
+                0, 0, 0, 0, 0, 0, 0, startedAt, clock.UtcNow);
         }
-
-        // The whole criterion corpus, bounded by construction: CompanyWatchCriterion.MaxPerUser (20)
-        // per user, and a criterion is a small row (two text[] axes). AsNoTracking — nothing here
-        // mutates the aggregate, and the write path is raw SQL against two other tables entirely.
-        var criteria = await db.CompanyWatchCriteria
-            .AsNoTracking()
-            .OrderBy(c => c.Id)
-            .ToListAsync(cancellationToken);
 
         var materialised = 0;
         var tooBroad = 0;
@@ -72,43 +77,96 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         var excludedByShapeGuard = 0;
         var excludedInvalid = 0;
         var failed = 0;
+        var seen = 0;
 
-        foreach (var criterion in criteria)
+        // PAGINATED, not a single ToListAsync (dotnet-architect, 2026-09-06). The corpus is
+        // users x MaxPerUser, which is UNBOUNDED — MaxPerUser (20) bounds ONE USER, not the table, and
+        // an earlier version of this comment claimed otherwise. §5 forbids unpaginated list fetches,
+        // ADR 0045 Beslut 3 puts a 512 MiB soft cap on the Worker's working set, and each row carries
+        // two text[] axes (up to 1 000 SNI + 290 kommun codes).
+        //
+        // OFFSET rather than keyset, and that is a forced choice worth writing down. Keyset is the
+        // better shape and was the proposed one, but it needs `id > @last` in the WHERE, and
+        // CompanyWatchCriterionId is a readonly record struct with NO comparison operators — so the
+        // predicate does not translate, and adding operators to a Domain value object to suit a
+        // background job's paging is the wrong direction for that dependency. The deep-OFFSET hazard
+        // CompanyBrowseCriteria.MaxPage guards against does not apply the same way here: that is a
+        // user-facing surface where the caller chooses the offset, whereas this walks its own table
+        // once per night with offsets bounded by the corpus itself. ORDER BY the PK makes the walk
+        // total and the run deterministic.
+        for (var offset = 0; ; offset += CriterionPageSize)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            var page = await db.CompanyWatchCriteria
+                .AsNoTracking()
+                .OrderBy(c => c.Id)
+                .Skip(offset)
+                .Take(CriterionPageSize)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            try
+            if (page.Count == 0)
+                break;
+
+            foreach (var criterion in page)
             {
-                var outcome = await MaterialiseOneAsync(criterion, cancellationToken)
-                    .ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                seen++;
 
-                if (outcome.State == MaterialisationState.TooBroad)
-                    tooBroad++;
-                else
-                    materialised++;
+                try
+                {
+                    var outcome = await MaterialiseOneAsync(criterion, cancellationToken)
+                        .ConfigureAwait(false);
 
-                membersWritten += outcome.MemberCount;
-                excludedByShapeGuard += outcome.ExcludedPersonnummerShaped;
-                excludedInvalid += outcome.ExcludedInvalid;
+                    if (outcome.State == MaterialisationState.TooBroad)
+                        tooBroad++;
+                    else
+                        materialised++;
+
+                    membersWritten += outcome.MemberCount;
+                    excludedByShapeGuard += outcome.ExcludedPersonnummerShaped;
+                    excludedInvalid += outcome.ExcludedInvalid;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Counted, logged WITH the criterion id, and skipped. The id is a Guid — not an
+                    // org.nr, not a label, nothing user-identifying (ADR 0087 D8(c)); the org.nr-log
+                    // boundary scan over this file (OrganizationNumberSurfacingGuardTests) is what
+                    // keeps that true rather than a promise.
+                    failed++;
+                    LogCriterionFailed(logger, criterion.Id.Value, ex);
+                }
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                // Counted, logged WITH the criterion id, and skipped. The id is a Guid — not an
-                // org.nr, not a label, nothing user-identifying (ADR 0087 D8(c)); the org.nr-log
-                // boundary scan over this file (OrganizationNumberSurfacingGuardTests) is what keeps
-                // that true rather than a promise.
-                failed++;
-                LogCriterionFailed(logger, criterion.Id.Value, ex);
-            }
+
+            if (page.Count < CriterionPageSize)
+                break;
         }
 
+        // A run in which EVERY criterion failed must not report success — see the class docblock for
+        // why the retained Hangfire retry depends on this throw existing.
+        if (failed > 0 && materialised == 0 && tooBroad == 0)
+        {
+            throw new InvalidOperationException(
+                $"Materialiseringen misslyckades för samtliga {failed} kriterier — ingen delmängd "
+                + "skrevs. Körningen rapporteras som misslyckad så Hangfires retry kan lösa ut.");
+        }
+
+        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded, and all three conditions hold
+        // here: these two tables are written by ONE periodic job, are read-only between runs, and
+        // criterion_id reaches both a WHERE and a join. Once per COMPLETED run, never per criterion.
+        // This is not hygiene theatre: the read plan the breadth-gate bound was DERIVED against is an
+        // Index Only Scan on the member PK with Heap Fetches: 0, and that plan needs current statistics
+        // and a set visibility map — so without this the measured plan is not guaranteed in operation.
+        // Fail-loud, which is the placement §3.6 prescribes for a retry-bounded job.
+        await store.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
+
         var result = new CompanyWatchCriterionMaterialisationResult(
-            CriteriaSeen: criteria.Count,
+            CriteriaSeen: seen,
             CriteriaMaterialised: materialised,
             CriteriaTooBroad: tooBroad,
             MembersWritten: membersWritten,
             MembersExcludedPersonnummerShaped: excludedByShapeGuard,
             MembersExcludedInvalid: excludedInvalid,
+            CriteriaFailed: failed,
             StartedAt: startedAt,
             CompletedAt: clock.UtcNow);
 

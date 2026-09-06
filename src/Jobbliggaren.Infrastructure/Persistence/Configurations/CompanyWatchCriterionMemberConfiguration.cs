@@ -57,8 +57,16 @@ internal sealed class CompanyWatchCriterionMemberConfiguration
         // ("a smaller and more honest problem than a vacuous firewall"). The compensating measurement
         // is the behavioural oracle in HardDeleteAccountsJobIntegrationTests, which is therefore
         // MANDATORY here rather than recommended (Major 5(b)), plus the direct criterion-delete oracle
-        // in CompanyWatchCriterionMemberPersistenceTests. Neither is optional; between them they are
-        // what makes this FK's effect measured rather than declared.
+        // CompanyWatchCriterionMaterialisationTests.DeletingTheCriterion_CascadesBothTables_AtTheDatabase.
+        // Neither is optional; between them they are what makes this FK's effect measured rather than
+        // declared, and both were mutation-verified per table (flipping either FK alone reds its own).
+        //
+        // THE CONSTRAINT NAME drops the principal-table segment every other explicitly named FK here
+        // carries (fk_resume_versions_resumes_resume_id). That is forced, not sloppy: the conforming
+        // names would be 70 and 79 characters against PostgreSQL's 63-byte identifier limit, so both
+        // would be SILENTLY TRUNCATED — and a truncated constraint name is worse than a short one,
+        // because it looks deliberate and cannot be grepped. Recompute with
+        // `SELECT length('fk_company_watch_criterion_members_company_watch_criteria_criterion_id');`
         builder.HasOne<CompanyWatchCriterion>()
             .WithMany()
             .HasForeignKey(m => m.CriterionId)

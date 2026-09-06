@@ -54,7 +54,12 @@ internal sealed class CompanyWatchCriterionMaterialisationConfiguration
         // Major 5(a) again, for the same reason and with the same force: the state row is derived
         // personal data about the user (it says something about a predicate she saved), so it must not
         // outlive its criterion either. Cascading BOTH tables from the same principal means criterion
-        // deletion cannot leave half a materialisation behind.
+        // deletion cannot leave half a materialisation behind. Mutation-verified independently of the
+        // sibling: flipping THIS FK alone to Restrict reds
+        // CompanyWatchCriterionMaterialisationTests.DeletingTheCriterion_CascadesBothTables_AtTheDatabase.
+        //
+        // The constraint name drops the principal-table segment for the reason its sibling's docblock
+        // measures: the conforming name is 79 characters against PostgreSQL's 63-byte limit.
         builder.HasOne<CompanyWatchCriterion>()
             .WithMany()
             .HasForeignKey(m => m.CriterionId)

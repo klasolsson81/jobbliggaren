@@ -60,6 +60,41 @@ public class RecurringJobRegistrarParityTests
     }
 
     [Fact]
+    public async Task StartAsync_FeedsTheMaterialisationJobItsOwnCron_AndItsOwnWorkerType()
+    {
+        // #1681 (ADR 0139) — Major 3's REAL home. The id-parity tests above deliberately read only the
+        // first argument, so cross-wiring the materialisation registration to
+        // scbOptions.Value.SyncCadenceCron (or to the wrong worker type) left every assertion green
+        // while the job ran weekly Saturday 06:00 instead of daily 05:30 — and a criterion created on
+        // a Monday then showed "not known yet" for six days, the exact defect CadenceCron's docblock
+        // describes (test-writer, 2026-09-06).
+        //
+        // The two crons are given DISTINGUISHABLE values, which is what makes the assertion capable of
+        // failing: with both at their real defaults a swap would still read plausibly.
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]! == RecurringJobIds.MaterialiseCompanyWatchCriteria);
+
+        var job = (Hangfire.Common.Job)call.GetArguments()[1]!;
+        job.Type.ShouldBe(typeof(CompanyWatchCriterionMaterialisationWorker),
+            "id:t måste mata SIN egen worker — en korskoppling till en annan wrapper är osynlig för "
+            + "id-paritetstesterna");
+
+        ((string)call.GetArguments()[2]!).ShouldBe("11 11 * * *",
+            "jobbet måste få CompanyWatchMaterialisation:CadenceCron, aldrig ScbRegister:SyncCadenceCron "
+            + "-- att de är skilda sektioner är hela poängen med Major 3");
+    }
+
+    [Fact]
     public async Task StartAsync_RegistersExactlyTheAllowlistIds_NoDrift()
     {
         var registered = await CapturedRegisteredIdsAsync();

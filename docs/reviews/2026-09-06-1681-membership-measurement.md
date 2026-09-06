@@ -40,7 +40,7 @@ that touched nothing, and the numbers were meaningless. That is recorded here be
 figures are 5-10x the discarded ones.
 
 `p95` over 40 runs per point (20 or 10 for the slowest), via a `plpgsql` timing loop.
-**Never a warm singleton** — `docs/reviews/2026-09-04-1559-perf-test-writer.md:43` forbids a verdict
+**Never a warm singleton** — `docs/reviews/2026-09-04-1559-perf-test-writer.md` forbids a verdict
 on single observations, and the 6 556 ms figure this whole issue rests on is itself a singleton.
 
 ## Result 1 — the read, per member-set size
@@ -62,8 +62,10 @@ for 20 followed companies — **0,24 ms p95**.
 **The two shapes cross over, and that is the finding.** `= ANY(<member array>)` — the twin handler's
 own shape, and the one ADR 0139 names (*"the read becomes the same bounded `GROUP BY` over `job_ads`
 the company block already runs"*) — keeps the baseline's exact plan (`Bitmap Index Scan` on the
-`job_ads` org.nr index → `Bitmap Heap Scan` → `Sort` → `GroupAggregate`) and costs **linearly in the
-member count**. The `JOIN` form is bounded by `job_ads` instead: the planner drives from a full index
+`job_ads` org.nr index → `Bitmap Heap Scan` → `Sort` → `GroupAggregate`) and its cost **grows with the
+member count** — not strictly linearly (per-member cost ranges 0,85–2,78 µs across the series, and
+5 000→10 000 members costs 5,1x for 2x the members), which is why the class boundary is argued from
+the measured points either side of it rather than from a fitted slope. The `JOIN` form is bounded by `job_ads` instead: the planner drives from a full index
 scan of all 41 597 active ads and hash-joins the members, so it costs the SAME at 100 members as at
 10 000, and is *worse* than the baseline at every small size.
 
@@ -76,7 +78,9 @@ below a bound. That bound is what the gate has to set.
 1 000 members is 6,2x the 0,24 ms baseline (in class), 5 000 is 17,6x (out).
 
 **Anchor 2, the budget at the criterion cap.** `CompanyWatchCriterion.MaxPerUser` = 20, and
-`/oversikt`'s budget is 300 ms p95 (ADR 0045 class (a)):
+`/oversikt`'s budget is 300 ms p95 (ADR 0045 class (a)). The block figures below are **20 x the
+per-criterion p95, i.e. an UPPER BOUND** — the sum of twenty p95s is not itself a p95 of the
+composed read. Conservative in the right direction, but it is a bound and is labelled as one:
 
 | Members | Block cost at N=20 | Share of the 300 ms budget |
 |---:|---:|---:|

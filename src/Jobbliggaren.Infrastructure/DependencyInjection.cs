@@ -1340,9 +1340,13 @@ public static class DependencyInjection
         //  * The materialiser is the ENFORCEMENT POINT that replaces M-D6. An enforcement point must
         //    not be conditionally absent.
         //
-        // Its own options section, bound and validated here, with the same ValidateOnStart discipline
-        // as ScbRegisterOptions so a malformed cron fails the host at boot rather than silently
-        // never firing. Scoped — it holds the request/job AppDbContext, parity the sibling ports.
+        // Its own options section, bound and validated here with the same ValidateOnStart discipline
+        // as ScbRegisterOptions. Be exact about what that buys, because an earlier version of this
+        // comment was not: [Required] on CadenceCron rejects null/empty only, so a SYNTACTICALLY
+        // BROKEN cron passes validation. What actually rejects it is Hangfire's AddOrUpdate in
+        // RecurringJobRegistrar.StartAsync, i.e. at Worker boot — and not on the Api, which binds the
+        // same options and validates them green. Scoped — it holds the request/job AppDbContext,
+        // parity the sibling ports.
         services.AddOptions<CompanyRegister.CompanyWatchMaterialisationOptions>()
             .Bind(configuration.GetSection(CompanyRegister.CompanyWatchMaterialisationOptions.SectionName))
             .ValidateDataAnnotations()

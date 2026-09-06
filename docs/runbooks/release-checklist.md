@@ -1651,8 +1651,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       är struken i samma ändring.** #1199 tog bort värdradens markör 2026-08-09, så det finns
       ingen värd-flip kvar att grinda — men skyldigheten består och fick en ny utlösare
       (`security-auditor` 2026-08-09). Grinden biter vid **det tidigare av**:
-      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 51 347 rekryterar-kontaktposter
-        över 27 160 annonser, Art. 14-uppgifter om icke-användare), och
+      - **(i) varje ingest av JobTech-korpuset på lådan** ([#1240](https://github.com/klasolsson81/jobbliggaren/issues/1240) — 47 918 rekryterar-kontaktposter
+        över 71 054 annonser, mätt count-only på lådan 2026-09-06, Art. 14-uppgifter om
+        icke-användare), och
       - **(ii) första konfigurationen utanför `Development` som sätter `Auth:RegistrationsOpen=true`**.
 
       **(i) är den tidigare, och det är den ingen mental modell håller:** rekryterar-PII når
@@ -1922,6 +1923,101 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       §9.6 (3)-acceptans vore dessutom **otillgänglig**: bindningen kräver bäraravsaknad, och den
       faller på de 532 rekryterarna. **Nuvarande inramning — ett record av en ansvarshandling — är den
       korrekta.**
+
+      ⛔ **KLAS-BESLUT 2026-09-06 — RUTTVALET ÄR TAGET, OCH DET ÄR RUTT (c): NOTISEN GÖRS INTE
+      PUBLIKT NÅBAR I FÖRTID; DEN BLIR DET VID LANSERING.** `security-auditor` eskalerade ruttvalet
+      2026-09-06 (tre rutter: (a) direkt tillhandahållande, (b) 14(5)(b) via publicering i förtid,
+      (c) dokumenterat beslut på annan grund). Klas valde (c), med dessa skäl:
+
+      - **Identisk information är publikt tillgänglig hos källan utan inloggning.** Uppgifterna
+        kommer ur Arbetsförmedlingens öppna Platsbanken-API och visas där utan konto.
+      - **AF:s annonsvillkor kräver att annonsören har kontaktpersonens samtycke** till
+        publiceringen, och att annonsdata får visas hos andra aktörer som hämtar via API:t — källans
+        egna ord (`content-legal.json`, `/kontaktperson-i-annons`). ⚠ **Villkoren binder annonsören;
+        de informerar ingen registrerad, och ett krav på att samtycke SKA ha inhämtats är inget bevis
+        på att det inhämtades.** Ledet når heller inte hela populationen — residualen 2026-08-17
+        delade 822 poster i **532 `Declared` + 290 `ExtractedFromBody`**, och för en
+        `ExtractedFromBody`-träff pekar villkoren ut ingen kontaktperson alls (regelextraherad ur
+        fritext, ingen NER — ADR 0106 D5). *(`security-auditor` 2026-09-06.)* ⚠ **Det bär Recital 62:s avvägning om registrerades förväntningar.
+        Det är INTE vår rättsliga grund, som är Art. 6(1)(f)** (`gdpr-processing-register.md:100`:
+        *"Art. 6(1)(f) berättigat intresse — annonsen är redan publicerad av Arbetsförmedlingen för
+        allmän indexering"*), **och det urladdar inte i sig Art. 14.** Samtycket gavs i
+        Arbetsförmedlingens egen personuppgiftsansvarsrelation och kan inte fullgöra vår
+        informationsplikt; skrivet bredvid vår behandling utan detta förbehåll läses det vid en kall
+        omläsning som om vår grund vore samtycke, vilket skulle dra in Art. 7(3):s
+        återkallelsemaskineri som vi varken har eller är skyldiga (`security-auditor` 2026-09-06).
+      - **Varje annons hos oss länkar till originalannonsen** ("Öppna annonsen"), så uppgifterna är
+        verifierbart samma publika data. ⚠ **Länken är villkorad i koden** (`job-ad-detail.tsx`
+        renderar den bara när `jobAd.url` är satt), så allkvantifieringen är en **mätning, inte en
+        garanti**: count-only 2026-09-06 bär **71 054 av 71 054** annonser en `url` — noll fall utan
+        länk i dagens korpus.
+      - **Att öppna en sökväg i basic_auth skulle riva den 401-mätning Art. 12-omgraderingen vilar
+        på.** `deploy/caddy/Caddyfile`s eget block säger det: *"one of the measurements is that this
+        site answers 401 on every path. Remove or bypass this block — even briefly, even for a demo —
+        and that fires the checklist's trigger (c)."* Rutt (b) i förtid kostar alltså en trigger,
+        inte bara en konfigrad. ⚠ **Men kostnaden undviks inte av rutt (c) — den skjuts upp och
+        VIDGAS:** vid lansering tas blocket bort **helt, för varje sökväg**, så trigger (c) fyrar
+        bredare då än rutt (b) hade gjort nu. §2.5 förutsättning 5:s E5-dom vilar på just
+        läsbarhetsarmen (dev svarar 401 på varje väg, mätt 2026-08-16). *(`security-auditor`
+        2026-09-06.)*
+      - ⛔ **OCH DET AVGÖRANDE LEDET (Klas 2026-09-06): VID LANSERING FINNS INGEN BASIC_AUTH.**
+        Lanseringen sker på `jobbliggaren.se` där man registrerar ett konto för att logga in — utan
+        basic_auth. **Mätt 2026-09-06:** `/kontaktperson-i-annons` står **inte** i
+        `PROTECTED_PREFIXES` (`web/jobbliggaren-web/src/lib/auth/protected-routes.ts`) och
+        matchningen är segmentgränsmedveten (#583), så inget av de tolv prefixen sväljer den. Den är
+        en publik marknadsföringssida. **Notisen blir därför allmänt tillgänglig automatiskt när
+        basic_auth försvinner** — ingen Caddy-ändring, ingen ny kod, ingen ny grind.
+
+      ⛔ **ART. 14(5)(b) ÅBEROPAS INTE HÄR, OCH RUTT (c) STÅR PÅ SINA EGNA SKÄL OVAN.** Undantagets
+      **villkorsled** — att tillhandahållandet visar sig omöjligt eller skulle kräva en
+      oproportionerlig ansträngning — är ingenstans nedskrivet, och Art. 14(5)(b) andra meningen
+      kräver att **personuppgiftsansvarig** vidtar och dokumenterar det. Att göra informationen
+      allmänt tillgänglig är den åtgärd som blir skyldig **när villkoret är uppfyllt**; den är inget
+      alternativ till Art. 14(1)-(2). **Läs därför ingen mening här som att 14(5)(b) vore uppfylld
+      eller att M1 vore urladdad** (`security-auditor` 2026-09-06, eskalerad till Klas).
+
+      ⚠ **Vad beslutet INTE gör.** Det upphäver ingen gradering: `security-auditor`s M1 står som
+      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. Det är ett beslut av
+      **personuppgiftsansvarig om sin egen behandling** (Art. 24(1)) — inte en §9.6-acceptans, och
+      det bär ingen signatur av henne. Läs det inte som att fristen upphört: det som skett är att
+      Klas valt rutt och skrivit ned grunden, vilket är precis vad Art. 5(2) kräver av honom.
+
+      ⚠ **Lapsvillkor — TRE mekanismer, och den ena ersätter inte den andra.** En enda
+      villkorsmening är ingen triggeruppsättning (`security-auditor` M-1, ADR 0133).
+      - **(i) Datumet, och det fyrar på kalendern:** `security-auditor`s M1 arm (i) **konverterar till
+        Blocker 2026-09-17** om notisen inte är publikt nåbar då — **oavsett om lapsläsaren tittat
+        eller inte**. Det är hennes gradering, inte Klas instrument, och den avvaktar ingen.
+        ⚠ **M1:s tredje arm nedan — *"eller tidigare om copyn blir publik medan brevlådan är
+        blackholad"* — är URLADDAD, inte förbisedd: brevlådan tar emot, ommätt 2026-09-04/05.**
+      - **(ii) Villkoret:** blir lanseringen skjuten utan att notisen gjorts nåbar kommer posten
+        tillbaka — grunden ovan hänger på att lanseringen faktiskt tar bort basic_auth.
+        **Läsare: Klas.** Ingen automatik upptäcker det.
+      - **(iii) Grunden själv — tre av dess fyra fakta har INGEN egen trigger**
+        (`security-auditor` 2026-09-06): att `/kontaktperson-i-annons` förblir utanför
+        `PROTECTED_PREFIXES` (ett `(app)`-flytt eller ett nytt prefix tystar notisen utan att något
+        fyrar — `protected-routes.test.ts` grindar **spegling**, inte publikhet) · att notisens copy
+        fortsätter bära källan och rättigheterna · att ingen ny ingest-källa tillkommer vars
+        kontakter AF:s villkor inte når. **Läsare: Klas**, samma som (ii).
+
+      ⚠ **Kostnaden för uppskjutning ackumuleras DAGLIGEN, inte platt vid ett datum.** Rutt (c) plus
+      lansering har rätt form för den rullande plikten — när notisen väl är publikt nåbar möter varje
+      framtida kohort samma publicerade notis, vilket är välj-en-gång-egenskapen. Men fram till lanseringen får **varje dygns kohort sin egen
+      enmånadsfrist**. En två månaders försening är alltså inte samma exponering som en två dagars.
+
+      ⚠ **Populationen, mätt count-only 2026-09-06 och därmed rättad — distinkta tal
+      skiftlägesnormaliserade:** 47 918 kontaktposter ·
+      **17 983 distinkta e-postadresser · 15 324 distinkta namn · 15 932 distinkta telefonnummer**.
+      Talet `532` nedan är daterat till 2026-08-17 och mäter ett annat och mycket mindre tillfälle.
+      Regenerera talen ovan (heltal, skriver aldrig ut ett värde):
+
+      ```bash
+      sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -c "
+      WITH e AS (SELECT c FROM job_ads a CROSS JOIN LATERAL jsonb_array_elements(a.contacts) AS c)
+      SELECT count(*)                             AS entries,
+             count(DISTINCT lower(c->>'Email'))   AS distinct_emails,
+             count(DISTINCT lower(c->>'Name'))    AS distinct_names,
+             count(DISTINCT c->>'Phone')          AS distinct_phones FROM e;"
+      ```
 
       ⛔ **ART. 14(3)(a)-KLOCKAN GÅR SEDAN 2026-08-17, OCH FRISTEN ÄR `2026-09-17`**
       (`security-auditor` 2026-08-17, M1). Recordet ovan säger uttömmande vad som **ligger** på lådan

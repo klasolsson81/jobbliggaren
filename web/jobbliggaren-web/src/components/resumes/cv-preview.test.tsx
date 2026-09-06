@@ -124,11 +124,11 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     // BrandSpinner-status renderar "Filen läses in…" (sr-only + aria-hidden p).
     expect(await screen.findAllByText("Filen läses in…")).not.toHaveLength(0);
-    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
 
     // Lös upp så in-flight-fetchen inte läcker in i nästa test.
     pending.resolve(fileResponse(PDF_CONTENT_TYPE));
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
   });
 
   it("pdf: nedladdningslänk med rätt ändelse, och INGEN renderande yta", async () => {
@@ -140,7 +140,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     // Nedladdningen gör det integritetsmeddelandet redan lovar: att du kan hämta
     // tillbaka din egen fil (content-legal.json, "originalfil").
-    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner" });
     expect(download).toHaveAttribute("href", "blob:mock");
     expect(download).toHaveAttribute("download", "original.pdf");
     expect(createObjectURL).toHaveBeenCalledTimes(1);
@@ -153,7 +153,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
 
     // DPIA #659 M-F2 föreskriver RFC 6266 `attachment` ordagrant och är merge-blockerande;
     // R-F6:s residual vilar på att en lagrad polyglot ALDRIG renderas inline från vår origin,
@@ -190,19 +190,50 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
 
     // Pinnen ovan mäter DOM-noder. En knapp med onClick={() => window.open(url)} hade
     // passerat den utan att lämna en enda nod — och ändå målat användarens bytes på vår
     // origin. Den här mäter beteendet i stället för formen.
     const dialog = screen.getByRole("dialog");
-    for (const el of Array.from(dialog.querySelectorAll("button, a"))) {
-      if (!document.body.contains(el)) continue;
+    const closeButton = screen.getByRole("button", { name: "Stäng" });
+    // Stäng utesluts MEDVETET: den är först i dokumentordning, och att klicka den
+    // avmonterar dialogen. En tidigare version av det här testet gjorde exakt det och
+    // bröt sedan ur loopen, så den mätte bara stäng-knappen — en NO-OP hade gett samma
+    // gröna.
+    const controls = Array.from(dialog.querySelectorAll("button, a")).filter(
+      (el) => el !== closeButton
+    );
+
+    // POSITIV KONTROLL: nedladdningslänken är faktiskt med bland elementen som klickas.
+    // Utan den återinför nästa omordning samma vakuitet tyst.
+    expect(controls.some((el) => el.hasAttribute("download"))).toBe(true);
+
+    for (const el of controls) {
       await user.click(el as HTMLElement);
-      if (!screen.queryByRole("dialog")) break;
     }
 
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("triggerAriaLabel blir knappens tillgängliga namn (SC 2.5.3)", () => {
+    // #1373: /cv renderar ett kort per CV, så utan detta läser varje trigger identiskt i
+    // en skärmläsares knapp-rotor. Kortets egen svit exercerade det här tidigare genom
+    // den RIKTIGA komponenten, men den mockar nu CvPreview för att assertera inkopplingen
+    // — så kontraktet behöver ett hem här, på den riktiga komponenten. Annars passerar
+    // hela sviten när `aria-label` tas bort (test-writer + code-reviewer, PR #1684).
+    render(
+      <CvPreview
+        originalUrl={ORIGINAL_URL}
+        triggerAriaLabel="Ladda ner CV-filen: Anna Andersson CV"
+      />
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: "Ladda ner CV-filen: Anna Andersson CV",
+    });
+    // SC 2.5.3 Label in Name: det tillgängliga namnet måste INNEHÅLLA den synliga texten.
+    expect(trigger).toHaveTextContent("Ladda ner CV-filen");
   });
 
   it("nedladdningen döps efter ytans namn, med ändelsen ur content-type", async () => {
@@ -212,7 +243,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     render(<CvPreview originalUrl={ORIGINAL_URL} fileName="Anna Andersson CV" />);
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
 
-    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner" });
     // Utan detta heter varje hämtad fil `original.pdf` och två CV blir omöjliga att
     // skilja åt i nedladdningsmappen.
     expect(download).toHaveAttribute("download", "Anna Andersson CV.pdf");
@@ -222,13 +253,17 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
-    render(<CvPreview originalUrl={ORIGINAL_URL} fileName="../../etc/passwd" />);
+    render(
+      <CvPreview originalUrl={ORIGINAL_URL} fileName="..\\..\\etc/passwd" />
+    );
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
 
-    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner" });
     const name = download.getAttribute("download") ?? "";
     // Värdet blir ett filnamn på användarens disk — en separator där kunde peka utanför
-    // nedladdningsmappen.
+    // nedladdningsmappen. Fixturen bär BÅDA separatorerna: en tidigare version av det här
+    // testet asserterade på backslash mot en fixtur UTAN backslash, vilket var sant
+    // oavsett vad koden gjorde.
     expect(name).not.toContain("/");
     expect(name).not.toContain("\\");
     expect(name.endsWith(".pdf")).toBe(true);
@@ -252,7 +287,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     await user.click(screen.getByRole("button", { name: "Försök igen" }));
 
     expect(
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" })
+      await screen.findByRole("link", { name: "Ladda ner" })
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -268,22 +303,22 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     // Regionen är monterad REDAN under laddningen, tom. En artig region som skapas i
     // samma render som sin text annonseras inte av flera skärmläsare — och spinnerns
     // egen role=status avmonteras i exakt den render där utfallet dyker upp.
-    // BrandSpinner renders its OWN role=status inside `.jp-modal-loading`, earlier in the
-    // DOM — and that is exactly the one that cannot carry the outcome, because it unmounts
-    // in the same render the outcome appears. The persistent region is distinguished
-    // structurally: a direct child of the modal body, sibling to the state blocks.
-    const selector = '.jp-modal__body > [role="status"][aria-live="polite"]';
-    const region = document.querySelector(selector);
-    expect(region).not.toBeNull();
-    expect(region!.textContent).toBe("");
+    // BrandSpinner renderar sin EGEN role=status inuti `.jp-modal-loading`, tidigare i
+    // DOM — och det är precis den som inte kan bära utfallet, eftersom den avmonteras i
+    // samma render som utfallet dyker upp. Regionen har därför ett eget tillgängligt
+    // namn: `getByRole` KASTAR vid tvetydighet, där en `querySelector` tyst hade tagit
+    // spinnerns nod i stället.
+    const region = screen.getByRole("status", { name: "Filens status" });
+    expect(region.textContent).toBe("");
 
     pending.resolve(fileResponse(PDF_CONTENT_TYPE));
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
 
-    // Samma nod, nytt innehåll — det är den ändringen en skärmläsare hör.
-    const after = document.querySelector(selector);
+    // Nodidentitet, inte bara innehåll: det är att SAMMA nod bytte innehåll som en
+    // skärmläsare hör. En ny nod med rätt text hade inte annonserats.
+    const after = screen.getByRole("status", { name: "Filens status" });
     expect(after).toBe(region);
-    expect(after!.textContent).toContain("Den visas inte i webbläsaren");
+    expect(after.textContent).toContain("Den visas inte i webbläsaren");
   });
 
   it("docx: samma nedladdningsform, ändelsen kommer från content-type", async () => {
@@ -293,7 +328,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     const { container } = render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
 
-    const download = await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    const download = await screen.findByRole("link", { name: "Ladda ner" });
     // Ändelsen följer svarets content-type, aldrig filnamnet.
     expect(download).toHaveAttribute("download", "original.docx");
     expect(container.querySelector("iframe")).toBeNull();
@@ -316,7 +351,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     expect(
       await screen.findByText("Originalfilen kunde inte laddas.")
     ).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
   });
 
   it("404 → ärligt tomt tillstånd, inte ett fel", async () => {
@@ -335,7 +370,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
         "Det här CV:t har ingen sparad originalfil. En fil finns bara för CV du importerat, och bara om den fick sparas vid importen."
       )
     ).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
   });
 
   it("429 → civic copy med '30 sekunder', ingen nedladdningslänk", async () => {
@@ -350,7 +385,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
 
     expect(await screen.findByText(/30 sekunder/)).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
   });
 
   it("övrigt fel (500) → civic copy 'kunde inte laddas'", async () => {
@@ -374,7 +409,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     const trigger = screen.getByRole("button", { name: "Ladda ner CV-filen" });
     await user.click(trigger);
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
 
     await user.click(screen.getByRole("button", { name: "Stäng" }));
 
@@ -389,7 +424,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
     await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-    await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+    await screen.findByRole("link", { name: "Ladda ner" });
 
     await user.keyboard("{Escape}");
 
@@ -403,7 +438,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={ORIGINAL_URL} />);
       await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+      await screen.findByRole("link", { name: "Ladda ner" });
 
       // En ensam flik är en kontroll som inte kontrollerar något.
       expect(screen.queryByRole("group", { name: "Välj: originalfil eller ATS-text" })).not.toBeInTheDocument();
@@ -418,7 +453,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+      await screen.findByRole("link", { name: "Ladda ner" });
 
       // Originalet har ingen ATS-variant och ingen visuell variant — det är en fil.
       expect(screen.queryByRole("button", { name: "ATS-profil" })).not.toBeInTheDocument();
@@ -445,14 +480,14 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+      await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
 
       expect(await screen.findByText(/Så här läser en ATS-parser ditt CV/)).toBeInTheDocument();
       expect(screen.getByText(/Backend-utvecklare/)).toBeInTheDocument();
       // Textvyn ersätter ramen — de två är olika dokument, aldrig två vyer av ett.
-      expect(screen.queryByRole("link", { name: "Ladda ner originalfilen" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
 
       const atsCalls = fetchMock.mock.calls.filter(([url]) =>
         String(url).includes("/ats-text")
@@ -470,7 +505,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+      await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
 
@@ -485,14 +520,14 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
       await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-      await screen.findByRole("link", { name: "Ladda ner originalfilen" });
+      await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
       await screen.findByText(/Så här läser en ATS-parser ditt CV/);
 
       await user.click(screen.getByRole("button", { name: "Originalfil" }));
 
-      expect(await screen.findByRole("link", { name: "Ladda ner originalfilen" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Ladda ner" })).toBeInTheDocument();
     });
   });
 });

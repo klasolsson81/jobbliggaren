@@ -3,7 +3,7 @@ using System.Collections.Frozen;
 namespace Jobbliggaren.Application.BackgroundJobs;
 
 /// <summary>
-/// Single source of truth for the 16 Hangfire recurring-job ids. Used both by the
+/// Single source of truth for the 17 Hangfire recurring-job ids. Used both by the
 /// Worker's <c>RecurringJobRegistrar</c> (registration) and by the admin operator
 /// surface's trigger validator (the closed allowlist).
 ///
@@ -46,6 +46,15 @@ public static class RecurringJobIds
     public const string SyncScbCompanyRegister = "sync-scb-company-register";
 
     /// <summary>
+    /// #1681 (ADR 0139) — resolve every saved smart watch (a predicate) into the register companies it
+    /// matches, out of the request path. Cron is config-driven
+    /// (<c>CompanyWatchMaterialisation:CadenceCron</c>), on its OWN options section: tying it to
+    /// <c>ScbRegister:*</c> would inherit that section's <c>Enabled=false</c> default and the job would
+    /// never run in the default posture (security-auditor Major 3).
+    /// </summary>
+    public const string MaterialiseCompanyWatchCriteria = "materialise-company-watch-criteria";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -67,5 +76,6 @@ public static class RecurringJobIds
         DigestDispatchWeekly,
         RefreshLandingStats,
         SyncScbCompanyRegister,
+        MaterialiseCompanyWatchCriteria,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

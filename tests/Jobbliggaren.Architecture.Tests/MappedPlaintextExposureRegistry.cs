@@ -144,6 +144,26 @@ internal static class MappedPlaintextExposureRegistry
             ["company_watch_criteria"] = "Her saved watch criteria (UserId): label is free text she "
                 + "types, and kommun_codes and sni_codes are the set SHE chose to follow — a "
                 + "selection about her interests even though each code is a closed domain.",
+            // #1681 (ADR 0139; security-auditor Minor 7, 2026-09-06). Both tables hang off
+            // company_watch_criteria by criterion_id, and that table is already person-grained by
+            // UserId — so criterion_id -> user_id attributes every row here to an identifiable
+            // natural person and the STEP 1 row test carries them WITH NO OPT-OUT. That is not a
+            // finding to be argued down: the values are register-DERIVED (legal-entity org.nr, ADR
+            // 0091, plus this job's own pnr-shape guard), yet the SET of companies a given person's
+            // criterion resolves to is a statement about HER interests, exactly as the criterion's
+            // own code lists are one table over. Consequence, and it is the controller's call rather
+            // than the session's: the accepted restore-exposure list (ADR 0125 Case 2, #197, #1285)
+            // grows by these two entries — granted by Klas and recorded in ADR 0139 under
+            // "Klas beviljanden" (3), which is where the decision lives.
+            ["company_watch_criterion_members"] = "The register companies HER criterion resolves to "
+                + "(criterion_id -> user_id): each organization_number is public legal-entity data, "
+                + "but the SET is a materialised statement about which employers she is watching — "
+                + "the same class as the criterion's own code lists.",
+            ["company_watch_criterion_materialisations"] = "The per-criterion materialisation state "
+                + "(criterion_id -> user_id): state is a closed two-member enum and the rest are two "
+                + "counts and a timestamp, so nothing here is free text — the table is listed because "
+                + "the ROW is attributable to her, which is what the row test asks, and so a column "
+                + "added here later cannot land outside it.",
             ["followed_company_ad_hits"] = "One row per ad hit delivered to her (UserId). "
                 + "notification_status is a fact about what she was sent.",
             ["user_job_ad_matches"] = "One row per match computed FOR HER (UserId). grade is the "

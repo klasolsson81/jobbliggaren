@@ -94,7 +94,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// rather than by vigilance — the #805-3 failure shape.
     /// </para>
     /// </summary>
-    private const string FromWhere = """
+    internal const string FromWhere = """
         FROM company_register
         WHERE status = @status
           AND sate_kommun_code = ANY(@kommun)
@@ -481,7 +481,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// only half the guarantee — a count that bound different VALUES than the page would report a
     /// silently wrong total with an identical predicate.
     /// </summary>
-    private static void BindPredicate(NpgsqlCommand cmd, CompanyWatchCriteriaSpec spec)
+    internal static void BindPredicate(NpgsqlCommand cmd, CompanyWatchCriteriaSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);
 

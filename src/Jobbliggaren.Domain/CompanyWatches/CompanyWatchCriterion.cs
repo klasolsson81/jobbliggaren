@@ -10,10 +10,35 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 ///
 /// <para>
 /// <b>Strictly separate from <see cref="CompanyWatch"/> (the A1 seal, re-affirmed by ADR 0105
-/// RF-1).</b> <see cref="CompanyWatch"/> follows ONE known employer by org.nr; this aggregate
-/// carries no org.nr at all and is never expanded into per-company rows — the epic's binding
-/// constraint ("the scan-set explodes"). The UX presents both under one "bevakningar" umbrella;
-/// the DOMAIN keeps them apart (ubiquitous language without model unification).
+/// RF-1).</b> <see cref="CompanyWatch"/> follows ONE known employer by org.nr; <b>this aggregate
+/// carries no org.nr at all</b>. The UX presents both under one "bevakningar" umbrella; the DOMAIN
+/// keeps them apart (ubiquitous language without model unification).
+/// </para>
+///
+/// <para>
+/// <b>The seal's second clause — "and is never expanded into per-company rows" — is SUPERSEDED by
+/// ADR 0139 (#1681, 2026-09-06).</b> A recurring Worker job now resolves each criterion to the
+/// register companies it matches and stores that set. Two things about this supersession matter, and
+/// the first is why it was permissible at all: <b>the seal's ground was COST, not GDPR</b> — the
+/// epic's binding constraint was that "the scan-set explodes" — and the cost objection is answered
+/// rather than waived. The expansion is bounded by a breadth gate
+/// (<c>CompanyWatchCriterionMember.MaxPerCriterion</c>, a DERIVED 1 000), it happens OUT of the
+/// request path, and it exists precisely because computing the same fact at read time measured
+/// 6 556 ms against <c>/oversikt</c>'s 300 ms p95 budget. So the expansion is what MAKES the read
+/// cheap; the seal was protecting the read path, and this serves that intent by a different
+/// mechanism.
+/// </para>
+///
+/// <para>
+/// <b>The FIRST clause is untouched and is the load-bearing one</b> (security-auditor Minor 8): this
+/// aggregate still carries no org.nr, and the expanded rows are NOT part of it. They live in
+/// <c>company_watch_criterion_members</c>, an Infrastructure-internal read model that is not a
+/// <c>DbSet</c> on <c>IAppDbContext</c>, reached only through <c>ICompanyWatchBrowseQuery</c> — so
+/// no org.nr enters the Domain or crosses the Application boundary, and the DPIA C-D4 / M-C5
+/// firewall holds verbatim. Those rows follow this aggregate by a DB-level FK with
+/// <c>ON DELETE CASCADE</c>, so the hard-delete verdict below reaches them too. This paragraph
+/// exists because leaving the seal unamended would have made an aggregate's own documentation false
+/// about a GDPR-adjacent invariant, which is worse than the expansion it described.
 /// </para>
 ///
 /// <para>

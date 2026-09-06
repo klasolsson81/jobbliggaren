@@ -73,7 +73,8 @@ forbids it, and this file is the path it prescribes instead.
    checklist says to re-measure (a) and (c) at the flip rather than inherit them**, so confirm
    there that the schedule still reads as it did before setting the knob. Either the mailbox
    receives, or the policy publishes a channel that does
-   ([#183](https://github.com/klasolsson81/jobbliggaren/issues/183) owns the mailbox) — or Klas
+   (`release-checklist.md` §2.5 point 1 leg (e) precondition 5 owns the mailbox; #183 closed
+   2026-09-06) — or Klas
    accepts the risk for this recipient set and records it, **which is his decision alone**.
    Whichever applies, it is written down before the knob is set.
    ⚠ **The K2 credential carries more than one GDPR conclusion, and this file counts none of
@@ -95,6 +96,8 @@ forbids it, and this file is the path it prescribes instead.
    the gate, decide, and record the decision **in an ADR or a CLAUDE.md update** before step 2.
    **The decision is Klas's**, because turning the flag on was his; a finding
    that the pair does not fire the gate is an answer, and only an unread gate is an omission.
+   **Answered 2026-09-06 (Klas, ADR 0138): the tool stays until he says otherwise.** §2.7's
+   text is unchanged; this line records who deferred it and when.
 
 ## 3. The visit
 

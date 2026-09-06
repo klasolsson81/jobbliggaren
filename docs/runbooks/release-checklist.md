@@ -250,9 +250,18 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
 > **false** och sätts `true` bara i `appsettings.Development.json`.)
 
-- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **#183**).
+- [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **den här punkten**;
+      #183 STÄNGD 2026-09-06 på Klas-beslut, se stycket nedan).
       *Detta är talets hem: räkna om leden i punkten efter varje tillägg, och lägg det inte någon
       annanstans.*
+      ⛔ **KLAS-BESLUT 2026-09-06 — #183 STÄNGD; LEDEN ÄGER SIG SJÄLVA.** Flippen togs
+      2026-08-16, så punkten grindar ingen kommande handling: den är en **lanseringschecklista**,
+      och statusen läses på leden, som förut. Ingen gradering ändras — led (a), (b), (c) och (e)
+      bär KVAR i sin egen text, och `security-auditor`s domar står som skrivna. Vad som inte
+      längre finns är en issue som läsare; den som bockar ett led skriver det här.
+      **SES-IAM-nycklarna:** Klas 2026-09-06, *"Finns inga nycklar kvar"* — #183:s beslut 3 av
+      2026-08-15 har därmed inget objekt. E4:s Scaleway-konsolrunbok författas ur vad Klas gör
+      nästa gång han står i konsolen, och har ingen issue. Beslutets hem: ADR 0138.
       - **biträdesavtal med Scaleway på fil** — **KVAR** (Klas, aldrig CC). Mätt 2026-08-15 mot
         Scaleways egna avtalsdokument: DPA:n (gällande version daterad 2024-06-01; ingen senare
         revision hittad) är avtalsdokument **nr 1** i GTS:ens prioritetsordning (version
@@ -492,7 +501,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
         ompinnad till `Scaleway SAS` i samma ändring, så en halvflippad katalog kan inte bli grön;
       - **security-auditor-sign-off på prod-e-post-konfigen** — **KVAR**. Det gamla
         TD-116:s sign-off är PR-4:s, inte prod-konfigens; bocka aldrig punkten på den.
-        (TD-116 stängdes 2026-07-26; residualen ägs av #183.)
+        (TD-116 stängdes 2026-07-26; residualen ägs av det här ledet — #183 stängd 2026-09-06.)
         ⚠ **LEDET ÄR RETROAKTIVT SEDAN 2026-08-16 OCH DET ÄR EN ANNAN SORTS LED NU.**
         CC1-lanen flippade `Email:Provider` till Scaleway under registreringsbesöket, med Klas
         vid terminalen, medan led (a), (b), (c) och (e) alla bar KVAR — vilket preambelns
@@ -858,6 +867,9 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            ✅ **VÄG (a) ÄR UPPFYLLD 2026-09-04** (`security-auditor`s ruling samma dag), med de tre
            konjunkterna avbockade var för sig: *finns* ✅ · *tar emot* ✅ (17:33, lagring 1,09 → 10 kB)
            · *läses* ✅.
+           **Läsaren (Art. 12(3)) — Klas-beslut 2026-09-06, enda hemmet:** Klas själv, *"alltid
+           vid nya mail"*, med notis i mobilen. Ingen kadens utöver det och ingen mekanism på
+           lådan; det är en mänsklig praxis, och den här raden namnger vems.
            *(Rubriken bar en ✅ till 2026-08-16. Fel glyf: i en fil vars
            grammatik är "grön = inget led bär KVAR" hade den markerat ett **vägval** på en
            förutsättning som fortfarande är **osignerad och Major** — samma glyf, två jobb, och det
@@ -1977,7 +1989,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       eller att M1 vore urladdad** (`security-auditor` 2026-09-06, eskalerad till Klas).
 
       ⚠ **Vad beslutet INTE gör.** Det upphäver ingen gradering: `security-auditor`s M1 står som
-      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. Det är ett beslut av
+      **Major**, och M-7 står som konverterad **Blocker** sedan 2026-08-17. ⚠ **Klas-beslut
+      2026-09-06 om M-7:** *"Ja, ingen blocker"* — flippen tas utan ett nytt beviljande före det
+      första självregistrerade kontot. Graderingen är hennes och står; beslutet är hans som
+      personuppgiftsansvarig (Art. 24(1)). Hem: ADR 0138. Det är ett beslut av
       **personuppgiftsansvarig om sin egen behandling** (Art. 24(1)) — inte en §9.6-acceptans, och
       det bär ingen signatur av henne. Läs det inte som att fristen upphört: det som skett är att
       Klas valt rutt och skrivit ned grunden, vilket är precis vad Art. 5(2) kräver av honom.
@@ -1992,6 +2007,9 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       - **(ii) Villkoret:** blir lanseringen skjuten utan att notisen gjorts nåbar kommer posten
         tillbaka — grunden ovan hänger på att lanseringen faktiskt tar bort basic_auth.
         **Läsare: Klas.** Ingen automatik upptäcker det.
+        **Klas 2026-09-06:** lanseringen ligger *"mest troligen efter"* 2026-09-17 — *"ingen
+        blocker"*. Perioden mellan fristen och lanseringen bär han som personuppgiftsansvarig;
+        M1 arm (i):s gradering från den dagen står oförändrad. Hem: ADR 0138.
       - **(iii) Grunden själv — tre av dess fyra fakta har INGEN egen trigger**
         (`security-auditor` 2026-09-06): att `/kontaktperson-i-annons` förblir utanför
         `PROTECTED_PREFIXES` (ett `(app)`-flytt eller ett nytt prefix tystar notisen utan att något
@@ -2296,8 +2314,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Ingen release som öppnar registrering får ske innan de kvarvarande villkoren är gröna.**
         Copyn får INTE mjukas upp först — det falska påståendet är enda användarsynliga tecknet
         att flödet är trasigt. Art. 5(1)(a) + 12(1).
-        Ägare av residualen: **#734** (bär flippens förutsättningar) och **#183** (e-post-prod-flippens
-        GDPR-grind). *(Raden namngav tidigare **#1087**, som stängs med
+        Ägare av residualen: **#734** (bär flippens förutsättningar) och **§2.5 punkt 1** (e-post-prod-flippens
+        GDPR-grind; #183 stängd 2026-09-06). *(Raden namngav tidigare **#1087**, som stängs med
         den här ändringen, och **#196**, som är **STÄNGD** sedan tidigare — en stängd pekare i en
         merge-blockerande grind läses som utförd. Var env-konfigurationen faktiskt sätts efter att
         #196 stängdes stod först här som en öppen fråga; den är nu **mätt** och svaret bor i
@@ -2387,6 +2405,11 @@ borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
 operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
 e-postadress. Ingen av dem får finnas när riktiga användare gör det.
+
+⛔ **KLAS-BESLUT 2026-09-06:** *"Ja den får vara kvar. Jag kommer säga till när CC ska ta bort
+den."* `reset-my-data` står kvar på lådan genom flippen, och rivningen nedan körs på Klas ord,
+inte på händelsen. Grindens text ovan är oförändrad; det här stycket daterar vem som sköt upp
+den och när. Hem: ADR 0138.
 
 **Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
 overksamt inom en omstart; en halvriven kodbas är inte.

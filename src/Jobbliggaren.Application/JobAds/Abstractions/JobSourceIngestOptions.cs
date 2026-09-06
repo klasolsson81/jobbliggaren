@@ -32,7 +32,7 @@ namespace Jobbliggaren.Application.JobAds.Abstractions;
 ///
 /// <para>
 /// <b>Dated record — 2026-08-17: the GO was given and the flip performed</b>, and recruiter
-/// contact records landed from that date. The record carrying adjudicator, date and place is
+/// contact records landed from that date. The record carrying adjudicator and place is
 /// <c>release-checklist.md</c> §2.6 point 3.5, and is not restated here.
 /// <b>That was one box's operator flip — not a shipped default, and not permission.</b> The
 /// Worker's Production overlay and <c>deploy/docker-compose.yml</c> both still ship

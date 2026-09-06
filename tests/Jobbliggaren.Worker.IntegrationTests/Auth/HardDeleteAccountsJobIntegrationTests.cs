@@ -546,6 +546,13 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
             // #1681 — one ACTIVE register company matching the FIRST criterion, so the
             // materialisation below has something real to write. Seeded through the same raw-SQL
             // shape ScbCompanyRegisterStore's upsert emits.
+            //
+            // The register is CLEARED first, and that is not tidiness: this collection shares one
+            // database, sibling suites seed register rows that match this test's predicate, and the
+            // member count below is a function of how many of them survive. Depending on another
+            // test's leftovers is depending on execution order — it passed locally and failed in CI
+            // at 5 instead of 1. A test owns its fixture or it measures nothing reliably.
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM company_register;", ct);
             await db.Database.ExecuteSqlRawAsync(
                 """
                 INSERT INTO company_register (

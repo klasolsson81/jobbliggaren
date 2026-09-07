@@ -438,6 +438,17 @@ public static class ErasureCascadeRegistry
                 ErasureColumnDisposition.NotRecruiterData,
             ["company_watch_criterion_materialisations.state"] =
                 ErasureColumnDisposition.NotRecruiterData,
+            // #1681 part 2 — the predicate fingerprint. A closed domain by construction rather than by
+            // convention: its ONLY writer is CompanyWatchCriterionMemberStore.ReplaceAsync, bound from
+            // CriteriaFingerprint.Of, which emits exactly 64 lower-case hex characters whatever it is
+            // given. No request body and no recruiter text can reach the column, and no value it can
+            // hold carries recruiter data even in principle.
+            //
+            // ⚠ This settles the Art. 17 disposition of the COLUMN. It does NOT settle whether this
+            // table belongs on the accepted restore-exposure list — that is ADR 0139 Klas-beviljande 3,
+            // still open and still the controller's (ADR 0139 Implementationsstatus).
+            ["company_watch_criterion_materialisations.criteria_fingerprint"] =
+                ErasureColumnDisposition.NotRecruiterData,
 
             // #1435 - company_watches left the wholesale-exclusion list. target_type is a two-value
             // enum persisted BY NAME and never bound from a request body; brand_group_id is gated
@@ -1046,11 +1057,16 @@ public static class ErasureCascadeRegistry
                 + "'we judged it unlikely': both are read off the write path.",
 
             ["company_watch_criterion_materialisations:NotRecruiterData"] =
-                "Closed domain: `state` is the two-member MaterialisationState enum "
+                "Closed domain, per column. `state` is the two-member MaterialisationState enum "
                 + "(Materialised / TooBroad) stored BY NAME (HasConversion<string>, max 20), written "
-                + "only by the materialisation job from a value it computed itself. No request body "
-                + "binds it and there is no free-text column on this table - the other four columns "
-                + "are the criterion_id key, two counts and a timestamp.",
+                + "only by the materialisation job from a value it computed itself. "
+                + "`criteria_fingerprint` (#1681 part 2) is a fixed-width digest: its only writer is "
+                + "CompanyWatchCriterionMemberStore.ReplaceAsync, bound from CriteriaFingerprint.Of, "
+                + "which emits exactly 64 lower-case hex characters whatever it is given - so the "
+                + "column's domain is [0-9a-f]{64} by construction, not by convention, and no "
+                + "recruiter text can be represented in it even in principle. No request body binds "
+                + "either column, and the remaining four are the criterion_id key, two counts and a "
+                + "timestamp.",
 
             ["taxonomy_concepts:NotRecruiterData"] =
                 "Closed domain: concept_id / parent_concept_id are taxonomy identifiers, label is "

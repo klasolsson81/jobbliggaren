@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Application.CompanyWatches.Queries;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
@@ -73,6 +74,12 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         await SetPreferencesAsync(group, region, ct);
         var id = await CreateCriterionAsync(ct);
 
+        // #1681 part 2 — the criterion's company set is resolved OUT of the request path, so
+        // the ad numbers below exist only after a materialisation run. Without this the endpoint
+        // honestly answers "inte räknad än", which is the correct behaviour and not the one
+        // under test here.
+        await MaterialiseAsync(ct);
+
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
 
         // The criterion HAS five active ads; three of them match. Both numbers arrive together, and
@@ -116,6 +123,12 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         await AuthenticateAsync(ct);
         var id = await CreateCriterionAsync(ct);
 
+        // #1681 part 2 — the criterion's company set is resolved OUT of the request path, so
+        // the ad numbers below exist only after a materialisation run. Without this the endpoint
+        // honestly answers "inte räknad än", which is the correct behaviour and not the one
+        // under test here.
+        await MaterialiseAsync(ct);
+
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
 
         // Present and null on the wire (JsonValueKind.Null), never absent and never 0. A 0 would
@@ -146,6 +159,12 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         // A profile stating an occupation NO seeded ad carries.
         await SetPreferencesAsync(NewGroup(), NewRegion(), ct);
         var id = await CreateCriterionAsync(ct);
+
+        // #1681 part 2 — the criterion's company set is resolved OUT of the request path, so
+        // the ad numbers below exist only after a materialisation run. Without this the endpoint
+        // honestly answers "inte räknad än", which is the correct behaviour and not the one
+        // under test here.
+        await MaterialiseAsync(ct);
 
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
 
@@ -357,7 +376,40 @@ public class CriterionMatchingAdCountApiTests(ApiFactory factory)
         await db.SaveChangesAsync(ct);
     }
 
-    private static string NewOrgNr() => $"55{Random.Shared.Next(10000000, 99999999)}";
+    /// <summary>
+    /// #1681 part 2 (ADR 0139) — runs the PRODUCTION materialisation job, which is what resolves a
+    /// criterion's predicate to a company set. Since part 2 the ad-side reads answer from that set
+    /// rather than from a live register join, so a criterion nobody has materialised honestly reports
+    /// "not materialised" — not a zero, and not the old live number.
+    ///
+    /// <para>
+    /// It is the real <c>ICompanyWatchCriterionMaterialiser</c> out of the Api's own graph (the
+    /// Infrastructure DI both hosts share registers it), never a hand-written member row: the member
+    /// and state tables have exactly one writer in <c>src/</c> and these assertions rest on what IT
+    /// produces (CLAUDE.md §5 <c>Tests:</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// The job materialises every criterion in the shared Api database, not only this test's. That is
+    /// harmless — each test asserts against its own org.nr slice — and it is also what production
+    /// does, since the run is a nightly sweep rather than a per-criterion call.
+    /// </para>
+    /// </summary>
+    private async Task MaterialiseAsync(CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var materialiser = scope.ServiceProvider
+            .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+        await materialiser.MaterialiseAsync(ct);
+    }
+
+    // #1681 part 2 — the lower bound is 2_0000000, not 1_0000000, and that is a CORRECTNESS fix
+    // rather than tidying. The third digit is what OrganizationNumber.IsPersonnummerShaped()
+    // reads, and CompanyWatchCriterionMemberFilter drops every candidate it calls
+    // personnummer-shaped before a member row is written. With the old range roughly one org.nr
+    // in eight came out "551…", was silently excluded from the member set, and the test read a
+    // zero it could not distinguish from a real one — a flake that fires on ~12% of runs.
+    private static string NewOrgNr() => $"55{Random.Shared.Next(20000000, 99999999)}";
     private static string NewGroup() => $"grp-c1656-{Guid.NewGuid():N}"[..24];
     private static string NewRegion() => $"reg-c1656-{Guid.NewGuid():N}"[..24];
 

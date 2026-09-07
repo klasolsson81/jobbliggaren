@@ -130,6 +130,50 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_CompanyWatchCriteriaList_Is5Per60s_Sustaining3PerMinute_AndMeListReadIsUnchanged()
+    {
+        // #1681 part 2 (security-auditor 2026-09-07, Klas's decision) — GET /me/company-watch-criteria
+        // left MeListRead because its per-request backend cost stopped resembling that bucket's:
+        // 381,5 ms at the ad ceiling against the 0,166 ms org.nr twin. Derivation in the option's own
+        // docblock; pinned here so a silent widening surfaces in review.
+        var sut = new RateLimitingOptions();
+
+        sut.CompanyWatchCriteriaList.PermitLimit.ShouldBe(5);
+        sut.CompanyWatchCriteriaList.WindowSeconds.ShouldBe(60);
+
+        // SegmentsPerWindow = 3 is not decoration and not the house default: it is what makes the
+        // SUSTAINED rate 3/min. At the default 6 the replenishment period is 10 s and the lowest
+        // expressible sustained rate is 6/min — twice the derived figure. Asserting the derived
+        // quantities rather than only the raw fields, because the sustained rate is what the
+        // derivation actually bounds, and PermitLimit alone does not determine it.
+        sut.CompanyWatchCriteriaList.SegmentsPerWindow.ShouldBe(3);
+
+        var tokensPerPeriod = Math.Max(
+            1,
+            sut.CompanyWatchCriteriaList.PermitLimit / sut.CompanyWatchCriteriaList.SegmentsPerWindow);
+        var replenishmentSeconds =
+            sut.CompanyWatchCriteriaList.WindowSeconds
+            / (double)sut.CompanyWatchCriteriaList.SegmentsPerWindow;
+
+        tokensPerPeriod.ShouldBe(1);
+        replenishmentSeconds.ShouldBe(20d);
+        (tokensPerPeriod * 60d / replenishmentSeconds).ShouldBe(
+            3d,
+            "the derived sustained rate is 3 requests/min — 1 000 ms of database time per minute "
+            + "(the CompanyBrowse anchor) divided by the 381,5 ms worst measured request");
+
+        // The OTHER half of the same decision, and the half a later 'simplification' would undo:
+        // MeListRead was NOT ratcheted in exchange. A separate policy lowers nothing anyone already
+        // holds; folding the criteria list back in, or lowering this to compensate, is collateral on
+        // /oversikt's ~7-call fan. Both numbers live in one test so they cannot drift apart quietly.
+        sut.MeListRead.PermitLimit.ShouldBe(
+            120,
+            "MeListRead must stay 120/min — the criteria list got its own bucket precisely so this "
+            + "one did not have to move");
+        sut.MeListRead.SegmentsPerWindow.ShouldBe(6);
+    }
+
+    [Fact]
     public void Defaults_CriterionCountPreview_Is30Per10s()
     {
         // #560 PR-3 (CTO Fork G3) — the picker's live magnitude preview, FacetCounts/
@@ -239,5 +283,10 @@ public class RateLimitingOptionsTests
         RateLimitingExtensions.FollowSeenMarkPolicy.ShouldBe("follow-seen-mark");
         RateLimitingExtensions.ResumeImportPolicy.ShouldBe("resume-import");
         RateLimitingExtensions.ResumeRenderPolicy.ShouldBe("resume-render");
+        // #1681 part 2 — the criteria list's own key. Drift between this constant and the endpoint's
+        // .RequireRateLimiting(...) is a silent rate-limit bypass, which on THIS route means a
+        // ~380 ms worst-case read with no bucket at all.
+        RateLimitingExtensions.CompanyWatchCriteriaListPolicy
+            .ShouldBe("company-watch-criteria-list");
     }
 }

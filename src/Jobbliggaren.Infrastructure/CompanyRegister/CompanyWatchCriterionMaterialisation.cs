@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.CompanyWatches;
 
 namespace Jobbliggaren.Infrastructure.CompanyRegister;
@@ -29,10 +30,10 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// </para>
 ///
 /// <para>
-/// <see cref="MaterialisedAt"/> carries the staleness axis the same way: a reader that wants to know
-/// how old the answer is can ask, instead of assuming freshness. Nothing in this PR consumes it — the
-/// read path is #1681 part 2 — but the column is written from the first run, because a staleness
-/// stamp backfilled later cannot describe the runs that happened before it existed.
+/// <see cref="MaterialisedAt"/> carries the AGE axis: a reader that wants to know how old the answer
+/// is can ask, instead of assuming freshness. It is deliberately NOT the staleness GUARD — that is
+/// <see cref="Application.CompanyWatches.Abstractions.CriteriaFingerprint"/>, for the reason its own docblock gives (a timestamp cannot tell
+/// a predicate edit from a rename, and both bump the aggregate's <c>UpdatedAt</c>).
 /// </para>
 ///
 /// <para>
@@ -71,9 +72,24 @@ internal sealed class CompanyWatchCriterionMaterialisation
     /// </summary>
     public required int ExcludedPersonnummerShaped { get; init; }
 
-    /// <summary>When the last run wrote this row (from <c>IDateTimeProvider</c>) — the staleness
-    /// axis.</summary>
+    /// <summary>When the last run wrote this row (from <c>IDateTimeProvider</c>) — the AGE axis, not
+    /// the staleness guard (see the class docblock).</summary>
     public required DateTimeOffset MaterialisedAt { get; init; }
+
+    /// <summary>
+    /// #1681 part 2 — the digest of the PREDICATE this row's member set was computed from, so a read
+    /// can refuse to answer with numbers belonging to a predicate the user has since edited. The
+    /// argument, and why it is a fingerprint rather than a timestamp comparison or a copy of the
+    /// codes, lives in one place: <see cref="Application.CompanyWatches.Abstractions.CriteriaFingerprint"/>.
+    ///
+    /// <para>
+    /// Written on EVERY path, including <see cref="MaterialisationState.TooBroad"/>. A refused
+    /// criterion has no members, but it still has a predicate — and the refusal itself must stop
+    /// applying once that predicate changes, or a user who narrowed a too-broad watch would keep
+    /// being told it is too broad until the next daily run.
+    /// </para>
+    /// </summary>
+    public required string CriteriaFingerprint { get; init; }
 }
 
 /// <summary>

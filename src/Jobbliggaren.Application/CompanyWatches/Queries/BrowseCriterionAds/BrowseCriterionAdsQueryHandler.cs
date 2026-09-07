@@ -4,6 +4,7 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Queries;
+using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -45,11 +46,20 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 /// </para>
 ///
 /// <para>
-/// <b>The filter is INERT rather than empty in the two unanswerable arms</b> (parity the follow
-/// rail's RF-5 under-fork (i)): a user who has stated no occupation, and a criterion too broad to
-/// grade, both get the UNFILTERED list. Returning an empty page there would say "nothing matches
-/// you", which is not what either arm means. The composed response's <c>Matching</c> member is what
-/// tells the surface which arm it is in, so it can say so instead of implying a zero.
+/// <b>The unanswerable arms fall through to the unfiltered browse, and since #1681 part 2 that no
+/// longer means the same thing for all of them.</b> There are THREE: a user who has stated no
+/// occupation, a criterion too broad to grade, and a criterion not materialised for its current
+/// predicate.
+/// <list type="bullet">
+///   <item><b>Not assessed</b> — the filter is INERT and the unfiltered list is real (parity the
+///     follow rail's RF-5 under-fork (i)). Returning an empty page would say "nothing matches you",
+///     which is not what the arm means.</item>
+///   <item><b>Too broad</b> and <b>not materialised</b> — the unfiltered browse now reads the
+///     MATERIALISED set, so for these two it returns an EMPTY page, not a list. That is not "nothing
+///     found" either, and the surface must not render its empty state for it: the composed response's
+///     magnitude carries the same two states explicitly, and the page branches on those first.</item>
+/// </list>
+/// The <c>Matching</c> member is still what tells the surface which arm it is in.
 /// </para>
 ///
 /// <para>
@@ -82,9 +92,10 @@ public sealed class BrowseCriterionAdsQueryHandler(
             var resolved = await resolver.MatchingAsync(
                 query.CriterionId, criterion.Criteria, cancellationToken);
 
-            // Only the Resolved arm can honour the filter. NotAssessed and SetTooLarge fall through
-            // to the unfiltered browse below — see the class docblock for why that is not an empty
-            // page.
+            // Only the Resolved arm can honour the filter. The other three fall through to the
+            // unfiltered browse below — see the class docblock, which since #1681 part 2 distinguishes
+            // the arm where that yields a real list (not assessed) from the two where it yields an
+            // empty page the surface must explain rather than render as "nothing found".
             if (resolved is CriterionMatchingAds.Resolved matching)
             {
                 var ordinal = matching.Matching
@@ -108,11 +119,33 @@ public sealed class BrowseCriterionAdsQueryHandler(
         }
 
         var page = await browse.BrowseAdIdsAsync(
-            new CompanyBrowseCriteria(criterion.Criteria, query.Page, query.PageSize),
+            new CompanyWatchCriterionId(query.CriterionId),
+            CriteriaFingerprint.Of(criterion.Criteria),
+            query.Page,
+            query.PageSize,
             cancellationToken);
 
+        // #1681 part 2 — a criterion that is too broad, or not materialised for its CURRENT
+        // predicate, has no ad list to show. It returns an EMPTY page rather than null, and the
+        // distinction matters twice over.
+        //
+        // `null` here means 404 at the endpoint, and this criterion EXISTS — answering 404 would make
+        // the route an existence oracle in reverse, telling the owner their own watch is gone because
+        // a background job has not run yet.
+        //
+        // An empty page is not the same as "no ads matched", either, and the FE must not render its
+        // empty state for it. What keeps that honest is the COMPOSED response: this endpoint returns
+        // the page beside the magnitude, and the magnitude carries these same two states explicitly
+        // (`tooBroad` / `notMaterialised`). The surface branches on those BEFORE the empty state — the
+        // same shape the "bara matchande" arm already uses, where an inert filter yields a list plus a
+        // line explaining why.
+        if (page.State != CriterionMaterialisationState.Materialised)
+            return new PagedResult<JobAdDto>([], 0, query.Page, query.PageSize);
+
+        var resolvedPage = page.Page!;
         return await LoadPageAsync(
-            page.Items, page.TotalCount, page.Page, page.PageSize, cancellationToken);
+            resolvedPage.Items, resolvedPage.TotalCount, resolvedPage.Page, resolvedPage.PageSize,
+            cancellationToken);
     }
 
     /// <summary>

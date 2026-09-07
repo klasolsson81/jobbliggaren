@@ -5,6 +5,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.CompanyRegister;
@@ -299,6 +300,12 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
         var id = await CreateAsync(ct);
 
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
+
         var response = await _client.GetAsync($"{Endpoint}/{id}/ads?page=1&pageSize=2", ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -330,6 +337,12 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
         var id = await CreateAsync(ct);
 
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
+
         // #1656 (b) — /ad-count composes two questions now. `ads` is this assertion's; `matching`
         // has its own oracle in CriterionMatchingAdCountApiTests.
         var count = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ad-count", ct);
@@ -353,6 +366,12 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         await SeedAdsAsync(ct, ("5560000012", 5, JobAdStatus.Active));
 
         var id = await CreateAsync(ct);
+
+        // #1681 part 2 (ADR 0139) — the criterion's company set is resolved OUT of the request
+        // path, so the ad page and the magnitude below exist only after a materialisation run.
+        // Without it the endpoint honestly answers "inte räknad än" — the correct behaviour, and
+        // the one CompanyWatchBrowseQueryPlanTests pins; it is simply not what this test is about.
+        await MaterialiseAsync(ct);
 
         var body = await _client.GetFromJsonAsync<JsonElement>($"{Endpoint}/{id}/ads", ct);
         var published = body.GetProperty("ads").GetProperty("items").EnumerateArray()
@@ -467,6 +486,26 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// #1681 part 2 (ADR 0139) — runs the PRODUCTION materialisation job. The ad-side reads answer
+    /// from the member set it writes rather than from a live register join, so a criterion nobody has
+    /// materialised reports "not materialised": an empty page and an absent magnitude, never a zero
+    /// and never the old live number.
+    ///
+    /// <para>
+    /// The real <c>ICompanyWatchCriterionMaterialiser</c> out of the Api's own graph, never a
+    /// hand-written member row — the two derived tables have exactly one writer in <c>src/</c>, and
+    /// these assertions rest on what IT produces (CLAUDE.md §5 <c>Tests:</c>).
+    /// </para>
+    /// </summary>
+    private async Task MaterialiseAsync(CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var materialiser = scope.ServiceProvider
+            .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
+        await materialiser.MaterialiseAsync(ct);
     }
 
     /// <summary>Test clock — the house form in this project (parity the Applications suites).</summary>

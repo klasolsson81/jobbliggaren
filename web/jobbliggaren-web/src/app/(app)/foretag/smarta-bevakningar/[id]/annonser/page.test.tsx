@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../../messages/sv/pages.json";
 import svJobads from "../../../../../../../messages/sv/jobads.json";
@@ -87,12 +87,27 @@ function ad(id: string, title: string): JobAdDto {
   };
 }
 
+/**
+ * #1681 part 2 — the criterion's identity, composed onto the ad-browse response. Every fixture here
+ * carries it, because the page reads `criterion.label` unguarded: it is a required member of the
+ * response schema, not something the page defends against.
+ */
+const CRITERION = {
+  id: "c1",
+  sniCodes: ["62010"],
+  municipalityCodes: ["0180"],
+  label: "IT i Stockholm",
+};
+
 function okBrowse(items: JobAdDto[]) {
   return {
     kind: "ok" as const,
     data: {
+      criterion: CRITERION,
       ads: { items, page: 1, pageSize: 20, totalCount: items.length },
-      magnitude: { magnitude: items.length, saturated: false },
+      // #1681 part 2 — the magnitude now carries its two no-number flags on the wire, always
+      // present and false in the ordinary answerable case.
+      magnitude: { magnitude: items.length, saturated: false, tooBroad: false, notMaterialised: false },
       // #1656 (b) — `null` is "the caller did not ask for the matching view", which is every arm in
       // this class. The member is always PRESENT on the wire (the schema declares it nullable, never
       // optional), so the fixture carries it rather than leaving it undefined.
@@ -340,8 +355,9 @@ describe("BevakningAdsPage — the matching view", () => {
     browseCriterionAds.mockResolvedValue({
       kind: "ok" as const,
       data: {
+        criterion: CRITERION,
         ads: { items: [], page: 1, pageSize: 20, totalCount: 0 },
-        magnitude: { magnitude: 5, saturated: false },
+        magnitude: { magnitude: 5, saturated: false, tooBroad: false, notMaterialised: false },
         matching: { count: 0, tooBroad: false },
       },
     });
@@ -362,13 +378,14 @@ describe("BevakningAdsPage — the matching view", () => {
     browseCriterionAds.mockResolvedValue({
       kind: "ok" as const,
       data: {
+        criterion: CRITERION,
         ads: {
           items: [ad("a1", "Systemutvecklare")],
           page: 1,
           pageSize: 20,
           totalCount: 40,
         },
-        magnitude: { magnitude: 40, saturated: false },
+        magnitude: { magnitude: 40, saturated: false, tooBroad: false, notMaterialised: false },
         matching: { count: 40, tooBroad: false },
       },
     });
@@ -385,5 +402,209 @@ describe("BevakningAdsPage — the matching view", () => {
     expect(next!.getAttribute("href")).toBe(
       "/foretag/smarta-bevakningar/c1/annonser?page=2&visa=matchande",
     );
+  });
+});
+
+/**
+ * #1681 part 2 (ADR 0139) — the heading, and the read this page no longer makes.
+ *
+ * <para/> Parity the parent route: the title used to be resolved out of `GET
+ * /company-watch-criteria`, and part 2 made every row of that list carry a materialised ad count
+ * plus a per-user graded matching count. Fetching twenty criteria's graded counts to render one
+ * string is what the CTO ordered removed (2026-09-07); the criterion's identity now rides the ad
+ * browse this page already makes.
+ *
+ * <para/> The REMOVAL is what is pinned, because nothing else would notice it coming back: re-adding
+ * the call resolves the same title and leaves every other test green. So the spy for the function
+ * that must not be called is asserted directly, with the rendered heading as its positive twin — a
+ * "never called" alone would also pass on a page that renders no title at all.
+ */
+describe("BevakningAdsPage — the heading, and the list read that is gone", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getJobAdMatchTags.mockResolvedValue({ entries: {} });
+    getMyProfile.mockResolvedValue({ kind: "ok", data: { hasStatedDesiredOccupation: true } });
+    browseCriterionAds.mockResolvedValue(okBrowse([ad("a1", "Systemutvecklare")]));
+  });
+
+  it("heads the page from the composed criterion and never reads the criteria list", async () => {
+    await renderPage();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "IT i Stockholm" }),
+    ).toBeInTheDocument();
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+
+    // The control for that negative. A spy that records nothing would satisfy "not called" for the
+    // wrong reason, so the sibling read on the SAME module mock is asserted to have registered.
+    expect(browseCriterionAds).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the neutral title for an unnamed watch, still without the list read", async () => {
+    browseCriterionAds.mockResolvedValue({
+      ...okBrowse([ad("a1", "Systemutvecklare")]),
+      data: {
+        ...okBrowse([ad("a1", "Systemutvecklare")]).data,
+        criterion: { ...CRITERION, label: null },
+      },
+    });
+
+    await renderPage();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Bevakning" })).toBeInTheDocument();
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #1681 part 2 — the two states in which this page has no list to show, and the empty state it must
+ * NOT fall through to.
+ *
+ * <para/> When the criterion is too broad to materialise, or has not been materialised for its
+ * current predicate, the browse comes back with an empty page and a magnitude carrying no number
+ * (`BrowseCriterionAdsQueryHandler` returns an empty `PagedResult` in exactly those two arms). The
+ * defect this fixes is what the page then did with it: suppressing its OWN empty block was not
+ * enough, because `JobAdList` renders an unconditional one of its own — "Inga jobb hittades", with
+ * a body telling the reader to adjust filters and clear the search box, neither of which exists on
+ * this route (its only axis is `?visa=`). That made the false zero stronger AND gave advice that
+ * cannot be followed.
+ *
+ * <para/> So three things are pinned per state: the state's OWN sentence is rendered, no zero is
+ * claimed anywhere, and neither the route's ordinary empty state nor `JobAdList`'s reaches the page.
+ * Pagination is asserted absent too — with `totalCount: 0` it would also be absent from the
+ * fall-through, so the discriminating assertions are the two empty blocks, and this one guards the
+ * branch's other half rather than doing the work alone.
+ */
+describe("BevakningAdsPage — a watch with no answer has no list", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getJobAdMatchTags.mockResolvedValue({ entries: {} });
+    getMyProfile.mockResolvedValue({ kind: "ok", data: { hasStatedDesiredOccupation: true } });
+  });
+
+  /** The shape the handler returns in both unanswerable arms: an empty page, no number. */
+  function unanswerable(flag: "tooBroad" | "notMaterialised", matching: unknown) {
+    return {
+      kind: "ok" as const,
+      data: {
+        criterion: CRITERION,
+        ads: { items: [], page: 1, pageSize: 20, totalCount: 0 },
+        magnitude: {
+          magnitude: null,
+          saturated: false,
+          tooBroad: flag === "tooBroad",
+          notMaterialised: flag === "notMaterialised",
+        },
+        matching,
+      },
+    };
+  }
+
+  /** Neither empty state may reach the page, and no pagination with them. */
+  function expectNoListAndNoPagination() {
+    // The route's own empty state — "the watch has no ads" — which is a zero this page has just
+    // declined to claim.
+    expect(screen.queryByText("Inga aktiva annonser just nu.")).toBeNull();
+    // JobAdList's unconditional one, and the advice about controls this route does not have.
+    expect(screen.queryByText("Inga jobb hittades")).toBeNull();
+    expect(screen.queryByText(/Justera filtren eller töm sökrutan/)).toBeNull();
+    // No ad rows and no pager.
+    expect(screen.queryByRole("heading", { name: "Systemutvecklare" })).toBeNull();
+    expect(screen.queryByText(/^Sida \d+ av/)).toBeNull();
+  }
+
+  it("refuses the too-broad watch in the heading and explains it once below, with a way out", async () => {
+    browseCriterionAds.mockResolvedValue(
+      unanswerable("tooBroad", { count: null, tooBroad: true, notMaterialised: false }),
+    );
+
+    await renderPage();
+
+    // The h2 is a NOUN PHRASE, not an instruction: a screen reader navigating by heading should not
+    // be read a two-sentence explanation (WCAG 2.4.6). The explanation is the block below it.
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Bevakningen är för bred" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Bevakningen matchar fler företag än vi kan räkna annonser för, så det finns ingen lista att visa.",
+      ),
+    ).toBeInTheDocument();
+
+    // The two ways on: back to the watch, and to the place the watch can be narrowed. The back
+    // link appears TWICE by design — the route's standing back link at the top, and the primary
+    // action inside the block — so both are asserted rather than one being picked arbitrarily.
+    const back = screen.getAllByRole("link", { name: "Tillbaka till bevakningen" });
+    expect(back).toHaveLength(2);
+    for (const link of back) {
+      expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1");
+    }
+    expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
+      "href",
+      "/foretag/smarta-bevakningar",
+    );
+
+    // The consequence clause is gone with the list it described. "…så alla aktiva annonser visas
+    // här" was true while the inert-filter arm fell through to a register-backed browse; there is
+    // no list here now, so the sentence would contradict the page under it.
+    expect(screen.queryByText(/så alla aktiva annonser visas här/)).toBeNull();
+    expectNoListAndNoPagination();
+  });
+
+  it("says the numbers are not computed yet, and offers no advice that cannot work", async () => {
+    browseCriterionAds.mockResolvedValue(
+      unanswerable("notMaterialised", { count: null, tooBroad: false, notMaterialised: true }),
+    );
+
+    await renderPage();
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Annonserna är inte framräknade än" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Bevakningen är inte framräknad än, så det finns inga annonser att visa här.",
+      ),
+    ).toBeInTheDocument();
+
+    // Ignorance, not refusal: the way back is offered, the "narrow it" nudge is NOT — the watch is
+    // not too broad and narrowing it would not make the number arrive sooner.
+    expect(screen.getAllByRole("link", { name: "Tillbaka till bevakningen" })).toHaveLength(2);
+    expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+    expect(screen.queryByText(/för bred/)).toBeNull();
+
+    // #1681 — this sentence IS the block's body in the not-materialised state. It is written for
+    // THIS surface (a page opened to see a list) where adsNotMaterialised talks about figures, so it
+    // must be PRESENT here rather than absent (design-reviewer Minor B).
+    expect(
+      screen.getByText(/så det finns inga annonser att visa här/),
+    ).toBeInTheDocument();
+    expectNoListAndNoPagination();
+  });
+
+  it("renders the two unanswerable states as DIFFERENT sentences, never one shared non-answer", async () => {
+    // The distinction is the whole reason both flags exist: a refusal the user can act on against
+    // an ignorance that resolves itself. Collapsing them would send the not-materialised user off to
+    // narrow a watch that is not too broad.
+    browseCriterionAds.mockResolvedValue(
+      unanswerable("tooBroad", { count: null, tooBroad: true, notMaterialised: false }),
+    );
+    await renderPage();
+    const broadHeading = screen.getByRole("heading", { level: 2 }).textContent;
+
+    cleanup();
+
+    browseCriterionAds.mockResolvedValue(
+      unanswerable("notMaterialised", { count: null, tooBroad: false, notMaterialised: true }),
+    );
+    await renderPage();
+    const notYetHeading = screen.getByRole("heading", { level: 2 }).textContent;
+
+    expect(broadHeading).not.toBe(notYetHeading);
+    // And neither of them is a number — least of all a zero.
+    expect(broadHeading).not.toMatch(/\d/);
+    expect(notYetHeading).not.toMatch(/\d/);
   });
 });

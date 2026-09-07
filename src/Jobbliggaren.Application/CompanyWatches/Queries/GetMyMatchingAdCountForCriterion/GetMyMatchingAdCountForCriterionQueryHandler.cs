@@ -53,6 +53,7 @@ public sealed class GetMyMatchingAdCountForCriterionQueryHandler(
             CriterionMatchingAds.Resolved r => MyMatchingAdCountDto.Counted(r.Matching.Count),
             CriterionMatchingAds.NotAssessed => MyMatchingAdCountDto.NotAssessed,
             CriterionMatchingAds.SetTooLarge => MyMatchingAdCountDto.TooBroadToCount,
+            CriterionMatchingAds.NotMaterialised => MyMatchingAdCountDto.NotMaterialisedYet,
             _ => throw new InvalidOperationException(
                 $"Okänt CriterionMatchingAds-utfall: {resolved.GetType().Name}."),
         };

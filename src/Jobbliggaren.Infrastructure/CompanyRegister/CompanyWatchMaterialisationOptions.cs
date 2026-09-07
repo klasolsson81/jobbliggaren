@@ -90,4 +90,45 @@ public sealed class CompanyWatchMaterialisationOptions
     /// </summary>
     [Range(1, 10_000)]
     public int CriterionPageSize { get; set; } = 500;
+
+    /// <summary>
+    /// #1681 part 2 (security-auditor Major 2) — how old a materialisation may be before the READ
+    /// side stops believing it and answers "not known yet" instead.
+    ///
+    /// <para>
+    /// <b>Without this, a criterion that fails every run forever serves stale exact numbers with no
+    /// signal.</b> <c>CompanyWatchCriterionMaterialiser</c> catches per-criterion exceptions, logs and
+    /// continues, and a run counts as successful as long as at least one criterion succeeded — by
+    /// design, so one bad criterion cannot stop the batch. The consequence is that a permanently
+    /// failing criterion is invisible from the read side: its row keeps its old <c>Materialised</c>
+    /// state and its old member set, and the surface renders an exact number for a set nobody has
+    /// refreshed. security-auditor's part-1 condition Major 3 was *"a missing OR STALE materialisation
+    /// degrades honestly, never to a silent number"*; part 1 answered "missing" (no row →
+    /// <c>NotMaterialised</c>), and the read path is where "stale" is decided.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>It introduces no fifth state.</b> An over-age row degrades to the SAME
+    /// <c>NotMaterialised</c> arm the absent row and the mismatched fingerprint already use — three
+    /// triggers, one honest answer. The closed hierarchy is untouched.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>DERIVED from <see cref="CadenceCron"/>, not chosen.</b> At the default daily cadence a
+    /// single missed write is a transient failure that the next run repairs, so a bound of one day
+    /// would fire on ordinary noise. Three consecutive daily misses is not noise — it is a criterion
+    /// the job cannot process, and nothing about waiting longer will fix it. Hence 72 h = 3 cadence
+    /// periods. ⚠ <b>The two values are one decision:</b> if <see cref="CadenceCron"/> moves, this
+    /// must be re-derived against the new period, which is why they sit in the same options section
+    /// rather than one being a constant somewhere else. A cron cannot be turned into a period without
+    /// a parser, and this project takes no dependency on one for a bound a human sets deliberately.
+    /// </para>
+    ///
+    /// <para>
+    /// The bound is applied IN the SQL gate, beside the fingerprint comparison, so an over-age row
+    /// costs no ad scan at all — the same reason the fingerprint comparison is not done in C#.
+    /// </para>
+    /// </summary>
+    [Range(1, 8_760)]
+    public int MaxReadAgeHours { get; set; } = 72;
 }

@@ -25,11 +25,36 @@ namespace Jobbliggaren.Application.CompanyWatches.Abstractions;
 /// </para>
 ///
 /// <para>
-/// <b>Takes the Domain VO, not a criterion id.</b> The handler loads the user's
+/// <b>The COMPANY half takes the Domain VO, not a criterion id.</b> The handler loads the user's
 /// <c>CompanyWatchCriterion</c> (owner-scoped) and passes its <see cref="CompanyWatchCriteriaSpec"/>
-/// here. Binding the port to a persisted id would weld it to saved criteria and force a second port
-/// the day PR-3's picker wants a live "412 företag matchar" preview of an UNSAVED criterion — which
-/// this shape serves unchanged.
+/// here. Binding those methods to a persisted id would weld them to saved criteria and force a second
+/// port the day PR-3's picker wants a live "412 företag matchar" preview of an UNSAVED criterion —
+/// which this shape serves unchanged. <c>PreviewCriterionMatchMagnitudeQueryHandler</c> is that
+/// caller today, so this is a live requirement rather than a preserved option.
+/// </para>
+///
+/// <para>
+/// <b>The AD half takes a criterion id instead, and the port therefore carries TWO key types — which
+/// is correct, not a smell</b> (#1681 part 2, ADR 0139; senior-cto-advisor 2026-09-06). The two halves
+/// answer different questions. The company half asks <i>"what does this PREDICATE match, live"</i>,
+/// which is meaningful for an unsaved criterion. The ad half asks <i>"what did we MATERIALISE for this
+/// SAVED criterion"</i> — a question that has no answer at all for a predicate nobody saved, because
+/// the whole point of ADR 0139 is that the predicate is resolved to a company set OUT of the request
+/// path. A spec-keyed materialised read would have to resolve the predicate live (defeating the ADR)
+/// or invent one. So the key type is not a stylistic difference between neighbouring methods; it is
+/// what each method is about.
+/// </para>
+///
+/// <para>
+/// <b>Every ad-side method also takes a <see cref="CriteriaFingerprint"/>, and that is what makes the
+/// staleness guard unforgettable</b> (#1681 part 2). The question these methods answer is not "what
+/// did we materialise for criterion X" but "what did we materialise for criterion X <i>as it is
+/// now</i>" — because a user who edits a criterion's codes leaves a member set behind that is exact
+/// for a predicate they no longer have. Passing the predicate's fingerprint IN means a caller cannot
+/// ask the question without saying which predicate it is asking about; a mismatch answers
+/// <see cref="CriterionMaterialisationState.NotMaterialised"/>. Had the port looked the fingerprint up
+/// itself, the guard would have been a rule every future caller has to remember, which is the shape
+/// this port's own paging-bounds docblock rejects one paragraph below.
 /// </para>
 ///
 /// <para>
@@ -93,10 +118,19 @@ public interface ICompanyWatchBrowseQuery
     ValueTask<int> CountMatchingCompaniesAsync(
         CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
     /// <summary>
-    /// #1559 — the ACTIVE public job ads posted by the companies this criterion matches, newest
-    /// first, as their <c>job_ads</c> ids. The caller loads and projects the ads themselves through
-    /// <c>IAppDbContext</c> (which DOES carry <c>JobAds</c>); this port only answers the half that
-    /// needs the register.
+    /// #1559, re-keyed to the materialised member set by #1681 part 2 (ADR 0139) — the ACTIVE public
+    /// job ads posted by the companies this criterion matches, newest first, as their <c>job_ads</c>
+    /// ids. The caller loads and projects the ads themselves through <c>IAppDbContext</c> (which DOES
+    /// carry <c>JobAds</c>); this port only answers the half that needs the materialised set.
+    ///
+    /// <para>
+    /// <b>It reads <c>members ⋈ job_ads</c>, never the register</b> (ADR 0139). The criterion's company
+    /// set was resolved out of the request path by the materialisation job, so what is left here is a
+    /// bounded index join against a pre-computed set. The register scan is GONE from this path and that
+    /// is measured rather than asserted: the plan carries no <c>company_register</c> node at all
+    /// (<c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>, Result 3, and pinned by
+    /// <c>CompanyWatchBrowseQueryPlanTests</c>).
+    /// </para>
     ///
     /// <para>
     /// <b>Ids, not ad rows — and that is the firewall doing its job.</b> Projecting the ad columns
@@ -119,37 +153,39 @@ public interface ICompanyWatchBrowseQuery
     /// honest headline number is <see cref="CountActiveAdsAsync"/>, with its own ceiling.
     /// </para>
     /// </summary>
-    ValueTask<PagedResult<JobAdId>> BrowseAdIdsAsync(
-        CompanyBrowseCriteria criteria, CancellationToken cancellationToken);
+    ValueTask<MaterialisedAdPage> BrowseAdIdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint,
+        int page, int pageSize, CancellationToken cancellationToken);
 
     /// <summary>
-    /// #1559 — the MAGNITUDE of the criterion's ACTIVE ad set: "how many active ads do the companies
-    /// this criterion matches have right now", capped at <paramref name="ceiling"/>. Returns
-    /// <c>min(true count, ceiling)</c>; a return value equal to <paramref name="ceiling"/> means
-    /// SATURATED and the copy must say so, never the bare number (#859).
+    /// #1559, re-keyed by #1681 part 2 — the MAGNITUDE of the criterion's ACTIVE ad set: "how many
+    /// active ads do the companies this criterion matches have right now", capped at
+    /// <paramref name="ceiling"/>. A <see cref="MaterialisedAdCount.Count"/> equal to
+    /// <paramref name="ceiling"/> means SATURATED and the copy must say so, never the bare number
+    /// (#859).
     ///
     /// <para>
-    /// <b>A THIRD question on this port, and it earns its place the same way the second did</b>
-    /// (CTO Fork G3): it shares the register half of the predicate with the other two, so co-locating
-    /// it is the drift defense. It does NOT share their ceiling — the company magnitude's ceiling is a
-    /// product answer to "how many COMPANIES", and binding the ad question to it would make one
-    /// constant carry two meanings.
+    /// <b>The ceiling still earns its place after materialisation, and that was measured rather than
+    /// assumed.</b> The breadth gate bounds COMPANIES, not ads, so a bound-legal criterion can still
+    /// carry several times this ceiling in active ads and saturation stays a reachable state rather
+    /// than dead copy. The measured figure lives in ONE place —
+    /// <see cref="GetCriterionAdMagnitude.CriterionAdMagnitudeDto.Ceiling"/>, the constant it is
+    /// evidence for — because a measured number with two homes drifts at the next re-measurement.
     /// </para>
     ///
     /// <para>
-    /// Takes the Domain VO for the same reason the others do. Unlike them it also joins
-    /// <c>job_ads</c> — the one place in this port where the register meets another table, and the
-    /// reason it can only live in Infrastructure: <c>company_register</c> is not a <c>DbSet</c> on
-    /// <c>IAppDbContext</c> (DPIA C-D4), so no Application handler can express this join at all.
+    /// It does NOT share the company magnitude's ceiling — that one is a product answer to "how many
+    /// COMPANIES", and binding the ad question to it would make one constant carry two meanings.
     /// </para>
     /// </summary>
-    ValueTask<int> CountActiveAdsAsync(
-        CompanyWatchCriteriaSpec criteria, int ceiling, CancellationToken cancellationToken);
+    ValueTask<MaterialisedAdCount> CountActiveAdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint, int ceiling,
+        CancellationToken cancellationToken);
 
     /// <summary>
-    /// #1656 (b) — the criterion's ACTIVE ad ids as a WHOLE ORDERED SET (same order as
-    /// <see cref="BrowseAdIdsAsync"/>, same predicate), or <c>null</c> when that set is larger than
-    /// <paramref name="maxSetSize"/>.
+    /// #1656 (b), re-keyed by #1681 part 2 — the criterion's ACTIVE ad ids as a WHOLE ORDERED SET
+    /// (same order as <see cref="BrowseAdIdsAsync"/>, same materialised set), or a REFUSAL when that
+    /// set is larger than <paramref name="maxSetSize"/>.
     ///
     /// <para>
     /// <b>It REFUSES; it never truncates, and that distinction is the whole method</b>
@@ -163,15 +199,15 @@ public interface ICompanyWatchBrowseQuery
     ///
     /// <para>
     /// So the refusal is structural rather than policed: the statement selects
-    /// <c>LIMIT maxSetSize + 1</c> and returns <c>null</c> the moment the extra row exists. <b>No code
-    /// path can return a prefix</b>, which is what makes the hazard unrepresentable instead of a rule
-    /// somebody has to remember. <c>null</c> means "too broad to answer", NEVER "nothing matched" —
-    /// an empty set is an empty list.
+    /// <c>LIMIT maxSetSize + 1</c> and refuses the moment the extra row exists. <b>No code path can
+    /// return a prefix</b>, which is what makes the hazard unrepresentable instead of a rule somebody
+    /// has to remember. A refusal means "too broad to answer", NEVER "nothing matched" — an empty set
+    /// is an empty list, and the two are different members of
+    /// <see cref="MaterialisedAdIds"/>.
     /// </para>
     ///
     /// <para>
-    /// Ids and nothing else, for the reason <see cref="BrowseAdIdsAsync"/> gives: the join is the only
-    /// half that needs the register, so the join is the only thing this method does. No org.nr crosses
+    /// Ids and nothing else, for the reason <see cref="BrowseAdIdsAsync"/> gives. No org.nr crosses
     /// the Application boundary on this path (ADR 0087 D8(c) has nothing to mask — an ad id is an
     /// opaque Guid over public Platsbanken data).
     /// </para>
@@ -182,8 +218,9 @@ public interface ICompanyWatchBrowseQuery
     /// all — a count over one page is about the page, not the watch (ADR 0120).
     /// </para>
     /// </summary>
-    ValueTask<IReadOnlyList<JobAdId>?> ListActiveAdIdsAsync(
-        CompanyWatchCriteriaSpec criteria, int maxSetSize, CancellationToken cancellationToken);
+    ValueTask<MaterialisedAdIds> ListActiveAdIdsAsync(
+        CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint, int maxSetSize,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -299,4 +336,150 @@ public sealed record CompanyBrowseResult(
     /// for debugging.
     /// </summary>
     public override string ToString() => $"CompanyBrowseResult({Name}, org.nr redacted)";
+}
+
+/// <summary>
+/// #1681 part 2 (ADR 0139) — what a materialised read found out about the criterion itself, BEFORE
+/// any number is computed. Three states, and the read side must not collapse any two of them.
+///
+/// <para>
+/// <b>This mirrors the three facts part 1 made representable</b>
+/// (<c>CompanyWatchCriterionMaterialisation</c>'s docblock owns the argument and it is not restated
+/// here): a criterion with no state row has never been materialised, a
+/// <c>TooBroad</c> one was refused by the breadth gate, and a <c>Materialised</c> one has a real
+/// answer — including a real ZERO. What this enum adds is that the distinction now crosses the
+/// Application boundary, because a surface that cannot tell ignorance from refusal from zero will
+/// render one of them as the other.
+/// </para>
+///
+/// <para>
+/// <b>There is deliberately no fourth member for "refused because the AD set was too large".</b> That
+/// refusal is not a property of the criterion's materialisation — it belongs to the individual
+/// question's own bound (<c>ListActiveAdIdsAsync</c>'s <c>maxSetSize</c>) and is carried by
+/// <see cref="MaterialisedAdIds.Refused"/>. Folding the two into one symbol would make a criterion
+/// that WAS materialised indistinguishable from one that was not.
+/// </para>
+/// </summary>
+public enum CriterionMaterialisationState
+{
+    /// <summary>The company set fitted under the breadth gate and was written in full. The only state
+    /// in which a number — zero included — may be rendered.</summary>
+    Materialised = 0,
+
+    /// <summary>The company set exceeded the breadth gate, so nothing was materialised and no number
+    /// exists. The surfaces render "för bred". Never a zero.</summary>
+    TooBroad = 1,
+
+    /// <summary>
+    /// No materialisation has run for this criterion yet, so the answer is UNKNOWN. Never a zero, and
+    /// never "för bred" either — the two say different things and offer the user different actions.
+    ///
+    /// <para>
+    /// <b>This is the common state, not an exotic one</b>: it is where every criterion sits between
+    /// its creation and the next materialisation run.
+    /// </para>
+    /// </summary>
+    NotMaterialised = 2,
+}
+
+/// <summary>
+/// #1681 part 2 — the criterion's ACTIVE ad magnitude, or the reason there is no number.
+/// <see cref="Count"/> is non-null exactly when <see cref="State"/> is
+/// <see cref="CriterionMaterialisationState.Materialised"/>; the constructor rejects every other
+/// combination rather than leaving it to reviewers, the same way <c>MyMatchingAdCountDto</c> does.
+/// </summary>
+public sealed record MaterialisedAdCount(
+    CriterionMaterialisationState State, int? Count, bool Saturated)
+{
+    public int? Count { get; } =
+        (State == CriterionMaterialisationState.Materialised) == (Count is not null)
+            ? Count
+            : throw new ArgumentException(
+                "Ett tal finns exakt när materialiseringen är gjord: ett tal utan Materialised vore "
+                + "en siffra vi inte har täckning för, och Materialised utan tal vore en mätning vi "
+                + "kastade bort.",
+                nameof(Count));
+
+    /// <summary>A real magnitude; <c>0</c> is a real answer.</summary>
+    public static MaterialisedAdCount Counted(int count, bool saturated) =>
+        new(CriterionMaterialisationState.Materialised, count, saturated);
+
+    /// <summary>Refused by the breadth gate — "för bred", never a zero.</summary>
+    public static MaterialisedAdCount TooBroad { get; } =
+        new(CriterionMaterialisationState.TooBroad, null, false);
+
+    /// <summary>Not materialised yet — unknown, and that is not a zero either.</summary>
+    public static MaterialisedAdCount NotMaterialised { get; } =
+        new(CriterionMaterialisationState.NotMaterialised, null, false);
+}
+
+/// <summary>
+/// #1681 part 2 — the criterion's whole ordered ACTIVE ad-id set, or the reason there is none.
+///
+/// <para>
+/// <b><see cref="Refused"/> and a <see cref="State"/> of
+/// <see cref="CriterionMaterialisationState.TooBroad"/> are two different facts that happen to render
+/// the same sentence.</b> The first says the criterion's AD set is larger than this question's bound;
+/// the second says the criterion's COMPANY set was too large to materialise at all. Both are "för
+/// bred" to a user, and keeping them apart here is what stops the read side inferring one from the
+/// other — an empty <see cref="Ids"/> under <c>Materialised</c> is neither: it is an honest zero.
+/// </para>
+/// </summary>
+public sealed record MaterialisedAdIds(
+    CriterionMaterialisationState State, IReadOnlyList<JobAdId>? Ids, bool Refused)
+{
+    public IReadOnlyList<JobAdId>? Ids { get; } =
+        (State == CriterionMaterialisationState.Materialised && !Refused) == (Ids is not null)
+            ? Ids
+            : throw new ArgumentException(
+                "En id-mängd finns exakt när materialiseringen är gjord OCH mängden ryms: ett "
+                + "prefix av en vägrad mängd är ett golv utgivet för en exakt siffra.",
+                nameof(Ids));
+
+    /// <summary>The whole set, in the port's published order. An empty list is a real answer.</summary>
+    public static MaterialisedAdIds Resolved(IReadOnlyList<JobAdId> ids) =>
+        new(CriterionMaterialisationState.Materialised, ids, Refused: false);
+
+    /// <summary>The set exceeded this question's own bound — refused, never truncated.</summary>
+    public static MaterialisedAdIds TooManyAds { get; } =
+        new(CriterionMaterialisationState.Materialised, null, Refused: true);
+
+    /// <summary>The criterion was refused by the breadth gate; there is no member set to read.</summary>
+    public static MaterialisedAdIds TooBroad { get; } =
+        new(CriterionMaterialisationState.TooBroad, null, Refused: false);
+
+    /// <summary>Not materialised yet — unknown.</summary>
+    public static MaterialisedAdIds NotMaterialised { get; } =
+        new(CriterionMaterialisationState.NotMaterialised, null, Refused: false);
+}
+
+/// <summary>
+/// #1681 part 2 — one page of the criterion's ordered ACTIVE ad ids, or the reason there is no page.
+/// <see cref="Page"/> is non-null exactly under
+/// <see cref="CriterionMaterialisationState.Materialised"/>.
+///
+/// <para>
+/// An EMPTY page under <c>Materialised</c> means the criterion matches no active ad right now, which
+/// is a real answer and renders as the ordinary empty state. The other two states must NOT render
+/// that empty state: "we have not counted this yet" and "this watch is too broad" are not "nothing
+/// found", and showing an empty ad list for either is the false zero one level up from the count.
+/// </para>
+/// </summary>
+public sealed record MaterialisedAdPage(
+    CriterionMaterialisationState State, PagedResult<JobAdId>? Page)
+{
+    public PagedResult<JobAdId>? Page { get; } =
+        (State == CriterionMaterialisationState.Materialised) == (Page is not null)
+            ? Page
+            : throw new ArgumentException(
+                "En sida finns exakt när materialiseringen är gjord.", nameof(Page));
+
+    public static MaterialisedAdPage Resolved(PagedResult<JobAdId> page) =>
+        new(CriterionMaterialisationState.Materialised, page);
+
+    public static MaterialisedAdPage TooBroad { get; } =
+        new(CriterionMaterialisationState.TooBroad, null);
+
+    public static MaterialisedAdPage NotMaterialised { get; } =
+        new(CriterionMaterialisationState.NotMaterialised, null);
 }

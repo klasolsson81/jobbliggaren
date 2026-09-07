@@ -5,7 +5,6 @@ import { ArrowLeft, Info } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import {
   browseCriterionAds,
-  getCompanyWatchCriteria,
   getCriterionReference,
 } from "@/lib/api/company-criteria";
 import { getMyProfile } from "@/lib/api/me";
@@ -107,9 +106,10 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
   // rather than failing the page — parity with the parent route.
-  const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
+  // #1681 part 2 — the criteria LIST read is gone from this page too, for the reason the detail
+  // page records: it was only ever the heading's source, and part 2 made that list expensive.
+  const [adsResult, referenceResult, profileResult] = await Promise.all([
     browseCriterionAds(id, page, onlyMatching),
-    getCompanyWatchCriteria(),
     getCriterionReference(),
     getMyProfile(),
   ]);
@@ -142,7 +142,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
       );
   }
 
-  const { ads, magnitude, matching } = adsResult.data;
+  const { ads, magnitude, matching, criterion } = adsResult.data;
 
   // The count when the filter was HONOURED, as opposed to merely requested — and null otherwise, so
   // one narrowing carries both facts. The filter is inert for a caller who has stated no occupation
@@ -175,20 +175,25 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
     Object.entries(matchTags.entries).map(([adId, entry]) => [adId, entry.grade] as const),
   );
 
-  const criterion =
-    criteriaResult.kind === "ok"
-      ? criteriaResult.data.find((c) => c.id === id)
-      : undefined;
-  const userLabel = criterion?.label?.trim() ?? "";
-  const derived = criterion
-    ? deriveDisplayLabel(criterion.sniCodes, criterion.municipalityCodes, reference, {
-        moreSuffix: t("moreSuffix"),
-        separator: " · ",
-      })
-    : null;
+  const userLabel = criterion.label?.trim() ?? "";
+  const derived = deriveDisplayLabel(
+    criterion.sniCodes, criterion.municipalityCodes, reference, {
+      moreSuffix: t("moreSuffix"),
+      separator: " · ",
+    });
   const title = userLabel.length > 0 ? userLabel : (derived ?? t("row.untitled"));
 
-  const magnitudeText = formatMagnitude(format, magnitude);
+  // #1681 part 2 (ADR 0139) — the magnitude may have no number at all now: the criterion can be too
+  // broad to materialise, or not yet materialised for its current predicate. `formatMagnitude` takes
+  // a counted magnitude, so it is only reached in the arm that has one.
+  const magnitudeUnanswerable = magnitude.tooBroad || magnitude.notMaterialised;
+  // Narrowed on `magnitude.magnitude` itself rather than on the derived flag, so the type system
+  // carries the guarantee instead of a `!` asserting it. The two are equivalent today by the DTO's
+  // own constructor; an assertion would be a claim the compiler cannot check.
+  const magnitudeText =
+    magnitude.magnitude === null
+      ? null
+      : formatMagnitude(format, { magnitude: magnitude.magnitude, saturated: magnitude.saturated });
 
   return (
     <>
@@ -210,15 +215,41 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         {/* The filtered headline reads the PERSONAL count, never `ads.totalCount` — that one is a
             pagination quantity by contract even here, where it happens to equal the set (ADR 0120
             clause 4). The unfiltered headline is unchanged. */}
-        <h2 className="text-h2 text-text-primary tabular-nums">
+        <h2 className={`text-h2 text-text-primary${magnitudeUnanswerable ? "" : " tabular-nums"}`}>
           {matchingCount !== null
             ? t("ads.matchingHeadline", { count: matchingCount })
-            : t("ads.magnitudeHeadline", { count: magnitudeText })}
+            : magnitudeUnanswerable
+              ? // A headline is owed even when there is no number: rendering "0 aktiva annonser"
+                // for a watch nobody counted is the dishonest zero, and rendering nothing would
+                // leave the page without its subject. It is a NOUN PHRASE because an h2 is a heading
+                // tier and a screen reader navigating by heading should not be read a two-sentence
+                // instruction (design-reviewer, WCAG 2.4.6). The explanation lives in the block
+                // below — NOT the next line: the säteskommun note sits between them (measured in the
+                // rendered verification, 2026-09-07), which is a pre-existing layout order this
+                // delta does not change.
+                magnitude.tooBroad
+                ? t("ads.adsTooBroadHeadline")
+                : t("ads.adsNotMaterialisedHeadline")
+              : magnitudeText === null
+                ? // Unreachable today — the DTO's constructor makes a null magnitude imply one of the
+                  // two flags above. But `?? ""` would render "  aktiva annonser", a magnitude-shaped
+                  // sentence with a blank where the number goes, which is the form ADR 0120 / #859
+                  // forbid outright: true or absent, never blank. Removing the `!` was right; trading
+                  // a loud impossibility for a silent misrender was not (design-reviewer Minor D).
+                  t("ads.adsNotMaterialisedHeadline")
+                : t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
             and the actionable next step is to narrow it. Not role="alert" — nothing failed. */}
-        {matching?.tooBroad && (
+        {/* ⚠ Gated on `!magnitudeUnanswerable`, and that gate is the fix for a sentence THIS PR
+            falsified. "…så alla aktiva annonser visas här" was true while the inert-filter arm fell
+            through to a register-backed browse. Commit 7e208ae5 moved that browse to the
+            materialised source, so in both unanswerable states the list is now EMPTY and the clause
+            asserted something the page below it contradicts. The explanation for those states is the
+            headline plus the line beneath it, not a consequence clause about a list that is not
+            there. */}
+        {matching?.tooBroad && !magnitudeUnanswerable && (
           <p className="jp-matchline">
             {t("ads.matchingTooBroadOnList")}{" "}
             <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
@@ -227,7 +258,26 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </p>
         )}
 
-        {matching !== null && matching.count === null && !matching.tooBroad && (
+        {/* The `matching.notMaterialised` line is DELETED rather than re-worded (code-reviewer
+            2026-09-07). Once gated on `!magnitudeUnanswerable` the only state that reaches it is a
+            row crossing the read-age bound BETWEEN the magnitude call and the id-set call in one
+            request — and there a real list renders, so the sentence "det finns inga annonser att
+            visa här" would be false at the moment it appeared. The state is explained where it is
+            true: the empty block below, whose body is this same string. Adding copy for a branch
+            whose own premise is false is how a surface acquires a sentence nobody can trust. */}
+        {/* ⚠ The SAME gate as its two siblings, and it was missing until rendered verification found
+            it (2026-09-07). "…så alla aktiva annonser visas här" is false whenever the magnitude is
+            unanswerable, and this combination is PRODUCIBLE rather than theoretical:
+            `CriterionMatchingAdSetResolver.ResolveAsync` returns `NotAssessed` BEFORE it consults the
+            magnitude, so an unassessable caller legitimately arrives beside a too-broad or
+            not-materialised watch — and the page then showed "for bred" in the heading and "all
+            active ads are shown here" beneath it, over an empty list. Two of the three branches were
+            gated in this PR; this was the third. */}
+        {matching !== null &&
+          matching.count === null &&
+          !matching.tooBroad &&
+          !matching.notMaterialised &&
+          !magnitudeUnanswerable && (
           <p className="jp-matchline">
             {t("ads.matchingNotAssessedOnList")}{" "}
             <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
@@ -259,7 +309,40 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           />
         </p>
 
-        {ads.items.length === 0 ? (
+        {/* ⚠ THREE branches, and the first one exists because suppressing this page's own empty state
+            was not enough. `JobAdList` renders its OWN unconditional empty block
+            (`job-ad-list.tsx`) with `jobads.ui.list.emptyTitle` = "Inga jobb hittades" and a body
+            telling the reader to adjust filters and clear the search box — controls this route does
+            not have (its only axis is `?visa=`). Falling through to it made the false zero STRONGER,
+            not weaker, and gave advice that cannot be followed. So the unanswerable states render no
+            list and no pagination at all: the headline says what is not known, this block says why,
+            and the primary way back is kept (design-reviewer Blocker 1 + Minor 3). */}
+        {magnitudeUnanswerable ? (
+          <div className="jp-empty mt-6">
+            {/* `matchingNotMaterialisedOnList` is written for THIS surface — a page opened to see a
+                LIST — where `adsNotMaterialised` talks about figures. Using the figures sentence here
+                left the right sentence written and never rendered (design-reviewer Minor B). */}
+            <p className="jp-empty__body text-body-sm text-text-primary">
+              {magnitude.tooBroad
+                ? t("ads.tooBroadNoList")
+                : t("ads.matchingNotMaterialisedOnList")}
+            </p>
+            {/* `jp-btn--ghost`, not `jp-nudgelink`: `.jp-empty__actions` sets no `align-items`, so a
+                blockified text link stretches to the 44px sibling button's height with its text at
+                the top. Every other `jp-empty__actions` in the tree carries `jp-btn` variants only,
+                and ghost is the house's secondary in that row (design-reviewer Minor A). */}
+            <div className="jp-empty__actions">
+              <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
+                {t("ads.backLink")}
+              </Link>
+              {magnitude.tooBroad && (
+                <Link className="jp-btn jp-btn--ghost" href="/foretag/smarta-bevakningar">
+                  {t("ads.matchingTooBroadCta")}
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
             <div className="jp-empty__title">
               {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}

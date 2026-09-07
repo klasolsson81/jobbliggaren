@@ -334,6 +334,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", "60");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", "10000");
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", "60");
+        // #1681 del 2: GET /me/company-watch-criteria lämnade MeListRead och har en egen, medvetet
+        // SNÄV budget (5 burst / 3 per minut uthålligt — se RateLimitingOptions.CompanyWatchCriteriaList).
+        // Den är UserId-partitionerad, men flera tester i CompanyWatchCriteriaEndpointsTests träffar
+        // rutten mer än fem gånger med SAMMA användare, så utan höjningen 429:ar sviten på sin egen
+        // rate limit i stället för att mäta endpointen. Höjningen görs HÄR och inte genom att välja ett
+        // rundare produktionstal: talet är härlett, och ett test får inte forma det.
+        Environment.SetEnvironmentVariable(
+            "RateLimiting__CompanyWatchCriteriaList__PermitLimit", "10000");
+        Environment.SetEnvironmentVariable(
+            "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", "60");
         // #483 — HealthCheck is IP-partitioned FixedWindow like the anonymous policies above; the
         // shared [Collection("Api")] motions /api/ready (HealthCheckEndpointsTests + AdminRole*
         // readiness probes) through the same 127.0.0.1 bucket, so raise it too — else a future test
@@ -398,6 +408,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__JobAdMatchBatch__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeWrite__WindowSeconds", null);
+        Environment.SetEnvironmentVariable(
+            "RateLimiting__CompanyWatchCriteriaList__PermitLimit", null);
+        Environment.SetEnvironmentVariable(
+            "RateLimiting__CompanyWatchCriteriaList__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
 

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
+using Jobbliggaren.Application.CompanyWatches.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Infrastructure.CompanyRegister;
@@ -631,14 +632,104 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         using var scope = _fixture.Services.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>();
 
+        // #1681 part 2 — the fingerprint is the criterion's OWN, computed the way the production
+        // caller computes it (CriteriaFingerprint.Of on the aggregate's Criteria); nothing about this
+        // test turns on its value, only on the guard it sits beside.
+        var fingerprint = CriteriaFingerprint.Of(
+            CompanyWatchCriteriaSpec.Create([SniIt], [KommunStockholm]).Value);
+
         await Should.ThrowAsync<InvalidOperationException>(async () =>
             await store.ReplaceAsync(
                 criterionId.Value, ["5560000001"], MaterialisationState.TooBroad, 0,
-                DateTimeOffset.UtcNow, ct));
+                DateTimeOffset.UtcNow, fingerprint, ct));
 
         await store.ReplaceAsync(
-            criterionId.Value, [], MaterialisationState.TooBroad, 0, DateTimeOffset.UtcNow, ct);
+            criterionId.Value, [], MaterialisationState.TooBroad, 0, DateTimeOffset.UtcNow,
+            fingerprint, ct);
         (await ReadStateAsync(criterionId, ct))!.Parsed.ShouldBe(MaterialisationState.TooBroad);
+    }
+
+    [Fact]
+    public async Task Materialise_StampsThePredicatesFingerprint_OnTheMaterialisedPath()
+    {
+        // #1681 part 2 (ADR 0139) — the staleness guard's discriminator, asserted where it is
+        // WRITTEN. The read side compares this stored value against the digest of the criterion's
+        // current predicate, so a run that omitted the stamp, or stamped a constant, would make every
+        // read report "not materialised" for a criterion that WAS materialised — and every other test
+        // in this file would stay green, because none of them selects the column.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active));
+
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        await RunAsync(ct);
+
+        var expected = CriteriaFingerprint.Of(
+            CompanyWatchCriteriaSpec.Create([SniIt], [KommunStockholm]).Value);
+        (await ReadStateAsync(criterionId, ct))!.CriteriaFingerprint.ShouldBe(expected.Value);
+    }
+
+    [Fact]
+    public async Task Materialise_StampsThePredicatesFingerprint_OnTheTooBroadPathToo()
+    {
+        // The path a refusal takes, and the reason the store writes the column on EVERY branch: a
+        // refusal is about a PREDICATE, and it has to stop applying the moment that predicate
+        // changes. Without the stamp here, a user who narrows a too-broad watch keeps being told it
+        // is too broad until the next nightly run — the refusal would outlive the predicate that
+        // earned it.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterRangeAsync(
+            CompanyWatchCriterionMember.MaxPerCriterion + 1, KommunStockholm, SniIt, ct);
+
+        var criterionId = await SeedCriterionAsync(Guid.NewGuid(), [SniIt], [KommunStockholm], ct);
+
+        await RunAsync(ct);
+
+        var state = await ReadStateAsync(criterionId, ct);
+        state!.Parsed.ShouldBe(MaterialisationState.TooBroad);
+
+        var expected = CriteriaFingerprint.Of(
+            CompanyWatchCriteriaSpec.Create([SniIt], [KommunStockholm]).Value);
+        state.CriteriaFingerprint.ShouldBe(expected.Value,
+            "en vägran gäller ett PREDIKAT — utan stämpeln kan den aldrig upphöra att gälla när "
+            + "predikatet ändras");
+    }
+
+    [Fact]
+    public async Task Materialise_RestampsTheFingerprint_WhenThePredicateChanges()
+    {
+        // The DO UPDATE branch for criteria_fingerprint. Drop the column from the conflict list and
+        // the stamp becomes STICKY: an edited criterion would be re-materialised correctly and then
+        // read as stale forever, because the row still names the predicate it was first written for.
+        // The single-run tests above only ever exercise the INSERT arm.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+
+        await SeedRegisterAsync(ct,
+            ("5560000001", KommunStockholm, [SniIt], CompanyRegisterStatus.Active),
+            ("5560000003", KommunGoteborg, [SniIt], CompanyRegisterStatus.Active));
+
+        var criterionId = await SeedCriterionAsync(
+            Guid.NewGuid(), [SniIt], [KommunStockholm, KommunGoteborg], ct);
+
+        await RunAsync(ct);
+        var before = (await ReadStateAsync(criterionId, ct))!.CriteriaFingerprint;
+
+        // The aggregate's own transition — the production edit path.
+        await NarrowCriterionAsync(criterionId, [SniIt], [KommunStockholm], ct);
+        await RunAsync(ct);
+
+        var after = (await ReadStateAsync(criterionId, ct))!.CriteriaFingerprint;
+
+        after.ShouldNotBe(before);
+        after.ShouldBe(
+            CriteriaFingerprint.Of(
+                CompanyWatchCriteriaSpec.Create([SniIt], [KommunStockholm]).Value).Value);
     }
 
     // ----- helpers -------------------------------------------------------------------------------
@@ -812,7 +903,8 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
         var rows = await db.Database
             .SqlQueryRaw<StateRow>(
                 """
-                SELECT state, member_count, excluded_personnummer_shaped, materialised_at
+                SELECT state, member_count, excluded_personnummer_shaped, materialised_at,
+                       criteria_fingerprint
                 FROM company_watch_criterion_materialisations
                 WHERE criterion_id = {0};
                 """,
@@ -839,7 +931,11 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
     // types too, so `State` binds to `state` and `MemberCount` to `member_count` by convention. An
     // alias would have to fight that rather than help it.
     private sealed record StateRow(
-        string State, int MemberCount, int ExcludedPersonnummerShaped, DateTimeOffset MaterialisedAt)
+        string State,
+        int MemberCount,
+        int ExcludedPersonnummerShaped,
+        DateTimeOffset MaterialisedAt,
+        string CriteriaFingerprint)
     {
         public MaterialisationState Parsed => Enum.Parse<MaterialisationState>(State);
     }

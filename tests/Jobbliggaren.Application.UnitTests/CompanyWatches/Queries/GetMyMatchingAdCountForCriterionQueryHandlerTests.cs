@@ -22,23 +22,32 @@ namespace Jobbliggaren.Application.UnitTests.CompanyWatches.Queries;
 /// ones production runs.
 ///
 /// <para>
-/// What is pinned is the THREE-ANSWER gate and the ORDER of its three guards. All three answers are
-/// rendered by the same line of the UI, and two of them carry no number, so a collapse into "0"
-/// would be invisible to every other test: a zero says "nothing matches you" where the truth is
-/// "nothing was measured".
+/// What is pinned is the ANSWER gate and the ORDER of its guards — FOUR answers since #1681 part 2,
+/// which added "not materialised for the current predicate". Every one of them is rendered by the
+/// same line of the UI and three of them carry no number, so a collapse into "0" would be invisible
+/// to every other test: a zero says "nothing matches you" where the truth is "nothing was measured".
 /// </para>
 ///
 /// <para>
 /// The guard ORDER is asserted with <c>DidNotReceive</c>, not with outcomes — the outcomes are
 /// identical either way, so nothing else can see it. That includes the CROSSED arm (no occupation
-/// AND an oversized watch), which is the only place the two no-number answers can be told apart.
+/// AND an oversized watch), which is the only place two no-number answers can be told apart.
 /// </para>
 ///
 /// <para>
 /// InMemory is enough for the criterion read: the register is not on <c>IAppDbContext</c> (DPIA
 /// C-D4), so this handler reads only the user's own criterion and both joins answer through faked
 /// ports. The real SQL and the real grade are proven against Postgres in
-/// <c>CompanyWatchBrowseQueryPlanTests</c> and <c>CriterionMatchingAdCountApiTests</c>.
+/// <c>CompanyWatchBrowseQueryPlanTests</c> (the plans),
+/// <c>CompanyWatchMaterialisedAdReadTests</c> (the rows, the four states and the staleness guard)
+/// and <c>CriterionMatchingAdCountApiTests</c>.
+/// </para>
+///
+/// <para>
+/// <b>Every stubbed port answer is one <c>CompanyWatchBrowseQuery</c> emits.</b> <c>MagnitudeIs</c>
+/// derives <c>Saturated</c> the way the adapter does (<c>count &gt;= cap</c>, and the cap on this
+/// path is <c>CriterionAdMagnitudeDto.Ceiling</c>), so no test here rests on a count/flag pairing
+/// production cannot produce (CLAUDE.md §5 <c>Tests:</c>).
 /// </para>
 /// </summary>
 public class GetMyMatchingAdCountForCriterionQueryHandlerTests
@@ -67,8 +76,10 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
 
     private void MagnitudeIs(int count) =>
         _browse.CountActiveAdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(count);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdCount.Counted(
+                count, saturated: count >= CriterionAdMagnitudeDto.Ceiling));
 
     [Fact]
     public async Task Handle_AssessableProfile_CountsTheMatchingSubsetOfTheCriterionsAds()
@@ -85,8 +96,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(AssessableProfile());
         MagnitudeIs(3);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([a1, a2, a3]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([a1, a2, a3]));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -101,11 +113,15 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         result.TooBroad.ShouldBeFalse();
 
         // The bound comes from its single source, and the criterion's own predicate is what is
-        // counted (a resolver that passed some other spec would count somebody else's watch).
+        // counted (a resolver that passed some other key would count somebody else's watch).
+        //
+        // #1681 part 2 — that key is now the criterion's ID plus the FINGERPRINT of the predicate it
+        // carries right now, which is strictly stronger than the spec this assertion used to name:
+        // the id alone would be answered from a member set computed for a predicate its owner has
+        // since edited, and the fingerprint is what refuses that.
         await _browse.Received(1).ListActiveAdIdsAsync(
-            Arg.Is<CompanyWatchCriteriaSpec>(s => s != null
-                && s.SniCodes.SequenceEqual(SniIt)
-                && s.MunicipalityCodes.SequenceEqual(KommunStockholm)),
+            new CompanyWatchCriterionId(criterion.Id.Value),
+            CriteriaFingerprint.Of(criterion.Criteria),
             CriterionMatchingAdSetResolver.MaxSetSize,
             Arg.Any<CancellationToken>());
     }
@@ -132,9 +148,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         // The ORDER of the guards, which the outcome alone cannot witness: the register is not read
         // at all for a caller whose result could not be graded — neither half of it.
         await _browse.DidNotReceiveWithAnyArgs()
-            .CountActiveAdsAsync(default!, default, CancellationToken.None);
+            .CountActiveAdsAsync(default, default, default, CancellationToken.None);
         await _browse.DidNotReceiveWithAnyArgs()
-            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
         await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
             Arg.Any<CancellationToken>());
@@ -184,7 +200,7 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         result.Count.ShouldBeNull();
 
         await _browse.DidNotReceiveWithAnyArgs()
-            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
     }
 
     [Fact]
@@ -203,8 +219,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(AssessableProfile());
         MagnitudeIs(CriterionMatchingAdSetResolver.MaxSetSize);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([ad]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([ad]));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -232,8 +249,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(AssessableProfile());
         MagnitudeIs(12);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>((IReadOnlyList<JobAdId>?)null);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.TooManyAds);
 
         var result = await Sut(db, Owner).Handle(
             new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
@@ -258,8 +276,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(AssessableProfile());
         MagnitudeIs(0);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([]));
 
         var result = await Sut(db, Owner).Handle(
             new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
@@ -274,6 +293,71 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         await _perUserSearch.DidNotReceive().FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_NotMaterialisedForTheCurrentPredicate_IsUnknown_NeitherZeroNorTooBroad()
+    {
+        // #1681 part 2 — the FOURTH answer, and the arm the switch in this handler gained. It is the
+        // state every criterion is in between its creation and the next materialisation run, and the
+        // state every criterion RETURNS to the moment its owner edits the predicate.
+        //
+        // TooBroad is what a collapse would produce, and it is the wrong advice: "narrow this watch"
+        // cannot help a watch that is merely waiting to be counted. A zero is worse still.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        _browse.CountActiveAdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdCount.NotMaterialised);
+
+        var result = await Sut(db, Owner).Handle(
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+
+        result.ShouldNotBeNull();
+        result.Count.ShouldBeNull();
+        result.NotMaterialised.ShouldBeTrue();
+        result.TooBroad.ShouldBeFalse();
+
+        // There was no set to grade, so nothing was graded. On a route the CTO ordered batched
+        // precisely because its fan-in cost is the least well characterised, grading a criterion
+        // that has no member set is pure cost.
+        await _browse.DidNotReceiveWithAnyArgs()
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
+        await _perUserSearch.DidNotReceiveWithAnyArgs().FilterToMatchingAsync(
+            default!, default!, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Handle_PredicateEditedBetweenTheTwoReads_IsUnknown_NotAStaleNumber()
+    {
+        // The other route into the fourth answer, and a genuinely reachable race: the count answered
+        // against the materialisation, the owner saved a new predicate, and the set read then found a
+        // fingerprint that no longer matches. The port reports ignorance for the second read, and the
+        // honest answer for the whole request is ignorance — never the count the first read saw.
+        var ct = TestContext.Current.CancellationToken;
+        await using var db = TestAppDbContextFactory.Create();
+        var criterion = await SeedCriterionAsync(db, Owner, ct);
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        MagnitudeIs(12);
+        _browse.ListActiveAdIdsAsync(
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.NotMaterialised);
+
+        var result = await Sut(db, Owner).Handle(
+            new GetMyMatchingAdCountForCriterionQuery(criterion.Id.Value), ct);
+
+        result.ShouldNotBeNull();
+        result.NotMaterialised.ShouldBeTrue();
+        result.Count.ShouldBeNull();
+        result.TooBroad.ShouldBeFalse();
     }
 
     [Fact]
@@ -293,9 +377,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
 
         // The shared resolver is never reached, so it can never become an authorization shortcut.
         await _browse.DidNotReceiveWithAnyArgs()
-            .CountActiveAdsAsync(default!, default, CancellationToken.None);
+            .CountActiveAdsAsync(default, default, default, CancellationToken.None);
         await _browse.DidNotReceiveWithAnyArgs()
-            .ListActiveAdIdsAsync(default!, default, CancellationToken.None);
+            .ListActiveAdIdsAsync(default, default, default, CancellationToken.None);
         await _profileBuilder.DidNotReceive().BuildFullForSortAsync(Arg.Any<CancellationToken>());
     }
 
@@ -315,8 +399,9 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
             .Returns(AssessableProfile());
         MagnitudeIs(1);
         _browse.ListActiveAdIdsAsync(
-                Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<JobAdId>?>([ad]);
+                Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(MaterialisedAdIds.Resolved([ad]));
         _perUserSearch.FilterToMatchingAsync(
                 Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
                 Arg.Any<CancellationToken>())
@@ -329,9 +414,11 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
         await resolver.MatchingAsync(criterion.Id.Value, criterion.Criteria, ct);
 
         await _browse.Received(1).CountActiveAdsAsync(
-            Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _browse.Received(1).ListActiveAdIdsAsync(
-            Arg.Any<CompanyWatchCriteriaSpec>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+            Arg.Any<CompanyWatchCriterionId>(), Arg.Any<CriteriaFingerprint>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>());
         await _perUserSearch.Received(1).FilterToMatchingAsync(
             Arg.Any<FullCandidateMatchProfile>(), Arg.Any<IReadOnlyCollection<JobAdId>>(),
             Arg.Any<CancellationToken>());
@@ -348,19 +435,39 @@ public class GetMyMatchingAdCountForCriterionQueryHandlerTests
     }
 
     [Fact]
-    public void Dto_RejectsACountBesideTooBroad()
+    public void Dto_RejectsACountBesideEitherRefusal_AndTheTwoRefusalsTogether()
     {
         // The state a truncating implementation would produce. Making it unconstructable is what
         // keeps "exact or absent" a property of the type rather than of everyone's vigilance. The
         // record copy-constructor cannot reach it either: TooBroad is get-only, so
         // `Counted(3) with { TooBroad = true }` does not compile.
-        Should.Throw<ArgumentException>(() => new MyMatchingAdCountDto(3, TooBroad: true));
+        Should.Throw<ArgumentException>(() =>
+            new MyMatchingAdCountDto(3, TooBroad: true, NotMaterialised: false));
+
+        // #1681 part 2 added the fourth state, and with it a second refusal the same rule has to
+        // cover — plus a combination that claims both refusals at once.
+        Should.Throw<ArgumentException>(() =>
+            new MyMatchingAdCountDto(0, TooBroad: false, NotMaterialised: true));
+        Should.Throw<ArgumentException>(() =>
+            new MyMatchingAdCountDto(null, TooBroad: true, NotMaterialised: true));
 
         MyMatchingAdCountDto.NotAssessed.Count.ShouldBeNull();
         MyMatchingAdCountDto.NotAssessed.TooBroad.ShouldBeFalse();
+        MyMatchingAdCountDto.NotAssessed.NotMaterialised.ShouldBeFalse();
         MyMatchingAdCountDto.TooBroadToCount.Count.ShouldBeNull();
         MyMatchingAdCountDto.TooBroadToCount.TooBroad.ShouldBeTrue();
+        MyMatchingAdCountDto.TooBroadToCount.NotMaterialised.ShouldBeFalse();
+        MyMatchingAdCountDto.NotMaterialisedYet.Count.ShouldBeNull();
+        MyMatchingAdCountDto.NotMaterialisedYet.NotMaterialised.ShouldBeTrue();
+        MyMatchingAdCountDto.NotMaterialisedYet.TooBroad.ShouldBeFalse();
         MyMatchingAdCountDto.Counted(0).Count.ShouldBe(0);
+
+        // The three no-number states are three DIFFERENT values. Two of them rendering the same way
+        // would be a product decision; two of them BEING the same value is a defect, because the FE
+        // branches on exactly these members to pick which sentence to show.
+        MyMatchingAdCountDto.NotAssessed.ShouldNotBe(MyMatchingAdCountDto.TooBroadToCount);
+        MyMatchingAdCountDto.NotAssessed.ShouldNotBe(MyMatchingAdCountDto.NotMaterialisedYet);
+        MyMatchingAdCountDto.TooBroadToCount.ShouldNotBe(MyMatchingAdCountDto.NotMaterialisedYet);
     }
 
     [Fact]

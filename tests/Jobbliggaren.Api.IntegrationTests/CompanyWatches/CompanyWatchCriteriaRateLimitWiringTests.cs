@@ -38,8 +38,21 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         routes.ShouldNotBeEmpty(
             "the criteria endpoint group must be discoverable in the built endpoint graph");
 
-        // GET  base           -> a light per-user read (MeListRead, NOT the browse policy).
-        PolicyFor(routes, "GET", IsBase).ShouldBe(RateLimitingExtensions.MeListReadPolicy);
+        // GET  base           -> the criteria LIST. It was MeListRead until 2026-09-07 and is now its
+        //                         own bucket (#1681 part 2, security-auditor's recommendation, Klas's
+        //                         decision). What changed is not the route but its per-request cost:
+        //                         every row gained a materialised ad count and a per-user graded
+        //                         matching count, measured at 47,3 ms everyday and 381,5 ms at the ad
+        //                         ceiling, against the 0,166 ms org.nr twin that shares MeListRead.
+        //                         At 120/min that is ~45,8 s of database time per minute from one
+        //                         account with QueueLimit = 0. Pinned here as its own line, because a
+        //                         policy move that shows up only as a changed constant is a bulkhead
+        //                         moving silently. That MeListRead was not ratcheted in exchange is
+        //                         the other half of the decision, and it is pinned where it can
+        //                         actually fail: RateLimitingOptionsTests holds both numbers in ONE
+        //                         test, so lowering MeListRead to "simplify" the split away breaks it.
+        PolicyFor(routes, "GET", IsBase)
+            .ShouldBe(RateLimitingExtensions.CompanyWatchCriteriaListPolicy);
         // POST base           -> create (MeWrite).
         PolicyFor(routes, "POST", IsBase).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         // GET  /reference      -> the static taxonomy tree (TaxonomyRead mold).

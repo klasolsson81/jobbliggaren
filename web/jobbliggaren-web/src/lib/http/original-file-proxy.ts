@@ -31,8 +31,20 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  *    their own, so the header carries `original.pdf` / `original.docx` and nothing user-supplied.
  */
 
-/** The only two kinds `CvFileSignature` can resolve, mapped to the extension each downloads as. */
-const ALLOWED_CONTENT_TYPES = new Map<string, string>([
+/**
+ * The only two kinds `CvFileSignature` can resolve, mapped to the extension each downloads as.
+ *
+ * EXPORTED so its exact membership can be pinned against production rather than against a copy of
+ * the literal — a pin that restates the set cannot fail when the set changes. Growing this map is
+ * DPIA #659 §11 **lapse-trigger 1**, which is why the pin exists.
+ *
+ * `ReadonlyMap` is load-bearing, not tidiness. Exporting a plain `Map` let any other module call
+ * `.set()` on the shared instance: `tsc` accepted it, production's `.get()` read the widened map at
+ * request time, and the pin stayed GREEN because it measures the literal in a test process the
+ * mutant never loads. That is trigger 1 firing silently through a door this export itself opened
+ * (security-auditor, PR #1696).
+ */
+export const ALLOWED_CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
   ["application/pdf", "pdf"],
   [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

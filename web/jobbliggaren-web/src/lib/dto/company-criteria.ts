@@ -235,7 +235,6 @@ export const criterionAdCountResponseSchema = z.object({
 });
 export type CriterionAdCountResponse = z.infer<typeof criterionAdCountResponseSchema>;
 
-
 // ── The saved criterion (GET /) ────────────────────────────────────────────
 // Declared HERE, after the two ad schemas, because #1681 part 2 gave each criterion the same
 // two numbers the detail page shows and a const cannot be referenced before it is declared.
@@ -268,7 +267,6 @@ export const listCompanyWatchCriteriaResultSchema = z.array(companyWatchCriterio
 export type ListCompanyWatchCriteriaResult = z.infer<
   typeof listCompanyWatchCriteriaResultSchema
 >;
-
 
 /**
  * The composed ad-browse response (mirrors the Api's `CriterionAdBrowseResponse`): the paginated ad

@@ -276,9 +276,26 @@ internal sealed class CompanyWatchBrowseQuery(
     /// <summary>
     /// The state gate every materialised read is wrapped in. Driving the statement FROM
     /// <c>company_watch_criterion_materialisations</c> - rather than reading the ads and asking about
-    /// the state afterwards - is what makes the three honest answers come back in ONE round trip:
-    /// no row at all is "never materialised", a row whose state or fingerprint disqualifies it yields
-    /// no ad work at all, and only a row that passes both reaches the join.
+    /// the state afterwards - is what makes the honest answers come back in ONE round trip: no row at
+    /// all is "never materialised", a row disqualified by ANY of the gate's three conditions yields
+    /// no ad work at all, and only a row that passes all three reaches the join.
+    ///
+    /// <para>
+    /// ⚠ <b>EVERY condition in this gate MUST have a C# arm that reads the same column, and the
+    /// reader must SELECT that column.</b> The gate is an optimisation — it stops Postgres doing ad
+    /// work for a row that cannot be answered — but the C# side is what DECIDES, because a row that
+    /// fails the gate still comes back (the outer WHERE is the PK alone, deliberately, so "too broad"
+    /// and "never materialised" stay distinguishable instead of both being zero rows).
+    /// </para>
+    ///
+    /// <para>
+    /// Adding a condition here without its C# arm does not fail safe. It failed exactly twice in one
+    /// delta: the count statement's <c>CASE</c> yields NULL and the reader throws its
+    /// "gates no longer agree" exception — a 500 in the ordinary state the condition was added for —
+    /// while the id-set statement's lateral yields no rows and the reader reads that as an honest
+    /// empty set, which is the dishonest zero this whole family is written against (ADR 0120). Both
+    /// were introduced by the fix for the very state they broke.
+    /// </para>
     ///
     /// <para>
     /// <b>The gate is IN the statement as well as in C#</b>, so a row that cannot be answered costs
@@ -289,20 +306,6 @@ internal sealed class CompanyWatchBrowseQuery(
     /// plans live in <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>.
     /// </para>
     /// </summary>
-    /// ⚠ <b>EVERY condition in this gate MUST have a C# arm that reads the same column, and the
-    /// reader must SELECT that column.</b> The gate is an optimisation — it stops Postgres doing ad
-    /// work for a row that cannot be answered — but the C# side is what DECIDES, because a row that
-    /// fails the gate still comes back (the outer WHERE is the PK alone, deliberately, so "too broad"
-    /// and "never materialised" stay distinguishable instead of both being zero rows).
-    ///
-    /// <para>
-    /// Adding a condition here without its C# arm does not fail safe. It failed exactly twice in one
-    /// delta: the count statement's <c>CASE</c> yields NULL and the reader throws its
-    /// "gates no longer agree" exception — a 500 in the ordinary state the condition was added for —
-    /// while the id-set statement's lateral yields no rows and the reader reads that as an honest
-    /// empty set, which is the dishonest zero this whole family is written against (ADR 0120). Both
-    /// were introduced by the fix for the very state they broke.
-    /// </para>
     private const string MaterialisedGate =
         "m.state = @materialised_state AND m.criteria_fingerprint = @fingerprint "
         + "AND m.materialised_at >= @min_materialised_at";

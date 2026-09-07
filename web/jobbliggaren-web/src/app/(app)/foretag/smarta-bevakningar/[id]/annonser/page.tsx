@@ -230,7 +230,14 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
                 magnitude.tooBroad
                 ? t("ads.adsTooBroadHeadline")
                 : t("ads.adsNotMaterialisedHeadline")
-              : t("ads.magnitudeHeadline", { count: magnitudeText ?? "" })}
+              : magnitudeText === null
+                ? // Unreachable today — the DTO's constructor makes a null magnitude imply one of the
+                  // two flags above. But `?? ""` would render "  aktiva annonser", a magnitude-shaped
+                  // sentence with a blank where the number goes, which is the form ADR 0120 / #859
+                  // forbid outright: true or absent, never blank. Removing the `!` was right; trading
+                  // a loud impossibility for a silent misrender was not (design-reviewer Minor D).
+                  t("ads.adsNotMaterialisedHeadline")
+                : t("ads.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
@@ -251,13 +258,13 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </p>
         )}
 
-        {/* #1681 part 2 — the watch has not been counted yet, so the filter had nothing to apply and
-            the unfiltered list is what is shown. No call to action: unlike the too-broad arm above
-            there is nothing for the user to change. */}
-        {matching?.notMaterialised && !magnitudeUnanswerable && (
-          <p className="jp-matchline">{t("ads.matchingNotMaterialisedOnList")}</p>
-        )}
-
+        {/* The `matching.notMaterialised` line is DELETED rather than re-worded (code-reviewer
+            2026-09-07). Once gated on `!magnitudeUnanswerable` the only state that reaches it is a
+            row crossing the read-age bound BETWEEN the magnitude call and the id-set call in one
+            request — and there a real list renders, so the sentence "det finns inga annonser att
+            visa här" would be false at the moment it appeared. The state is explained where it is
+            true: the empty block below, whose body is this same string. Adding copy for a branch
+            whose own premise is false is how a surface acquires a sentence nobody can trust. */}
         {/* ⚠ The SAME gate as its two siblings, and it was missing until rendered verification found
             it (2026-09-07). "…så alla aktiva annonser visas här" is false whenever the magnitude is
             unanswerable, and this combination is PRODUCIBLE rather than theoretical:

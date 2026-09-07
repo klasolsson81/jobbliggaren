@@ -2,8 +2,18 @@ namespace Jobbliggaren.Application.CompanyRegister.Abstractions;
 
 /// <summary>
 /// #1681 (ADR 0139) — the use-case port for resolving every saved smart watch (a PREDICATE) into the
-/// set of register companies it matches (an org.nr SET), out of the request path. ONE entry point
-/// (<see cref="MaterialiseAsync"/>) invoked by the Worker's own recurring Hangfire job.
+/// set of register companies it matches (an org.nr SET), out of the request path.
+///
+/// <para>
+/// <b>Two run methods, because there are two reasons a membership goes out of date</b>
+/// (senior-cto-advisor, 2026-09-07). <see cref="MaterialiseAsync"/> exists because the REGISTER
+/// moved — external input, weekly, and it is M-D6's accuracy enforcement point.
+/// <see cref="MaterialiseChangedAsync"/> exists because a PREDICATE moved — user input, continuous.
+/// Two actors, two reasons to change, so two methods; a single method with a selection flag would
+/// hide both inside one. Both are invoked by the Worker's own recurring Hangfire jobs, under ONE
+/// shared distributed lock — see <c>CompanyWatchCriterionMaterialisationWorker</c> for why that
+/// sharing is a correctness requirement and not hygiene.
+/// </para>
 ///
 /// <para>
 /// <b>Why this exists at all</b> (ADR 0139, one sentence): a company watch stores an org.nr, a smart
@@ -50,13 +60,56 @@ public interface ICompanyWatchCriterionMaterialiser
     /// </para>
     /// </summary>
     Task<CompanyWatchCriterionMaterialisationResult> MaterialiseAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// #1681 clause (ii) — recomputes only those criteria whose stored membership does not describe
+    /// their CURRENT predicate: a criterion just created, or one whose SNI/kommun axes were edited.
+    /// Same resolve → breadth-gate → personnummer filter → replace per criterion, and the same
+    /// REPLACE semantics (<c>security-auditor</c> Major 5c), so nothing about a criterion's outcome
+    /// depends on which run reached it.
+    ///
+    /// <para>
+    /// <b>The committed state IS the queue, and that is the design</b> (senior-cto-advisor,
+    /// 2026-09-07). No handler enqueues anything, no signal is emitted, and no outbox row is written.
+    /// The knowledge piece — <i>this criterion's membership is not current for its predicate</i> — is
+    /// already durably in the database as <c>criteria_fingerprint</c> beside <c>materialised_at</c>,
+    /// which is the same fact the READ path already gates on. A second representation of one
+    /// knowledge piece is what DRY forbids, and it would buy nothing: this form is
+    /// level-triggered, so a missed pass is repaired by the next one, whereas any edge-triggered
+    /// signal must additionally defeat the fact that <c>UnitOfWorkBehavior</c> commits AFTER the
+    /// handler returns — a signal raised before its own commit either finds no row (create) or reads
+    /// the OLD predicate (edit).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>A rename must never reach a register resolution</b>, and this method is where that holds.
+    /// The candidate query prefilters on <c>updated_at</c>, which <c>Rename</c> bumps exactly as
+    /// <c>UpdateCriteria</c> does — so it is a SUPERSET, never the test. The decision is
+    /// <see cref="Jobbliggaren.Application.CompanyWatches.Abstractions.CriteriaFingerprint"/>,
+    /// compared after loading: a renamed criterion costs one row read and one SHA-256, and is then
+    /// skipped.
+    /// </para>
+    ///
+    /// <para>
+    /// Reports the same <see cref="CompanyWatchCriterionMaterialisationResult"/>. In steady state
+    /// that is a run with <c>CriteriaSeen = 0</c> — which must stay distinguishable from a run in
+    /// which every criterion failed, and is what <c>CriteriaFailed</c> is read against.
+    /// </para>
+    /// </summary>
+    Task<CompanyWatchCriterionMaterialisationResult> MaterialiseChangedAsync(
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// #1681 — aggregate outcome of one materialisation run. Counts only: no org.nr, no criterion label,
 /// nothing user-identifying, so the whole record is safe to log and to audit (ADR 0087 D8(c)).
 /// </summary>
-/// <param name="CriteriaSeen">Saved criteria the run considered.</param>
+/// <param name="CriteriaSeen">Criteria the run RESOLVED against the register. For
+/// <c>MaterialiseAsync</c> that is every saved criterion, since it considers and resolves the same
+/// set. For <c>MaterialiseChangedAsync</c> it is narrower than the set considered: a candidate the
+/// fingerprint dismisses (a rename) is deliberately not counted, which is what makes
+/// <c>CriteriaSeen == 0</c> the assertion that no register resolution happened. Do not "correct" it
+/// to count candidates — a test pins the distinction.</param>
 /// <param name="CriteriaMaterialised">Criteria whose company set fitted under the breadth gate and was
 /// written.</param>
 /// <param name="CriteriaTooBroad">Criteria REFUSED by the breadth gate — stored with no members and a

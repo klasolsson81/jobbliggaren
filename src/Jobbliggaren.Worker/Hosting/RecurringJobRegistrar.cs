@@ -179,6 +179,26 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             materialisationOptions.Value.CadenceCron);
 
+        // #1681 clause (ii) — the reconciling sweep. Its own cron
+        // (CompanyWatchMaterialisation:SweepCron, default minutely) and its own job id, because it
+        // answers a DIFFERENT change-reason than the registration above: the register moved (weekly,
+        // external) versus a predicate moved (continuous, the user). Same options section, because
+        // the two cadences constrain one another — SweepBatchSize is derived from SweepCron's
+        // interval.
+        //
+        // NO handler enqueues anything. The committed state IS the queue — criteria_fingerprint
+        // beside materialised_at is already the same fact the read path gates on — so the sweep is
+        // level-triggered and a missed tick is repaired by the next. An edge-triggered signal would
+        // additionally have had to defeat UnitOfWorkBehavior committing AFTER the handler
+        // (senior-cto-advisor, 2026-09-07).
+        //
+        // Registered unconditionally for the same reason as the line above: the kill-switch is in
+        // the job.
+        manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
+            RecurringJobIds.SweepChangedCompanyWatchCriteria,
+            job => job.SweepAsync(CancellationToken.None),
+            materialisationOptions.Value.SweepCron);
+
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
         //

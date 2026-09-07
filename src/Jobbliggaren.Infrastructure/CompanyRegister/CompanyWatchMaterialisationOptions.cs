@@ -56,9 +56,8 @@ public sealed class CompanyWatchMaterialisationOptions
     /// a completed sync on the Sunday morning after it finishes. But the SAVED CRITERIA move whenever
     /// a user creates or edits one, which is continuous — and a criterion created on a Monday would
     /// wait until the following weekend under a weekly cadence, showing "not known yet" for six days.
-    /// Daily bounds that to under 24 h. (An immediate recompute on create/edit is #1681 part 2's, and
-    /// it makes the user's OWN change visible at once; this cron is the floor underneath it, not a
-    /// substitute for it.)
+    /// Daily bounds that to under 24 h, and <see cref="SweepCron"/> bounds it to one tick; this cron
+    /// is the floor underneath that sweep, not a substitute for it.
     /// </para>
     ///
     /// <para>
@@ -73,6 +72,64 @@ public sealed class CompanyWatchMaterialisationOptions
     /// </summary>
     [Required]
     public string CadenceCron { get; set; } = "30 5 * * *";
+
+    /// <summary>
+    /// #1681 clause (ii) — cron for the RECONCILING SWEEP (UTC), the run that makes a user's own
+    /// edit visible without waiting for <see cref="CadenceCron"/>. Default every minute.
+    ///
+    /// <para>
+    /// <b>Two crons because there are two change-reasons, not two cadences of one job.</b>
+    /// <see cref="CadenceCron"/> exists because the REGISTER moved — external input, weekly, and the
+    /// accuracy enforcement point M-D6 was moved onto. This one exists because a PREDICATE moved —
+    /// user input, continuous. They would not move together if either were re-derived.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Minutely is the scheduler's floor, not a judgement about tolerable latency</b>
+    /// (senior-cto-advisor, 2026-09-07). Hangfire's recurring scheduler is cron-driven, so one minute
+    /// is as fast as this mechanism goes; "as fast as the mechanism goes" is the only value here that
+    /// is not a number someone chose. What the interval buys is LATENCY, never correctness — the
+    /// sweep is correct at every interval, and a longer one only lengthens the window in which the
+    /// surface honestly says it does not know. That is what separates this from a delay chosen to
+    /// land "probably after the commit", which would buy correctness with a guess and is refused.
+    /// </para>
+    ///
+    /// <para>
+    /// A tick that collides with the nightly run simply waits for it — both jobs hold the SAME
+    /// distributed lock (see <c>CompanyWatchCriterionMaterialisationWorker</c>) — and loses no work:
+    /// the sweep is stateless and the next tick re-derives the same candidate set from committed
+    /// state.
+    /// </para>
+    /// </summary>
+    [Required]
+    public string SweepCron { get; set; } = "* * * * *";
+
+    /// <summary>
+    /// #1681 clause (ii) — how many stale criteria ONE sweep tick resolves. Default 50.
+    ///
+    /// <para>
+    /// <b>COMPUTED from the measurement, not chosen.</b> The constraint is that a tick's work stay
+    /// far below its own interval, so a backlog drains across ticks instead of a tick overrunning the
+    /// next. Measured per criterion end to end: 11-30 ms to resolve plus 30,67 ms p95 to replace,
+    /// i.e. <b>~60 ms worst case</b> (docs/reviews/2026-09-06-1681-membership-measurement.md). At
+    /// <see cref="SweepCron"/>'s 60 s tick, 50 x 60 ms = <b>3,0 s, or 5 % of the interval</b> — the
+    /// remaining 95 % is headroom for contending with the nightly run for the shared lock.
+    /// </para>
+    ///
+    /// <para>
+    /// A second property falls out and is worth naming: 50 is 2,5x
+    /// <c>CompanyWatchCriterion.MaxPerUser</c> (20), so ONE user editing every watch she owns can
+    /// never fill a batch and can never delay another user's create past the following tick.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>This value and <see cref="SweepCron"/> are one decision</b>, exactly as
+    /// <see cref="MaxReadAgeHours"/> and <see cref="CadenceCron"/> are: change the interval and the
+    /// arithmetic above must be re-run against the new period.
+    /// </para>
+    /// </summary>
+    [Range(1, 10_000)]
+    public int SweepBatchSize { get; set; } = 50;
 
     /// <summary>
     /// Criteria loaded per page. Large enough that the page count stays trivial at any plausible

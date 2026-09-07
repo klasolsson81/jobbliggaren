@@ -31,8 +31,9 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// unresolvable criterion must not deny every other user a fresh membership, so it is logged with the
 /// criterion id, counted onto
 /// <see cref="CompanyWatchCriterionMaterialisationResult.CriteriaFailed"/>, and skipped — the failure
-/// is never swallowed (§5 forbids a catch-all without action). But if NOTHING succeeded the method
-/// THROWS, and that asymmetry is the point (dotnet-architect, 2026-09-06): the Worker wrapper
+/// is never swallowed (§5 forbids a catch-all without action). But if NOTHING succeeded
+/// <see cref="MaterialiseAsync"/> THROWS, and that asymmetry is the point (dotnet-architect,
+/// 2026-09-06): the Worker wrapper
 /// deliberately keeps Hangfire's default retry, justified by "a transient DB blip must not turn into a
 /// full day of stale membership" — and a broken connection fails every remaining criterion
 /// identically, so without the throw no exception would ever leave <c>RunAsync</c> and that retry
@@ -59,18 +60,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 0, 0, 0, 0, 0, 0, 0, startedAt, clock.UtcNow);
         }
 
-        var materialised = 0;
-        var tooBroad = 0;
-        var membersWritten = 0;
-        // Named WITHOUT an org.nr token on purpose. OrganizationNumberSurfacingGuardTests scans every
-        // Log*() ARGUMENT list on this file for "organization"/"orgnr"/"org_nr"/"personnummer" and
-        // cannot tell a COUNT of dropped values from a value. That conservatism is correct — the
-        // alternative is teaching the guard to accept token-named arguments, which is how such a guard
-        // goes vacuous — so the log surface is kept token-free instead. The domain name survives where
-        // it belongs, on CompanyWatchCriterionMaterialisationResult and on the state row.
-        var excludedByShapeGuard = 0;
-        var excludedInvalid = 0;
-        var failed = 0;
+        var tally = new RunTally();
         var seen = 0;
 
         // PAGINATED, not a single ToListAsync (dotnet-architect, 2026-09-06). The corpus is
@@ -99,34 +89,18 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
+            // The stamp is read HERE, where the page was loaded — never at the write. See
+            // ReplaceStampedAt below for why the direction matters; the window this closes is
+            // largest on THIS run, because a page of up to CriterionPageSize criteria is walked
+            // between the read and the last row's write.
+            var stampedAt = clock.UtcNow;
+
             foreach (var criterion in page)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 seen++;
-
-                try
-                {
-                    var outcome = await MaterialiseOneAsync(criterion, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    if (outcome.State == MaterialisationState.TooBroad)
-                        tooBroad++;
-                    else
-                        materialised++;
-
-                    membersWritten += outcome.MemberCount;
-                    excludedByShapeGuard += outcome.ExcludedPersonnummerShaped;
-                    excludedInvalid += outcome.ExcludedInvalid;
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    // Counted, logged WITH the criterion id, and skipped. The id is a Guid — not an
-                    // org.nr, not a label, nothing user-identifying (ADR 0087 D8(c)); the org.nr-log
-                    // boundary scan over this file (OrganizationNumberSurfacingGuardTests) is what
-                    // keeps that true rather than a promise.
-                    failed++;
-                    LogCriterionFailed(logger, criterion.Id.Value, ex);
-                }
+                await ResolveOneIntoTallyAsync(criterion, tally, stampedAt, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             // ONE exit, and it is total: a page shorter than the page size is the last page, and
@@ -140,54 +114,265 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
                 break;
         }
 
-        // A run in which EVERY criterion failed must not report success — see the class docblock for
-        // why the retained Hangfire retry depends on this throw existing.
-        if (failed > 0 && materialised == 0 && tooBroad == 0)
-        {
-            throw new InvalidOperationException(
-                $"Materialiseringen misslyckades för samtliga {failed} kriterier — ingen delmängd "
-                + "skrevs. Körningen rapporteras som misslyckad så Hangfires retry kan lösa ut.");
-        }
+        ThrowIfWhollyFailed(tally);
 
-        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. All three conditions hold:
-        // these two tables have ONE periodic writer, carry no continuous DML between runs (the only
-        // other writer is the FK cascade on criterion deletion, which REMOVES rows and cannot re-arm
-        // autovacuum's analyze counter for the loader), and criterion_id reaches both a WHERE and a
-        // join. Once per COMPLETED run, never per criterion.
+        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. Once per COMPLETED run,
+        // never per criterion. The conditions, and what #1681 clause (ii) changed about them, are
+        // argued once in CompanyWatchCriterionMemberStore.AnalyzeAsync and not restated here.
         // This is not hygiene theatre: the read plan the breadth-gate bound was DERIVED against is an
         // Index Only Scan on the member PK with Heap Fetches: 0, and that plan needs current statistics
         // and a set visibility map — so without this the measured plan is not guaranteed in operation.
         // Fail-loud, which is the placement §3.6 prescribes for a retry-bounded job.
         await store.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
 
+        var nightly = CompleteRun(tally, seen, startedAt);
+        LogRun(nightly, tally);
+        return nightly;
+    }
+
+    /// <summary>
+    /// #1681 clause (ii) — the reconciling sweep. See
+    /// <see cref="ICompanyWatchCriterionMaterialiser.MaterialiseChangedAsync"/> for why the committed
+    /// state is the queue and no handler emits a signal.
+    /// </summary>
+    public async Task<CompanyWatchCriterionMaterialisationResult> MaterialiseChangedAsync(
+        CancellationToken cancellationToken)
+    {
+        var startedAt = clock.UtcNow;
+
+        if (!options.Value.Enabled)
+        {
+            // Silent on THIS run, unlike the nightly one directly above. Same reason the idle tick is
+            // silent: at a minute's cadence an unconditional line here is ~1 440 identical rows a day
+            // for as long as the kill-switch is off, which buries the counters that carry meaning.
+            // The nightly run says it once a day, which is where that notice belongs.
+            return new CompanyWatchCriterionMaterialisationResult(
+                0, 0, 0, 0, 0, 0, 0, startedAt, clock.UtcNow);
+        }
+
+        // ONE capped list per tick, and deliberately NOT the paging loop above. Every criterion this
+        // query returns drops OUT of its own predicate once resolved, so an advancing OFFSET would
+        // skip rows; the nightly walk's loop is safe only because its predicate is not mutated by its
+        // own work. The next tick re-derives instead — see SelectStaleCriterionIdsAsync.
+        var candidates = await store
+            .SelectStaleCriterionIdsAsync(options.Value.SweepBatchSize, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Read with the candidate load, for the reason given at ReplaceStampedAt below.
+        var stampedAt = clock.UtcNow;
+
+        if (candidates.Count == 0)
+        {
+            // SILENT, and deliberately so. At a minute's cadence the idle tick is the overwhelmingly
+            // common case: logging it would put ~1 440 identical zero-rows a day into the shared Seq
+            // sink and bury the counter that matters on this EventId — the personnummer-shaped
+            // exclusion count, which is a security signal. The per-criterion Warning (EventId 6423)
+            // is the alarm and is untouched.
+            return CompleteRun(new RunTally(), seen: 0, startedAt);
+        }
+
+        // The strongly-typed id, NOT its Guid: `Contains` over the raw `.Value` does not translate —
+        // EF cannot see through the value object's converter inside a subquery, and the sweep would
+        // throw on every tick that found a candidate. Measured 2026-09-07 (the sweep suite named it).
+        var ids = candidates.Select(c => new CompanyWatchCriterionId(c.Id)).ToList();
+        var stored = candidates.ToDictionary(c => c.Id, c => c.StoredFingerprint);
+
+        // AsNoTracking: nothing here mutates the aggregate. `Contains` over the converted key
+        // translates to `= ANY`, and the list is bounded by SweepBatchSize, so this is one indexed
+        // statement.
+        var criteria = await db.CompanyWatchCriteria
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var tally = new RunTally();
+        var seen = 0;
+        var skippedUnchanged = 0;
+
+        foreach (var criterion in criteria)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // THE EXACT TEST. `updated_at` selected this row, but Rename bumps it exactly as
+            // UpdateCriteria does, so the column is a superset and never the decision. A criterion
+            // whose predicate is unchanged has cost one row read and one SHA-256 by this point, and
+            // costs no register resolution at all — the bound ADR 0139 states for a rename.
+            var current = CriteriaFingerprint.Of(criterion.Criteria);
+            if (stored.TryGetValue(criterion.Id.Value, out var previous)
+                && string.Equals(previous, current.Value, StringComparison.Ordinal))
+            {
+                skippedUnchanged++;
+                continue;
+            }
+
+            seen++;
+            await ResolveOneIntoTallyAsync(criterion, tally, stampedAt, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        // NO ThrowIfWhollyFailed here, and its absence is the decision (senior-cto-advisor
+        // 2026-09-07, reversing his own earlier bind on new evidence). The throw exists on the
+        // nightly run SO HANGFIRE'S RETRY CAN FIRE — that is its whole stated mechanism. This run
+        // carries AutomaticRetry(Attempts = 0), so there is no retry to fire and the throw would add
+        // no information: CriteriaSeen, CriteriaFailed and LogCriterionFailed already distinguish
+        // "nothing to do" from "everything failed". What it WOULD add is a manufactured fault — a
+        // criterion deleted while this tick resolves it fails on the FK cascade, and if it was the
+        // tick's only candidate the throw would register a FAILED Hangfire job for a user deleting
+        // her own watch. At a minute's cadence that noise is indistinguishable from a real fault,
+        // which is the signal the throw was built to protect.
+
+        // §3.6, with its condition evaluated rather than inherited: this run is a bulk-load path only
+        // on the ticks that actually wrote. In steady state it writes nothing, and ANALYZE on a table
+        // no statement touched would be work done for no plan. Gating on the run having loaded
+        // something keeps "once per COMPLETED run, never per batch" true while adding no cost to the
+        // overwhelmingly common empty tick.
+        if (tally.Materialised > 0 || tally.TooBroad > 0)
+            await store.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
+
+        // A tick whose every candidate was dismissed by the fingerprint also stays quiet: it did no
+        // work, and a renamed criterion stays a candidate until the nightly run, so it would otherwise
+        // log every minute for as long as the rename is the newest edit.
+        var swept = CompleteRun(tally, seen, startedAt);
+        if (seen > 0 || tally.Failed > 0)
+        {
+            LogSweepCompleted(logger, candidates.Count, skippedUnchanged, seen);
+            LogRun(swept, tally);
+        }
+
+        return swept;
+    }
+
+    /// <summary>
+    /// A run in which EVERY criterion failed must not report success — see the class docblock for why
+    /// the nightly wrapper's retained Hangfire retry depends on this throw existing. That wrapper is
+    /// its only caller; see <see cref="MaterialiseChangedAsync"/> for why the sweep does not use it.
+    /// </summary>
+    private static void ThrowIfWhollyFailed(RunTally tally)
+    {
+        if (tally.Failed > 0 && tally.Materialised == 0 && tally.TooBroad == 0)
+        {
+            throw new InvalidOperationException(
+                $"Materialiseringen misslyckades för samtliga {tally.Failed} kriterier — ingen "
+                + "delmängd skrevs. Körningen rapporteras som misslyckad så Hangfires retry kan "
+                + "lösa ut.");
+        }
+    }
+
+    /// <summary>
+    /// Assembles the run result. It does NOT log: the nightly run always reports, while the sweep
+    /// reports only on a tick that did something. A shared method with a "should I log" flag would be
+    /// the flag argument that hides two behaviours in one, so the decision stays with each caller.
+    /// </summary>
+    private CompanyWatchCriterionMaterialisationResult CompleteRun(
+        RunTally tally, int seen, DateTimeOffset startedAt)
+    {
         var result = new CompanyWatchCriterionMaterialisationResult(
             CriteriaSeen: seen,
-            CriteriaMaterialised: materialised,
-            CriteriaTooBroad: tooBroad,
-            MembersWritten: membersWritten,
-            MembersExcludedPersonnummerShaped: excludedByShapeGuard,
-            MembersExcludedInvalid: excludedInvalid,
-            CriteriaFailed: failed,
+            CriteriaMaterialised: tally.Materialised,
+            CriteriaTooBroad: tally.TooBroad,
+            MembersWritten: tally.MembersWritten,
+            MembersExcludedPersonnummerShaped: tally.ExcludedByShapeGuard,
+            MembersExcludedInvalid: tally.ExcludedInvalid,
+            CriteriaFailed: tally.Failed,
             StartedAt: startedAt,
             CompletedAt: clock.UtcNow);
-
-        LogCompleted(
-            logger, result.CriteriaSeen, result.CriteriaMaterialised, result.CriteriaTooBroad,
-            result.MembersWritten, excludedByShapeGuard, excludedInvalid, failed,
-            (result.CompletedAt - result.StartedAt).TotalSeconds);
 
         return result;
     }
 
+    /// <summary>The completion line, at Information. Both runs use it; only the sweep gates it.</summary>
+    private void LogRun(CompanyWatchCriterionMaterialisationResult result, RunTally tally) =>
+        LogCompleted(
+            logger, result.CriteriaSeen, result.CriteriaMaterialised, result.CriteriaTooBroad,
+            result.MembersWritten, tally.ExcludedByShapeGuard, tally.ExcludedInvalid, tally.Failed,
+            (result.CompletedAt - result.StartedAt).TotalSeconds);
+
     /// <summary>
+    /// One criterion, resolved into <paramref name="tally"/>. A failing criterion does not fail the
+    /// run: it is logged with its id, counted, and skipped — never swallowed (§5 forbids a catch-all
+    /// without action).
+    /// </summary>
+    private async Task ResolveOneIntoTallyAsync(
+        CompanyWatchCriterion criterion, RunTally tally, DateTimeOffset stampedAt,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var outcome = await MaterialiseOneAsync(criterion, stampedAt, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (outcome.State == MaterialisationState.TooBroad)
+                tally.TooBroad++;
+            else
+                tally.Materialised++;
+
+            tally.MembersWritten += outcome.MemberCount;
+            tally.ExcludedByShapeGuard += outcome.ExcludedPersonnummerShaped;
+            tally.ExcludedInvalid += outcome.ExcludedInvalid;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Counted, logged WITH the criterion id, and skipped. The id is a Guid — not an
+            // org.nr, not a label, nothing user-identifying (ADR 0087 D8(c)); the org.nr-log
+            // boundary scan over this file (OrganizationNumberSurfacingGuardTests) is what
+            // keeps that true rather than a promise.
+            tally.Failed++;
+            LogCriterionFailed(logger, criterion.Id.Value, ex);
+        }
+    }
+
+    /// <summary>
+    /// The counters both runs accumulate into. <c>ExcludedByShapeGuard</c> is named WITHOUT an org.nr
+    /// token on purpose: OrganizationNumberSurfacingGuardTests scans every <c>Log*()</c> ARGUMENT list
+    /// on this file for "organization"/"orgnr"/"org_nr"/"personnummer" and cannot tell a COUNT of
+    /// dropped values from a value. That conservatism is correct — the alternative is teaching the
+    /// guard to accept token-named arguments, which is how such a guard goes vacuous — so the log
+    /// surface is kept token-free instead. The domain name survives where it belongs, on
+    /// <see cref="CompanyWatchCriterionMaterialisationResult"/> and on the state row.
+    /// </summary>
+    private sealed class RunTally
+    {
+        public int Materialised;
+        public int TooBroad;
+        public int MembersWritten;
+        public int ExcludedByShapeGuard;
+        public int ExcludedInvalid;
+        public int Failed;
+    }
+
+    /// <summary>
+    /// <b>ReplaceStampedAt — why <paramref name="stampedAt"/> is a PARAMETER and not
+    /// <c>clock.UtcNow</c> read here</b> (senior-cto-advisor, 2026-09-07). The stamp is taken where
+    /// the criteria were LOADED, so it is always earlier than the write, never later. An edit landing
+    /// between the load and the write then leaves <c>updated_at &gt; materialised_at</c>, the row stays
+    /// a sweep candidate, and the next tick re-resolves it. Reading the clock at write time inverted
+    /// that: the row got an OLD fingerprint with a NEW timestamp, dropped out of the candidate set,
+    /// and the surface said "vet inte" until the nightly run. The direction is deliberately
+    /// conservative — an earlier stamp ages a row out of <c>MaxReadAgeHours</c> sooner, never later —
+    /// the same anchor discipline <c>StrandedMatchReaperJob</c> already carries. One criterion must
+    /// not be able to read the clock twice, which is why this is threaded rather than re-read.
+    ///
+    /// <para>
+    /// ⚠ <b>It SHRINKS the window; it does not close it, and this must not be written as though it
+    /// did.</b> An edit whose handler stamped <c>UpdatedAt</c> before our read but whose transaction
+    /// committed after it is invisible under READ COMMITTED, and we then stamp a later
+    /// <c>materialised_at</c> anyway. No stamp can close that — it turns on a timestamp we cannot
+    /// see. It stays acceptable because the failure is honest: the read path answers "vet inte", never
+    /// a number, and the nightly run repairs it inside 24 h.
+    /// </para>
+    ///
+    /// <para>
     /// One criterion: select under the gate, filter at the write boundary, replace. The order is
     /// load-bearing — the gate fires on the RAW candidate count, before the personnummer filter, so a
     /// criterion cannot slip under the bound by having candidates dropped. Were it the other way
     /// round, the bound would silently be "1 000 survivors" rather than "1 000 matches", and the
     /// storage argument (Art. 5(1)(c)) would be measured against a number the register can move.
+    /// </para>
     /// </summary>
     private async Task<CriterionOutcome> MaterialiseOneAsync(
-        CompanyWatchCriterion criterion, CancellationToken cancellationToken)
+        CompanyWatchCriterion criterion, DateTimeOffset stampedAt,
+        CancellationToken cancellationToken)
     {
         // #1681 part 2 — the predicate this run is resolving, stamped onto the row it writes so a
         // later read can tell "these members are for the criterion on screen" from "these members are
@@ -206,7 +391,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
             // was widened), and the state row records the refusal so the read side renders "för bred"
             // instead of a number, or a zero, or nothing at all.
             await store.ReplaceAsync(
-                    criterion.Id.Value, [], MaterialisationState.TooBroad, 0, clock.UtcNow, fingerprint,
+                    criterion.Id.Value, [], MaterialisationState.TooBroad, 0, stampedAt, fingerprint,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -217,7 +402,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
 
         await store.ReplaceAsync(
                 criterion.Id.Value, filtered.OrganizationNumbers, MaterialisationState.Materialised,
-                filtered.ExcludedPersonnummerShaped, clock.UtcNow, fingerprint, cancellationToken)
+                filtered.ExcludedPersonnummerShaped, stampedAt, fingerprint, cancellationToken)
             .ConfigureAwait(false);
 
         // Hoisted into a token-free local for the reason given at excludedByShapeGuard above: the
@@ -257,6 +442,14 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     private static partial void LogCompleted(
         ILogger logger, int criteriaSeen, int materialised, int tooBroad, int membersWritten,
         int excludedPnr, int excludedInvalid, int failed, double durationSeconds);
+
+    [LoggerMessage(
+        EventId = 6424,
+        Level = LogLevel.Information,
+        Message = "Omräkningssvep: {Candidates} kandidater, {SkippedUnchanged} oförändrade "
+                + "(omdöpning eller redan aktuell), {Resolved} upplösta mot registret.")]
+    private static partial void LogSweepCompleted(
+        ILogger logger, int candidates, int skippedUnchanged, int resolved);
 
     [LoggerMessage(
         EventId = 6422,

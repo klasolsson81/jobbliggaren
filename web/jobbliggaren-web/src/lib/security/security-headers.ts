@@ -13,6 +13,14 @@
 // no-CDN VPS and colliding with the middleware.ts hotspot — for a marginal XSS
 // gain the boxed exfil channels (connect/img/form-action/base-uri) already deny.
 //
+// ⚠ That trade-off was priced before this origin could hold a blob: document built from
+// user-uploaded bytes. It is not false, but it is weaker than when it was written, and
+// security-auditor re-priced it 2026-09-07: a blob: document inherits its creator's origin AND
+// its CSP, so 'unsafe-inline' above is the amplifier that turns "active content" into full XSS
+// if lapse-trigger 1 or 2 ever fires (DPIA #659 §11/§12). Exfil is boxed but not closed —
+// there is no navigate-to directive. The nonce cost against ADR 0045 stands, so this is a
+// re-pricing and not yet a decision to change it.
+//
 // frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the user's own
 // uploaded PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl =
 // URL.createObjectURL), a blob: URL that would otherwise fall back to

@@ -31,8 +31,17 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  *    their own, so the header carries `original.pdf` / `original.docx` and nothing user-supplied.
  */
 
-/** The only two kinds `CvFileSignature` can resolve, mapped to the extension each downloads as. */
-const ALLOWED_CONTENT_TYPES = new Map<string, string>([
+/**
+ * The only two kinds `CvFileSignature` can resolve, mapped to the extension each downloads as.
+ *
+ * EXPORTED so its exact membership can be pinned against production rather than against a copy of
+ * the literal — a pin that restates the set cannot fail when the set changes. Growing this map is
+ * DPIA #659 §11 **lapse-trigger 1**, and since the multi-user basis was signed (2026-09-07) a third
+ * entry is Blocker-class rather than hygiene: it is the first link in the only chain by which a
+ * hostile polyglot becomes active content in this origin. Nothing detects a lapse automatically,
+ * which is why the pin exists.
+ */
+export const ALLOWED_CONTENT_TYPES = new Map<string, string>([
   ["application/pdf", "pdf"],
   [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

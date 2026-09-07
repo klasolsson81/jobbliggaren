@@ -9,6 +9,10 @@ import {
   getCompanyWatches,
   getNewFollowedCompanyAdCount,
 } from "@/lib/api/company-follows";
+import {
+  getCompanyWatchCriteria,
+  getCriterionReference,
+} from "@/lib/api/company-criteria";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { env } from "@/lib/env";
 import { hasSeenSetupWelcome } from "@/lib/onboarding/setup-welcome";
@@ -56,6 +60,17 @@ export default async function OversiktRoute({
   // användare (Authorization-nyckel, `private`, revalidate 3600) — första
   // laddningen/timme är alltså kall men oblockerande.
   const taxonomyPromise = getTaxonomyTree();
+  // #1681 del 3 — referensträdet ger de smarta bevakningarnas rader sin människoetikett
+  // (`deriveDisplayLabel`). Startas EAGER av samma skäl som taxonomin ovan, så det överlappar
+  // fan-out:en i stället för att serialisera en round-trip efter den.
+  //
+  // ⚠ Men det skiljer sig från taxonomilöftet på den punkt som betyder något: taxonomins löfte
+  // awaitas VILLKORAT (bara i setup-grenen) och dess docblock påstår därför "noll adderad
+  // wall-clock-latency". Det här awaitas OVILLKORAT och adderar `max(0, ref − långsammaste
+  // fan-out-benet)`. Läs alltså inte grannens noll-latens-mening som om den täckte båda.
+  // Läsningen är `revalidate`-cachad per användare (~100 kB, ingen forcerad `no-store`), så
+  // kostnaden är kall en gång per fönster och inte per request.
+  const criterionReferencePromise = getCriterionReference();
   const [
     profile,
     pipeline,
@@ -64,6 +79,7 @@ export default async function OversiktRoute({
     matchCount,
     newFollowedCompanyAdCount,
     companyWatches,
+    criteria,
   ] = await Promise.all([
     getMyProfile(),
     getPipeline(),
@@ -96,6 +112,15 @@ export default async function OversiktRoute({
     // cases. A CTO decision (2026-08-29): this is initial data for a section, so it is fetched
     // here in the fan-out, never lazily client-side.
     getCompanyWatches(),
+    // #1681 del 3 (ADR 0139) — de smarta bevakningarna med sina TVÅ annonstal per rad. Result:et
+    // reser HELT till komponenten (aldrig degraderat till en array): bara ett Result skiljer "du
+    // har inga smarta bevakningar" från "listan kunde inte läsas", och blocket säger olika saker
+    // i de två fallen. Initial data för en sektion, alltså hämtat här i fan-out:en och aldrig
+    // lazy klient-side — samma CTO-dom som `getCompanyWatches` ovan.
+    //
+    // Rutten bär en EGEN rate-limit-hink (`CompanyWatchCriteriaList`, 5 burst / 3 per minut),
+    // inte `MeListRead`, så den här sidan lägger noll tokens på den delade hinken.
+    getCompanyWatchCriteria(),
   ]);
 
   // Unauthorized mid-render (token expired mellan layout-check och här):
@@ -123,6 +148,14 @@ export default async function OversiktRoute({
   // unauthorized HÄR driver ingen redirect (icke-kritisk yta, paritet `newMatchCount`).
   const newFollowedCompanyAdCountValue =
     newFollowedCompanyAdCount.kind === "ok" ? newFollowedCompanyAdCount.data.count : 0;
+
+  // #1681 del 3 — trädet konsumeras här, ovillkorat. Degraderar CIVILT: utan träd får raderna
+  // ingen härledd etikett och faller till användarens egen, därefter till den neutrala — men
+  // ANNONSTALEN, som är blockets poäng, står kvar. Ett `null` betyder alltså "ingen härledd
+  // rubrik", aldrig "inga siffror".
+  const criterionReference = await criterionReferencePromise.then((r) =>
+    r.kind === "ok" ? r.data : null,
+  );
 
   // ADR 0077 STEG 5 — välkomst-/första-setup-modal. Visas bara när profilen
   // laddats, inget yrke ännu angetts (`hasStatedDesiredOccupation`) OCH cookien
@@ -168,6 +201,8 @@ export default async function OversiktRoute({
         matchCount={matchCountValue}
         newFollowedCompanyAdCount={newFollowedCompanyAdCountValue}
         companyWatches={companyWatches}
+        criteria={criteria}
+        criterionReference={criterionReference}
       />
       {shouldMountSetup && taxonomy !== null && profile.kind === "ok" && (
         <MatchSetupLauncher

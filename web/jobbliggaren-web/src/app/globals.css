@@ -5116,6 +5116,34 @@ a.jp-adminnav__link[aria-current="page"]::after {
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
 .jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
 
+/* #1681 del 3 — smarta bevakningar på Översikt. EN RAD PER BEVAKNING, aldrig en summa:
+   kriterier är predikat utan unikhetsvillkor (CompanyWatchCriterionConfiguration avstår
+   `UNIQUE(user_id, sni_codes, kommun_codes)` medvetet), så två kriterier kan överlappa och
+   ett duplicerat dubblar en summa exakt. Företagsbevakningens ankarrad ärver därför inte
+   hit — dess summa är exakt bara tack vare unikindexet på (UserId, OrganizationNumber).
+
+   Inga nya tokens: färg, vikt och linje är blockets egna. Radgapet är större än blockets
+   6px eftersom varje post bär upp till tre rader (namn + två annonsrader) och posterna
+   annars läses som en enda styckesmassa. */
+.jp-appsummary__watches {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.jp-appsummary__watch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.jp-appsummary__watchname {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-bold);
+}
+
 /* Notiser */
 .jp-notice-list {
   list-style: none;

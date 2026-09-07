@@ -1,10 +1,12 @@
 using System.Data;
 using Jobbliggaren.Application.Common;
 using Jobbliggaren.Application.CompanyWatches.Abstractions;
+using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.CompanyWatches;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -38,7 +40,10 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// <c>@sni</c> as <c>text</c> instead of <c>text[]</c> would EXPLAIN a different plan.
 /// </para>
 /// </summary>
-internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBrowseQuery
+internal sealed class CompanyWatchBrowseQuery(
+    AppDbContext db,
+    IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
+    IDateTimeProvider clock) : ICompanyWatchBrowseQuery
 {
     /// <summary>
     /// Explicit, reviewed — never inherited (security-auditor Minor, 2026-07-13). A raw
@@ -283,7 +288,8 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// </para>
     /// </summary>
     private const string MaterialisedGate =
-        "m.state = @materialised_state AND m.criteria_fingerprint = @fingerprint";
+        "m.state = @materialised_state AND m.criteria_fingerprint = @fingerprint "
+        + "AND m.materialised_at >= @min_materialised_at";
 
     /// <summary>
     /// The capped ad count, wrapped in the state gate. <c>CASE</c> rather than a <c>WHERE</c> on the
@@ -307,13 +313,33 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// survives an empty (or gated-away) ad set.
     ///
     /// <para>
-    /// <b>The lateral was measured, not assumed, because a lateral is exactly where this codebase has
-    /// been burned before.</b> ADR 0139 rejected a batched form whose lateral sat over a
-    /// <c>jsonb_to_recordset</c> function scan - the planner had no statistics for it and stopped
-    /// choosing the index lookup, costing 40-50x. This lateral is over a REAL table with a correlated
-    /// equality on its PK, and the plan is unchanged from the un-wrapped statement: same Index Only
-    /// Scan (<c>Heap Fetches: 0</c>), same Bitmap Index Scan, 44 buffers against 43. The gate appears
-    /// as a <c>One-Time Filter</c>.
+    /// <b>The lateral is safe for a STRUCTURAL reason, not because a fixture measured it once</b>
+    /// (dotnet-architect, 2026-09-06). ADR 0139 rejected a batched form whose lateral sat over a
+    /// <c>jsonb_to_recordset</c> function scan; the planner had no statistics for it and stopped
+    /// choosing the index lookup. Two properties separate this one from that one, and neither decays:
+    /// <list type="number">
+    ///   <item>The OUTER relation is pinned on its primary key (<c>WHERE m.criterion_id = @criterion_id</c>),
+    ///     so the lateral executes <b>at most once</b>. The rejected form had N outer rows and therefore
+    ///     N executions with no per-execution statistics. A lateral over one row is a wrapper, not a
+    ///     fan-out.</item>
+    ///   <item><c>ARRAY(SELECT ... WHERE criterion_id = @criterion_id)</c> references no outer column,
+    ///     so it is hoisted to an <c>InitPlan</c> and evaluated once - where the rejected form's arrays
+    ///     sat in a <c>jsonb</c> parameter the planner could not look into.</item>
+    /// </list>
+    /// That is why the plan can be unchanged from the un-wrapped statement, and it holds independently
+    /// of fixture size. The measured plan itself is in
+    /// <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c> (Result 3) and is pinned by
+    /// <c>CompanyWatchBrowseQueryPlanTests</c>; buffer counts are not restated here, because a live
+    /// measured number in a tracked file decays within a commit or two.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The member lookup inside the lateral keys on <c>@criterion_id</c>, not on
+    /// <c>m.criterion_id</c>, and that is correct ONLY because the outer <c>WHERE</c> pins exactly one
+    /// row.</b> A future batched variant (several outer rows) would read the SAME member set for every
+    /// criterion and silently attribute one watch's ads to another. Correlating on <c>m.criterion_id</c>
+    /// is not free either: it stops being un-correlated, so the <c>InitPlan</c> becomes a per-row
+    /// <c>SubPlan</c> and the plan this statement was measured under changes.
     /// </para>
     ///
     /// <para>
@@ -407,14 +433,22 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
             .ConfigureAwait(false);
     }
 
-    private static async Task<MaterialisedAdCount> ReadAdCountAsync(
+    /// <summary>
+    /// The oldest <c>materialised_at</c> a read will still believe. See
+    /// <see cref="CompanyWatchMaterialisationOptions.MaxReadAgeHours"/> for why the bound exists and
+    /// how it is derived from the cadence.
+    /// </summary>
+    private DateTimeOffset MinMaterialisedAt() =>
+        clock.UtcNow.AddHours(-materialisationOptions.Value.MaxReadAgeHours);
+
+    private async Task<MaterialisedAdCount> ReadAdCountAsync(
         NpgsqlConnection connection,
         CompanyWatchCriterionId criterionId,
         CriteriaFingerprint fingerprint,
         int cap,
         CancellationToken cancellationToken)
     {
-        await using var cmd = BuildAdCountCommand(connection, criterionId, fingerprint, cap);
+        await using var cmd = BuildAdCountCommand(connection, criterionId, fingerprint, MinMaterialisedAt(), cap);
         await using var reader = await cmd
             .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -426,14 +460,17 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         var state = reader.GetString(0);
         var storedFingerprint = reader.GetString(1);
 
-        if (state == MaterialisationState.TooBroad.ToString())
-            return MaterialisedAdCount.TooBroad;
-
-        // A row whose fingerprint does not match was computed from a predicate the user has since
-        // edited. Its member set is exact for a criterion that no longer exists, so the honest answer
-        // is that we do not know yet - never the old number, which would be false rather than stale.
+        // The FINGERPRINT is compared FIRST, and the order is the whole point (db-migration-writer,
+        // 2026-09-06). A row whose fingerprint does not match was computed from a predicate the user
+        // has since edited, and that is true of a REFUSAL as much as of a count: checking the state
+        // first would mean a user who NARROWED a too-broad watch kept being told it is too broad
+        // until the next nightly run. The write side stamps the fingerprint on the TooBroad path
+        // precisely so this read can see such an edit; checking state first threw that away.
         if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
             return MaterialisedAdCount.NotMaterialised;
+
+        if (state == MaterialisationState.TooBroad.ToString())
+            return MaterialisedAdCount.TooBroad;
 
         // The gate passed, so the CASE produced a number. A NULL here would mean the SQL gate and the
         // C# gate disagree, which is a bug rather than a state - fail loud instead of inventing a 0.
@@ -456,7 +493,7 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var cmd = BuildAdIdSetCommand(connection, criterionId, fingerprint, maxSetSize);
+        await using var cmd = BuildAdIdSetCommand(connection, criterionId, fingerprint, MinMaterialisedAt(), maxSetSize);
         await using var reader = await cmd
             .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -466,11 +503,12 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
         var state = reader.GetString(0);
         var storedFingerprint = reader.GetString(1);
 
-        if (state == MaterialisationState.TooBroad.ToString())
-            return MaterialisedAdIds.TooBroad;
-
+        // Fingerprint before state, for the reason ReadAdCountAsync gives at the same comparison.
         if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
             return MaterialisedAdIds.NotMaterialised;
+
+        if (state == MaterialisationState.TooBroad.ToString())
+            return MaterialisedAdIds.TooBroad;
 
         // The LEFT JOIN always yields one row. A NULL id on it means the lateral matched nothing,
         // which for a gate that PASSED is an honest empty set - not a refusal, and not ignorance.
@@ -503,12 +541,12 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// </summary>
     internal static NpgsqlCommand BuildAdIdSetCommand(
         NpgsqlConnection connection, CompanyWatchCriterionId criterionId,
-        CriteriaFingerprint fingerprint, int maxSetSize)
+        CriteriaFingerprint fingerprint, DateTimeOffset minMaterialisedAt, int maxSetSize)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = MaterialisedAdIdSetSql;
-        BindMaterialisedGate(cmd, criterionId, fingerprint);
+        BindMaterialisedGate(cmd, criterionId, fingerprint, minMaterialisedAt);
         cmd.Parameters.AddWithValue("@set_limit", NpgsqlDbType.Integer, maxSetSize + 1);
         return cmd;
     }
@@ -538,12 +576,12 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// </summary>
     internal static NpgsqlCommand BuildAdCountCommand(
         NpgsqlConnection connection, CompanyWatchCriterionId criterionId,
-        CriteriaFingerprint fingerprint, int cap)
+        CriteriaFingerprint fingerprint, DateTimeOffset minMaterialisedAt, int cap)
     {
         var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
         cmd.CommandText = MaterialisedAdCountSql;
-        BindMaterialisedGate(cmd, criterionId, fingerprint);
+        BindMaterialisedGate(cmd, criterionId, fingerprint, minMaterialisedAt);
         cmd.Parameters.AddWithValue("@count_cap", NpgsqlDbType.Integer, cap);
         return cmd;
     }
@@ -555,10 +593,17 @@ internal sealed class CompanyWatchBrowseQuery(AppDbContext db) : ICompanyWatchBr
     /// the half that cannot be seen by reading either statement.
     /// </summary>
     private static void BindMaterialisedGate(
-        NpgsqlCommand cmd, CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint)
+        NpgsqlCommand cmd, CompanyWatchCriterionId criterionId, CriteriaFingerprint fingerprint,
+        DateTimeOffset minMaterialisedAt)
     {
         cmd.Parameters.AddWithValue("@criterion_id", NpgsqlDbType.Uuid, criterionId.Value);
         cmd.Parameters.AddWithValue("@fingerprint", NpgsqlDbType.Text, fingerprint.Value);
+        // The age bound, evaluated server-side beside the fingerprint so an over-age row costs no ad
+        // scan. Passed IN rather than read from options here, for the reason the fingerprint is: a
+        // gate a builder computes for itself is a gate the next caller can forget exists. Its
+        // derivation from the materialisation cadence lives on the option that owns it.
+        cmd.Parameters.AddWithValue(
+            "@min_materialised_at", NpgsqlDbType.TimestampTz, minMaterialisedAt);
         // The enum's own name, never a literal (5 magic strings): the column is written from
         // MaterialisationState.ToString() by CompanyWatchCriterionMemberStore, so the two cannot
         // drift apart without the type itself changing.

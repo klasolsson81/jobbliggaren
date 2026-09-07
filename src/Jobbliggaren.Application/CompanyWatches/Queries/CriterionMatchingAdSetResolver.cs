@@ -35,8 +35,16 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries;
 /// <para>
 /// <b>It never authorizes.</b> Every consumer loads the criterion owner-scoped itself and answers
 /// 404 before reaching this type; the memo is per request and therefore per user. A memo that could
-/// be mistaken for an authorization shortcut would eventually be used as one, so the criterion's
-/// SPEC is what enters here — never an id the caller has not already proven it owns.
+/// be mistaken for an authorization shortcut would eventually be used as one.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>Since #1681 part 2 the criterion id is the DATABASE SELECTOR, not just a memo key</b>
+/// (security-auditor, 2026-09-06). The three ad-side port methods read <c>members ⋈ job_ads</c> keyed
+/// by that id, so passing an id the caller has not proven it owns is no longer a correctness bug — it
+/// is a read of another user's materialised ad set. Every call site is owner-scoped today and
+/// <see cref="CriterionToResolve"/> says so at the type; this paragraph exists so the next
+/// contributor does not read the seam as safe on its own.
 /// </para>
 /// </summary>
 public sealed class CriterionMatchingAdSetResolver(
@@ -183,13 +191,30 @@ public sealed class CriterionMatchingAdSetResolver(
         if (criteria.Count == 0)
             return results;
 
+        // Read the memo BEFORE resolving, so the docblock's claim holds in both directions
+        // (dotnet-architect, 2026-09-06). Without this the batch would re-measure a criterion the
+        // single-criterion path had already answered and overwrite the memo with a SECOND
+        // measurement — the two-resolutions-of-one-question defect this class exists against. Not
+        // reachable through today's routes; an invariant with no coverage is still an invariant.
+        var pending = new List<CriterionToResolve>(criteria.Count);
+        foreach (var c in criteria)
+        {
+            if (_matching.TryGetValue(c.Id, out var memo))
+                results[c.Id] = memo;
+            else
+                pending.Add(c);
+        }
+
+        if (pending.Count == 0)
+            return results;
+
         // Assessability first, exactly as the single-criterion path does it: a caller who has stated
         // no occupation never pays for a scan whose result could not be graded, and the answer is a
         // nudge rather than a zero.
         var profile = await profileBuilder.BuildFullForSortAsync(cancellationToken);
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
         {
-            foreach (var c in criteria)
+            foreach (var c in pending)
             {
                 var notAssessed = new CriterionMatchingAds.NotAssessed();
                 _matching[c.Id] = notAssessed;
@@ -202,47 +227,13 @@ public sealed class CriterionMatchingAdSetResolver(
         // Phase 1 — per criterion, resolve its ad-id set (or the reason there is none). Nothing is
         // graded yet, so a criterion that refuses costs no grading input at all.
         var idsByCriterion = new Dictionary<Guid, IReadOnlyList<JobAdId>>();
-        foreach (var c in criteria)
+        foreach (var c in pending)
         {
-            var magnitude = await MagnitudeAsync(c.Id, c.Criteria, cancellationToken);
-
-            if (magnitude.TooBroad)
-            {
-                results[c.Id] = new CriterionMatchingAds.SetTooLarge();
-                continue;
-            }
-
-            if (magnitude.NotMaterialised)
-            {
-                results[c.Id] = new CriterionMatchingAds.NotMaterialised();
-                continue;
-            }
-
-            if (magnitude.Magnitude > MaxSetSize)
-            {
-                results[c.Id] = new CriterionMatchingAds.SetTooLarge();
-                continue;
-            }
-
-            var resolved = await browse.ListActiveAdIdsAsync(
-                new CompanyWatchCriterionId(c.Id),
-                CriteriaFingerprint.Of(c.Criteria),
-                MaxSetSize,
-                cancellationToken);
-
-            if (resolved.Refused || resolved.State == CriterionMaterialisationState.TooBroad)
-            {
-                results[c.Id] = new CriterionMatchingAds.SetTooLarge();
-                continue;
-            }
-
-            if (resolved.State == CriterionMaterialisationState.NotMaterialised)
-            {
-                results[c.Id] = new CriterionMatchingAds.NotMaterialised();
-                continue;
-            }
-
-            idsByCriterion[c.Id] = resolved.Ids!;
+            var (terminal, ids) = await ResolveIdsAsync(c.Id, c.Criteria, cancellationToken);
+            if (terminal is not null)
+                results[c.Id] = terminal;
+            else
+                idsByCriterion[c.Id] = ids!;
         }
 
         // Phase 2 — ONE grading call over the UNION. FilterToMatchingAsync de-duplicates its input
@@ -265,6 +256,60 @@ public sealed class CriterionMatchingAdSetResolver(
         return results;
     }
 
+    /// <summary>
+    /// The guard order and the refusal semantics, in ONE place — shared by
+    /// <see cref="ResolveAsync"/> (one criterion) and <see cref="MatchingBatchAsync"/> (a list).
+    ///
+    /// <para>
+    /// <b>It was extracted because the batch had copied it</b> (dotnet-architect, 2026-09-06). Two
+    /// copies were equivalent the day they were written and are two copies the day after — and this
+    /// class's own docblock justifies its existence by saying a second copy would drift, because the
+    /// guard order, the refusal semantics and the grade authority are subtle enough that it would.
+    /// Writing that argument and then duplicating the thing it protects is the vacuous-guarantee
+    /// class this repo has already shipped twice (#805-3, #842).
+    /// </para>
+    ///
+    /// <para>
+    /// Returns a TERMINAL answer or the ad-id set, never both and never neither. The order of the
+    /// guards is part of the contract and each one exists to avoid work the next would waste: the
+    /// magnitude the surface needs anyway answers both refusals without a second round trip, so a
+    /// refusal costs no id query of its own. <b>The gate never replaces the probe</b> — the port
+    /// still asks for one row more than it can accept, so a set that grew between the count and the
+    /// query is refused rather than truncated.
+    /// </para>
+    /// </summary>
+    private async Task<(CriterionMatchingAds? Terminal, IReadOnlyList<JobAdId>? Ids)> ResolveIdsAsync(
+        Guid criterionId, CompanyWatchCriteriaSpec criteria, CancellationToken cancellationToken)
+    {
+        var magnitude = await MagnitudeAsync(criterionId, criteria, cancellationToken);
+
+        // Neither refusal is a zero, and they are NOT interchangeable: "för bred" is something the
+        // user can act on by narrowing the watch, "not materialised" is something only the next run
+        // fixes.
+        if (magnitude.TooBroad)
+            return (new CriterionMatchingAds.SetTooLarge(), null);
+        if (magnitude.NotMaterialised)
+            return (new CriterionMatchingAds.NotMaterialised(), null);
+        if (magnitude.Magnitude > MaxSetSize)
+            return (new CriterionMatchingAds.SetTooLarge(), null);
+
+        var resolved = await browse.ListActiveAdIdsAsync(
+            new CompanyWatchCriterionId(criterionId),
+            CriteriaFingerprint.Of(criteria),
+            MaxSetSize,
+            cancellationToken);
+
+        // The port refuses rather than truncating, so there is no prefix here to mistake for an
+        // answer. Its non-answers map onto this hierarchy's own, one for one — and the two that read
+        // as "för bred" stay distinct inside the port even though they render one sentence.
+        if (resolved.Refused || resolved.State == CriterionMaterialisationState.TooBroad)
+            return (new CriterionMatchingAds.SetTooLarge(), null);
+        if (resolved.State == CriterionMaterialisationState.NotMaterialised)
+            return (new CriterionMatchingAds.NotMaterialised(), null);
+
+        return (null, resolved.Ids!);
+    }
+
     private async Task<CriterionMatchingAds> ResolveAsync(
         Guid criterionId, CompanyWatchCriteriaSpec criteria, CancellationToken cancellationToken)
     {
@@ -274,39 +319,13 @@ public sealed class CriterionMatchingAdSetResolver(
         if (profile.Fast.SsykGroupConceptIds.Count == 0)
             return new CriterionMatchingAds.NotAssessed();
 
-        var magnitude = await MagnitudeAsync(criterionId, criteria, cancellationToken);
-
-        // The magnitude already carries the criterion's materialisation state, so the two refusals it
-        // can express are answered here without a second round trip. Neither is a zero, and they are
-        // NOT interchangeable: "för bred" is something the user can act on by narrowing the watch,
-        // "not materialised" is something only time (or the next run) fixes.
-        if (magnitude.TooBroad)
-            return new CriterionMatchingAds.SetTooLarge();
-        if (magnitude.NotMaterialised)
-            return new CriterionMatchingAds.NotMaterialised();
-        if (magnitude.Magnitude > MaxSetSize)
-            return new CriterionMatchingAds.SetTooLarge();
-
-        var resolved = await browse.ListActiveAdIdsAsync(
-            new CompanyWatchCriterionId(criterionId),
-            CriteriaFingerprint.Of(criteria),
-            MaxSetSize,
-            cancellationToken);
-
-        // The port refuses rather than truncating, so there is no prefix here to mistake for an
-        // answer. Its three non-answers map onto this hierarchy's own three, one for one.
-        if (resolved.Refused)
-            return new CriterionMatchingAds.SetTooLarge();
-        if (resolved.State == CriterionMaterialisationState.TooBroad)
-            return new CriterionMatchingAds.SetTooLarge();
-        if (resolved.State == CriterionMaterialisationState.NotMaterialised)
-            return new CriterionMatchingAds.NotMaterialised();
-
-        var ids = resolved.Ids!;
+        var (terminal, ids) = await ResolveIdsAsync(criterionId, criteria, cancellationToken);
+        if (terminal is not null)
+            return terminal;
 
         // An empty set is a real answer (zero matching ads), NOT a refusal. Short-circuited because
         // grading an empty set would be a round-trip that cannot match a row.
-        if (ids.Count == 0)
+        if (ids!.Count == 0)
             return new CriterionMatchingAds.Resolved([]);
 
         var matching = await perUserSearch.FilterToMatchingAsync(profile, ids, cancellationToken);
@@ -320,16 +339,17 @@ public sealed class CriterionMatchingAdSetResolver(
 }
 
 /// <summary>
-/// The three answers this question has, as a CLOSED hierarchy — the private constructor means no
-/// fourth kind can be declared elsewhere, and no combination of loose nullables can represent a
-/// state that is not one of these three (§2.2, §5 primitive obsession).
+/// The four answers this question has, as a CLOSED hierarchy — the private constructor means no
+/// fifth kind can be declared elsewhere, and no combination of loose nullables can represent a
+/// state that is not one of these four (§2.2, §5 primitive obsession).
 ///
 /// <para>
-/// <see cref="Resolved"/> with an empty list and <see cref="NotAssessed"/> and
-/// <see cref="SetTooLarge"/> are three DIFFERENT things and a consumer must not collapse them: zero
-/// matches is a number, "you have stated no occupation" is a nudge, and "this watch is too broad to
-/// count" is a refusal. Rendering any of the latter two as "0" is the dishonest-zero trap this
-/// codebase names in every neighbouring file.
+/// <see cref="Resolved"/> with an empty list, <see cref="NotAssessed"/>, <see cref="SetTooLarge"/>
+/// and <see cref="NotMaterialised"/> are four DIFFERENT things and a consumer must not collapse any
+/// two: zero matches is a number, "you have stated no occupation" is a nudge, "this watch is too
+/// broad to count" is a refusal, and "we have not counted this watch yet" is ignorance. Rendering
+/// any of the latter three as "0" is the dishonest-zero trap this codebase names in every
+/// neighbouring file.
 /// </para>
 /// </summary>
 public abstract record CriterionMatchingAds

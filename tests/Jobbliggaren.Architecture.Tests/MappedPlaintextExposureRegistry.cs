@@ -160,10 +160,13 @@ internal static class MappedPlaintextExposureRegistry
                 + "but the SET is a materialised statement about which employers she is watching — "
                 + "the same class as the criterion's own code lists.",
             ["company_watch_criterion_materialisations"] = "The per-criterion materialisation state "
-                + "(criterion_id -> user_id): state is a closed two-member enum and the rest are two "
-                + "counts and a timestamp, so nothing here is free text — the table is listed because "
-                + "the ROW is attributable to her, which is what the row test asks, and so a column "
-                + "added here later cannot land outside it.",
+                + "(criterion_id -> user_id): state is a closed two-member enum, criteria_fingerprint "
+                + "(#1681 part 2) is a fixed-width SHA-256 of her own SNI/kommun selection, and the "
+                + "rest are two counts and a timestamp — so nothing here is free text. The table is "
+                + "listed because the ROW is attributable to her, which is what the row test asks, "
+                + "and so a column added here later cannot land outside it. The fingerprint is the "
+                + "first DERIVED value on this table rather than a bare count, which is why Klas "
+                + "extended ADR 0139's grant 3 to cover BOTH materialisation tables (2026-09-06).",
             ["followed_company_ad_hits"] = "One row per ad hit delivered to her (UserId). "
                 + "notification_status is a fact about what she was sent.",
             ["user_job_ad_matches"] = "One row per match computed FOR HER (UserId). grade is the "

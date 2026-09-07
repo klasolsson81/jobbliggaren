@@ -195,6 +195,45 @@ public sealed class RateLimitingOptions
     /// SlidingWindow gör INTE det (security-auditor + code-reviewer empiri 2026-06-24, CTO-
     /// förauktoriserad fallback). QueueLimit=0 kvar (kö = memory-DoS).
     /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Omprissättning 2026-09-07 (#1681 del 2, security-auditor Major 1) — härledningen ovan är
+    /// REN REQUEST-AMPLIFIERING och saknar en per-request-BACKENDKOSTNADSTERM.</b> Det spelade ingen
+    /// roll så länge varje rutt i hinken var en bunden objektgraf-läsning. Sedan #1681 del 2 är
+    /// <c>GET /me/company-watch-criteria</c> det inte längre: den kör <b>upp till ~40 bundna satser
+    /// plus ett graderingsanrop per request</b> (två satser per kriterium × <c>MaxPerUser</c> = 20,
+    /// plus en batchad <c>FilterToMatchingAsync</c>). Vid taket är det ~4 800 satser/min/användare
+    /// mot <c>job_ads</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Mätta kostnadsklasser</b>
+    /// (<c>docs/reviews/2026-09-07-1681-part2-fanin-and-corpus-measurement.md</c>): tvillingen
+    /// <c>ListCompanyWatchesQueryHandler</c> läser på <b>0,166 ms p95</b>; den nya rutten på
+    /// <b>47,3 ms</b> i vardagsfallet och <b>240–381 ms</b> vid annonstaket — alltså ~285× respektive
+    /// ~1 400–2 300× tvillingen. ADR 0139:s alternativ 3 lyfte sin invändning på TVÅ grunder; den
+    /// första (<i>ingen registerjoin kvar i läsvägen</i>) håller och är pinnad, men den andra — att
+    /// läsvägen blir <i>"samma bundna GROUP BY som företagsblocket redan kör"</i> — är <b>falsk som
+    /// levererad</b>: tvillingen kör 2 satser, den här rutten upp till 40.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Vad som gjordes åt det, och vad som inte gjordes.</b> Marginalen köptes tillbaka genom att
+    /// <b>ta bort ett anrop</b>, inte genom att höja taket: båda detaljsidorna slutade anropa den här
+    /// rutten (#1681 del 2 gav dem <c>GetCriterionIdentityQuery</c> på rutter de redan anropar), så av
+    /// tre konsumenter är en kvar — den lista som faktiskt renderar talen. <b>Höjd
+    /// <see cref="PolicyOptions.PermitLimit"/> är uttryckligen INTE en tillgänglig åtgärd</b>
+    /// (security-auditor 2026-09-07), och det är samma doktrin <c>CompanyBrowse</c> redan skriver ut:
+    /// <i>"Buy the margin back by removing a call, not by raising this."</i>
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Kvarstående, och det är avsiktligt nedskrivet snarare än stängt:</b> borttagningen fixar
+    /// det OAVSIKTLIGA fallet (vanlig navigering), inte vad en avsiktlig aktör når — ett konto kan
+    /// fortfarande träffa listrutten 120 ggr/min. Det residualet är hinkens jobb, och
+    /// <c>security-auditor</c>s signatur på just den frågan är hennes att ge; varken Klas
+    /// budgetacceptans (ADR 0139 beviljande 4) eller etikettfixen laddar ur den.
+    /// </para>
     /// </summary>
     public PolicyOptions MeListRead { get; init; } = new()
     {

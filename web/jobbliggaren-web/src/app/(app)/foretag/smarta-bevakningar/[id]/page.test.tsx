@@ -61,6 +61,18 @@ const COMPANY = {
 };
 
 /**
+ * #1681 part 2 — the criterion's identity, composed onto the browse response. Every fixture in this
+ * file carries it, because the page reads `criterion.label` unguarded: it is a required member of
+ * the response schema, not something the page defends against.
+ */
+const CRITERION = {
+  id: "c1",
+  sniCodes: ["62010"],
+  municipalityCodes: ["0180"],
+  label: "IT i Stockholm",
+};
+
+/**
  * #1149 — the CALL-SITE pin for `showTotalCount` on the criterion browse.
  *
  * `job-ad-pagination.test.tsx` proves the prop suppresses the total. It cannot prove this page
@@ -88,6 +100,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     browseCriterionCompanies.mockResolvedValue({
       kind: "ok",
       data: {
+        criterion: CRITERION,
         companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 2000 },
         magnitude: { magnitude: 10000, saturated: true },
       },
@@ -119,6 +132,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
   const okBrowse = {
     kind: "ok",
     data: {
+      criterion: CRITERION,
       companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
       magnitude: { magnitude: 1, saturated: false },
     },
@@ -211,6 +225,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
   const okBrowse = {
     kind: "ok",
     data: {
+      criterion: CRITERION,
       companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
       magnitude: { magnitude: 1, saturated: false },
     },
@@ -300,5 +315,205 @@ describe("BevakningBrowsePage — the personal match count", () => {
     expect(screen.queryByText(/matchande annonser/)).toBeNull();
     expect(screen.queryByText(/för bred/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+  });
+});
+
+/**
+ * #1681 part 2 (ADR 0139) — the heading, and the read this page no longer makes.
+ *
+ * <para/> This page used to resolve its title from `GET /company-watch-criteria`. Part 2 gave every
+ * row of that list a materialised ad count AND a per-user graded matching count, which turned a
+ * heading into twenty criteria's graded counts on a route with a 300 ms budget. The fix (CTO,
+ * 2026-09-07) composes the criterion's identity onto the browse response this page already makes.
+ *
+ * <para/> Nothing pinned the REMOVAL, and a removal is exactly the kind of change that comes back:
+ * re-adding the call would restore the cost with every existing test green, because the title would
+ * still resolve. So the negative is asserted directly, on the spy for the function that must not be
+ * called. Its positive twin is the heading itself — without that, "never called" would also pass on
+ * a page that renders no title at all.
+ */
+describe("BevakningBrowsePage — the heading, and the list read that is gone", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+    getCriterionAdCount.mockResolvedValue({ kind: "error" });
+  });
+
+  it("heads the page from the composed criterion and never reads the criteria list", async () => {
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    // POSITIVE: the label came off the browse response. Asserted as the page's h1 rather than as
+    // loose text, so a title rendered somewhere incidental would not satisfy it.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "IT i Stockholm" }),
+    ).toBeInTheDocument();
+
+    // NEGATIVE: and it cost no list read.
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+
+    // The control for that negative. A spy that records nothing would satisfy "not called" for the
+    // wrong reason, so the sibling read on the SAME module mock is asserted to have registered.
+    expect(browseCriterionCompanies).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the neutral title for an unnamed watch, still without the list read", async () => {
+    // A null label is the ordinary case: most watches are never named. With the reference tree
+    // degraded there is no derived label either, so the page must still head itself rather than
+    // reaching for the list as a second source.
+    browseCriterionCompanies.mockResolvedValue({
+      ...okBrowse,
+      data: { ...okBrowse.data, criterion: { ...CRITERION, label: null } },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.getByRole("heading", { level: 1, name: "Bevakning" })).toBeInTheDocument();
+    expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #1681 part 2 — the two states in which the ad numbers have no answer, and the one in which BOTH
+ * numbers are refused for the same reason.
+ *
+ * <para/> tooBroad and notMaterialised are not the same answer and must not read as one: too-broad
+ * is a determinate REFUSAL the user can act on by narrowing the watch; not-materialised is
+ * IGNORANCE that resolves itself on the next run, and telling that user to narrow the watch would
+ * be advice that cannot work. Neither is a zero, which is the whole point (ADR 0120): a 0 would say
+ * "this watch has no ads" where the truth is that nothing was counted.
+ *
+ * <para/> The shared-refusal arm exists because the two refusals COINCIDE by construction — the
+ * matching arm is derived from the same magnitude the ads flag comes from — so rendering both put
+ * the same advice on the page twice.
+ */
+describe("BevakningBrowsePage — the ad numbers with no answer", () => {
+  const okBrowse = {
+    kind: "ok",
+    data: {
+      criterion: CRITERION,
+      companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+      magnitude: { magnitude: 1, saturated: false },
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    browseCriterionCompanies.mockResolvedValue(okBrowse);
+    getCriterionReference.mockResolvedValue({ kind: "error" });
+  });
+
+  async function renderWith(ads: unknown, matching: unknown) {
+    getCriterionAdCount.mockResolvedValue({ kind: "ok", data: { ads, matching } });
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+  }
+
+  /** No arm of this family may render a zero — that is the defect the whole family exists against. */
+  function expectNoZero() {
+    expect(screen.queryByText(/^0 aktiva annonser/)).toBeNull();
+    expect(screen.queryByText("Inga aktiva annonser från dessa företag just nu.")).toBeNull();
+    expect(screen.queryByText("Inga matchande annonser just nu")).toBeNull();
+  }
+
+  it("says the watch is too broad to count, once, when BOTH numbers are refused for it", async () => {
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: true, notMaterialised: false },
+      { count: null, tooBroad: true, notMaterialised: false },
+    );
+
+    expect(
+      screen.getByText(/för bred för att vi ska kunna räkna annonserna eller matcha dem/),
+    ).toBeInTheDocument();
+    // ONCE. The two per-number sentences would repeat the same advice under the same heading.
+    expect(
+      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna annonserna\./),
+    ).toBeNull();
+    expect(
+      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna hur många/),
+    ).toBeNull();
+    // The action is carried, because a refusal that names one must offer the way there.
+    expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
+      "href",
+      "/foretag/smarta-bevakningar",
+    );
+    expectNoZero();
+  });
+
+  it("says the numbers are not computed yet, once, when both are unanswerable for that reason", async () => {
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      { count: null, tooBroad: false, notMaterialised: true },
+    );
+
+    expect(
+      screen.getByText(
+        "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
+      ),
+    ).toBeInTheDocument();
+    // Ignorance, not refusal: no "narrow the watch" advice and no link to go and do it, because
+    // there is nothing the user can change that would make the number appear sooner.
+    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+    expectNoZero();
+  });
+
+  it("keeps the two answers separate when only the ad number is unanswerable", async () => {
+    // The arms do NOT have to coincide, and when they do not the page owes both answers. Here the
+    // ad count is not computed yet while the personal count has a number — so the collapse must
+    // not fire, which is what stops it from swallowing an answer the page does have.
+    await renderWith(
+      { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
+      { count: 4, tooBroad: false, notMaterialised: false },
+    );
+
+    expect(
+      screen.getByText(
+        "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4 matchande annonser just nu")).toBeInTheDocument();
+    expectNoZero();
+  });
+
+  it("states the personal count is not computed yet, distinctly from every other non-number", async () => {
+    await renderWith(
+      { magnitude: 12, saturated: false, tooBroad: false, notMaterialised: false },
+      { count: null, tooBroad: false, notMaterialised: true },
+    );
+
+    expect(
+      screen.getByText(
+        "Bevakningen är inte framräknad än, så vi vet inte hur många annonser som matchar dig.",
+      ),
+    ).toBeInTheDocument();
+    // Not the too-broad refusal, and not the "you have stated no occupation" nudge: those are
+    // different facts about the same missing number, and each has its own next step (or none).
+    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
+    expectNoZero();
   });
 });

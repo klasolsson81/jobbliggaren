@@ -9,6 +9,7 @@ using Jobbliggaren.Application.CompanyWatches.Commands.UpdateCompanyWatchCriteri
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCompanies;
 using Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionAdMagnitude;
+using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionIdentity;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionMatchMagnitude;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
@@ -99,7 +100,17 @@ public static class CompanyWatchCriteriaEndpoints
             if (magnitude is null)
                 return Results.NotFound();
 
-            return Results.Ok(new CompanyBrowseResponse(companies, magnitude));
+            // #1681 part 2 — the criterion's own codes and label ride along, so the detail page can
+            // render its heading WITHOUT calling the list route. That call used to be cheap; part 2
+            // gave every list row a materialised ad count and a per-user graded matching count, so
+            // the page came to fetch twenty criteria's graded counts to render one string. Composed
+            // here rather than added as a fifth route, because these four share one rate-limit
+            // bucket and the margin is bought by removing a call, not by adding one.
+            var identity = await mediator.Send(new GetCriterionIdentityQuery(id), ct);
+            if (identity is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CompanyBrowseResponse(companies, magnitude, identity));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
         // #1559 — the criterion's ACTIVE ads (the companies it matches, and what they are hiring
@@ -145,7 +156,13 @@ public static class CompanyWatchCriteriaEndpoints
                     return Results.NotFound();
             }
 
-            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude, matching));
+            // Same reason as /companies above: the heading is served from the route the page already
+            // calls, so no surface has to buy the whole criteria list for a label.
+            var identity = await mediator.Send(new GetCriterionIdentityQuery(id), ct);
+            if (identity is null)
+                return Results.NotFound();
+
+            return Results.Ok(new CriterionAdBrowseResponse(ads, magnitude, matching, identity));
         }).RequireRateLimiting(RateLimitingExtensions.CompanyBrowsePolicy);
 
         // #1559 — the ad magnitude ALONE, for the criterion detail page, which renders the number and
@@ -234,7 +251,8 @@ public static class CompanyWatchCriteriaEndpoints
     /// </summary>
     private sealed record CompanyBrowseResponse(
         PagedResult<CompanyBrowseDto> Companies,
-        CriterionMatchMagnitudeDto Magnitude);
+        CriterionMatchMagnitudeDto Magnitude,
+        CriterionIdentityDto Criterion);
 
     /// <summary>
     /// #1559 — the composed AD browse response, the exact sibling of <see cref="CompanyBrowseResponse"/>
@@ -245,7 +263,8 @@ public static class CompanyWatchCriteriaEndpoints
     private sealed record CriterionAdBrowseResponse(
         PagedResult<JobAdDto> Ads,
         CriterionAdMagnitudeDto Magnitude,
-        MyMatchingAdCountDto? Matching);
+        MyMatchingAdCountDto? Matching,
+        CriterionIdentityDto Criterion);
 
     /// <summary>
     /// #1656 (b) — the criterion's two AD numbers side by side: how many active ads exist, and how

@@ -118,12 +118,33 @@ export const companyBrowseSchema = z.object({
 export type CompanyBrowse = z.infer<typeof companyBrowseSchema>;
 
 /**
+ * #1681 part 2 — the criterion's identity (codes + optional label), composed into the two detail
+ * routes so a heading costs no list read.
+ *
+ * Before part 2 the detail pages resolved their heading from `GET /company-watch-criteria`. Part 2
+ * gave every row of that list a materialised ad count and a per-user graded matching count, so the
+ * page came to fetch twenty criteria's graded counts to render one string. This carries what a
+ * heading actually needs and nothing else — the human display-label is still derived FE-side from
+ * the reference tree (`lib/company-criteria/display-label.ts`), because a second label authority
+ * could only drift.
+ */
+export const criterionIdentitySchema = z.object({
+  id: z.string(),
+  sniCodes: z.array(z.string()),
+  municipalityCodes: z.array(z.string()),
+  label: z.string().nullable(),
+});
+export type CriterionIdentity = z.infer<typeof criterionIdentitySchema>;
+
+/**
  * The composed browse response (mirrors the Api's `CompanyBrowseResponse`): the paginated page and the
  * honest magnitude, side by side — so the FE can never mistake the pagination `totalCount` for the
  * magnitude. `companies.totalCount` SATURATES at 2000 (max 100 pages × 20) and is a pagination
  * quantity ONLY; the honest headline number is `magnitude`.
  */
 export const companyBrowseResponseSchema = z.object({
+  // #1681 part 2 — the heading's source, so this page needs no list read. See criterionIdentitySchema.
+  criterion: criterionIdentitySchema,
   companies: pagedResultWithTotalPages(companyBrowseSchema),
   magnitude: criterionMagnitudeSchema,
 });
@@ -214,6 +235,7 @@ export const criterionAdCountResponseSchema = z.object({
 });
 export type CriterionAdCountResponse = z.infer<typeof criterionAdCountResponseSchema>;
 
+
 // ── The saved criterion (GET /) ────────────────────────────────────────────
 // Declared HERE, after the two ad schemas, because #1681 part 2 gave each criterion the same
 // two numbers the detail page shows and a const cannot be referenced before it is declared.
@@ -262,6 +284,8 @@ export const criterionAdBrowseResponseSchema = z.object({
   // arms where the filter is INERT, which is how the page knows to explain itself instead of
   // showing an unexplained unfiltered list.
   matching: myMatchingAdCountSchema.nullable(),
+  // #1681 part 2 — same reason as the companies response.
+  criterion: criterionIdentitySchema,
 });
 export type CriterionAdBrowseResponse = z.infer<typeof criterionAdBrowseResponseSchema>;
 

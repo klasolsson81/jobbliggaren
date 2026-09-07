@@ -5,7 +5,6 @@ import { ArrowLeft, Info } from "lucide-react";
 import { getServerSession } from "@/lib/auth/session";
 import {
   browseCriterionAds,
-  getCompanyWatchCriteria,
   getCriterionReference,
 } from "@/lib/api/company-criteria";
 import { getMyProfile } from "@/lib/api/me";
@@ -107,9 +106,10 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   // The ad browse is this route's authority on existence (404 → notFound). The criteria list +
   // reference resolve the human title only; a degraded read of either falls back to a neutral title
   // rather than failing the page — parity with the parent route.
-  const [adsResult, criteriaResult, referenceResult, profileResult] = await Promise.all([
+  // #1681 part 2 — the criteria LIST read is gone from this page too, for the reason the detail
+  // page records: it was only ever the heading's source, and part 2 made that list expensive.
+  const [adsResult, referenceResult, profileResult] = await Promise.all([
     browseCriterionAds(id, page, onlyMatching),
-    getCompanyWatchCriteria(),
     getCriterionReference(),
     getMyProfile(),
   ]);
@@ -142,7 +142,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
       );
   }
 
-  const { ads, magnitude, matching } = adsResult.data;
+  const { ads, magnitude, matching, criterion } = adsResult.data;
 
   // The count when the filter was HONOURED, as opposed to merely requested — and null otherwise, so
   // one narrowing carries both facts. The filter is inert for a caller who has stated no occupation
@@ -175,17 +175,12 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
     Object.entries(matchTags.entries).map(([adId, entry]) => [adId, entry.grade] as const),
   );
 
-  const criterion =
-    criteriaResult.kind === "ok"
-      ? criteriaResult.data.find((c) => c.id === id)
-      : undefined;
-  const userLabel = criterion?.label?.trim() ?? "";
-  const derived = criterion
-    ? deriveDisplayLabel(criterion.sniCodes, criterion.municipalityCodes, reference, {
-        moreSuffix: t("moreSuffix"),
-        separator: " · ",
-      })
-    : null;
+  const userLabel = criterion.label?.trim() ?? "";
+  const derived = deriveDisplayLabel(
+    criterion.sniCodes, criterion.municipalityCodes, reference, {
+      moreSuffix: t("moreSuffix"),
+      separator: " · ",
+    });
   const title = userLabel.length > 0 ? userLabel : (derived ?? t("row.untitled"));
 
   // #1681 part 2 (ADR 0139) — the magnitude may have no number at all now: the criterion can be too
@@ -214,22 +209,31 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         {/* The filtered headline reads the PERSONAL count, never `ads.totalCount` — that one is a
             pagination quantity by contract even here, where it happens to equal the set (ADR 0120
             clause 4). The unfiltered headline is unchanged. */}
-        <h2 className="text-h2 text-text-primary tabular-nums">
+        <h2 className={`text-h2 text-text-primary${magnitudeUnanswerable ? "" : " tabular-nums"}`}>
           {matchingCount !== null
             ? t("ads.matchingHeadline", { count: matchingCount })
             : magnitudeUnanswerable
               ? // A headline is owed even when there is no number: rendering "0 aktiva annonser"
                 // for a watch nobody counted is the dishonest zero, and rendering nothing would
-                // leave the page without its subject.
+                // leave the page without its subject. It is a NOUN PHRASE — the explanation goes in
+                // the line below, because an h2 is a heading tier and a screen reader navigating by
+                // heading should not be read a two-sentence instruction (design-reviewer, WCAG 2.4.6).
                 magnitude.tooBroad
-                ? t("ads.adsTooBroad")
-                : t("ads.adsNotMaterialised")
+                ? t("ads.adsTooBroadHeadline")
+                : t("ads.adsNotMaterialisedHeadline")
               : t("ads.magnitudeHeadline", { count: magnitudeText! })}
         </h2>
 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
             and the actionable next step is to narrow it. Not role="alert" — nothing failed. */}
-        {matching?.tooBroad && (
+        {/* ⚠ Gated on `!magnitudeUnanswerable`, and that gate is the fix for a sentence THIS PR
+            falsified. "…så alla aktiva annonser visas här" was true while the inert-filter arm fell
+            through to a register-backed browse. Commit 7e208ae5 moved that browse to the
+            materialised source, so in both unanswerable states the list is now EMPTY and the clause
+            asserted something the page below it contradicts. The explanation for those states is the
+            headline plus the line beneath it, not a consequence clause about a list that is not
+            there. */}
+        {matching?.tooBroad && !magnitudeUnanswerable && (
           <p className="jp-matchline">
             {t("ads.matchingTooBroadOnList")}{" "}
             <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
@@ -241,7 +245,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         {/* #1681 part 2 — the watch has not been counted yet, so the filter had nothing to apply and
             the unfiltered list is what is shown. No call to action: unlike the too-broad arm above
             there is nothing for the user to change. */}
-        {matching?.notMaterialised && (
+        {matching?.notMaterialised && !magnitudeUnanswerable && (
           <p className="jp-matchline">{t("ads.matchingNotMaterialisedOnList")}</p>
         )}
 
@@ -280,10 +284,31 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           />
         </p>
 
-        {/* An empty list under an unanswerable magnitude is NOT "nothing found" — the headline above
-            already said why there is no list, and repeating the empty state would assert a zero the
-            page has just declined to claim. */}
-        {ads.items.length === 0 && !magnitudeUnanswerable ? (
+        {/* ⚠ THREE branches, and the first one exists because suppressing this page's own empty state
+            was not enough. `JobAdList` renders its OWN unconditional empty block
+            (`job-ad-list.tsx`) with `jobads.ui.list.emptyTitle` = "Inga jobb hittades" and a body
+            telling the reader to adjust filters and clear the search box — controls this route does
+            not have (its only axis is `?visa=`). Falling through to it made the false zero STRONGER,
+            not weaker, and gave advice that cannot be followed. So the unanswerable states render no
+            list and no pagination at all: the headline says what is not known, this block says why,
+            and the primary way back is kept (design-reviewer Blocker 1 + Minor 3). */}
+        {magnitudeUnanswerable ? (
+          <div className="jp-empty mt-6">
+            <p className="jp-empty__body text-body-sm text-text-primary">
+              {magnitude.tooBroad ? t("ads.tooBroadNoList") : t("ads.adsNotMaterialised")}
+            </p>
+            <div className="jp-empty__actions">
+              <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
+                {t("ads.backLink")}
+              </Link>
+              {magnitude.tooBroad && (
+                <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+                  {t("ads.matchingTooBroadCta")}
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
             <div className="jp-empty__title">
               {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}

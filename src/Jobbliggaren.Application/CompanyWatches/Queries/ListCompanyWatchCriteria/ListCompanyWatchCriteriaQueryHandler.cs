@@ -85,8 +85,16 @@ public sealed class ListCompanyWatchCriteriaQueryHandler(
         var rows = new List<CompanyWatchCriterionDto>(criteria.Count);
         foreach (var c in criteria)
         {
-            // Free after MatchingBatchAsync: the magnitude was measured there and memoised on the
-            // same per-request resolver, so this cannot become a SECOND measurement of the same fact.
+            // Memoised by MatchingBatchAsync on the same per-request resolver, so this cannot become
+            // a SECOND measurement of the same fact.
+            //
+            // It is NOT free on every path, and the unqualified claim that stood here was wrong
+            // (code-reviewer + dotnet-architect, 2026-09-06): when the caller has stated no
+            // occupation the batch returns at its assessability gate BEFORE measuring any magnitude,
+            // so this loop pays up to MaxPerUser un-memoised CountActiveAdsAsync calls. That is the
+            // same statement count the ordinary path pays and is inside the accepted trade-off — but
+            // it is the common state early in onboarding, and the handler's own test
+            // (ListCompanyWatchCriteriaQueryHandlerTests, the unassessable-profile case) measures it.
             var ads = await resolver.MagnitudeAsync(c.Id.Value, c.Criteria, cancellationToken);
 
             rows.Add(new CompanyWatchCriterionDto(

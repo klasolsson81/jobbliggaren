@@ -10,6 +10,7 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Shouldly;
 
@@ -125,6 +126,12 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 [Trait("Category", "SmokeTest")]
 public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 {
+    /// <summary>#1681 part 2 — an age bound far enough back that the fixture's freshly
+    /// written row always passes it. These tests pin the STATEMENT and its plan, not the
+    /// age gate; the gate's own arms are pinned where its behaviour is measured.</summary>
+    private static readonly DateTimeOffset FreshEnough =
+        DateTimeOffset.UtcNow.AddDays(-1);
+
     private readonly WorkerTestFixture _fixture = fixture;
 
     private const string GinIndexName = "ix_company_register_sni_codes_gin";
@@ -533,7 +540,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
         var plan = await ExplainMaterialisedAsync(
             ctx,
-            (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdCountCommand(conn, id, fp, cap: 10_000),
+            (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdCountCommand(conn, id, fp, FreshEnough, cap: 10_000),
             ct);
 
         AssertReadsTheMemberSet(plan, "ad count");
@@ -554,7 +561,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var plan = await ExplainMaterialisedAsync(
             ctx,
             (conn, id, fp) => CompanyWatchBrowseQuery.BuildAdIdSetCommand(
-                conn, id, fp, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
+                conn, id, fp, FreshEnough, maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize),
             ct);
 
         AssertReadsTheMemberSet(plan, "ad id set");
@@ -617,7 +624,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // coincide.
         using var conn = new NpgsqlConnection();
         using var cmd = CompanyWatchBrowseQuery.BuildAdIdSetCommand(
-            conn, CompanyWatchCriterionId.New(), ProbeFingerprint,
+            conn, CompanyWatchCriterionId.New(), ProbeFingerprint, FreshEnough,
             maxSetSize: CriterionMatchingAdSetResolver.MaxSetSize);
 
         cmd.CommandText.ShouldContain(
@@ -626,6 +633,19 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
                 "The ad-set query's ORDER BY is no longer TOTAL, or no longer shared with the page "
                 + "query. The filtered view cuts its page from THIS sequence while the unfiltered view "
                 + "pages the other statement; two orders means one is sequenced against the other.");
+
+        // dotnet-architect, 2026-09-06 — the INNER order (above) only decides which rows the
+        // lateral's LIMIT keeps. What the CALLER observes, and what the port's docblock names as the
+        // contract, is the OUTER order; deleting that clause left the assertion above green while the
+        // published order became a property of the plan shape (a Nested Loop happens to preserve the
+        // inner order) rather than of the statement. That is precisely what the port's own docblock
+        // refuses to rely on, so both clauses are pinned.
+        cmd.CommandText.ShouldContain(
+            "ORDER BY a.published_at DESC, a.id",
+            customMessage:
+                "The whole-set query no longer publishes its OUTER order. The inner ORDER BY only "
+                + "cuts the LIMIT; the outer one is the order CriterionMatchingAdSetResolver "
+                + "filters against to produce both the ad sequence and the count's destination.");
     }
 
     [Fact]
@@ -671,7 +691,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         var count = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct);
         var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 20, ct);
@@ -695,7 +715,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         // BASELINE, measured here rather than inherited from a sibling test: without it a fixture
         // whose materialisation had produced no members would read 0 before and 0 after, and the pin
@@ -731,7 +751,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         var capped = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows - 2, ct);
         capped.Count.ShouldBe(AdRows - 2);
@@ -753,7 +773,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         await using var ctx = await SeededContextWithAdsAsync(
             ct, fillerAds: 0, probeAds: CompanyBrowseCriteria.MaxPage + 5);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 1, ct);
 
@@ -772,7 +792,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         var ids = await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows, ct);
 
@@ -791,7 +811,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         // One under the true size: the set does not fit.
         var refused = await port.ListActiveAdIdsAsync(
@@ -822,7 +842,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         var set = await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
         var page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, AdRows, ct);
@@ -841,7 +861,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         (await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct))
             .Ids!.Count.ShouldBe(AdRows);
@@ -874,7 +894,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
         var fresh = await SeedCriterionAsync([ProbeSni], [SeededKommun], ct);
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         (await port.CountActiveAdsAsync(fresh, ProbeFingerprint, 10_000, ct))
             .State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
@@ -911,7 +931,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var broad = await SeedCriterionAsync([ProbeSni, FillerSni], [SeededKommun], ct);
         await RunMaterialiserAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
         var fingerprint = CriteriaFingerprint.Of(broadSpec);
 
         (await port.CountActiveAdsAsync(broad, fingerprint, 10_000, ct))
@@ -939,7 +959,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         // BASELINE: before the edit the criterion answers with a real number.
         (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
@@ -982,7 +1002,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         var ct = TestContext.Current.CancellationToken;
         await using var ctx = await SeededContextWithAdsAsync(ct);
 
-        var port = new CompanyWatchBrowseQuery(ctx.Db);
+        var port = PortFor(ctx.Db);
 
         (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
             .Count.ShouldBe(AdRows);
@@ -1190,6 +1210,17 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     /// why <c>CompanyQueries_StillReadTheRegister_SoTheAbsenceAssertionsCanFail</c> exists.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// #1681 part 2 — the port now depends on the materialisation options (the read-side age bound)
+    /// and a clock. Built HERE, once, so every test in this file exercises the SAME configuration
+    /// production ships: the option's own default, never a value chosen to make a test pass. A test
+    /// that wanted a different age would have to say so at its own call site, which is the point.
+    /// </summary>
+    private static CompanyWatchBrowseQuery PortFor(AppDbContext db) =>
+        new(db,
+            Options.Create(new CompanyWatchMaterialisationOptions()),
+            new DateTimeProvider());
+
     private static void AssertReadsTheMemberSet(string plan, string which)
     {
         plan.ShouldContain(

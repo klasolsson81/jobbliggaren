@@ -174,7 +174,17 @@ describe("getCriterionReference — SCB tree read", () => {
 // ── browseCriterionCompanies ────────────────────────────────────────────────
 
 describe("browseCriterionCompanies — register run", () => {
+  // #1681 part 2 — the heading's source, composed onto the response. Before part 2 this page read
+  // `GET /company-watch-criteria` for it; part 2 gave every row of that list a materialised ad
+  // count and a per-user graded matching count, so a heading cost twenty criteria's graded counts.
+  const criterion = {
+    id: VALID_ID,
+    sniCodes: ["62010", "62020"],
+    municipalityCodes: ["0180"],
+    label: "IT i Stockholm",
+  };
   const response = {
+    criterion,
     companies: {
       items: [
         {
@@ -218,7 +228,20 @@ describe("browseCriterionCompanies — register run", () => {
       expect(result.data.companies.items[1]!.organizationNumber).toBeNull();
       expect(result.data.companies.items[1]!.isProtectedIdentity).toBe(true);
       expect(result.data.magnitude).toEqual({ magnitude: 2, saturated: false });
+      // #1681 part 2 — the criterion's identity rides the same response, so the page can head
+      // itself without a second read.
+      expect(result.data.criterion).toEqual(criterion);
     }
+  });
+
+  it("200 without the composed criterion → error, never a headless page", async () => {
+    // The member is REQUIRED, not optional, and this is what makes that a fact rather than a
+    // TypeScript opinion. Both detail pages now destructure `criterion` off this response and read
+    // `criterion.label` unguarded — an absent member reaches the page as `undefined` and throws
+    // inside the render. Refusing at the ACL turns that into this route's civil error shell.
+    const { criterion: _dropped, ...withoutCriterion } = response;
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(withoutCriterion));
+    expect(await browseCriterionCompanies(VALID_ID, 1)).toEqual({ kind: "error" });
   });
 
   it("clamps a non-positive page to 1 in the query string", async () => {
@@ -253,6 +276,13 @@ describe("browseCriterionAds — the criterion's ad run", () => {
     expiresAt: "2026-09-20T08:00:00+00:00",
     createdAt: "2026-08-20T09:00:00+00:00",
   };
+  // #1681 part 2 — same member, same reason, as the companies response above.
+  const criterion = {
+    id: VALID_ID,
+    sniCodes: ["62010"],
+    municipalityCodes: ["0180"],
+    label: null,
+  };
   const response = {
     ads: { items: [ad], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 },
     magnitude: { magnitude: 167, saturated: false, tooBroad: false, notMaterialised: false },
@@ -260,6 +290,7 @@ describe("browseCriterionAds — the criterion's ad run", () => {
     // wire: the schema declares it nullable, never optional, so the shape cannot vary with the
     // filter.
     matching: null,
+    criterion,
   };
 
   it("no session → unauthorized without a backend round-trip", async () => {
@@ -306,7 +337,19 @@ describe("browseCriterionAds — the criterion's ad run", () => {
         tooBroad: false,
         notMaterialised: false,
       });
+      // #1681 part 2 — a `label: null` criterion parses. The heading falls back to the derived
+      // label and then to a neutral one; what must not happen is the ACL rejecting an unnamed
+      // watch, which is the ordinary case.
+      expect(result.data.criterion).toEqual(criterion);
     }
+  });
+
+  it("200 without the composed criterion → error, never a headless page", async () => {
+    // Parity the companies route: the page reads `criterion.label` unguarded, so an absent member
+    // would throw in the render rather than degrade. See that test for the whole argument.
+    const { criterion: _dropped, ...withoutCriterion } = response;
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(withoutCriterion));
+    expect(await browseCriterionAds(VALID_ID, 1)).toEqual({ kind: "error" });
   });
 
   it("clamps a non-positive page to 1 in the query string", async () => {

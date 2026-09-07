@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CvPreview } from "./cv-preview";
+import { CvPreview, MODAL_FOCUSABLE_SELECTOR } from "./cv-preview";
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
 const ORIGINAL_URL = `/api/cv/parsed/${PARSED_ID}/original`;
@@ -201,12 +201,11 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     // Ramen ÄR en tab-stopp. Låg den utanför trapens selektor höll trapen bara på att ramen
     // råkade ligga före sista elementet i DOM-ordning — ordningsberoende, inte selektor-buren
     // (code-reviewer, PR #1692). Pinnen mäter selektorn, som är det som ska bära det.
+    // PRODUKTIONENS selektor, importerad — inte en kopia. En kopia hade gjort assertionen
+    // till en tautologi: stryk `iframe` ur produktionen och testet hade förblivit grönt
+    // (code-reviewer + security-auditor, PR #1692).
     const panel = screen.getByRole("dialog");
-    const focusable = Array.from(
-      panel.querySelectorAll(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
-      )
-    );
+    const focusable = Array.from(panel.querySelectorAll(MODAL_FOCUSABLE_SELECTOR));
     expect(focusable).toContain(frame);
     // POSITIV KONTROLL: mängden är inte tom av fel skäl — Stäng-knappen ligger också i den.
     expect(focusable).toContain(screen.getByRole("button", { name: "Stäng" }));

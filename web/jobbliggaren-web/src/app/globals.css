@@ -6597,19 +6597,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-sm);
   background: var(--jp-surface-2);
 }
-/* Ramen är en tab-stopp, så den måste bära en synlig fokusring (SC 2.4.7). `:focus-within`
-   och inte husets vanliga `:focus-visible`: på ett iframe-element matchar `:focus-visible`
-   inte när fokus går in i det inbäddade dokumentet, så ringen hade aldrig målats
-   (design-reviewer mätte båda formerna, PR #1692). Offset lägger ringen på modalytan i
-   stället för på pdf-läsarens egen chrome. */
-.jp-pdf-frame:focus-within {
+/* Ramen är en tab-stopp och måste bära en synlig fokusring (SC 2.4.7). Ringen hänger på ett
+   ATTRIBUT, inte på en fokus-pseudoklass, och det är inte en stilfråga: när fokus går in i ett
+   iframe stiger det ned i det inbäddade browsing-contextet och värddokumentet lämnar
+   fokuskedjan. `:focus-visible`, `:focus` och `:focus-within` matchar därför ingenting på den
+   verkliga vägen — inte heller på en wrapper. Attributet sätts i `cv-preview.tsx` från
+   window-blur/focus, som är den signal som faktiskt finns. Offset lägger ringen på modalytan
+   i stället för på pdf-läsarens egen chrome.
+   ⚠ Mät detta med VERKLIGT Tab, aldrig `element.focus()`: den senare fokuserar ramen i vårt
+   dokument utan att stiga ned, så varje pseudoklassform ser grön ut på en väg ingen användare
+   tar (design-reviewer, PR #1692). */
+.jp-pdf-frame[data-frame-focused="true"] {
   outline: 2px solid var(--jp-focus);
   outline-offset: 2px;
 }
 /* design-reviewer Major, PR #1692: en dokumentvy är inte en textmodal. Med husets vanliga
    modalbredd blir Chromes miniatyrlist ~303px av 712px och CV:t renderas i 51% — och
    krymper ju större skärmen blir, eftersom ramen växer på höjden men aldrig på bredden.
-   1080px är DESIGN.md §5:s innehållsbredd, inget nytt token. Mätt: 51% -> 86%.
+   1080px är DESIGN.md §5:s innehållsbredd, inget nytt token.
    Bredden är enda spaken — `#view=FitH`/`#zoom=page-width` på blob-URL:en är inerta i Chrome. */
 .jp-modal--doc {
   width: min(1080px, 100%);

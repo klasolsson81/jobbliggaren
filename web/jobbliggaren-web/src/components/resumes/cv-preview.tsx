@@ -123,6 +123,18 @@ interface CvPreviewProps {
   fileName?: string;
 }
 
+/**
+ * Focus-trapens fokuserbara mängd. Exporterad så testet mäter PRODUKTIONENS selektor och inte
+ * en egen kopia av strängen — en pin som skriver om selektorn kan inte falla (code-reviewer,
+ * PR #1692), och det väger extra här: att ha med `iframe` är i dagens DOM beteendemässigt en
+ * no-op (ramen är varken först eller sist), så selektorn ÄR hela skyddet.
+ *
+ * NAMNGIVET AVSTEG från den delade mängden (#575, identisk i fem shells): `iframe` finns bara
+ * här, eftersom det här är enda shellen som ramar in ett dokument.
+ */
+export const MODAL_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
+
 /** Den aktiva fliken: originalfilen eller ATS-textvyn. */
 type ViewTab = "original" | "atsText";
 
@@ -209,6 +221,7 @@ export function CvPreview({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const labelId = useId();
 
   // Stäng: revoka blob, nollställ state och RETURNERA FOKUS till triggern
@@ -349,6 +362,40 @@ export function CvPreview({
     return () => controller.abort();
   }, [open, view, atsTextUrl]);
 
+  // Fokusring för pdf-ramen (SC 2.4.7). Fokus som går in i ett iframe stiger ned i det
+  // inbäddade browsing-contextet, så värddokumentet lämnar fokuskedjan och INGEN fokus-
+  // pseudoklass matchar här — varken på ramen eller på en wrapper. Signalen som faktiskt
+  // finns är att fönstret tappar fokus medan `document.activeElement` är ramen; den speglas
+  // till ett attribut som CSS:en hänger ringen på.
+  //
+  // Samma villkor styr båda hållen, så ringen släcks när fokus lämnar ramen: `focus` (åter
+  // till dokumentet) och `focusin` (ett annat element tar fokus) tar bort attributet bara när
+  // activeElement inte längre är ramen — utan den vakten hade en flik-växling ut och tillbaka
+  // släckt ringen medan fokus fortfarande låg kvar i pdf-läsaren.
+  useEffect(() => {
+    if (!open) return;
+
+    const sync = (focused: boolean) => {
+      const frame = frameRef.current;
+      if (!frame) return;
+      if (focused) frame.setAttribute("data-frame-focused", "true");
+      else frame.removeAttribute("data-frame-focused");
+    };
+    const onWindowBlur = () => sync(document.activeElement === frameRef.current);
+    const onLeaveFrame = () => {
+      if (document.activeElement !== frameRef.current) sync(false);
+    };
+
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("focus", onLeaveFrame);
+    document.addEventListener("focusin", onLeaveFrame);
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("focus", onLeaveFrame);
+      document.removeEventListener("focusin", onLeaveFrame);
+    };
+  }, [open]);
+
   // Fokus in i modalen vid öppning (close-knappen, som JobAdModalShell) +
   // body-scroll-lock under modalens livstid.
   useEffect(() => {
@@ -366,9 +413,8 @@ export function CvPreview({
   //
   // ⚠ Lyssnaren sitter på VÅRT document, så den ser aldrig ett keydown som avfyras inne i
   // pdf-ramens egna dokument: Esc stänger inte medan fokus ligger i pdf-läsaren. Ingen fix
-  // finns — en dokumentgräns går inte att lyssna över. SC 2.1.2 klaras ändå, mätt: ett Tab
-  // flyttar ut till "Ladda ner" i det här dokumentet, där Esc stänger och fokus återvänder
-  // till triggern (design-reviewer, PR #1692 — mätvärde, inte defekt).
+  // finns — en dokumentgräns går inte att lyssna över. Vägen ut är Tab till modalens egna
+  // kontroller (design-reviewer mätte SC 2.1.2 som klarad, PR #1692).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -381,13 +427,8 @@ export function CvPreview({
       // Full focusable set — must stay identical across every focus-trap shell
       // (input/select/textarea included so a trap never leaks to the browser
       // chrome when the panel gains a form control). SPOT-centralisation: #575.
-      // NAMNGIVET AVSTEG från den delade mängden (#575, identisk i fem shells): `iframe`
-      // är tillagd här och bara här, eftersom det här är enda shellen som ramar in ett
-      // dokument. Utan den ligger ramen utanför `focusable` medan den ÄR en tab-stopp, och
-      // trapen håller då bara på att ramen råkar ligga före sista elementet i DOM-ordning —
-      // ordningsberoende i stället för selektor-buren (code-reviewer, PR #1692).
       const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
+        MODAL_FOCUSABLE_SELECTOR
       );
       if (focusable.length === 0) return;
       const first = focusable[0]!;
@@ -526,6 +567,7 @@ export function CvPreview({
                       ovan, som ligger kvar i regionen. */}
                   {status === "ready" && original?.kind === "pdf" && (
                     <iframe
+                      ref={frameRef}
                       src={original.url}
                       title={t("frameTitle")}
                       className="jp-pdf-frame"

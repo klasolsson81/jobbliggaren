@@ -160,7 +160,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             The ONLY destination this criterion's ads have: /jobb has no SNI axis, its ?employer=
             producer refuses above 400 org.nrs, and its municipality axis is the ad's WORKPLACE while
             this kommun is the company's registered SEAT. */}
-        <CriterionAdLines criterionId={id} ads={ads} matching={matching} />
+        <CriterionAdLines criterionId={id} ads={ads} matching={matching} variant="detail" />
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
             necessarily where the company operates). */}

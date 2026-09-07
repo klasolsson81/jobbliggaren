@@ -84,6 +84,8 @@ const REFERENCE: CriterionReference = {
   ],
 };
 
+// The catalogue route the block links to. Not a prop any more — the component owns it,
+// because every consumer is an authenticated surface and there was never a second value.
 const HREF = "/foretag/smarta-bevakningar";
 
 function visibleText(): string {
@@ -96,7 +98,6 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ id: "a" }), criterion({ id: "b" })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -122,7 +123,6 @@ describe("CriteriaSummary", () => {
           criterion({ id: "b", ads: counted(13), matching: matchCounted(2) }),
         ])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -142,7 +142,6 @@ describe("CriteriaSummary", () => {
           criterion({ id: "bbbb2222-0000-4000-8000-000000000002" }),
         ])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -159,7 +158,7 @@ describe("CriteriaSummary", () => {
 
   it('"kunde inte hämtas" är inte "du har inga" — de två läsningarna skiljs', () => {
     render(
-      <CriteriaSummary criteria={errored} reference={REFERENCE} linkHref={HREF} />,
+      <CriteriaSummary criteria={errored} reference={REFERENCE} />,
     );
 
     expect(visibleText()).toContain("Smarta bevakningar kunde inte hämtas");
@@ -169,7 +168,7 @@ describe("CriteriaSummary", () => {
   });
 
   it("tomt läge säger att inga finns, och erbjuder vägen att skapa en", () => {
-    render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} linkHref={HREF} />);
+    render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
 
     expect(screen.getByText("Du har inga smarta bevakningar än")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ny smart bevakning" })).toHaveAttribute(
@@ -185,18 +184,87 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
     const text = visibleText();
     expect(text).toContain("för bred");
-    expect(text).not.toContain("0 aktiva annonser");
     expect(text).not.toContain("Inga aktiva annonser");
-    // Both arms refuse for the same reason, so it is said ONCE (design-reviewer Major 1).
-    expect(document.querySelectorAll(".jp-matchline")).toHaveLength(1);
+    // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1);
+    // the second line is the block-level advice, which is asserted on its own below.
+    expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(1);
     // A refusal has nothing to link to.
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(0);
+  });
+
+  // design-reviewer Major 2, measured at the cap: the 160-character advice rendered five times
+  // verbatim, with five identical "Ändra bevakningen" links to one destination. The row now carries
+  // the status and the BLOCK carries the advice — the `sharedRefusal` rule, one axis up.
+  it("rådet om för breda bevakningar står EN gång under listan, inte en gång per rad", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([
+          criterion({ id: "a", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
+          criterion({ id: "b", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
+          criterion({ id: "c", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
+        ])}
+        reference={REFERENCE}
+      />,
+    );
+
+    // Three rows, three short statuses.
+    expect(document.querySelectorAll(".jp-appsummary__watch")).toHaveLength(3);
+    expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(3);
+    // ONE advice line, ONE call to action — however many rows are refused.
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
+    // And the long per-row sentence is gone from the rows entirely.
+    expect(visibleText()).not.toContain("eller matcha dem mot din profil");
+  });
+
+  it("rådet uteblir helt när ingen bevakning är för bred", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: counted(42), matching: matchCounted(7) })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
+    expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+  });
+
+  // design-reviewer Major 3: "från dessa företag" has no antecedent here — no company is rendered
+  // anywhere in the block, so the label must carry itself.
+  it("annonsetiketten är självbärande — ingen syftning på företag som inte renderas", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: counted(42) })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    const text = visibleText();
+    expect(text).toContain("42 aktiva annonser");
+    expect(text).not.toContain("dessa företag");
+  });
+
+  // design-reviewer Minor 7: only the ADS arm is unanswerable here, and the matching line right
+  // below carries a number — so the plural "Annonssiffrorna" read as a contradiction.
+  it("när bara annonstalet saknas skalas påståendet till sitt eget led", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([
+          criterion({ ads: ADS_NOT_MATERIALISED, matching: matchCounted(3) }),
+        ])}
+        reference={REFERENCE}
+      />,
+    );
+
+    const text = visibleText();
+    expect(text).toContain("Antalet aktiva annonser är inte framräknat än");
+    expect(text).not.toContain("Annonssiffrorna");
+    expect(text).toContain("3 matchande annonser");
   });
 
   it("ej framräknad renderar okunskap, aldrig en nolla och aldrig ett råd", () => {
@@ -206,7 +274,6 @@ describe("CriteriaSummary", () => {
           criterion({ ads: ADS_NOT_MATERIALISED, matching: MATCH_NOT_MATERIALISED }),
         ])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -224,14 +291,12 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ ads: counted(42), matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
     const text = visibleText();
     expect(text).toContain("42 aktiva annonser");
     expect(text).toContain("Ställ in matchning");
-    expect(text).not.toContain("0 matchande");
     expect(text).not.toContain("Inga matchande");
     // Only the ads half has a destination.
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(1);
@@ -244,14 +309,17 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
+    // In the summary variant BOTH refusal arms render the same short status, so copy can no longer
+    // tell them apart — the discriminator is whether the matching line SURVIVED. If the shared
+    // collapse had fired it would have suppressed that line, swallowing an answer the block has.
+    // That tests the logic rather than the wording, which is the stronger pin.
     const text = visibleText();
-    expect(text).toContain("för bred för att vi ska kunna räkna annonserna.");
-    expect(text).not.toContain("eller matcha dem mot din profil");
+    expect(text).toContain("för bred för att räknas");
     expect(text).toContain("Ställ in matchning");
+    expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(2);
   });
 
   it("en räknad nolla skrivs ut som ett svar, men får ingen länk", () => {
@@ -259,7 +327,6 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ ads: counted(0), matching: matchCounted(0) })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -272,7 +339,6 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ ads: counted(10000, true) })])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -289,7 +355,6 @@ describe("CriteriaSummary", () => {
           criterion({ id: "c", label: null, sniCodes: [], municipalityCodes: [] }),
         ])}
         reference={REFERENCE}
-        linkHref={HREF}
       />,
     );
 
@@ -308,7 +373,6 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary
         criteria={ok([criterion({ label: null, ads: counted(42), matching: matchCounted(7) })])}
         reference={null}
-        linkHref={HREF}
       />,
     );
 
@@ -319,29 +383,12 @@ describe("CriteriaSummary", () => {
     expect(visibleText()).toContain("7 matchande annonser");
   });
 
-  // Parity `CompanySummary`: a surface with no authenticated destination renders no links at all,
-  // rather than links that resolve to /logga-in under a label promising the ads.
-  it("utan autentiserad destination renderas inga länkar alls", () => {
-    render(
-      <CriteriaSummary
-        criteria={ok([criterion()])}
-        reference={REFERENCE}
-        linkHref={null}
-      />,
-    );
-
-    expect(document.querySelectorAll("a")).toHaveLength(0);
-    // The numbers still render — they are facts, and only their destinations were unavailable.
-    expect(visibleText()).toContain("42 aktiva annonser");
-    expect(visibleText()).toContain("7 matchande annonser");
-  });
-
   it("renderar varje bevakning upp till taket, i handlerns egen ordning", () => {
     const items = Array.from({ length: 20 }, (_, i) =>
       criterion({ id: `id-${i}`, label: `Bevakning ${i}` }),
     );
     render(
-      <CriteriaSummary criteria={ok(items)} reference={REFERENCE} linkHref={HREF} />,
+      <CriteriaSummary criteria={ok(items)} reference={REFERENCE} />,
     );
 
     const names = [...document.querySelectorAll(".jp-appsummary__watchname")].map((n) =>

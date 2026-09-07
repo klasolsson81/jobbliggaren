@@ -454,12 +454,10 @@ public sealed class RateLimitingOptions
     ///
     /// <para>
     /// <b>Is 5/3 enough for the page?</b> Yes for reading — 3 full list re-renders per minute,
-    /// sustained, on the one page that calls it. The tightest legitimate flow is SETUP: each created
+    /// sustained. The tightest legitimate flow is SETUP: each created
     /// criterion redirects to the list, so creating five watches back to back spends the whole burst
     /// and the sixth waits 20 s. That is accepted knowingly and it has a cheaper fix than a bigger
     /// number — a create that revalidated without a full list re-fetch would cost no token at all.
-    /// <b>And this is not a ratchet on anyone's delivered budget</b>: the route's three consumers
-    /// became one inside this same unmerged PR, so no shipped usage pattern loses headroom.
     /// </para>
     ///
     /// <para>

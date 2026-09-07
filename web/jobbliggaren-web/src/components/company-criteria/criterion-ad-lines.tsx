@@ -8,6 +8,20 @@ import type {
   MyMatchingAdCount,
 } from "@/lib/dto/company-criteria";
 
+/**
+ * Which surface is rendering. It changes the COPY, never the logic, and both values are reached in
+ * production — the criterion detail page passes `"detail"`, `CriteriaSummary` passes `"summary"` —
+ * so neither arm is a branch nothing can produce.
+ *
+ * - `"detail"`: the criterion's own page. The companies the numbers count are rendered on that same
+ *   page, so "från dessa företag" has an antecedent; and there is exactly ONE criterion, so the
+ *   too-broad advice cannot repeat and rides on its own line.
+ * - `"summary"`: one row among up to `MaxPerUser` on `/oversikt`. No company is rendered anywhere in
+ *   the block, so each label must carry itself; and the advice would repeat verbatim per row, so the
+ *   caller collects it and states it once.
+ */
+export type CriterionAdLinesVariant = "detail" | "summary";
+
 interface CriterionAdLinesProps {
   readonly criterionId: string;
   /**
@@ -16,13 +30,7 @@ interface CriterionAdLinesProps {
    */
   readonly ads: CriterionAdMagnitude | null;
   readonly matching: MyMatchingAdCount | null;
-  /**
-   * Whether this surface has an authenticated destination at all. `false` renders every number
-   * as plain text and drops the two nudges — `CompanySummary.linkHref === null`'s reason, one
-   * prop with one meaning: the guest demo has no `(app)/` page to send a reader to, so a link
-   * there resolves to `/logga-in` and the label becomes false rather than the link becoming broken.
-   */
-  readonly canLink?: boolean;
+  readonly variant: CriterionAdLinesVariant;
 }
 
 /**
@@ -30,10 +38,17 @@ interface CriterionAdLinesProps {
  * it is one knowledge piece (SRP: one authority per rule).
  *
  * <p>Extracted from `(app)/foretag/smarta-bevakningar/[id]/page.tsx` by `senior-cto-advisor`'s
- * binding ruling for #1681 part 3 (in-block requirement 1, `docs/reviews/2026-09-07-1681-part3-form-cto.md`):
- * part 3 puts these same numbers on `/oversikt`, and copying ~60 lines of honesty logic is what
- * guarantees the two surfaces drift — the class ADR 0139's "Båda ytorna läser samma källa" exists
- * to close. Part 3 creates the duplicate, so part 3 owns removing it.</p>
+ * binding ruling for #1681 part 3 (in-block requirement 1,
+ * `docs/reviews/2026-09-07-1681-part3-form-cto.md`): part 3 puts these same numbers on `/oversikt`,
+ * and copying ~60 lines of honesty logic is what guarantees the two surfaces drift — the class ADR
+ * 0139's "Båda ytorna läser samma källa" exists to close.</p>
+ *
+ * <p>⚠ <b>The extraction was not byte-for-byte, and the one behavioural change is named here rather
+ * than left to be discovered</b> (`dotnet-architect` + `code-reviewer`, 2026-09-07): the ads link
+ * gained `prefetch={false}`, which the detail page's original did not carry (its matching sibling
+ * already did). Harmonised deliberately — `CompanySummary` prefetches neither of its count links,
+ * and on `/oversikt` up to twenty rows × two links would otherwise warm forty routes nobody asked
+ * for.</p>
  *
  * <p><b>Seven answers across the two lines, and none of them collapses into another.</b> The ads
  * line: a degraded read · both arms refusing for the same reason (said ONCE) · too broad · not
@@ -55,13 +70,19 @@ export function CriterionAdLines({
   criterionId,
   ads,
   matching,
-  canLink = true,
+  variant,
 }: CriterionAdLinesProps) {
   const t = useTranslations("pages.foretag.criteria");
   // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
   // reuses that surface's own sentences rather than minting a second vocabulary for one question.
   const tWatch = useTranslations("jobads.companyWatches");
   const format = useFormatter();
+
+  // In a list the advice belongs to the BLOCK, not to the row — one axis up from the same rule the
+  // `sharedRefusal` collapse applies within a row (design-reviewer Major 2, 2026-09-07, measured:
+  // the 160-character sentence rendered five times verbatim at the per-user cap). The row states the
+  // status; `CriteriaSummary` states the advice once beneath the list.
+  const inList = variant === "summary";
 
   // design-reviewer Major 1 (#1681 part 2) — the two refusals COINCIDE by construction, not by
   // accident: `CriterionMatchingAdSetResolver` derives the matching arm from the SAME magnitude the
@@ -91,13 +112,12 @@ export function CriterionAdLines({
       {ads === null ? (
         <p className="jp-matchline">{t("ads.countUnavailable")}</p>
       ) : sharedRefusal === "tooBroad" ? (
-        /* One line, because the personal count is refused for the same reason and is suppressed
-           below. The CTA is dropped on a surface that cannot link (see `canLink`). */
         <p className="jp-matchline">
-          {t("ads.adsAndMatchingTooBroad")}
-          {canLink && (
+          {inList ? (
+            t("ads.tooBroadShort")
+          ) : (
             <>
-              {" "}
+              {t("ads.adsAndMatchingTooBroad")}{" "}
               <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
                 {t("ads.matchingTooBroadCta")}
               </Link>
@@ -107,26 +127,34 @@ export function CriterionAdLines({
       ) : sharedRefusal === "notMaterialised" ? (
         <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
       ) : ads.tooBroad ? (
-        <p className="jp-matchline">{t("ads.adsTooBroad")}</p>
+        <p className="jp-matchline">
+          {inList ? t("ads.tooBroadShort") : t("ads.adsTooBroad")}
+        </p>
       ) : ads.notMaterialised ? (
-        <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
+        /* SINGULAR, and that is a fix rather than a nicety (design-reviewer Minor 7): only the ads
+           arm is unanswerable here, and the matching line below may well carry a number. The plural
+           "Annonssiffrorna" claims both, so it read as a contradiction against the very next line. */
+        <p className="jp-matchline">{t("ads.adsNotMaterialisedOnly")}</p>
       ) : adsCount !== null && adsCount > 0 && adsCountText !== null ? (
         <p className="jp-matchline tabular-nums">
-          {canLink ? (
-            <Link
-              className="jp-countlink"
-              href={buildCriterionAdsHref(criterionId, 1, "all")}
-              prefetch={false}
-            >
-              {t("ads.linkLabel", { count: adsCountText })}
-            </Link>
-          ) : (
-            t("ads.linkLabel", { count: adsCountText })
-          )}
+          <Link
+            className="jp-countlink"
+            href={buildCriterionAdsHref(criterionId, 1, "all")}
+            prefetch={false}
+          >
+            {/* "från dessa företag" needs an antecedent, and only the detail page has one — it
+                renders the companies themselves. In the summary no company appears anywhere in the
+                block, so the label carries itself (design-reviewer Major 3). */}
+            {inList
+              ? t("ads.linkLabelStandalone", { count: adsCountText })
+              : t("ads.linkLabel", { count: adsCountText })}
+          </Link>
         </p>
       ) : (
         /* A counted zero — a real answer, and the one the whole family exists to keep sayable. */
-        <p className="jp-matchline">{t("ads.none")}</p>
+        <p className="jp-matchline">
+          {inList ? t("ads.noneStandalone") : t("ads.none")}
+        </p>
       )}
 
       {/* Two branches suppress this line entirely rather than adding an answer: a degraded read
@@ -136,10 +164,11 @@ export function CriterionAdLines({
         sharedRefusal === null &&
         (matching.tooBroad ? (
           <p className="jp-matchline">
-            {t("ads.matchingTooBroad")}
-            {canLink && (
+            {inList ? (
+              t("ads.tooBroadShort")
+            ) : (
               <>
-                {" "}
+                {t("ads.matchingTooBroad")}{" "}
                 <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
                   {t("ads.matchingTooBroadCta")}
                 </Link>
@@ -155,19 +184,14 @@ export function CriterionAdLines({
           /* NOT ASSESSED — about the user's profile, never about this watch. The resolver returns
              it BEFORE consulting the magnitude, so it pairs with any ads state above. */
           <p className="jp-matchline">
-            {tWatch("matchNudge")}
-            {canLink && (
-              <>
-                {" "}
-                <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
-                  {tWatch("matchNudgeCta")}
-                </Link>
-              </>
-            )}
+            {tWatch("matchNudge")}{" "}
+            <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
+              {tWatch("matchNudgeCta")}
+            </Link>
           </p>
         ) : (
           <p className="jp-matchline tabular-nums">
-            {canLink && matching.count > 0 ? (
+            {matching.count > 0 ? (
               <Link
                 className="jp-countlink"
                 href={buildCriterionAdsHref(criterionId, 1, "matching")}

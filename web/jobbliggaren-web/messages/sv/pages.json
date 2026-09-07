@@ -471,7 +471,11 @@
         "adsTooBroadHeadline": "Bevakningen är för bred",
         "adsNotMaterialisedHeadline": "Annonserna är inte framräknade än",
         "tooBroadNoList": "Bevakningen matchar fler företag än vi kan räkna annonser för, så det finns ingen lista att visa.",
-        "adsAndMatchingTooBroad": "Bevakningen är för bred för att vi ska kunna räkna annonserna eller matcha dem mot din profil. Prova att välja färre branscher eller kommuner."
+        "adsAndMatchingTooBroad": "Bevakningen är för bred för att vi ska kunna räkna annonserna eller matcha dem mot din profil. Prova att välja färre branscher eller kommuner.",
+        "linkLabelStandalone": "{count} aktiva annonser",
+        "noneStandalone": "Inga aktiva annonser just nu.",
+        "tooBroadShort": "Bevakningen är för bred för att räknas.",
+        "adsNotMaterialisedOnly": "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart."
       },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",

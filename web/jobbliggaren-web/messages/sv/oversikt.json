@@ -35,7 +35,8 @@
     "emptyTitle": "Du har inga smarta bevakningar än",
     "emptyBody": "En smart bevakning är en sparad sökning på bransch och kommun. Annonserna från företagen som matchar samlas här.",
     "emptyCta": "Ny smart bevakning",
-    "unavailable": "Smarta bevakningar kunde inte hämtas. Uppdatera sidan för att försöka igen."
+    "unavailable": "Smarta bevakningar kunde inte hämtas. Uppdatera sidan för att försöka igen.",
+    "tooBroadAdvice": "En bevakning som är för bred kan inte räknas. Prova att välja färre branscher eller kommuner."
   },
   "notices": {
     "title": "Notiser",

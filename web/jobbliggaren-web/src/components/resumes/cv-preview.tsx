@@ -31,8 +31,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * **Pdf:en VISAS här, och det är en omprövad grind — inte en smaksak som gled
  * tillbaka.** DPIA #659:s R-F6/M-F2 föreskrev download-only. De är omprövade för
  * PDF-ARMEN och ingenting annat: ADR 0101 `Amendment 2026-09-06` + DPIA #659 §11,
- * beslutade av controllern och SIGNERADE av `security-auditor` 2026-09-06. Läs den
- * signaturen och dess sex lapse-triggers innan den här grenen rörs — den är en
+ * beslutade av controllern och SIGNERADE av `security-auditor` 2026-09-06. Läs signaturen
+ * och DPIA §11:s uppräkning av sex lapse-triggers innan den här grenen rörs — grunden är en
  * daterad mätning, inte en egenskap som ärvs framåt.
  *
  * **Vilken mekanism som bär renderingen är ett val de två dokumenten kräver att en PR
@@ -47,9 +47,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * flippa den headern varken tänder eller släcker renderingen. Den står kvar på
  * `attachment` av ett annat skäl — se `original-file-proxy.ts`.
  *
- * ⚠ **DOCX visas inte.** En iframe ger en tyst blank ruta för Word-filer, och att
- * rendera om dem vore "vår rendering av din fil" — precis det direktivet finns för att
- * få bort. Signaturen gäller uttryckligen pdf-armen och vidgas inte. Docx laddas ner.
+ * ⚠ **DOCX visas inte.** Signaturen gäller uttryckligen pdf-armen och vidgas inte
+ * (DPIA #659 §2 Part A, D10). Docx laddas ner — skälet står vid grenen nedan.
  *
  * Filen kan dessutom SAKNAS: ett CV skapat i tjänsten har ingen uppladdad fil alls,
  * och inte heller importer som föregår filarkivet. På STAGING-ytan tillkommer en
@@ -202,6 +201,10 @@ export function CvPreview({
   const [reloadToken, setReloadToken] = useState(0);
 
   const isAtsText = view === "atsText";
+  // Sant bara när ramen faktiskt renderas. Styr modalens dokumentbredd: en dokumentvy och en
+  // textmodal har olika rätt bredd, och med husets vanliga blir CV:t oläsbart smalt
+  // (design-reviewer, PR #1692). Bredden byter vid samma tillståndsgräns som höjden redan gör.
+  const showsDocument = !isAtsText && status === "ready" && original?.kind === "pdf";
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -360,6 +363,12 @@ export function CvPreview({
 
   // Esc stänger; focus-trap håller Tab inom panelen (WCAG 2.1.2 / 2.4.3) —
   // idiom speglat från JobAdModalShell.
+  //
+  // ⚠ Lyssnaren sitter på VÅRT document, så den ser aldrig ett keydown som avfyras inne i
+  // pdf-ramens egna dokument: Esc stänger inte medan fokus ligger i pdf-läsaren. Ingen fix
+  // finns — en dokumentgräns går inte att lyssna över. SC 2.1.2 klaras ändå, mätt: ett Tab
+  // flyttar ut till "Ladda ner" i det här dokumentet, där Esc stänger och fokus återvänder
+  // till triggern (design-reviewer, PR #1692 — mätvärde, inte defekt).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -372,8 +381,13 @@ export function CvPreview({
       // Full focusable set — must stay identical across every focus-trap shell
       // (input/select/textarea included so a trap never leaks to the browser
       // chrome when the panel gains a form control). SPOT-centralisation: #575.
+      // NAMNGIVET AVSTEG från den delade mängden (#575, identisk i fem shells): `iframe`
+      // är tillagd här och bara här, eftersom det här är enda shellen som ramar in ett
+      // dokument. Utan den ligger ramen utanför `focusable` medan den ÄR en tab-stopp, och
+      // trapen håller då bara på att ramen råkar ligga före sista elementet i DOM-ordning —
+      // ordningsberoende i stället för selektor-buren (code-reviewer, PR #1692).
       const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
       );
       if (focusable.length === 0) return;
       const first = focusable[0]!;
@@ -408,7 +422,7 @@ export function CvPreview({
         <div className="jp-modal-scrim" role="presentation" onClick={close}>
           <div
             ref={panelRef}
-            className="jp-modal"
+            className={`jp-modal${showsDocument ? " jp-modal--doc" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelId}

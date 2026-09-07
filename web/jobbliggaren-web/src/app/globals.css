@@ -6586,14 +6586,33 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: flex;
 }
 /* PDF-iframe i CvPreview-modalen — användarens EGEN uppladdade fil (ADR 0101
-   `Amendment 2026-09-06`). Civic-utility: 1px-kant via surface-2-fyll, liten radie,
-   ingen shadow/gradient. Höjden cappas så modalen inte spränger vyporten. */
+   `Amendment 2026-09-06`). Civic-utility: hairline + surface-2-fyll, liten radie,
+   ingen shadow/gradient. Kanten speglar syskonet `.jp-atstext__body` — de två är samma
+   slags inbäddade dokumentblock i samma modal. Höjden är ett TAK, inte en höjd: ramen är
+   ett flex-item och krymper till modalkroppen, så `min()` binder först vid höga vyportar. */
 .jp-pdf-frame {
   width: 100%;
   height: min(70vh, 800px);
-  border: 0;
+  border: 1px solid var(--jp-border-soft);
   border-radius: var(--jp-r-sm);
   background: var(--jp-surface-2);
+}
+/* Ramen är en tab-stopp, så den måste bära en synlig fokusring (SC 2.4.7). `:focus-within`
+   och inte husets vanliga `:focus-visible`: på ett iframe-element matchar `:focus-visible`
+   inte när fokus går in i det inbäddade dokumentet, så ringen hade aldrig målats
+   (design-reviewer mätte båda formerna, PR #1692). Offset lägger ringen på modalytan i
+   stället för på pdf-läsarens egen chrome. */
+.jp-pdf-frame:focus-within {
+  outline: 2px solid var(--jp-focus);
+  outline-offset: 2px;
+}
+/* design-reviewer Major, PR #1692: en dokumentvy är inte en textmodal. Med husets vanliga
+   modalbredd blir Chromes miniatyrlist ~303px av 712px och CV:t renderas i 51% — och
+   krymper ju större skärmen blir, eftersom ramen växer på höjden men aldrig på bredden.
+   1080px är DESIGN.md §5:s innehållsbredd, inget nytt token. Mätt: 51% -> 86%.
+   Bredden är enda spaken — `#view=FitH`/`#zoom=page-width` på blob-URL:en är inerta i Chrome. */
+.jp-modal--doc {
+  width: min(1080px, 100%);
 }
 /* ── ATS-textflik i CvPreview-modalen (Fas 4b PR-8.3) ──────────────
    Ren, linjäriserad CV-text som en ATS-parser läser den. Mono för att

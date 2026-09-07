@@ -101,7 +101,8 @@ export async function proxyOriginalFile(
   // both documents require the implementing PR to NAME which of two mechanisms carries the
   // rendering. This one is the blob-iframe branch: `cv-preview.tsx` fetches these bytes, makes a
   // `blob:` URL and frames that. `fetch()` never reads `Content-Disposition`, so this header is
-  // inert for that path — flipping it to `inline` would change nothing a user sees.
+  // inert for that path — flipping it to `inline` would change nothing IN THE MODAL. It would
+  // change the navigation path below, which is the whole reason the value stays.
   //
   // It stays `attachment` because it is load-bearing for the OTHER path: a browser that NAVIGATES
   // to this route (a pasted URL, a bookmark) saves the bytes instead of painting them. That keeps

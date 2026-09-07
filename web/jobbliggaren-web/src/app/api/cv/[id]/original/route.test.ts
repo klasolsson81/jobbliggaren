@@ -45,7 +45,7 @@ function backendFile(contentType: string): Response {
  * `lib/http/original-file-proxy.ts` and is shared with the staging route, so this suite covers the
  * shared posture once, from a real route binding: the SSRF allowlist, the never-echo-the-body rule,
  * and the thing this proxy does that the delivered preview route does not: narrowing the content
- * type to an allowlist. The disposition is `attachment` for every kind (DPIA #659 M-F2).
+ * type to an allowlist. The disposition is `attachment` for every kind.
  */
 describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
   const originalFetch = global.fetch;
@@ -93,9 +93,6 @@ describe("GET /api/cv/[id]/original (original-file passthrough BFF)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer sess-1");
 
     expect(res.headers.get("Content-Type")).toBe(PDF_CONTENT_TYPE);
-    // DPIA #659 M-F2 föreskriver RFC 6266 `attachment` ordagrant och är merge-blockerande;
-    // R-F6:s residual vilar på att en lagrad polyglot aldrig renderas inline från vår origin.
-    // Proxyn får inte försvaga det på vägen ut, oavsett filtyp.
     expect(res.headers.get("Content-Disposition")).toBe(
       'attachment; filename="original.pdf"'
     );

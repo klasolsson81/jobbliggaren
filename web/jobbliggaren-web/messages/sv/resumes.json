@@ -160,7 +160,7 @@
     "download": "Ladda ner",
     "statusRegionLabel": "Filens status",
     "readyBodyPdf": "Det här är filen du laddade upp, oförändrad.",
-    "readyBodyDocx": "Det här är filen du laddade upp, oförändrad. Word-filer kan inte visas i webbläsaren, så ladda ner den för att öppna den på din enhet.",
+    "readyBodyDocx": "Det här är filen du laddade upp, oförändrad. Word-filer kan inte visas i webbläsaren. Ladda ner filen för att öppna den på din enhet.",
     "rateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
     "noOriginal": "Det här CV:t har ingen sparad originalfil. En fil finns bara för CV du importerat, och bara om den fick sparas vid importen.",
     "importCta": "Importera CV",

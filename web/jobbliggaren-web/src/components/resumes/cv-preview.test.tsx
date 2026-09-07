@@ -168,6 +168,48 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     const frame = await screen.findByTitle("Din uppladdade CV-fil");
     expect(frame.tagName).toBe("IFRAME");
     expect(frame).toHaveAttribute("src", "blob:mock");
+
+    // EXAKT EN renderande yta. Signaturens egen avgränsning är "one rendering surface, inside
+    // the modal", och den gäller PDF-ARMEN — så negationerna hör hemma här, inte bara på docx.
+    // Utan dem faller ett tillagt <embed src={original.url}> eller en andra ram igenom hela
+    // sviten, och omprövningen hade tyst vidgats till fler ytor än den signerades för.
+    // Samma `document.body`-rot som docx-testet, så de två mäter samma sak åt olika håll.
+    const root = document.body;
+    expect(root.querySelectorAll("iframe").length).toBe(1);
+    expect(root.querySelector("embed")).toBeNull();
+    expect(root.querySelector("object")).toBeNull();
+    // Ingen länk navigerar i stället för att spara, och ingen öppnar ny flik — pdf-armen har
+    // en ram OCH en nedladdning, så länk-formen måste pinnas här också.
+    expect(root.querySelectorAll("a[download]").length).toBe(1);
+    for (const link of Array.from(root.querySelectorAll("a[href]"))) {
+      const href = link.getAttribute("href") ?? "";
+      if (href.startsWith("blob:") || href.startsWith("data:")) {
+        expect(link).toHaveAttribute("download");
+      }
+      expect(link).not.toHaveAttribute("target", "_blank");
+    }
+  });
+
+  it("pdf: ramen ligger i focus-trapens egen mängd, inte bara i DOM-ordningen", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
+    const frame = await screen.findByTitle("Din uppladdade CV-fil");
+
+    // Ramen ÄR en tab-stopp. Låg den utanför trapens selektor höll trapen bara på att ramen
+    // råkade ligga före sista elementet i DOM-ordning — ordningsberoende, inte selektor-buren
+    // (code-reviewer, PR #1692). Pinnen mäter selektorn, som är det som ska bära det.
+    const panel = screen.getByRole("dialog");
+    const focusable = Array.from(
+      panel.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
+      )
+    );
+    expect(focusable).toContain(frame);
+    // POSITIV KONTROLL: mängden är inte tom av fel skäl — Stäng-knappen ligger också i den.
+    expect(focusable).toContain(screen.getByRole("button", { name: "Stäng" }));
   });
 
   it("docx: ingen renderande yta alls — signaturen gäller pdf-armen och vidgas inte", async () => {

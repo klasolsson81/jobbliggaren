@@ -36,12 +36,16 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  *
  * EXPORTED so its exact membership can be pinned against production rather than against a copy of
  * the literal — a pin that restates the set cannot fail when the set changes. Growing this map is
- * DPIA #659 §11 **lapse-trigger 1**, and since the multi-user basis was signed (2026-09-07) a third
- * entry is Blocker-class rather than hygiene: it is the first link in the only chain by which a
- * hostile polyglot becomes active content in this origin. Nothing detects a lapse automatically,
- * which is why the pin exists.
+ * DPIA #659 §11 **lapse-trigger 1**, and nothing detects a lapse automatically, which is why the
+ * pin exists.
+ *
+ * `ReadonlyMap` is load-bearing, not tidiness. Exporting a plain `Map` let any other module call
+ * `.set()` on the shared instance: `tsc` accepted it, production's `.get()` read the widened map at
+ * request time, and the pin stayed GREEN because it measures the literal in a test process the
+ * mutant never loads. That is trigger 1 firing silently through a door this export itself opened
+ * (security-auditor, PR #1696).
  */
-export const ALLOWED_CONTENT_TYPES = new Map<string, string>([
+export const ALLOWED_CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
   ["application/pdf", "pdf"],
   [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -249,13 +249,24 @@ describe("CriteriaSummary", () => {
     expect(text).not.toContain("dessa företag");
   });
 
-  // design-reviewer Minor 7: only the ADS arm is unanswerable here, and the matching line right
-  // below carries a number — so the plural "Annonssiffrorna" read as a contradiction.
+  // design-reviewer Minor 7: only the ADS arm is unanswerable here, so the plural
+  // "Annonssiffrorna" claimed both numbers and read as a contradiction against the next line.
+  //
+  // ⚠ THE PREMISE IS THE PRODUCIBLE ONE, and the first draft's was not (code-reviewer raised it
+  // ungraded; measured here). Pairing `notMaterialised` ads with a COUNTED matching cannot arise:
+  // `ListCompanyWatchCriteriaQueryHandler` calls `MatchingBatchAsync` first, whose `ResolveIdsAsync`
+  // reads the SAME memoised `MagnitudeAsync` (`CriterionMatchingAdSetResolver.cs:284`) and returns
+  // `NotMaterialised` on it (`:291`) — so within one request the two arms cannot disagree that way,
+  // and `sharedRefusal` would fire.
+  //
+  // NOT ASSESSED is the divergence production DOES emit: `MatchingBatchAsync` returns it for every
+  // pending criterion at its assessability gate, BEFORE any magnitude is consulted, so it pairs with
+  // an unanswerable ads magnitude. `sharedRefusal` stays null and the single-arm branch is reached.
   it("när bara annonstalet saknas skalas påståendet till sitt eget led", () => {
     render(
       <CriteriaSummary
         criteria={ok([
-          criterion({ ads: ADS_NOT_MATERIALISED, matching: matchCounted(3) }),
+          criterion({ ads: ADS_NOT_MATERIALISED, matching: MATCH_NOT_ASSESSED }),
         ])}
         reference={REFERENCE}
       />,
@@ -263,8 +274,9 @@ describe("CriteriaSummary", () => {
 
     const text = visibleText();
     expect(text).toContain("Antalet aktiva annonser är inte framräknat än");
+    // The plural would have claimed the matching arm too, which has its own separate reason.
     expect(text).not.toContain("Annonssiffrorna");
-    expect(text).toContain("3 matchande annonser");
+    expect(text).toContain("Ställ in matchning");
   });
 
   it("ej framräknad renderar okunskap, aldrig en nolla och aldrig ett råd", () => {

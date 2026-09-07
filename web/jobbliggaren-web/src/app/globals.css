@@ -5167,8 +5167,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary__advice {
   max-width: 68ch;
 }
-/* Rådet står en gång under listan, inte en gång per rad — därför lite luft upp till den. */
-.jp-appsummary__advice { margin-top: 12px; }
+/* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
+   med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
+   läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet
+   INGEN hårlinje här — då hade rådet blivit en tjugoförsta post i liggaren. */
+.jp-appsummary__advice { margin-top: 18px; }
 /* Två sammanfattningar i samma sektion delar klass, typografi och vänsterkant, så linjen mellan
    dem BÄR information och måste nå UI-golvet 3:1 (jobbpilot-design-a11y §4). Basregeln lämnas
    orörd — den bärs även av ApplicationSummary, där linjen bara skiljer grammatiker. */

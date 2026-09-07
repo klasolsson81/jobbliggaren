@@ -1,14 +1,14 @@
 "use client";
 
-// "use client": klient-ö för nedladdning av den uppladdade originalfilen
-// (Fas 4 STEG B-2). Kräver browser-API:er (fetch av binär
+// "use client": klient-ö för visning och nedladdning av den uppladdade
+// originalfilen (Fas 4 STEG B-2). Kräver browser-API:er (fetch av binär
 // blob, URL.createObjectURL, AbortController), modal-state och tangentbords-/
 // fokus-hantering — inget av detta kan göras i en Server Component.
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Download, X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
 
@@ -16,8 +16,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * CvPreview — trigger-knapp + klient-state-modal som ger ANVÄNDAREN HENNES EGEN
  * uppladdade fil (Klas-direktiv 2026-09-06). Hämtar filen från en binär BFF-route
  * (server-only egress, ägar-scopad via session→Bearer) och gör en object-URL som
- * NEDLADDNINGEN pekar på; filen visas aldrig. Källan är generisk via `originalUrl`:
- * `/api/cv/parsed/{parsedId}/original` (importstaging) ELLER
+ * en pdf VISAS på och som nedladdningen pekar på. Källan är generisk via
+ * `originalUrl`: `/api/cv/parsed/{parsedId}/original` (importstaging) ELLER
  * `/api/cv/{id}/original` (befordrad, kanonisk Resume). Komponenten äger ingen
  * id-form.
  *
@@ -28,18 +28,27 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * ADR 0093 §D5). Profilflikarna är därför borta. `?profile=` lever vidare på
  * granskningssidan, där den styr SJÄLVA GRANSKNINGEN och inte den här vyn.
  *
- * **Filen laddas ner, den visas aldrig i appen — och det är en grind, inte en
- * smaksak.** DPIA #659 M-F2 föreskriver ordagrant RFC 6266 `attachment` och är
- * märkt merge-blockerande; R-F6:s residual vilar på satsen "a stored HTML-in-PDF
- * polyglot is never rendered inline from our origin", och ADR 0101 §B5(a):s GO för
- * hela `resume_files`-lagret är villkorat av M-F2. En `blob:`-iframe hade renderat
- * användaruppladdade bytes på vår egen origin och brutit det. `download`-attributet
- * gör att blob:en sparas i stället för att målas.
+ * **Pdf:en VISAS här, och det är en omprövad grind — inte en smaksak som gled
+ * tillbaka.** DPIA #659:s R-F6/M-F2 föreskrev download-only. De är omprövade för
+ * PDF-ARMEN och ingenting annat: ADR 0101 `Amendment 2026-09-06` + DPIA #659 §11,
+ * beslutade av controllern och SIGNERADE av `security-auditor` 2026-09-06. Läs signaturen
+ * och DPIA §11:s uppräkning av sex lapse-triggers innan den här grenen rörs — grunden är en
+ * daterad mätning, inte en egenskap som ärvs framåt.
  *
- * ⚠ Att bara sätta `attachment` på BFF-svaret räcker INTE: `fetch()` läser aldrig
- * `Content-Disposition`, så en kvarlämnad iframe hade renderat vidare medan headern
- * såg efterlevande ut (security-auditor, PR #1684). Grinden bärs av att det inte
- * finns någon renderande yta här, inte av headern ensam.
+ * **Vilken mekanism som bär renderingen är ett val de två dokumenten kräver att en PR
+ * gör, och det här är valet: `fetch → blob → <iframe src={blobUrl}>`.** Att i stället
+ * rikta en iframe direkt mot BFF-routen kan inte fungera här — `frame-ancestors 'none'`
+ * och `X-Frame-Options: DENY` serveras på `/(.*)` (next.config.ts), route handlers
+ * inräknade, och de nekar även SAMMA origin. Att lätta på någondera är DPIA #659 §11:s
+ * lapse-trigger 4.
+ *
+ * ⚠ Följden av det valet: BFF:ens `Content-Disposition` är INERT för den här vyn.
+ * `fetch()` läser aldrig `Content-Disposition` (security-auditor, PR #1684), så att
+ * flippa den headern varken tänder eller släcker renderingen. Den står kvar på
+ * `attachment` av ett annat skäl — se `original-file-proxy.ts`.
+ *
+ * ⚠ **DOCX visas inte.** Signaturen gäller uttryckligen pdf-armen och vidgas inte
+ * (DPIA #659 §2 Part A, D10). Docx laddas ner — skälet står vid grenen nedan.
  *
  * Filen kan dessutom SAKNAS: ett CV skapat i tjänsten har ingen uppladdad fil alls,
  * och inte heller importer som föregår filarkivet. På STAGING-ytan tillkommer en
@@ -47,8 +56,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * kan inte nå den kanoniska ytan, eftersom `ParsedResume.Promote` vägrar en flaggad
  * parse. 404 är alltså ett VANLIGT svar och renderas som tomt tillstånd.
  *
- * `Content-Type` (som BFF:en snävar mot en allowlist) avgör bara filändelsen på
- * nedladdningen — aldrig filnamnets ändelse, och inte längre någon vy-gren.
+ * `Content-Type` (som BFF:en snävar mot en allowlist) avgör BÅDE vy-grenen (pdf
+ * visas, docx laddas ner) och nedladdningens filändelse — aldrig filnamnets ändelse.
  *
  * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en andra flik
  * till som hämtar den linjäriserade, redan pnr-redigerade CV-texten (JSON) och
@@ -96,7 +105,7 @@ interface CvPreviewProps {
   triggerIconSize?: number;
   /**
    * Tillgängligt namn på triggern, när ytan renderar flera. `/cv` ger ett kort per
-   * CV, så utan detta blir N identiska "Ladda ner CV-filen" i en skärmläsares
+   * CV, så utan detta blir N identiska "Öppna CV-filen" i en skärmläsares
    * knapp-rotor (#1373). Utelämnad => knappens egen text bär namnet.
    *
    * ⚠ Ändras trigger-copyn måste den här strängen följa med: WCAG 2.1 SC 2.5.3
@@ -114,6 +123,18 @@ interface CvPreviewProps {
   fileName?: string;
 }
 
+/**
+ * Focus-trapens fokuserbara mängd. Exporterad så testet mäter PRODUKTIONENS selektor och inte
+ * en egen kopia av strängen — en pin som skriver om selektorn kan inte falla (code-reviewer,
+ * PR #1692), och det väger extra här: att ha med `iframe` är i dagens DOM beteendemässigt en
+ * no-op (ramen är varken först eller sist), så selektorn ÄR hela skyddet.
+ *
+ * NAMNGIVET AVSTEG från den delade mängden (#575, identisk i fem shells): `iframe` finns bara
+ * här, eftersom det här är enda shellen som ramar in ett dokument.
+ */
+export const MODAL_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
+
 /** Den aktiva fliken: originalfilen eller ATS-textvyn. */
 type ViewTab = "original" | "atsText";
 
@@ -128,11 +149,12 @@ type OriginalStatus =
  *  igen om en stund") — fliken har ingen egen rate-limit-copy. */
 type AtsTextStatus = "loading" | "ready" | "notFound" | "error";
 
-/** De två filformer `CvFileSignature` kan lösa. Formen väljer bara nedladdningens
- *  filändelse — den är ingen vy-gren, båda laddas ned. */
+/** De två filformer `CvFileSignature` kan lösa. Formen är BÅDE vy-gren (bara pdf
+ *  renderas) och nedladdningens filändelse. */
 type OriginalKind = "pdf" | "docx";
 
-/** Den hämtade filen: en object-URL plus vilken form den har. */
+/** Den hämtade filen: en object-URL plus vilken form den har. Formen avgör om
+ *  URL:en målas i en iframe eller bara laddas ned. */
 interface LoadedOriginal {
   url: string;
   kind: OriginalKind;
@@ -191,10 +213,15 @@ export function CvPreview({
   const [reloadToken, setReloadToken] = useState(0);
 
   const isAtsText = view === "atsText";
+  // Sant bara när ramen faktiskt renderas. Styr modalens dokumentbredd: en dokumentvy och en
+  // textmodal har olika rätt bredd, och med husets vanliga blir CV:t oläsbart smalt
+  // (design-reviewer, PR #1692). Bredden byter vid samma tillståndsgräns som höjden redan gör.
+  const showsDocument = !isAtsText && status === "ready" && original?.kind === "pdf";
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const labelId = useId();
 
   // Stäng: revoka blob, nollställ state och RETURNERA FOKUS till triggern
@@ -335,6 +362,40 @@ export function CvPreview({
     return () => controller.abort();
   }, [open, view, atsTextUrl]);
 
+  // Fokusring för pdf-ramen (SC 2.4.7). Fokus som går in i ett iframe stiger ned i det
+  // inbäddade browsing-contextet, så värddokumentet lämnar fokuskedjan och INGEN fokus-
+  // pseudoklass matchar här — varken på ramen eller på en wrapper. Signalen som faktiskt
+  // finns är att fönstret tappar fokus medan `document.activeElement` är ramen; den speglas
+  // till ett attribut som CSS:en hänger ringen på.
+  //
+  // Samma villkor styr båda hållen, så ringen släcks när fokus lämnar ramen: `focus` (åter
+  // till dokumentet) och `focusin` (ett annat element tar fokus) tar bort attributet bara när
+  // activeElement inte längre är ramen — utan den vakten hade en flik-växling ut och tillbaka
+  // släckt ringen medan fokus fortfarande låg kvar i pdf-läsaren.
+  useEffect(() => {
+    if (!open) return;
+
+    const sync = (focused: boolean) => {
+      const frame = frameRef.current;
+      if (!frame) return;
+      if (focused) frame.setAttribute("data-frame-focused", "true");
+      else frame.removeAttribute("data-frame-focused");
+    };
+    const onWindowBlur = () => sync(document.activeElement === frameRef.current);
+    const onLeaveFrame = () => {
+      if (document.activeElement !== frameRef.current) sync(false);
+    };
+
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("focus", onLeaveFrame);
+    document.addEventListener("focusin", onLeaveFrame);
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("focus", onLeaveFrame);
+      document.removeEventListener("focusin", onLeaveFrame);
+    };
+  }, [open]);
+
   // Fokus in i modalen vid öppning (close-knappen, som JobAdModalShell) +
   // body-scroll-lock under modalens livstid.
   useEffect(() => {
@@ -349,6 +410,11 @@ export function CvPreview({
 
   // Esc stänger; focus-trap håller Tab inom panelen (WCAG 2.1.2 / 2.4.3) —
   // idiom speglat från JobAdModalShell.
+  //
+  // ⚠ Lyssnaren sitter på VÅRT document, så den ser aldrig ett keydown som avfyras inne i
+  // pdf-ramens egna dokument: Esc stänger inte medan fokus ligger i pdf-läsaren. Ingen fix
+  // finns — en dokumentgräns går inte att lyssna över. Vägen ut är Tab till modalens egna
+  // kontroller (design-reviewer mätte SC 2.1.2 som klarad, PR #1692).
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -362,7 +428,7 @@ export function CvPreview({
       // (input/select/textarea included so a trap never leaks to the browser
       // chrome when the panel gains a form control). SPOT-centralisation: #575.
       const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        MODAL_FOCUSABLE_SELECTOR
       );
       if (focusable.length === 0) return;
       const first = focusable[0]!;
@@ -389,7 +455,7 @@ export function CvPreview({
         aria-label={triggerAriaLabel}
         onClick={() => setOpen(true)}
       >
-        <Download size={triggerIconSize} aria-hidden="true" />
+        <Eye size={triggerIconSize} aria-hidden="true" />
         <span>{t("trigger")}</span>
       </button>
 
@@ -397,7 +463,7 @@ export function CvPreview({
         <div className="jp-modal-scrim" role="presentation" onClick={close}>
           <div
             ref={panelRef}
-            className="jp-modal"
+            className={`jp-modal${showsDocument ? " jp-modal--doc" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelId}
@@ -474,7 +540,11 @@ export function CvPreview({
                     aria-label={t("statusRegionLabel")}
                   >
                     {status === "ready" && original && (
-                      <p className="jp-lede">{t("readyBody")}</p>
+                      <p className="jp-lede">
+                        {original.kind === "pdf"
+                          ? t("readyBodyPdf")
+                          : t("readyBodyDocx")}
+                      </p>
                     )}
                     {status === "noOriginal" && (
                       <p className="jp-lede">{t("noOriginal")}</p>
@@ -486,9 +556,28 @@ export function CvPreview({
                     )}
                   </div>
 
+                  {/* Pdf:en målas; docx får ingen ram alls. En iframe mot en Word-fil
+                      ger en tyst blank ruta, och att rendera om den vore "vår rendering
+                      av din fil". Grenen är signerad för pdf-armen och ingenting annat
+                      (ADR 0101 `Amendment 2026-09-06`, DPIA #659 §11).
+
+                      Ramen står UTANFÖR live-regionen: den är ett dokument, inte ett
+                      utfallsmeddelande, och en region som byter både text och inbäddat
+                      innehåll annonseras ojämnt. Utfallet annonseras av `readyBodyPdf`
+                      ovan, som ligger kvar i regionen. */}
+                  {status === "ready" && original?.kind === "pdf" && (
+                    <iframe
+                      ref={frameRef}
+                      src={original.url}
+                      title={t("frameTitle")}
+                      className="jp-pdf-frame"
+                    />
+                  )}
+
                   {/* Kontrollerna står UTANFÖR live-regionen: en region som byter både
                       text och interaktiva element annonseras ojämnt, och knappen är
-                      redan nåbar via fokusordningen. */}
+                      redan nåbar via fokusordningen. Nedladdningen finns för BÅDA
+                      formerna — den är docx enda väg, och pdf:ens väg att spara. */}
                   {status === "ready" && original && (
                     <p>
                       <a

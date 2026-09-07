@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CvPreview } from "./cv-preview";
+import { CvPreview, MODAL_FOCUSABLE_SELECTOR } from "./cv-preview";
 
 const PARSED_ID = "11111111-1111-4111-8111-111111111111";
 const ORIGINAL_URL = `/api/cv/parsed/${PARSED_ID}/original`;
@@ -87,11 +87,11 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     vi.restoreAllMocks();
   });
 
-  it("renderar trigger-knappen 'Ladda ner CV-filen' och visar INTE modalen initialt", () => {
+  it("renderar trigger-knappen 'Öppna CV-filen' och visar INTE modalen initialt", () => {
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
 
     expect(
-      screen.getByRole("button", { name: "Ladda ner CV-filen" })
+      screen.getByRole("button", { name: "Öppna CV-filen" })
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -102,7 +102,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = fetchMock;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
@@ -120,7 +120,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn(() => pending.promise) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     // BrandSpinner-status renderar "Filen läses in…" (sr-only + aria-hidden p).
     expect(await screen.findAllByText("Filen läses in…")).not.toHaveLength(0);
@@ -131,48 +131,56 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     await screen.findByRole("link", { name: "Ladda ner" });
   });
 
-  it("pdf: nedladdningslänk med rätt ändelse, och INGEN renderande yta", async () => {
+  it("pdf: nedladdningslänk med rätt ändelse, OCH filen målad i ramen", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     // Nedladdningen gör det integritetsmeddelandet redan lovar: att du kan hämta
-    // tillbaka din egen fil (content-legal.json, "originalfil").
+    // tillbaka din egen fil (content-legal.json, "originalfil"). Den finns kvar för
+    // pdf också — ramen ersätter den inte.
     const download = await screen.findByRole("link", { name: "Ladda ner" });
     expect(download).toHaveAttribute("href", "blob:mock");
     expect(download).toHaveAttribute("download", "original.pdf");
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Den visas inte i webbläsaren av säkerhetsskäl/)).toBeInTheDocument();
+    expect(screen.getByText("Det här är filen du laddade upp, oförändrad.")).toBeInTheDocument();
   });
 
-  it("GDPR-grinden: användarens bytes renderas ALDRIG inline på vår origin", async () => {
+  it("pdf: renderas ur BLOB:en — den mekanism ADR 0101 kräver att en PR namnger", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
-    await screen.findByRole("link", { name: "Ladda ner" });
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
-    // DPIA #659 M-F2 föreskriver RFC 6266 `attachment` ordagrant och är merge-blockerande;
-    // R-F6:s residual vilar på att en lagrad polyglot ALDRIG renderas inline från vår origin,
-    // och ADR 0101 §B5(a):s GO för hela resume_files-lagret är villkorat av M-F2.
+    // Klas-direktiv 2026-09-06 ("orginal filen ska få visas") landade som en OMPRÖVNING av
+    // DPIA #659:s R-F6/M-F2 för pdf-armen — ADR 0101 `Amendment 2026-09-06` + DPIA #659 §11,
+    // signerad av security-auditor. Båda dokumenten kräver att den implementerande PR:en
+    // NAMNGER vilken av två mekanismer som bär renderingen. Det här är pinnen på det valet.
     //
-    // Pinnen sitter på FRÅNVARON AV EN RENDERANDE YTA, inte på svarshuvudet: `fetch()` läser
-    // aldrig `Content-Disposition`, så en kvarlämnad iframe hade renderat vidare medan headern
-    // såg efterlevande ut. Att bara mäta headern hade varit en halv mätning av en hel grind.
-    // Mätt mot `document`, inte mot `container`: den positiva kontrollen nedan söker i
-    // document, och om modalen någon gång portas till document.body blir en
-    // container-scopad negation grön VAKUÖST medan kontrollen fortfarande hittar länken.
+    // `src` mäts, inte bara att en <iframe> finns: den andra kandidatmekanismen — en iframe
+    // riktad direkt mot BFF-routen — hade gett en <iframe> som passerar en ren
+    // existens-assertion, medan `frame-ancestors 'none'`/`X-Frame-Options: DENY` (serverade
+    // på `/(.*)`) tyst nekar just den framningen. En grön existens-pin över en blank ruta är
+    // exakt det utfallet.
+    const frame = await screen.findByTitle("Din uppladdade CV-fil");
+    expect(frame.tagName).toBe("IFRAME");
+    expect(frame).toHaveAttribute("src", "blob:mock");
+
+    // EXAKT EN renderande yta. Signaturens egen avgränsning är "one rendering surface, inside
+    // the modal", och den gäller PDF-ARMEN — så negationerna hör hemma här, inte bara på docx.
+    // Utan dem faller ett tillagt <embed src={original.url}> eller en andra ram igenom hela
+    // sviten, och omprövningen hade tyst vidgats till fler ytor än den signerades för.
+    // Samma `document.body`-rot som docx-testet, så de två mäter samma sak åt olika håll.
     const root = document.body;
-    expect(root.querySelector("iframe")).toBeNull();
+    expect(root.querySelectorAll("iframe").length).toBe(1);
     expect(root.querySelector("embed")).toBeNull();
     expect(root.querySelector("object")).toBeNull();
-    // SCOPE-KONTROLL: sökroten innehåller faktiskt det den ska mäta. Utan den kan de tre
-    // null-assertionerna ovan inte skiljas från "letade på fel ställe".
+    // Ingen länk navigerar i stället för att spara, och ingen öppnar ny flik — pdf-armen har
+    // en ram OCH en nedladdning, så länk-formen måste pinnas här också.
     expect(root.querySelectorAll("a[download]").length).toBe(1);
-    // Ingen länk i dialogen navigerar i stället för att spara, och ingen öppnar ny flik.
     for (const link of Array.from(root.querySelectorAll("a[href]"))) {
       const href = link.getAttribute("href") ?? "";
       if (href.startsWith("blob:") || href.startsWith("data:")) {
@@ -182,6 +190,65 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     }
   });
 
+  it("pdf: ramen ligger i focus-trapens egen mängd, inte bara i DOM-ordningen", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
+    const frame = await screen.findByTitle("Din uppladdade CV-fil");
+
+    // Ramen ÄR en tab-stopp. Låg den utanför trapens selektor höll trapen bara på att ramen
+    // råkade ligga före sista elementet i DOM-ordning — ordningsberoende, inte selektor-buren
+    // (code-reviewer, PR #1692). Pinnen mäter selektorn, som är det som ska bära det.
+    // PRODUKTIONENS selektor, importerad — inte en kopia. En kopia hade gjort assertionen
+    // till en tautologi: stryk `iframe` ur produktionen och testet hade förblivit grönt
+    // (code-reviewer + security-auditor, PR #1692).
+    const panel = screen.getByRole("dialog");
+    const focusable = Array.from(panel.querySelectorAll(MODAL_FOCUSABLE_SELECTOR));
+    expect(focusable).toContain(frame);
+    // POSITIV KONTROLL: mängden är inte tom av fel skäl — Stäng-knappen ligger också i den.
+    expect(focusable).toContain(screen.getByRole("button", { name: "Stäng" }));
+  });
+
+  it("docx: ingen renderande yta alls — signaturen gäller pdf-armen och vidgas inte", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi.fn().mockResolvedValue(fileResponse(DOCX_CONTENT_TYPE)) as unknown as typeof fetch;
+
+    render(<CvPreview originalUrl={ORIGINAL_URL} />);
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
+    await screen.findByRole("link", { name: "Ladda ner" });
+
+    // Omprövningen av R-F6/M-F2 är signerad för PDF-ARMEN och ingenting annat
+    // (security-auditor, 2026-09-06: "Den vidgas inte till docx, inte till någon annan
+    // filtyp"). Den här pinnen är den gränsen: samma komponent, samma modal, annan
+    // content-type — och ingen renderande yta.
+    //
+    // Mätt mot `document`, inte mot `container`: den positiva kontrollen nedan söker i
+    // document, och om modalen någon gång portas till document.body blir en
+    // container-scopad negation grön VAKUÖST medan kontrollen fortfarande hittar länken.
+    const root = document.body;
+    expect(root.querySelector("iframe")).toBeNull();
+    expect(root.querySelector("embed")).toBeNull();
+    expect(root.querySelector("object")).toBeNull();
+    // SCOPE-KONTROLL: sökroten innehåller faktiskt det den ska mäta. Utan den kan de tre
+    // null-assertionerna ovan inte skiljas från "letade på fel ställe". Den är dessutom
+    // FORMDISKRIMINERANDE sedan pdf-testet ovan: samma sökrot HITTAR en iframe när
+    // content-type är pdf, så en grön negation här kan inte förväxlas med en trasig rot.
+    expect(root.querySelectorAll("a[download]").length).toBe(1);
+    // Ingen länk i dialogen navigerar i stället för att spara, och ingen öppnar ny flik.
+    for (const link of Array.from(root.querySelectorAll("a[href]"))) {
+      const href = link.getAttribute("href") ?? "";
+      if (href.startsWith("blob:") || href.startsWith("data:")) {
+        expect(link).toHaveAttribute("download");
+      }
+      expect(link).not.toHaveAttribute("target", "_blank");
+    }
+    expect(
+      screen.getByText(/Word-filer kan inte visas i webbläsaren/)
+    ).toBeInTheDocument();
+  });
+
   it("ingen väg öppnar blob:en programmatiskt — window.open rörs aldrig", async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
@@ -189,7 +256,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
     await screen.findByRole("link", { name: "Ladda ner" });
 
     // Pinnen ovan mäter DOM-noder. En knapp med onClick={() => window.open(url)} hade
@@ -225,15 +292,15 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     render(
       <CvPreview
         originalUrl={ORIGINAL_URL}
-        triggerAriaLabel="Ladda ner CV-filen: Anna Andersson CV"
+        triggerAriaLabel="Öppna CV-filen: Anna Andersson CV"
       />
     );
 
     const trigger = screen.getByRole("button", {
-      name: "Ladda ner CV-filen: Anna Andersson CV",
+      name: "Öppna CV-filen: Anna Andersson CV",
     });
     // SC 2.5.3 Label in Name: det tillgängliga namnet måste INNEHÅLLA den synliga texten.
-    expect(trigger).toHaveTextContent("Ladda ner CV-filen");
+    expect(trigger).toHaveTextContent("Öppna CV-filen");
   });
 
   it("nedladdningen döps efter ytans namn, med ändelsen ur content-type", async () => {
@@ -241,7 +308,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} fileName="Anna Andersson CV" />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     const download = await screen.findByRole("link", { name: "Ladda ner" });
     // Utan detta heter varje hämtad fil `original.pdf` och två CV blir omöjliga att
@@ -256,7 +323,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     render(
       <CvPreview originalUrl={ORIGINAL_URL} fileName="..\\..\\etc/passwd" />
     );
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     const download = await screen.findByRole("link", { name: "Ladda ner" });
     const name = download.getAttribute("download") ?? "";
@@ -278,7 +345,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     // Felet avbryter (role="alert"), till skillnad från de artiga utfallen.
     const alert = await screen.findByRole("alert");
@@ -298,7 +365,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn(() => pending.promise) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     // Regionen är monterad REDAN under laddningen, tom. En artig region som skapas i
     // samma render som sin text annonseras inte av flera skärmläsare — och spinnerns
@@ -318,7 +385,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     // skärmläsare hör. En ny nod med rätt text hade inte annonserats.
     const after = screen.getByRole("status", { name: "Filens status" });
     expect(after).toBe(region);
-    expect(after.textContent).toContain("Den visas inte i webbläsaren");
+    expect(after.textContent).toContain("filen du laddade upp, oförändrad");
   });
 
   it("docx: samma nedladdningsform, ändelsen kommer från content-type", async () => {
@@ -326,11 +393,14 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn().mockResolvedValue(fileResponse(DOCX_CONTENT_TYPE)) as unknown as typeof fetch;
 
     const { container } = render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     const download = await screen.findByRole("link", { name: "Ladda ner" });
     // Ändelsen följer svarets content-type, aldrig filnamnet.
     expect(download).toHaveAttribute("download", "original.docx");
+    // SCOPE-KONTROLL: sökroten bär faktiskt modalen. Utan den kan iframe-negationen inte
+    // skiljas från "letade på fel ställe".
+    expect(container.querySelector("a[download]")).not.toBeNull();
     expect(container.querySelector("iframe")).toBeNull();
   });
 
@@ -346,7 +416,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       .mockResolvedValue(fileResponse("text/html")) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     expect(
       await screen.findByText("Originalfilen kunde inte laddas.")
@@ -361,7 +431,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       .mockResolvedValue({ ok: false, status: 404 } as Response) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     // Ett CV skapat i tjänsten, eller en import där filen aldrig sparades, HAR
     // ingen originalfil. Det är ett vanligt utfall och sägs som ett sådant.
@@ -382,7 +452,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     } as unknown as Response) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     expect(await screen.findByText(/30 sekunder/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();
@@ -395,7 +465,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       .mockResolvedValue({ ok: false, status: 500 } as Response) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
     expect(
       await screen.findByText("Originalfilen kunde inte laddas.")
@@ -407,7 +477,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    const trigger = screen.getByRole("button", { name: "Ladda ner CV-filen" });
+    const trigger = screen.getByRole("button", { name: "Öppna CV-filen" });
     await user.click(trigger);
     await screen.findByRole("link", { name: "Ladda ner" });
 
@@ -423,7 +493,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
     render(<CvPreview originalUrl={ORIGINAL_URL} />);
-    await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+    await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
     await screen.findByRole("link", { name: "Ladda ner" });
 
     await user.keyboard("{Escape}");
@@ -437,7 +507,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       global.fetch = vi.fn().mockResolvedValue(fileResponse(PDF_CONTENT_TYPE)) as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={ORIGINAL_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
       await screen.findByRole("link", { name: "Ladda ner" });
 
       // En ensam flik är en kontroll som inte kontrollerar något.
@@ -452,7 +522,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       global.fetch = routedFetch() as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
       await screen.findByRole("link", { name: "Ladda ner" });
 
       // Originalet har ingen ATS-variant och ingen visuell variant — det är en fil.
@@ -465,7 +535,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       global.fetch = routedFetch() as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
 
       expect(screen.getByRole("group", { name: "Välj: originalfil eller ATS-text" })).toBeInTheDocument();
       const original = screen.getByRole("button", { name: "Originalfil" });
@@ -479,7 +549,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       global.fetch = fetchMock as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
       await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
@@ -504,7 +574,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       ) as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
       await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));
@@ -519,7 +589,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
       global.fetch = routedFetch() as unknown as typeof fetch;
 
       render(<CvPreview originalUrl={RESUME_ORIGINAL_URL} atsTextUrl={ATS_TEXT_URL} />);
-      await user.click(screen.getByRole("button", { name: "Ladda ner CV-filen" }));
+      await user.click(screen.getByRole("button", { name: "Öppna CV-filen" }));
       await screen.findByRole("link", { name: "Ladda ner" });
 
       await user.click(screen.getByRole("button", { name: "Textversion för ATS" }));

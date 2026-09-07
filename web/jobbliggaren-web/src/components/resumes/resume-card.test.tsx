@@ -128,7 +128,7 @@ describe("ResumeCard (F6 P3a v3)", () => {
       screen.getByRole("link", { name: `Granska CV: ${cv}` }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: `Ladda ner CV-filen: ${cv}` }),
+      screen.getByRole("button", { name: `Öppna CV-filen: ${cv}` }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: `Byt namn på ${cv}` }),

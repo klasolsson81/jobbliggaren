@@ -228,11 +228,25 @@ public sealed class RateLimitingOptions
     /// </para>
     ///
     /// <para>
-    /// ⚠ <b>Kvarstående, och det är avsiktligt nedskrivet snarare än stängt:</b> borttagningen fixar
-    /// det OAVSIKTLIGA fallet (vanlig navigering), inte vad en avsiktlig aktör når — ett konto kan
-    /// fortfarande träffa listrutten 120 ggr/min. Det residualet är hinkens jobb, och
-    /// <c>security-auditor</c>s signatur på just den frågan är hennes att ge; varken Klas
-    /// budgetacceptans (ADR 0139 beviljande 4) eller etikettfixen laddar ur den.
+    /// <b>Residualet är stängt 2026-09-07 — och INTE här.</b> Borttagningen av anropet fixade det
+    /// OAVSIKTLIGA fallet (vanlig navigering), aldrig vad en avsiktlig aktör når: ett konto kunde
+    /// fortfarande träffa listrutten 120 ggr/min, vilket vid annonstaket är ~45,8 s databastid per
+    /// minut från en enda rutt. <c>security-auditor</c> vägrade signera hinken på den grunden, och
+    /// Klas valde hennes rekommendation: <b>rutten fick en EGEN policy</b>,
+    /// <see cref="CompanyWatchCriteriaList"/> (5 burst / 3 per minut uthålligt), där härledningen —
+    /// båda halvorna, inklusive den per-request-backendkostnadsterm som saknas i stycket ovan —
+    /// står i sin helhet. <b>Ingen ratchet gjordes på den här policyn</b>: 120/min står orört för
+    /// <c>/oversikt</c>s ~7-anrops-fan, och en nedskruvning här hade varit kollateral på ytor som
+    /// inte bar kostnaden. Styckena ovan står kvar som protokoll över VARFÖR rutten lämnade hinken;
+    /// de beskriver inte längre ett öppet läge.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Läxan är generell och gäller den här policyn, inte bara den rutt som lämnade.</b>
+    /// Härledningen ovan är ren request-amplifiering. Den håller så länge varje kvarvarande rutt i
+    /// hinken är en bunden objektgraf-läsning — och den säger ingenting alls den dag en av dem inte
+    /// är det. <b>En ny rutt hör hemma här bara om dess per-request-kostnad ligger i samma klass som
+    /// de befintliga; annars är svaret en egen policy, precis som här.</b>
     /// </para>
     /// </summary>
     public PolicyOptions MeListRead { get; init; } = new()
@@ -337,6 +351,132 @@ public sealed class RateLimitingOptions
     {
         PermitLimit = 15,
         WindowSeconds = 60,
+    };
+
+    /// <summary>
+    /// GET /me/company-watch-criteria — the smart-watch LIST (#1681 part 2, ADR 0139). Its own
+    /// policy since 2026-09-07, on <c>security-auditor</c>'s recommendation and Klas's decision;
+    /// it left <see cref="MeListRead"/> because its per-request backend cost stopped resembling
+    /// anything else in that bucket. Partitioned per UserId; anonymous → NoLimiter (safe only
+    /// because <c>UseRateLimiter</c> is registered AFTER <c>UseAuthorization</c> and the route is
+    /// <c>RequireAuthorization</c>-gated). TokenBucket (populates <c>Retry-After</c>;
+    /// SlidingWindow does not), <c>QueueLimit = 0</c> (a queue is memory-DoS).
+    ///
+    /// <para>
+    /// <b>A separate policy LOWERS NOTHING anyone already holds.</b> <see cref="MeListRead"/> keeps
+    /// 120/min for its own routes, and a ratchet there would have been collateral on
+    /// <c>/oversikt</c>'s ~7-call fan — which this route is not part of. This is the same ground on
+    /// which <see cref="CompanyBrowse"/> got its own budget for a divergent cost profile (least
+    /// common mechanism, Saltzer/Schroeder; bulkhead, Nygard). <b>Raising
+    /// <see cref="PolicyOptions.PermitLimit"/> is expressly NOT an available remedy here</b>
+    /// (security-auditor 2026-09-07) — buy margin back by removing a call.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>THE DERIVATION — two halves, because the half this file kept omitting is the second one.</b>
+    /// <see cref="MeListRead"/>'s own derivation is pure request AMPLIFICATION with no per-request
+    /// BACKEND-COST term; that omission is how #1681 part 2 put a ~380 ms read on a 120/min budget
+    /// without anything surfacing. Both halves are written out here so the next reader can redo it.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Half 1 — legitimate frequency (amplification).</b> ONE consumer page,
+    /// <c>/foretag/smarta-bevakningar</c>, at <b>~1 call per load</b>. It used to be three pages;
+    /// both detail pages left when <c>GetCriterionIdentityQuery</c> composed their heading into
+    /// routes they already call, and that departure is pinned FE-side
+    /// (<c>expect(getCompanyWatchCriteria).not.toHaveBeenCalled()</c> in both page tests). Against
+    /// <see cref="MeListRead"/>'s ~7 calls per <c>/oversikt</c> load this is a seventh of the
+    /// amplification — and it is not a debounce-burst surface: no typeahead, no popover, no poll.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Half 2 — measured per-request backend cost</b>
+    /// (<c>docs/reviews/2026-09-07-1681-part2-fanin-and-corpus-measurement.md</c>): everyday
+    /// (20 criteria × 202 ads, realistic profile) <b>47,3 ms</b>; every criterion refused 25,0 ms;
+    /// at the ad ceiling <b>240,1 / 316,7 / 381,5 ms</b> for a realistic / rich / ceiling profile.
+    /// <b>The bucket is derived against 381,5 ms, not against 47,3 ms — a bucket does not exist for
+    /// the everyday case.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Each Σ errs in BOTH directions, and neither is a clean number.</b> It OVERSTATES as a
+    /// sum of p95s (a sum of 95th percentiles is not the 95th percentile of the composed read — it
+    /// prices every component as simultaneously unlucky). It UNDERSTATES twice, independently: the
+    /// statement halves were measured on a fixture <b>25x narrower per row</b> than dev, and the
+    /// same report measures row width flipping the plan and costing 2–5x at equal n; and nothing
+    /// else in the handler is counted at all — the criteria load, the four Mediator behaviours, DTO
+    /// mapping, serialising 20 rows. <b>So 381,5 ms is treated as a FLOOR on the worst measured
+    /// state, never as its ceiling</b>, and the limit below is chosen to stay defensible if the true
+    /// figure is a small multiple of it.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The anchor: ~1 second of database time per minute per account, from one route.</b> That
+    /// is not invented here — it is what the house already grants for a measured-heavy authenticated
+    /// read and <c>security-auditor</c> already signed: <see cref="CompanyBrowse"/> runs 12/min
+    /// sustained over a capped register count measured at ~78 ms worst case ≈ <b>0,94 s/min</b>.
+    /// ⚠ That 78 ms is the COUNT half only (<see cref="CompanyBrowseCriteria.MaxServableRows"/>
+    /// carries the measurement); <c>/companies</c> also runs the items query, so the anchor
+    /// UNDERSTATES what the house already tolerates — which biases the limit below toward the strict
+    /// side, and is the direction to be wrong in. The
+    /// twin (<c>ListCompanyWatchesQueryHandler</c>, 0,166 ms p95 on <see cref="MeListRead"/>) is
+    /// deliberately NOT the anchor: at 120/min it places ~20 ms/min, and anchoring a heavy read on a
+    /// route with no heavy state would derive a limit below one request per minute. An order-of-
+    /// magnitude anchor is stated as such rather than dressed up as a precise budget.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The arithmetic.</b> 1 000 ms ÷ 381,5 ms ≈ <b>2,6 requests/min</b> → the sustained rate is
+    /// <b>3/min</b>. Worst-case load at that rate is 3 × 381,5 ms = <b>1,14 s/min</b>, in the same
+    /// class as the anchor; the everyday cost is 3 × 47,3 ms = <b>142 ms/min</b>. Compare what the
+    /// finding priced: 120/min × 381,5 ms = <b>45,8 s of database time per minute</b> from one
+    /// account, with <c>QueueLimit = 0</c> making the bucket the entire protection.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The burst is 5, and the formula pins it rather than taste.</b> Sustained rate is
+    /// <c>TokensPerPeriod / ReplenishmentPeriod</c> = <c>max(1, PermitLimit / SegmentsPerWindow)</c>
+    /// per <c>WindowSeconds / SegmentsPerWindow</c>. With <c>SegmentsPerWindow = 3</c> the period is
+    /// 20 s, and <c>PermitLimit</c> 4 or 5 both truncate to 1 token per period = 3/min, while 6
+    /// divides evenly to 2 = 6/min. <b>5 is therefore the largest burst compatible with a 3/min sustained
+    /// rate</b> — the same integer-truncation shape that gives <see cref="CompanyBrowse"/> a burst of
+    /// 15 over a sustained 12, and <see cref="JobAdSuggest"/> a burst of 20 over ~1,8/s.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><see cref="PolicyOptions.SegmentsPerWindow"/> is 3 here, not the house default 6, and
+    /// that is forced.</b> At Segments = 6 the replenishment period is 10 s and the minimum
+    /// expressible sustained rate is 1 token / 10 s = 6/min — twice the derived figure. The cost is
+    /// paid in recovery latency: an exhausted burst waits <b>20 s</b> for its next token instead of
+    /// 10 s. Still far softer than a FixedWindow's 60 s ban, which is why the 2026-06-24 retune chose
+    /// TokenBucket at all; named here rather than left for someone to discover.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Is 5/3 enough for the page?</b> Yes for reading — 3 full list re-renders per minute,
+    /// sustained, on the one page that calls it. The tightest legitimate flow is SETUP: each created
+    /// criterion redirects to the list, so creating five watches back to back spends the whole burst
+    /// and the sixth waits 20 s. That is accepted knowingly and it has a cheaper fix than a bigger
+    /// number — a create that revalidated without a full list re-fetch would cost no token at all.
+    /// <b>And this is not a ratchet on anyone's delivered budget</b>: the route's three consumers
+    /// became one inside this same unmerged PR, so no shipped usage pattern loses headroom.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Recompute trigger.</b> Any of these invalidates the number and none of them is subtle: a
+    /// second consumer page (half 1), a change to <c>CompanyWatchCriterion.MaxPerUser</c> or
+    /// <c>CriterionMatchingAdSetResolver.MaxSetSize</c> (half 2 — both are multipliers on the fan),
+    /// or a re-measurement that moves the 381,5 ms figure. Re-run the report's own protocol; do not
+    /// scale one of its points, its series is non-monotone. <b>The limit is
+    /// <c>security-auditor</c>'s to verify and hers to ratchet (BLOCKING); revising it UP after a
+    /// production latency measurement is the direction this file permits.</b>
+    /// </para>
+    /// </summary>
+    public PolicyOptions CompanyWatchCriteriaList { get; init; } = new()
+    {
+        PermitLimit = 5,
+        WindowSeconds = 60,
+        SegmentsPerWindow = 3,
     };
 
     /// <summary>

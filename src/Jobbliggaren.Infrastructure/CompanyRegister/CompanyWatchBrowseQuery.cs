@@ -281,12 +281,28 @@ internal sealed class CompanyWatchBrowseQuery(
     /// no ad work at all, and only a row that passes both reaches the join.
     ///
     /// <para>
-    /// <b>The fingerprint comparison is IN the statement, not in C#</b>, so a mismatched predicate
-    /// costs nothing: Postgres evaluates it as a one-time filter and skips the ad scan entirely
-    /// (verified in the plan as <c>One-Time Filter</c>). Doing it in C# would have read the ads first
-    /// and thrown them away.
+    /// <b>The gate is IN the statement as well as in C#</b>, so a row that cannot be answered costs
+    /// no ad work: Postgres can discard the ad scan on a condition that does not depend on the ads.
+    /// Doing it only in C# would have read the ads first and thrown them away. The exact plan node
+    /// differs by statement — the id-set query carries the gate in the lateral's <c>WHERE</c>, the
+    /// count query in a <c>CASE</c> — so no single node name is claimed for both here; the measured
+    /// plans live in <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>.
     /// </para>
     /// </summary>
+    /// ⚠ <b>EVERY condition in this gate MUST have a C# arm that reads the same column, and the
+    /// reader must SELECT that column.</b> The gate is an optimisation — it stops Postgres doing ad
+    /// work for a row that cannot be answered — but the C# side is what DECIDES, because a row that
+    /// fails the gate still comes back (the outer WHERE is the PK alone, deliberately, so "too broad"
+    /// and "never materialised" stay distinguishable instead of both being zero rows).
+    ///
+    /// <para>
+    /// Adding a condition here without its C# arm does not fail safe. It failed exactly twice in one
+    /// delta: the count statement's <c>CASE</c> yields NULL and the reader throws its
+    /// "gates no longer agree" exception — a 500 in the ordinary state the condition was added for —
+    /// while the id-set statement's lateral yields no rows and the reader reads that as an honest
+    /// empty set, which is the dishonest zero this whole family is written against (ADR 0120). Both
+    /// were introduced by the fix for the very state they broke.
+    /// </para>
     private const string MaterialisedGate =
         "m.state = @materialised_state AND m.criteria_fingerprint = @fingerprint "
         + "AND m.materialised_at >= @min_materialised_at";
@@ -298,7 +314,7 @@ internal sealed class CompanyWatchBrowseQuery(
     /// "never materialised" indistinguishable (both would be zero rows).
     /// </summary>
     private const string MaterialisedAdCountSql =
-        "SELECT m.state, m.criteria_fingerprint, CASE WHEN "
+        "SELECT m.state, m.criteria_fingerprint, m.materialised_at, CASE WHEN "
         + MaterialisedGate
         + " THEN (SELECT count(*) FROM (SELECT 1 "
         + MaterialisedAdsFromWhere
@@ -351,7 +367,7 @@ internal sealed class CompanyWatchBrowseQuery(
     /// </summary>
     private const string MaterialisedAdIdSetSql =
         """
-        SELECT m.state, m.criteria_fingerprint, a.id
+        SELECT m.state, m.criteria_fingerprint, m.materialised_at, a.id
         FROM company_watch_criterion_materialisations m
         LEFT JOIN LATERAL (
         """
@@ -448,7 +464,11 @@ internal sealed class CompanyWatchBrowseQuery(
         int cap,
         CancellationToken cancellationToken)
     {
-        await using var cmd = BuildAdCountCommand(connection, criterionId, fingerprint, MinMaterialisedAt(), cap);
+        // ONE instant, bound into the statement AND compared against below. Calling MinMaterialisedAt()
+        // twice would read the clock twice, and a row landing between the two reads would be gated one
+        // way by Postgres and the other way by C# — the divergence this pair exists to prevent.
+        var minMaterialisedAt = MinMaterialisedAt();
+        await using var cmd = BuildAdCountCommand(connection, criterionId, fingerprint, minMaterialisedAt, cap);
         await using var reader = await cmd
             .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -459,6 +479,7 @@ internal sealed class CompanyWatchBrowseQuery(
 
         var state = reader.GetString(0);
         var storedFingerprint = reader.GetString(1);
+        var materialisedAt = reader.GetFieldValue<DateTimeOffset>(2);
 
         // The FINGERPRINT is compared FIRST, and the order is the whole point (db-migration-writer,
         // 2026-09-06). A row whose fingerprint does not match was computed from a predicate the user
@@ -469,19 +490,26 @@ internal sealed class CompanyWatchBrowseQuery(
         if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
             return MaterialisedAdCount.NotMaterialised;
 
+        // Then AGE, against the SAME instant the statement was bound with — so the SQL gate and this
+        // one provably cannot disagree. Before the TooBroad branch, deliberately: an over-age refusal
+        // is a refusal nobody has re-checked for three cadence periods, and continuing to tell the
+        // user to narrow a watch on that basis is the same silent staleness the bound exists against.
+        if (materialisedAt < minMaterialisedAt)
+            return MaterialisedAdCount.NotMaterialised;
+
         if (state == MaterialisationState.TooBroad.ToString())
             return MaterialisedAdCount.TooBroad;
 
         // The gate passed, so the CASE produced a number. A NULL here would mean the SQL gate and the
         // C# gate disagree, which is a bug rather than a state - fail loud instead of inventing a 0.
-        if (await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false))
+        if (await reader.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false))
         {
             throw new InvalidOperationException(
                 "Materialiserad rad utan annonstal: SQL-grinden och C#-grinden ar inte langre samma "
                 + "villkor. En 0 har vore ett pahittat tal.");
         }
 
-        var count = reader.GetInt32(2);
+        var count = reader.GetInt32(3);
         return MaterialisedAdCount.Counted(count, saturated: count >= cap);
     }
 
@@ -493,7 +521,10 @@ internal sealed class CompanyWatchBrowseQuery(
 
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var cmd = BuildAdIdSetCommand(connection, criterionId, fingerprint, MinMaterialisedAt(), maxSetSize);
+        // One instant, bound and compared — see ReadAdCountAsync.
+        var minMaterialisedAt = MinMaterialisedAt();
+        await using var cmd = BuildAdIdSetCommand(
+            connection, criterionId, fingerprint, minMaterialisedAt, maxSetSize);
         await using var reader = await cmd
             .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
@@ -502,9 +533,14 @@ internal sealed class CompanyWatchBrowseQuery(
 
         var state = reader.GetString(0);
         var storedFingerprint = reader.GetString(1);
+        var materialisedAt = reader.GetFieldValue<DateTimeOffset>(2);
 
-        // Fingerprint before state, for the reason ReadAdCountAsync gives at the same comparison.
+        // Fingerprint, then age, then state — the same three arms and the same order as
+        // ReadAdCountAsync, which is what keeps the two readers from disagreeing about one row.
         if (!string.Equals(storedFingerprint, fingerprint.Value, StringComparison.Ordinal))
+            return MaterialisedAdIds.NotMaterialised;
+
+        if (materialisedAt < minMaterialisedAt)
             return MaterialisedAdIds.NotMaterialised;
 
         if (state == MaterialisationState.TooBroad.ToString())
@@ -513,10 +549,10 @@ internal sealed class CompanyWatchBrowseQuery(
         // The LEFT JOIN always yields one row. A NULL id on it means the lateral matched nothing,
         // which for a gate that PASSED is an honest empty set - not a refusal, and not ignorance.
         var ids = new List<JobAdId>();
-        if (await reader.IsDBNullAsync(2, cancellationToken).ConfigureAwait(false))
+        if (await reader.IsDBNullAsync(3, cancellationToken).ConfigureAwait(false))
             return MaterialisedAdIds.Resolved(ids);
 
-        ids.Add(new JobAdId(reader.GetGuid(2)));
+        ids.Add(new JobAdId(reader.GetGuid(3)));
 
         // Read at most maxSetSize rows. The (maxSetSize + 1)-th row is not DATA - it is the signal
         // that the set does not fit, and reaching it abandons the whole answer rather than returning
@@ -527,7 +563,7 @@ internal sealed class CompanyWatchBrowseQuery(
             if (ids.Count == maxSetSize)
                 return MaterialisedAdIds.TooManyAds;
 
-            ids.Add(new JobAdId(reader.GetGuid(2)));
+            ids.Add(new JobAdId(reader.GetGuid(3)));
         }
 
         return MaterialisedAdIds.Resolved(ids);

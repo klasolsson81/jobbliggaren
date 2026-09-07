@@ -466,11 +466,11 @@
         "matchingNotAssessedOnList": "You have not stated which occupations you are looking for, so all active job ads are shown here.",
         "adsNotMaterialised": "The ad figures for this watch have not been calculated yet. They appear here automatically when they are ready.",
         "matchingNotMaterialised": "This watch has not been calculated yet, so we do not know how many job ads match you.",
-        "matchingNotMaterialisedOnList": "This watch has not been calculated yet, so there are no job ads to show here yet.",
+        "matchingNotMaterialisedOnList": "This watch has not been calculated yet, so there are no job ads to show here.",
         "adsTooBroad": "This watch is too broad for us to count the job ads. Try choosing fewer industries or municipalities.",
         "adsTooBroadHeadline": "This watch is too broad",
         "adsNotMaterialisedHeadline": "The job ads have not been calculated yet",
-        "tooBroadNoList": "This watch is too broad for us to count the job ads, so there is no list to show.",
+        "tooBroadNoList": "This watch matches more companies than we can count job ads for, so there is no list to show.",
         "adsAndMatchingTooBroad": "This watch is too broad for us to count the job ads or match them against your profile. Try choosing fewer industries or municipalities."
       },
       "browse": {

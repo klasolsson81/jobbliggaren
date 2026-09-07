@@ -166,10 +166,11 @@ public interface ICompanyWatchBrowseQuery
     ///
     /// <para>
     /// <b>The ceiling still earns its place after materialisation, and that was measured rather than
-    /// assumed.</b> The breadth gate bounds COMPANIES, not ads: a bound-legal 1 000-member criterion
-    /// can still carry 28 971 active ads (the adversarial worst case on the real register,
-    /// <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>), which is ~3x this
-    /// ceiling. Saturation is a reachable state, not dead copy.
+    /// assumed.</b> The breadth gate bounds COMPANIES, not ads, so a bound-legal criterion can still
+    /// carry several times this ceiling in active ads and saturation stays a reachable state rather
+    /// than dead copy. The measured figure lives in ONE place —
+    /// <see cref="GetCriterionAdMagnitude.CriterionAdMagnitudeDto.Ceiling"/>, the constant it is
+    /// evidence for — because a measured number with two homes drifts at the next re-measurement.
     /// </para>
     ///
     /// <para>

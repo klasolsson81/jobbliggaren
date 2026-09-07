@@ -187,7 +187,13 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   // broad to materialise, or not yet materialised for its current predicate. `formatMagnitude` takes
   // a counted magnitude, so it is only reached in the arm that has one.
   const magnitudeUnanswerable = magnitude.tooBroad || magnitude.notMaterialised;
-  const magnitudeText = magnitudeUnanswerable ? null : formatMagnitude(format, magnitude);
+  // Narrowed on `magnitude.magnitude` itself rather than on the derived flag, so the type system
+  // carries the guarantee instead of a `!` asserting it. The two are equivalent today by the DTO's
+  // own constructor; an assertion would be a claim the compiler cannot check.
+  const magnitudeText =
+    magnitude.magnitude === null
+      ? null
+      : formatMagnitude(format, { magnitude: magnitude.magnitude, saturated: magnitude.saturated });
 
   return (
     <>
@@ -215,13 +221,16 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
             : magnitudeUnanswerable
               ? // A headline is owed even when there is no number: rendering "0 aktiva annonser"
                 // for a watch nobody counted is the dishonest zero, and rendering nothing would
-                // leave the page without its subject. It is a NOUN PHRASE — the explanation goes in
-                // the line below, because an h2 is a heading tier and a screen reader navigating by
-                // heading should not be read a two-sentence instruction (design-reviewer, WCAG 2.4.6).
+                // leave the page without its subject. It is a NOUN PHRASE because an h2 is a heading
+                // tier and a screen reader navigating by heading should not be read a two-sentence
+                // instruction (design-reviewer, WCAG 2.4.6). The explanation lives in the block
+                // below — NOT the next line: the säteskommun note sits between them (measured in the
+                // rendered verification, 2026-09-07), which is a pre-existing layout order this
+                // delta does not change.
                 magnitude.tooBroad
                 ? t("ads.adsTooBroadHeadline")
                 : t("ads.adsNotMaterialisedHeadline")
-              : t("ads.magnitudeHeadline", { count: magnitudeText! })}
+              : t("ads.magnitudeHeadline", { count: magnitudeText ?? "" })}
         </h2>
 
         {/* The refusal, stated plainly and without blame: no number exists for a watch this broad,
@@ -249,10 +258,19 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           <p className="jp-matchline">{t("ads.matchingNotMaterialisedOnList")}</p>
         )}
 
+        {/* ⚠ The SAME gate as its two siblings, and it was missing until rendered verification found
+            it (2026-09-07). "…så alla aktiva annonser visas här" is false whenever the magnitude is
+            unanswerable, and this combination is PRODUCIBLE rather than theoretical:
+            `CriterionMatchingAdSetResolver.ResolveAsync` returns `NotAssessed` BEFORE it consults the
+            magnitude, so an unassessable caller legitimately arrives beside a too-broad or
+            not-materialised watch — and the page then showed "for bred" in the heading and "all
+            active ads are shown here" beneath it, over an empty list. Two of the three branches were
+            gated in this PR; this was the third. */}
         {matching !== null &&
           matching.count === null &&
           !matching.tooBroad &&
-          !matching.notMaterialised && (
+          !matching.notMaterialised &&
+          !magnitudeUnanswerable && (
           <p className="jp-matchline">
             {t("ads.matchingNotAssessedOnList")}{" "}
             <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
@@ -294,15 +312,24 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
             and the primary way back is kept (design-reviewer Blocker 1 + Minor 3). */}
         {magnitudeUnanswerable ? (
           <div className="jp-empty mt-6">
+            {/* `matchingNotMaterialisedOnList` is written for THIS surface — a page opened to see a
+                LIST — where `adsNotMaterialised` talks about figures. Using the figures sentence here
+                left the right sentence written and never rendered (design-reviewer Minor B). */}
             <p className="jp-empty__body text-body-sm text-text-primary">
-              {magnitude.tooBroad ? t("ads.tooBroadNoList") : t("ads.adsNotMaterialised")}
+              {magnitude.tooBroad
+                ? t("ads.tooBroadNoList")
+                : t("ads.matchingNotMaterialisedOnList")}
             </p>
+            {/* `jp-btn--ghost`, not `jp-nudgelink`: `.jp-empty__actions` sets no `align-items`, so a
+                blockified text link stretches to the 44px sibling button's height with its text at
+                the top. Every other `jp-empty__actions` in the tree carries `jp-btn` variants only,
+                and ghost is the house's secondary in that row (design-reviewer Minor A). */}
             <div className="jp-empty__actions">
               <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
                 {t("ads.backLink")}
               </Link>
               {magnitude.tooBroad && (
-                <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+                <Link className="jp-btn jp-btn--ghost" href="/foretag/smarta-bevakningar">
                   {t("ads.matchingTooBroadCta")}
                 </Link>
               )}

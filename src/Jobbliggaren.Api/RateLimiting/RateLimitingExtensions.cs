@@ -34,6 +34,7 @@ public static partial class RateLimitingExtensions
     public const string JobAdMatchBatchPolicy = "job-ad-match-batch";
     public const string MeWritePolicy = "me-write";
     public const string CompanyBrowsePolicy = "company-watch-browse";
+    public const string CompanyWatchCriteriaListPolicy = "company-watch-criteria-list";
     public const string CriterionCountPreviewPolicy = "criterion-count-preview";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string CompanyLookupPolicy = "company-lookup";
@@ -382,6 +383,35 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyBrowse.PermitLimit / rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.CompanyBrowse.WindowSeconds / (double)rateLimitOpts.CompanyBrowse.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #1681 del 2 (ADR 0139) — GET /me/company-watch-criteria
+            // fick en EGEN hink 2026-09-07 (security-auditor rekommenderade, Klas beslutade): den
+            // lämnade MeListRead därför att dess per-request-BACKENDKOSTNAD inte längre liknar något
+            // annat i den hinken. Ingen ratchet gjordes på MeListRead — en egen policy sänker inget
+            // någon redan har (least common mechanism; bulkhead). TokenBucket (populerar Retry-After;
+            // SlidingWindow gör det inte), QueueLimit=0. Auth-gated → anonym NoLimiter-bypass.
+            // Parametrar IOptions-bundna (§5.1).
+            // ⚠ TALET, DESS HÄRLEDNING (båda halvorna) OCH DESS OMRÄKNINGSTRIGGER STÅR I
+            // RateLimitingOptions.CompanyWatchCriteriaList — och bara där. CompanyBrowse-kommentaren
+            // intill upprepade en gång sitt eget tal och hann bli falsk (#1654); två hem för samma
+            // tal är hur det går till.
+            options.AddPolicy(CompanyWatchCriteriaListPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-company-watch-criteria-list");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.CompanyWatchCriteriaList.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.CompanyWatchCriteriaList.PermitLimit / rateLimitOpts.CompanyWatchCriteriaList.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.CompanyWatchCriteriaList.WindowSeconds / (double)rateLimitOpts.CompanyWatchCriteriaList.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

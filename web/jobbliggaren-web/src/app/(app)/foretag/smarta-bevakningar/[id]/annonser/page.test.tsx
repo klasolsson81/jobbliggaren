@@ -529,7 +529,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Bevakningen är för bred för att vi ska kunna räkna annonserna, så det finns ingen lista att visa.",
+        "Bevakningen matchar fler företag än vi kan räkna annonser för, så det finns ingen lista att visa.",
       ),
     ).toBeInTheDocument();
 
@@ -565,7 +565,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
+        "Bevakningen är inte framräknad än, så det finns inga annonser att visa här.",
       ),
     ).toBeInTheDocument();
 
@@ -575,7 +575,12 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
     expect(screen.queryByText(/för bred/)).toBeNull();
 
-    expect(screen.queryByText(/så det finns inga annonser att visa här ännu/)).toBeNull();
+    // #1681 — this sentence IS the block's body in the not-materialised state. It is written for
+    // THIS surface (a page opened to see a list) where adsNotMaterialised talks about figures, so it
+    // must be PRESENT here rather than absent (design-reviewer Minor B).
+    expect(
+      screen.getByText(/så det finns inga annonser att visa här/),
+    ).toBeInTheDocument();
     expectNoListAndNoPagination();
   });
 

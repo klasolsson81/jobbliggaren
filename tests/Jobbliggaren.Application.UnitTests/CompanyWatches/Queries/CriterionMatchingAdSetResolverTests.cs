@@ -492,6 +492,71 @@ public class CriterionMatchingAdSetResolverTests
     }
 
     [Fact]
+    public async Task MatchingAsync_ThenMatchingBatchAsync_ReadsTheMemo_NeverASecondMeasurement()
+    {
+        // THE MIRROR of MatchingBatchAsync_MemoisesIntoTheSameMapsTheSingleCriterionPathReads, and
+        // the half nothing measured. That test proves batch -> single reuses the memo; this one
+        // proves single -> batch does, which is the direction MatchingBatchAsync's own `pending` loop
+        // exists for and the direction its docblock claims a second measurement "cannot" happen in.
+        // Deleting that loop passes the whole suite without this test: the batch would silently
+        // re-resolve a criterion the single path had already answered and overwrite the memo with a
+        // SECOND measurement at a SECOND instant — the two-resolutions-of-one-question defect this
+        // class exists against, and the one whose symptom is a headline and the list it links to
+        // disagreeing inside one response.
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var spec = Spec(SniIt);
+        var otherSpec = Spec(SniBygg);
+        var ad = new JobAdId(Guid.NewGuid());
+        var otherAd = new JobAdId(Guid.NewGuid());
+
+        _profileBuilder.BuildFullForSortAsync(Arg.Any<CancellationToken>())
+            .Returns(AssessableProfile());
+        CountFor(id, MaterialisedAdCount.Counted(1, saturated: false));
+        IdSetFor(id, MaterialisedAdIds.Resolved([ad]));
+        CountFor(other, MaterialisedAdCount.Counted(1, saturated: false));
+        IdSetFor(other, MaterialisedAdIds.Resolved([otherAd]));
+        GradesTo(ad, otherAd);
+
+        var sut = Sut();
+
+        // The single-criterion path measures `id` — one count, one id-set read, one grading call.
+        var single = await sut.MatchingAsync(id, spec, ct);
+
+        // ...and the batch that follows carries `id` alongside a criterion it has never seen, so it
+        // genuinely does work. A batch that resolved nothing could not tell a memo read from an
+        // early return.
+        var results = await sut.MatchingBatchAsync(
+            [new CriterionToResolve(id, spec), new CriterionToResolve(other, otherSpec)], ct);
+
+        // IDENTITY, not equality: the batch must hand back the instance the memo holds. Two
+        // measurements that happened to agree would satisfy an equality assertion and are exactly
+        // what this class forbids.
+        results[id].ShouldBeSameAs(single);
+
+        // The positive control — the batch really did resolve the criterion it had not seen.
+        results[other].ShouldBeOfType<CriterionMatchingAds.Resolved>().Matching.ShouldBe([otherAd]);
+
+        // ONCE for `id`, across both calls. Keyed on the criterion so a re-resolution cannot hide
+        // behind the neighbour's own (legitimate) reads.
+        await _browse.Received(1).CountActiveAdsAsync(
+            new CompanyWatchCriterionId(id), Arg.Any<CriteriaFingerprint>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+        await _browse.Received(1).ListActiveAdIdsAsync(
+            new CompanyWatchCriterionId(id), Arg.Any<CriteriaFingerprint>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>());
+
+        // ...and the batch's grading union carries ONLY the criterion it actually resolved. This is
+        // the same claim from the other side, and it is the one that would fail loudest: a memo the
+        // batch ignored puts `ad` back into the union and grades it a second time.
+        await _perUserSearch.Received(1).FilterToMatchingAsync(
+            Arg.Any<FullCandidateMatchProfile>(),
+            Arg.Is<IReadOnlyCollection<JobAdId>>(ids => ids.Count == 1 && ids.Contains(otherAd)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task MatchingBatchAsync_AnEmptyList_AsksNothing_NotEvenForTheProfile()
     {
         // A user with no criteria is the common case on a fresh account. Building the match profile

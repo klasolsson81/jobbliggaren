@@ -127,10 +127,22 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 {
     /// <summary>#1681 part 2 — an age bound far enough back that the fixture's freshly
-    /// written row always passes it. These tests pin the STATEMENT and its plan, not the
-    /// age gate; the gate's own arms are pinned where its behaviour is measured.</summary>
+    /// written row always passes it. The EXPLAIN pins claim a STATEMENT and its plan, not the
+    /// age gate; the gate's own arms are measured by
+    /// <see cref="AdQueries_ReportNotMaterialised_WhenTheRowIsOlderThanTheReadAgeBound"/> and
+    /// <see cref="AdQueries_ReportNotMaterialised_WhenAnOverAgeRowIsTooBroad_NeverTheStaleRefusal"/>,
+    /// which drive the port at its shipped default instead.</summary>
     private static readonly DateTimeOffset FreshEnough =
         DateTimeOffset.UtcNow.AddDays(-1);
+
+    /// <summary>
+    /// #1681 part 2 — the read-side age bound, taken from the option's OWN default rather than
+    /// transcribed as a 72. <see cref="PortFor"/> builds the port from that same default, so the
+    /// gate and the fixture that has to clear it move together; a bound re-derived against a new
+    /// cadence cannot leave a stale literal behind here.
+    /// </summary>
+    private static readonly int ReadAgeHours =
+        new CompanyWatchMaterialisationOptions().MaxReadAgeHours;
 
     private readonly WorkerTestFixture _fixture = fixture;
 
@@ -1022,6 +1034,206 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             .Ids!.Count.ShouldBe(AdRows);
     }
 
+    [Fact]
+    public async Task AdQueries_ReportNotMaterialised_WhenTheRowIsOlderThanTheReadAgeBound()
+    {
+        // #1681 part 2 — THE age gate, and the first test that has ever seen it fire.
+        //
+        // The bound is enforced TWICE on purpose: in SQL (so an over-age row costs no ad scan) and in
+        // C#, which is what DECIDES. The SQL half alone does not fail safe, and it failed in both
+        // directions at once. The count statement's CASE yields NULL, which the reader turns into
+        // InvalidOperationException — a 500 on /me/company-watch-criteria, /{id}/ads and
+        // /{id}/ad-count, in the ordinary state the bound was added for. The id-set statement's
+        // lateral yields no rows, which the reader reads as an honest empty set — the fabricated zero
+        // ADR 0120 and this whole feature exist against, and the one that is silent. Both assertions
+        // below fail if the C# arm is removed, which is what makes them a pin rather than a wish.
+        //
+        // PREMISE (CLAUDE.md §5 Tests:). The over-age row is written by the PRODUCTION materialiser,
+        // driven by a clock reading four days back. That is exactly the state src/ produces when a run
+        // succeeded then and no later run has — CompanyWatchCriterionMaterialiser stamps
+        // clock.UtcNow (pinned by CompanyWatchCriterionMaterialisationTests.Materialise_-
+        // StampsMaterialisedAtFromTheClock_AndAdvancesItOnEveryRun), and a row simply ages; its own
+        // failure-tolerant loop is what lets one criterion sit there while its siblings advance. No
+        // column is hand-written here, and the actor's own output is asserted before anything is
+        // claimed about the reader.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        var port = PortFor(ctx.Db);
+
+        // POSITIVE CONTROL, on the SAME criterion and before anything ages. Without it every
+        // assertion below would pass for any reason at all — an empty job_ads table, a fingerprint
+        // that never matched, a fixture that wrote no state row.
+        (await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct))
+            .Count.ShouldBe(AdRows);
+        (await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct))
+            .Ids!.Count.ShouldBe(AdRows);
+
+        // The same job, one whole cadence period past the bound.
+        await RunMaterialiserAsAtAsync(DateTimeOffset.UtcNow.AddHours(-(ReadAgeHours + 24)), ct);
+
+        // The actor's own transform admits the state, and AGE is provably the only disqualifier the
+        // assertions below can be reading: the row is still Materialised and still carries the
+        // criterion's CURRENT fingerprint, so neither of the other two NotMaterialised triggers is
+        // available to produce these answers.
+        var row = await ReadMaterialisationAsync(ctx.CriterionId, ct);
+        row.ShouldNotBeNull();
+        row!.State.ShouldBe(MaterialisationState.Materialised.ToString());
+        row.CriteriaFingerprint.ShouldBe(ctx.Fingerprint.Value);
+        row.MaterialisedAt.ShouldBeLessThan(
+            DateTimeOffset.UtcNow.AddHours(-ReadAgeHours),
+            "the fixture must actually be over-age, or this test measures nothing at all");
+
+        // THE COUNT READER MUST NOT THROW. Under the SQL gate alone the CASE is NULL here and the
+        // reader raises "gates no longer agree" — a 500 for a user whose watch merely went stale.
+        // Captured out of the lambda rather than re-read after it: a second call would be a second
+        // measurement, and this whole family exists against those.
+        MaterialisedAdCount counted = null!;
+        await Should.NotThrowAsync(async () =>
+            counted = await port.CountActiveAdsAsync(ctx.CriterionId, ctx.Fingerprint, 10_000, ct));
+        counted.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        counted.Count.ShouldBeNull();
+
+        // THE ID-SET READER MUST NOT RETURN Resolved([]). An empty list under Materialised is an
+        // honest "this criterion matches no active ad right now" — a claim nobody has been in a
+        // position to make for three cadence periods. Ids is non-null exactly under Materialised (the
+        // record's own constructor enforces that), so the two assertions are one claim from two
+        // directions rather than a repetition.
+        var ids = await port.ListActiveAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, AdRows + 100, ct);
+        ids.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        ids.Ids.ShouldBeNull(
+            "an over-age row must not answer with an empty set — that is a number, and it is invented");
+        ids.Refused.ShouldBeFalse();
+
+        // The browse route reaches the same reader, so it carries the same 500 under the mutation.
+        MaterialisedAdPage page = null!;
+        await Should.NotThrowAsync(async () =>
+            page = await port.BrowseAdIdsAsync(ctx.CriterionId, ctx.Fingerprint, 1, 20, ct));
+        page.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        page.Page.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task AdQueries_ReportNotMaterialised_WhenAnOverAgeRowIsTooBroad_NeverTheStaleRefusal()
+    {
+        // The age comparison sits BEFORE the TooBroad branch, deliberately, and this is the only test
+        // that can see that ordering. A refusal nobody has re-checked for three cadence periods is not
+        // a refusal we still stand behind: it tells the user to narrow a watch on the strength of a
+        // company set that may have shrunk under her three days ago. Moving the age check below the
+        // TooBroad branch keeps every other test in this file green.
+        //
+        // PREMISE: as above — the production materialiser refuses the criterion at the breadth gate,
+        // and the run that did so is dated four days back by the injected clock.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        SeededRows.ShouldBeGreaterThan(CompanyWatchCriterionMember.MaxPerCriterion,
+            "fixturen måste vara bredare än grinden, annars mäter testet ingen vägran");
+
+        var broadSpec = CompanyWatchCriteriaSpec.Create([ProbeSni, FillerSni], [SeededKommun]).Value;
+        var broadFingerprint = CriteriaFingerprint.Of(broadSpec);
+        var broad = await SeedCriterionAsync([ProbeSni, FillerSni], [SeededKommun], ct);
+
+        var port = PortFor(ctx.Db);
+
+        // POSITIVE CONTROL: fresh, the same criterion answers "för bred" — so the assertions below
+        // measure the age gate rather than a criterion that was never refused in the first place.
+        await RunMaterialiserAsync(ct);
+        (await port.CountActiveAdsAsync(broad, broadFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+
+        await RunMaterialiserAsAtAsync(DateTimeOffset.UtcNow.AddHours(-(ReadAgeHours + 24)), ct);
+
+        // The stored row still SAYS TooBroad and still carries the current fingerprint. Only its age
+        // changed, which is what makes the three answers below attributable to the age arm alone.
+        var row = await ReadMaterialisationAsync(broad, ct);
+        row.ShouldNotBeNull();
+        row!.State.ShouldBe(MaterialisationState.TooBroad.ToString());
+        row.CriteriaFingerprint.ShouldBe(broadFingerprint.Value);
+        row.MaterialisedAt.ShouldBeLessThan(DateTimeOffset.UtcNow.AddHours(-ReadAgeHours));
+
+        var counted = await port.CountActiveAdsAsync(broad, broadFingerprint, 10_000, ct);
+        counted.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        counted.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+
+        var ids = await port.ListActiveAdIdsAsync(broad, broadFingerprint, 1_000, ct);
+        ids.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        ids.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+
+        var page = await port.BrowseAdIdsAsync(broad, broadFingerprint, 1, 20, ct);
+        page.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        page.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+    }
+
+    [Fact]
+    public async Task AdQueries_ReportNotMaterialised_AfterATooBroadWatchIsNarrowed_NeverTheOldRefusal()
+    {
+        // db-migration-writer, 2026-09-06: the readers used to check STATE before the FINGERPRINT, so
+        // a user who narrowed a too-broad watch kept being told it was too broad until the next
+        // nightly run — on the one edit the refusal's own copy tells her to make. The fix is the
+        // order (fingerprint first), and the write side stamps the fingerprint on the TooBroad path
+        // precisely so this read can see the edit.
+        //
+        // The arm was still untested: AdQueries_ReportTooBroad_... passes a MATCHING fingerprint, and
+        // AdQueries_ReportNotMaterialised_AfterThePredicateIsEdited_... starts from a Materialised
+        // baseline, so neither can reach a stale fingerprint on a REFUSED row. Hoisting the TooBroad
+        // branch back above the fingerprint comparison leaves both of them green.
+        //
+        // PREMISE: the refusal is written by the production materialiser at the breadth gate, and the
+        // edit goes through CompanyWatchCriterion.UpdateCriteria — the same call the update handler
+        // makes. What is measured is the window between that save and the next run, which every edit
+        // passes through.
+        var ct = TestContext.Current.CancellationToken;
+        await using var ctx = await SeededContextWithAdsAsync(ct);
+
+        SeededRows.ShouldBeGreaterThan(CompanyWatchCriterionMember.MaxPerCriterion,
+            "fixturen måste vara bredare än grinden, annars mäter testet ingen vägran");
+
+        var broadSpec = CompanyWatchCriteriaSpec.Create([ProbeSni, FillerSni], [SeededKommun]).Value;
+        var broadFingerprint = CriteriaFingerprint.Of(broadSpec);
+        var criterionId = await SeedCriterionAsync([ProbeSni, FillerSni], [SeededKommun], ct);
+        await RunMaterialiserAsync(ct);
+
+        var port = PortFor(ctx.Db);
+
+        // BASELINE: refused, and the surfaces render "för bred".
+        (await port.CountActiveAdsAsync(criterionId, broadFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+
+        // The user does what the refusal told her to do.
+        var narrowed = CompanyWatchCriteriaSpec.Create([ProbeSni], [SeededKommun]).Value;
+        await UpdateCriteriaAsync(criterionId, narrowed, ct);
+        var narrowedFingerprint = CriteriaFingerprint.Of(narrowed);
+        narrowedFingerprint.Value.ShouldNotBe(broadFingerprint.Value,
+            "the two predicates must digest differently, or this test cannot tell the arms apart");
+
+        // The stored refusal was computed for a predicate she no longer has, so all three statements
+        // report ignorance — never the refusal, which would be advice she has already taken.
+        var counted = await port.CountActiveAdsAsync(criterionId, narrowedFingerprint, 10_000, ct);
+        counted.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        counted.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+
+        var ids = await port.ListActiveAdIdsAsync(criterionId, narrowedFingerprint, 1_000, ct);
+        ids.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        ids.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+
+        var page = await port.BrowseAdIdsAsync(criterionId, narrowedFingerprint, 1, 20, ct);
+        page.State.ShouldBe(CriterionMaterialisationState.NotMaterialised);
+        page.State.ShouldNotBe(CriterionMaterialisationState.TooBroad);
+
+        // The row is untouched and still says TooBroad for the predicate it was written FOR — which
+        // is what makes the guard load-bearing rather than decorative: without the fingerprint
+        // comparison, that row is what would answer above.
+        (await port.CountActiveAdsAsync(criterionId, broadFingerprint, 10_000, ct))
+            .State.ShouldBe(CriterionMaterialisationState.TooBroad);
+
+        // ...and the next run heals it into a real number for the narrowed predicate.
+        await RunMaterialiserAsync(ct);
+        var healed = await port.CountActiveAdsAsync(criterionId, narrowedFingerprint, 10_000, ct);
+        healed.State.ShouldBe(CriterionMaterialisationState.Materialised);
+        healed.Count.ShouldBe(AdRows);
+    }
+
     /// <summary>
     /// #1559 — the register seed PLUS job_ads rows that actually join to it, and (#1681 part 2) the
     /// MATERIALISED member set the ad statements now read. All three sides have to be populated: with
@@ -1153,6 +1365,68 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             .GetRequiredService<ICompanyWatchCriterionMaterialiser>();
         await materialiser.MaterialiseAsync(ct);
     }
+
+    /// <summary>
+    /// The SAME production materialiser, driven by a clock reading an instant in the past.
+    ///
+    /// <para>
+    /// <b>This is not a hand-written row and not a column poke.</b>
+    /// <c>CompanyWatchCriterionMaterialiser</c> stamps <c>materialised_at</c> from
+    /// <c>clock.UtcNow</c> and from nothing else, so a run driven by a clock reading four days ago
+    /// writes precisely the row a run four days ago wrote. The criterion then simply ages, which is
+    /// the state the read-side bound exists for: the job catches per-criterion exceptions and
+    /// continues, so a criterion it cannot process keeps its old row while its siblings advance.
+    /// </para>
+    ///
+    /// <para>
+    /// Constructed directly rather than resolved, for the reason
+    /// <c>CompanyWatchCriterionMaterialisationTests.RunDisabledAsync</c> gives: the clock is a
+    /// dependency the fixture binds to the system one. Everything else comes from the real graph and
+    /// the options are the shipped defaults, so only the instant differs.
+    /// </para>
+    /// </summary>
+    private async Task RunMaterialiserAsAtAsync(DateTimeOffset at, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var materialiser = new CompanyWatchCriterionMaterialiser(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>(),
+            new FixedClock(at),
+            Options.Create(new CompanyWatchMaterialisationOptions()),
+            Microsoft.Extensions.Logging.Abstractions
+                .NullLogger<CompanyWatchCriterionMaterialiser>.Instance);
+
+        await materialiser.MaterialiseAsync(ct);
+    }
+
+    /// <summary>
+    /// The state row as it physically stands, so the age pins can assert what the WRITER produced
+    /// before claiming anything about what the reader does with it (CLAUDE.md §5 <c>Tests:</c>).
+    /// Parity <c>CompanyWatchCriterionMaterialisationTests.ReadStateAsync</c>, including the absence
+    /// of column aliases: the context applies its snake_case convention to unmapped SqlQuery types
+    /// too, so an alias would have to fight that rather than help it.
+    /// </summary>
+    private async Task<StateRow?> ReadMaterialisationAsync(
+        CompanyWatchCriterionId id, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var rows = await db.Database
+            .SqlQueryRaw<StateRow>(
+                """
+                SELECT state, materialised_at, criteria_fingerprint
+                FROM company_watch_criterion_materialisations
+                WHERE criterion_id = {0};
+                """,
+                id.Value)
+            .ToListAsync(ct);
+
+        return rows.Count == 0 ? null : rows[0];
+    }
+
+    private sealed record StateRow(
+        string State, DateTimeOffset MaterialisedAt, string CriteriaFingerprint);
 
     /// <summary>
     /// The aggregate's own predicate transition — the production edit path, not a column poke. The

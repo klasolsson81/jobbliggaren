@@ -92,9 +92,8 @@ public sealed class ListCompanyWatchCriteriaQueryHandler(
             // (code-reviewer + dotnet-architect, 2026-09-06): when the caller has stated no
             // occupation the batch returns at its assessability gate BEFORE measuring any magnitude,
             // so this loop pays up to MaxPerUser un-memoised CountActiveAdsAsync calls. That is the
-            // same statement count the ordinary path pays and is inside the accepted trade-off — but
-            // it is the common state early in onboarding, and the handler's own test
-            // (ListCompanyWatchCriteriaQueryHandlerTests, the unassessable-profile case) measures it.
+            // same statement count the ordinary path pays and is inside the accepted trade-off, but
+            // it is the common state early in onboarding.
             var ads = await resolver.MagnitudeAsync(c.Id.Value, c.Criteria, cancellationToken);
 
             rows.Add(new CompanyWatchCriterionDto(

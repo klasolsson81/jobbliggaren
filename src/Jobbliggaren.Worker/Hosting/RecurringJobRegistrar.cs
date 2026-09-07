@@ -179,19 +179,21 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             materialisationOptions.Value.CadenceCron);
 
-        // #1681 klausul (ii) — omrakningssvepet. Egen cron (CompanyWatchMaterialisation:SweepCron,
-        // default varje minut) och egen jobb-id, for att det svarar pa en ANNAN andringsorsak an
-        // raden ovan: registret rorde sig (veckovis, externt) mot att ett predikat rorde sig
-        // (kontinuerligt, anvandaren). Samma options-sektion, eftersom de tva kadenserna begransar
-        // varandra: SweepBatchSize ar harledd ur SweepCron:s intervall.
+        // #1681 clause (ii) — the reconciling sweep. Its own cron
+        // (CompanyWatchMaterialisation:SweepCron, default minutely) and its own job id, because it
+        // answers a DIFFERENT change-reason than the registration above: the register moved (weekly,
+        // external) versus a predicate moved (continuous, the user). Same options section, because
+        // the two cadences constrain one another — SweepBatchSize is derived from SweepCron's
+        // interval.
         //
-        // INGEN handler enqueue:ar nagot. Det committade tillstandet AR kon — criteria_fingerprint
-        // bredvid materialised_at ar redan samma faktum som lasvagen grindar pa — sa svepet ar
-        // level-triggat och en missad tick repareras av nasta. Ett edge-triggat signal hade dessutom
-        // behovt besegra att UnitOfWorkBehavior committar EFTER handlern (senior-cto-advisor,
-        // 2026-09-07).
+        // NO handler enqueues anything. The committed state IS the queue — criteria_fingerprint
+        // beside materialised_at is already the same fact the read path gates on — so the sweep is
+        // level-triggered and a missed tick is repaired by the next. An edge-triggered signal would
+        // additionally have had to defeat UnitOfWorkBehavior committing AFTER the handler
+        // (senior-cto-advisor, 2026-09-07).
         //
-        // Registreras ovillkorligt av samma skal som raden ovan: kill-switchen sitter i jobbet.
+        // Registered unconditionally for the same reason as the line above: the kill-switch is in
+        // the job.
         manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
             RecurringJobIds.SweepChangedCompanyWatchCriteria,
             job => job.SweepAsync(CancellationToken.None),

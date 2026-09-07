@@ -104,7 +104,12 @@ public interface ICompanyWatchCriterionMaterialiser
 /// #1681 — aggregate outcome of one materialisation run. Counts only: no org.nr, no criterion label,
 /// nothing user-identifying, so the whole record is safe to log and to audit (ADR 0087 D8(c)).
 /// </summary>
-/// <param name="CriteriaSeen">Saved criteria the run considered.</param>
+/// <param name="CriteriaSeen">Criteria the run RESOLVED against the register. For
+/// <c>MaterialiseAsync</c> that is every saved criterion, since it considers and resolves the same
+/// set. For <c>MaterialiseChangedAsync</c> it is narrower than the set considered: a candidate the
+/// fingerprint dismisses (a rename) is deliberately not counted, which is what makes
+/// <c>CriteriaSeen == 0</c> the assertion that no register resolution happened. Do not "correct" it
+/// to count candidates — a test pins the distinction.</param>
 /// <param name="CriteriaMaterialised">Criteria whose company set fitted under the breadth gate and was
 /// written.</param>
 /// <param name="CriteriaTooBroad">Criteria REFUSED by the breadth gate — stored with no members and a

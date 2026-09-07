@@ -41,44 +41,9 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     private static readonly JsonSerializerOptions BatchJson = new();
 
     /// <summary>
-    /// The candidate selection: which ACTIVE register companies match this criterion, bounded by the
-    /// breadth gate. Returns <c>null</c> when the set is larger than
-    /// <paramref name="maxMembers"/> — REFUSED, never truncated.
-    ///
-    /// <para>
-    /// <b>The refusal is STRUCTURAL, not policed</b> — the same mechanism, and the same reasoning, as
-    /// <c>ICompanyWatchBrowseQuery.ListActiveAdIdsAsync</c> (senior-cto-advisor 2026-09-05, ADR 0120
-    /// clause 5). The statement asks for <c>LIMIT maxMembers + 1</c>, and the existence of that extra
-    /// row IS the signal; no code path can return a prefix. A truncated member set would be far worse
-    /// than a refused one: every count derived from it would be a FLOOR wearing a magnitude's clothes,
-    /// and unlike a saturating count it would have no true reading at all.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>No <c>ORDER BY</c>, deliberately</b> — an absence that looks like a bug and is not. The
-    /// result is a SET: either it fits, in which case every row comes back and the order is
-    /// meaningless, or it does not, in which case only the count matters. Adding an ORDER BY would
-    /// force Postgres to materialise and sort the whole match set before the LIMIT could stop it,
-    /// which is exactly the 7 066 ms failure #875 was built to remove — and it would do so to
-    /// establish an ordering no caller reads.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>The predicate is <see cref="CompanyWatchBrowseQuery.FromWhere"/> itself, and the bindings
-    /// are its <see cref="CompanyWatchBrowseQuery.BindPredicate"/>.</b> Not a copy: a copy is how the
-    /// materialised membership and the live browse come to answer the same question differently, which
-    /// is the #1407/#1471 divergence class ADR 0139 exists to close on the OTHER axis (two surfaces,
-    /// one source). Sharing the text alone would only be half the guarantee — a statement binding
-    /// different VALUES under identical text is the failure the count/page SPOT was built against, and
-    /// it is the half you cannot see by reading either statement. It also inherits, for free, the
-    /// positive-polarity <c>status = @status</c> whose docblock explains why the negative form would
-    /// silently start surfacing a future third <c>CompanyRegisterStatus</c> member, and the fail-loud
-    /// empty-axis guard.
-    /// </para>
-    /// </summary>
-    /// <summary>
-    /// #1681 clause (ii) — the ids of criteria whose materialisation may be out of date, newest edit
-    /// first, capped. The reconciling sweep's candidate query.
+    /// #1681 clause (ii) — the criteria whose materialisation may be out of date, newest edit first,
+    /// capped, each carrying the fingerprint its last materialisation was computed from. The
+    /// reconciling sweep's candidate query.
     ///
     /// <para>
     /// <b><c>updated_at</c> is a SUPERSET prefilter here, and deliberately NOT the test</b>
@@ -92,14 +57,18 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// </para>
     ///
     /// <para>
-    /// <b>ORDER BY makes the cap safe.</b> Criteria with no state row at all come first — someone
-    /// created a watch and is waiting for it — and among the rest the newest edit comes first, so a
-    /// standing backlog of rename no-ops can never starve a real predicate change.
+    /// <b>ORDER BY.</b> Criteria with no state row at all come first — someone created a watch and is
+    /// waiting for it — and among the rest the newest edit comes first.
+    ///
+    /// <para>
+    /// ⚠ A candidate the fingerprint dismisses writes nothing, so it is selected again on every tick
+    /// until the nightly run re-stamps it. Its worst case is that run's ≤24 h. Issue #1701 carries the
+    /// change-reason that removes it.
     /// </para>
     ///
     /// <para>
-    /// <b>No OFFSET, and that is not an oversight.</b> Every criterion this returns drops OUT of the
-    /// predicate once it is processed, so an advancing offset would skip rows — the exact inverse of
+    /// <b>No OFFSET, and that is not an oversight.</b> A criterion this returns and RESOLVES drops out
+    /// of the predicate, so an advancing offset would skip rows — the exact inverse of
     /// <c>CompanyWatchCriterionMaterialiser</c>'s nightly walk, whose OFFSET loop is safe precisely
     /// because its predicate is not mutated by its own work. Copying that loop here would be the bug.
     /// Each tick takes one capped list and the next tick re-derives.
@@ -156,6 +125,42 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
         LIMIT @max_criteria;
         """;
 
+    /// <summary>
+    /// The candidate selection: which ACTIVE register companies match this criterion, bounded by the
+    /// breadth gate. Returns <c>null</c> when the set is larger than
+    /// <paramref name="maxMembers"/> — REFUSED, never truncated.
+    ///
+    /// <para>
+    /// <b>The refusal is STRUCTURAL, not policed</b> — the same mechanism, and the same reasoning, as
+    /// <c>ICompanyWatchBrowseQuery.ListActiveAdIdsAsync</c> (senior-cto-advisor 2026-09-05, ADR 0120
+    /// clause 5). The statement asks for <c>LIMIT maxMembers + 1</c>, and the existence of that extra
+    /// row IS the signal; no code path can return a prefix. A truncated member set would be far worse
+    /// than a refused one: every count derived from it would be a FLOOR wearing a magnitude's clothes,
+    /// and unlike a saturating count it would have no true reading at all.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>No <c>ORDER BY</c>, deliberately</b> — an absence that looks like a bug and is not. The
+    /// result is a SET: either it fits, in which case every row comes back and the order is
+    /// meaningless, or it does not, in which case only the count matters. Adding an ORDER BY would
+    /// force Postgres to materialise and sort the whole match set before the LIMIT could stop it,
+    /// which is exactly the 7 066 ms failure #875 was built to remove — and it would do so to
+    /// establish an ordering no caller reads.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The predicate is <see cref="CompanyWatchBrowseQuery.FromWhere"/> itself, and the bindings
+    /// are its <see cref="CompanyWatchBrowseQuery.BindPredicate"/>.</b> Not a copy: a copy is how the
+    /// materialised membership and the live browse come to answer the same question differently, which
+    /// is the #1407/#1471 divergence class ADR 0139 exists to close on the OTHER axis (two surfaces,
+    /// one source). Sharing the text alone would only be half the guarantee — a statement binding
+    /// different VALUES under identical text is the failure the count/page SPOT was built against, and
+    /// it is the half you cannot see by reading either statement. It also inherits, for free, the
+    /// positive-polarity <c>status = @status</c> whose docblock explains why the negative form would
+    /// silently start surfacing a future third <c>CompanyRegisterStatus</c> member, and the fail-loud
+    /// empty-axis guard.
+    /// </para>
+    /// </summary>
     public async Task<IReadOnlyList<string>?> SelectCandidatesAsync(
         CompanyWatchCriteriaSpec criteria, int maxMembers, CancellationToken cancellationToken)
     {
@@ -327,9 +332,16 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
 
     /// <summary>
     /// Refreshes the planner's statistics for BOTH materialisation tables. AGENTS.md §3.6's canonical
-    /// argument lives in <see cref="ScbCompanyRegisterStore.AnalyzeAsync"/> and is not restated here;
-    /// what matters is that its three conditions hold for these tables too — written by ONE periodic
-    /// job, read-only between runs, and <c>criterion_id</c> reaching both a <c>WHERE</c> and a join.
+    /// argument lives in <see cref="ScbCompanyRegisterStore.AnalyzeAsync"/> and is not restated here.
+    ///
+    /// <para>
+    /// <b>Since #1681 clause (ii) these tables have TWO periodic writers, and are no longer read-only
+    /// between nightly runs</b> — the reconciling sweep writes on any minute a user created or edited
+    /// a criterion. §3.6's <c>criterion_id</c> condition is unaffected, and the "one writer" condition
+    /// still holds in the sense that carries the argument: both writers are the SAME loader going
+    /// through the same <c>ReplaceAsync</c>, so there is no second write shape whose statistics could
+    /// diverge. What changed is the cadence, which is why the sweep calls this only on a tick that
+    /// actually wrote — a tick that loaded nothing is not a bulk-load path.
     ///
     /// <para>
     /// The specific stake (dotnet-architect, 2026-09-06): the read plan the breadth-gate bound was

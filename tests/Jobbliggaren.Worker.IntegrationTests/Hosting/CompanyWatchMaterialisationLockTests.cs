@@ -1,6 +1,7 @@
 using System.Reflection;
 using Hangfire;
 using Hangfire.Common;
+using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Worker.Hosting;
 using Shouldly;
 
@@ -81,6 +82,58 @@ public class CompanyWatchMaterialisationLockTests
 
         MethodFor(nameof(CompanyWatchCriterionMaterialisationWorker.RunAsync))
             .GetCustomAttribute<AutomaticRetryAttribute>().ShouldBeNull();
+    }
+
+    /// <summary>
+    /// The two acquisition waits, and the relation the type system cannot carry: an attribute
+    /// argument must be a compile-time constant while <c>SweepCron</c> is an <c>IOptions</c> value,
+    /// so nothing but a test can make a mismatch fail.
+    ///
+    /// <para>
+    /// <b>The sweep's wait must stay BELOW its own arrival interval.</b> Hangfire's filter acquires
+    /// the lock on the worker thread, so a blocked tick occupies a worker for the whole wait while
+    /// the scheduler keeps enqueueing one a minute; offered concurrency is wait ÷ interval. At the
+    /// 15 minutes inherited from the nightly job that is 15 against <c>WorkerCount = 4</c>, so a few
+    /// minutes of held lock exhausts the pool and the Worker stops running everything — account
+    /// hard-delete and the retention jobs included. <c>SyncPlatsbankenStreamWorker</c> already
+    /// carries this rule in the opposite direction (540 s under a 600 s cron).
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheSweepWaitsLessThanOneTick_WhileTheNightlyRunWaitsFifteenMinutes()
+    {
+        var defaults = new CompanyWatchMaterialisationOptions();
+        defaults.SweepCron.ShouldBe("* * * * *",
+            "härledningen nedan förutsätter en minutlig kadens — ändras cron:en måste väntetiden "
+            + "räknas om mot den nya perioden");
+        const int tickSeconds = 60;
+
+        LockWaitSecondsFor(nameof(CompanyWatchCriterionMaterialisationWorker.SweepAsync))
+            .ShouldBeLessThan(tickSeconds,
+                "en väntan längre än ankomstintervallet köar blockerade tickar på worker-trådar i "
+                + "stället för att låta dem falla");
+
+        LockWaitSecondsFor(nameof(CompanyWatchCriterionMaterialisationWorker.RunAsync))
+            .ShouldBe(15 * 60,
+                "nattjobbet ankommer en gång per dygn, så ingenting köar bakom dess väntan");
+    }
+
+    /// <summary>
+    /// The timeout as WRITTEN, read off the attribute application rather than off a Hangfire
+    /// property — the constructor argument is the thing under review, and reading it this way cannot
+    /// drift with the library's own field naming.
+    /// </summary>
+    private static int LockWaitSecondsFor(string methodName)
+    {
+        var data = MethodFor(methodName)
+            .GetCustomAttributesData()
+            .Single(a => a.AttributeType == typeof(DisableConcurrentExecutionAttribute));
+
+        data.ConstructorArguments.Count.ShouldBe(2,
+            $"{methodName} måste använda (resurs, timeout)-konstruktorn — enargumentsformen nycklar "
+            + "låset per METOD och delar det inte");
+
+        return (int)data.ConstructorArguments[1].Value!;
     }
 
     private static string? ResourceFor(string methodName)

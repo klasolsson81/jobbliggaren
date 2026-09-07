@@ -52,11 +52,57 @@ public class RecurringJobRegistrarParityTests
 
         // Read the recurringJobId (first arg) of every interface AddOrUpdate(string, Job, string,
         // RecurringJobOptions) call recorded on the substitute. The generic AddOrUpdate<T> extension
-        // funnels here, so this captures all 17 registrations regardless of the worker type.
+        // funnels here, so this captures all 18 registrations regardless of the worker type.
         return manager.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
             .Select(c => (string)c.GetArguments()[0]!)
             .ToList();
+    }
+
+    [Fact]
+    public async Task StartAsync_FeedsTheSweep_ItsOwnMethod_AndItsOwnCron()
+    {
+        // #1681 klausul (ii) (test-writer, 2026-09-07). Mätt med mutationsanalys: BÅDA
+        // korskopplingarna överlever varje annan test i PR:en.
+        //
+        //   job.SweepAsync -> job.RunAsync   → svep-id:t kör hela nattens fullständiga omräkning
+        //                                      VARJE MINUT. Sämre än före PR:en, och grönt överallt.
+        //   SweepCron -> CadenceCron         → svepet kör 05:30 dagligen. "Inom en tick, inte ett
+        //                                      dygn" är precis det som faller.
+        //
+        // Sweep-sviten konstruerar materialiseraren direkt och rör aldrig registraren; lås-sviten
+        // läser attribut via reflektion; id-paritetstesterna läser MEDVETET bara första argumentet.
+        // Ingen av dem kan se detta. Grannregistreringen bär redan samma pinne av samma skäl.
+        //
+        // De två cron-värdena ges SKILDA värden — med bägge på sina defaults läser en förväxling
+        // fortfarande rimligt, och assertionen hade inte kunnat falla.
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions
+            {
+                CadenceCron = "11 11 * * *",
+                SweepCron = "*/7 * * * *",
+            }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]!
+                == RecurringJobIds.SweepChangedCompanyWatchCriteria);
+
+        var job = (Hangfire.Common.Job)call.GetArguments()[1]!;
+        job.Type.ShouldBe(typeof(CompanyWatchCriterionMaterialisationWorker));
+        job.Method.Name.ShouldBe(nameof(CompanyWatchCriterionMaterialisationWorker.SweepAsync),
+            "svep-id:t måste mata SweepAsync — en korskoppling till RunAsync kör hela "
+            + "nattkörningen varje minut och är osynlig för id-paritetstesterna");
+
+        ((string)call.GetArguments()[2]!).ShouldBe("*/7 * * * *",
+            "svepet måste få SweepCron, aldrig CadenceCron — annars är klausul (ii) tillbaka på "
+            + "ett dygns latens");
     }
 
     [Fact]
@@ -89,6 +135,12 @@ public class RecurringJobRegistrarParityTests
             "id:t måste mata SIN egen worker — en korskoppling till en annan wrapper är osynlig för "
             + "id-paritetstesterna");
 
+        // #1681 klausul (ii) — wrappern bär nu TVÅ metoder, så typen ensam räcker inte längre.
+        // En korskoppling till SweepAsync skulle köra det minutliga svepet en gång per dygn.
+        job.Method.Name.ShouldBe(nameof(CompanyWatchCriterionMaterialisationWorker.RunAsync),
+            "nattjobbets id måste mata RunAsync — sedan wrappern fick en andra metod är typen "
+            + "ensam ingen identifiering");
+
         ((string)call.GetArguments()[2]!).ShouldBe("11 11 * * *",
             "jobbet måste få CompanyWatchMaterialisation:CadenceCron, aldrig ScbRegister:SyncCadenceCron "
             + "-- att de är skilda sektioner är hela poängen med Major 3");
@@ -113,7 +165,7 @@ public class RecurringJobRegistrarParityTests
     {
         var registered = await CapturedRegisteredIdsAsync();
 
-        // 17 calls, all distinct — guards a copy-paste double-registration (which a set comparison
+        // 18 calls, all distinct — guards a copy-paste double-registration (which a set comparison
         // alone would silently absorb).
         registered.Count.ShouldBe(RecurringJobIds.All.Count);
         registered.Distinct(StringComparer.Ordinal).Count().ShouldBe(registered.Count);

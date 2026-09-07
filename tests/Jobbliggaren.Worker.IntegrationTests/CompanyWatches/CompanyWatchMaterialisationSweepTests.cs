@@ -108,6 +108,14 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
 
         await RenameCriterionAsync(id, "Ett nytt namn", ct);
 
+        // POSITIVE CONTROL, and without it this whole test is a reading a no-op would also produce:
+        // every assertion below holds identically if the prefilter never selected the row at all.
+        // What is being claimed is narrower and stronger — the criterion IS a candidate, and the
+        // FINGERPRINT is what dismisses it.
+        (await SelectCandidatesForSweepAsync(ct)).ShouldContain(id.Value,
+            "omdöpningen måste bumpa updated_at och därmed VÄLJAS av prefiltret — annars mäter "
+            + "testet nedan att ingenting hände, inte att fingeravtrycket avfärdade något");
+
         var result = await SweepAsync(TSecondRun, ct);
 
         result.CriteriaSeen.ShouldBe(0,
@@ -280,6 +288,102 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
             "efter svepet ska läsvägen ge ett EXAKT tal för det nya predikatet, inte NotMaterialised");
     }
 
+    [Fact]
+    public async Task Sweep_TakesTheNewestEditFirst_WhenEveryCandidateAlreadyHasAStateRow()
+    {
+        // The ORDER BY's SECOND term, which no other test reaches (test-writer, 2026-09-07). The
+        // preference test above puts its two candidates in DIFFERENT groups for
+        // (m.criterion_id IS NOT NULL), so the first term decides alone; the batch test gives its
+        // four criteria an IDENTICAL updated_at, so their order is arbitrary. Flipping DESC to ASC
+        // therefore survived both.
+        //
+        // The term is load-bearing: a candidate the fingerprint dismisses is re-selected every tick
+        // until the nightly run (#1701), so those rows are STANDING. Under ASC the oldest of them
+        // would fill the batch permanently and a fresh edit would never be reached.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+        await SeedRegisterAsync(3, ct);
+
+        var older = await CreateCriterionAsync(Kommun(1), ct);
+        var newer = await CreateCriterionAsync(Kommun(2), ct);
+        await SweepAsync(TFirstRun, ct);          // both now carry a state row
+
+        await EditCriterionAsync(older, Kommun(3), ct, at: TEdit);
+        await EditCriterionAsync(newer, Kommun(3), ct, at: TEdit.AddMinutes(1));
+
+        await SweepAsync(TSecondRun, ct, batchSize: 1);
+
+        (await ReadMaterialisedAtAsync(newer, ct)).ShouldBe(TSecondRun,
+            "den senaste redigeringen går först");
+        (await ReadMaterialisedAtAsync(older, ct)).ShouldBe(TFirstRun,
+            "den äldre väntar till nästa tick och behåller sin gamla stämpel");
+    }
+
+    [Fact]
+    public async Task Sweep_DoesNotThrow_WhenEveryCandidateFails_AndCountsTheFailure()
+    {
+        // TESTPREMISS (AGENTS.md §5 `Tests:`): an EMPTY SNI axis is a state NO path in src/ produces
+        // — CompanyWatchCriteriaSpec.Create forbids it and BindPredicate fails loudly on it. It is
+        // DECLARED UNREACHABLE, and the assertion is therefore limited to how the run degrades, never
+        // to what production does. Same actor and same declaration as the nightly suite's
+        // Materialise_WhenEveryCriterionFails_Throws.
+        //
+        // The nightly run THROWS here; this one deliberately does NOT, and the asymmetry is the
+        // decision (senior-cto-advisor 2026-09-07, reversing his own earlier bind). The throw exists
+        // so Hangfire's retry can fire, and the sweep carries AutomaticRetry(Attempts = 0) — so it
+        // would add no information while manufacturing a FAILED job for, among other things, a user
+        // deleting her own watch mid-tick (an FK cascade failure). Without this pin, restoring the
+        // throw would be green everywhere.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+        var corrupt = await CreateCriterionAsync(Kommun(1), ct);
+        await CorruptSniAxisAsync(corrupt, ct);
+
+        var result = await SweepAsync(TFirstRun, ct);
+
+        result.CriteriaFailed.ShouldBe(1, "felet räknas — det sväljs aldrig");
+        result.CriteriaMaterialised.ShouldBe(0);
+        (await ReadMaterialisedAtAsync(corrupt, ct)).ShouldBeNull(
+            "det felande kriteriet behåller sitt tidigare tillstånd — här: inget");
+    }
+
+    [Fact]
+    public async Task Sweep_RefusesATooBroadCriterion_AndNarrowingItGivesANumberWithinOneTick()
+    {
+        // TooBroad reached through the SWEEP, which no other test does — and with it the ANALYZE
+        // gate's second arm (`|| tally.TooBroad > 0`), whose removal survived every other test
+        // (test-writer mutation 5d, 2026-09-07). A refusal writes a state row, so it IS a bulk-load
+        // path even though it writes no members.
+        //
+        // The second half is clause (ii)'s own promise, measured on the state the options docblock
+        // names: "a user who narrowed a too-broad watch would keep being told it is too broad until
+        // the next run" — here it takes one tick.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+        await SeedRegisterInKommunAsync(
+            Kommun(1), CompanyWatchCriterionMember.MaxPerCriterion + 1, ct);
+        await SeedRegisterInKommunAsync(Kommun(2), 1, ct, orgNrOffset: 500_000);
+
+        var id = await CreateCriterionAsync(Kommun(1), ct);
+
+        var beforeRefusal = await ReadAnalyzeCountsAsync(ct);
+        var refused = await SweepAsync(TFirstRun, ct);
+        var afterRefusal = await ReadAnalyzeCountsAsync(ct);
+
+        refused.CriteriaTooBroad.ShouldBe(1);
+        refused.CriteriaMaterialised.ShouldBe(0);
+        (await ReadMemberCountAsync(id, ct)).ShouldBe(0, "en vägran lagrar ingen mängd");
+        afterRefusal.Members.ShouldBe(beforeRefusal.Members + 1,
+            "en tick som SKREV en vägran är en bulk-load-väg och ska ANALYZE:a");
+
+        await EditCriterionAsync(id, Kommun(2), ct, at: TEdit);
+        var narrowed = await SweepAsync(TSecondRun, ct);
+
+        narrowed.CriteriaMaterialised.ShouldBe(1);
+        (await ReadMemberCountAsync(id, ct)).ShouldBe(1,
+            "att smalna en för bred bevakning ska ge ett tal inom EN tick, inte vid nästa dygn");
+    }
+
     // ----- helpers -------------------------------------------------------------------------------
 
     /// <summary>
@@ -381,6 +485,53 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
             FROM generate_series(1, {0}) i;
             """,
             [count, SniIt], ct);
+    }
+
+    /// <summary>The candidate set the sweep would take this tick, read through the production query.</summary>
+    private async Task<IReadOnlyList<Guid>> SelectCandidatesForSweepAsync(CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>();
+        var rows = await store.SelectStaleCriterionIdsAsync(500, ct);
+        return [.. rows.Select(r => r.Id)];
+    }
+
+    /// <summary>
+    /// N ACTIVE legal-entity companies, all in ONE kommun, all carrying the same SNI code.
+    /// <paramref name="orgNrOffset"/> keeps two calls from generating the SAME org.nr range — without
+    /// it the second call's rows collide on the primary key and are silently dropped by
+    /// ON CONFLICT DO NOTHING, which reads as "the criterion matched nothing" (measured 2026-09-07).
+    /// </summary>
+    private async Task SeedRegisterInKommunAsync(
+        string kommun, int count, CancellationToken ct, int orgNrOffset = 0)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO company_register (
+                organization_number, company_name, sate_kommun_code, sate_kommun_name,
+                sni_codes, reklamsparr, scb_status_raw, status, synced_at, created_at)
+            SELECT '559' || lpad((i + {3})::text, 7, '0'), 'Bolag ' || i, {1}, NULL,
+                   ARRAY[{2}], false, '1', 'Active', now(), now()
+            FROM generate_series(1, {0}) i
+            ON CONFLICT (organization_number) DO NOTHING;
+            """,
+            [count, kommun, SniIt, orgNrOffset], ct);
+    }
+
+    /// <summary>
+    /// Empties the criterion's SNI axis directly in Postgres. See
+    /// <see cref="Sweep_DoesNotThrow_WhenEveryCandidateFails_AndCountsTheFailure"/> for why this
+    /// state is declared unreachable and what may therefore be asserted about it.
+    /// </summary>
+    private async Task CorruptSniAxisAsync(CompanyWatchCriterionId id, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE company_watch_criteria SET sni_codes = ARRAY[]::text[] WHERE id = {0};",
+            [id.Value], ct);
     }
 
     private static string Kommun(int i) =>

@@ -7,8 +7,8 @@ import { ALLOWED_CONTENT_TYPES } from "./original-file-proxy";
  * This is the condition `security-auditor` attached to her 2026-09-07 signature of the multi-user
  * basis (ADR 0101 / DPIA #659 §12 Disposition-addendum — §11's own Disposition carries the earlier
  * 2026-09-06 signature, which that addendum says is NOT inherited). Her reason, and it is not
- * hygiene: growing this map is lapse-trigger 1, no trigger in §11's list has an automatic detector,
- * and this is the only one with a cheap detector that was not built.
+ * hygiene: growing this map is lapse-trigger 1, and it is the one trigger with a cheap detector
+ * that was not built.
  *
  * §11 keys the severity change on the EVENT, not on the signature: trigger 1 becomes Blocker-class
  * from the moment a non-controller uploads a CV that reaches the rendering path. That has not

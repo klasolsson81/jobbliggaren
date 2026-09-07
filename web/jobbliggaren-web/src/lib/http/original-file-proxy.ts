@@ -36,8 +36,7 @@ import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
  *
  * EXPORTED so its exact membership can be pinned against production rather than against a copy of
  * the literal — a pin that restates the set cannot fail when the set changes. Growing this map is
- * DPIA #659 §11 **lapse-trigger 1**, and nothing detects a lapse automatically, which is why the
- * pin exists.
+ * DPIA #659 §11 **lapse-trigger 1**, which is why the pin exists.
  *
  * `ReadonlyMap` is load-bearing, not tidiness. Exporting a plain `Map` let any other module call
  * `.set()` on the shared instance: `tsc` accepted it, production's `.get()` read the widened map at

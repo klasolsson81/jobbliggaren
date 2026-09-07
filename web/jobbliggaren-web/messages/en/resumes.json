@@ -149,16 +149,18 @@
     "visual": "Visual profile"
   },
   "preview": {
-    "trigger": "Download your CV file",
+    "trigger": "Open your CV file",
     "title": "Your CV file",
     "close": "Close",
     "viewGroupLabel": "Choose: original file or ATS text",
     "original": "Original file",
+    "frameTitle": "Your uploaded CV file",
     "loadingLabel": "The file is loading…",
     "loadingText": "The file is loading…",
     "download": "Download",
     "statusRegionLabel": "File status",
-    "readyBody": "This is the file you uploaded, unchanged. It is not displayed in the browser for security reasons, so download it to open it on your device.",
+    "readyBodyPdf": "This is the file you uploaded, unchanged.",
+    "readyBodyDocx": "This is the file you uploaded, unchanged. Word files cannot be displayed in the browser, so download it to open it on your device.",
     "rateLimited": "You have made too many requests in a short time. Try again in {seconds} seconds.",
     "noOriginal": "This CV has no stored original file. A file exists only for CVs you imported, and only if it could be stored at import.",
     "importCta": "Import CV",
@@ -170,7 +172,7 @@
     "atsTextNotFound": "The text version is not available yet.",
     "atsTextError": "Could not fetch the text version. Try again in a moment.",
     "atsTextRegionLabel": "Text version for ATS",
-    "triggerAria": "Download your CV file: {name}"
+    "triggerAria": "Open your CV file: {name}"
   },
   "match": {
     "triggerUpdate": "Update matching",

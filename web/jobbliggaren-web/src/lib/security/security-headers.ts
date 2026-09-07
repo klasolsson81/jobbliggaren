@@ -13,9 +13,17 @@
 // no-CDN VPS and colliding with the middleware.ts hotspot — for a marginal XSS
 // gain the boxed exfil channels (connect/img/form-action/base-uri) already deny.
 //
-// frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the fetched
-// PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl = URL.createObjectURL),
-// a blob: URL that would otherwise fall back to default-src 'self' and be blocked.
+// frame-src 'self' blob: is MANDATORY: the CV-preview modal renders the user's own
+// uploaded PDF via <iframe src={blobUrl}> (cv-preview.tsx, blobUrl =
+// URL.createObjectURL), a blob: URL that would otherwise fall back to
+// default-src 'self' and be blocked. DOCX is downloaded, never framed.
+//
+// The blob: indirection is not incidental, and it is the mechanism ADR 0101
+// `Amendment 2026-09-06` / DPIA #659 §11 oblige that surface to name: framing the
+// BFF route directly cannot work here, because frame-ancestors 'none' and
+// X-Frame-Options: DENY below are served on `/(.*)` — route handlers included —
+// and deny same-origin framing too. Loosening either is DPIA #659 §11's
+// lapse-trigger 4, so this is the only branch available to that feature.
 //
 // This module is pure and framework-free so it is unit-testable and frozen by a
 // co-located contract test; next.config.ts is the sole consumer.

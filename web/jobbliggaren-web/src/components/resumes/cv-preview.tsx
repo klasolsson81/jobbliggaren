@@ -1,14 +1,14 @@
 "use client";
 
-// "use client": klient-ö för nedladdning av den uppladdade originalfilen
-// (Fas 4 STEG B-2). Kräver browser-API:er (fetch av binär
+// "use client": klient-ö för visning och nedladdning av den uppladdade
+// originalfilen (Fas 4 STEG B-2). Kräver browser-API:er (fetch av binär
 // blob, URL.createObjectURL, AbortController), modal-state och tangentbords-/
 // fokus-hantering — inget av detta kan göras i en Server Component.
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Download, X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import { BrandSpinner } from "@/components/brand/brand-spinner";
 import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
 
@@ -16,8 +16,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * CvPreview — trigger-knapp + klient-state-modal som ger ANVÄNDAREN HENNES EGEN
  * uppladdade fil (Klas-direktiv 2026-09-06). Hämtar filen från en binär BFF-route
  * (server-only egress, ägar-scopad via session→Bearer) och gör en object-URL som
- * NEDLADDNINGEN pekar på; filen visas aldrig. Källan är generisk via `originalUrl`:
- * `/api/cv/parsed/{parsedId}/original` (importstaging) ELLER
+ * en pdf VISAS på och som nedladdningen pekar på. Källan är generisk via
+ * `originalUrl`: `/api/cv/parsed/{parsedId}/original` (importstaging) ELLER
  * `/api/cv/{id}/original` (befordrad, kanonisk Resume). Komponenten äger ingen
  * id-form.
  *
@@ -28,18 +28,28 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * ADR 0093 §D5). Profilflikarna är därför borta. `?profile=` lever vidare på
  * granskningssidan, där den styr SJÄLVA GRANSKNINGEN och inte den här vyn.
  *
- * **Filen laddas ner, den visas aldrig i appen — och det är en grind, inte en
- * smaksak.** DPIA #659 M-F2 föreskriver ordagrant RFC 6266 `attachment` och är
- * märkt merge-blockerande; R-F6:s residual vilar på satsen "a stored HTML-in-PDF
- * polyglot is never rendered inline from our origin", och ADR 0101 §B5(a):s GO för
- * hela `resume_files`-lagret är villkorat av M-F2. En `blob:`-iframe hade renderat
- * användaruppladdade bytes på vår egen origin och brutit det. `download`-attributet
- * gör att blob:en sparas i stället för att målas.
+ * **Pdf:en VISAS här, och det är en omprövad grind — inte en smaksak som gled
+ * tillbaka.** DPIA #659:s R-F6/M-F2 föreskrev download-only. De är omprövade för
+ * PDF-ARMEN och ingenting annat: ADR 0101 `Amendment 2026-09-06` + DPIA #659 §11,
+ * beslutade av controllern och SIGNERADE av `security-auditor` 2026-09-06. Läs den
+ * signaturen och dess sex lapse-triggers innan den här grenen rörs — den är en
+ * daterad mätning, inte en egenskap som ärvs framåt.
  *
- * ⚠ Att bara sätta `attachment` på BFF-svaret räcker INTE: `fetch()` läser aldrig
- * `Content-Disposition`, så en kvarlämnad iframe hade renderat vidare medan headern
- * såg efterlevande ut (security-auditor, PR #1684). Grinden bärs av att det inte
- * finns någon renderande yta här, inte av headern ensam.
+ * **Vilken mekanism som bär renderingen är ett val de två dokumenten kräver att en PR
+ * gör, och det här är valet: `fetch → blob → <iframe src={blobUrl}>`.** Att i stället
+ * rikta en iframe direkt mot BFF-routen kan inte fungera här — `frame-ancestors 'none'`
+ * och `X-Frame-Options: DENY` serveras på `/(.*)` (next.config.ts), route handlers
+ * inräknade, och de nekar även SAMMA origin. Att lätta på någondera är DPIA #659 §11:s
+ * lapse-trigger 4.
+ *
+ * ⚠ Följden av det valet: BFF:ens `Content-Disposition` är INERT för den här vyn.
+ * `fetch()` läser aldrig `Content-Disposition` (security-auditor, PR #1684), så att
+ * flippa den headern varken tänder eller släcker renderingen. Den står kvar på
+ * `attachment` av ett annat skäl — se `original-file-proxy.ts`.
+ *
+ * ⚠ **DOCX visas inte.** En iframe ger en tyst blank ruta för Word-filer, och att
+ * rendera om dem vore "vår rendering av din fil" — precis det direktivet finns för att
+ * få bort. Signaturen gäller uttryckligen pdf-armen och vidgas inte. Docx laddas ner.
  *
  * Filen kan dessutom SAKNAS: ett CV skapat i tjänsten har ingen uppladdad fil alls,
  * och inte heller importer som föregår filarkivet. På STAGING-ytan tillkommer en
@@ -47,8 +57,8 @@ import { atsTextResponseSchema, type AtsTextResponse } from "@/lib/dto/resumes";
  * kan inte nå den kanoniska ytan, eftersom `ParsedResume.Promote` vägrar en flaggad
  * parse. 404 är alltså ett VANLIGT svar och renderas som tomt tillstånd.
  *
- * `Content-Type` (som BFF:en snävar mot en allowlist) avgör bara filändelsen på
- * nedladdningen — aldrig filnamnets ändelse, och inte längre någon vy-gren.
+ * `Content-Type` (som BFF:en snävar mot en allowlist) avgör BÅDE vy-grenen (pdf
+ * visas, docx laddas ner) och nedladdningens filändelse — aldrig filnamnets ändelse.
  *
  * Textversion för ATS (Fas 4b PR-8.3): när `atsTextUrl` ges läggs en andra flik
  * till som hämtar den linjäriserade, redan pnr-redigerade CV-texten (JSON) och
@@ -96,7 +106,7 @@ interface CvPreviewProps {
   triggerIconSize?: number;
   /**
    * Tillgängligt namn på triggern, när ytan renderar flera. `/cv` ger ett kort per
-   * CV, så utan detta blir N identiska "Ladda ner CV-filen" i en skärmläsares
+   * CV, så utan detta blir N identiska "Öppna CV-filen" i en skärmläsares
    * knapp-rotor (#1373). Utelämnad => knappens egen text bär namnet.
    *
    * ⚠ Ändras trigger-copyn måste den här strängen följa med: WCAG 2.1 SC 2.5.3
@@ -128,11 +138,12 @@ type OriginalStatus =
  *  igen om en stund") — fliken har ingen egen rate-limit-copy. */
 type AtsTextStatus = "loading" | "ready" | "notFound" | "error";
 
-/** De två filformer `CvFileSignature` kan lösa. Formen väljer bara nedladdningens
- *  filändelse — den är ingen vy-gren, båda laddas ned. */
+/** De två filformer `CvFileSignature` kan lösa. Formen är BÅDE vy-gren (bara pdf
+ *  renderas) och nedladdningens filändelse. */
 type OriginalKind = "pdf" | "docx";
 
-/** Den hämtade filen: en object-URL plus vilken form den har. */
+/** Den hämtade filen: en object-URL plus vilken form den har. Formen avgör om
+ *  URL:en målas i en iframe eller bara laddas ned. */
 interface LoadedOriginal {
   url: string;
   kind: OriginalKind;
@@ -389,7 +400,7 @@ export function CvPreview({
         aria-label={triggerAriaLabel}
         onClick={() => setOpen(true)}
       >
-        <Download size={triggerIconSize} aria-hidden="true" />
+        <Eye size={triggerIconSize} aria-hidden="true" />
         <span>{t("trigger")}</span>
       </button>
 
@@ -474,7 +485,11 @@ export function CvPreview({
                     aria-label={t("statusRegionLabel")}
                   >
                     {status === "ready" && original && (
-                      <p className="jp-lede">{t("readyBody")}</p>
+                      <p className="jp-lede">
+                        {original.kind === "pdf"
+                          ? t("readyBodyPdf")
+                          : t("readyBodyDocx")}
+                      </p>
                     )}
                     {status === "noOriginal" && (
                       <p className="jp-lede">{t("noOriginal")}</p>
@@ -486,9 +501,27 @@ export function CvPreview({
                     )}
                   </div>
 
+                  {/* Pdf:en målas; docx får ingen ram alls. En iframe mot en Word-fil
+                      ger en tyst blank ruta, och att rendera om den vore "vår rendering
+                      av din fil". Grenen är signerad för pdf-armen och ingenting annat
+                      (ADR 0101 `Amendment 2026-09-06`, DPIA #659 §11).
+
+                      Ramen står UTANFÖR live-regionen: den är ett dokument, inte ett
+                      utfallsmeddelande, och en region som byter både text och inbäddat
+                      innehåll annonseras ojämnt. Utfallet annonseras av `readyBodyPdf`
+                      ovan, som ligger kvar i regionen. */}
+                  {status === "ready" && original?.kind === "pdf" && (
+                    <iframe
+                      src={original.url}
+                      title={t("frameTitle")}
+                      className="jp-pdf-frame"
+                    />
+                  )}
+
                   {/* Kontrollerna står UTANFÖR live-regionen: en region som byter både
                       text och interaktiva element annonseras ojämnt, och knappen är
-                      redan nåbar via fokusordningen. */}
+                      redan nåbar via fokusordningen. Nedladdningen finns för BÅDA
+                      formerna — den är docx enda väg, och pdf:ens väg att spara. */}
                   {status === "ready" && original && (
                     <p>
                       <a

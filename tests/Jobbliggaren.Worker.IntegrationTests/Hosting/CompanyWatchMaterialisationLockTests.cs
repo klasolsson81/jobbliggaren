@@ -108,10 +108,13 @@ public class CompanyWatchMaterialisationLockTests
             + "räknas om mot den nya perioden");
         const int tickSeconds = 60;
 
+        // BÅDA gränserna, inte bara den övre (test-writer, omkontroll 2026-09-07). Docblocket
+        // formulerar ett tvåsidigt villkor — väntan ska ligga ÖVER nattkörningens mätta hålltid och
+        // UNDER tickintervallet — men `ShouldBeLessThan(60)` ensam är sann också för 1, och 1 s
+        // betyder att en tick som möter nattkörningen MISSLYCKAS i stället för att vänta in den.
+        // Det tillverkar precis det Failed-jobb som kastet nyss togs bort för att slippa.
         LockWaitSecondsFor(nameof(CompanyWatchCriterionMaterialisationWorker.SweepAsync))
-            .ShouldBeLessThan(tickSeconds,
-                "en väntan längre än ankomstintervallet köar blockerade tickar på worker-trådar i "
-                + "stället för att låta dem falla");
+            .ShouldBeInRange(10, tickSeconds - 1);
 
         LockWaitSecondsFor(nameof(CompanyWatchCriterionMaterialisationWorker.RunAsync))
             .ShouldBe(15 * 60,

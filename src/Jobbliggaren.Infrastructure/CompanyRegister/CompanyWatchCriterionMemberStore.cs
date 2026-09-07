@@ -59,6 +59,7 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// <para>
     /// <b>ORDER BY.</b> Criteria with no state row at all come first — someone created a watch and is
     /// waiting for it — and among the rest the newest edit comes first.
+    /// </para>
     ///
     /// <para>
     /// ⚠ A candidate the fingerprint dismisses writes nothing, so it is selected again on every tick
@@ -342,6 +343,7 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// through the same <c>ReplaceAsync</c>, so there is no second write shape whose statistics could
     /// diverge. What changed is the cadence, which is why the sweep calls this only on a tick that
     /// actually wrote — a tick that loaded nothing is not a bulk-load path.
+    /// </para>
     ///
     /// <para>
     /// The specific stake (dotnet-architect, 2026-09-06): the read plan the breadth-gate bound was

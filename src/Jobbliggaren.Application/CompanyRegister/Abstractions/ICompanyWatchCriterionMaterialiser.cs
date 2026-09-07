@@ -93,7 +93,7 @@ public interface ICompanyWatchCriterionMaterialiser
     /// <para>
     /// Reports the same <see cref="CompanyWatchCriterionMaterialisationResult"/>. In steady state
     /// that is a run with <c>CriteriaSeen = 0</c> — which must stay distinguishable from a run in
-    /// which every criterion failed, and is why the all-failed throw carries over unchanged.
+    /// which every criterion failed, and is what <c>CriteriaFailed</c> is read against.
     /// </para>
     /// </summary>
     Task<CompanyWatchCriterionMaterialisationResult> MaterialiseChangedAsync(

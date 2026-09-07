@@ -31,8 +31,9 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// unresolvable criterion must not deny every other user a fresh membership, so it is logged with the
 /// criterion id, counted onto
 /// <see cref="CompanyWatchCriterionMaterialisationResult.CriteriaFailed"/>, and skipped — the failure
-/// is never swallowed (§5 forbids a catch-all without action). But if NOTHING succeeded the method
-/// THROWS, and that asymmetry is the point (dotnet-architect, 2026-09-06): the Worker wrapper
+/// is never swallowed (§5 forbids a catch-all without action). But if NOTHING succeeded
+/// <see cref="MaterialiseAsync"/> THROWS, and that asymmetry is the point (dotnet-architect,
+/// 2026-09-06): the Worker wrapper
 /// deliberately keeps Hangfire's default retry, justified by "a transient DB blip must not turn into a
 /// full day of stale membership" — and a broken connection fails every remaining criterion
 /// identically, so without the throw no exception would ever leave <c>RunAsync</c> and that retry
@@ -115,11 +116,9 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
 
         ThrowIfWhollyFailed(tally);
 
-        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. All three conditions hold:
-        // these two tables have ONE periodic writer, carry no continuous DML between runs (the only
-        // other writer is the FK cascade on criterion deletion, which REMOVES rows and cannot re-arm
-        // autovacuum's analyze counter for the loader), and criterion_id reaches both a WHERE and a
-        // join. Once per COMPLETED run, never per criterion.
+        // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. Once per COMPLETED run,
+        // never per criterion. The conditions, and what #1681 clause (ii) changed about them, are
+        // argued once in CompanyWatchCriterionMemberStore.AnalyzeAsync and not restated here.
         // This is not hygiene theatre: the read plan the breadth-gate bound was DERIVED against is an
         // Index Only Scan on the member PK with Heap Fetches: 0, and that plan needs current statistics
         // and a set visibility map — so without this the measured plan is not guaranteed in operation.
@@ -143,7 +142,10 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
 
         if (!options.Value.Enabled)
         {
-            LogDisabled(logger);
+            // Silent on THIS run, unlike the nightly one directly above. Same reason the idle tick is
+            // silent: at a minute's cadence an unconditional line here is ~1 440 identical rows a day
+            // for as long as the kill-switch is off, which buries the counters that carry meaning.
+            // The nightly run says it once a day, which is where that notice belongs.
             return new CompanyWatchCriterionMaterialisationResult(
                 0, 0, 0, 0, 0, 0, 0, startedAt, clock.UtcNow);
         }
@@ -219,9 +221,6 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         // tick's only candidate the throw would register a FAILED Hangfire job for a user deleting
         // her own watch. At a minute's cadence that noise is indistinguishable from a real fault,
         // which is the signal the throw was built to protect.
-        //
-        // The genuinely wholly-broken case is caught upstream and more truthfully: a dead connection
-        // fails SelectStaleCriterionIdsAsync, which runs BEFORE any candidate is touched.
 
         // §3.6, with its condition evaluated rather than inherited: this run is a bulk-load path only
         // on the ticks that actually wrote. In steady state it writes nothing, and ANALYZE on a table
@@ -246,9 +245,8 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
 
     /// <summary>
     /// A run in which EVERY criterion failed must not report success — see the class docblock for why
-    /// the nightly wrapper's retained Hangfire retry depends on this throw existing. Shared by both
-    /// runs: the sweep keeps it for the OTHER half of the same argument, since its steady state is
-    /// <c>CriteriaSeen = 0</c> and that must stay distinguishable from "every candidate failed".
+    /// the nightly wrapper's retained Hangfire retry depends on this throw existing. That wrapper is
+    /// its only caller; see <see cref="MaterialiseChangedAsync"/> for why the sweep does not use it.
     /// </summary>
     private static void ThrowIfWhollyFailed(RunTally tally)
     {

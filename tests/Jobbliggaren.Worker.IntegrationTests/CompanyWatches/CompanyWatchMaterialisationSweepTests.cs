@@ -384,6 +384,73 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
             "att smalna en för bred bevakning ska ge ett tal inom EN tick, inte vid nästa dygn");
     }
 
+    [Fact]
+    public async Task Sweep_StampsMaterialisedAtFromTheCANDIDATELOAD_NotFromTheWrite()
+    {
+        // THE PROPERTY THE DELTA INTRODUCED, and it was UNPINNABLE under the rest of this suite
+        // (test-writer, omkontroll 2026-09-07). Every other test here injects a FIXED clock, so
+        // "read at load" and "read at write" produce the SAME value and the two are indistinguishable
+        // — reverting both ReplaceAsync calls to clock.UtcNow survived all 330 Worker tests. The suite
+        // LOOKED like it pinned materialised_at in five places while being blind to the one thing the
+        // change is about. A moving clock is the only instrument that can see it.
+        //
+        // Why the property matters: stamping at the WRITE gives a criterion edited mid-resolution an
+        // OLD fingerprint with a NEW timestamp, so it drops out of the candidate set and the surface
+        // says "vet inte" until the nightly run — the self-healing that justifies level-triggering,
+        // silently gone.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+        await SeedRegisterAsync(1, ct);
+        var id = await CreateCriterionAsync(Kommun(1), ct);
+
+        // Reads, in order: startedAt · stampedAt (at the candidate load) · CompletedAt.
+        var clock = new ScriptedClock(TFirstRun, TFirstRun.AddMinutes(5), TFirstRun.AddMinutes(9));
+
+        await SweepWithClockAsync(clock, ct);
+
+        (await ReadMaterialisedAtAsync(id, ct)).ShouldBe(TFirstRun.AddMinutes(5),
+            "stämpeln ska vara klockavläsningen vid KANDIDATLADDNINGEN — läses den vid skrivningen "
+            + "får raden avläsning 3 i stället");
+
+        // Makes the coupling LOUD rather than silent: a fourth read means someone re-read the clock
+        // inside the per-criterion path, which is exactly the mutation above.
+        clock.Reads.ShouldBe(3,
+            "svepet ska läsa klockan tre gånger — start, stämpel, slut. En fjärde avläsning betyder "
+            + "att MaterialiseOneAsync läser klockan igen.");
+    }
+
+    [Fact]
+    public async Task NightlyRun_StampsMaterialisedAtFromThePAGELOAD_NotFromTheWrite()
+    {
+        // The same property on the OTHER run, and there the window is LARGER: a whole page of up to
+        // CriterionPageSize criteria is walked between the read and the last row's write. The pin
+        // lives in this suite because this PR introduced the property, not because it belongs to the
+        // sweep.
+        var ct = TestContext.Current.CancellationToken;
+        await ResetAsync(ct);
+        await SeedRegisterAsync(2, ct);
+        await CreateCriterionAsync(Kommun(1), ct);
+        var second = await CreateCriterionAsync(Kommun(2), ct);
+
+        // Reads: startedAt · stampedAt (page 1) · CompletedAt. Both criteria fit one page, so BOTH
+        // must carry the page's single stamp — which is what a per-write read would break.
+        var clock = new ScriptedClock(TFirstRun, TFirstRun.AddMinutes(5), TFirstRun.AddMinutes(9));
+
+        using var scope = _fixture.Services.CreateScope();
+        var materialiser = new CompanyWatchCriterionMaterialiser(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>(),
+            clock,
+            Options.Create(new CompanyWatchMaterialisationOptions()),
+            NullLogger<CompanyWatchCriterionMaterialiser>.Instance);
+        var result = await materialiser.MaterialiseAsync(ct);
+
+        result.CriteriaMaterialised.ShouldBe(2);
+        (await ReadMaterialisedAtAsync(second, ct)).ShouldBe(TFirstRun.AddMinutes(5),
+            "varje kriterium på en sida bär SIDANS stämpel, inte sin egen skrivtidpunkt");
+        clock.Reads.ShouldBe(3);
+    }
+
     // ----- helpers -------------------------------------------------------------------------------
 
     /// <summary>
@@ -403,6 +470,21 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
                 SweepBatchSize = batchSize,
                 Enabled = enabled,
             }),
+            NullLogger<CompanyWatchCriterionMaterialiser>.Instance);
+
+        return await materialiser.MaterialiseChangedAsync(ct);
+    }
+
+    /// <summary>The sweep driven by a caller-supplied clock, for the stamping pins.</summary>
+    private async Task<CompanyWatchCriterionMaterialisationResult> SweepWithClockAsync(
+        IDateTimeProvider clock, CancellationToken ct)
+    {
+        using var scope = _fixture.Services.CreateScope();
+        var materialiser = new CompanyWatchCriterionMaterialiser(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<CompanyWatchCriterionMemberStore>(),
+            clock,
+            Options.Create(new CompanyWatchMaterialisationOptions()),
             NullLogger<CompanyWatchCriterionMaterialiser>.Instance);
 
         return await materialiser.MaterialiseChangedAsync(ct);
@@ -655,5 +737,32 @@ public class CompanyWatchMaterialisationSweepTests(WorkerTestFixture fixture)
     private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    /// <summary>
+    /// A clock that MOVES: each read returns the next scripted value, and the count of reads is
+    /// observable. A fixed clock cannot distinguish "read at load" from "read at write" — that is
+    /// precisely why the delta's stamping change was unpinnable without this.
+    /// </summary>
+    private sealed class ScriptedClock(params DateTimeOffset[] values) : IDateTimeProvider
+    {
+        private int _index;
+
+        public int Reads { get; private set; }
+
+        public DateTimeOffset UtcNow
+        {
+            get
+            {
+                Reads++;
+                // Past the script, the last value repeats rather than throwing: an unexpected extra
+                // read must fail on the ASSERTION that names it, not on an exception whose message
+                // says nothing about the property under test.
+                var value = values[_index];
+                if (_index < values.Length - 1)
+                    _index++;
+                return value;
+            }
+        }
     }
 }

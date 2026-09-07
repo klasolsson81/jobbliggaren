@@ -34,7 +34,7 @@ function isKnownTemplate(value: string): value is KnownTemplate {
  *    den info; vi kan inte rendera "+N" utan content-fetch — utelämnas medvetet)
  *  - jp-cv__meta: "N sektioner" (NORMAL font) + språkkod "SV"/"EN" (MONO)
  *    + "Uppd. YYYY-MM-DD" (MONO) — per HANDOVER §3 (mono endast för data)
- *  - jp-cv__actions: Granska → /cv/{id}/granska (primär) + Ladda ner CV-filen,
+ *  - jp-cv__actions: Granska → /cv/{id}/granska (primär) + Öppna CV-filen,
  *    därefter Byt namn + Radera. Redigera-länken till /cv/{id} är
  *    borttagen (#1373) — se kommentaren vid raden.
  *

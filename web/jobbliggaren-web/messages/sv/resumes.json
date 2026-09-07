@@ -149,16 +149,18 @@
     "visual": "Visuell profil"
   },
   "preview": {
-    "trigger": "Ladda ner CV-filen",
+    "trigger": "Öppna CV-filen",
     "title": "Din CV-fil",
     "close": "Stäng",
     "viewGroupLabel": "Välj: originalfil eller ATS-text",
     "original": "Originalfil",
+    "frameTitle": "Din uppladdade CV-fil",
     "loadingLabel": "Filen läses in…",
     "loadingText": "Filen läses in…",
     "download": "Ladda ner",
     "statusRegionLabel": "Filens status",
-    "readyBody": "Det här är filen du laddade upp, oförändrad. Den visas inte i webbläsaren av säkerhetsskäl, så ladda ner den för att öppna den på din enhet.",
+    "readyBodyPdf": "Det här är filen du laddade upp, oförändrad.",
+    "readyBodyDocx": "Det här är filen du laddade upp, oförändrad. Word-filer kan inte visas i webbläsaren. Ladda ner filen för att öppna den på din enhet.",
     "rateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
     "noOriginal": "Det här CV:t har ingen sparad originalfil. En fil finns bara för CV du importerat, och bara om den fick sparas vid importen.",
     "importCta": "Importera CV",
@@ -170,7 +172,7 @@
     "atsTextNotFound": "Textversionen är inte tillgänglig ännu.",
     "atsTextError": "Kunde inte hämta textversionen. Försök igen om en stund.",
     "atsTextRegionLabel": "Textversion för ATS",
-    "triggerAria": "Ladda ner CV-filen: {name}"
+    "triggerAria": "Öppna CV-filen: {name}"
   },
   "match": {
     "triggerUpdate": "Uppdatera matchning",

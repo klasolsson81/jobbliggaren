@@ -55,6 +55,22 @@ public static class RecurringJobIds
     public const string MaterialiseCompanyWatchCriteria = "materialise-company-watch-criteria";
 
     /// <summary>
+    /// #1681 clause (ii) — the reconciling sweep: recompute only those criteria whose stored
+    /// membership does not describe their current predicate, so a user's OWN edit does not wait for
+    /// <see cref="MaterialiseCompanyWatchCriteria"/>. Cron is config-driven
+    /// (<c>CompanyWatchMaterialisation:SweepCron</c>), in the same options section because the two
+    /// cadences constrain one another.
+    ///
+    /// <para>
+    /// A SECOND id rather than a faster cadence on the first, because the two jobs answer two
+    /// different change-reasons — the register moved (weekly, external) versus a predicate moved
+    /// (continuous, user) — and because they take opposite retry postures. They share one distributed
+    /// lock all the same; see <c>CompanyWatchCriterionMaterialisationWorker</c>.
+    /// </para>
+    /// </summary>
+    public const string SweepChangedCompanyWatchCriteria = "sweep-changed-company-watch-criteria";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -77,5 +93,6 @@ public static class RecurringJobIds
         RefreshLandingStats,
         SyncScbCompanyRegister,
         MaterialiseCompanyWatchCriteria,
+        SweepChangedCompanyWatchCriteria,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

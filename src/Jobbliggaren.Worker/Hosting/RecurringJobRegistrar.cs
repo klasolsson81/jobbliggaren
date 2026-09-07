@@ -179,6 +179,24 @@ public sealed partial class RecurringJobRegistrar(
             job => job.RunAsync(CancellationToken.None),
             materialisationOptions.Value.CadenceCron);
 
+        // #1681 klausul (ii) — omrakningssvepet. Egen cron (CompanyWatchMaterialisation:SweepCron,
+        // default varje minut) och egen jobb-id, for att det svarar pa en ANNAN andringsorsak an
+        // raden ovan: registret rorde sig (veckovis, externt) mot att ett predikat rorde sig
+        // (kontinuerligt, anvandaren). Samma options-sektion, eftersom de tva kadenserna begransar
+        // varandra: SweepBatchSize ar harledd ur SweepCron:s intervall.
+        //
+        // INGEN handler enqueue:ar nagot. Det committade tillstandet AR kon — criteria_fingerprint
+        // bredvid materialised_at ar redan samma faktum som lasvagen grindar pa — sa svepet ar
+        // level-triggat och en missad tick repareras av nasta. Ett edge-triggat signal hade dessutom
+        // behovt besegra att UnitOfWorkBehavior committar EFTER handlern (senior-cto-advisor,
+        // 2026-09-07).
+        //
+        // Registreras ovillkorligt av samma skal som raden ovan: kill-switchen sitter i jobbet.
+        manager.AddOrUpdate<CompanyWatchCriterionMaterialisationWorker>(
+            RecurringJobIds.SweepChangedCompanyWatchCriteria,
+            job => job.SweepAsync(CancellationToken.None),
+            materialisationOptions.Value.SweepCron);
+
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.
         //

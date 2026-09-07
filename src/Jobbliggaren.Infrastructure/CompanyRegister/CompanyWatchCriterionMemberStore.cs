@@ -76,6 +76,86 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// empty-axis guard.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// #1681 clause (ii) — the ids of criteria whose materialisation may be out of date, newest edit
+    /// first, capped. The reconciling sweep's candidate query.
+    ///
+    /// <para>
+    /// <b><c>updated_at</c> is a SUPERSET prefilter here, and deliberately NOT the test</b>
+    /// (senior-cto-advisor, 2026-09-07). <c>CompanyWatchCriterion.Rename</c> bumps <c>UpdatedAt</c>
+    /// exactly as <c>UpdateCriteria</c> does, so the column is a row mtime rather than a
+    /// predicate-change signal — which is the very reason
+    /// <see cref="CriteriaFingerprint"/> exists. The asymmetry is the whole design: over-selecting
+    /// costs a wasted row read, under-selecting would miss a real edit, so the cheap column selects
+    /// and <see cref="CriteriaFingerprint"/> decides. A rename therefore costs one row read and one
+    /// SHA-256 and NEVER a register resolution, which is ADR 0139's bound upheld verbatim.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>ORDER BY makes the cap safe.</b> Criteria with no state row at all come first — someone
+    /// created a watch and is waiting for it — and among the rest the newest edit comes first, so a
+    /// standing backlog of rename no-ops can never starve a real predicate change.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>No OFFSET, and that is not an oversight.</b> Every criterion this returns drops OUT of the
+    /// predicate once it is processed, so an advancing offset would skip rows — the exact inverse of
+    /// <c>CompanyWatchCriterionMaterialiser</c>'s nightly walk, whose OFFSET loop is safe precisely
+    /// because its predicate is not mutated by its own work. Copying that loop here would be the bug.
+    /// Each tick takes one capped list and the next tick re-derives.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Over-age rows are deliberately NOT selected.</b> The read path's third
+    /// <c>NotMaterialised</c> trigger (<see cref="CompanyWatchMaterialisationOptions.MaxReadAgeHours"/>)
+    /// stays the nightly run's business: sweeping it would retry a permanently broken criterion every
+    /// tick forever, with no new information between attempts.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<StaleCriterion>> SelectStaleCriterionIdsAsync(
+        int maxCriteria, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxCriteria, 1);
+
+        var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandTimeout = CommandTimeoutSeconds;
+        cmd.CommandText = StaleCriterionIdsSql;
+        cmd.Parameters.AddWithValue("@max_criteria", NpgsqlDbType.Integer, maxCriteria);
+
+        await using var reader = await cmd
+            .ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        var candidates = new List<StaleCriterion>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            candidates.Add(new StaleCriterion(
+                reader.GetGuid(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1)));
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// A sweep candidate: the criterion, and the fingerprint its LAST materialisation was computed
+    /// from (<c>null</c> when it has never been materialised). The stored fingerprint travels back
+    /// with the id so the caller can dismiss a rename WITHOUT a second query — the whole point of the
+    /// prefilter being a superset is that the exact test must be cheap.
+    /// </summary>
+    internal readonly record struct StaleCriterion(Guid Id, string? StoredFingerprint);
+
+    private const string StaleCriterionIdsSql =
+        """
+        SELECT c.id, m.criteria_fingerprint
+        FROM company_watch_criteria c
+        LEFT JOIN company_watch_criterion_materialisations m ON m.criterion_id = c.id
+        WHERE m.criterion_id IS NULL OR m.materialised_at < c.updated_at
+        ORDER BY (m.criterion_id IS NOT NULL), c.updated_at DESC
+        LIMIT @max_criteria;
+        """;
+
     public async Task<IReadOnlyList<string>?> SelectCandidatesAsync(
         CompanyWatchCriteriaSpec criteria, int maxMembers, CancellationToken cancellationToken)
     {

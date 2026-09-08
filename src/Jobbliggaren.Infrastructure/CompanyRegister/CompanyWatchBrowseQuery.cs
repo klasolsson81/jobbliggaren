@@ -218,12 +218,31 @@ internal sealed class CompanyWatchBrowseQuery(
     /// <para>
     /// <b>This is the whole point of ADR 0139, expressed as a FROM clause.</b> The predicate's
     /// expensive half - resolving SNI-overlap AND kommun-membership against 1,07M register rows -
-    /// was moved out of the request path into a recurring job, so what is left here is an index join
-    /// against a pre-computed, breadth-gated org.nr set. Measured: the plan contains no
-    /// <c>company_register</c> node, its <c>InitPlan</c> is an Index Only Scan on the member PK with
-    /// <c>Heap Fetches: 0</c>, and the outer query is a Bitmap Index Scan on
-    /// <c>ix_job_ads_organization_number</c>
-    /// (<c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>, Result 3).
+    /// was moved out of the request path into a recurring job, so what is left here is a join
+    /// against a pre-computed, breadth-gated org.nr set. <b>The load-bearing half of that claim is
+    /// the ABSENCE:</b> the plan contains no <c>company_register</c> node, and that holds
+    /// unconditionally (<c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>,
+    /// Result 3).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The <c>InitPlan</c>'s own shape is NOT unconditional, and saying so is the correction
+    /// #1706 owed.</b> Result 3 measured it as an Index Only Scan on the member PK with
+    /// <c>Heap Fetches: 0</c>, and that is what it is at a realistic criterion population. On a
+    /// member table holding a SINGLE user's watches the planner prices <c>criterion_id</c> at 5 % of
+    /// the rows and, somewhere between 20 000 and 30 000 of them, reads the member set with a
+    /// <c>Seq Scan</c> instead - same rows, same index present
+    /// (<c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c> carries the buffer counts for both
+    /// plans). Neither the statement nor the index changed; the table's shape did.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>No test observes that choice, and none can cheaply.</b>
+    /// <c>CompanyWatchBrowseQueryPlanTests</c> EXPLAINs under <c>SET LOCAL enable_seqscan = off</c>,
+    /// which FORBIDS the alternative rather than pricing it - so that pin measures index
+    /// ELIGIBILITY, exactly as its own helper says, and cannot see which plan production would pick.
+    /// Seeing it would take a fixture carrying MANY users' criteria, i.e. a property of the
+    /// DEPLOYMENT rather than of this code.
     /// </para>
     ///
     /// <para>

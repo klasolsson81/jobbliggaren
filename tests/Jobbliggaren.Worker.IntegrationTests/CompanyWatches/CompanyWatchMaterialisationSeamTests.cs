@@ -27,8 +27,8 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyWatches;
 ///     page, leaving termination and totality unmeasured — and two of the surviving mutants are
 ///     INFINITE LOOPS in operation.</item>
 ///   <item><b>The ANALYZE.</b> Nothing asserted it happened, that it happened once per RUN rather
-///     than once per criterion, or that it covered both tables — while the read plan the breadth
-///     bound was derived against depends on it.</item>
+///     than once per criterion, or that it covered both tables — while the read path's member
+///     lookup depends on the selectivity estimate it maintains.</item>
 /// </list>
 /// </summary>
 [Collection("Worker")]

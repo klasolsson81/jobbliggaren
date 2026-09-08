@@ -469,6 +469,20 @@ public sealed class RateLimitingOptions
     /// </para>
     ///
     /// <para>
+    /// <b>It FIRED again on 2026-09-08</b> (#1706 part 2): <c>CompanyWatchCriterionMember.MaxPerCriterion</c>
+    /// moved from 1 000 to 2 500, which is one of the triggers named below by name.
+    /// <c>security-auditor</c> verified the limit against it and <b>again declined to ratchet</b>.
+    /// Her discharge rests on three properties rather than on a re-measured tail: this route's OUTPUT
+    /// is capped by <c>CriterionMatchingAdSetResolver.MaxSetSize</c> and the callers' own ceilings, in
+    /// which the member bound does not appear at all; the member set enters as an UNCORRELATED
+    /// <c>ARRAY(subselect)</c> evaluated once per statement, so a higher bound adds member-scan cost
+    /// and not per-ad cost; and the worst case was already corpus-saturated at the old bound. The
+    /// measured everyday delta is small enough to leave the derived rate above its 3/min floor. The
+    /// figures are in <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c> and deliberately not
+    /// restated here.
+    /// </para>
+    ///
+    /// <para>
     /// <b>Recompute trigger.</b> Any of these invalidates the number and none of them is subtle: a
     /// second consumer page (half 1), a change to <c>CompanyWatchCriterion.MaxPerUser</c> or
     /// <c>CriterionMatchingAdSetResolver.MaxSetSize</c> (half 2 — both are multipliers on the fan),

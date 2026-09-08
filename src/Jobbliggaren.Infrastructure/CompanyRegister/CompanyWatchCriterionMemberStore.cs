@@ -28,10 +28,14 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// browse's 30 s, and the difference is the point: the browse's ceiling is sized for an
     /// INTERACTIVE request where a spurious 500 is worse than a slow answer, while these commands run
     /// in a background job where nothing is waiting and the only question is how long a genuinely
-    /// hung statement may hold a pooled connection. Measured against it, the margin is large: the
-    /// widest bound-legal criterion's selection is 11-30 ms and a full 1 000-member replace is
-    /// 30,67 ms p95 (docs/reviews/2026-09-06-1681-membership-measurement.md), so 120 s is ~4 000x the
-    /// measured worst case. It is a backstop against the unpredicted — a cold cache, stale statistics,
+    /// hung statement may hold a pooled connection. Measured against it, the margin is large: a full
+    /// replace at the bound is tens of milliseconds, so 120 s is three orders of magnitude above the
+    /// measured worst case. The figures live in the dated reports and never here — the 1 000-member
+    /// replace in <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c>, the 2 500-member one
+    /// in <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c> (#1706). ⚠ The ratio is stated as
+    /// an order of magnitude rather than a factor deliberately: it is a quotient of two measurements
+    /// taken on different hosts, and a three-significant-figure ratio over that would be false
+    /// precision. It is a backstop against the unpredicted — a cold cache, stale statistics,
     /// a plan regression — not headroom over a known cost. Never 0/infinite: a hung command must still
     /// fail loud.
     /// </para>
@@ -238,9 +242,12 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     ///
     /// <para>
     /// The insert carries the whole batch as ONE <c>jsonb</c> parameter via
-    /// <c>jsonb_to_recordset</c> — the <see cref="ScbCompanyRegisterStore"/> idiom — so a full
-    /// 1 000-member set is one round trip with no 65k-parameter ceiling and no per-row change
-    /// tracking. Measured at 30,67 ms p95 for a full replace.
+    /// <c>jsonb_to_recordset</c> — the <see cref="ScbCompanyRegisterStore"/> idiom — so a full member
+    /// set is one round trip with no 65k-parameter ceiling and no per-row change tracking, whatever
+    /// <c>CompanyWatchCriterionMember.MaxPerCriterion</c> is. The measured replace cost per bound is
+    /// in the dated reports (#1706 re-measured it at 2 500); it is deliberately not restated here,
+    /// because the whole point of the shape is that the round-trip COUNT does not move with the
+    /// member count.
     /// </para>
     /// </summary>
     public async Task ReplaceAsync(
@@ -346,11 +353,14 @@ internal sealed class CompanyWatchCriterionMemberStore(AppDbContext db)
     /// </para>
     ///
     /// <para>
-    /// The specific stake (dotnet-architect, 2026-09-06): the read plan the breadth-gate bound was
-    /// DERIVED against is an Index Only Scan on the member PK with <c>Heap Fetches: 0</c>. That plan
-    /// needs current statistics AND a set visibility map, and the write path is a per-criterion
-    /// DELETE + INSERT. Without this call the plan the bound rests on is not guaranteed in operation -
-    /// which would make the derivation true of the fixture and unproven of production.
+    /// The specific stake (dotnet-architect, 2026-09-06): the read path's member lookup is served by
+    /// an Index Only Scan on the member PK with <c>Heap Fetches: 0</c> — but only while
+    /// <c>criterion_id</c>'s selectivity estimate supports it, which is a function of how many
+    /// criteria the table holds (#1706). That plan needs current statistics AND a set visibility map,
+    /// and the write path is a per-criterion DELETE + INSERT. So this call is what keeps the estimate
+    /// honest; it does not by itself decide which plan comes back, and the 2026-09-08 re-derivation
+    /// bound the constant under the OTHER plan precisely because correct statistics on a one-user
+    /// table produce it.
     /// </para>
     ///
     /// <para>

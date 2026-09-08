@@ -65,9 +65,11 @@ public sealed class CompanyWatchMaterialisationOptions
     /// window (06:00), so a morning digest and a morning page load both read a set refreshed the same
     /// night. It is clear of the 02:00-05:00 UTC DB-contention window the SCB cadence was moved out of
     /// (#708 PR 2). The 15-minute lead-in is shorter than the house's usual 30, which the measured
-    /// runtime affords: the widest bound-legal criterion costs 11-30 ms to resolve and 30,67 ms p95 to
-    /// write, so the whole run is seconds at any plausible corpus size
-    /// (docs/reviews/2026-09-06-1681-membership-measurement.md).
+    /// runtime affords: resolving and writing the widest bound-legal criterion is tens of
+    /// milliseconds at either bound, so the whole run is seconds at any plausible corpus size. The
+    /// figures live in the dated reports and never here -
+    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c> for the 1 000 bound and
+    /// <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c> for 2 500.
     /// </para>
     /// </summary>
     [Required]
@@ -108,12 +110,23 @@ public sealed class CompanyWatchMaterialisationOptions
     /// #1681 clause (ii) — how many stale criteria ONE sweep tick resolves. Default 50.
     ///
     /// <para>
-    /// <b>COMPUTED from the measurement, not chosen.</b> The constraint is that a tick's work stay
-    /// far below its own interval, so a backlog drains across ticks instead of a tick overrunning the
-    /// next. Measured per criterion end to end: 11-30 ms to resolve plus 30,67 ms p95 to replace,
-    /// i.e. <b>~60 ms worst case</b> (docs/reviews/2026-09-06-1681-membership-measurement.md). At
-    /// <see cref="SweepCron"/>'s 60 s tick, 50 x 60 ms = <b>3,0 s, or 5 % of the interval</b> — the
-    /// remaining 95 % is headroom for contending with the nightly run for the shared lock.
+    /// <b>COMPUTED from the measurement, not chosen — and RE-COMPUTED whenever
+    /// <c>CompanyWatchCriterionMember.MaxPerCriterion</c> moves, because both of its terms are
+    /// functions of the member count</b> (security-auditor, 2026-09-08: this value does not inherit
+    /// across a bound change). The constraint is that a tick's work stay far below its own interval,
+    /// so a backlog drains across ticks instead of a tick overrunning the next. Re-computed for the
+    /// 2 500 bound in <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c>, which carries both
+    /// arithmetics side by side: a tick's 50 criteria take <b>under a tenth</b> of the 60 s interval at
+    /// the new bound, as they did at the old one. That is why 50 SURVIVES the re-derivation rather
+    /// than being inherited through it — the per-criterion cost was re-measured, not assumed.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>That figure ADDS two terms taken on different instruments</b> (dotnet-architect,
+    /// 2026-09-08, on the report this one reads beside): the replace half is a p95 on a throwaway
+    /// fixture and the selection half a p50 against dev, so each cell is a composed estimate rather
+    /// than a quantile. The conclusion is insensitive to that — the headroom is an order of magnitude
+    /// — but the reading is not a p95 of the tick and must not be quoted as one.
     /// </para>
     ///
     /// <para>

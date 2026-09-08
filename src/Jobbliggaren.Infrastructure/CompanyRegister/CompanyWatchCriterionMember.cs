@@ -55,11 +55,24 @@ internal sealed class CompanyWatchCriterionMember
     /// <para>
     /// <b>The bound is DERIVED, and the derivation is the point</b> (#1681's own acceptance list: the
     /// bound must be derived, not chosen). <b>The numbers live in the dated reports, never here</b> -
-    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c> and the later reading
-    /// <c>docs/reviews/2026-09-08-1706-breadth-gate-remeasurement.md</c>. They are
+    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c>, the later reading
+    /// <c>docs/reviews/2026-09-08-1706-breadth-gate-remeasurement.md</c>, and the re-derivation that
+    /// set the current value, <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c>. They are
     /// deliberately NOT restated here: two homes for one measured value drift apart at the next
     /// re-measurement (§5 <c>Comments:</c>), and an earlier version of this docblock was exactly that
     /// second home (code-reviewer, 2026-09-06).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The cost this bound buys is NOT a function of the bound alone - it also depends on how
+    /// many criteria the member table holds</b> (#1706, ADR 0139 Amendment 2026-09-08 part 2). The
+    /// member lookup is served by <c>pk_company_watch_criterion_members</c> only while
+    /// <c>criterion_id</c> is selective; a table holding ONE user's watches makes each criterion 5 %
+    /// of its rows, and somewhere between 20 000 and 30 000 rows the planner abandons the primary key
+    /// for a sequential scan (at 30 000 it has already done so). So the SAME member count is served
+    /// by two DIFFERENT plans, and the expensive regime is the EARLY one - few users, one of them at
+    /// <see cref="CompanyWatchCriterion.MaxPerUser"/>. The value below is the minimum over both
+    /// regimes, which is why it is lower than the read cost in the index regime alone would license.
     /// </para>
     ///
     /// <para>
@@ -86,9 +99,12 @@ internal sealed class CompanyWatchCriterionMember
     /// cost triggers had fired, and a re-derivation was owed all the same because the product
     /// distribution the bound was shown usable against turned out to be mis-weighted. A list naming
     /// only the cost triggers reads as "nothing is due" at the moment something is.
+    /// <b>A fourth trigger, from the re-derivation itself:</b> the member lookup stops being served
+    /// by the primary key (see the plan-regime paragraph above) - that is a change of plan, not of
+    /// degree, and no measurement taken under one plan transfers to the other.
     /// </para>
     /// </summary>
-    public const int MaxPerCriterion = 1000;
+    public const int MaxPerCriterion = 2500;
 
     /// <summary>
     /// The owning criterion. FK with <c>ON DELETE CASCADE</c> — see

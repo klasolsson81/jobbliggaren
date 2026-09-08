@@ -69,8 +69,16 @@ interface CriteriaSummaryProps {
  * `CompanyWatchCriterion.MaxPerUser` = 20, the domain's own derived cap; no second display cap is
  * introduced here, because choosing one would be choosing a number, which is what #1681 exists to
  * forbid. What keeps twenty rows readable is treatment rather than truncation: a hairline ledger,
- * one weight tier between the anchor and the rows, and the too-broad advice stated once beneath the
- * list rather than verbatim per row (design-reviewer, 2026-09-07).</p>
+ * one weight tier between the anchor and the rows, and — <b>above one row</b> — the too-broad advice
+ * stated once beneath the list rather than verbatim per row (design-reviewer, 2026-09-07). At one row
+ * there is nothing to hoist it out of, so it stays in the row (design-reviewer B1, 2026-09-08).</p>
+ *
+ * <p><b>The anchor carries the count and no number, at every N, and that was re-decided rather than
+ * inherited.</b> `senior-cto-advisor` admitted an N=1 anchor number (D2, 2026-09-08) and
+ * `design-reviewer` declined it on measurement: four of eight N=1 states have no number to move up —
+ * a refusal, a counted zero, an unmaterialised watch, and a degraded read — so an anchor built round
+ * the number would give the block two structures and put the commonest states outside the pattern.
+ * A number stands at the level where it is exact, which here is the row.</p>
  */
 export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   const t = useTranslations("oversikt.criteriaSummary");
@@ -106,6 +114,13 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   // the ads arm is what the rows show, and a matching-only refusal is still a watch the advice would
   // help. The row's own line says the status; this says what to do about it.
   const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
+
+  // ONE value, gating both the rows' short refusal and this block's advice line below — never two
+  // independent `length > 1` expressions, which is how the two levels drift apart
+  // (design-reviewer B1, 2026-09-08). Hoisting the advice out of a SINGLE row said the refusal
+  // twice: once in the row, once beneath it (#1707, measured). Above one row it cannot repeat, so
+  // the row states the whole thing itself and this line stays silent.
+  const adviceStatedByCaller = items.length > 1;
 
   return (
     <div className="jp-appsummary">
@@ -152,13 +167,14 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
                 ads={item.ads}
                 matching={item.matching}
                 variant="summary"
+                adviceStatedByCaller={adviceStatedByCaller}
               />
             </li>
           );
         })}
       </ul>
 
-      {anyTooBroad && (
+      {anyTooBroad && adviceStatedByCaller && (
         <p className="jp-matchline jp-appsummary__advice">
           {t("tooBroadAdvice")}{" "}
           <Link className="jp-nudgelink" href={CATALOGUE_HREF}>

@@ -14,11 +14,12 @@ import type {
  * so neither arm is a branch nothing can produce.
  *
  * - `"detail"`: the criterion's own page. The companies the numbers count are rendered on that same
- *   page, so "från dessa företag" has an antecedent; and there is exactly ONE criterion, so the
- *   too-broad advice cannot repeat and rides on its own line.
+ *   page, so "från dessa företag" has an antecedent.
  * - `"summary"`: one row among up to `MaxPerUser` on `/oversikt`. No company is rendered anywhere in
- *   the block, so each label must carry itself; and the advice would repeat verbatim per row, so the
- *   caller collects it and states it once.
+ *   the block, at any count, so each label must carry itself.
+ *
+ * ⚠ It decides the ANTECEDENT and nothing else. Whether the too-broad advice is hoisted out of the
+ * row is `adviceStatedByCaller`, a different fact about a different thing — see that prop.
  */
 export type CriterionAdLinesVariant = "detail" | "summary";
 
@@ -31,6 +32,24 @@ interface CriterionAdLinesProps {
   readonly ads: CriterionAdMagnitude | null;
   readonly matching: MyMatchingAdCount | null;
   readonly variant: CriterionAdLinesVariant;
+  /**
+   * Does the CALLER state the too-broad advice beneath the list, so this row states only its
+   * status? True exactly when the caller renders more than one row (`design-reviewer` B1,
+   * 2026-09-08).
+   *
+   * <p><b>This is a second, independent fact and it must not be folded back into `variant`.</b>
+   * `variant` decides whether an ad label carries its own antecedent — a property of the SURFACE,
+   * true at every N, because no company is rendered in the summary block at any count. This flag
+   * decides whether the advice would REPEAT — a property of the COUNT. At N=1 they disagree: the
+   * label must still carry itself while the advice must not be hoisted, and one flag cannot say
+   * both. Deriving this one from `variant` alone put the refusal on screen twice (#1707); deriving
+   * it from the count alone would put "från dessa företag" back on a block that renders no company
+   * (`design-reviewer` part-3 Major 3).</p>
+   *
+   * <p>The caller computes it ONCE and gates its own advice line on the same value — two
+   * independent `length > 1` expressions is how the row and the block drift apart.</p>
+   */
+  readonly adviceStatedByCaller: boolean;
 }
 
 /**
@@ -71,6 +90,7 @@ export function CriterionAdLines({
   ads,
   matching,
   variant,
+  adviceStatedByCaller,
 }: CriterionAdLinesProps) {
   const t = useTranslations("pages.foretag.criteria");
   // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
@@ -78,11 +98,18 @@ export function CriterionAdLines({
   const tWatch = useTranslations("jobads.companyWatches");
   const format = useFormatter();
 
-  // In a list the advice belongs to the BLOCK, not to the row — one axis up from the same rule the
-  // `sharedRefusal` collapse applies within a row (design-reviewer Major 2, 2026-09-07, measured:
-  // the 160-character sentence rendered five times verbatim at the per-user cap). The row states the
-  // status; `CriteriaSummary` states the advice once beneath the list.
-  const inList = variant === "summary";
+  // Where several rows exist the advice belongs to the BLOCK, not to the row — one axis up from the
+  // same rule the `sharedRefusal` collapse applies within a row (design-reviewer Major 2,
+  // 2026-09-07, measured: the 160-character sentence rendered five times verbatim at the per-user
+  // cap). ⚠ That binding was argued FROM REPETITION, so it does not reach a single row: at N=1 the
+  // advice cannot repeat, and hoisting it anyway said the refusal twice (#1707, measured
+  // 2026-09-08). The row then states the whole thing itself.
+  const shortRefusal = adviceStatedByCaller;
+
+  // Separate, and separate on purpose (see the prop's docblock): whether an ad label must carry its
+  // own antecedent. No company is rendered in the summary block at ANY count, so this follows the
+  // surface and never the row count.
+  const standalone = variant === "summary";
 
   // design-reviewer Major 1 (#1681 part 2) — the two refusals COINCIDE by construction, not by
   // accident: `CriterionMatchingAdSetResolver` derives the matching arm from the SAME magnitude the
@@ -113,7 +140,7 @@ export function CriterionAdLines({
         <p className="jp-matchline">{t("ads.countUnavailable")}</p>
       ) : sharedRefusal === "tooBroad" ? (
         <p className="jp-matchline">
-          {inList ? (
+          {shortRefusal ? (
             t("ads.tooBroadShort")
           ) : (
             <>
@@ -128,7 +155,21 @@ export function CriterionAdLines({
         <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
       ) : ads.tooBroad ? (
         <p className="jp-matchline">
-          {inList ? t("ads.tooBroadShort") : t("ads.adsTooBroad")}
+          {shortRefusal ? (
+            t("ads.tooBroadShort")
+          ) : (
+            <>
+              {t("ads.adsTooBroad")}{" "}
+              {/* The CTA its two siblings already carried, and its absence was a dead end rather
+                  than a state (design-reviewer B2, ADR 0047): this branch is where a refused watch
+                  lands when only the ads arm is unanswerable — `notAssessedTooBroad` at N=1 — and
+                  with the block advice correctly silent at N=1 the watch was left refused with no
+                  way forward at all. */}
+              <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
+                {t("ads.matchingTooBroadCta")}
+              </Link>
+            </>
+          )}
         </p>
       ) : ads.notMaterialised ? (
         /* SINGULAR, and that is a fix rather than a nicety (design-reviewer Minor 7): only the ads
@@ -145,7 +186,7 @@ export function CriterionAdLines({
             {/* "från dessa företag" needs an antecedent, and only the detail page has one — it
                 renders the companies themselves. In the summary no company appears anywhere in the
                 block, so the label carries itself (design-reviewer Major 3). */}
-            {inList
+            {standalone
               ? t("ads.linkLabelStandalone", { count: adsCountText })
               : t("ads.linkLabel", { count: adsCountText })}
           </Link>
@@ -153,7 +194,7 @@ export function CriterionAdLines({
       ) : (
         /* A counted zero — a real answer, and the one the whole family exists to keep sayable. */
         <p className="jp-matchline">
-          {inList ? t("ads.noneStandalone") : t("ads.none")}
+          {standalone ? t("ads.noneStandalone") : t("ads.none")}
         </p>
       )}
 
@@ -164,7 +205,7 @@ export function CriterionAdLines({
         sharedRefusal === null &&
         (matching.tooBroad ? (
           <p className="jp-matchline">
-            {inList ? (
+            {shortRefusal ? (
               t("ads.tooBroadShort")
             ) : (
               <>

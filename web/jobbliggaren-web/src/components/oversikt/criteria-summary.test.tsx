@@ -188,7 +188,7 @@ describe("CriteriaSummary", () => {
     );
 
     const text = visibleText();
-    expect(text).toContain("för bred");
+    expect(text).toContain("matchar fler företag än vi kan räkna annonser för");
     expect(text).not.toContain("Inga aktiva annonser");
     // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1);
     // the second line is the block-level advice, which is asserted on its own below.
@@ -197,9 +197,60 @@ describe("CriteriaSummary", () => {
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(0);
   });
 
+  // #1707 (a), and the pin is the acceptance criterion made mechanical (senior-cto-advisor D2 (vi),
+  // 2026-09-08). At ONE row the block advice was hoisted out of a list it had nothing to be hoisted
+  // out of, so the refusal was stated twice: "Bevakningen är för bred för att räknas." in the row,
+  // then "En bevakning som är för bred kan inte räknas. Prova att…" beneath it. Measured on
+  // dev.jobbliggaren.se by Klas, and rendered at N=1 before this test was written.
+  //
+  // Counting OCCURRENCES rather than asserting absence is deliberate: a second copy of the sentence
+  // is exactly what "toContain" cannot see.
+  it("vid EN bevakning sägs vägran en enda gång, i raden, utan blockråd", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    const occurrences = (haystack: string, needle: string) =>
+      haystack.split(needle).length - 1;
+
+    expect(
+      occurrences(visibleText(), "matchar fler företag än vi kan räkna annonser för"),
+    ).toBe(1);
+    // Nothing above the single row states it, so the row carries the whole thing itself.
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
+    // …and the way out survives the collapse — a refusal with no affordance is a dead end, not a
+    // state (design-reviewer B2, ADR 0047).
+    expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
+    // The anchor is untouched at N=1: it carries the count and no number (design-reviewer B3).
+    expect(
+      document.querySelector(".jp-appsummary__totals")?.textContent?.trim(),
+    ).toBe("1 branschbevakning");
+  });
+
+  // The ads arm alone is refused while the matching arm answers something else, so `sharedRefusal`
+  // does not fire and the row lands in the single-arm branch. At N=1 that branch used to render the
+  // status with no call to action at all, and the block advice — its only other route to one — is
+  // correctly silent here (design-reviewer B2).
+  it("en ENARMAD vägran vid N=1 lämnar ändå en väg framåt", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_NOT_ASSESSED })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
+    expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
+  });
+
   // design-reviewer Major 2, measured at the cap: the 160-character advice rendered five times
   // verbatim, with five identical "Ändra bevakningen" links to one destination. The row now carries
-  // the status and the BLOCK carries the advice — the `sharedRefusal` rule, one axis up.
+  // the status and the BLOCK carries the advice — the `sharedRefusal` rule, one axis up. ⚠ That was
+  // argued FROM REPETITION and therefore holds only above one row; the N=1 test above is the other
+  // half of the same rule.
   it("rådet om för breda bevakningar står EN gång under listan, inte en gång per rad", () => {
     render(
       <CriteriaSummary
@@ -329,7 +380,7 @@ describe("CriteriaSummary", () => {
     // collapse had fired it would have suppressed that line, swallowing an answer the block has.
     // That tests the logic rather than the wording, which is the stronger pin.
     const text = visibleText();
-    expect(text).toContain("för bred för att räknas");
+    expect(text).toContain("matchar fler företag än vi kan räkna annonser för");
     expect(text).toContain("Ställ in matchning");
     expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(2);
   });

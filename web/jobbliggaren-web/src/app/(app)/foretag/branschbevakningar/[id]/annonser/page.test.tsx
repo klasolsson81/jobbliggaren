@@ -525,7 +525,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     // The h2 is a NOUN PHRASE, not an instruction: a screen reader navigating by heading should not
     // be read a two-sentence explanation (WCAG 2.4.6). The explanation is the block below it.
     expect(
-      screen.getByRole("heading", { level: 2, name: "Bevakningen är för bred" }),
+      screen.getByRole("heading", { level: 2, name: "Antalet annonser kan inte räknas" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -573,7 +573,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     // not too broad and narrowing it would not make the number arrive sooner.
     expect(screen.getAllByRole("link", { name: "Tillbaka till bevakningen" })).toHaveLength(2);
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
 
     // #1681 — this sentence IS the block's body in the not-materialised state. It is written for
     // THIS surface (a page opened to see a list) where adsNotMaterialised talks about figures, so it

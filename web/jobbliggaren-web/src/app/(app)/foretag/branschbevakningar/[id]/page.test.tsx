@@ -288,7 +288,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     await renderWith({ count: null, tooBroad: true });
 
     expect(
-      screen.getByText(/Bevakningen är för bred för att vi ska kunna räkna/),
+      screen.getByText(/matchar fler företag än vi kan räkna annonser för/),
     ).toBeInTheDocument();
     // A refusal that names an action carries the way there — the arm two rows up already does.
     expect(
@@ -313,7 +313,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     );
 
     expect(screen.queryByText(/matchande annonser/)).toBeNull();
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
   });
 });
@@ -446,14 +446,14 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     );
 
     expect(
-      screen.getByText(/för bred för att vi ska kunna räkna annonserna eller matcha dem/),
+      screen.getByText(/varken antalet annonser eller matchningen mot din profil/),
     ).toBeInTheDocument();
     // ONCE. The two per-number sentences would repeat the same advice under the same heading.
     expect(
-      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna annonserna\./),
+      screen.queryByText(/^Bevakningen matchar fler företag än vi kan räkna annonser för\. Därför visas inte antalet annonser\./),
     ).toBeNull();
     expect(
-      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna hur många/),
+      screen.queryByText(/Därför kan vi inte räkna hur många annonser som matchar dig/),
     ).toBeNull();
     // The action is carried, because a refusal that names one must offer the way there.
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
@@ -476,7 +476,7 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     ).toBeInTheDocument();
     // Ignorance, not refusal: no "narrow the watch" advice and no link to go and do it, because
     // there is nothing the user can change that would make the number appear sooner.
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
     expectNoZero();
   });
@@ -515,7 +515,7 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     ).toBeInTheDocument();
     // Not the too-broad refusal, and not the "you have stated no occupation" nudge: those are
     // different facts about the same missing number, and each has its own next step (or none).
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
     expectNoZero();
   });

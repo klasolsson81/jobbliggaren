@@ -7,6 +7,12 @@ docblock cites this file from tracked source, so leaving it gitignored would shi
 dead for anyone reading on GitHub, in a fresh clone, or in a worktree where
 `sync-worktree-docs.ps1` was not run.
 
+> ⚠ **Later reading, 2026-09-08 (#1706):** every measurement below reproduces exactly, and nothing
+> here is withdrawn. What did not survive is an **inference** — Result 4 weighted (kommun, SNI) cells
+> uniformly, and re-weighted by company mass the same 83 cells hold 13,32 %. See
+> `docs/reviews/2026-09-08-1706-breadth-gate-remeasurement.md`. The bound is under re-derivation
+> against the protocol in `docs/reviews/2026-09-08-1706-form-cto.md`.
+
 ## What had to be derived, and why a number could not simply be picked
 
 ADR 0139 makes the breadth gate mandatory and gives it three simultaneous loads: the product's

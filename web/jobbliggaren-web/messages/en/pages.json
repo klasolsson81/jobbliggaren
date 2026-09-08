@@ -475,7 +475,8 @@
         "linkLabelStandalone": "{count} active ads",
         "noneStandalone": "No active ads right now.",
         "tooBroadShort": "This watch matches more companies than we can count ads for.",
-        "adsNotMaterialisedOnly": "The number of active ads has not been calculated yet. It appears here automatically when it is ready."
+        "adsNotMaterialisedOnly": "The number of active ads has not been calculated yet. It appears here automatically when it is ready.",
+        "tooBroadAdviceOnList": "No ad numbers are therefore shown for those watches. Fewer industries or municipalities mean fewer companies."
       },
       "browse": {
         "lede": "Active companies in the register that match your watch.",

@@ -6911,6 +6911,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
+/* #1703 — branschbevakningskatalogens EGET råd om för breda bevakningar, en gång under listan och
+   aldrig en gång per rad. Bär `.jp-matchline` för typografin och skriver bara över det raden inte
+   ska ha.
+
+   ⚠ Regeln MÅSTE stå efter `.jp-matchline`: båda är (0,1,0), så ordningen — inte specificiteten —
+   avgör vems `margin` som vinner. Flyttas den upp till `.jp-criterion-breadth`-blocket blir
+   `margin: 0` en tyst no-op och avståndet 22 px.
+
+   Avståndet till listan ägs av sektionens egen `gap` (16 px, på 4px-rutnätet, DESIGN.md §5);
+   `.jp-matchline`s 6 px hade adderats till det. Radlängden kapas vid 68ch (jobbpilot-design-a11y
+   §8) — samma tak som `/oversikt`s eget råd, av samma skäl. Inga nya tokens. */
+.jp-criteria-advice {
+  margin: 0;
+  max-width: 68ch;
+}
+
 /* #858 — delad platt transparens-disclosure. EN behandling för lastbärande "det du ser är smalare än
    verkligheten"-förbehåll, oavsett per rad (bevakningens vilolägestext, BC-9′) eller per sektion
    (ansökningshistorikens golv-not, #824): platt, --jp-ink-1 (aldrig grå; båda teman via token),

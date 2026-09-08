@@ -196,6 +196,49 @@ describe("CriteriaSection", () => {
     expect(screen.queryAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(0);
   });
 
+  // code-reviewer Major 2 (2026-09-08) — the arm that DISCRIMINATES, and the state that falsifies a
+  // careless advice sentence. `ads.tooBroad === false` beside `matching.tooBroad === true` is
+  // producible: `CriterionMatchingAdSetResolver.ResolveIdsAsync` has a THIRD refusal path
+  // (`magnitude.Magnitude > MaxSetSize`, 2 000) that fires while the ads magnitude is a counted
+  // number, because the ad count saturates at `CriterionAdMagnitudeDto.Ceiling` = 10 000 and the
+  // breadth gate admits up to `CompanyWatchCriterionMember.MaxPerCriterion` = 2 500 companies. A
+  // watch with 2 001-10 000 active ads therefore renders its ad number AND refuses the matching one.
+  //
+  // §5 `Tests:` — the actor that produces the state is named above and is `src/`-side; the fixture
+  // is the shape it emits, not a hand-built impossibility. Both zod refinements hold.
+  //
+  // Without this arm the gate's second term (`|| i.matching.tooBroad`) could not be told apart from
+  // its first in any run, which is precisely how the first version of the advice shipped a sentence
+  // saying no ad numbers are shown above a row showing one.
+  it("en bevakning kan visa sitt annonstal och ändå vägra matchningen — och rådet får inte motsäga talet", () => {
+    render(
+      <CriteriaSection
+        items={[
+          criterion({ id: "a", ads: counted(3000), matching: MATCH_TOO_BROAD }),
+          criterion({ id: "b", ads: counted(4), matching: matchCounted(1) }),
+        ]}
+        reference={REFERENCE}
+      />,
+    );
+
+    // The number is rendered, and it links. Matched on the element rather than on an accessible
+    // name: `formatNumber` groups sv thousands with U+00A0, which `getByRole`'s name comparison does
+    // not fold to a plain space (the delivered `10 000+` assertion on /oversikt goes through the
+    // same whitespace-normalising route, for the same reason).
+    const adsLink = document.querySelector('a.jp-countlink[href="/foretag/branschbevakningar/a/annonser"]');
+    expect(adsLink).not.toBeNull();
+    expect(adsLink?.textContent?.replace(/\s+/g, " ")).toBe("3 000 aktiva annonser");
+    // The block advice fires — through the matching arm alone.
+    const advice = document.querySelector(".jp-criteria-advice");
+    expect(advice).not.toBeNull();
+    // …and it must not claim the number above it is absent. It identifies its set by PROPERTY
+    // ("bevakningar vi inte kan räkna annonser för"), which this watch is not one of, rather than by
+    // pointing at "de bevakningarna" (design-reviewer Major 1, code-reviewer Major 1).
+    const adviceText = advice?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    expect(adviceText).not.toContain("de bevakningarna");
+    expect(adviceText).toContain("Bevakningar vi inte kan räkna annonser för");
+  });
+
   it("rådet uteblir helt när ingen bevakning är för bred", () => {
     render(
       <CriteriaSection

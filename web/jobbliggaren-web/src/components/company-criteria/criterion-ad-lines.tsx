@@ -150,10 +150,10 @@ export function CriterionAdLines({
   // control describing an action it does not perform rather than a way forward (ADR 0047; the
   // sub-nav's own self-reference is legitimate because it announces itself with `aria-current`).
   //
-  // The CTA belongs to every arm and not just this one: its absence in the `ads.tooBroad` arm was a
-  // dead end rather than a state (design-reviewer B2), because that is where a refused watch lands
-  // when only the ads arm is unanswerable — `notAssessedTooBroad` at N=1 — with the block advice
-  // correctly silent.
+  // Every too-broad arm carries it, and its absence was a dead end rather than a state
+  // (design-reviewer B2, ADR 0047): the `ads.tooBroad` arm is where a refused watch lands when only
+  // that arm is unanswerable, and with the block advice correctly silent at N=1 the watch was left
+  // refused with no way forward at all.
   const tooBroadCta = actionOfferedByCaller ? null : (
     <>
       {" "}
@@ -163,11 +163,11 @@ export function CriterionAdLines({
     </>
   );
 
-  // design-reviewer Major 1 (#1681 part 2) — the two refusals COINCIDE by construction, not by
-  // accident: `CriterionMatchingAdSetResolver` derives the matching arm from the SAME magnitude the
-  // ads flag comes from. Rendering both meant two blocks, no visual separation, and the advice
-  // sentence repeated verbatim — 40 words for one fact, which reads as a fault rather than as two
-  // answers. When they agree, say it once.
+  // design-reviewer Major 1 (#1681 part 2) — rendering both meant two blocks, no visual
+  // separation, and the advice sentence repeated verbatim — 40 words for one fact, which reads as a
+  // fault rather than as two answers. When they agree, say it once. They do not always: see
+  // `CriterionMatchingAdSetResolver.ResolveIdsAsync`, whose third refusal path fires on a counted
+  // magnitude.
   const sharedRefusal =
     ads !== null && matching !== null
       ? ads.tooBroad && matching.tooBroad
@@ -226,9 +226,8 @@ export function CriterionAdLines({
             href={buildCriterionAdsHref(criterionId, 1, "all")}
             prefetch={false}
           >
-            {/* "från dessa företag" needs an antecedent, and only the detail page has one — it
-                renders the companies themselves. In the summary no company appears anywhere in the
-                block, so the label carries itself (design-reviewer Major 3). */}
+            {/* "från dessa företag" needs an antecedent, and only a surface that renders the
+                companies themselves has one (design-reviewer Major 3). */}
             {standalone
               ? t("ads.linkLabelStandalone", { count: adsCountText })
               : t("ads.linkLabel", { count: adsCountText })}

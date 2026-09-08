@@ -169,9 +169,8 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
         {/* #1559 / #1681 part 2 — the criterion's two ad numbers and every honest way of not
             having them. The ladder moved to `CriterionAdLines` for #1681 part 3 (senior-cto-advisor,
             in-block requirement 1): `/oversikt` renders the SAME numbers, and a copy of the honesty
-            logic is how two surfaces come to disagree about one watch. This page and the overview
-            now read one component, which is what ADR 0139's "Båda ytorna läser samma källa" asks of
-            the rendering as well as of the source.
+            logic is how surfaces come to disagree about one watch, which is what ADR 0139's
+            "Båda ytorna läser samma källa" asks of the rendering as well as of the source.
 
             The ONLY destination this criterion's ads have: /jobb has no SNI axis, its ?employer=
             producer refuses above 400 org.nrs, and its municipality axis is the ad's WORKPLACE while

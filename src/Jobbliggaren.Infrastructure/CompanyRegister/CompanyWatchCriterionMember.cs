@@ -99,9 +99,15 @@ internal sealed class CompanyWatchCriterionMember
     /// cost triggers had fired, and a re-derivation was owed all the same because the product
     /// distribution the bound was shown usable against turned out to be mis-weighted. A list naming
     /// only the cost triggers reads as "nothing is due" at the moment something is.
-    /// <b>A fourth trigger, from the re-derivation itself:</b> the member lookup stops being served
-    /// by the primary key (see the plan-regime paragraph above) - that is a change of plan, not of
-    /// degree, and no measurement taken under one plan transfers to the other.
+    /// <b>A fourth trigger, from the re-derivation itself — and it is worded to be FALSE today on
+    /// purpose.</b> The value below was derived under the sequential-scan regime, because that is the
+    /// dearer one and the one a product with few users is in. So the trigger is not "the lookup stops
+    /// using the primary key" (it already has, which would make the trigger satisfied on arrival and
+    /// therefore vacuous - the #805-3 shape): it is <b>the criterion POPULATION crossing back, so that
+    /// the binding regime becomes the index one</b>. That direction licenses a LARGER bound, which is
+    /// exactly why it needs a trigger rather than being spent silently. ⚠ Nothing observes the
+    /// crossing automatically - no gate can, since it is a property of the deployment rather than of
+    /// this code - so it is re-read by measuring, not by waiting for a red build.
     /// </para>
     /// </summary>
     public const int MaxPerCriterion = 2500;

@@ -477,7 +477,6 @@ public sealed class RateLimitingOptions
     /// which the member bound does not appear at all; the member set enters as an UNCORRELATED
     /// <c>ARRAY(subselect)</c> evaluated once per statement, so a higher bound adds member-scan cost
     /// and not per-ad cost; and the worst case was already corpus-saturated at the old bound. The
-    /// measured everyday delta is small enough to leave the derived rate above its 3/min floor. The
     /// figures are in <c>docs/reviews/2026-09-08-1706-bound-rederivation.md</c> and deliberately not
     /// restated here.
     /// </para>

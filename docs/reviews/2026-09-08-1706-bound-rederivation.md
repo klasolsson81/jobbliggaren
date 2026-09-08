@@ -118,7 +118,7 @@ nearest-rank-vs-interpolation difference on the same 627 values. **The instrumen
 
 **The composed read is measured DIRECTLY, not summed.** Both prior reports label their Σ an upper
 bound in their own words (*"a sum of p95s is not a p95 of the composed read"*). Here one DI scope
-issues the handler's 40 dominant statements — 20 `CountActiveAdsAsync`, then 20
+issues the handler's dominant statements — 20 `CountActiveAdsAsync`, then 20
 `ListActiveAdIdsAsync`, then ONE `FilterToMatchingAsync` over the union — and the p95 is taken over
 that.
 
@@ -130,7 +130,7 @@ groups the counts and then the ids. So the composed figure is 41 of roughly 43 s
 different order. The host factor below leans the opposite way and is the larger of the two, but the
 two are named rather than netted: at 2 500 the worst repeat is 244,4 ms, and two more statements
 would not have to be large to reach the line. The port reuses the
-`AppDbContext`'s connection (`OpenConnectionAsync`), so 40 statements share one connection exactly as
+`AppDbContext`'s connection (`OpenConnectionAsync`), so these statements share one connection as
 a request does. **This is a strictly fuller instrument than 2026-09-07's composed table**, two of
 whose three terms came from a server-side `plpgsql` loop with no client, no EF and no DI; that report
 says so itself (*"nothing else in the handler is counted"*).
@@ -185,10 +185,9 @@ own `EXPLAIN` at the chosen bound.
 
 **Two consequences, and the second is a defect in delivered code.**
 
-1. **The bound's cost is not a function of the bound alone.** The same member count is served by two
-   plans about 30x apart in buffers, and which one it gets depends on how many criteria the table
-   holds — i.e. on how many users the product has. So the derivation is run in BOTH regimes and P4's
-   minimum is taken over them:
+1. **The bound's cost is not a function of the bound alone.** Which plan the same member count gets
+   depends on how many criteria the table holds — i.e. on how many users the product has. So the
+   derivation is run in BOTH regimes and P4's minimum is taken over them:
    - **Regime A — few criteria, one power user.** 20 criteria, table = 20 x bound. Reachable
      **today**: the product has two accounts, and one user filling `MaxPerUser` is all it takes.
    - **Regime B — a criterion population.** 220 criteria (200 other users' watches at the same
@@ -290,8 +289,8 @@ also cross-checks the host: 2026-09-06 measured 30,67 ms p95 for the same replac
 **The arithmetic `SweepBatchSize` is computed from, re-run at 2 500:** per criterion end to end is
 this replace plus the candidate selection at the matching `LIMIT` (29,48 ms p50 against dev at
 `LIMIT 2501`, `2026-09-08-1706-breadth-gate-remeasurement.md` §4) = **103,8 ms**, so a tick's 50 of
-them is **5,2 s, about 9 % of the 60 s interval** — against 6 % at the old bound. **50 survives the
-re-derivation** with the interval more than ten times the work.
+them is **5,2 s, about 9 % of the 60 s interval**. **50 survives the re-derivation** with the
+interval more than ten times the work.
 
 ⚠ **That sum adds a p95 on a fixture to a p50 against dev** — two instruments, as `dotnet-architect`
 flagged of the same arithmetic on 2026-09-08. The conclusion is insensitive to it (the headroom is an

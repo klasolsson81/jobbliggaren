@@ -5167,6 +5167,22 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary__advice {
   max-width: 68ch;
 }
+
+/* Hur BRED en branschbevakning är ("1 bransch · 1 kommun"). En klass, delad av alla fyra ytor som
+   visar ett kriterium (design-reviewer B-7, 2026-09-08). Inga nya tokens.
+
+   `font-variant-numeric` sätts HÄR och aldrig som Tailwind-utility i JSX: `.jp-*` ligger utanför
+   Tailwinds lager och slår därför varje utility för en egenskap regeln själv sätter, så en utility
+   vore en tyst no-op och en falsk signal till nästa läsare. Av samma skäl gör `margin: 0` varje
+   `mt-*`/`mb-*` på elementet verkningslöst — avståndet ägs av grannarna. */
+.jp-criterion-breadth {
+  margin: 0;
+  /* 14px — paritet med `.jp-job__meta`, som bär samma uppgift på katalogytan. */
+  font-size: var(--text-body-sm);
+  /* Aldrig ink-2/ink-3: talen är sakuppgifter, inte grå metadata. */
+  color: var(--jp-ink-1);
+  font-variant-numeric: tabular-nums;
+}
 /* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
    med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
    läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet

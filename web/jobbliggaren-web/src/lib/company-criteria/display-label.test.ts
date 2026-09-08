@@ -82,4 +82,16 @@ describe("deriveDisplayLabel", () => {
       "Stockholm",
     );
   });
+
+  // Fixturens huvudgrupp 62 har exakt två löv, så `["62010", "62020"]` ÄR hela huvudgruppen. Testet
+  // pinnar inte ett fel utan en avsikt: etiketten säger täckning, aldrig omfattning, och den som
+  // läser kollisionen som slarv ska mötas av den här meningen först. Bredden bärs i stället av
+  // `CriterionBreadth` bredvid etiketten — kvantifierare inuti strängen avvisades, eftersom samma
+  // sträng interpoleras in i aria-etiketter och raderingsbekräftelsen (design-reviewer B-4/B-5,
+  // 2026-09-08).
+  it("ett enda löv och hela huvudgruppen ger SAMMA etikett (medvetet — bredden bärs av breddraden)", () => {
+    expect(deriveDisplayLabel(["62010"], ["0180"], reference, copy)).toBe(
+      deriveDisplayLabel(["62010", "62020"], ["0180"], reference, copy),
+    );
+  });
 });

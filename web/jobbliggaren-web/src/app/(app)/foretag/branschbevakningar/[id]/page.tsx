@@ -13,6 +13,7 @@ import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { CompanyBrowseList } from "@/components/company-criteria/company-browse-list";
 import { CriterionAdLines } from "@/components/company-criteria/criterion-ad-lines";
+import { CriterionBreadth } from "@/components/company-criteria/criterion-breadth";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
 import type { Metadata } from "next";
@@ -146,7 +147,22 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
           {t("browse.backLink")}
         </Link>
 
-        <h2 className="text-h2 text-text-primary tabular-nums">
+        {/* How wide this watch is. In the CONTENT COLUMN, never on the hero plate: the plate carries
+            the page's identity (kicker/title/lede/aside) and a record descriptor belongs beneath it
+            — the `.jp-cv-meta` precedent (design-reviewer B-3, 2026-09-08). It earns its place here
+            rather than by symmetry with /oversikt: this page states the too-broad refusal and tells
+            the user to narrow the watch, and until now the size she is being asked to narrow
+            appeared nowhere on the page (ADR 0047). Reading order is definition → outcome, so it
+            sits above the magnitude rather than beneath it. */}
+        <CriterionBreadth
+          sniCodes={criterion.sniCodes}
+          municipalityCodes={criterion.municipalityCodes}
+        />
+
+        {/* `mt-2` and not a margin on the line above: `.jp-criterion-breadth` sets `margin: 0`, so
+            spacing is the neighbours' to own. 16px above (the backlink's own `mb-4`) and 8px below
+            binds the line to this headline rather than to the backlink. */}
+        <h2 className="mt-2 text-h2 text-text-primary tabular-nums">
           {t("browse.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 

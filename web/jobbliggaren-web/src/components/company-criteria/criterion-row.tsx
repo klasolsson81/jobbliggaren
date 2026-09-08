@@ -23,10 +23,11 @@ import type {
   CompanyWatchCriterion,
   CriterionReference,
 } from "@/lib/dto/company-criteria";
+import { CriterionBreadth } from "./criterion-breadth";
 import { CriterionDialog } from "./criterion-dialog";
 
 // The middle-dot separator is a layout glyph (parity with the audit-log ` · ` cells), not copy — it
-// joins the derived-label axes and the count summary.
+// joins the derived-label axes.
 const SEPARATOR = " · ";
 
 interface CriterionRowProps {
@@ -55,11 +56,6 @@ export function CriterionRow({ item, reference }: CriterionRowProps) {
   const userLabel = item.label?.trim() ?? "";
   const heading = userLabel.length > 0 ? userLabel : (derived ?? t("row.untitled"));
 
-  const summary = `${t("row.branschCount", { count: item.sniCodes.length })}${SEPARATOR}${t(
-    "row.kommunCount",
-    { count: item.municipalityCodes.length },
-  )}`;
-
   function handleDelete() {
     setError(null);
     startDeleting(async () => {
@@ -82,7 +78,16 @@ export function CriterionRow({ item, reference }: CriterionRowProps) {
         <div className="jp-job__body">
           <h3 className="jp-job__title">{heading}</h3>
           <div className="jp-job__meta">
-            <span className="tabular-nums">{summary}</span>
+            {/* The line this row already carried, now READ from the shared component rather than
+                built here: three more surfaces need the same sentence, and four inline copies is
+                how they come to disagree (design-reviewer B-1/B-3, 2026-09-08). The wrapper stays,
+                and the rendering is unchanged — `.jp-job__meta` already sets the same 14px and
+                ink-1 the component's own rule sets, and `tabular-nums` moved from a utility into
+                that rule. */}
+            <CriterionBreadth
+              sniCodes={item.sniCodes}
+              municipalityCodes={item.municipalityCodes}
+            />
           </div>
           {error && (
             <p role="alert" className="mt-2 text-body-sm text-danger-700">

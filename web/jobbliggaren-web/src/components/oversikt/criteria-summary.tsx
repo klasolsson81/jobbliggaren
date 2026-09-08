@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { CriterionAdLines } from "@/components/company-criteria/criterion-ad-lines";
+import { CriterionBreadth } from "@/components/company-criteria/criterion-breadth";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CriterionReference,
@@ -162,6 +163,17 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
                   is the programmatic context for the two links beneath it (WCAG 2.4.4), which is
                   what the enclosing <li> provides. */}
               <p className="jp-appsummary__watchname">{heading}</p>
+              {/* How wide the watch is, and it is NOT derivable from the name above it: a watch on
+                  one leaf and a watch on its whole huvudgrupp render the identical heading, so
+                  without this line a user cannot tell her own narrow watch from a broad one
+                  (design-reviewer B5, measured). Unconditional — under a user-set label the advice
+                  beneath the list still needs the number, and under a degraded reference tree the
+                  heading is the neutral noun and this is the row's only fact. The block's
+                  `gap: 4px` owns the spacing. */}
+              <CriterionBreadth
+                sniCodes={item.sniCodes}
+                municipalityCodes={item.municipalityCodes}
+              />
               <CriterionAdLines
                 criterionId={item.id}
                 ads={item.ads}

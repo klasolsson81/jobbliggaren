@@ -7,14 +7,18 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * Stockholm kommun renders "Dataprogrammering m.fl. · Stockholm m.fl.".
  *
  * The SNI side names the DIVISIONS (huvudgrupper) that cover the selected leaves — a division name is
- * far more legible than a list of five-digit codes, and a whole-division pick reads as exactly its
- * name. The kommun side names the selected kommuner. Each axis shows the first name plus a
- * "m.fl."-suffix when more than one distinct name is covered.
+ * far more legible than a list of five-digit codes. The kommun side names the selected kommuner.
+ * Each axis shows the first name plus a "m.fl."-suffix when more than one distinct name is covered.
+ *
+ * The label states COVERAGE, never EXTENT, and that is deliberate: one leaf and its whole huvudgrupp
+ * render the same string, and "m.fl." does not say how many. Extent is answered beside the label by
+ * the breadth line ("1 bransch · 1 kommun") and never inside it — this string is also interpolated
+ * into aria-labels and the delete confirmation, where a quantifier would read as part of the watch's
+ * name.
  *
  * Returns null when nothing resolves (an all-stale code set against a newer reference snapshot) — the
- * caller then falls back to the count summary ("3 branscher, 2 kommuner"). Pure and locale-config
- * injected (the "m.fl." suffix + the " · " separator come from i18n via the caller) so it stays unit-
- * testable without a translator.
+ * caller then falls back to the neutral noun. Pure and locale-config injected (the "m.fl." suffix +
+ * the " · " separator come from i18n via the caller) so it stays unit-testable without a translator.
  */
 export interface DisplayLabelCopy {
   /** The "and others" suffix, e.g. "m.fl.". */

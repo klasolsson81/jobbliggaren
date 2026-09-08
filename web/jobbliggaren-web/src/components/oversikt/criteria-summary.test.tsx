@@ -474,4 +474,101 @@ describe("CriteriaSummary", () => {
     expect(names[0]).toBe("Bevakning 0");
     expect(names[19]).toBe("Bevakning 19");
   });
+
+  // ── the breadth line (design-reviewer B5, follow-up to #1706) ───────────────
+  // A tree whose huvudgrupp 62 carries the FOUR leaves the real SNI 2025 file gives it. The shared
+  // REFERENCE above has one, which cannot express the collision at all; a local fixture keeps every
+  // existing assertion untouched.
+  const REFERENCE_FOUR_LEAVES: CriterionReference = {
+    ...REFERENCE,
+    sni: [
+      {
+        code: "J",
+        name: "Informations- och kommunikationsverksamhet",
+        divisions: [
+          {
+            code: "62",
+            name: "Dataprogrammering, datakonsultverksamhet o.d.",
+            leaves: [
+              { code: "62100", name: "Dataprogrammering" },
+              { code: "62201", name: "Datakonsultverksamhet" },
+              { code: "62202", name: "Datordrifttjänster" },
+              { code: "62900", name: "Annan it- och dataverksamhet" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  function breadthLines(): string[] {
+    return [...document.querySelectorAll(".jp-criterion-breadth")].map((n) =>
+      (n.textContent ?? "").replace(/\s+/g, " ").trim(),
+    );
+  }
+
+  it("en bevakning på ETT löv går att skilja från en på hela huvudgruppen", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([
+          criterion({ id: "narrow", label: null, sniCodes: ["62100"] }),
+          criterion({
+            id: "broad",
+            label: null,
+            sniCodes: ["62100", "62201", "62202", "62900"],
+          }),
+        ])}
+        reference={REFERENCE_FOUR_LEAVES}
+      />,
+    );
+
+    const names = [...document.querySelectorAll(".jp-appsummary__watchname")].map((n) =>
+      n.textContent?.trim(),
+    );
+    // The headings are IDENTICAL, deliberately — `deriveDisplayLabel` states coverage, not extent
+    // (`display-label.test.ts`, "ett enda löv och hela huvudgruppen"). That is exactly why the
+    // block cannot rely on them alone.
+    expect(names[0]).toBe(names[1]);
+    expect(breadthLines()).toEqual(["1 bransch · 1 kommun", "4 branscher · 1 kommun"]);
+  });
+
+  it("breddraden renderas även under en egen etikett och under ett degraderat träd", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([
+          criterion({ id: "labelled", label: "Utveckling i Göteborg", sniCodes: ["62100"] }),
+        ])}
+        reference={null}
+      />,
+    );
+
+    expect(
+      document.querySelector(".jp-appsummary__watchname")?.textContent?.trim(),
+    ).toBe("Utveckling i Göteborg");
+    // The tree degraded, so the derived heading is gone — the breadth line does not depend on it.
+    expect(breadthLines()).toEqual(["1 bransch · 1 kommun"]);
+  });
+
+  it("inga breddrader när listan är tom eller inte kunde läsas", () => {
+    const { unmount } = render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
+    expect(breadthLines()).toHaveLength(0);
+    unmount();
+
+    render(<CriteriaSummary criteria={errored} reference={REFERENCE} />);
+    expect(breadthLines()).toHaveLength(0);
+  });
+
+  it("raden står mellan namnet och annonsraderna, aldrig efter dem", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ label: null, sniCodes: ["62100"] })])}
+        reference={REFERENCE_FOUR_LEAVES}
+      />,
+    );
+
+    const watch = document.querySelector(".jp-appsummary__watch")!;
+    const order = [...watch.children].map((c) => c.className.split(" ")[0]);
+    expect(order[0]).toBe("jp-appsummary__watchname");
+    expect(order[1]).toBe("jp-criterion-breadth");
+  });
 });

@@ -18,6 +18,7 @@ import {
   buildCriterionAdsHref,
   parseCriterionAdsScope,
 } from "@/lib/company-criteria/criterion-ads-href";
+import { CriterionBreadth } from "@/components/company-criteria/criterion-breadth";
 import { JobAdList } from "@/components/job-ads/job-ad-list";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
@@ -212,10 +213,21 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           {t("ads.backLink")}
         </Link>
 
+        {/* The watch's extent, in the content column rather than on the hero plate — the same form
+            and the same reason as the sibling browse page (design-reviewer B-3, 2026-09-08). One
+            node at every state, including `?visa=matching`: the headline below switches between the
+            personal and the unfiltered count, and how wide the watch is does not switch with it. */}
+        <CriterionBreadth
+          sniCodes={criterion.sniCodes}
+          municipalityCodes={criterion.municipalityCodes}
+        />
+
         {/* The filtered headline reads the PERSONAL count, never `ads.totalCount` — that one is a
             pagination quantity by contract even here, where it happens to equal the set (ADR 0120
-            clause 4). The unfiltered headline is unchanged. */}
-        <h2 className={`text-h2 text-text-primary${magnitudeUnanswerable ? "" : " tabular-nums"}`}>
+            clause 4). The unfiltered headline is unchanged.
+            `mt-2` for the same reason as the sibling page: the breadth line above sets `margin: 0`,
+            so the 8px beneath it is this headline's to own. */}
+        <h2 className={`mt-2 text-h2 text-text-primary${magnitudeUnanswerable ? "" : " tabular-nums"}`}>
           {matchingCount !== null
             ? t("ads.matchingHeadline", { count: matchingCount })
             : magnitudeUnanswerable

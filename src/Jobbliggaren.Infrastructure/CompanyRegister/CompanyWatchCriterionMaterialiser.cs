@@ -119,9 +119,10 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         // AGENTS.md §3.6 — a bulk-load path ANALYZEs the table it loaded. Once per COMPLETED run,
         // never per criterion. The conditions, and what #1681 clause (ii) changed about them, are
         // argued once in CompanyWatchCriterionMemberStore.AnalyzeAsync and not restated here.
-        // This is not hygiene theatre: the read plan the breadth-gate bound was DERIVED against is an
-        // Index Only Scan on the member PK with Heap Fetches: 0, and that plan needs current statistics
-        // and a set visibility map — so without this the measured plan is not guaranteed in operation.
+        // This is not hygiene theatre: the read path's member lookup takes the member PK only while
+        // criterion_id's selectivity estimate supports it, and that estimate is what ANALYZE
+        // maintains (#1706 — which plan comes back also depends on how many criteria the table
+        // holds, so this call keeps the estimate honest rather than guaranteeing a plan).
         // Fail-loud, which is the placement §3.6 prescribes for a retry-bounded job.
         await store.AnalyzeAsync(cancellationToken).ConfigureAwait(false);
 
@@ -366,7 +367,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
     /// One criterion: select under the gate, filter at the write boundary, replace. The order is
     /// load-bearing — the gate fires on the RAW candidate count, before the personnummer filter, so a
     /// criterion cannot slip under the bound by having candidates dropped. Were it the other way
-    /// round, the bound would silently be "1 000 survivors" rather than "1 000 matches", and the
+    /// round, the bound would silently count SURVIVORS rather than MATCHES, and the
     /// storage argument (Art. 5(1)(c)) would be measured against a number the register can move.
     /// </para>
     /// </summary>

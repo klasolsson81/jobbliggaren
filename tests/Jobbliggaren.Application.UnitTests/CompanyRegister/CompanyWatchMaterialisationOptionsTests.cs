@@ -59,10 +59,12 @@ public class CompanyWatchMaterialisationOptionsTests
         //
         // The two are pinned TOGETHER because they are the two factors of the derivation's second
         // anchor — the block cost at the criterion cap against /oversikt's budget. Moving either
-        // without re-running docs/reviews/2026-09-06-1681-membership-measurement.md's protocol
-        // invalidates the bound, and this is what forces that confrontation instead of letting it
-        // pass silently.
-        CompanyWatchCriterionMember.MaxPerCriterion.ShouldBe(1000);
+        // without re-running the protocol invalidates the bound, and this is what forces that
+        // confrontation instead of letting it pass silently. #1706 is what that confrontation looks
+        // like when it fires: the pin held, the bound was re-derived rather than nudged, and the
+        // protocol it was re-derived under is docs/reviews/2026-09-08-1706-form-cto.md P1–P5 with the
+        // measurement in docs/reviews/2026-09-08-1706-bound-rederivation.md.
+        CompanyWatchCriterionMember.MaxPerCriterion.ShouldBe(2500);
         Jobbliggaren.Domain.CompanyWatches.CompanyWatchCriterion.MaxPerUser.ShouldBe(20);
     }
 

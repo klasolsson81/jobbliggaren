@@ -22,7 +22,7 @@ namespace Jobbliggaren.Domain.CompanyWatches;
 /// the first is why it was permissible at all: <b>the seal's ground was COST, not GDPR</b> — the
 /// epic's binding constraint was that "the scan-set explodes" — and the cost objection is answered
 /// rather than waived. The expansion is bounded by a breadth gate
-/// (<c>CompanyWatchCriterionMember.MaxPerCriterion</c>, a DERIVED 1 000), it happens OUT of the
+/// (<c>CompanyWatchCriterionMember.MaxPerCriterion</c>, a DERIVED 2 500), it happens OUT of the
 /// request path, and it exists precisely because computing the same fact at read time measured
 /// 6 556 ms against <c>/oversikt</c>'s 300 ms p95 budget. So the expansion is what MAKES the read
 /// cheap; the seal was protecting the read path, and this serves that intent by a different

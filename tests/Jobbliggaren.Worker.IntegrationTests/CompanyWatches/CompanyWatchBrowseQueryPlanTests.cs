@@ -150,8 +150,9 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     private const string OverlapOperator = "&&";
 
     // #1681 part 2 — the member table's PRIMARY KEY, (criterion_id, organization_number). It is what
-    // makes "the org.nr this criterion matched" an index-only lookup, and it is the plan node the
-    // breadth-gate bound was DERIVED against (Index Only Scan, Heap Fetches: 0).
+    // makes "the org.nr this criterion matched" an index-only lookup — while criterion_id's
+    // selectivity estimate supports it, which #1706 measured to be a function of how many criteria
+    // the table holds, not of the bound.
     private const string MemberPkIndexName = "pk_company_watch_criterion_members";
 
     // The token whose ABSENCE the ad pins assert. It is the relation name, so it appears in a plan
@@ -173,7 +174,12 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     private const string SeededKommun = "0180";
     private const string ProbeSni = "62010";
     private const string FillerSni = "99999";
-    private const int SeededRows = 2000;
+    // Must stay ABOVE CompanyWatchCriterionMember.MaxPerCriterion — three refusal pins below assert
+    // exactly that, and a fixture at or under the bound would measure no refusal at all. It grew from
+    // 2 000 to 3 000 when #1706 re-derived the bound to 2 500. The direction is deliberate and is the
+    // one senior-cto-advisor bound: a test fixture is never an INPUT to a derived product constant,
+    // so the fixture grows to fit the bound and never the other way round.
+    private const int SeededRows = 3000;
     private const int ProbeMatches = 2;
 
     // #1559 — the ad pins. AdOrgNr is the FIRST probe-SNI company the register seed produces
@@ -233,8 +239,8 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         //   - an Index Scan can serve the ORDER BY with no Sort node at all, and
         //   - EXPLAIN does NOT print which columns an Index Scan orders on — not even under VERBOSE.
         // The total order therefore stopped being OBSERVABLE through the plan. The plan-based assertion
-        // that used to guard it survived its own mutation only because the selective probe (2 hits of
-        // 2000) makes the planner not CHOOSE the name index — a cost-model coincidence bound to
+        // that used to guard it survived its own mutation only because the selective probe (2 hits)
+        // makes the planner not CHOOSE the name index — a cost-model coincidence bound to
         // ProbeMatches = 2. Raise that to ~400 and the mutation would have begun passing silently: a
         // structural guarantee decayed into a disciplinary one, which is the exact defect class this
         // suite exists to catch.
@@ -327,7 +333,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         //
         // This test pins TODAY'S generic plan. It is a characterisation pin: if it ever changes, someone
         // has changed something that moves the planner's cost model, and they need to know what it costs.
-        // SEEDED AT PRODUCTION'S PLANNER REGIME, not the suite's 2 000-row one — and I only know that
+        // SEEDED AT PRODUCTION'S PLANNER REGIME, not the suite's small one — and I only know that
         // matters because I got it wrong first. The generic plan's choice is SCALE-DEPENDENT: at 2 000
         // rows it DOES walk the name index; at 200 000 it drops it for BitmapAnd + Sort. A pin seeded at
         // 2 000 would have characterised an artefact of the test's own smallness and told the next person
@@ -373,7 +379,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
     /// <summary>
     /// 200 000 rows — enough that the planner behaves the way it does against the 1,17M-row register.
-    /// The suite's 2 000-row helper cannot reproduce that regime (see the generic-plan pin), and this
+    /// The suite's small helper cannot reproduce that regime (see the generic-plan pin), and this
     /// seeds a PLANNER regime rather than a semantic fixture, so it bulk-inserts instead of upserting.
     /// Names are deterministically shuffled so <c>company_name</c> is not correlated with insertion
     /// order — a correlated column makes the planner price this index's heap fetches as sequential, i.e.
@@ -1501,8 +1507,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
             MemberPkIndexName,
             customMessage:
                 $"The {which} query's plan does NOT use {MemberPkIndexName}. The member lookup is then "
-                + "not the index lookup the breadth-gate bound was derived against (Index Only Scan, "
-                + "Heap Fetches: 0), and the bound's derivation no longer describes what runs. The "
+                + "not an index lookup at all, even under this EXPLAIN's enable_seqscan = off. The "
                 + "usual causes are a missing ANALYZE on the materialisation tables (the job does one "
                 + "per completed run) and a rewrite of the `= ANY(ARRAY(subselect))` shape into a "
                 + $"JOIN — which the port's docblock forbids by name.{Environment.NewLine}"
@@ -1610,7 +1615,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // sibling test on this shared connection.
         await using var tx = await connection.BeginTransactionAsync(ct);
 
-        // For the SELECTIVE probe on a 2000-row table a sequential scan is genuinely the cheapest plan,
+        // For the SELECTIVE probe on this suite's table a sequential scan is genuinely the cheapest plan,
         // so without this the planner would pick one no matter how usable the GIN index is — and the
         // eligibility pin would be untestable.
         //
@@ -1655,7 +1660,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         // is what makes the seeded selectivity skew (and therefore the plan) deterministic.
         await db.Database.ExecuteSqlRawAsync("TRUNCATE company_register;", ct);
 
-        // Deliberate selectivity skew: only ~0.1% of rows carry the probe SNI, while EVERY row matches
+        // Deliberate selectivity skew: only a handful of rows carry the probe SNI, while EVERY row matches
         // the kommun and status predicates. The GIN path is then the only SELECTIVE one, so the planner
         // picks it unambiguously instead of coin-flipping against the kommun btree.
         var entries = Enumerable.Range(0, SeededRows)

@@ -20,10 +20,18 @@ internal sealed class CompanyWatchCriterionMemberConfiguration
         builder.ToTable("company_watch_criterion_members");
 
         // Composite natural key. There is no surrogate id because there is no identity to have: the
-        // row IS the pair. It also gives the read path its index for free — the whole member set of
-        // one criterion is a leading-column range scan, which is what the measured 1,49 ms p95 at
-        // 1 000 members is served by (Index Only Scan on this PK, Heap Fetches: 0), and it makes a
-        // duplicate member unrepresentable rather than merely unlikely.
+        // row IS the pair. It also makes a duplicate member unrepresentable rather than merely
+        // unlikely, and it is the index the read path's member lookup is served by.
+        //
+        // ⚠ THAT LAST CLAUSE IS CONDITIONAL, and #1706 is where the condition was measured. The
+        // planner takes this index only while criterion_id is SELECTIVE. A table holding one user's
+        // watches has 20 distinct criterion_ids, so each is priced at 5 % of the rows, and somewhere
+        // between 20 000 and 30 000 rows the planner abandons this key for a Seq Scan — no schema
+        // change, no statistics staleness, just a different table shape. Adding other users'
+        // criteria puts it straight back. So this key is what makes the lookup cheap AT A
+        // POPULATION, and a fixture seeded with a single user's watches measures a plan production
+        // leaves behind as soon as it has more than a handful of users. Buffer counts for both
+        // plans: docs/reviews/2026-09-08-1706-bound-rederivation.md.
         builder.HasKey(m => new { m.CriterionId, m.OrganizationNumber });
 
         builder.Property(m => m.CriterionId)
@@ -77,8 +85,11 @@ internal sealed class CompanyWatchCriterionMemberConfiguration
         // The read path drives from the MEMBER side — "this criterion's org.nr, then those ads" — so
         // it uses the PK's leading column and never looks a member up by org.nr. Measured 2026-09-06:
         // the join form that WOULD want such an index (drive from job_ads, probe members) is the
-        // slower shape below ~10 000 members and is not the shape the bound was derived against. An
-        // index nothing reads is write amplification on every materialisation run plus a second thing
-        // to keep correct. Add it when a reader that needs it exists, and measure it then.
+        // slower shape below ~10 000 members and is not the shape the bound was derived against. ⚠
+        // That comparison was taken in the INDEX regime on a one-user fixture and #1706 did NOT
+        // re-take it, so it is inherited rather than re-derived — named here rather than acted on,
+        // since deciding the index is a change-reason of its own. An index nothing reads is write
+        // amplification on every materialisation run plus a second thing to keep correct. Add it
+        // when a reader that needs it exists, and measure it then.
     }
 }

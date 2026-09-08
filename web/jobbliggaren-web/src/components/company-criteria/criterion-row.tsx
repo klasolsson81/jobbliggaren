@@ -23,6 +23,7 @@ import type {
   CompanyWatchCriterion,
   CriterionReference,
 } from "@/lib/dto/company-criteria";
+import { CriterionAdLines } from "./criterion-ad-lines";
 import { CriterionBreadth } from "./criterion-breadth";
 import { CriterionDialog } from "./criterion-dialog";
 
@@ -33,16 +34,30 @@ const SEPARATOR = " · ";
 interface CriterionRowProps {
   readonly item: CompanyWatchCriterion;
   readonly reference: CriterionReference;
+  /**
+   * Threaded from `CriteriaSection`, which is the only level that can count the rows, and passed on
+   * to {@link CriterionAdLines} under the same name at every hop. The rule it encodes lives in that
+   * component's own prop docblock and is deliberately not restated here.
+   */
+  readonly adviceStatedByCaller: boolean;
 }
 
 /**
  * #560 PR-3 — one "branschbevakning" row. The headline is the user's own label when set, else a label
  * derived from the codes via the reference tree, else a neutral fallback. A compact count summary
- * ("3 branscher · 2 kommuner") sits below. Actions: open the register browse (a link), edit (the
- * dialog), delete (a confirm dialog). Delete drives row removal through `revalidatePath` (server
- * state, no optimistic copy); on failure the row stays and shows the error inline.
+ * ("3 branscher · 2 kommuner") sits below, then the watch's two ad numbers and every honest way of
+ * not having them. Actions: open the register browse (a link), edit (the dialog), delete (a confirm
+ * dialog). Delete drives row removal through `revalidatePath` (server state, no optimistic copy); on
+ * failure the row stays and shows the error inline.
+ *
+ * <p><b>#1703 — the numbers are read, not rebuilt.</b> The route already pays the full per-user
+ * grading `#1681` part 2 put on `GET /me/company-watch-criteria`, and until this delta the row
+ * rendered none of it: `/oversikt` linked here and answered more than the page it linked to. The
+ * ladder is {@link CriterionAdLines}, of which this row is the THIRD consumer — the criterion detail
+ * page and `CriteriaSummary` are the other two — because a copy of seven honesty branches is how
+ * three surfaces come to disagree about one watch (ADR 0139, "Båda ytorna läser samma källa").</p>
  */
-export function CriterionRow({ item, reference }: CriterionRowProps) {
+export function CriterionRow({ item, reference, adviceStatedByCaller }: CriterionRowProps) {
   const t = useTranslations("pages.foretag.criteria");
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -89,6 +104,28 @@ export function CriterionRow({ item, reference }: CriterionRowProps) {
               municipalityCodes={item.municipalityCodes}
             />
           </div>
+          {/* Beneath the breadth, never above it: the breadth DEFINES the predicate and these
+              numbers are its OUTCOME, which is the reading order design-reviewer bound for the two
+              detail surfaces (B-3, 2026-09-08). The row's own `.jp-job__meta` wrapper is unchanged;
+              `.jp-matchline` inside `.jp-job__body` is already delivered grammar on the sibling
+              catalogue (`company-watch-row.tsx`), so no new row-level CSS is owed.
+
+              `ads` and `matching` are non-nullable on a list row (`companyWatchCriterionSchema`) —
+              the degraded-read arm belongs to the detail page, which reads them separately. Here a
+              failed list read is the whole section's error notice, not a row. */}
+          <CriterionAdLines
+            criterionId={item.id}
+            ads={item.ads}
+            matching={item.matching}
+            /* No company is rendered in this row — they sit behind "Visa företag" — so an ad label
+               must carry its own antecedent. */
+            variant="standalone"
+            adviceStatedByCaller={adviceStatedByCaller}
+            /* TRUE here and nowhere else: this row renders the "Ändra" control itself, so the
+               too-broad CTA would name the page the reader is standing on, in the same Swedish word
+               as a button beside it. The row is the only place that can state this. */
+            actionOfferedByCaller={true}
+          />
           {error && (
             <p role="alert" className="mt-2 text-body-sm text-danger-700">
               {error}

@@ -475,7 +475,8 @@
         "linkLabelStandalone": "{count} aktiva annonser",
         "noneStandalone": "Inga aktiva annonser just nu.",
         "tooBroadShort": "Bevakningen matchar fler företag än vi kan räkna annonser för.",
-        "adsNotMaterialisedOnly": "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart."
+        "adsNotMaterialisedOnly": "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart.",
+        "tooBroadAdviceOnList": "Bevakningar vi inte kan räkna annonser för visas utan annonssiffror. Färre branscher eller kommuner ger färre företag."
       },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",

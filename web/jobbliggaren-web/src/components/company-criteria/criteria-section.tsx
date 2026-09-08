@@ -25,13 +25,26 @@ interface CriteriaSectionProps {
 }
 
 /**
- * #560 PR-3 — the "Branschbevakningar" section body on `/foretag`: the user's criteria (max 20) plus a
- * "Ny branschbevakning" button that opens the create dialog. A civic empty state names what a branschbevakning
- * is and how to make one.
+ * #560 PR-3 — the "Branschbevakningar" section body on `/foretag/branschbevakningar`: the user's
+ * criteria (max 20) plus a "Ny branschbevakning" button that opens the create dialog. A civic empty
+ * state names what a branschbevakning is and how to make one.
+ *
+ * <p>#1703 — this level owns the two facts a single row cannot know: how many rows there are, and
+ * whether any of them is refused. Both feed the advice beneath the list.</p>
  */
 export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
   const t = useTranslations("pages.foretag.criteria");
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Stated once for the whole list when ANY row is refused, never once per row. Both arms count:
+  // the ads arm is what the rows show, and a matching-only refusal is still a watch the advice would
+  // help. Parity `criteria-summary.tsx`, deliberately not extracted — see the prop's docblock.
+  const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
+
+  // ONE value, gating both the rows' short refusal and this section's advice line below. The rule it
+  // encodes has a single home in `CriterionAdLines`' own prop docblock; this is a pointer, not a
+  // restatement (#1173).
+  const adviceStatedByCaller = items.length > 1;
 
   const atMax = items.length >= MAX_PER_USER;
   // A degraded reference load (empty tree) means the picker has nothing to offer — disable creating
@@ -66,11 +79,26 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
           <p className="jp-empty__body text-body-sm text-text-primary">{t("emptyBody")}</p>
         </div>
       ) : (
-        <ul className="jp-jobs" aria-label={t("listLabel")}>
-          {items.map((item) => (
-            <CriterionRow key={item.id} item={item} reference={reference} />
-          ))}
-        </ul>
+        <>
+          <ul className="jp-jobs" aria-label={t("listLabel")}>
+            {items.map((item) => (
+              <CriterionRow
+                key={item.id}
+                item={item}
+                reference={reference}
+                adviceStatedByCaller={adviceStatedByCaller}
+              />
+            ))}
+          </ul>
+          {/* The rows state the STATUS; this states what to do about it — and it carries no link,
+              because the action is the "Ändra" button in every row rather than a page to travel to
+              (senior-cto-advisor D2, 2026-09-08). Deliberately NOT the `/oversikt` block's sentence:
+              that one rewords the refusal the rows already carry above it, and its "här" points at
+              another block. */}
+          {anyTooBroad && adviceStatedByCaller && (
+            <p className="jp-matchline jp-criteria-advice">{t("ads.tooBroadAdviceOnList")}</p>
+          )}
+        </>
       )}
 
       {createOpen && (

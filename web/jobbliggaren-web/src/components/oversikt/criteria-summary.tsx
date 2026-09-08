@@ -178,8 +178,11 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
                 criterionId={item.id}
                 ads={item.ads}
                 matching={item.matching}
-                variant="summary"
+                variant="standalone"
                 adviceStatedByCaller={adviceStatedByCaller}
+                /* This block carries no management affordance BY DESIGN (see the docblock), so the
+                   CTA to the catalogue is the reader's only way to act on a refusal here. */
+                actionOfferedByCaller={false}
               />
             </li>
           );

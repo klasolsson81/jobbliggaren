@@ -15,7 +15,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.0" />
     <!-- MTP code coverage-extension (Microsoft, ADR 0044). Auto-registreras via
          MTP.MSBuild, exponerar coverage-CLI-switcharna för xUnit v3-runnern.
          Test-only, dras in via tests/Directory.Build.props med

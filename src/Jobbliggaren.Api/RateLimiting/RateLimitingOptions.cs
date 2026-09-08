@@ -453,13 +453,19 @@ public sealed class RateLimitingOptions
     /// </para>
     ///
     /// <para>
-    /// <b>Is 5/3 enough for the page?</b> Yes for reading — 3 full list re-renders per minute,
-    /// sustained, on the one page that calls it. The tightest legitimate flow is SETUP: each created
+    /// <b>Is 5/3 enough?</b> The tightest legitimate flow is SETUP: each created
     /// criterion redirects to the list, so creating five watches back to back spends the whole burst
     /// and the sixth waits 20 s. That is accepted knowingly and it has a cheaper fix than a bigger
     /// number — a create that revalidated without a full list re-fetch would cost no token at all.
-    /// <b>And this is not a ratchet on anyone's delivered budget</b>: the route's three consumers
-    /// became one inside this same unmerged PR, so no shipped usage pattern loses headroom.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>The trigger below FIRED on 2026-09-07</b> (#1681 part 3, PR #1702). A second consumer
+    /// page appeared: <c>/oversikt</c> calls this route beside <c>/foretag/smarta-bevakningar</c> —
+    /// measured as 1 consumer on <c>c9599517</c>, 2 on <c>99e033da</c>.
+    /// <c>security-auditor</c> re-derived the limit against that trigger and <b>declined to ratchet
+    /// it</b>; her grounds are in
+    /// <c>docs/reviews/2026-09-07-1681-part3-security-auditor.md</c>. Residual filed as #1705.
     /// </para>
     ///
     /// <para>

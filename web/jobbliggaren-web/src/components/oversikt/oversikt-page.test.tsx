@@ -7,6 +7,7 @@ import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
+import type { ListCompanyWatchCriteriaResult } from "@/lib/dto/company-criteria";
 import type {
   CompanyWatch,
   ListCompanyWatchesResult,
@@ -56,6 +57,7 @@ interface RenderOpts {
   readonly savedJobAds?: ApiResult<ListSavedJobAdsResult>;
   readonly newFollowedCompanyAdCount?: number;
   readonly companyWatches?: ApiResult<ListCompanyWatchesResult>;
+  readonly criteria?: ApiResult<ListCompanyWatchCriteriaResult>;
   readonly profileOverrides?: Partial<JobSeekerProfileDto>;
   readonly pipeline?: ApiResult<PipelineGroupDto[]>;
 }
@@ -68,6 +70,10 @@ function renderOversikt(
     savedJobAds = errored,
     newFollowedCompanyAdCount = 0,
     companyWatches = errored,
+    // #1681 del 3 — `errored` som default, parity `companyWatches`: dessa tester mäter notiserna
+    // och de andra sammanfattningarna, och en degraderad läsning ger EN rad ("kunde inte hämtas")
+    // i stället för ett block vars innehåll skulle sippra in i deras textassertions.
+    criteria = errored,
     profileOverrides = {},
     pipeline = errored,
   }: RenderOpts = {},
@@ -87,6 +93,8 @@ function renderOversikt(
       matchCount={matchCount}
       newFollowedCompanyAdCount={newFollowedCompanyAdCount}
       companyWatches={companyWatches}
+      criteria={criteria}
+      criterionReference={null}
     />,
   );
 }

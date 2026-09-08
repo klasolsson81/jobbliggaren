@@ -63,20 +63,48 @@ export default function Loading() {
           </div>
         </section>
 
-        {/* Jobbannonser + Företagsbevakning — notices only. */}
-        {[0, 1].map((section) => (
-          <section key={section} className="jp-section">
-            <div className="jp-section__head">
-              <span className="jp-skeleton block h-5 w-44" />
-              <span className="jp-skeleton block h-4 w-8" />
+        {/* Jobbannonser — notices only. */}
+        <section className="jp-section">
+          <div className="jp-section__head">
+            <span className="jp-skeleton block h-5 w-44" />
+            <span className="jp-skeleton block h-4 w-8" />
+          </div>
+          <div className="flex flex-col gap-3">
+            {[0, 1].map((row) => (
+              <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
+            ))}
+          </div>
+        </section>
+
+        {/* Företagsbevakning — notices UNDER two standing summaries. The comment that stood here
+            said "notices only" for this section too; that became false with #1558, which gave the
+            section `CompanySummary`, and #1681 del 3 adds `CriteriaSummary` beside it. Both render
+            unconditionally (anchor, empty state or an unreadable line), so one anchor-shaped row
+            each is reserved rather than nothing.
+
+            The criteria block's own per-watch ROWS are deliberately NOT reserved: their number
+            varies 0-20 and a fallback cannot know it, so reserving a guess would over-reserve for
+            the common account and under-reserve for the full one. Same call, and the same reasoning,
+            as the "Kräver åtgärd" card above — an unreserved variable block is the lesser shift. */}
+        <section className="jp-section">
+          <div className="jp-section__head">
+            <span className="jp-skeleton block h-5 w-44" />
+            <span className="jp-skeleton block h-4 w-8" />
+          </div>
+          {[0, 1].map((summary) => (
+            <div key={summary} className="jp-appsummary">
+              <div className="jp-appsummary__anchor">
+                <span className="jp-skeleton block h-6 w-48" />
+                <span className="jp-skeleton block h-6 w-40" />
+              </div>
             </div>
-            <div className="flex flex-col gap-3">
-              {[0, 1].map((row) => (
-                <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
-              ))}
-            </div>
-          </section>
-        ))}
+          ))}
+          <div className="flex flex-col gap-3">
+            {[0, 1].map((row) => (
+              <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

@@ -471,7 +471,11 @@
         "adsTooBroadHeadline": "This watch is too broad",
         "adsNotMaterialisedHeadline": "The job ads have not been calculated yet",
         "tooBroadNoList": "This watch matches more companies than we can count job ads for, so there is no list to show.",
-        "adsAndMatchingTooBroad": "This watch is too broad for us to count the job ads or match them against your profile. Try choosing fewer industries or municipalities."
+        "adsAndMatchingTooBroad": "This watch is too broad for us to count the job ads or match them against your profile. Try choosing fewer industries or municipalities.",
+        "linkLabelStandalone": "{count} active ads",
+        "noneStandalone": "No active ads right now.",
+        "tooBroadShort": "This watch is too broad to be counted.",
+        "adsNotMaterialisedOnly": "The number of active ads has not been calculated yet. It appears here automatically when it is ready."
       },
       "browse": {
         "lede": "Active companies in the register that match your watch.",

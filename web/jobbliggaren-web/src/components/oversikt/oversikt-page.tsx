@@ -9,6 +9,10 @@ import type { PipelineGroupDto } from "@/lib/dto/applications";
 import type { ListSavedJobAdsResult } from "@/lib/dto/saved-job-ads";
 import type { ListRecentSearchesResult } from "@/lib/dto/recent-searches";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
+import type {
+  CriterionReference,
+  ListCompanyWatchCriteriaResult,
+} from "@/lib/dto/company-criteria";
 import {
   findFollowUpCandidates,
   findLatestOffer,
@@ -24,6 +28,7 @@ import {
 import { ApplicationSummary } from "./application-summary";
 import { MarkAllReadRow } from "./mark-all-read-row";
 import { CompanySummary } from "./company-summary";
+import { CriteriaSummary } from "./criteria-summary";
 import {
   countByStatus,
   totalCount,
@@ -74,6 +79,19 @@ interface OversiktPageProps {
    * bevakningar från en hämtning som föll, och bara ett Result bär den skillnaden.
    */
   readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
+  /**
+   * #1681 del 3 — de smarta bevakningarna, som Result och av samma skäl som `companyWatches`:
+   * bara ett Result skiljer "du har inga" från "listan kunde inte läsas". Varje rad bär de TVÅ
+   * annonstal detaljsidan visar, i samma former (ADR 0139) — talen är alltså redan komponerade
+   * när de kommer hit, och den här sidan räknar ingenting själv.
+   */
+  readonly criteria: ApiResult<ListCompanyWatchCriteriaResult>;
+  /**
+   * SCB-referensträdet, för radernas människoetikett. `null` = läsningen degraderade; rubriken
+   * faller då till användarens egen etikett och därefter till den neutrala. En degraderad tabell
+   * får ALDRIG blanka annonstalen — de är blockets poäng och beror inte på trädet.
+   */
+  readonly criterionReference: CriterionReference | null;
 }
 
 /**
@@ -98,6 +116,8 @@ export function OversiktPage({
   matchCount,
   newFollowedCompanyAdCount,
   companyWatches,
+  criteria,
+  criterionReference,
 }: OversiktPageProps) {
   const t = useTranslations("oversikt");
   // Scoped translator for the relative-time helper (`formatDaysAgo`).
@@ -137,15 +157,28 @@ export function OversiktPage({
         : undefined;
   const allApps = flattenPipeline(pipelineData);
 
-  // Företagsbevakningens motsvarighet, och den har MEDVETET bara den ena grenen.
-  // `summaryOwns` får sättas när sammanfattningens tillstånd MEDFÖR notisernas: noll
-  // bevakningar medför noll händelser, för ett företag man inte följer kan inte
-  // publicera något nytt. En misslyckad bevakningshämtning medför däremot ingenting om
-  // händelseantalet — till skillnad från ansökningarna läser de två halvorna här skilda
-  // källor (notiserna `newFollowedCompanyAdCount`, sammanfattningen `companyWatches`),
-  // så "unreadable" hade dolt en oläst-räknare som fortfarande är ett mätt påstående.
+  // #1681 del 3 — sektionen bär nu TVÅ sammanfattningar, så påståendet måste hålla för BÅDA.
+  // `summaryOwns: "empty"` betyder "sammanfattningen har redan sagt att här inte finns något";
+  // med bara `companyWatches` i villkoret hade det påståtts för en användare med noll bevakade
+  // företag och tre smarta bevakningar, vilket är falskt.
+  //
+  // ⚠ Ändringen är i dag BETEENDEMÄSSIGT INERT för den här sektionen, och det är mätt, inte
+  // antaget (rendered 2026-09-07): `NoticeSection.listRendered` är
+  // `unread>0 || read>0 || (!summaryOwns && !summary)`, och sektionen skickar ALLTID en `summary`
+  // — så tredje termen är alltid falsk. Villkoret rättas ändå: ett påstående som är falskt ska
+  // inte stå kvar för att ingen yta råkar läsa det i dag. Skriv inte om detta som en synlig
+  // buggfix.
+  //
+  // Fortfarande bara den ena grenen, av Företagsbevakningens ursprungliga skäl: noll bevakningar
+  // medför noll händelser, men en MISSLYCKAD hämtning medför ingenting om händelseantalet — de
+  // två halvorna läser skilda källor (notiserna `newFollowedCompanyAdCount`, sammanfattningarna
+  // `companyWatches`/`criteria`), så "unreadable" hade dolt en oläst-räknare som fortfarande är
+  // ett mätt påstående.
   const companySummaryOwns =
-    companyWatches.kind === "ok" && companyWatches.data.length === 0
+    companyWatches.kind === "ok" &&
+    companyWatches.data.length === 0 &&
+    criteria.kind === "ok" &&
+    criteria.data.length === 0
       ? ("empty" as const)
       : undefined;
 
@@ -418,10 +451,18 @@ export function OversiktPage({
           emptyBody={t("notices.emptyCompanies")}
           prefTypes={prefTypesFor("companies")}
           summary={
-            <CompanySummary
-              watches={companyWatches}
-              linkHref="/foretag/bevakade"
-            />
+            <>
+              <CompanySummary
+                watches={companyWatches}
+                linkHref="/foretag/bevakade"
+              />
+              {/* #1681 del 3 — andra sammanfattningen i SAMMA sektion, och det är härlett
+                  och inte valt: en egen sektion hade renderat "inga notiser" för alltid,
+                  eftersom smarta bevakningar per konstruktion inte skickar några notiser
+                  (ADR 0117, samma mening som `criteria-section.tsx` bär). Och två
+                  rubriker med samma svenska substantiv på en sida är sämre än en. */}
+              <CriteriaSummary criteria={criteria} reference={criterionReference} />
+            </>
           }
           summaryOwns={companySummaryOwns}
         />

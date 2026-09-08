@@ -490,9 +490,12 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
       { count: 4, tooBroad: false, notMaterialised: false },
     );
 
+    // SINGULAR since #1681 part 3 (design-reviewer Minor 7): the plural "Annonssiffrorna" claimed
+    // BOTH numbers while the very next line carried one, which contradicted this test's own subject
+    // — keeping the two answers separate. The sentence is now scoped to the arm that has no answer.
     expect(
       screen.getByText(
-        "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
+        "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("4 matchande annonser just nu")).toBeInTheDocument();

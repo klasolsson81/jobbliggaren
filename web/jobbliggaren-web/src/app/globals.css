@@ -5116,6 +5116,69 @@ a.jp-adminnav__link[aria-current="page"]::after {
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
 .jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
 
+/* #1681 del 3 — smarta bevakningar på Översikt. EN RAD PER BEVAKNING, aldrig en summa:
+   kriterier är predikat utan unikhetsvillkor (CompanyWatchCriterionConfiguration avstår
+   `UNIQUE(user_id, sni_codes, kommun_codes)` medvetet), så två kriterier kan överlappa och
+   ett duplicerat dubblar en summa exakt. Företagsbevakningens ankarrad ärver därför inte
+   hit — dess summa är exakt bara tack vare unikindexet på (UserId, OrganizationNumber).
+
+   Inga nya tokens: färg, vikt och linje är blockets egna. Radgapet är större än blockets
+   6px eftersom varje post bär upp till tre rader (namn + två annonsrader) och posterna
+   annars läses som en enda styckesmassa. */
+.jp-appsummary__watches {
+  list-style: none;
+  padding: 0;
+  /* Ankaret får INTE binda hårdare till första bevakningen än bevakningarna till varandra
+     (design-reviewer Major 1b). Radavståndet är 12+12 px kring hårlinjen; 18 px plus blockets
+     egna 6 px gap ger 24 px här, alltså lika mycket — utan en linje, så ankaret läser som
+     rubrik till listan och inte som en post i den. */
+  margin: 18px 0 0;
+  display: flex;
+  flex-direction: column;
+  /* Noll: avståndet ägs av hårlinjeregeln nedan, annars adderas de två. */
+  gap: 0;
+}
+/* Husets svar på N staplade block av samma typ är hårlinjerader, inte luft (DESIGN.md §6 —
+   `.jp-table--flat`, `.jp-attentionqueue`). Vid MaxPerUser = 20 gör det en liggare av det som
+   annars blir en styckesmassa, utan att något visningstak väljs. Lätt linje = radgräns; den
+   starka linjen på blockets nederkant = blockgräns. */
+.jp-appsummary__watch + .jp-appsummary__watch {
+  border-top: 1px solid var(--jp-border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.jp-appsummary__watch {
+  display: flex;
+  flex-direction: column;
+  /* 4px-rutnätet (DESIGN.md §5). Ger dessutom 4 px mellan två intilliggande textlänkar i stället
+     för 2 — den enda touch-relevanta tätheten blocket självt inför. */
+  gap: 4px;
+}
+/* En egen viktnivå under ankaret: identisk typografi gjorde "1 smart bevakning" och
+   "Utveckling i Göteborg" till jämlikar (design-reviewer Major 1a). Ankaret behåller bold. */
+.jp-appsummary__watchname {
+  margin: 0;
+  color: var(--jp-ink-1);
+  font-weight: var(--jp-fw-semibold);
+}
+/* Löpande prosa kapas vid ~68ch (jobbpilot-design-a11y §8). Utan taket mäter raderna 144ch vid
+   1280 px. Gäller blockets egna rader, aldrig `.jp-matchline` i övrigt. */
+.jp-appsummary__watch .jp-matchline,
+.jp-appsummary__advice {
+  max-width: 68ch;
+}
+/* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
+   med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
+   läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet
+   INGEN hårlinje här — då hade rådet blivit en tjugoförsta post i liggaren. */
+.jp-appsummary__advice { margin-top: 18px; }
+/* Två sammanfattningar i samma sektion delar klass, typografi och vänsterkant, så linjen mellan
+   dem BÄR information och måste nå UI-golvet 3:1 (jobbpilot-design-a11y §4). Basregeln lämnas
+   orörd — den bärs även av ApplicationSummary, där linjen bara skiljer grammatiker. */
+.jp-appsummary:has(+ .jp-appsummary) {
+  border-bottom-color: var(--jp-border-strong);
+}
+
 /* Notiser */
 .jp-notice-list {
   list-style: none;

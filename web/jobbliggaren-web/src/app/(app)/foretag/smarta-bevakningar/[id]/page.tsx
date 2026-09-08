@@ -12,10 +12,9 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 import { deriveDisplayLabel } from "@/lib/company-criteria/display-label";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { CompanyBrowseList } from "@/components/company-criteria/company-browse-list";
+import { CriterionAdLines } from "@/components/company-criteria/criterion-ad-lines";
 import { JobAdPagination } from "@/components/job-ads/job-ad-pagination";
 import { InfoDialog } from "@/components/common/info-dialog";
-import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
-import { buildCriterionAdsHref } from "@/lib/company-criteria/criterion-ads-href";
 import type { Metadata } from "next";
 import { notFoundMetadata } from "@/lib/metadata/not-found-title";
 
@@ -64,11 +63,6 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages.foretag.criteria");
-  // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
-  // reuses that surface's own sentences rather than minting a second vocabulary for one question.
-  // `matchNudge` promises "matchande annonser" and this page keeps that promise: its count links to
-  // the filtered view. (Arm (a)'s ads page could not, which is why it uses /jobb's wording instead.)
-  const tWatch = await getTranslations("jobads.companyWatches");
   const format = await getFormatter();
 
   const { id } = await params;
@@ -131,24 +125,6 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
   // not already say.
   const matching = adCountResult.kind === "ok" ? adCountResult.data.matching : null;
   const ads = adCountResult.kind === "ok" ? adCountResult.data.ads : null;
-  // design-reviewer Major 1 — the two refusals COINCIDE by construction, not by accident:
-  // `CriterionMatchingAdSetResolver` derives the matching arm from the SAME magnitude the ads flag
-  // comes from. Rendering both meant two `jp-matchline` blocks, no visual separation, and the advice
-  // sentence repeated verbatim — 40 words for one fact, which reads as a fault rather than as two
-  // answers. When they agree, say it once.
-  const sharedRefusal =
-    ads !== null && matching !== null
-      ? ads.tooBroad && matching.tooBroad
-        ? "tooBroad"
-        : ads.notMaterialised && matching.notMaterialised
-          ? "notMaterialised"
-          : null
-      : null;
-  const adsCount = ads?.magnitude ?? null;
-  const adsCountText =
-    ads !== null && ads.magnitude !== null
-      ? formatMagnitude(format, { magnitude: ads.magnitude, saturated: ads.saturated })
-      : null;
 
   return (
     <>
@@ -174,92 +150,17 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
           {t("browse.magnitudeHeadline", { count: magnitudeText })}
         </h2>
 
-        {/* #1559 — the ad dimension of the same criterion, and the ONLY destination its ads have:
-            /jobb has no SNI axis, its ?employer= producer refuses above 400 org.nrs, and its
-            municipality axis is the ad's WORKPLACE while this kommun is the company's registered
-            SEAT. The number is a link exactly when there is something to look at; a 0 states the
-            fact without offering an empty page, and a degraded read says so rather than showing a
-            false 0 (#859 — a rendered magnitude is true or absent). */}
-        {/* #1681 part 2 (ADR 0139) — the ad numbers are read from a MATERIALISED company set, so
-            "no number" now has three different reasons and each gets its own sentence. A 0 is only
-            ever rendered for a criterion we actually counted; "för bred" is a refusal the user can
-            act on; "räknas fram inom kort" is ignorance that resolves itself. Collapsing any of
-            them into a zero is the defect ADR 0120 exists against. The order matters: the two
-            no-number states are checked BEFORE the `> 0` test, because `magnitude` is null in both
-            and `null > 0` is false — which would silently render "inga aktiva annonser". */}
-        {ads === null ? (
-          <p className="jp-matchline">{t("ads.countUnavailable")}</p>
-        ) : sharedRefusal === "tooBroad" ? (
-          /* Reads as one statement with the company magnitude above it: "N företag matchar din
-             bevakning" followed by "för bred för att räkna annonserna". The company count is the
-             EVIDENCE for the refusal, not a number contradicting it. One line, because the personal
-             count is refused for the same reason and is suppressed below. */
-          <p className="jp-matchline">
-            {t("ads.adsAndMatchingTooBroad")}{" "}
-            <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
-              {t("ads.matchingTooBroadCta")}
-            </Link>
-          </p>
-        ) : sharedRefusal === "notMaterialised" ? (
-          <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
-        ) : ads.tooBroad ? (
-          <p className="jp-matchline">{t("ads.adsTooBroad")}</p>
-        ) : ads.notMaterialised ? (
-          <p className="jp-matchline">{t("ads.adsNotMaterialised")}</p>
-        ) : adsCount !== null && adsCount > 0 && adsCountText !== null ? (
-          <p className="jp-matchline tabular-nums">
-            <Link className="jp-countlink" href={buildCriterionAdsHref(id, 1, "all")}>
-              {t("ads.linkLabel", { count: adsCountText })}
-            </Link>
-          </p>
-        ) : (
-          <p className="jp-matchline">{t("ads.none")}</p>
-        )}
+        {/* #1559 / #1681 part 2 — the criterion's two ad numbers and every honest way of not
+            having them. The ladder moved to `CriterionAdLines` for #1681 part 3 (senior-cto-advisor,
+            in-block requirement 1): `/oversikt` renders the SAME numbers, and a copy of the honesty
+            logic is how two surfaces come to disagree about one watch. This page and the overview
+            now read one component, which is what ADR 0139's "Båda ytorna läser samma källa" asks of
+            the rendering as well as of the source.
 
-        {/* #1656 (b) — the PERSONAL count, in the same form the ordinary company watch renders it
-            (`company-watch-row.tsx`). FOUR answers and none of them collapses into another: a number
-            (0 included), "you have stated no occupation", "this watch is too broad to grade", and
-            (#1681 part 2) "we have not counted this watch yet". The last three are NOT zeros — a 0
-            would read as "nothing matches you" when the truth is that nothing was measured. Two
-            further branches suppress this block entirely rather than adding answers: a degraded
-            ad-count read (the line above already says the numbers cannot be shown) and a refusal the
-            ads line already stated for both numbers (`sharedRefusal`). */}
-        {matching !== null &&
-          sharedRefusal === null &&
-          (matching.tooBroad ? (
-            <p className="jp-matchline">
-              {t("ads.matchingTooBroad")}{" "}
-              <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
-                {t("ads.matchingTooBroadCta")}
-              </Link>
-            </p>
-          ) : matching.notMaterialised ? (
-            /* #1681 part 2 — deliberately WITHOUT the "ändra bevakningen" call to action the
-               too-broad arm carries. Nothing is wrong with this watch; it simply has not been
-               counted yet, and inviting the user to edit it would be advice that cannot help. */
-            <p className="jp-matchline">{t("ads.matchingNotMaterialised")}</p>
-          ) : matching.count === null ? (
-            <p className="jp-matchline">
-              {tWatch("matchNudge")}{" "}
-              <Link className="jp-nudgelink" href={MATCH_SETTINGS_HREF}>
-                {tWatch("matchNudgeCta")}
-              </Link>
-            </p>
-          ) : (
-            <p className="jp-matchline tabular-nums">
-              {matching.count > 0 ? (
-                <Link
-                  className="jp-countlink"
-                  href={buildCriterionAdsHref(id, 1, "matching")}
-                  prefetch={false}
-                >
-                  {tWatch("matchingAds", { count: matching.count })}
-                </Link>
-              ) : (
-                tWatch("matchingAds", { count: matching.count })
-              )}
-            </p>
-          ))}
+            The ONLY destination this criterion's ads have: /jobb has no SNI axis, its ?employer=
+            producer refuses above 400 org.nrs, and its municipality axis is the ad's WORKPLACE while
+            this kommun is the company's registered SEAT. */}
+        <CriterionAdLines criterionId={id} ads={ads} matching={matching} variant="detail" />
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
             necessarily where the company operates). */}

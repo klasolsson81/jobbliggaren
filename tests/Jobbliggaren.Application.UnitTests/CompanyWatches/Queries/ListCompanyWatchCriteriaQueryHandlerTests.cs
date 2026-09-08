@@ -324,7 +324,7 @@ public class ListCompanyWatchCriteriaQueryHandlerTests
     public async Task Handle_ARefusingCriterion_ContributesNoIdsToTheGradingUnion_AndKeepsItsOwnState()
     {
         // Phase 1 resolves every criterion's set before anything is graded, so a refusal costs no
-        // grading input. And the three no-number states stay APART on the wire: "för bred", "inte
+        // grading input. And the three no-number states stay APART on the wire: too broad, "inte
         // räknad än" and a real zero are three different sentences, and a list that collapsed them
         // would render one of them as another on every affected row.
         var ct = TestContext.Current.CancellationToken;

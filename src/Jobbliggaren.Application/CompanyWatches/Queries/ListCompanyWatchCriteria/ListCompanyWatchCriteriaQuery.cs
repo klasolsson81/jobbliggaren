@@ -26,7 +26,7 @@ public sealed record ListCompanyWatchCriteriaQuery()
 /// <b>#1681 part 2 — <see cref="Ads"/> and <see cref="Matching"/> are the detail page's OWN DTOs,
 /// reused rather than re-modelled.</b> Klas asked for *"samma siffror som redan finns på smarta
 /// bevakningar"*, and reusing the types is what makes that true of the honesty rules and not only of
-/// the digits: the ad magnitude may saturate and may refuse ("för bred") or report that nothing has
+/// the digits: the ad magnitude may saturate and may refuse on breadth, or report that nothing has
 /// been materialised yet, and the personal count is exact or absent and never carries a "+". A new
 /// pair of members here would have needed its own copy of all of that, and a copy is how two surfaces
 /// come to disagree about the same watch.

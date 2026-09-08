@@ -7,7 +7,7 @@ import type { JobAdDto } from "@/lib/dto/job-ads";
 import BevakningAdsPage from "./page";
 
 /**
- * `/foretag/smarta-bevakningar/[id]/annonser` — the per-card match mark (#1656 (a)).
+ * `/foretag/branschbevakningar/[id]/annonser` — the per-card match mark (#1656 (a)).
  *
  * <para/> What is pinned is the THREE-STATE gate and the fetch discipline around it, because the
  * list renders identically in every arm and nothing else would notice a collapse: a stated
@@ -309,7 +309,7 @@ describe("BevakningAdsPage — the matching view", () => {
     expect(screen.getByText("9 matchande annonser")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Visa alla annonser" }),
-    ).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+    ).toHaveAttribute("href", "/foretag/branschbevakningar/c1/annonser");
   });
 
   it("does not filter when the axis is absent", async () => {
@@ -400,7 +400,7 @@ describe("BevakningAdsPage — the matching view", () => {
     const next = screen.getAllByRole("link").find((a) => a.getAttribute("href")?.includes("page=2"));
     expect(next).toBeDefined();
     expect(next!.getAttribute("href")).toBe(
-      "/foretag/smarta-bevakningar/c1/annonser?page=2&visa=matchande",
+      "/foretag/branschbevakningar/c1/annonser?page=2&visa=matchande",
     );
   });
 });
@@ -452,7 +452,7 @@ describe("BevakningAdsPage — the heading, and the list read that is gone", () 
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Bevakning" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Branschbevakning" })).toBeInTheDocument();
     expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
   });
 });
@@ -525,7 +525,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     // The h2 is a NOUN PHRASE, not an instruction: a screen reader navigating by heading should not
     // be read a two-sentence explanation (WCAG 2.4.6). The explanation is the block below it.
     expect(
-      screen.getByRole("heading", { level: 2, name: "Bevakningen är för bred" }),
+      screen.getByRole("heading", { level: 2, name: "Antalet annonser kan inte räknas" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -539,11 +539,11 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     const back = screen.getAllByRole("link", { name: "Tillbaka till bevakningen" });
     expect(back).toHaveLength(2);
     for (const link of back) {
-      expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1");
+      expect(link).toHaveAttribute("href", "/foretag/branschbevakningar/c1");
     }
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar",
+      "/foretag/branschbevakningar",
     );
 
     // The consequence clause is gone with the list it described. "…så alla aktiva annonser visas
@@ -573,7 +573,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     // not too broad and narrowing it would not make the number arrive sooner.
     expect(screen.getAllByRole("link", { name: "Tillbaka till bevakningen" })).toHaveLength(2);
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
 
     // #1681 — this sentence IS the block's body in the not-materialised state. It is written for
     // THIS surface (a page opened to see a list) where adsNotMaterialised talks about figures, so it

@@ -53,7 +53,7 @@
     },
     "companyWatch": {
       "key": "Företagsbevakning",
-      "body": "Följ arbetsgivare du vill till och se nya annonser från dem på översikten. En smart bevakning söker fram företag efter bransch och kommun att följa."
+      "body": "Följ arbetsgivare du vill till och se nya annonser från dem på översikten. En branschbevakning söker fram företag efter bransch och kommun att följa."
     },
     "reminders": {
       "key": "Påminnelser",

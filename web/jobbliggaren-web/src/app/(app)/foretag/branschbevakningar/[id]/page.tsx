@@ -139,7 +139,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
 
       <div className="jp-container jp-page">
         <Link
-          href="/foretag/smarta-bevakningar"
+          href="/foretag/branschbevakningar"
           className="jp-backlink mb-4"
         >
           <ArrowLeft size={16} aria-hidden="true" />
@@ -160,7 +160,15 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             The ONLY destination this criterion's ads have: /jobb has no SNI axis, its ?employer=
             producer refuses above 400 org.nrs, and its municipality axis is the ad's WORKPLACE while
             this kommun is the company's registered SEAT. */}
-        <CriterionAdLines criterionId={id} ads={ads} matching={matching} variant="detail" />
+        {/* This page is one criterion by construction, so nothing above the row states the advice
+            and the row carries it whole — the same reason `CriteriaSummary` passes `false` at N=1. */}
+        <CriterionAdLines
+          criterionId={id}
+          ads={ads}
+          matching={matching}
+          variant="detail"
+          adviceStatedByCaller={false}
+        />
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not
             necessarily where the company operates). */}
@@ -192,8 +200,8 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
               showTotalCount={false}
               buildHref={(targetPage) =>
                 targetPage <= 1
-                  ? `/foretag/smarta-bevakningar/${id}`
-                  : `/foretag/smarta-bevakningar/${id}?page=${targetPage}`
+                  ? `/foretag/branschbevakningar/${id}`
+                  : `/foretag/branschbevakningar/${id}?page=${targetPage}`
               }
             />
           </div>

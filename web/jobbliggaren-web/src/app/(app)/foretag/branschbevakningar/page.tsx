@@ -27,9 +27,9 @@ const EMPTY_CRITERION_REFERENCE: CriterionReference = {
 };
 
 /**
- * `/foretag/smarta-bevakningar` (S1 #996) — the Smarta bevakningar surface: the user's saved
+ * `/foretag/branschbevakningar` (S1 #996) — the Branschbevakningar surface: the user's saved
  * SNI/kommun searches, each yielding a company list to browse (detail at
- * `/foretag/smarta-bevakningar/[id]`) and follow FROM. A browsing/discovery surface, a sibling of Sök
+ * `/foretag/branschbevakningar/[id]`) and follow FROM. A browsing/discovery surface, a sibling of Sök
  * företag — it sends NO per-company notices (ADR 0117). The slug carries the full disambiguating noun
  * (never a bare `bevakningar`, which would collide with Bevakade företag in the URL bar).
  */

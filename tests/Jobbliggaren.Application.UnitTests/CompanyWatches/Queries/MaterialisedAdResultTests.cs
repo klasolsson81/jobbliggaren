@@ -172,7 +172,7 @@ public class MaterialisedAdResultTests
     [Fact]
     public void AdPage_Rejects_APageBesideARefusal_AndARefusalCarryingAPage()
     {
-        // The false zero ONE LEVEL UP from the count: an empty ad list rendered for "för bred" or
+        // The false zero ONE LEVEL UP from the count: an empty ad list rendered for a breadth refusal or
         // "not materialised" reads as "nothing found". Keeping the page absent in those two states is
         // what forces the surface to branch before it reaches its empty state.
         var page = new PagedResult<JobAdId>([], 0, 1, 20);

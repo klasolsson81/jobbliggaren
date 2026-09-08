@@ -444,7 +444,7 @@ describe("getCriterionAdCount — the headline number alone", () => {
   it("#1681 — notMaterialised survives the wire, on BOTH numbers", async () => {
     // The state every criterion is in between its creation (or a predicate edit) and the next
     // materialisation run. It must reach the surface intact: the detail page renders "räknas fram
-    // inom kort" for it, which is a different sentence from "för bred" and is NOT a zero.
+    // inom kort" for it, which is a different sentence from the breadth refusal and is NOT a zero.
     const body = {
       ads: { magnitude: null, saturated: false, tooBroad: false, notMaterialised: true },
       matching: { count: null, tooBroad: false, notMaterialised: true },

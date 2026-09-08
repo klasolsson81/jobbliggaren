@@ -4,7 +4,7 @@ import { ForetagSubnav } from "@/components/foretag/foretag-subnav";
 import { ForetagSurfaceSkeleton } from "@/components/foretag/foretag-surface-skeleton";
 
 /**
- * Route-level loading UI for `/foretag/smarta-bevakningar` (S1 #996) — the persistent pagehero +
+ * Route-level loading UI for `/foretag/branschbevakningar` (S1 #996) — the persistent pagehero +
  * sub-nav, then a civic list skeleton.
  */
 export default function Loading() {

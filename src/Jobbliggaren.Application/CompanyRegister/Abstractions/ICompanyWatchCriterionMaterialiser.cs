@@ -113,7 +113,7 @@ public interface ICompanyWatchCriterionMaterialiser
 /// <param name="CriteriaMaterialised">Criteria whose company set fitted under the breadth gate and was
 /// written.</param>
 /// <param name="CriteriaTooBroad">Criteria REFUSED by the breadth gate — stored with no members and a
-/// <c>TooBroad</c> state, so the read side renders "för bred" rather than a number it cannot back.</param>
+/// <c>TooBroad</c> state, so the read side renders a refusal rather than a number it cannot back.</param>
 /// <param name="MembersWritten">Total member rows written across every materialised criterion.</param>
 /// <param name="MembersExcludedPersonnummerShaped">Candidate org.nr dropped at THIS job's own write
 /// boundary by <c>OrganizationNumber.IsPersonnummerShaped()</c> (<c>security-auditor</c> Major 4).

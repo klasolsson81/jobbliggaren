@@ -11,7 +11,7 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
 
 /**
  * The shared picker had NO component test before #999, and #999 changes its filter semantics — which
- * are consumed by the criterion dialog (Smarta bevakningar) as well as the new bransch popover. Without
+ * are consumed by the criterion dialog (Branschbevakningar) as well as the new bransch popover. Without
  * these, the three-level filter would ship unguarded on a surface outside the PR's own verification.
  */
 const REFERENCE: CriterionReference = {

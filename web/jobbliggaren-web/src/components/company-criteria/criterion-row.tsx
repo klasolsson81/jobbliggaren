@@ -35,7 +35,7 @@ interface CriterionRowProps {
 }
 
 /**
- * #560 PR-3 — one "smart bevakning" row. The headline is the user's own label when set, else a label
+ * #560 PR-3 — one "branschbevakning" row. The headline is the user's own label when set, else a label
  * derived from the codes via the reference tree, else a neutral fallback. A compact count summary
  * ("3 branscher · 2 kommuner") sits below. Actions: open the register browse (a link), edit (the
  * dialog), delete (a confirm dialog). Delete drives row removal through `revalidatePath` (server
@@ -96,7 +96,7 @@ export function CriterionRow({ item, reference }: CriterionRowProps) {
           style={{ flexDirection: "row", alignItems: "center" }}
         >
           <Link
-            href={`/foretag/smarta-bevakningar/${item.id}`}
+            href={`/foretag/branschbevakningar/${item.id}`}
             className="jp-rowbtn"
             aria-label={t("row.openBrowseAria", { label: heading })}
           >

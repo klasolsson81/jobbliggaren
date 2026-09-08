@@ -224,7 +224,7 @@ public class CompanyWatchCriterionMaterialisationTests(WorkerTestFixture fixture
     {
         // The third of the three facts the state table exists to keep apart. "No members" here means
         // genuinely no match, and it MUST be distinguishable from "never materialised" (no state row)
-        // and from "för bred" (TooBroad) — otherwise the read side has one symbol for three
+        // and from too broad (TooBroad) — otherwise the read side has one symbol for three
         // situations and must guess, which is how the dishonest zero got shipped in #1656.
         var ct = TestContext.Current.CancellationToken;
         await ResetAsync(ct);

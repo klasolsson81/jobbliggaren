@@ -14,10 +14,10 @@ const SEPARATOR = " · ";
 
 // The catalogue: where the watches are listed, edited and created. Both the anchor link and the
 // empty state's CTA point here, and that is one destination rather than two — `CriteriaSection`
-// owns the "Ny smart bevakning" trigger on this very page.
-const CATALOGUE_HREF = "/foretag/smarta-bevakningar";
+// owns the "Ny branschbevakning" trigger on this very page.
+const CATALOGUE_HREF = "/foretag/branschbevakningar";
 
-// Ties the list to the anchor that names it, so a screen reader announces "N smarta bevakningar,
+// Ties the list to the anchor that names it, so a screen reader announces "N branschbevakningar,
 // list, N items" rather than a bare "list" under a section headed "Företagsbevakning" — a different
 // function from this block's (design-reviewer Minor 5).
 const TOTALS_ID = "oversikt-criteria-totals";
@@ -25,7 +25,7 @@ const TOTALS_ID = "oversikt-criteria-totals";
 interface CriteriaSummaryProps {
   /**
    * The criteria as a Result, never degraded to `[]` — the same requirement, and the same reason,
-   * as `CompanySummary.watches`: only a Result can tell "you have no smart watches" from "the list
+   * as `CompanySummary.watches`: only a Result can tell "you have no industry watches" from "the list
    * could not be read", and the summary must say different things in those two cases.
    */
   readonly criteria: ApiResult<ListCompanyWatchCriteriaResult>;
@@ -38,7 +38,7 @@ interface CriteriaSummaryProps {
 }
 
 /**
- * Standing state over "Smarta bevakningar" on Översikt (#1681 part 3).
+ * Standing state over "Branschbevakningar" on Översikt (#1681 part 3).
  *
  * <p><b>One summary line per criterion, and that is a bound ruling rather than a preference</b>
  * (`senior-cto-advisor`, `docs/reviews/2026-09-07-1681-part3-form-cto.md`, D1). Klas required
@@ -61,7 +61,7 @@ interface CriteriaSummaryProps {
  * <p><b>Summary grammar, never catalogue grammar:</b> `jp-appsummary` / `jp-matchline`, never
  * `jp-jobs` / `jp-job`. The different grammar is what keeps this from reading as a second notice
  * list on the same left edge. And no management affordances — no create, edit, delete or "visa
- * företag": those are what identify the catalogue on `/foretag/smarta-bevakningar`, and moving a
+ * företag": those are what identify the catalogue on `/foretag/branschbevakningar`, and moving a
  * number is not moving a catalogue.</p>
  *
  * <p>Every criterion renders, in the handler's own order (`OrderByDescending(CreatedAt)`) — any
@@ -69,8 +69,16 @@ interface CriteriaSummaryProps {
  * `CompanyWatchCriterion.MaxPerUser` = 20, the domain's own derived cap; no second display cap is
  * introduced here, because choosing one would be choosing a number, which is what #1681 exists to
  * forbid. What keeps twenty rows readable is treatment rather than truncation: a hairline ledger,
- * one weight tier between the anchor and the rows, and the too-broad advice stated once beneath the
- * list rather than verbatim per row (design-reviewer, 2026-09-07).</p>
+ * one weight tier between the anchor and the rows, and — <b>above one row</b> — the too-broad advice
+ * stated once beneath the list rather than verbatim per row (design-reviewer, 2026-09-07). At one row
+ * there is nothing to hoist it out of, so it stays in the row (design-reviewer B1, 2026-09-08).</p>
+ *
+ * <p><b>The anchor carries the count and no number, at every N, and that was re-decided rather than
+ * inherited.</b> `senior-cto-advisor` admitted an N=1 anchor number (D2, 2026-09-08) and
+ * `design-reviewer` declined it on measurement: four of eight N=1 states have no number to move up —
+ * a refusal, a counted zero, an unmaterialised watch, and a degraded read — so an anchor built round
+ * the number would give the block two structures and put the commonest states outside the pattern.
+ * A number stands at the level where it is exact, which here is the row.</p>
  */
 export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   const t = useTranslations("oversikt.criteriaSummary");
@@ -106,6 +114,13 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   // the ads arm is what the rows show, and a matching-only refusal is still a watch the advice would
   // help. The row's own line says the status; this says what to do about it.
   const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
+
+  // ONE value, gating both the rows' short refusal and this block's advice line below — never two
+  // independent `length > 1` expressions, which is how the two levels drift apart
+  // (design-reviewer B1, 2026-09-08). Hoisting the advice out of a SINGLE row said the refusal
+  // twice: once in the row, once beneath it (#1707, measured). Above one row it cannot repeat, so
+  // the row states the whole thing itself and this line stays silent.
+  const adviceStatedByCaller = items.length > 1;
 
   return (
     <div className="jp-appsummary">
@@ -152,13 +167,14 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
                 ads={item.ads}
                 matching={item.matching}
                 variant="summary"
+                adviceStatedByCaller={adviceStatedByCaller}
               />
             </li>
           );
         })}
       </ul>
 
-      {anyTooBroad && (
+      {anyTooBroad && adviceStatedByCaller && (
         <p className="jp-matchline jp-appsummary__advice">
           {t("tooBroadAdvice")}{" "}
           <Link className="jp-nudgelink" href={CATALOGUE_HREF}>

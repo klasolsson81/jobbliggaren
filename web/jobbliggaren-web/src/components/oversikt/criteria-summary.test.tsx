@@ -86,7 +86,7 @@ const REFERENCE: CriterionReference = {
 
 // The catalogue route the block links to. Not a prop any more — the component owns it,
 // because every consumer is an authenticated surface and there was never a second value.
-const HREF = "/foretag/smarta-bevakningar";
+const HREF = "/foretag/branschbevakningar";
 
 function visibleText(): string {
   return (document.body.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -103,9 +103,9 @@ describe("CriteriaSummary", () => {
 
     expect(
       document.querySelector(".jp-appsummary__totals")?.textContent?.trim(),
-    ).toBe("2 smarta bevakningar");
+    ).toBe("2 branschbevakningar");
     expect(
-      screen.getByRole("link", { name: "Visa smarta bevakningar" }),
+      screen.getByRole("link", { name: "Visa branschbevakningar" }),
     ).toHaveAttribute("href", HREF);
   });
 
@@ -149,10 +149,10 @@ describe("CriteriaSummary", () => {
       a.getAttribute("href"),
     );
     expect(hrefs).toEqual([
-      "/foretag/smarta-bevakningar/aaaa1111-0000-4000-8000-000000000001/annonser",
-      "/foretag/smarta-bevakningar/aaaa1111-0000-4000-8000-000000000001/annonser?visa=matchande",
-      "/foretag/smarta-bevakningar/bbbb2222-0000-4000-8000-000000000002/annonser",
-      "/foretag/smarta-bevakningar/bbbb2222-0000-4000-8000-000000000002/annonser?visa=matchande",
+      "/foretag/branschbevakningar/aaaa1111-0000-4000-8000-000000000001/annonser",
+      "/foretag/branschbevakningar/aaaa1111-0000-4000-8000-000000000001/annonser?visa=matchande",
+      "/foretag/branschbevakningar/bbbb2222-0000-4000-8000-000000000002/annonser",
+      "/foretag/branschbevakningar/bbbb2222-0000-4000-8000-000000000002/annonser?visa=matchande",
     ]);
   });
 
@@ -161,17 +161,17 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary criteria={errored} reference={REFERENCE} />,
     );
 
-    expect(visibleText()).toContain("Smarta bevakningar kunde inte hämtas");
-    expect(screen.queryByText("Du har inga smarta bevakningar än")).toBeNull();
+    expect(visibleText()).toContain("Branschbevakningar kunde inte hämtas");
+    expect(screen.queryByText("Du har inga branschbevakningar än")).toBeNull();
     // Never a fabricated zero for a list that was never read.
-    expect(visibleText()).not.toContain("0 smarta bevakningar");
+    expect(visibleText()).not.toContain("0 branschbevakningar");
   });
 
   it("tomt läge säger att inga finns, och erbjuder vägen att skapa en", () => {
     render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
 
-    expect(screen.getByText("Du har inga smarta bevakningar än")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ny smart bevakning" })).toHaveAttribute(
+    expect(screen.getByText("Du har inga branschbevakningar än")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ny branschbevakning" })).toHaveAttribute(
       "href",
       HREF,
     );
@@ -188,18 +188,68 @@ describe("CriteriaSummary", () => {
     );
 
     const text = visibleText();
-    expect(text).toContain("för bred");
+    expect(text).toContain("matchar fler företag än vi kan räkna annonser för");
     expect(text).not.toContain("Inga aktiva annonser");
-    // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1);
-    // the second line is the block-level advice, which is asserted on its own below.
+    // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1).
     expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(1);
     // A refusal has nothing to link to.
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(0);
   });
 
+  // #1707 (a), and the pin is the acceptance criterion made mechanical (senior-cto-advisor D2 (vi),
+  // 2026-09-08). At ONE row the block advice was hoisted out of a list it had nothing to be hoisted
+  // out of, so the refusal was stated twice: "Bevakningen är för bred för att räknas." in the row,
+  // then "En bevakning som är för bred kan inte räknas. Prova att…" beneath it. Measured on
+  // dev.jobbliggaren.se by Klas, and rendered at N=1 before this test was written.
+  //
+  // Counting OCCURRENCES rather than asserting absence is deliberate: a second copy of the sentence
+  // is exactly what "toContain" cannot see.
+  it("vid EN bevakning sägs vägran en enda gång, i raden, utan blockråd", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    const occurrences = (haystack: string, needle: string) =>
+      haystack.split(needle).length - 1;
+
+    expect(
+      occurrences(visibleText(), "matchar fler företag än vi kan räkna annonser för"),
+    ).toBe(1);
+    // Nothing above the single row states it, so the row carries the whole thing itself.
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
+    // …and the way out survives the collapse — a refusal with no affordance is a dead end, not a
+    // state (design-reviewer B2, ADR 0047).
+    expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
+    // The anchor is untouched at N=1: it carries the count and no number (design-reviewer B3).
+    expect(
+      document.querySelector(".jp-appsummary__totals")?.textContent?.trim(),
+    ).toBe("1 branschbevakning");
+  });
+
+  // The ads arm alone is refused while the matching arm answers something else, so `sharedRefusal`
+  // does not fire and the row lands in the single-arm branch. At N=1 that branch used to render the
+  // status with no call to action at all, and the block advice — its only other route to one — is
+  // correctly silent here (design-reviewer B2).
+  it("en ENARMAD vägran vid N=1 lämnar ändå en väg framåt", () => {
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_NOT_ASSESSED })])}
+        reference={REFERENCE}
+      />,
+    );
+
+    expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
+    expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
+  });
+
   // design-reviewer Major 2, measured at the cap: the 160-character advice rendered five times
   // verbatim, with five identical "Ändra bevakningen" links to one destination. The row now carries
-  // the status and the BLOCK carries the advice — the `sharedRefusal` rule, one axis up.
+  // the status and the BLOCK carries the advice — the `sharedRefusal` rule, one axis up. ⚠ That was
+  // argued FROM REPETITION and therefore holds only above one row; the N=1 test above is the other
+  // half of the same rule.
   it("rådet om för breda bevakningar står EN gång under listan, inte en gång per rad", () => {
     render(
       <CriteriaSummary
@@ -218,20 +268,35 @@ describe("CriteriaSummary", () => {
     // ONE advice line, ONE call to action — however many rows are refused.
     expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
-    // And the long per-row sentence is gone from the rows entirely.
-    expect(visibleText()).not.toContain("eller matcha dem mot din profil");
+    // And the long per-row form is gone from the rows entirely. The needle is the MECHANISM
+    // sentence, which only the long arms carry: measured 1 at N=1 and 0 here, so the line
+    // discriminates. The previous needle stopped discriminating when B4 rewrote the copy out
+    // from under it — a gate that cannot fail (design-reviewer, 2026-09-08).
+    expect(visibleText()).not.toContain("Färre branscher eller kommuner ger färre företag");
   });
 
+  // TWO rows, and that is what makes this test able to fail (code-reviewer Major 1, 2026-09-08). At
+  // N=1 the advice is silent because `adviceStatedByCaller` is false, so `anyTooBroad` could be
+  // deleted outright and a single-row fixture would stay green — the gate would then write the
+  // block advice under a list where nothing is refused, which is a false statement to the user.
+  // Above one row `adviceStatedByCaller` is true and `anyTooBroad` is the only thing holding the
+  // advice back.
   it("rådet uteblir helt när ingen bevakning är för bred", () => {
     render(
       <CriteriaSummary
-        criteria={ok([criterion({ ads: counted(42), matching: matchCounted(7) })])}
+        criteria={ok([
+          criterion({ id: "a", ads: counted(42), matching: matchCounted(7) }),
+          criterion({ id: "b", ads: counted(13), matching: matchCounted(2) }),
+        ])}
         reference={REFERENCE}
       />,
     );
 
     expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+    // The other flag's N>=2 arm, pinned here because nothing else pins it: `standalone` follows the
+    // SURFACE, so the self-carrying label must survive above one row too.
+    expect(visibleText()).not.toContain("dessa företag");
   });
 
   // design-reviewer Major 3: "från dessa företag" has no antecedent here — no company is rendered
@@ -324,12 +389,11 @@ describe("CriteriaSummary", () => {
       />,
     );
 
-    // In the summary variant BOTH refusal arms render the same short status, so copy can no longer
-    // tell them apart — the discriminator is whether the matching line SURVIVED. If the shared
+    // The discriminator is whether the matching line SURVIVED, not the wording. If the shared
     // collapse had fired it would have suppressed that line, swallowing an answer the block has.
     // That tests the logic rather than the wording, which is the stronger pin.
     const text = visibleText();
-    expect(text).toContain("för bred för att räknas");
+    expect(text).toContain("matchar fler företag än vi kan räkna annonser för");
     expect(text).toContain("Ställ in matchning");
     expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(2);
   });
@@ -375,7 +439,7 @@ describe("CriteriaSummary", () => {
     );
     expect(names[0]).toBe("Mitt eget namn");
     expect(names[1]).toBe("Dataprogrammering, datakonsultverksamhet o.d. · Göteborg");
-    expect(names[2]).toBe("Bevakning");
+    expect(names[2]).toBe("Branschbevakning");
   });
 
   // A degraded reference read must cost the HEADING, never the numbers — they are the block's
@@ -390,7 +454,7 @@ describe("CriteriaSummary", () => {
 
     expect(
       document.querySelector(".jp-appsummary__watchname")?.textContent?.trim(),
-    ).toBe("Bevakning");
+    ).toBe("Branschbevakning");
     expect(visibleText()).toContain("42 aktiva annonser");
     expect(visibleText()).toContain("7 matchande annonser");
   });

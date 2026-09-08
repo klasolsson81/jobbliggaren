@@ -43,7 +43,7 @@ function authHeaders(sessionId: string): HeadersInit {
 }
 
 /**
- * List the current user's criteria for the "Smarta bevakningar" section. Unpaginated (hard-capped at
+ * List the current user's criteria for the "Branschbevakningar" section. Unpaginated (hard-capped at
  * 20 server-side). List semantics (ADR 0030): a 404 collapses to `error`, never `notFound`.
  */
 export async function getCompanyWatchCriteria(): Promise<

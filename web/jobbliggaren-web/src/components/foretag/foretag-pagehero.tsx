@@ -5,7 +5,7 @@
  * renders the same banner from one place. Purely presentational: the page resolves
  * its own title/lede and passes them in.
  *
- * The `smarta-bevakningar/[id]` detail keeps its own dynamic (per-criterion)
+ * The `branschbevakningar/[id]` detail keeps its own dynamic (per-criterion)
  * pagehero and does not use this helper.
  */
 export function ForetagPagehero({ title, lede }: { title: string; lede: string }) {

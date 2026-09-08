@@ -158,7 +158,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     const link = screen.getByRole("link", {
       name: "167 aktiva annonser från dessa företag",
     });
-    expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+    expect(link).toHaveAttribute("href", "/foretag/branschbevakningar/c1/annonser");
   });
 
   it("states zero without offering a link to an empty page", async () => {
@@ -262,7 +262,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     // twelve ads while the sentence beside it promises nine.
     expect(link).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar/c1/annonser?visa=matchande",
+      "/foretag/branschbevakningar/c1/annonser?visa=matchande",
     );
     expect(screen.getByText("9 matchande annonser just nu")).toBeInTheDocument();
   });
@@ -288,12 +288,12 @@ describe("BevakningBrowsePage — the personal match count", () => {
     await renderWith({ count: null, tooBroad: true });
 
     expect(
-      screen.getByText(/Bevakningen är för bred för att vi ska kunna räkna/),
+      screen.getByText(/matchar fler företag än vi kan räkna annonser för/),
     ).toBeInTheDocument();
     // A refusal that names an action carries the way there — the arm two rows up already does.
     expect(
       screen.getByRole("link", { name: "Ändra bevakningen" }),
-    ).toHaveAttribute("href", "/foretag/smarta-bevakningar");
+    ).toHaveAttribute("href", "/foretag/branschbevakningar");
     // Neither of the other two no-number arms, and above all not a zero: this watch was not
     // measured, its owner has not failed to state an occupation, and nothing matched zero ads.
     expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
@@ -313,7 +313,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     );
 
     expect(screen.queryByText(/matchande annonser/)).toBeNull();
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
   });
 });
@@ -387,7 +387,7 @@ describe("BevakningBrowsePage — the heading, and the list read that is gone", 
       }),
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Bevakning" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Branschbevakning" })).toBeInTheDocument();
     expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
   });
 });
@@ -446,19 +446,19 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     );
 
     expect(
-      screen.getByText(/för bred för att vi ska kunna räkna annonserna eller matcha dem/),
+      screen.getByText(/varken antalet annonser eller matchningen mot din profil/),
     ).toBeInTheDocument();
     // ONCE. The two per-number sentences would repeat the same advice under the same heading.
     expect(
-      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna annonserna\./),
+      screen.queryByText(/^Bevakningen matchar fler företag än vi kan räkna annonser för\. Därför visas inte antalet annonser\./),
     ).toBeNull();
     expect(
-      screen.queryByText(/^Bevakningen är för bred för att vi ska kunna räkna hur många/),
+      screen.queryByText(/Därför kan vi inte räkna hur många annonser som matchar dig/),
     ).toBeNull();
     // The action is carried, because a refusal that names one must offer the way there.
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar",
+      "/foretag/branschbevakningar",
     );
     expectNoZero();
   });
@@ -476,7 +476,7 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     ).toBeInTheDocument();
     // Ignorance, not refusal: no "narrow the watch" advice and no link to go and do it, because
     // there is nothing the user can change that would make the number appear sooner.
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
     expectNoZero();
   });
@@ -515,7 +515,7 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     ).toBeInTheDocument();
     // Not the too-broad refusal, and not the "you have stated no occupation" nudge: those are
     // different facts about the same missing number, and each has its own next step (or none).
-    expect(screen.queryByText(/för bred/)).toBeNull();
+    expect(screen.queryByText(/matchar fler företag/)).toBeNull();
     expect(screen.queryByText(/Du har inte angett vilka yrken/)).toBeNull();
     expectNoZero();
   });

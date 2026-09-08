@@ -33,15 +33,14 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriter
 /// from the org.nr the user followed, this one from the org.nr the materialisation job resolved. What
 /// used to make them different — a 1,07M-row register join in the read path — is gone; the plan here
 /// contains no <c>company_register</c> node at all (measured:
-/// <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>, Result 3). That is what makes
-/// <c>MeListRead</c> the right bucket for this route rather than the browse policy.
+/// <c>docs/reviews/2026-09-06-1681-part2-read-form-measurement.md</c>, Result 3).
 /// </para>
 ///
 /// <para>
-/// ⚠ <b>The conclusion is CONDITIONAL and the condition is the breadth gate</b> (ADR 0139,
-/// "Läsvägens hem: <c>MeListRead</c>, villkorat"). It holds only while the member set stays bounded:
-/// a criterion with ~1,07M members would make <c>members ⋈ job_ads</c> a large join again and this
-/// bucket would under-protect exactly as before. The bucket decision and
+/// ⚠ <b>The conclusion is CONDITIONAL and the condition is the breadth gate.</b> It holds only while
+/// the member set stays bounded:
+/// a criterion with ~1,07M members would make <c>members ⋈ job_ads</c> a large join again. The bucket
+/// decision (<c>RateLimitingExtensions.CompanyWatchCriteriaListPolicy</c>) and
 /// <c>CompanyWatchCriterionMember.MaxPerCriterion</c> are therefore ONE decision, not two.
 /// </para>
 ///

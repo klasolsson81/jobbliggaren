@@ -165,23 +165,23 @@ const ROUTES: readonly DetailRoute[] = [
     importer: () => import("./cv/granska/[parsedId]/(view)/page"),
   },
   {
-    path: "/foretag/smarta-bevakningar/[id]",
+    path: "/foretag/branschbevakningar/[id]",
     loader: browseCriterionCompanies,
     ownTitle: svPages.foretag.smartaBevakningar.detail.meta.title,
     // The criterion browse is paginated, so its existence read takes the page too;
     // `parsePageParam(undefined)` is 1.
     extraLoaderArgs: [1],
-    importer: () => import("./foretag/smarta-bevakningar/[id]/page"),
+    importer: () => import("./foretag/branschbevakningar/[id]/page"),
   },
   {
-    path: "/foretag/smarta-bevakningar/[id]/annonser",
+    path: "/foretag/branschbevakningar/[id]/annonser",
     loader: browseCriterionAds,
     ownTitle: svPages.foretag.smartaBevakningar.ads.meta.title,
     // Paginated like its parent, and for the same reason its existence read takes the page. It also
     // takes the matching axis (#1656 (b)): the metadata read and the page read must ask the SAME
     // question, or they stop collapsing into one request and the route costs two.
     extraLoaderArgs: [1, false],
-    importer: () => import("./foretag/smarta-bevakningar/[id]/annonser/page"),
+    importer: () => import("./foretag/branschbevakningar/[id]/annonser/page"),
   },
 ];
 
@@ -360,7 +360,7 @@ describe("(app) detail routes — the title resolves against the record's absenc
     // expression and for a literal `1` — the one route whose existence read takes more
     // than an id is pinned only where the two coincide. A literal would ask page 1 while
     // the page asks page 3: two backend calls where the measurement found one.
-    const route = routeAt("/foretag/smarta-bevakningar/[id]");
+    const route = routeAt("/foretag/branschbevakningar/[id]");
     route.loader.mockResolvedValue({ kind: "notFound" });
 
     return titleFor(route, { page: "3" }).then(() => {

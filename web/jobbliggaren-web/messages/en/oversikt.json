@@ -30,13 +30,13 @@
     "unavailable": "Followed companies could not be loaded. Refresh the page to try again."
   },
   "criteriaSummary": {
-    "anchor": "{count, plural, one {# smart watch} other {# smart watches}}",
-    "link": "View smart watches",
-    "emptyTitle": "You have no smart watches yet",
-    "emptyBody": "A smart watch is a saved search by industry and municipality. Ads from the matching companies are collected here.",
-    "emptyCta": "New smart watch",
-    "unavailable": "Smart watches could not be loaded. Refresh the page to try again.",
-    "tooBroadAdvice": "A watch that is too broad cannot be counted. Try choosing fewer industries or municipalities."
+    "anchor": "{count, plural, one {# industry watch} other {# industry watches}}",
+    "link": "View industry watches",
+    "emptyTitle": "You have no industry watches yet",
+    "emptyBody": "An industry watch is a saved search by industry and municipality. Ads from the matching companies are collected here.",
+    "emptyCta": "New industry watch",
+    "unavailable": "Industry watches could not be loaded. Refresh the page to try again.",
+    "tooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here."
   },
   "notices": {
     "title": "Notices",

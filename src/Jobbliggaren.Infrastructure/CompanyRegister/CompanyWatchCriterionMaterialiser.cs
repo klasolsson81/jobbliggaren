@@ -388,7 +388,7 @@ internal sealed partial class CompanyWatchCriterionMaterialiser(
         if (candidates is null)
         {
             // Refused. The member set is still DELETED (the criterion may have been narrow before it
-            // was widened), and the state row records the refusal so the read side renders "för bred"
+            // was widened), and the state row records the refusal so the read side renders a refusal
             // instead of a number, or a zero, or nothing at all.
             await store.ReplaceAsync(
                     criterion.Id.Value, [], MaterialisationState.TooBroad, 0, stampedAt, fingerprint,

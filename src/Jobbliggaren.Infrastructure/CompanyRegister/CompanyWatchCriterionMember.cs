@@ -49,56 +49,43 @@ internal sealed class CompanyWatchCriterionMember
     /// <summary>
     /// The most companies ONE criterion may materialise. Above it the criterion is refused by the
     /// breadth gate: no members are written, the state is <c>TooBroad</c>, and the surfaces render
-    /// "för bred" — the <c>CriterionMatchingAds.SetTooLarge</c> answer the detail page already gives,
+    /// a refusal — the <c>CriterionMatchingAds.SetTooLarge</c> answer the detail page already gives,
     /// so this introduces no new vocabulary.
     ///
     /// <para>
     /// <b>The bound is DERIVED, and the derivation is the point</b> (#1681's own acceptance list: the
-    /// bound must be derived, not chosen). <b>The numbers live in ONE place</b> -
-    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c>, which carries the instrument, the
-    /// fixture's row counts, the sampling method, both statement shapes and every measurement. They are
+    /// bound must be derived, not chosen). <b>The numbers live in the dated reports, never here</b> -
+    /// <c>docs/reviews/2026-09-06-1681-membership-measurement.md</c> and the later reading
+    /// <c>docs/reviews/2026-09-08-1706-breadth-gate-remeasurement.md</c>. They are
     /// deliberately NOT restated here: two homes for one measured value drift apart at the next
     /// re-measurement (§5 <c>Comments:</c>), and an earlier version of this docblock was exactly that
     /// second home (code-reviewer, 2026-09-06).
     /// </para>
     ///
     /// <para>
-    /// <b>What belongs here is the ARGUMENT, because the constant is meaningless without it.</b> Two
-    /// independent anchors are computed in that report and they agree on 1 000:
-    /// <list type="number">
-    ///   <item><b>The twin handler's cost class.</b> <c>ListCompanyWatchesQueryHandler</c> answers the
-    ///     same question over a bounded org.nr set, so "inside its class" is the test. At the bound the
-    ///     statement keeps the baseline's exact PLAN — Bitmap Index Scan on the <c>job_ads</c> org.nr
-    ///     index — and stays within an order of magnitude of its cost; at five times the bound it does
-    ///     not.</item>
-    ///   <item><b>The budget at the criterion cap.</b> <c>CompanyWatchCriterion.MaxPerUser</c> is 20,
-    ///     so whatever one criterion costs, the surface that composes them pays twenty times. At the
-    ///     bound that is a block-sized share of <c>/oversikt</c>'s 300 ms p95 (ADR 0045 class (a)); at
-    ///     five times the bound it is most of the page's entire budget, for one block.</item>
-    /// </list>
+    /// ⚠ <b>A second anchor — the twin handler's cost class — was computed in 2026-09-06's report and
+    /// is RETIRED as a ratio</b> (ADR 0139 Amendment 2026-09-08): it divides by a sub-millisecond
+    /// denominator that is not stable enough to carry it, and the buffer series may not stand in.
     /// </para>
     ///
     /// <para>
     /// <b>The gate carries three loads, and the third is why it cannot be relaxed on a whim.</b> It is
     /// the product's honest refusal; it is the read-cost bound above; and it is the <b>Art. 5(1)(c)
     /// minimisation argument</b> — security-auditor is explicit that unbounded derived storage is not
-    /// "limited to what is necessary", so the per-user storage ceiling this constant sets IS that
-    /// argument's operative value rather than a performance note. The report measures all three.
+    /// "limited to what is necessary".
     /// </para>
     ///
     /// <para>
-    /// <b>It also had to be shown USABLE</b>, since a bound that refuses ordinary use would be a bug
-    /// wearing a rationale. The report measures the real register's breadth distribution: the ordinary
-    /// criterion materialises with orders of magnitude to spare, while what refuses is genuinely broad
-    /// — a whole industry nationwide, or a big city — which is exactly the class whose ad count was
-    /// unaffordable to compute live. The refusal lands where the cost was.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Re-derive it; do not nudge it.</b> The bound is a function of three measured quantities — the
-    /// twin handler's cost class, <c>MaxPerUser</c>, and <c>/oversikt</c>'s budget. If <c>job_ads</c>
-    /// grows, if <c>MaxPerUser</c> moves, or if ADR 0045's budget changes, re-run the protocol in that
-    /// report; a hand-adjusted constant silently stops satisfying whichever anchor it drifted past.
+    /// <b>Re-derive it; do not nudge it.</b> As a COST term the bound is a function of the composed
+    /// read at <c>MaxPerUser</c> against <c>/oversikt</c>'s budget, so if <c>job_ads</c> grows, if
+    /// <c>MaxPerUser</c> moves, or if ADR 0045's budget changes, re-run the protocol; a hand-adjusted
+    /// constant silently stops satisfying the anchor it drifted past.
+    /// <b>But a cost trigger is not the only kind, and the distinction is what #1706 turned on:</b>
+    /// whether the bound refuses ordinary use is an ACCEPTANCE CRITERION, not a term in that
+    /// function — which is exactly why it can fire while no cost term has moved. It did: none of the
+    /// cost triggers had fired, and a re-derivation was owed all the same because the product
+    /// distribution the bound was shown usable against turned out to be mis-weighted. A list naming
+    /// only the cost triggers reads as "nothing is due" at the moment something is.
     /// </para>
     /// </summary>
     public const int MaxPerCriterion = 1000;

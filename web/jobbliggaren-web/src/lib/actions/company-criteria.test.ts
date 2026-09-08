@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * #560 PR-3 / S1 #996 — the criteria (smart-bevakning) server actions.
  *
  * The behaviour pinned here is the revalidate target: after the /foretag IA split (#996) the criteria
- * list lives on `/foretag/smarta-bevakningar`, so a successful create/update/delete must revalidate
+ * list lives on `/foretag/branschbevakningar`, so a successful create/update/delete must revalidate
  * THAT surface (never the old `/foretag` hub), and a failure must never revalidate.
  */
 
@@ -60,7 +60,7 @@ import {
 } from "./company-criteria";
 
 const CRITERION_ID = "22222222-2222-2222-2222-222222222222";
-const SMARTA = "/foretag/smarta-bevakningar";
+const SMARTA = "/foretag/branschbevakningar";
 const VALID_INPUT = {
   sniCodes: ["62010"],
   municipalityCodes: ["0180"],
@@ -74,8 +74,8 @@ beforeEach(() => {
   deleteCriterionMock.mockReset();
 });
 
-describe("criteria actions — revalidate the Smarta bevakningar surface after the #996 split", () => {
-  it("createCriterionAction ok → success + revalidatePath('/foretag/smarta-bevakningar')", async () => {
+describe("criteria actions — revalidate the Branschbevakningar surface after the #996 split", () => {
+  it("createCriterionAction ok → success + revalidatePath('/foretag/branschbevakningar')", async () => {
     createCriterionMock.mockResolvedValue({ kind: "ok", data: undefined });
 
     const result = await createCriterionAction(VALID_INPUT);
@@ -84,7 +84,7 @@ describe("criteria actions — revalidate the Smarta bevakningar surface after t
     expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith(SMARTA);
   });
 
-  it("updateCriterionAction ok → success + revalidatePath('/foretag/smarta-bevakningar')", async () => {
+  it("updateCriterionAction ok → success + revalidatePath('/foretag/branschbevakningar')", async () => {
     updateCriterionMock.mockResolvedValue({ kind: "ok", data: undefined });
 
     const result = await updateCriterionAction(CRITERION_ID, VALID_INPUT);
@@ -93,7 +93,7 @@ describe("criteria actions — revalidate the Smarta bevakningar surface after t
     expect(revalidatePathMock).toHaveBeenCalledExactlyOnceWith(SMARTA);
   });
 
-  it("deleteCriterionAction ok → success + revalidatePath('/foretag/smarta-bevakningar')", async () => {
+  it("deleteCriterionAction ok → success + revalidatePath('/foretag/branschbevakningar')", async () => {
     deleteCriterionMock.mockResolvedValue({ kind: "ok" });
 
     const result = await deleteCriterionAction(CRITERION_ID);

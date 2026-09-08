@@ -267,7 +267,7 @@
       "label": "Company sub-navigation",
       "bevakade": "Followed companies",
       "sok": "Search companies",
-      "smartaBevakningar": "Smart watches",
+      "smartaBevakningar": "Industry watches",
       "historik": "Application history",
       "nyaAnnonser": "New ads"
     },
@@ -371,13 +371,13 @@
       }
     },
     "criteria": {
-      "heading": "Smart watches",
-      "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A smart watch sends no notifications of its own.",
-      "newButton": "New smart watch",
-      "listLabel": "Your smart watches",
-      "emptyTitle": "You have no smart watches.",
+      "heading": "Industry watches",
+      "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A industry watch sends no notifications of its own.",
+      "newButton": "New industry watch",
+      "listLabel": "Your industry watches",
+      "emptyTitle": "You have no industry watches.",
       "emptyBody": "Create a watch to see companies in the register that match the industries and municipalities you choose.",
-      "loadErrorTitle": "Could not load smart watches",
+      "loadErrorTitle": "Could not load industry watches",
       "maxReached": "You have reached the limit of {max} watches. Remove one to create a new one.",
       "referenceUnavailable": "The industry register could not be loaded right now. Reload the page to create or edit a watch.",
       "moreSuffix": "and more",
@@ -393,7 +393,7 @@
         "invalidInput": "Choose at least one industry and one municipality."
       },
       "row": {
-        "untitled": "Watch",
+        "untitled": "Industry watch",
         "branschCount": "{count, plural, one {# industry} other {# industries}}",
         "kommunCount": "{count, plural, one {# municipality} other {# municipalities}}",
         "openBrowse": "View companies",
@@ -424,7 +424,7 @@
       "kommunCollapseAria": "Hide municipalities in {name}",
       "kommunSelectedCount": "{count, plural, one {# municipality selected} other {# municipalities selected}}",
       "dialog": {
-        "createTitle": "New smart watch",
+        "createTitle": "New industry watch",
         "editTitle": "Edit watch",
         "intro": "Choose industries and municipalities. We show how many companies in the register match before you save.",
         "optionsUnavailable": "The register could not be loaded. Reload the page.",
@@ -520,7 +520,7 @@
     },
     "smartaBevakningar": {
       "meta": {
-        "title": "Smart watches"
+        "title": "Industry watches"
       },
       "ads": {
         "meta": {
@@ -529,7 +529,7 @@
       },
       "detail": {
         "meta": {
-          "title": "Smart watch"
+          "title": "Industry watch"
         }
       }
     },

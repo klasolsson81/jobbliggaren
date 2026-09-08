@@ -267,7 +267,7 @@
       "label": "Undernavigering för företag",
       "bevakade": "Bevakade företag",
       "sok": "Sök företag",
-      "smartaBevakningar": "Smarta bevakningar",
+      "smartaBevakningar": "Branschbevakningar",
       "historik": "Ansökningshistorik",
       "nyaAnnonser": "Nya annonser"
     },
@@ -371,13 +371,13 @@
       }
     },
     "criteria": {
-      "heading": "Smarta bevakningar",
-      "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En smart bevakning skickar inga egna notiser.",
-      "newButton": "Ny smart bevakning",
-      "listLabel": "Dina smarta bevakningar",
-      "emptyTitle": "Du har inga smarta bevakningar.",
+      "heading": "Branschbevakningar",
+      "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En branschbevakning skickar inga egna notiser.",
+      "newButton": "Ny branschbevakning",
+      "listLabel": "Dina branschbevakningar",
+      "emptyTitle": "Du har inga branschbevakningar.",
       "emptyBody": "Skapa en bevakning för att se företag i registret som matchar de branscher och kommuner du väljer.",
-      "loadErrorTitle": "Kunde inte ladda smarta bevakningar",
+      "loadErrorTitle": "Kunde inte ladda branschbevakningar",
       "maxReached": "Du har nått gränsen på {max} bevakningar. Ta bort en för att skapa en ny.",
       "referenceUnavailable": "Branschregistret kunde inte laddas just nu. Ladda om sidan för att skapa eller ändra en bevakning.",
       "moreSuffix": "m.fl.",
@@ -393,7 +393,7 @@
         "invalidInput": "Välj minst en bransch och en kommun."
       },
       "row": {
-        "untitled": "Bevakning",
+        "untitled": "Branschbevakning",
         "branschCount": "{count, plural, one {# bransch} other {# branscher}}",
         "kommunCount": "{count, plural, one {# kommun} other {# kommuner}}",
         "openBrowse": "Visa företag",
@@ -424,7 +424,7 @@
       "kommunCollapseAria": "Dölj kommuner i {name}",
       "kommunSelectedCount": "{count, plural, one {# vald kommun} other {# valda kommuner}}",
       "dialog": {
-        "createTitle": "Ny smart bevakning",
+        "createTitle": "Ny branschbevakning",
         "editTitle": "Ändra bevakning",
         "intro": "Välj branscher och kommuner. Vi visar hur många företag i registret som matchar innan du sparar.",
         "optionsUnavailable": "Registret kunde inte laddas. Ladda om sidan.",
@@ -520,7 +520,7 @@
     },
     "smartaBevakningar": {
       "meta": {
-        "title": "Smarta bevakningar"
+        "title": "Branschbevakningar"
       },
       "ads": {
         "meta": {
@@ -529,7 +529,7 @@
       },
       "detail": {
         "meta": {
-          "title": "Smart bevakning"
+          "title": "Branschbevakning"
         }
       }
     },

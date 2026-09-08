@@ -80,7 +80,7 @@ interface OversiktPageProps {
    */
   readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
   /**
-   * #1681 del 3 — de smarta bevakningarna, som Result och av samma skäl som `companyWatches`:
+   * #1681 del 3 — de branschbevakningarna, som Result och av samma skäl som `companyWatches`:
    * bara ett Result skiljer "du har inga" från "listan kunde inte läsas". Varje rad bär de TVÅ
    * annonstal detaljsidan visar, i samma former (ADR 0139) — talen är alltså redan komponerade
    * när de kommer hit, och den här sidan räknar ingenting själv.
@@ -160,7 +160,7 @@ export function OversiktPage({
   // #1681 del 3 — sektionen bär nu TVÅ sammanfattningar, så påståendet måste hålla för BÅDA.
   // `summaryOwns: "empty"` betyder "sammanfattningen har redan sagt att här inte finns något";
   // med bara `companyWatches` i villkoret hade det påståtts för en användare med noll bevakade
-  // företag och tre smarta bevakningar, vilket är falskt.
+  // företag och tre branschbevakningar, vilket är falskt.
   //
   // ⚠ Ändringen är i dag BETEENDEMÄSSIGT INERT för den här sektionen, och det är mätt, inte
   // antaget (rendered 2026-09-07): `NoticeSection.listRendered` är
@@ -458,7 +458,7 @@ export function OversiktPage({
               />
               {/* #1681 del 3 — andra sammanfattningen i SAMMA sektion, och det är härlett
                   och inte valt: en egen sektion hade renderat "inga notiser" för alltid,
-                  eftersom smarta bevakningar per konstruktion inte skickar några notiser
+                  eftersom branschbevakningar per konstruktion inte skickar några notiser
                   (ADR 0117, samma mening som `criteria-section.tsx` bär). Och två
                   rubriker med samma svenska substantiv på en sida är sämre än en. */}
               <CriteriaSummary criteria={criteria} reference={criterionReference} />

@@ -3,7 +3,7 @@ import { pagedResultWithTotalPages } from "@/lib/dto/_helpers";
 import { jobAdDtoSchema } from "@/lib/dto/job-ads";
 
 /**
- * #560 PR-3 (CTO Fork G5/G6) — criteria-based company watches ("smarta bevakningar"). Zod mirrors of
+ * #560 PR-3 (CTO Fork G5/G6) — criteria-based company watches ("branschbevakningar"). Zod mirrors of
  * the backend DTOs served under `/api/v1/me/company-watch-criteria` (ADR 0020 single-source; backend
  * serialises camelCase). A criterion is a saved predicate over two RAW code axes — SNI branches and
  * kommun codes — LEAVES ONLY on the wire (the picker expands a section/division/whole-län selection to

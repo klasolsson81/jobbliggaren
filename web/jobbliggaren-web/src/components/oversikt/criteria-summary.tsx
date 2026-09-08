@@ -14,10 +14,10 @@ const SEPARATOR = " · ";
 
 // The catalogue: where the watches are listed, edited and created. Both the anchor link and the
 // empty state's CTA point here, and that is one destination rather than two — `CriteriaSection`
-// owns the "Ny smart bevakning" trigger on this very page.
+// owns the "Ny branschbevakning" trigger on this very page.
 const CATALOGUE_HREF = "/foretag/branschbevakningar";
 
-// Ties the list to the anchor that names it, so a screen reader announces "N smarta bevakningar,
+// Ties the list to the anchor that names it, so a screen reader announces "N branschbevakningar,
 // list, N items" rather than a bare "list" under a section headed "Företagsbevakning" — a different
 // function from this block's (design-reviewer Minor 5).
 const TOTALS_ID = "oversikt-criteria-totals";
@@ -25,7 +25,7 @@ const TOTALS_ID = "oversikt-criteria-totals";
 interface CriteriaSummaryProps {
   /**
    * The criteria as a Result, never degraded to `[]` — the same requirement, and the same reason,
-   * as `CompanySummary.watches`: only a Result can tell "you have no smart watches" from "the list
+   * as `CompanySummary.watches`: only a Result can tell "you have no industry watches" from "the list
    * could not be read", and the summary must say different things in those two cases.
    */
   readonly criteria: ApiResult<ListCompanyWatchCriteriaResult>;
@@ -38,7 +38,7 @@ interface CriteriaSummaryProps {
 }
 
 /**
- * Standing state over "Smarta bevakningar" on Översikt (#1681 part 3).
+ * Standing state over "Branschbevakningar" on Översikt (#1681 part 3).
  *
  * <p><b>One summary line per criterion, and that is a bound ruling rather than a preference</b>
  * (`senior-cto-advisor`, `docs/reviews/2026-09-07-1681-part3-form-cto.md`, D1). Klas required

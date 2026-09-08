@@ -103,9 +103,9 @@ describe("CriteriaSummary", () => {
 
     expect(
       document.querySelector(".jp-appsummary__totals")?.textContent?.trim(),
-    ).toBe("2 smarta bevakningar");
+    ).toBe("2 branschbevakningar");
     expect(
-      screen.getByRole("link", { name: "Visa smarta bevakningar" }),
+      screen.getByRole("link", { name: "Visa branschbevakningar" }),
     ).toHaveAttribute("href", HREF);
   });
 
@@ -161,17 +161,17 @@ describe("CriteriaSummary", () => {
       <CriteriaSummary criteria={errored} reference={REFERENCE} />,
     );
 
-    expect(visibleText()).toContain("Smarta bevakningar kunde inte hämtas");
-    expect(screen.queryByText("Du har inga smarta bevakningar än")).toBeNull();
+    expect(visibleText()).toContain("Branschbevakningar kunde inte hämtas");
+    expect(screen.queryByText("Du har inga branschbevakningar än")).toBeNull();
     // Never a fabricated zero for a list that was never read.
-    expect(visibleText()).not.toContain("0 smarta bevakningar");
+    expect(visibleText()).not.toContain("0 branschbevakningar");
   });
 
   it("tomt läge säger att inga finns, och erbjuder vägen att skapa en", () => {
     render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
 
-    expect(screen.getByText("Du har inga smarta bevakningar än")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ny smart bevakning" })).toHaveAttribute(
+    expect(screen.getByText("Du har inga branschbevakningar än")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ny branschbevakning" })).toHaveAttribute(
       "href",
       HREF,
     );
@@ -375,7 +375,7 @@ describe("CriteriaSummary", () => {
     );
     expect(names[0]).toBe("Mitt eget namn");
     expect(names[1]).toBe("Dataprogrammering, datakonsultverksamhet o.d. · Göteborg");
-    expect(names[2]).toBe("Bevakning");
+    expect(names[2]).toBe("Branschbevakning");
   });
 
   // A degraded reference read must cost the HEADING, never the numbers — they are the block's
@@ -390,7 +390,7 @@ describe("CriteriaSummary", () => {
 
     expect(
       document.querySelector(".jp-appsummary__watchname")?.textContent?.trim(),
-    ).toBe("Bevakning");
+    ).toBe("Branschbevakning");
     expect(visibleText()).toContain("42 aktiva annonser");
     expect(visibleText()).toContain("7 matchande annonser");
   });

@@ -2,7 +2,7 @@
 // No React, no DOM — so every rule below is unit-testable without rendering anything.
 //
 // It lives in `lib/` rather than beside the components because three surfaces now read it: the criterion
-// dialog (Smarta bevakningar), the bransch popover (/foretag/sok), and their tests. Before #999 the two
+// dialog (Branschbevakningar), the bransch popover (/foretag/sok), and their tests. Before #999 the two
 // tree builders were inline `useMemo`s in `criterion-dialog.tsx` and a second, differently-shaped
 // flattener (`buildBranschOptions`) lived in `foretag-sok-searchbar.tsx` — the same knowledge, "how the
 // SCB reference becomes selectable options", written twice with two different answers about which levels

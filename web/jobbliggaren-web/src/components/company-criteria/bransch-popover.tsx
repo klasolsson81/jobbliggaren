@@ -32,7 +32,7 @@ import {
  *     identity is the Platsbanken two-column cascade, and would do it inside another lane's surface.
  *
  * `CriterionPicker` already answers both, is already reviewed, and already ships on the sibling browse
- * surface (Smarta bevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:
+ * surface (Branschbevakningar). ADR 0117 Beslut 3 makes that a requirement rather than a convenience:
  * two sibling surfaces answering "which branches exist in the register?" must not answer it with two
  * different controls. CTO bind: `docs/reviews/2026-07-28-foretag-sok-pr5-bransch-form-cto.md`.
  *

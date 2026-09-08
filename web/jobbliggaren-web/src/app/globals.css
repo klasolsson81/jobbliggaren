@@ -3335,7 +3335,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Sub-nav (S1 #996; refined per #996 live-review + senior-cto-advisor) — persistent
    horizontal wayfinding under the pagehero for the /foretag surfaces (Bevakade företag ·
-   Sök företag · Smarta bevakningar · Ansökningshistorik). The civic view-switcher idiom
+   Sök företag · Branschbevakningar · Ansökningshistorik). The civic view-switcher idiom
    (Stripe Dashboard / 1177): an underline tab-row, deliberately DISTINCT from .jp-segment
    above (a filled-pill toggle, reused inline in the Bevakade view's matching/all control —
    never a per-item box or fill here, so no nested-segment clash). RSC-driven (<Link> +
@@ -5116,7 +5116,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
 .jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
 
-/* #1681 del 3 — smarta bevakningar på Översikt. EN RAD PER BEVAKNING, aldrig en summa:
+/* #1681 del 3 — branschbevakningar på Översikt. EN RAD PER BEVAKNING, aldrig en summa:
    kriterier är predikat utan unikhetsvillkor (CompanyWatchCriterionConfiguration avstår
    `UNIQUE(user_id, sni_codes, kommun_codes)` medvetet), så två kriterier kan överlappa och
    ett duplicerat dubblar en summa exakt. Företagsbevakningens ankarrad ärver därför inte
@@ -5154,7 +5154,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
      för 2 — den enda touch-relevanta tätheten blocket självt inför. */
   gap: 4px;
 }
-/* En egen viktnivå under ankaret: identisk typografi gjorde "1 smart bevakning" och
+/* En egen viktnivå under ankaret: identisk typografi gjorde "1 branschbevakning" och
    "Utveckling i Göteborg" till jämlikar (design-reviewer Major 1a). Ankaret behåller bold. */
 .jp-appsummary__watchname {
   margin: 0;

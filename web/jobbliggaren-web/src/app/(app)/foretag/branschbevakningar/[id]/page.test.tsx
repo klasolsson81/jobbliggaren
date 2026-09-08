@@ -387,7 +387,7 @@ describe("BevakningBrowsePage — the heading, and the list read that is gone", 
       }),
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Bevakning" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Branschbevakning" })).toBeInTheDocument();
     expect(getCompanyWatchCriteria).not.toHaveBeenCalled();
   });
 });

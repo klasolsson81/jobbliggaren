@@ -74,7 +74,7 @@ beforeEach(() => {
   deleteCriterionMock.mockReset();
 });
 
-describe("criteria actions — revalidate the Smarta bevakningar surface after the #996 split", () => {
+describe("criteria actions — revalidate the Branschbevakningar surface after the #996 split", () => {
   it("createCriterionAction ok → success + revalidatePath('/foretag/branschbevakningar')", async () => {
     createCriterionMock.mockResolvedValue({ kind: "ok", data: undefined });
 

@@ -12,7 +12,7 @@ import { useTranslations } from "next-intl";
  * not derived from `usePathname` — so this stays a zero-client-JS server component.
  * Adding or removing a surface is a single OPTIONS entry.
  *
- * Taxonomy (ADR 0117): Smarta bevakningar is a browsing surface, a sibling of Sök
+ * Taxonomy (ADR 0117): Branschbevakningar is a browsing surface, a sibling of Sök
  * företag — never nested with Bevakade företag under a shared "Bevakningar" parent.
  * The `smartaBevakningar` key maps to the `/foretag/branschbevakningar` slug so the
  * URL carries the full disambiguating noun (never a bare `bevakningar`). Order +

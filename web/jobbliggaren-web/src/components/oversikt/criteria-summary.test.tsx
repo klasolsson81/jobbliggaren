@@ -190,8 +190,7 @@ describe("CriteriaSummary", () => {
     const text = visibleText();
     expect(text).toContain("matchar fler företag än vi kan räkna annonser för");
     expect(text).not.toContain("Inga aktiva annonser");
-    // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1);
-    // the second line is the block-level advice, which is asserted on its own below.
+    // Both arms refuse for the same reason, so the ROW says it once (design-reviewer Major 1).
     expect(document.querySelectorAll(".jp-appsummary__watch .jp-matchline")).toHaveLength(1);
     // A refusal has nothing to link to.
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(0);
@@ -273,16 +272,28 @@ describe("CriteriaSummary", () => {
     expect(visibleText()).not.toContain("eller matcha dem mot din profil");
   });
 
+  // TWO rows, and that is what makes this test able to fail (code-reviewer Major 1, 2026-09-08). At
+  // N=1 the advice is silent because `adviceStatedByCaller` is false, so `anyTooBroad` could be
+  // deleted outright and a single-row fixture would stay green — the gate would then write the
+  // block advice under a list where nothing is refused, which is a false statement to the user.
+  // Above one row `adviceStatedByCaller` is true and `anyTooBroad` is the only thing holding the
+  // advice back.
   it("rådet uteblir helt när ingen bevakning är för bred", () => {
     render(
       <CriteriaSummary
-        criteria={ok([criterion({ ads: counted(42), matching: matchCounted(7) })])}
+        criteria={ok([
+          criterion({ id: "a", ads: counted(42), matching: matchCounted(7) }),
+          criterion({ id: "b", ads: counted(13), matching: matchCounted(2) }),
+        ])}
         reference={REFERENCE}
       />,
     );
 
     expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(0);
     expect(screen.queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
+    // The other flag's N>=2 arm, pinned here because nothing else pins it: `standalone` follows the
+    // SURFACE, so the self-carrying label must survive above one row too.
+    expect(visibleText()).not.toContain("dessa företag");
   });
 
   // design-reviewer Major 3: "från dessa företag" has no antecedent here — no company is rendered
@@ -375,8 +386,7 @@ describe("CriteriaSummary", () => {
       />,
     );
 
-    // In the summary variant BOTH refusal arms render the same short status, so copy can no longer
-    // tell them apart — the discriminator is whether the matching line SURVIVED. If the shared
+    // The discriminator is whether the matching line SURVIVED, not the wording. If the shared
     // collapse had fired it would have suppressed that line, swallowing an answer the block has.
     // That tests the logic rather than the wording, which is the stronger pin.
     const text = visibleText();

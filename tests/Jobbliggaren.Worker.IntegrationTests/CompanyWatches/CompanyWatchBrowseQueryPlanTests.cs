@@ -832,7 +832,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
         refused.Ids.ShouldBeNull();
 
         // ...and the refusal is THIS QUESTION's, not the criterion's: the materialisation stands.
-        // Reading the refusal as "för bred på bolagsnivå" would send the user to narrow a watch that
+        // Reading the refusal as a company-level breadth refusal would send the user to narrow a watch that
         // the breadth gate accepted.
         refused.State.ShouldBe(CriterionMaterialisationState.Materialised);
 
@@ -926,7 +926,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
     public async Task AdQueries_ReportTooBroad_WhenTheBreadthGateRefusedTheCriterion()
     {
         // The refusal, end to end. The breadth gate stores NO members and a TooBroad state row, so the
-        // three statements must answer "för bred" rather than the honest zero an empty member set
+        // three statements must answer with a refusal rather than the honest zero an empty member set
         // would otherwise produce — which is precisely the dishonest zero ADR 0139 wrote the state
         // table for.
         //
@@ -1136,7 +1136,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
         var port = PortFor(ctx.Db);
 
-        // POSITIVE CONTROL: fresh, the same criterion answers "för bred" — so the assertions below
+        // POSITIVE CONTROL: fresh, the same criterion answers with a refusal — so the assertions below
         // measure the age gate rather than a criterion that was never refused in the first place.
         await RunMaterialiserAsync(ct);
         (await port.CountActiveAdsAsync(broad, broadFingerprint, 10_000, ct))
@@ -1196,7 +1196,7 @@ public class CompanyWatchBrowseQueryPlanTests(WorkerTestFixture fixture)
 
         var port = PortFor(ctx.Db);
 
-        // BASELINE: refused, and the surfaces render "för bred".
+        // BASELINE: refused, and the surfaces render a refusal.
         (await port.CountActiveAdsAsync(criterionId, broadFingerprint, 10_000, ct))
             .State.ShouldBe(CriterionMaterialisationState.TooBroad);
 

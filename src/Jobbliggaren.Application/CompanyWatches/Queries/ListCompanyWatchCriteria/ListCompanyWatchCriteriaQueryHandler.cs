@@ -39,7 +39,8 @@ namespace Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriter
 /// <para>
 /// ⚠ <b>The conclusion is CONDITIONAL and the condition is the breadth gate.</b> It holds only while
 /// the member set stays bounded:
-/// a criterion with ~1,07M members would make <c>members ⋈ job_ads</c> a large join again. The bucket decision and
+/// a criterion with ~1,07M members would make <c>members ⋈ job_ads</c> a large join again. The bucket
+/// decision (<c>RateLimitingExtensions.CompanyWatchCriteriaListPolicy</c>) and
 /// <c>CompanyWatchCriterionMember.MaxPerCriterion</c> are therefore ONE decision, not two.
 /// </para>
 ///

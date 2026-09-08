@@ -283,7 +283,7 @@ public sealed class CriterionMatchingAdSetResolver(
     {
         var magnitude = await MagnitudeAsync(criterionId, criteria, cancellationToken);
 
-        // Neither refusal is a zero, and they are NOT interchangeable: "för bred" is something the
+        // Neither refusal is a zero, and they are NOT interchangeable: the breadth refusal is something the
         // user can act on by narrowing the watch, "not materialised" is something only the next run
         // fixes.
         if (magnitude.TooBroad)
@@ -301,7 +301,7 @@ public sealed class CriterionMatchingAdSetResolver(
 
         // The port refuses rather than truncating, so there is no prefix here to mistake for an
         // answer. Its non-answers map onto this hierarchy's own, one for one — and the two that read
-        // as "för bred" stay distinct inside the port even though they render one sentence.
+        // as the breadth refusal stay distinct inside the port even though they render one sentence.
         if (resolved.Refused || resolved.State == CriterionMaterialisationState.TooBroad)
             return (new CriterionMatchingAds.SetTooLarge(), null);
         if (resolved.State == CriterionMaterialisationState.NotMaterialised)
@@ -371,7 +371,7 @@ public abstract record CriterionMatchingAds
     /// number exists. Never zero, and never a truncated count.
     ///
     /// <para>
-    /// The two causes render the same sentence to a user ("bevakningen är för bred"), which is why
+    /// The two causes render the same sentence to a user, which is why
     /// they share an arm; they are kept apart INSIDE the port
     /// (<c>MaterialisedAdIds.Refused</c> vs its state) so neither can be inferred from the other
     /// there.

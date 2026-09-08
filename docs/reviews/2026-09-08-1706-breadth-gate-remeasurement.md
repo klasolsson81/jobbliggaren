@@ -30,6 +30,12 @@ growing materially, `MaxPerUser` moving, or ADR 0045's budget changing. Read rea
 9 130 distinct org.nr over all ads, **7 108** over Active ads, of which **6 920** sit in the Active
 register. The sampling proportion that governs the read is therefore 6 920 / 743 654 = **0,93 %**.
 
+⚠ **Two Active-ad counts appear in this report and they are different quantities, not a
+contradiction** (`dotnet-architect`, 2026-09-08): **41 597** is every Active ad, and it is the corpus
+figure §1 compares; **41 148** is the Active ads carrying a **non-null** org.nr, and it is the figure
+§3's fixture matches, because the read joins on that column and the 449-ad difference is a NULL
+bucket no member array can reach.
+
 `MaxPerUser` is still 20 and ADR 0045 is unchanged. **None of the three triggers fired.** The bound
 is being re-derived because its *product* half was measured against the wrong weighting, not because
 the corpus drifted.
@@ -110,7 +116,7 @@ Verified against dev before any timing was taken:
 | Quantity | Target (dev) | Fixture |
 |---|---:|---:|
 | register rows / Active | 1 066 938 / 743 654 | **exact** |
-| `job_ads` rows / Active | 106 071 / 41 148 | **exact** |
+| `job_ads` rows / Active **with a non-null org.nr** | 106 071 / 41 148 | **exact** |
 | distinct org.nr with Active ads | 7 108 | **exact** |
 | ...of them in the Active register | 6 920 | **exact** |
 | ads per employer: median / max | 1 / 448 | **exact** (dev's own multiset, by rank) |
@@ -121,9 +127,20 @@ The one miss is 0,2 % inside the **non-Active** ad population, which the read ne
 distribution has median **1**. That was corrected before the reported run — the uniform version is
 not what these numbers came from.
 
-**Result 5 reproduces.** The delivered statement's plan contains **no `company_register` node**:
-`InitPlan` is an `Index Only Scan` on the member PK with `Heap Fetches: 0`, the outer query an
-`Index Scan` on `job_ads`'s org.nr index. The register really is gone from the read path.
+**Result 5's headline reproduces; its plan does NOT, and the difference is named rather than
+smoothed over** (`dotnet-architect`, 2026-09-08). The delivered statement's plan contains **no
+`company_register` node** — `InitPlan` is an `Index Only Scan` on the member PK with
+`Heap Fetches: 0`, which is the point of the whole exercise and holds. But the **outer** node differs:
+the fixture plans a plain `Index Scan` on `job_ads`'s org.nr index, where dev plans a
+`Bitmap Heap Scan` fed by a `BitmapAnd` over the org.nr and status indexes (measured read-only on dev
+2026-09-08 with the same statement shape and 1 000 org.nr).
+
+⚠ **So §3b measured a different execution strategy from production's, and its absolute ms are read
+under that caveat** — which is a second, independent reason not to treat them as a verdict, beside
+the unstable denominator. It does **not** touch §3a's buffer series ordering, §2's or §4's figures
+(plain read-only queries against dev, no fixture at all), or the `InitPlan` finding. Closing the gap
+would mean matching dev's index statistics closely enough to reproduce its planner choice, which the
+2026-09-06 report's *Reproducing* section does not specify either.
 
 ### 3a. Buffers — the stable metric
 
@@ -234,10 +251,24 @@ figure (34,41 ms) is the one that **reproduces the old report's 30,67 ms p95**, 
 what validates the fixture's write path.
 
 What survives the noise is the **shape**: five times the members costs roughly 1,6x the write, so the
-cost is dominated by per-statement overhead rather than by member count. At the sweep's
-`SweepBatchSize` = 50 and a 60 s tick, the steady-state figure at 5 000 members would be
-50 x ~0,26 s = ~13 s — **22 % of the interval**, against the ~5 % ADR 0139 records at the current
-bound.
+cost is dominated by per-statement overhead rather than by member count.
+
+**What that does to `SweepBatchSize` — one instrument at a time, and the addition written out**
+(`dotnet-architect`, 2026-09-08: the first version of this paragraph took its numerator from the
+steady-state column and its denominator from 2026-09-06's pristine figure, which is not a
+measurement). Per criterion end to end = this section's replace + §4's selection at the matching
+`LIMIT`; the sweep does 50 of them inside a 60 s tick:
+
+| Instrument | 1 000 members | 5 000 members |
+|---|---|---|
+| **steady state** | 126,69 + 9,73 = 136,4 ms → 50 x = 6,8 s = **11 %** of the tick | 207,15 + 51,50 = 258,7 ms → 50 x = 12,9 s = **22 %** |
+| **pristine** | 34,41 + 9,73 = 44,1 ms → 50 x = 2,2 s = **4 %** | 498,17 + 51,50 = 549,7 ms → 50 x = 27,5 s = **46 %** |
+
+ADR 0139's own *~5 %* at the current bound sits beside the **pristine** row, which is the instrument
+2026-09-06 used. On either instrument the headroom shrinks with the bound and neither reading breaches
+the tick; the pristine column is also the one whose 5 000-member figure contradicts this section's own
+*"roughly 1,6x"* shape clause, which is what the bloat sensitivity above means in practice. **A cap
+move re-derives `SweepBatchSize`; it does not inherit it.**
 
 ---
 

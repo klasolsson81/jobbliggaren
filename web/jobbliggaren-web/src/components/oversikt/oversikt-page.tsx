@@ -80,7 +80,7 @@ interface OversiktPageProps {
    */
   readonly companyWatches: ApiResult<ListCompanyWatchesResult>;
   /**
-   * #1681 del 3 — de branschbevakningarna, som Result och av samma skäl som `companyWatches`:
+   * #1681 del 3 — branschbevakningarna, som Result och av samma skäl som `companyWatches`:
    * bara ett Result skiljer "du har inga" från "listan kunde inte läsas". Varje rad bär de TVÅ
    * annonstal detaljsidan visar, i samma former (ADR 0139) — talen är alltså redan komponerade
    * när de kommer hit, och den här sidan räknar ingenting själv.

@@ -367,12 +367,12 @@ public enum CriterionMaterialisationState
     Materialised = 0,
 
     /// <summary>The company set exceeded the breadth gate, so nothing was materialised and no number
-    /// exists. The surfaces render "för bred". Never a zero.</summary>
+    /// exists. The surfaces render a refusal. Never a zero.</summary>
     TooBroad = 1,
 
     /// <summary>
     /// No materialisation has run for this criterion yet, so the answer is UNKNOWN. Never a zero, and
-    /// never "för bred" either — the two say different things and offer the user different actions.
+    /// never the breadth refusal either — the two say different things and offer the user different actions.
     ///
     /// <para>
     /// <b>This is the common state, not an exotic one</b>: it is where every criterion sits between
@@ -404,7 +404,7 @@ public sealed record MaterialisedAdCount(
     public static MaterialisedAdCount Counted(int count, bool saturated) =>
         new(CriterionMaterialisationState.Materialised, count, saturated);
 
-    /// <summary>Refused by the breadth gate — "för bred", never a zero.</summary>
+    /// <summary>Refused by the breadth gate — a refusal, never a zero.</summary>
     public static MaterialisedAdCount TooBroad { get; } =
         new(CriterionMaterialisationState.TooBroad, null, false);
 

@@ -372,7 +372,7 @@
     },
     "criteria": {
       "heading": "Industry watches",
-      "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. A industry watch sends no notifications of its own.",
+      "lede": "A saved search by industry and municipality. You browse the matching companies and can start following the ones you are interested in. An industry watch sends no notifications of its own.",
       "newButton": "New industry watch",
       "listLabel": "Your industry watches",
       "emptyTitle": "You have no industry watches.",

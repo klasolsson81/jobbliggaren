@@ -21,7 +21,7 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 ///     not say zero. This is also the state a criterion is in between its creation and the next job
 ///     run, so it is the common case rather than an exotic one.</item>
 ///   <item><b><see cref="MaterialisationState.TooBroad"/></b> = refused by the breadth gate. The read
-///     side renders "för bred" — deterministic, and identical to what the detail page already answers
+///     side renders a refusal — deterministic, and identical to what the detail page already answers
 ///     via <c>CriterionMatchingAds.SetTooLarge</c>.</item>
 ///   <item><b><see cref="MaterialisationState.Materialised"/></b> with
 ///     <see cref="MemberCount"/> = 0 = genuinely no matching company. An honest zero, and the ONLY
@@ -104,6 +104,6 @@ internal enum MaterialisationState
     Materialised = 0,
 
     /// <summary>The company set exceeded <see cref="CompanyWatchCriterionMember.MaxPerCriterion"/>.
-    /// No members are stored; the surfaces render "för bred".</summary>
+    /// No members are stored; the surfaces render a refusal.</summary>
     TooBroad = 1,
 }

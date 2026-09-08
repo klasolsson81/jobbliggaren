@@ -60,7 +60,7 @@ export default async function OversiktRoute({
   // användare (Authorization-nyckel, `private`, revalidate 3600) — första
   // laddningen/timme är alltså kall men oblockerande.
   const taxonomyPromise = getTaxonomyTree();
-  // #1681 del 3 — referensträdet ger de branschbevakningarnas rader sin människoetikett
+  // #1681 del 3 — referensträdet ger branschbevakningarnas rader sin människoetikett
   // (`deriveDisplayLabel`). Startas EAGER av samma skäl som taxonomin ovan, så det överlappar
   // fan-out:en i stället för att serialisera en round-trip efter den.
   //
@@ -112,7 +112,7 @@ export default async function OversiktRoute({
     // cases. A CTO decision (2026-08-29): this is initial data for a section, so it is fetched
     // here in the fan-out, never lazily client-side.
     getCompanyWatches(),
-    // #1681 del 3 (ADR 0139) — de branschbevakningarna med sina TVÅ annonstal per rad. Result:et
+    // #1681 del 3 (ADR 0139) — branschbevakningarna med sina TVÅ annonstal per rad. Result:et
     // reser HELT till komponenten (aldrig degraderat till en array): bara ett Result skiljer "du
     // har inga branschbevakningar" från "listan kunde inte läsas", och blocket säger olika saker
     // i de två fallen. Initial data för en sektion, alltså hämtat här i fan-out:en och aldrig

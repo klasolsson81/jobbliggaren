@@ -157,7 +157,7 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
     {
         // #1681 part 2 — the COMMON state, not an exotic one: every criterion sits here between its
         // creation and the next materialisation run, and every criterion returns here the moment its
-        // owner edits the predicate. Rendering it as "för bred" would tell the user to narrow a watch
+        // owner edits the predicate. Rendering it as the breadth refusal would tell the user to narrow a watch
         // that is merely waiting to be counted; rendering it as 0 would be the dishonest zero.
         var ct = TestContext.Current.CancellationToken;
         await using var db = TestAppDbContextFactory.Create();
@@ -249,8 +249,8 @@ public class GetCriterionAdMagnitudeQueryHandlerTests
     public void Dto_RejectsANumberBesideEitherRefusal_AndTheTwoRefusalsTogether()
     {
         // #1681 part 2 — the DTO grew from two states to three, so its guard grew a case that no
-        // handler path constructs and nothing else would try. A magnitude next to "för bred" is a
-        // figure with no measurement behind it; "för bred" AND "not materialised" together is two
+        // handler path constructs and nothing else would try. A magnitude next to a breadth refusal is a
+        // figure with no measurement behind it; a breadth refusal AND "not materialised" together is two
         // different answers claimed at once.
         Should.Throw<ArgumentException>(() =>
             new CriterionAdMagnitudeDto(3, Saturated: false, TooBroad: true, NotMaterialised: false));

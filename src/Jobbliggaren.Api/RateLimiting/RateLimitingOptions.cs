@@ -472,6 +472,9 @@ public sealed class RateLimitingOptions
     /// <b>Recompute trigger.</b> Any of these invalidates the number and none of them is subtle: a
     /// second consumer page (half 1), a change to <c>CompanyWatchCriterion.MaxPerUser</c> or
     /// <c>CriterionMatchingAdSetResolver.MaxSetSize</c> (half 2 — both are multipliers on the fan),
+    /// a change to <c>CompanyWatchCriterionMember.MaxPerCriterion</c> — it is the ceiling on the
+    /// member set half 2's statements run over, and this bucket and that bound are ONE decision
+    /// (<c>ListCompanyWatchCriteriaQueryHandler</c> says the same from its side),
     /// or a re-measurement that moves the 381,5 ms figure. Re-run the report's own protocol; do not
     /// scale one of its points, its series is non-monotone. <b>The limit is
     /// <c>security-auditor</c>'s to verify and hers to ratchet (BLOCKING); revising it UP after a

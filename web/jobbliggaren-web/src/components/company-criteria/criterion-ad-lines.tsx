@@ -9,19 +9,28 @@ import type {
 } from "@/lib/dto/company-criteria";
 
 /**
- * Which surface is rendering. It changes the COPY, never the logic, and both values are reached in
- * production — the criterion detail page passes `"detail"`, `CriteriaSummary` passes `"summary"` —
- * so neither arm is a branch nothing can produce.
+ * Does the surface rendering these lines also render the COMPANIES the numbers count? It changes the
+ * COPY, never the logic, and both values are reached in production, so neither arm is a branch
+ * nothing can produce.
  *
- * - `"detail"`: the criterion's own page. The companies the numbers count are rendered on that same
- *   page, so "från dessa företag" has an antecedent.
- * - `"summary"`: one row among up to `MaxPerUser` on `/oversikt`. No company is rendered anywhere in
- *   the block, at any count, so each label must carry itself.
+ * - `"withCompanies"`: the criterion's own page, which lists those companies beneath these lines, so
+ *   "från dessa företag" has an antecedent. One producer today.
+ * - `"standalone"`: a row that renders no company at all — one summary line among up to `MaxPerUser`
+ *   on `/oversikt`, or one catalogue row on `/foretag/branschbevakningar`, where the companies sit
+ *   behind a "Visa företag" link rather than on the page. Each label must carry itself. Two
+ *   producers today.
+ *
+ * ⚠ <b>Named for the property, never for the surface</b> (`senior-cto-advisor` D1/in-block 2,
+ * 2026-09-08). The values were `"detail"`/`"summary"` while there were exactly two consumers and the
+ * surface picked out the property by accident; at the third, `variant="summary"` on a catalogue page
+ * is disinformation, and a docblock explaining that "summary" means "standalone" is the smell rather
+ * than the fix.
  *
  * ⚠ It decides the ANTECEDENT and nothing else. Whether the too-broad advice is hoisted out of the
- * row is `adviceStatedByCaller`, a different fact about a different thing — see that prop.
+ * row is `adviceStatedByCaller`; whether the row's CTA has anywhere to go is
+ * `actionOfferedByCaller`. Three independent facts, three props — see each prop.
  */
-export type CriterionAdLinesVariant = "detail" | "summary";
+export type CriterionAdLinesVariant = "withCompanies" | "standalone";
 
 interface CriterionAdLinesProps {
   readonly criterionId: string;
@@ -39,7 +48,7 @@ interface CriterionAdLinesProps {
    *
    * <p><b>This is a second, independent fact and it must not be folded back into `variant`.</b>
    * `variant` decides whether an ad label carries its own antecedent — a property of the SURFACE,
-   * true at every N, because no company is rendered in the summary block at any count. This flag
+   * true at every N, because a standalone surface renders no company at any count. This flag
    * decides whether the advice would REPEAT — a property of the COUNT. At N=1 they disagree: the
    * label must still carry itself while the advice must not be hoisted, and one flag cannot say
    * both. Deriving this one from `variant` alone put the refusal on screen twice (#1707); deriving
@@ -50,6 +59,29 @@ interface CriterionAdLinesProps {
    * independent `length > 1` expressions is how the row and the block drift apart.</p>
    */
   readonly adviceStatedByCaller: boolean;
+  /**
+   * Does the CALLER already render the control that edits the watch, so the too-broad CTA would
+   * point at the page the reader is already on? True exactly on `/foretag/branschbevakningar`, whose
+   * every row carries its own "Ändra" button (`senior-cto-advisor` D1, 2026-09-08).
+   *
+   * <p><b>A THIRD independent fact, and it must not be folded into either of the other two.</b>
+   * `variant` decides whether a label needs its own antecedent; `adviceStatedByCaller` decides
+   * whether the advice would repeat; this decides whether a shortcut to another surface leads
+   * anywhere. They change for three different reasons — a surface gaining a company list, a list
+   * crossing N=1, a caller gaining an edit affordance — and the catalogue is `standalone` AND
+   * action-offering at once, so no single enum can say both.</p>
+   *
+   * <p><b>It gates the `Link` only, never the choice of sentence.</b> At N=1 the catalogue still
+   * renders the whole refusal + reason + advice; only the shortcut is dropped, because the action it
+   * shortcuts to is a button in the same row. Collapsing this into `shortRefusal` would silently
+   * take the reason and the advice with it.</p>
+   *
+   * <p>It reaches the three `ads.matchingTooBroadCta` links and nothing else. It deliberately does
+   * NOT reach the not-assessed nudge to {@link MATCH_SETTINGS_HREF} below: that is a different
+   * action, on a surface no caller of this component offers a substitute for, and gating it would
+   * delete a live way forward (ADR 0047).</p>
+   */
+  readonly actionOfferedByCaller: boolean;
 }
 
 /**
@@ -91,6 +123,7 @@ export function CriterionAdLines({
   matching,
   variant,
   adviceStatedByCaller,
+  actionOfferedByCaller,
 }: CriterionAdLinesProps) {
   const t = useTranslations("pages.foretag.criteria");
   // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
@@ -107,9 +140,28 @@ export function CriterionAdLines({
   const shortRefusal = adviceStatedByCaller;
 
   // Separate, and separate on purpose (see the prop's docblock): whether an ad label must carry its
-  // own antecedent. No company is rendered in the summary block at ANY count, so this follows the
+  // own antecedent. A standalone surface renders no company at ANY count, so this follows the
   // surface and never the row count.
-  const standalone = variant === "summary";
+  const standalone = variant === "standalone";
+
+  // The shortcut to where a watch is edited, built ONCE and rendered by all three too-broad arms.
+  // Absent where the caller already offers that action in the row itself — there the link would name
+  // the page the reader is standing on, in the same Swedish word as a control beside it, which is a
+  // control describing an action it does not perform rather than a way forward (ADR 0047; the
+  // sub-nav's own self-reference is legitimate because it announces itself with `aria-current`).
+  //
+  // The CTA belongs to every arm and not just this one: its absence in the `ads.tooBroad` arm was a
+  // dead end rather than a state (design-reviewer B2), because that is where a refused watch lands
+  // when only the ads arm is unanswerable — `notAssessedTooBroad` at N=1 — with the block advice
+  // correctly silent.
+  const tooBroadCta = actionOfferedByCaller ? null : (
+    <>
+      {" "}
+      <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
+        {t("ads.matchingTooBroadCta")}
+      </Link>
+    </>
+  );
 
   // design-reviewer Major 1 (#1681 part 2) — the two refusals COINCIDE by construction, not by
   // accident: `CriterionMatchingAdSetResolver` derives the matching arm from the SAME magnitude the
@@ -144,10 +196,8 @@ export function CriterionAdLines({
             t("ads.tooBroadShort")
           ) : (
             <>
-              {t("ads.adsAndMatchingTooBroad")}{" "}
-              <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
-                {t("ads.matchingTooBroadCta")}
-              </Link>
+              {t("ads.adsAndMatchingTooBroad")}
+              {tooBroadCta}
             </>
           )}
         </p>
@@ -159,15 +209,8 @@ export function CriterionAdLines({
             t("ads.tooBroadShort")
           ) : (
             <>
-              {t("ads.adsTooBroad")}{" "}
-              {/* The CTA its two siblings already carried, and its absence was a dead end rather
-                  than a state (design-reviewer B2, ADR 0047): this branch is where a refused watch
-                  lands when only the ads arm is unanswerable — `notAssessedTooBroad` at N=1 — and
-                  with the block advice correctly silent at N=1 the watch was left refused with no
-                  way forward at all. */}
-              <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
-                {t("ads.matchingTooBroadCta")}
-              </Link>
+              {t("ads.adsTooBroad")}
+              {tooBroadCta}
             </>
           )}
         </p>
@@ -209,10 +252,8 @@ export function CriterionAdLines({
               t("ads.tooBroadShort")
             ) : (
               <>
-                {t("ads.matchingTooBroad")}{" "}
-                <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
-                  {t("ads.matchingTooBroadCta")}
-                </Link>
+                {t("ads.matchingTooBroad")}
+                {tooBroadCta}
               </>
             )}
           </p>

@@ -182,8 +182,11 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
           criterionId={id}
           ads={ads}
           matching={matching}
-          variant="detail"
+          variant="withCompanies"
           adviceStatedByCaller={false}
+          /* No edit control on this page, so the too-broad CTA is the only way to the surface that
+             has one and must render. */
+          actionOfferedByCaller={false}
         />
 
         {/* Mandatory säteskommun explainer + inline help (the kommun is the registered seat, not

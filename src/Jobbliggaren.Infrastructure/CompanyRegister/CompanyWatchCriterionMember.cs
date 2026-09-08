@@ -63,17 +63,9 @@ internal sealed class CompanyWatchCriterionMember
     /// </para>
     ///
     /// <para>
-    /// <b>What belongs here is the ARGUMENT, because the constant is meaningless without it.</b> The
-    /// anchor that survives re-measurement is <b>the budget at the criterion cap</b>:
-    /// <c>CompanyWatchCriterion.MaxPerUser</c> is 20, so whatever one criterion costs, the surface
-    /// that composes them pays twenty times.
-    /// </para>
-    ///
-    /// <para>
     /// ⚠ <b>A second anchor — the twin handler's cost class — was computed in 2026-09-06's report and
     /// is RETIRED as a ratio</b> (ADR 0139 Amendment 2026-09-08): it divides by a sub-millisecond
     /// denominator that is not stable enough to carry it, and the buffer series may not stand in.
-    /// Its status is settled in that amendment and nowhere else; do not re-argue it here.
     /// </para>
     ///
     /// <para>

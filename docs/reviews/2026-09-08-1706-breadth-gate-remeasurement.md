@@ -257,7 +257,11 @@ cost is dominated by per-statement overhead rather than by member count.
 (`dotnet-architect`, 2026-09-08: the first version of this paragraph took its numerator from the
 steady-state column and its denominator from 2026-09-06's pristine figure, which is not a
 measurement). Per criterion end to end = this section's replace + §4's selection at the matching
-`LIMIT`; the sweep does 50 of them inside a 60 s tick:
+`LIMIT`; the sweep does 50 of them inside a 60 s tick. ⚠ **The two terms come from different
+quantiles and different hosts** (`dotnet-architect`, 2026-09-08): the replace figures are p95 on
+the fixture, §4's selection figures are p50 against dev, so each cell is a composed estimate
+rather than a quantile. Substituting §4's max column instead gives 11 / 25 / 4 / 49 %, which
+changes no reading below:
 
 | Instrument | 1 000 members | 5 000 members |
 |---|---|---|

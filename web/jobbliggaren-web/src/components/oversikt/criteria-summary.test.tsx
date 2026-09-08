@@ -268,8 +268,11 @@ describe("CriteriaSummary", () => {
     // ONE advice line, ONE call to action — however many rows are refused.
     expect(document.querySelectorAll(".jp-appsummary__advice")).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(1);
-    // And the long per-row sentence is gone from the rows entirely.
-    expect(visibleText()).not.toContain("eller matcha dem mot din profil");
+    // And the long per-row form is gone from the rows entirely. The needle is the MECHANISM
+    // sentence, which only the long arms carry: measured 1 at N=1 and 0 here, so the line
+    // discriminates. The previous needle stopped discriminating when B4 rewrote the copy out
+    // from under it — a gate that cannot fail (design-reviewer, 2026-09-08).
+    expect(visibleText()).not.toContain("Färre branscher eller kommuner ger färre företag");
   });
 
   // TWO rows, and that is what makes this test able to fail (code-reviewer Major 1, 2026-09-08). At

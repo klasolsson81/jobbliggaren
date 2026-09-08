@@ -69,7 +69,7 @@ describe("deriveDisplayLabel", () => {
     expect(deriveDisplayLabel([], ["0184"], reference, copy)).toBe("Solna");
   });
 
-  it("okända koder (stale snapshot) mot båda axlar → null (caller faller tillbaka på summering)", () => {
+  it("okända koder (stale snapshot) mot båda axlar → null (caller faller tillbaka på neutralt substantiv)", () => {
     expect(deriveDisplayLabel(["99999"], ["9999"], reference, copy)).toBeNull();
   });
 

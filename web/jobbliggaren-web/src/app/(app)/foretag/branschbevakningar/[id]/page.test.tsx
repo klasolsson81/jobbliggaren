@@ -126,6 +126,38 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     expect(screen.queryByText(/2\s?000\s+träffar/)).toBeNull();
   });
 
+  // The CALL-SITE pin for `CriterionBreadth`, and it exists for the same reason the docblock above
+  // gives for `showTotalCount`: `criterion-breadth.test.tsx` proves the component counts, and
+  // `criteria-summary.test.tsx` proves /oversikt renders it. Neither can prove THIS page does.
+  // Delete the element from this page and the whole suite stays green unless something pins it here.
+  //
+  // The surface matters: this page states the too-broad refusal and asks the user to narrow the
+  // watch, and until #1712 the size she was asked to narrow appeared nowhere on it (ADR 0047).
+  // `CRITERION` is one leaf and one kommun, so the honest reading is the singular pair.
+  it("visar hur bred bevakningen är, så vägran har en storhet att syfta på", async () => {
+    browseCriterionCompanies.mockResolvedValue({
+      kind: "ok",
+      data: {
+        criterion: CRITERION,
+        companies: { items: [COMPANY], page: 1, pageSize: 20, totalCount: 1 },
+        magnitude: { magnitude: 1, saturated: false },
+      },
+    });
+
+    render(
+      await BevakningBrowsePage({
+        params: Promise.resolve({ id: "c1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    const breadth = document.querySelector(".jp-criterion-breadth");
+    expect(breadth).not.toBeNull();
+    expect(breadth?.textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "1 bransch · 1 kommun",
+    );
+  });
+
   // #1559 — the ad line has three arms and only one of them is a link. The link arm is what Klas
   // asked for; the other two exist so the surface never offers an empty page and never renders a
   // number the read did not produce (#859: a rendered magnitude is true or absent).

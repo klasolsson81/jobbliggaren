@@ -17,9 +17,8 @@ import type { CriterionReference } from "@/lib/dto/company-criteria";
  * name.
  *
  * Returns null when nothing resolves (an all-stale code set against a newer reference snapshot) — the
- * caller then falls back to the count summary ("3 branscher, 2 kommuner"). Pure and locale-config
- * injected (the "m.fl." suffix + the " · " separator come from i18n via the caller) so it stays unit-
- * testable without a translator.
+ * caller then falls back to the neutral noun. Pure and locale-config injected (the "m.fl." suffix +
+ * the " · " separator come from i18n via the caller) so it stays unit-testable without a translator.
  */
 export interface DisplayLabelCopy {
   /** The "and others" suffix, e.g. "m.fl.". */

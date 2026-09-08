@@ -248,6 +248,26 @@ describe("BevakningAdsPage — the per-card match mark", () => {
     expectNoChip();
   });
 
+  // The CALL-SITE pin for `CriterionBreadth` on THIS page — the sibling of the one in
+  // `[id]/page.test.tsx`, and for the same reason: the component's own test proves it counts, but
+  // only a pin here proves this page renders it. Delete the element and the suite stays green
+  // otherwise. `CRITERION` is one leaf and one kommun, so the honest reading is the singular pair.
+  it("renders how wide the watch is, above the headline", async () => {
+    browseCriterionAds.mockResolvedValue(okBrowse([ad("a1", "Systemutvecklare")]));
+    getMyProfile.mockResolvedValue({
+      kind: "ok",
+      data: { hasStatedDesiredOccupation: true },
+    });
+
+    await renderPage();
+
+    const breadth = document.querySelector(".jp-criterion-breadth");
+    expect(breadth).not.toBeNull();
+    expect(breadth?.textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "1 bransch · 1 kommun",
+    );
+  });
+
   it("on an empty page renders the empty state and never asks for grades", async () => {
     browseCriterionAds.mockResolvedValue(okBrowse([]));
     getMyProfile.mockResolvedValue({

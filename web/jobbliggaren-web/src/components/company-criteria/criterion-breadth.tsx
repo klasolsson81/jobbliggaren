@@ -20,13 +20,8 @@ interface CriterionBreadthProps {
  * `CriterionAdLines` extraction and for the same reason: four inline copies of one expression is
  * the drift shape that extraction exists to close.
  *
- * <p><b>Why the extent is not in the label.</b> `deriveDisplayLabel` names the huvudgrupp covering
- * the selected leaves, so a watch on the single leaf 62100 and a watch on all four leaves of
- * huvudgrupp 62 render the SAME string, and "m.fl." does not say how many either. The label states
- * coverage; this line states extent. Quantifying inside the label was rejected: that same string is
- * interpolated into `row.openBrowseAria`, `row.editAria`, `row.deleteAria` and
- * `row.deleteConfirmBody`, where a quantifier reads as part of the watch's NAME, and it is an
- * `<h1>` on two of the four surfaces where the kommun axis cannot be named at all.</p>
+ * <p>The label states coverage; this line states extent. Why the extent is not in the label instead:
+ * that report, B-1.</p>
  *
  * <p><b>The count is the RAW leaf count, and that is bound rather than incidental.</b> The repo
  * carries a SECOND count — `decomposeSelection(...).length`, what the edit dialog shows — which

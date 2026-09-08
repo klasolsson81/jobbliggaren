@@ -5167,9 +5167,24 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-appsummary__advice {
   max-width: 68ch;
 }
+/* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
+   med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
+   läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet
+   INGEN hårlinje här — då hade rådet blivit en tjugoförsta post i liggaren. */
+.jp-appsummary__advice { margin-top: 18px; }
+/* Två sammanfattningar i samma sektion delar klass, typografi och vänsterkant, så linjen mellan
+   dem BÄR information och måste nå UI-golvet 3:1 (jobbpilot-design-a11y §4). Basregeln lämnas
+   orörd — den bärs även av ApplicationSummary, där linjen bara skiljer grammatiker. */
+.jp-appsummary:has(+ .jp-appsummary) {
+  border-bottom-color: var(--jp-border-strong);
+}
 
-/* Hur BRED en branschbevakning är ("1 bransch · 1 kommun"). En klass, delad av alla fyra ytor som
-   visar ett kriterium (design-reviewer B-7, 2026-09-08). Inga nya tokens.
+/* Branschbevakningens BREDD ("1 bransch · 1 kommun") — en klass, delad av alla fyra ytor som visar
+   ett kriterium: `/oversikt`, katalogen och de två detaljsidorna (design-reviewer B-7, 2026-09-08).
+   Egen sektion och inte inuti `/oversikt`-blocket ovan, eftersom en regel fyra ytor läser inte hör
+   hemma under en enskild ytas rubrik — och två regler för `.jp-appsummary__advice` ska inte ha en
+   främmande regel emellan sig (design-reviewer + code-reviewer, omkontroll samma dag). Inga nya
+   tokens.
 
    `font-variant-numeric` sätts HÄR och aldrig som Tailwind-utility i JSX: `.jp-*` ligger utanför
    Tailwinds lager och slår därför varje utility för en egenskap regeln själv sätter, så en utility
@@ -5182,17 +5197,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Aldrig ink-2/ink-3: talen är sakuppgifter, inte grå metadata. */
   color: var(--jp-ink-1);
   font-variant-numeric: tabular-nums;
-}
-/* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
-   med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
-   läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet
-   INGEN hårlinje här — då hade rådet blivit en tjugoförsta post i liggaren. */
-.jp-appsummary__advice { margin-top: 18px; }
-/* Två sammanfattningar i samma sektion delar klass, typografi och vänsterkant, så linjen mellan
-   dem BÄR information och måste nå UI-golvet 3:1 (jobbpilot-design-a11y §4). Basregeln lämnas
-   orörd — den bärs även av ApplicationSummary, där linjen bara skiljer grammatiker. */
-.jp-appsummary:has(+ .jp-appsummary) {
-  border-bottom-color: var(--jp-border-strong);
 }
 
 /* Notiser */

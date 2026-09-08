@@ -37,7 +37,7 @@ interface CriterionAdLinesProps {
  * The criterion's TWO ad numbers and every honest way of not having them — one component, because
  * it is one knowledge piece (SRP: one authority per rule).
  *
- * <p>Extracted from `(app)/foretag/smarta-bevakningar/[id]/page.tsx` by `senior-cto-advisor`'s
+ * <p>Extracted from `(app)/foretag/branschbevakningar/[id]/page.tsx` by `senior-cto-advisor`'s
  * binding ruling for #1681 part 3 (in-block requirement 1,
  * `docs/reviews/2026-09-07-1681-part3-form-cto.md`): part 3 puts these same numbers on `/oversikt`,
  * and copying ~60 lines of honesty logic is what guarantees the two surfaces drift — the class ADR
@@ -118,7 +118,7 @@ export function CriterionAdLines({
           ) : (
             <>
               {t("ads.adsAndMatchingTooBroad")}{" "}
-              <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+              <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
                 {t("ads.matchingTooBroadCta")}
               </Link>
             </>
@@ -169,7 +169,7 @@ export function CriterionAdLines({
             ) : (
               <>
                 {t("ads.matchingTooBroad")}{" "}
-                <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+                <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
                   {t("ads.matchingTooBroadCta")}
                 </Link>
               </>

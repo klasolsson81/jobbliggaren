@@ -158,7 +158,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
     const link = screen.getByRole("link", {
       name: "167 aktiva annonser från dessa företag",
     });
-    expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+    expect(link).toHaveAttribute("href", "/foretag/branschbevakningar/c1/annonser");
   });
 
   it("states zero without offering a link to an empty page", async () => {
@@ -262,7 +262,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     // twelve ads while the sentence beside it promises nine.
     expect(link).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar/c1/annonser?visa=matchande",
+      "/foretag/branschbevakningar/c1/annonser?visa=matchande",
     );
     expect(screen.getByText("9 matchande annonser just nu")).toBeInTheDocument();
   });
@@ -293,7 +293,7 @@ describe("BevakningBrowsePage — the personal match count", () => {
     // A refusal that names an action carries the way there — the arm two rows up already does.
     expect(
       screen.getByRole("link", { name: "Ändra bevakningen" }),
-    ).toHaveAttribute("href", "/foretag/smarta-bevakningar");
+    ).toHaveAttribute("href", "/foretag/branschbevakningar");
     // Neither of the other two no-number arms, and above all not a zero: this watch was not
     // measured, its owner has not failed to state an occupation, and nothing matched zero ads.
     expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
@@ -458,7 +458,7 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     // The action is carried, because a refusal that names one must offer the way there.
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar",
+      "/foretag/branschbevakningar",
     );
     expectNoZero();
   });

@@ -139,7 +139,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
 
       <div className="jp-container jp-page">
         <Link
-          href="/foretag/smarta-bevakningar"
+          href="/foretag/branschbevakningar"
           className="jp-backlink mb-4"
         >
           <ArrowLeft size={16} aria-hidden="true" />
@@ -192,8 +192,8 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
               showTotalCount={false}
               buildHref={(targetPage) =>
                 targetPage <= 1
-                  ? `/foretag/smarta-bevakningar/${id}`
-                  : `/foretag/smarta-bevakningar/${id}?page=${targetPage}`
+                  ? `/foretag/branschbevakningar/${id}`
+                  : `/foretag/branschbevakningar/${id}?page=${targetPage}`
               }
             />
           </div>

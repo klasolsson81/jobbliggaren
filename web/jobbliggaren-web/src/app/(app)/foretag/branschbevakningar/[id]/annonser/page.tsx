@@ -60,7 +60,7 @@ interface Props {
 }
 
 /**
- * `/foretag/smarta-bevakningar/[id]/annonser` (#1559) — the ACTIVE job ads posted by the companies a
+ * `/foretag/branschbevakningar/[id]/annonser` (#1559) — the ACTIVE job ads posted by the companies a
  * saved criterion matches. RSC, jp-pagehero standard, the exact structural sibling of the parent
  * route (which lists the COMPANIES) and of `/foretag/bevakade/nya` (#1576, the ads behind the
  * Översikt number).
@@ -126,7 +126,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         <ErrorShell
           title={t("ads.loadErrorTitle")}
           body={t("ads.rateLimited")}
-          backHref={`/foretag/smarta-bevakningar/${id}`}
+          backHref={`/foretag/branschbevakningar/${id}`}
           backLabel={t("ads.backLink")}
         />
       );
@@ -136,7 +136,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         <ErrorShell
           title={t("ads.loadErrorTitle")}
           body={t("ads.loadErrorBody")}
-          backHref={`/foretag/smarta-bevakningar/${id}`}
+          backHref={`/foretag/branschbevakningar/${id}`}
           backLabel={t("ads.backLink")}
         />
       );
@@ -207,7 +207,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
       </section>
 
       <div className="jp-container jp-page">
-        <Link href={`/foretag/smarta-bevakningar/${id}`} className="jp-backlink mb-4">
+        <Link href={`/foretag/branschbevakningar/${id}`} className="jp-backlink mb-4">
           <ArrowLeft size={16} aria-hidden="true" />
           {t("ads.backLink")}
         </Link>
@@ -252,7 +252,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
         {matching?.tooBroad && !magnitudeUnanswerable && (
           <p className="jp-matchline">
             {t("ads.matchingTooBroadOnList")}{" "}
-            <Link className="jp-nudgelink" href="/foretag/smarta-bevakningar">
+            <Link className="jp-nudgelink" href="/foretag/branschbevakningar">
               {t("ads.matchingTooBroadCta")}
             </Link>
           </p>
@@ -332,11 +332,11 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
                 the top. Every other `jp-empty__actions` in the tree carries `jp-btn` variants only,
                 and ghost is the house's secondary in that row (design-reviewer Minor A). */}
             <div className="jp-empty__actions">
-              <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
+              <Link className="jp-btn jp-btn--primary" href={`/foretag/branschbevakningar/${id}`}>
                 {t("ads.backLink")}
               </Link>
               {magnitude.tooBroad && (
-                <Link className="jp-btn jp-btn--ghost" href="/foretag/smarta-bevakningar">
+                <Link className="jp-btn jp-btn--ghost" href="/foretag/branschbevakningar">
                   {t("ads.matchingTooBroadCta")}
                 </Link>
               )}
@@ -351,7 +351,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
               {matchingCount !== null ? t("ads.matchingEmptyBody") : t("ads.emptyBody")}
             </p>
             <div className="jp-empty__actions">
-              <Link className="jp-btn jp-btn--primary" href={`/foretag/smarta-bevakningar/${id}`}>
+              <Link className="jp-btn jp-btn--primary" href={`/foretag/branschbevakningar/${id}`}>
                 {t("ads.backLink")}
               </Link>
             </div>

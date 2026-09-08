@@ -15,7 +15,7 @@ const SEPARATOR = " · ";
 // The catalogue: where the watches are listed, edited and created. Both the anchor link and the
 // empty state's CTA point here, and that is one destination rather than two — `CriteriaSection`
 // owns the "Ny smart bevakning" trigger on this very page.
-const CATALOGUE_HREF = "/foretag/smarta-bevakningar";
+const CATALOGUE_HREF = "/foretag/branschbevakningar";
 
 // Ties the list to the anchor that names it, so a screen reader announces "N smarta bevakningar,
 // list, N items" rather than a bare "list" under a section headed "Företagsbevakning" — a different
@@ -61,7 +61,7 @@ interface CriteriaSummaryProps {
  * <p><b>Summary grammar, never catalogue grammar:</b> `jp-appsummary` / `jp-matchline`, never
  * `jp-jobs` / `jp-job`. The different grammar is what keeps this from reading as a second notice
  * list on the same left edge. And no management affordances — no create, edit, delete or "visa
- * företag": those are what identify the catalogue on `/foretag/smarta-bevakningar`, and moving a
+ * företag": those are what identify the catalogue on `/foretag/branschbevakningar`, and moving a
  * number is not moving a catalogue.</p>
  *
  * <p>Every criterion renders, in the handler's own order (`OrderByDescending(CreatedAt)`) — any

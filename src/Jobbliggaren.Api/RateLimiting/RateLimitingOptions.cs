@@ -322,8 +322,8 @@ public sealed class RateLimitingOptions
     /// (20/10s) has the same property and states its sustained rate explicitly; this one now does too.
     /// Measured 2026-09-04 against the dev stack, bucket full, 75 s idle between readings, calibrated
     /// against a fresh account's 15-then-429:
-    ///   /foretag/smarta-bevakningar/{id}           2 tokens (browse + ad-count) — PER PAGE TURN
-    ///   /foretag/smarta-bevakningar/{id}/annonser  1 token
+    ///   /foretag/branschbevakningar/{id}           2 tokens (browse + ad-count) — PER PAGE TURN
+    ///   /foretag/branschbevakningar/{id}/annonser  1 token
     ///   /foretag/sok, no search term                0 tokens
     ///   /foretag/sok, search or page turn          1 token
     /// Sustained headroom: 6 detail views/min, 12 for the other two.
@@ -381,7 +381,7 @@ public sealed class RateLimitingOptions
     ///
     /// <para>
     /// <b>Half 1 — legitimate frequency (amplification).</b> ONE consumer page,
-    /// <c>/foretag/smarta-bevakningar</c>, at <b>~1 call per load</b>. It used to be three pages;
+    /// <c>/foretag/branschbevakningar</c>, at <b>~1 call per load</b>. It used to be three pages;
     /// both detail pages left when <c>GetCriterionIdentityQuery</c> composed their heading into
     /// routes they already call, and that departure is pinned FE-side
     /// (<c>expect(getCompanyWatchCriteria).not.toHaveBeenCalled()</c> in both page tests). Against
@@ -461,7 +461,7 @@ public sealed class RateLimitingOptions
     ///
     /// <para>
     /// <b>The trigger below FIRED on 2026-09-07</b> (#1681 part 3, PR #1702). A second consumer
-    /// page appeared: <c>/oversikt</c> calls this route beside <c>/foretag/smarta-bevakningar</c> —
+    /// page appeared: <c>/oversikt</c> calls this route beside <c>/foretag/branschbevakningar</c> —
     /// measured as 1 consumer on <c>c9599517</c>, 2 on <c>99e033da</c>.
     /// <c>security-auditor</c> re-derived the limit against that trigger and <b>declined to ratchet
     /// it</b>; her grounds are in

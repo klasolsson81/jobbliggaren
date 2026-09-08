@@ -5,7 +5,7 @@ const AXIS = "visa";
 const MATCHING_VALUE = "matchande";
 
 /**
- * Reads the one axis `/foretag/smarta-bevakningar/[id]/annonser` has. Absence and every unrecognised
+ * Reads the one axis `/foretag/branschbevakningar/[id]/annonser` has. Absence and every unrecognised
  * value mean "all ads" — a filter nobody asked for must never appear.
  *
  * The value is deliberately NOT `baraMatchade`: on `/jobb` that name maps to `onlyMatched`, which
@@ -30,7 +30,7 @@ export function buildCriterionAdsHref(
   page: number,
   scope: CriterionAdsScope,
 ): string {
-  const base = `/foretag/smarta-bevakningar/${criterionId}/annonser`;
+  const base = `/foretag/branschbevakningar/${criterionId}/annonser`;
   const params = new URLSearchParams();
   if (page > 1) params.set("page", String(page));
   if (scope === "matching") params.set(AXIS, MATCHING_VALUE);

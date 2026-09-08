@@ -7,7 +7,7 @@ import type { JobAdDto } from "@/lib/dto/job-ads";
 import BevakningAdsPage from "./page";
 
 /**
- * `/foretag/smarta-bevakningar/[id]/annonser` — the per-card match mark (#1656 (a)).
+ * `/foretag/branschbevakningar/[id]/annonser` — the per-card match mark (#1656 (a)).
  *
  * <para/> What is pinned is the THREE-STATE gate and the fetch discipline around it, because the
  * list renders identically in every arm and nothing else would notice a collapse: a stated
@@ -309,7 +309,7 @@ describe("BevakningAdsPage — the matching view", () => {
     expect(screen.getByText("9 matchande annonser")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Visa alla annonser" }),
-    ).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1/annonser");
+    ).toHaveAttribute("href", "/foretag/branschbevakningar/c1/annonser");
   });
 
   it("does not filter when the axis is absent", async () => {
@@ -400,7 +400,7 @@ describe("BevakningAdsPage — the matching view", () => {
     const next = screen.getAllByRole("link").find((a) => a.getAttribute("href")?.includes("page=2"));
     expect(next).toBeDefined();
     expect(next!.getAttribute("href")).toBe(
-      "/foretag/smarta-bevakningar/c1/annonser?page=2&visa=matchande",
+      "/foretag/branschbevakningar/c1/annonser?page=2&visa=matchande",
     );
   });
 });
@@ -539,11 +539,11 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     const back = screen.getAllByRole("link", { name: "Tillbaka till bevakningen" });
     expect(back).toHaveLength(2);
     for (const link of back) {
-      expect(link).toHaveAttribute("href", "/foretag/smarta-bevakningar/c1");
+      expect(link).toHaveAttribute("href", "/foretag/branschbevakningar/c1");
     }
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(
       "href",
-      "/foretag/smarta-bevakningar",
+      "/foretag/branschbevakningar",
     );
 
     // The consequence clause is gone with the list it described. "…så alla aktiva annonser visas

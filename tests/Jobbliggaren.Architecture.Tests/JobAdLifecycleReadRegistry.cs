@@ -152,7 +152,7 @@ public static class JobAdLifecycleReadRegistry
                     + "a visible row the count did not count — #864 read from the other end.")),
             ["Jobbliggaren.Application.CompanyWatches.Queries.BrowseCriterionAds.BrowseCriterionAdsQueryHandler.LoadPageAsync"] =
                 One(Active("load JobAds by id for the ad columns of a smart watch's ad list "
-                    + "(/foretag/smarta-bevakningar/[id]/annonser, #1559). NO Status predicate at this "
+                    + "(/foretag/branschbevakningar/[id]/annonser, #1559). NO Status predicate at this "
                     + "site, and it is INHERITED rather than absent: the ids come from the browse "
                     + "port's join, whose SQL carries `j.status = @ad_status` as its whole ad-side "
                     + "exclusion, and the headline count on the same screen is produced by the SAME "

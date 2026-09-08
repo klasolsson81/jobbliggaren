@@ -57,7 +57,7 @@ The whole register is 16 080 phrases. Measured 2026-09-05 against the real catal
 | **demand-driven extract (shipped)** | **6.9 kB** | **24** |
 
 The reference payload is inlined into the RSC Flight payload of `/foretag/sok` **and**
-`/foretag/smarta-bevakningar`, so it is document weight. ADR 0045 Beslut 2 locks
+`/foretag/branschbevakningar`, so it is document weight. ADR 0045 Beslut 2 locks
 `resource-summary:document:size` at **30 720 B** at `error` severity in `lighthouserc.json`, and the
 existing 17 kB reference already spends over half of it. Any whole-register shape is ~5x that
 budget, on two pages, permanently.

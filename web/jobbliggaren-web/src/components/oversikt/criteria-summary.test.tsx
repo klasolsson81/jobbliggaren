@@ -86,7 +86,7 @@ const REFERENCE: CriterionReference = {
 
 // The catalogue route the block links to. Not a prop any more — the component owns it,
 // because every consumer is an authenticated surface and there was never a second value.
-const HREF = "/foretag/smarta-bevakningar";
+const HREF = "/foretag/branschbevakningar";
 
 function visibleText(): string {
   return (document.body.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -149,10 +149,10 @@ describe("CriteriaSummary", () => {
       a.getAttribute("href"),
     );
     expect(hrefs).toEqual([
-      "/foretag/smarta-bevakningar/aaaa1111-0000-4000-8000-000000000001/annonser",
-      "/foretag/smarta-bevakningar/aaaa1111-0000-4000-8000-000000000001/annonser?visa=matchande",
-      "/foretag/smarta-bevakningar/bbbb2222-0000-4000-8000-000000000002/annonser",
-      "/foretag/smarta-bevakningar/bbbb2222-0000-4000-8000-000000000002/annonser?visa=matchande",
+      "/foretag/branschbevakningar/aaaa1111-0000-4000-8000-000000000001/annonser",
+      "/foretag/branschbevakningar/aaaa1111-0000-4000-8000-000000000001/annonser?visa=matchande",
+      "/foretag/branschbevakningar/bbbb2222-0000-4000-8000-000000000002/annonser",
+      "/foretag/branschbevakningar/bbbb2222-0000-4000-8000-000000000002/annonser?visa=matchande",
     ]);
   });
 

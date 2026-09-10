@@ -1,18 +1,14 @@
 # Session-start template
 
-Structural guide for start prompts for new Claude Code sessions in JobbPilot.
+Structural guide for start prompts for new Claude Code or Codex sessions in JobbPilot.
 
 **How it is used:** At session end, CC generates a start prompt for the next
 session following this structure and delivers it as a copy-paste block in chat —
 **never** as a new file in the repo.
 
-**Design principle (rewritten 2026-06-12, CC cold review):** CLAUDE.md, the
-MEMORY.md index, and the SessionStart hook (current-work excerpt) load
-**automatically** in every session. The start prompt must therefore carry only
-what those sources cannot: the task handoff. Do NOT duplicate discipline rules,
-prohibitions, agent-invocation lists, or memory listings — they are already in
-context, and duplication costs tokens twice and creates drift when the copies
-diverge.
+**Design principle:** carry the task handoff, not a second copy of the rules.
+Follow the startup reads and runtime mapping in `session-protocol.md`.
+Claude's automatic memory and hooks must not be assumed in a Codex session.
 
 ---
 
@@ -39,7 +35,7 @@ ABORT om huvudkopians HEAD är en icke-main-branch — en annan session äger de
 
 Numbered, concrete deliverables. Name files to create/change when known.
 Reference the specific ADRs/BUILD.md sections THIS task needs (not generic
-"read CLAUDE.md" — that loads automatically).
+"read CLAUDE.md" — startup is covered by the session protocol).
 
 **Pick the task from the `mvp` label, not from the `P`-number** (CLAUDE.md §6.5,
 Klas-direktiv 2026-08-02): `gh issue list --label mvp` is the in-scope set while the

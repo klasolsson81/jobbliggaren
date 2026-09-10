@@ -7,6 +7,11 @@
 > `CLAUDE.md` §11 first — it sits there for budget reasons, not because it is
 > CC-specific.
 
+**Session start (CC and Codex):** before changing files, read `CLAUDE.md`
+§§1.5, 6.5 and 9, then `docs/runbooks/session-protocol.md`. They govern startup,
+worktree isolation and reviews. Codex follows that runbook's tool mapping;
+Claude hooks are not evidence that Codex ran a check.
+
 ## 1. Identity
 
 Jobbliggaren is a Swedish job-application manager built as a **civic utility** —

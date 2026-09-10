@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-review-discipline
-description: Close a Jobbliggaren review cycle after a mandatory reviewer has ruled: batch fixes, isolate the delta and run scoped re-checks.
+description: >
+  Close a Jobbliggaren review cycle after a mandatory reviewer has ruled: batch fixes, isolate the delta and run scoped re-checks.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-review-discipline/SKILL.md) in full

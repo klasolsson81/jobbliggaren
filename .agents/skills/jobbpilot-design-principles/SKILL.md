@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-design-principles
-description: Apply Jobbliggaren civic-utility design principles when deciding visual direction, tone or aesthetic fit.
+description: >
+  Apply Jobbliggaren civic-utility design principles when deciding visual direction, tone or aesthetic fit.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-design-principles/SKILL.md) in full

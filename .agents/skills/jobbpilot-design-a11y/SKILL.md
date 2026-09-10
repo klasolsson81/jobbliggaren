@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-design-a11y
-description: Apply Jobbliggaren accessibility rules when changing focus, keyboard interaction, forms, semantics or screen-reader behavior.
+description: >
+  Apply Jobbliggaren accessibility rules when changing focus, keyboard interaction, forms, semantics or screen-reader behavior.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-design-a11y/SKILL.md) in full

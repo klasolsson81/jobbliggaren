@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-design-copy
-description: Apply Jobbliggaren Swedish UI wording rules when writing labels, hints, errors, empty states or other product copy.
+description: >
+  Apply Jobbliggaren Swedish UI wording rules when writing labels, hints, errors, empty states or other product copy.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-design-copy/SKILL.md) in full

@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-design-tokens
-description: Consult Jobbliggaren design tokens when editing CSS, Tailwind classes, colors, spacing, typography or radii.
+description: >
+  Consult Jobbliggaren design tokens when editing CSS, Tailwind classes, colors, spacing, typography or radii.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-design-tokens/SKILL.md) in full

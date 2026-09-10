@@ -51,8 +51,19 @@ fi
 for n in "${skill_entries[@]}"; do
   f=".agents/skills/$n/SKILL.md"
   source=".claude/skills/$n/SKILL.md"
-  if ! grep -Eq "^name: $n[[:space:]]*$" "$f" || ! grep -q '^description: .' "$f"; then
-    echo "::error::$f lacks its own skill name or a discovery description."
+  if ! awk -v name="$n" '
+    { sub(/\r$/, "") }
+    NR == 1 { if ($0 != "---") bad=1; next }
+    NR == 2 { if ($0 != "name: " name) bad=1; next }
+    NR == 3 { if ($0 != "description: >") bad=1; next }
+    !closed && $0 == "---" { closed=1; next }
+    !closed {
+      if ($0 !~ /^  [^[:space:]]/) bad=1
+      else text=1
+    }
+    END { exit (bad || !closed || !text) }
+  ' "$f"; then
+    echo "::error::$f requires its own name and a nonempty folded YAML description."
     bad=1
   fi
   if ! grep -Fq "(../../../$source)" "$f" || ! grep -Fq "CHARTER UNREADABLE: $source and do not proceed" "$f"; then

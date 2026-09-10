@@ -1,6 +1,7 @@
 ---
 name: jobbpilot-design-components
-description: Apply Jobbliggaren component patterns when building or changing forms, buttons, cards, navigation and other interface components.
+description: >
+  Apply Jobbliggaren component patterns when building or changing forms, buttons, cards, navigation and other interface components.
 ---
 
 Read [the canonical skill](../../../.claude/skills/jobbpilot-design-components/SKILL.md) in full

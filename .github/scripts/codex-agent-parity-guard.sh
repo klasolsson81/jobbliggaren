@@ -39,4 +39,25 @@ for f in $(git ls-files -- '.codex/agents/*.toml'); do
     bad=1
   fi
 done
+# Native skill discovery is a separate entry set from the agent roles.
+mapfile -t skill_entries < <(git ls-files -- '.agents/skills/*/SKILL.md' | awk -F/ '{print $3}' | sort)
+expected_skills=$(printf '%s\n' "${skills[@]}")
+actual_skills=$(printf '%s\n' "${skill_entries[@]}")
+if [ "$expected_skills" != "$actual_skills" ]; then
+  echo "::error::.agents/skills has drifted from the canonical .claude/skills set."
+  diff <(echo "$expected_skills") <(echo "$actual_skills") || true
+  bad=1
+fi
+for n in "${skill_entries[@]}"; do
+  f=".agents/skills/$n/SKILL.md"
+  source=".claude/skills/$n/SKILL.md"
+  if ! grep -Eq "^name: $n[[:space:]]*$" "$f" || ! grep -q '^description: .' "$f"; then
+    echo "::error::$f lacks its own skill name or a discovery description."
+    bad=1
+  fi
+  if ! grep -Fq "(../../../$source)" "$f" || ! grep -Fq "CHARTER UNREADABLE: $source and do not proceed" "$f"; then
+    echo "::error::$f lacks its own canonical link or unreadable-source refusal."
+    bad=1
+  fi
+done
 exit $bad

@@ -16,14 +16,14 @@
 read `docs/current-work.md` **in full** + the `docs/steg-tracker.md` framåtplan
 section + latest `docs/sessions/` log (the session-start hook's preview is not a
 substitute for reading the files); verify HEAD via `git log --oneline -8`;
-confirm the session-start hook ran. **Then confirm the session's task is the
+follow the runtime-specific startup checks in `docs/runbooks/session-protocol.md`. **Then confirm the session's task is the
 right next step per the tracker before starting work — if the prompt diverges
 from the tracker, flag it to Klas** rather than silently following either.
 **Tracker and `mvp` answer different halves:** `steg-tracker.md` holds the strategic
 sequence (what comes after what), the **`mvp` label holds the in-scope subset** (what is
 on the path to real users at all — §6.5). Neither overrides the other; a task should
 clear both, and where they disagree that is the thing to flag.
-**During:** track multi-step work with TodoWrite; mark todos completed only
+**During:** track multi-step work with the runtime's plan/task tool (or a written checklist if unavailable); mark todos completed only
 when verified; ask Klas before deviating from the planned step.
 **After each STEG (not only session end):** sync `docs/current-work.md`,
 `docs/steg-tracker.md`, and a session log — as separate logical commits **in
@@ -202,13 +202,14 @@ promoted with `git add -f`, the `.gitignore` exception):
 | `db-migration-writer` | New migrations |
 | `test-writer` | New domain types or handlers |
 
-**The panel is runtime-agnostic by design:** Codex is intended to spawn the
-same charters through `.codex/agents/` pointer stubs (set parity CI-guarded;
-text home stays `.claude/agents/`; ADR 0135 Amendment 2) — §6 (AGENTS.md) owns
-who attests. Extension-side discovery is unmeasured as of 2026-08-22 (delivery
-condition V1); until it is read, this is a design, not a measurement.
+**The panel is runtime-agnostic:** Codex invokes the same charters through
+`.codex/agents/` pointer stubs; skills have discovery entries in `.agents/skills/`.
+Canonical text stays in `.claude/`; the parity guard checks both entry sets.
+Use the roles and tools actually available in the session; file presence alone
+does not prove runtime discovery. Missing mandatory capability is reported, never
+counted as a completed review. §6 (AGENTS.md) owns who attests.
 
-**None of them can ask Klas anything.** `AskUserQuestion` is stripped from every
+**Escalations go through the driving session.** The following tool-filter mechanics are Claude Code-specific: `AskUserQuestion` is stripped from every
 subagent — foreground and background alike, and **even when listed in a `tools:`
 field** (code.claude.com/docs/en/sub-agents, read 2026-08-03). The one exception
 is a **fork**, which "skips both filters and receives the main conversation's exact

@@ -5514,6 +5514,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   padding: 10px 14px 8px;
 }
+/* Grupprubrik i den samlade popovern på /oversikt (ADR 0140 Beslut 4): ett kugghjul bär alla
+   nio typerna, så raderna behöver sin källa som avdelare. Samma register som huvudet, ett steg
+   tystare; renderas aldrig i en en-grupps-popover. */
+.jp-notice-prefs__grouptitle {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-2);
+  padding: 8px 14px 2px;
+  border-top: 1px solid var(--jp-border-soft);
+  margin-top: 4px;
+}
+.jp-notice-prefs__grouptitle:first-of-type {
+  border-top: 0;
+  margin-top: 0;
+}
 .jp-notice-prefs__row {
   display: flex;
   align-items: center;

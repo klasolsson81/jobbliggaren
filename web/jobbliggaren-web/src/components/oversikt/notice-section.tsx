@@ -1,19 +1,10 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Settings } from "lucide-react";
-import { useDismissable } from "@/lib/hooks/use-dismissable";
 import { NoticeRow, type NoticeData, type NoticeKind } from "./notice-row";
-import { useDismissedNotices } from "./use-dismissed-notices";
-import { useNoticePrefs } from "./use-notice-prefs";
+import { NoticePrefsPopover, type NoticePrefType } from "./notice-prefs-popover";
+import { useNoticeList } from "./use-notice-list";
 
 // NOTICE_TYPES (the runtime SSOT) and its derived types live in the RSC-safe ./notice-types
 // module; they are re-exported here so existing importers of this file keep resolving. They must
@@ -23,7 +14,7 @@ import { useNoticePrefs } from "./use-notice-prefs";
 import { NOTICE_TYPES, type NoticeSource, type NoticeType } from "./notice-types";
 
 export { NOTICE_TYPES };
-export type { NoticeSource, NoticeType };
+export type { NoticeSource, NoticeType, NoticePrefType };
 
 /**
  * En notis i en källsektion. Utökar `NoticeData` med `source` + `type` för
@@ -37,11 +28,6 @@ export type SectionNoticeData = {
     readonly type: NoticeType<S>;
   };
 }[NoticeSource];
-
-export interface NoticePrefType {
-  readonly id: string;
-  readonly label: string;
-}
 
 interface NoticeSectionProps {
   readonly source: NoticeSource;
@@ -89,20 +75,13 @@ const ACTION_KINDS: ReadonlySet<NoticeKind> = new Set<NoticeKind>([
   "warning",
   "success",
 ]);
-
-function actionFirst(
-  notices: ReadonlyArray<SectionNoticeData>,
-): SectionNoticeData[] {
-  return [...notices].sort(
-    (a, b) =>
-      (ACTION_KINDS.has(a.kind) ? 0 : 1) - (ACTION_KINDS.has(b.kind) ? 0 : 1),
-  );
-}
+const isAction = (kind: NoticeKind) => ACTION_KINDS.has(kind);
 
 /**
  * En notissektion per källa (Mina ansökningar / Jobbannonser / Företagsbevakning).
- * Client Component — äger läst-läge (dismiss/restore via delad store),
- * inställnings-popover (per-typ på/av) och "visa lästa"-toggeln.
+ * Client Component — läst-läget (dismiss/restore via delad store) och fokusflytten bor i
+ * `useNoticeList`, inställnings-popovern i `NoticePrefsPopover`; sektionen komponerar dem
+ * (ADR 0140). Renderas i dag av gäst-demon; appens `/oversikt` bär korten.
  */
 export function NoticeSection({
   source,
@@ -115,83 +94,19 @@ export function NoticeSection({
   summaryOwns,
 }: NoticeSectionProps) {
   const t = useTranslations("oversikt");
-  const { dismissed, dismiss, restore, restoreMany } = useDismissedNotices();
-  const { isEnabled, toggle } = useNoticePrefs();
-
   const hasPrefs = (prefTypes?.length ?? 0) > 0;
 
-  const [showRead, setShowRead] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const gearRef = useRef<HTMLButtonElement>(null);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  const panelRef = useDismissable<HTMLDivElement, HTMLButtonElement>(
-    settingsOpen,
-    closeSettings,
-    gearRef,
-  );
-
-  // WCAG 2.4.3 (design-reviewer Major, #726): dismiss/restore/återställ-alla
-  // avmonterar elementet som bar fokus → utan programmatisk förflyttning faller
-  // fokus till <body> och en tangentbords-/SR-användare tappar sin plats.
-  // Efter re-rendern flyttas fokus till ett stabilt syskon: läst-fotens toggle
-  // ("Visa"/"Dölj"), popover-panelens första kryssruta, eller kugghjulet.
-  // Ref-flagga (inte state): varje fokus-relevant handling muterar dismiss-
-  // store:n, så effekten nedan (keyad på `dismissed`) körs garanterat efter
-  // re-rendern — och en ref-nollning i effekten är lint-säker
-  // (react-hooks/set-state-in-effect förbjuder setState där).
-  const footToggleRef = useRef<HTMLButtonElement>(null);
-  const pendingFocusRef = useRef<"foot" | "panel" | "gear" | null>(null);
-  useEffect(() => {
-    const target = pendingFocusRef.current;
-    if (target === null) return;
-    pendingFocusRef.current = null;
-    if (target === "foot" && footToggleRef.current) {
-      footToggleRef.current.focus();
-    } else if (target === "panel" && panelRef.current) {
-      panelRef.current.querySelector("input")?.focus();
-    } else {
-      gearRef.current?.focus();
-    }
-  }, [dismissed, panelRef]);
-
-  // Avbockad typ filtreras bort helt (räknas inte i "N olästa" heller).
-  const enabled = useMemo(
-    () => notices.filter((n) => isEnabled(source, n.type)),
-    [notices, isEnabled, source],
-  );
-  const unread = useMemo(
-    () => actionFirst(enabled.filter((n) => !dismissed.has(n.id))),
-    [enabled, dismissed],
-  );
-  const read = useMemo(
-    () => actionFirst(enabled.filter((n) => dismissed.has(n.id))),
-    [enabled, dismissed],
-  );
-
-  // Läst-fotens toggle finns alltid direkt efter en dismiss (read ≥ 1).
-  const handleDismiss = useCallback(
-    (id: string) => {
-      pendingFocusRef.current = "foot";
-      dismiss(id);
-    },
-    [dismiss],
-  );
-
   // Efter restore av SISTA lästa raden avmonteras även foten → kugghjulet.
-  const handleRestore = useCallback(
-    (id: string) => {
-      pendingFocusRef.current = read.length > 1 ? "foot" : "gear";
-      restore(id);
-    },
-    [restore, read.length],
-  );
-
-  // En skrivning + en notifiering för hela sektionen (code-reviewer Minor 2).
-  // Reset-knappen avmonteras när read töms → fokus till panelens första kryssruta.
-  const resetRead = useCallback(() => {
-    pendingFocusRef.current = "panel";
-    restoreMany(read.map((n) => n.id));
-  }, [read, restoreMany]);
+  const gearRef = useRef<HTMLButtonElement>(null);
+  const {
+    unread,
+    read,
+    showRead,
+    toggleShowRead,
+    handleDismiss,
+    handleRestore,
+    footToggleRef,
+  } = useNoticeList(notices, { isAction, fallbackRef: gearRef });
 
   // Klas-direktiv 2026-08-30: en sektion som redan BÄR information ska inte också säga att
   // information samlas här. Tom-raden är notislistans tomt-läge, inte sektionens — och när en
@@ -213,53 +128,11 @@ export function NoticeSection({
         )}
         <span style={{ flex: 1 }} />
         {hasPrefs && (
-          <div className="jp-notice-prefs-anchor">
-            <button
-              ref={gearRef}
-              type="button"
-              className="jp-section__gear"
-              aria-label={t("notices.settingsAria")}
-              title={t("notices.settingsAria")}
-              aria-haspopup="true"
-              aria-expanded={settingsOpen}
-              onClick={() => setSettingsOpen((v) => !v)}
-            >
-              <Settings size={16} aria-hidden="true" />
-            </button>
-            {settingsOpen && (
-              <div
-                ref={panelRef}
-                className="jp-notice-prefs"
-                role="group"
-                aria-label={t("notices.settingsAria")}
-              >
-                <div className="jp-notice-prefs__heading">
-                  {t("notices.settingsHeading")}
-                </div>
-                {(prefTypes ?? []).map((pt) => (
-                  <label key={pt.id} className="jp-notice-prefs__row">
-                    <input
-                      type="checkbox"
-                      checked={isEnabled(source, pt.id)}
-                      onChange={() => toggle(source, pt.id)}
-                    />
-                    <span>{pt.label}</span>
-                  </label>
-                ))}
-                {read.length > 0 && (
-                  <div className="jp-notice-prefs__foot">
-                    <button
-                      type="button"
-                      className="jp-notice-prefs__reset"
-                      onClick={resetRead}
-                    >
-                      {t("notices.resetRead", { count: read.length })}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <NoticePrefsPopover
+            ref={gearRef}
+            groups={[{ source, types: prefTypes ?? [] }]}
+            notices={notices}
+          />
         )}
       </div>
 
@@ -288,7 +161,7 @@ export function NoticeSection({
                 type="button"
                 className="jp-notice-foot__toggle"
                 aria-expanded={showRead}
-                onClick={() => setShowRead((v) => !v)}
+                onClick={toggleShowRead}
               >
                 {showRead ? t("notices.hideRead") : t("notices.showRead")}
               </button>

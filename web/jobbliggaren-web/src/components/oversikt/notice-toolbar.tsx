@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { RotateCw } from "lucide-react";
@@ -20,6 +20,12 @@ interface NoticeToolbarProps {
    * verklig händelse även när den ger samma rader.
    */
   readonly contentCanChange?: boolean;
+  /**
+   * Högerställd slot i samma rad — `/oversikt` sätter notisinställningarnas enda kugghjul
+   * här (ADR 0140 Beslut 4). Utelämnad = raden renderar exakt som förut; gäst-demon skickar
+   * ingen, av samma skäl som den inte skickar `prefTypes` till sektionerna.
+   */
+  readonly aside?: ReactNode;
 }
 
 /**
@@ -53,6 +59,7 @@ export function NoticeToolbar({
   lastUpdated,
   lastUpdatedIso,
   contentCanChange = true,
+  aside,
 }: NoticeToolbarProps) {
   const t = useTranslations("oversikt");
   const router = useRouter();
@@ -114,6 +121,7 @@ export function NoticeToolbar({
               : ""}
         </span>
       </div>
+      {aside}
     </div>
   );
 }

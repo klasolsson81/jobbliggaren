@@ -83,7 +83,8 @@ export function NoticeListCard({
       <List className={listClassName}>
         {unread.length > 0 ? (
           unread.map((n) => renderRow(n, false, handleDismiss, handleRestore))
-        ) : (
+        ) : read.length > 0 ? null : (
+          /* The empty row yields to the read foot: "all read" is not "nothing here". */
           <li className="jp-ov-list-empty">{emptyText}</li>
         )}
         {showRead && read.map((n) => renderRow(n, true, handleDismiss, handleRestore))}

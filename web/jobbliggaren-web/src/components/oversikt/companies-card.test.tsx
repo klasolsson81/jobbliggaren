@@ -42,9 +42,11 @@ describe("CompaniesCard", () => {
       "href",
       buildCompanyJobsHref(["5566524301"], "all"),
     );
-    const cta = within(card()).getByRole("link", { name: COPY.cards.matchingCta });
+    const cta = within(card()).getByRole("link", { name: COPY.cards.companiesCtaAria });
     expect(cta).toHaveAttribute("href", buildCompanyJobsHref(["5566524301"], "matching"));
     expect(cta.className).toContain("jp-ov-cta--follow");
+    expect(cta.textContent?.trim()).toBe(COPY.cards.matchingCta);
+    expect(COPY.cards.companiesCtaAria.startsWith(COPY.cards.matchingCta)).toBe(true);
   });
 
   it("no company name is ever rendered", () => {
@@ -68,13 +70,13 @@ describe("CompaniesCard", () => {
     render(<CompaniesCard watches={ok([watch({ matchingAdCount: null })])} newAdCount={0} span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("131");
     expect(text(card().querySelector(".jp-ov-num__unit"))).toBe("aktiva annonser");
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.companiesCtaAria })).toBeNull();
   });
 
   it("a counted matching zero renders 0 and carries no CTA — a zero is a negation, not a destination", () => {
     render(<CompaniesCard watches={ok([watch({ matchingAdCount: 0 })])} newAdCount={0} span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("0");
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.companiesCtaAria })).toBeNull();
   });
 
   it("one unlinkable watch removes every ad link, drops the CTA and says so once", () => {
@@ -90,7 +92,7 @@ describe("CompaniesCard", () => {
     );
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("10");
     expect(within(card()).queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.companiesCtaAria })).toBeNull();
     expect(within(card()).getByText(COPY.companySummary.notLinkable)).toBeInTheDocument();
   });
 

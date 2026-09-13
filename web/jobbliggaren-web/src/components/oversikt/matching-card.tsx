@@ -78,13 +78,25 @@ export function MatchingCard({
         {matchCount > 0 ? t("cards.matchingBasis") : t("notices.matchTextZero")}
       </p>
       <OversiktCardFoot>
-        <Link
-          className="jp-btn jp-btn--primary jp-ov-cta"
-          href={matchHref}
-          prefetch={false}
-        >
-          {t("cards.matchingCta")}
-        </Link>
+        {matchCount > 0 ? (
+          <Link
+            className="jp-btn jp-btn--primary jp-ov-cta"
+            href={matchHref}
+            prefetch={false}
+            // Three cards say "Visa matchande annonser"; the accessible name opens with the visible
+            // text (2.5.3) and says whose ads (design-reviewer Major 5).
+            aria-label={t("cards.matchingCtaAria")}
+          >
+            {t("cards.matchingCta")}
+          </Link>
+        ) : (
+          /* A counted zero: the facet-filtered list is empty BY CONSTRUCTION (the H2 invariant), so
+             the solid CTA would lead nowhere. The way forward is the whole list, at the emphasised
+             level — never the solid one for a zero (design-reviewer Major 6). */
+          <Link className="jp-btn jp-btn--emphasis jp-ov-cta" href="/jobb">
+            {t("cards.matchingCtaZero")}
+          </Link>
+        )}
       </OversiktCardFoot>
     </OversiktCard>
   );

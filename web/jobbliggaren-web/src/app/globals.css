@@ -5424,6 +5424,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-notice-prefs__row:hover {
   background: var(--jp-surface-2);
 }
+/* Touch-golvet (DESIGN.md §5): raden var 38px under 768 sedan #726; den samlade popovern på
+   /oversikt tredubblar raderna, så golvet sätts här (design-reviewer Minor 10, 2026-09-13). */
+@media (max-width: 768px) {
+  .jp-notice-prefs__row { min-height: 44px; }
+}
 .jp-notice-prefs__row input {
   width: 15px;
   height: 15px;

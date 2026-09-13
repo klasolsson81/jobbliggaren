@@ -19,20 +19,25 @@ describe("MatchingCard", () => {
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("245");
     expect(text(card().querySelector(".jp-ov-num__unit"))).toBe("annonser matchar dina val");
     expect(within(card()).getByText(COPY.cards.matchingBasis)).toBeInTheDocument();
-    const cta = within(card()).getByRole("link", { name: COPY.cards.matchingCta });
+    const cta = within(card()).getByRole("link", { name: COPY.cards.matchingCtaAria });
     expect(cta).toHaveAttribute("href", HREF);
     expect(cta.className).toContain("jp-btn--primary");
+    // 2.5.3 Label in Name: the visible text opens the accessible name.
+    expect(cta.textContent?.trim()).toBe(COPY.cards.matchingCta);
+    expect(COPY.cards.matchingCtaAria.startsWith(COPY.cards.matchingCta)).toBe(true);
   });
 
-  it("a counted zero is a real answer: 0, the zero copy beneath, the CTA kept", () => {
+  it("a counted zero is a real answer: 0, the zero copy beneath, and an EMPHASISED way to the whole list — never the solid level", () => {
     render(<MatchingCard matchCount={0} matchHref={HREF} hasStatedOccupation span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("0");
     expect(within(card()).getByText(COPY.notices.matchTextZero)).toBeInTheDocument();
     expect(within(card()).queryByText(COPY.cards.matchingBasis)).toBeNull();
-    expect(within(card()).getByRole("link", { name: COPY.cards.matchingCta })).toHaveAttribute(
-      "href",
-      HREF,
-    );
+    // The facet-filtered list is empty by construction, so the solid CTA to it is gone.
+    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
+    const cta = within(card()).getByRole("link", { name: COPY.cards.matchingCtaZero });
+    expect(cta).toHaveAttribute("href", "/jobb");
+    expect(cta.className).toContain("jp-btn--emphasis");
+    expect(cta.className).not.toContain("jp-btn--primary");
   });
 
   it("an unmeasured count renders an en-dash, the unavailable copy and NO CTA", () => {
@@ -50,7 +55,7 @@ describe("MatchingCard", () => {
     const cta = within(card()).getByRole("link", { name: /Ställ in matchning/ });
     expect(cta).toHaveAttribute("href", "/oversikt?matchsetup=1");
     expect(within(card()).getByText(COPY.notices.calloutHint)).toBeInTheDocument();
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
   });
 
   it("the span prop reaches the grid attribute", () => {

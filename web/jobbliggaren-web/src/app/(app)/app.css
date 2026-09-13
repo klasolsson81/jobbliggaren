@@ -2109,6 +2109,12 @@
 }
 /* Kräver dig bär en 6px varningskant så länge något kräver läsaren; tomt byter kanten till
    neutral — kortet står kvar, larmet går (handoffens tillståndstabell). */
+/* Skelettet på de tintade korten: --jp-surface-3 mäter 1,01–1,04:1 mot tinterna (osynligt), så
+   varje tint lånar sin kants token; accent-100 kollapsar på accent-50 i dark, därför border-soft
+   där (design-reviewer Minor 7). */
+.jp-ov-card--accent .jp-skeleton { background: var(--jp-border-soft); }
+.jp-ov-card--follow .jp-skeleton { background: var(--jp-follow-border); }
+.jp-ov-card--info   .jp-skeleton { background: var(--jp-info-border); }
 .jp-ov-card--requires { border-left: 6px solid var(--jp-warning); }
 .jp-ov-card--requires[data-empty="true"] { border-left-color: var(--jp-border-strong); }
 
@@ -2197,6 +2203,13 @@
 /* Talet i sekundärraden är en länk i ink-1 (mockens form), inte accent: raden är prosa och
    understrykningen bär affordansen. */
 .jp-ov-sub .jp-countlink { color: var(--jp-ink-1); }
+/* Upplysningsraderna (saknad länk, notisfilter) i Bevakade företag-kortet: .jp-appsummary gav dem
+   blockets gap, kortet ger ingen — så raden bär sin egen marginal, kortets sekundärrads-mått, och
+   body-sm så en upplysning inte väger tyngre än raden den kvalificerar (design-reviewer Major 2). */
+.jp-ov-card .jp-transparency-note {
+  margin-top: 12px;
+  font-size: var(--text-body-sm);
+}
 /* Tomt-, ohämtbar- och setup-copy i ett kort — innehåll, aldrig metadata (DESIGN.md §4). */
 .jp-ov-card__emptytitle {
   margin: 18px 0 0;
@@ -2468,7 +2481,10 @@
   max-width: 68ch;
   font-size: var(--text-body-sm);
 }
-.jp-ov-criteria__advice { margin-top: 18px; }
+/* (0,2,0) — samma specificitet som .jp-ov-card .jp-matchline ovan och SENARE i källordning, annars
+   äter den regeln de 18px och rådet läser som en fortsättning på sista raden (design-reviewer
+   Major 3, 2026-09-13; samma dom som omkontrollen 2026-09-07 på den gamla ytan). */
+.jp-ov-card .jp-ov-criteria__advice { margin-top: 18px; }
 
 /* Responsivt: under 1024 en kolumn i samma ordning; under 880 staplas raderna som .jp-notice;
    under 768 44px hit-targets (DESIGN.md §5). */
@@ -2512,4 +2528,7 @@
   .jp-ov-event  { grid-template-columns: 36px minmax(0, 1fr) 44px; }
   .jp-ov-action .jp-notice__dismiss,
   .jp-ov-event .jp-notice__dismiss { width: 44px; height: 44px; }
+  /* Pillen är en länk och kortets enda väg till de nya annonserna — samma 44px-golv som varje
+     annan kontroll här (DESIGN.md §5; design-reviewer Blocker 1). */
+  .jp-ov-card__head .jp-ov-card__pill { height: 44px; padding: 0 14px; }
 }

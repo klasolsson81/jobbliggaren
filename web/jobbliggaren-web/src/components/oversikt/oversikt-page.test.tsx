@@ -304,14 +304,14 @@ describe("OversiktPage — setup-läge ↔ matchtal ömsesidig uteslutning (ADR 
     // Epik #526 — kortet öppnar matchnings-setup-modalen via ?matchsetup=1.
     expect(nudgeCta).toHaveAttribute("href", "/oversikt?matchsetup=1");
     expect(matching.querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
-    expect(screen.queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(screen.queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Visa annonser/ })).toBeNull();
   });
 
   it("hasStatedDesiredOccupation=true → matchtal + solid CTA i kortet, match-notis i händelserna, ingen setup-länk", () => {
     renderOversikt(true);
 
-    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCta })).toBeInTheDocument();
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaAria })).toBeInTheDocument();
     expect(within(card(COPY.cards.events)).getByRole("link", { name: /^Visa annonser/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Ställ in matchning/ })).toBeNull();
   });
@@ -343,7 +343,7 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
 
     const expected =
       "/jobb?occupationGroup=grp_dev&region=region_AB&municipality=kommun_0180.kommun_0181&employmentType=et_fast";
-    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCta })).toHaveAttribute(
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaAria })).toHaveAttribute(
       "href",
       expected,
     );
@@ -353,12 +353,13 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     );
   });
 
-  it("count === 0 → 0 i kortet med nollcopyn, notisen INTE dold, länkarna kvar", () => {
+  it("count === 0 → 0 i kortet med nollcopyn och en betonad väg till hela listan; notisen INTE dold, dess länk kvar", () => {
     renderOversikt(true, { matchCount: 0 });
 
     expect(bigNumber(COPY.cards.matching)).toBe("0");
     expect(screen.getAllByText(/inga annonser som matchar dina val just nu/).length).toBeGreaterThanOrEqual(2);
-    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCta })).toHaveAttribute(
+    expect(within(card(COPY.cards.matching)).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
+    expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaZero })).toHaveAttribute(
       "href",
       "/jobb",
     );
@@ -550,7 +551,7 @@ describe("OversiktPage — Bevakade företag-kortets inkoppling", () => {
       "href",
       buildCompanyJobsHref(["5566524301"], "all"),
     );
-    expect(within(companies).getByRole("link", { name: COPY.cards.matchingCta })).toHaveAttribute(
+    expect(within(companies).getByRole("link", { name: COPY.cards.companiesCtaAria })).toHaveAttribute(
       "href",
       buildCompanyJobsHref(["5566524301"], "matching"),
     );
@@ -575,7 +576,7 @@ describe("OversiktPage — Branschbevakning-kortets inkoppling och reflow", () =
     expect(criteria).toHaveAttribute("data-span", "4");
     expect(bigNumber(COPY.criteriaSummary.heading)).toBe("7");
     expect(within(criteria).getByText("Utveckling i Göteborg")).toBeInTheDocument();
-    expect(within(criteria).getByRole("link", { name: COPY.cards.matchingCta })).toHaveAttribute(
+    expect(within(criteria).getByRole("link", { name: COPY.cards.criteriaCtaAria })).toHaveAttribute(
       "href",
       buildCriterionAdsHref("aaaa1111-0000-4000-8000-000000000001", 1, "matching"),
     );

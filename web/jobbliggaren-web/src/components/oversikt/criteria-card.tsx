@@ -138,6 +138,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
               className="jp-btn jp-ov-cta jp-ov-cta--info"
               href={buildCriterionAdsHref(item.id, 1, "matching")}
               prefetch={false}
+              aria-label={t("cards.criteriaCtaAria")}
             >
               {t("cards.matchingCta")}
             </Link>

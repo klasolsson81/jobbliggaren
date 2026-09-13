@@ -84,9 +84,11 @@ describe("CriteriaCard — one watch", () => {
       "href",
       buildCriterionAdsHref(ID, 1, "all"),
     );
-    const cta = within(card()).getByRole("link", { name: COPY.cards.matchingCta });
+    const cta = within(card()).getByRole("link", { name: COPY.cards.criteriaCtaAria });
     expect(cta).toHaveAttribute("href", buildCriterionAdsHref(ID, 1, "matching"));
     expect(cta.className).toContain("jp-ov-cta--info");
+    expect(cta.textContent?.trim()).toBe(COPY.cards.matchingCta);
+    expect(COPY.cards.criteriaCtaAria.startsWith(COPY.cards.matchingCta)).toBe(true);
   });
 
   it("the matching number is stated ONCE — as the big number, not again as a line", () => {
@@ -97,7 +99,7 @@ describe("CriteriaCard — one watch", () => {
   it("a counted matching zero renders 0 and no CTA — a zero has nowhere to lead", () => {
     render(<CriteriaCard criteria={ok([criterion({ matching: matchCounted(0) })])} reference={REFERENCE} />);
     expect(text(card().querySelector<HTMLElement>(".jp-ov-num__value"))).toBe("0");
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.criteriaCtaAria })).toBeNull();
   });
 
   it("too broad: no number, the refusal stated once with its way forward, no CTA — never a zero", () => {
@@ -110,7 +112,7 @@ describe("CriteriaCard — one watch", () => {
       "href",
       "/foretag/branschbevakningar",
     );
-    expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCta })).toBeNull();
+    expect(within(card()).queryByRole("link", { name: COPY.cards.criteriaCtaAria })).toBeNull();
     expect(card().textContent).not.toMatch(/(^|\D)0(\D|$)/);
   });
 

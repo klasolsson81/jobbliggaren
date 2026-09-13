@@ -148,7 +148,10 @@ Dekorativa accenter (leaf/coral/amber) → `references/tokens-full.md`.
 
 Kortens tre axlar tintas med `-bg` och kantas med en egen dekorativ hairline; varje kort bär EN
 solid knapp i axelns `-fill`. **`-fill`/`-hover` dark-skiftas ALDRIG** (knapp-kontraktet, som
-`--jp-accent-800`); `-border` skiftar med tinten. Gäller ENBART `/oversikt`.
+`--jp-accent-800`); `-border` skiftar med tinten. Gäller ENBART `/oversikt`. ⚠ Fyllningen mot sitt
+eget korts tint mäter 6,62 / 4,92 / 6,28 i light men **2,03 / 2,31 / 1,64 i dark** (accent-800 på
+accent-50, follow-fill på follow-bg, info-fill på info-bg) — under 3:1, skriven skuld inför
+dark-flippen (`DARK_MODE_ENABLED = false`; ADR 0140 Beslut 2).
 
 | Token | Light | Dark | Use |
 |---|---|---|---|

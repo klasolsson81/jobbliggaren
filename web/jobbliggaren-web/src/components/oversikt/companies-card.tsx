@@ -120,6 +120,7 @@ export function CompaniesCard({ watches, newAdCount, span }: CompaniesCardProps)
             className="jp-btn jp-ov-cta jp-ov-cta--follow"
             href={summary.matchingAdsHref}
             prefetch={false}
+            aria-label={t("cards.companiesCtaAria")}
           >
             {t("cards.matchingCta")}
           </Link>

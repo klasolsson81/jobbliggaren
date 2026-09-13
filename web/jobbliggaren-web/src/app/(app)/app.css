@@ -2110,9 +2110,10 @@
 /* Kräver dig bär en 6px varningskant så länge något kräver läsaren; tomt byter kanten till
    neutral — kortet står kvar, larmet går (handoffens tillståndstabell). */
 /* Skelettet på de tintade korten: --jp-surface-3 mäter 1,01–1,04:1 mot tinterna (osynligt), så
-   varje tint lånar sin kants token; accent-100 kollapsar på accent-50 i dark, därför border-soft
-   där (design-reviewer Minor 7). */
-.jp-ov-card--accent .jp-skeleton { background: var(--jp-border-soft); }
+   follow/info lånar sin kants token; accent-100 kollapsar på accent-50 i dark och border-soft
+   mätte 1,08:1 i light, därför --jp-border där (1,33:1 light / 2,22:1 dark; design-reviewer
+   Minor 7 + omkontroll). */
+.jp-ov-card--accent .jp-skeleton { background: var(--jp-border); }
 .jp-ov-card--follow .jp-skeleton { background: var(--jp-follow-border); }
 .jp-ov-card--info   .jp-skeleton { background: var(--jp-info-border); }
 .jp-ov-card--requires { border-left: 6px solid var(--jp-warning); }

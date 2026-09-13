@@ -60,3 +60,36 @@ Renderat mot korpusen i `C:/tmp/jobbliggaren-visual/bento/` plus fem tillstånd 
 
 ### Sammanfattning
 1 blocker, 5 major, 4 minor. Blockern och major 2/3 är rena CSS-fixar; major 4 stängs mekaniskt genom att stryka meningen; major 5/6 kräver i18n-nycklar. Delegera till nextjs-ui-engineer. Re-review efter fix: samma agent, report-only, scopad till fix-deltat (CLAUDE.md §9.6).
+
+---
+
+## Omkontroll (rapport-only, skopad till fix-deltat `59ff7f76..8a8edfce`)
+
+Mätt på head `8a8edfce`, renderad lokalt (`localhost:3014` + stub på `59994`, agentens egna fixtures för de tillstånd standardstubben saknar). Korpus: `C:/tmp/jobbliggaren-visual/bento-rc/`.
+
+**Status:** ✓ Approved — 0 blockers, 0 major kvar
+**Auktoritet:** DESIGN.md §1.2 (rad 112) · §3 · §5 · §6 · ADR 0140 Beslut 2–3 · `jobbpilot-design-tokens` · CLAUDE.md §9.6
+**Scope:** enbart fix-deltat mot de tio fynden. Inga nya fynd i deltat.
+
+### Fynd-status
+
+1. **Blocker 1 — pillen 24px under 768** — **STÄNGT** · Mätt: 768 → 65×44 (`height "44px"`, `padding "0px 14px"`), 400 → 65×44, 1280 oförändrat 57×24. Vit text på `rgb(62,108,116)` bevarad. Renderat: pillen balanserar mot 40px-ikonrutan. ADR 0140 Beslut 3 namnger nu golvet.
+2. **Major 2 — `.jp-transparency-note` utan luft** — **STÄNGT** · Mätt i båda nåbara lägena: `marginTop "12px"`, `gapPrev 12`, `fontSize "14px"` (var 0 / 0 / 16px).
+3. **Major 3 — rådets 18px åts av specificiteten** — **STÄNGT** · Mätt vid `criteria=many`: `marginTop "18px"`, gap från sista raden 18 (var 6/6). Samma (0,2,0) som `.jp-ov-card .jp-matchline` och senare i källordning — rätt mekanism, ingen `!important`.
+4. **Major 4 — falskt dark-påstående i ADR + skill** — **STÄNGT mekaniskt** · Meningen struken; tillagd tabellrad bär de verkliga talen (6,62 / 4,92 / 6,28 light; 2,03 / 2,31 / 1,64 dark) plus villkoret `DARK_MODE_ENABLED = false`. Skulden står skriven, inte bortskriven.
+5. **Major 5 — tre identiska CTA-namn** — **STÄNGT** · Mätt accessible names: "Visa matchande annonser för dina val" / "… från bevakade företag" / "… i din branschbevakning" — tre distinkta, var och en inledd med den synliga strängen (2.5.3).
+6. **Major 6 — räknad nolla behöll solid primär** — **STÄNGT** · Mätt vid `match=0`: klass `jp-btn jp-btn--emphasis jp-ov-cta`, "Sök bland alla annonser", bg `rgb(233,242,237)`, href `/jobb` utan facetter. ADR Beslut 3 skriver nu ut regeln för båda kortens nolla. Copy godkänd.
+7. **Minor 7 — skelettet på tintade kort** — **DELVIS STÄNGT** · follow 1,20:1, info 1,18:1 når baslinjen; accent-kortet med `--jp-border-soft` mäter 1,08:1 (var 1,03) och ligger kvar under. Dark klarar alla tre. Kandidat som klarar båda teman: `--jp-border` (1,33 light / 2,22 dark). Minor — blockerar inte.
+8. **Minor 8 — en-dash för ett vägrat branschtal** — **SKIP ACCEPTERAT, men inte på pränt** · Skälet håller (en-dashen är reserverad för en omätt läsning). Mätt på PR-kroppen vid `8a8edfce`: skippen finns inte där. Stängs av den enda PR-kropps-editen (§9.2).
+9. **Minor 9 — radlinjen i det breda kortet** — **SKIP ACCEPTERAT, men inte på pränt** · samma mätning som 8.
+10. **Minor 10 — popover-raderna under 768** — **STÄNGT** · Mätt vid 400: nio rader × 44px, popovern 300×545, inte klippt. `b0e98b75`:s omskrivning till `.jp-notice-prefs__heading + .jp-notice-prefs__grouptitle` mätt korrekt: första grupprubriken `border-top 0px` / `margin-top 0px`, de två följande `1px` / `4px`.
+
+### Bra gjort
+- Varje fix bär sin mätning i en CSS-kommentar med fyndnumret; ingen `!important`, ingen ny hex, inga nya tokens.
+- ADR 0140 bär nu både pill-golvet och nollregeln som beslut i stället för som repareringar i koden.
+- Ingen regression i deltat: sex kort, ingen horisontell scroll 400–3440, pillens vita text och de tre axelfärgerna oförändrade.
+
+### Sammanfattning
+0 blockers, 0 major. Fynd 1–6 och 10 stängda mot mätning; 7 delvis stängt (Minor); 8 och 9 skip accepterade i sak, spåret ska med i den avslutande PR-kropps-editen. Inget hindrar `agents-done`. Detta var agentens enda skopade omkontroll (§9.6-cap).
+
+**Sessionens disposition av Minor 7 efter omkontrollen (kodändring, stängd mot fyndets egen mätning):** `.jp-ov-card--accent .jp-skeleton` byter `--jp-border-soft` → `--jp-border`; WCAG-formeln över `globals.css`-värdena ger 1,33:1 light (`#C9D2E0` på `#E9F2ED`) och 2,22:1 dark (`#44598A` på `#0E2A1E`) — hennes egna kandidattal.

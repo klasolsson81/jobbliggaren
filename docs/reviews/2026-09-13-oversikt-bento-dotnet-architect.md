@@ -62,3 +62,26 @@ Behöver åtgärdas — 2 viktiga, 3 nice-to-have. Inget backend-delta, så omr�
 - `docs/decisions/0140-oversikt-som-bento-dashboard-scoped-undantag.md` (Beslut 1–5)
 - DESIGN.md §1.2 / §6 (scoped undantag) · `.claude/skills/jobbpilot-design-tokens/SKILL.md`
 - ADR 0139 (en stege för vägransgrenarna) · #1582 (`notice-list.tsx` + `.jp-notice-group*`) · #1585 (gäst-migreringen)
+
+---
+
+## Omkontroll (rapport-only, skopad till fix-deltat `b0e98b75..8a8edfce`)
+
+### Sammanfattning
+4 av 5 fynd stängda. NTH-3:s disposition är **inte verifierbar än** — den namngivna skippen finns inte i PR-kroppen vid mätning. Inga nya fynd; deltat introducerar ingen ny kod, bara en typflytt, en prop-omdöpning, en raderad nyckel och ett test.
+
+### Fynd
+
+**[Viktigt 1 — STÄNGT]** `application-bars.test.ts:63` — pinnen finns, bygger fixturen över hela `PIPELINE_ORDER` (varje status = 1). Mätt: `active` = 6, raderna summerar till 6. Diskriminerar åt båda håll (sjunde aktiv status utan stapel → 7 ≠ 6; stapel borttagen → 5 ≠ 6). Kvarstående gräns, medvetet accepterad: en status i `ACTIVE_PIPELINE_STATUSES` men inte i `PIPELINE_ORDER` passerar tomt — malformad per konstruktion. Inget owed.
+
+**[Viktigt 2 — STÄNGT]** `notice-types.ts:31,38,61` — `NoticeKind`, `NoticeData`, `SectionNoticeData` definierade exakt en gång var; modulen bär ingen `"use client"`, enda nya import är typ-only. Riktningen vänd: `oversikt-page.tsx` har noll importer från `notice-section`; hooken, listkortet, de två korten och mark-all-raden läser `notice-types`. Re-exporter kvar i `notice-row.tsx`/`notice-section.tsx` så gäst-ytan är orörd. Två app-sidiga testfiler resolvar via re-exporten — följden av villkoret, inget fynd. `NoticePrefType` kvar i popovern är rätt.
+
+**[NTH-1 — STÄNGT]** `criterion-ad-lines.tsx:87` — omdöpt till `omitMatchingCount`, invarianten skriven, typens docblock namnger den som fjärde propen. `matchingStatedByCaller` har noll förekomster i `src/`; kvarvarande träffar i daterade rapporter är proveniens (AGENTS.md §1.6).
+
+**[NTH-2 — STÄNGT]** `messages/{sv,en}/oversikt.json` — `notices.calloutLabel` borttagen; noll förekomster i `src/` och `messages/`. Ren radering.
+
+**[NTH-3 — INTE STÄNGT: dispositionen är inte gjord än]** `src/lib/company-watches/watch-summary.ts:1` — mätt mot den levande PR-kroppen: avsnittet *"Out of scope (named)"* nämner inte `lib/company-watches/`. Väntat: §9.2 tillåter EN PR-kroppsredigering efter sista verdiktet och den har inte skett. Stängs när den landar och namnger skippen med det som gör den osynlig för en parallell lane. **Ta med i samma redigering:** mutationslistan räknar upp `matchingStatedByCaller` — namnet finns inte längre i koden.
+
+### Noteringar (inga fynd)
+- Verifieringssiffrorna är sessionens, inte agentens. 611/68 och 562/64 är delmängdskörningar och ska inte läsas som "hela sviten grön" i verdikt-tabellen.
+- Den transkriberade rapporten är ordagrann och rätt huvud-stämplad (`b0e98b75`).

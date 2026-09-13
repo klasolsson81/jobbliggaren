@@ -50,3 +50,26 @@
 
 ### Sammanfattning
 0 blockers, 2 major, 3 minor. Majors är merge-blockerande (CLAUDE.md §6/§12) och fixas in-block — båda stängs genom att stryka eller rätta en mening, ingen ny prosa behövs. Kontrollerat rent: RSC↔client-gränsen (inget nytt icke-serialiserbart; `SectionNoticeData.text` korsar samma gräns som förut), `matchingStatedByCaller` (docblockets "three of the four callers" stämmer — fyra anropsställen, ett sant), `MaxPerUser = 20`, `OrderByDescending(CreatedAt)`, `ux_company_watches_user_orgnr_active`, terminal = 10 − 6 = 4, `ref`-mergen i popovern (React 19-prop, lint-ren), `loading.tsx` sätter inga egenskaper som `.jp-skeleton` äger, samt noll `any`/`console.log`/`useEffect`-fetch. Inget i deltat är en genuint tvetydig routing-fråga för `senior-cto-advisor` — utom dispositionen av de tre Minors mot §9.6:s filnings-cap, som är sessionens att avgöra (issue eller namngiven skip i PR-kroppen; en rad utan namngivning är en utelämning, inte ett undantag). Re-review efter fix: samma agent, report-only, skopad till fix-deltat (CLAUDE.md §9.6).
+
+---
+
+## Omkontroll (rapport-only, skopad till fix-deltat `bbac14b2..8a8edfce`)
+
+**Status:** ✓ Approved — mina fem fynd stängda
+**Auktoritet:** AGENTS.md §4, §5 (`Comments:`, `Tests:`) · CLAUDE.md §9.6
+**Scope:** enbart fix-deltat för mina egna fynd. Mätt på **committarna** (`git show <sha>:<fil>`), inte arbetsträdet.
+
+### Fynd-status
+
+1. **Major 1 — antalet i doktrin-docblocken** — STÄNGT · `criterion-ad-lines.tsx:31-32`. Mätning på `8a8edfce`: "…whether the caller renders the matching number itself is `omitMatchingCount`. Four independent facts, four props — see each prop." Talet stämmer mot faktisk arity (`variant` · `adviceStatedByCaller` · `actionOfferedByCaller` · `omitMatchingCount`). Omdöpningen nådde anropsstället (`criteria-card.tsx:133`), samma polaritet och grenposition. "three of the four callers" på rad 97 är fortsatt sant.
+
+2. **Major 2 — sju levande pekare till raderade filer** — STÄNGT (7/7). Mätning per rad i `b0e98b75`: `company-summary.tsx:155` satsen raderad · `globals.css:5289` posten raderad ur rubriken · `criterion-breadth.tsx:3` → `criteria-card.tsx` · `criteria-section.tsx:41` → `criteria-card.tsx` · `criterion-row.tsx:57` → `CriteriaCard` · `[id]/page.tsx:179` → `CriteriaCard` · `[id]/page.test.tsx:131` → `criteria-card.test.tsx`. Kontrollgrep över det committade trädet ger tre kvarvarande träffar, ingen av dem ett av de sju ställena: `guest-oversikt-page.tsx:45` (utanför deltat, namngiven skip per AGENTS.md §1.6 / #1585), samt `oversikt-page.tsx:156` och `oversikt-page.test.tsx:299`, som använder "setup-callouten" som begrepp, inte som filpekare.
+
+3. **Minor 3 — inert `:first-of-type`** — STÄNGT · `globals.css:5411` `.jp-notice-prefs__heading + .jp-notice-prefs__grouptitle`. Rubriken är alltid panelens första barn, så angränsande syskon = första grupprubriken. I en-grupps-popovern renderas ingen grupprubrik, så regeln är inert per konstruktion där — rätt.
+
+4. **Minor 4 — inert Tailwind-utility** — STÄNGT · `criteria-card.tsx:163` `className="jp-ov-card__count"`. `app.css:2155` sätter fortfarande `tabular-nums` på klassen; oförändrad rendering, paritet med `notice-list-card.tsx:78`.
+
+5. **Minor 5 — omotiverat `"use client"`** — STÄNGT · `requires-you-card.tsx:24-26`, `recent-events-card.tsx:24-26`. En mening i var docblock namnger skälet koden inte kan visa själv.
+
+### Sammanfattning
+5 av 5 stängda (2 major, 3 minor), 0 kvarstående, 0 nya fynd. Kontrollerat `8a8edfce` där den rör fynden, plus de två ställen där ett nytt fynd hade fått passera spärren: partitionstesten i `application-bars.test.ts` vilar på en premiss produktionen producerar (AGENTS.md §5 `Tests:` klarnar); den raderade `notices.calloutLabel` har noll referenser på commiten. Inget är Blocker eller repo-brett. Klar för `agents-done` när övriga agenter stängt sina fynd; verifiera HEAD oförändrat omedelbart innan etiketten sätts (CLAUDE.md §9.6).

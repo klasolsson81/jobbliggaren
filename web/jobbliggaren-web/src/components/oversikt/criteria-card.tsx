@@ -160,7 +160,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
       span={12}
       icon={Briefcase}
       aside={
-        <span id={TOTALS_ID} className="jp-ov-card__count tabular-nums">
+        <span id={TOTALS_ID} className="jp-ov-card__count">
           {t("criteriaSummary.anchor", { count: items.length })}
         </span>
       }

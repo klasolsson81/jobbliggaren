@@ -21,6 +21,9 @@ interface RequiresYouCardProps {
  *
  * The empty state keeps the card and swaps the warning bar for a neutral one (CSS on
  * `data-empty`): a card that vanished would take the grid's shape with it.
+ *
+ * A Client Component only because `renderRow` is a function prop into `NoticeListCard`, and a
+ * function cannot cross the RSC boundary — the card holds no state of its own.
  */
 export function RequiresYouCard({ notices }: RequiresYouCardProps) {
   const t = useTranslations("oversikt.cards");

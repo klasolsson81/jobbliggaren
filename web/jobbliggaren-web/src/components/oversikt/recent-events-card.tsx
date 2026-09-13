@@ -21,6 +21,9 @@ interface RecentEventsCardProps {
  *
  * A real event log — status changes, company events, timestamps that are measured rather than
  * "idag" — is backend work under #1666; this card renders the three notices that exist today.
+ *
+ * A Client Component only because `renderRow` is a function prop into `NoticeListCard`, and a
+ * function cannot cross the RSC boundary — the card holds no state of its own.
  */
 export function RecentEventsCard({ notices }: RecentEventsCardProps) {
   const t = useTranslations("oversikt.cards");

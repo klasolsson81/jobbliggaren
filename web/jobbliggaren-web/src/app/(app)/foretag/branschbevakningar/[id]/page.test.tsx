@@ -128,7 +128,7 @@ describe("BevakningBrowsePage — the pager states no total", () => {
 
   // The CALL-SITE pin for `CriterionBreadth`, and it exists for the same reason the docblock above
   // gives for `showTotalCount`: `criterion-breadth.test.tsx` proves the component counts, and
-  // `criteria-summary.test.tsx` proves /oversikt renders it. Neither can prove THIS page does.
+  // `criteria-card.test.tsx` proves /oversikt renders it. Neither can prove THIS page does.
   // Delete the element from this page and the whole suite stays green unless something pins it here.
   //
   // The surface matters: this page states the too-broad refusal and asks the user to narrow the

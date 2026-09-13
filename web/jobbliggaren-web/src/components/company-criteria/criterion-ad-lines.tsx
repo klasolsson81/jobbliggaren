@@ -28,7 +28,8 @@ import type {
  *
  * ⚠ It decides the ANTECEDENT and nothing else. Whether the too-broad advice is hoisted out of the
  * row is `adviceStatedByCaller`; whether the row's CTA has anywhere to go is
- * `actionOfferedByCaller`. Three independent facts, three props — see each prop.
+ * `actionOfferedByCaller`; whether the caller states the matching number itself is
+ * `matchingStatedByCaller`. Four independent facts, four props — see each prop.
  */
 export type CriterionAdLinesVariant = "withCompanies" | "standalone";
 

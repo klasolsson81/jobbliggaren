@@ -38,7 +38,7 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
 
   // Stated once for the whole list when ANY row is refused, never once per row. Both arms count:
   // the ads arm is what the rows show, and a matching-only refusal is still a watch the advice would
-  // help. Parity `criteria-summary.tsx`, deliberately not extracted — see the prop's docblock.
+  // help. Parity `criteria-card.tsx`, deliberately not extracted — see the prop's docblock.
   const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
 
   // ONE value, gating both the rows' short refusal and this section's advice line below. The rule it

@@ -152,7 +152,7 @@ export function CompanySummary({
 
       {/* Ej bedömd matchning tiger helt: ingen nolla (dto:ns null är "inte bedömd", och
           en 0 vore falsk), och ingen nudge — den grenen sammanfaller med
-          `!hasStatedDesiredOccupation`, där SetupCallout redan står med samma mål. En
+          `!hasStatedDesiredOccupation`. En
           BEDÖMD nolla skrivs däremot alltid ut; att tysta ett mätt tal är issuets egen
           felklass. */}
       {summary.matchingAds !== null && (

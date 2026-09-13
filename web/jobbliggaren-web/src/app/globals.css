@@ -5286,8 +5286,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── Översikt-notiscenter (#726) ─────────────────────────────────────────────
-   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar), åtgärds-
-   kort (setup-callout), kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
+   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar),
+   kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
    only — inga nya hex; mörkt tema kommer gratis via `--jp-*`. */
 
 /* Läst (dismissad men ej borttagen) notisrad — de-emfaserad via AA-säkra
@@ -5408,7 +5408,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-top: 1px solid var(--jp-border-soft);
   margin-top: 4px;
 }
-.jp-notice-prefs__grouptitle:first-of-type {
+.jp-notice-prefs__heading + .jp-notice-prefs__grouptitle {
   border-top: 0;
   margin-top: 0;
 }

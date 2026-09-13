@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { CriteriaSummary } from "./criteria-summary";
+import messages from "../../../messages/sv";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type {
   CompanyWatchCriterion,
@@ -87,6 +88,10 @@ const REFERENCE: CriterionReference = {
 // The catalogue route the block links to. Not a prop any more — the component owns it,
 // because every consumer is an authenticated surface and there was never a second value.
 const HREF = "/foretag/branschbevakningar";
+// The catalogue copy, read and never transcribed: a literal drifts from the string on the next
+// copy edit. The single call site passes exactly this (`oversikt-page.tsx:477`), so no fixture
+// below builds a heading production cannot produce.
+const COPY = messages.oversikt.criteriaSummary;
 
 function visibleText(): string {
   return (document.body.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -95,7 +100,7 @@ function visibleText(): string {
 describe("CriteriaSummary", () => {
   it("ankarraden räknar bevakningarna och länkar till katalogen", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ id: "a" }), criterion({ id: "b" })])}
         reference={REFERENCE}
       />,
@@ -117,7 +122,7 @@ describe("CriteriaSummary", () => {
   // takes ONE id. If a later edit reintroduces a sum, this fails.
   it("summerar ALDRIG annonstalen över bevakningar", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "a", ads: counted(42), matching: matchCounted(7) }),
           criterion({ id: "b", ads: counted(13), matching: matchCounted(2) }),
@@ -136,7 +141,7 @@ describe("CriteriaSummary", () => {
 
   it("varje bevakning länkar till SINA egna annonser, aldrig till en delad destination", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "aaaa1111-0000-4000-8000-000000000001" }),
           criterion({ id: "bbbb2222-0000-4000-8000-000000000002" }),
@@ -158,7 +163,7 @@ describe("CriteriaSummary", () => {
 
   it('"kunde inte hämtas" är inte "du har inga" — de två läsningarna skiljs', () => {
     render(
-      <CriteriaSummary criteria={errored} reference={REFERENCE} />,
+      <CriteriaSummary heading={COPY.heading} criteria={errored} reference={REFERENCE} />,
     );
 
     expect(visibleText()).toContain("Branschbevakningar kunde inte hämtas");
@@ -168,7 +173,7 @@ describe("CriteriaSummary", () => {
   });
 
   it("tomt läge säger att inga finns, och erbjuder vägen att skapa en", () => {
-    render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
+    render(<CriteriaSummary heading={COPY.heading} criteria={ok([])} reference={REFERENCE} />);
 
     expect(screen.getByText("Du har inga branschbevakningar än")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ny branschbevakning" })).toHaveAttribute(
@@ -181,7 +186,7 @@ describe("CriteriaSummary", () => {
   // The three non-numbers. None of them may render as a 0 — that is the whole ADR 0120 family.
   it("för bred renderar en vägran, aldrig en nolla", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
         reference={REFERENCE}
       />,
@@ -206,7 +211,7 @@ describe("CriteriaSummary", () => {
   // is exactly what "toContain" cannot see.
   it("vid EN bevakning sägs vägran en enda gång, i raden, utan blockråd", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD })])}
         reference={REFERENCE}
       />,
@@ -235,7 +240,7 @@ describe("CriteriaSummary", () => {
   // correctly silent here (design-reviewer B2).
   it("en ENARMAD vägran vid N=1 lämnar ändå en väg framåt", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
       />,
@@ -252,7 +257,7 @@ describe("CriteriaSummary", () => {
   // half of the same rule.
   it("rådet om för breda bevakningar står EN gång under listan, inte en gång per rad", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "a", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
           criterion({ id: "b", ads: ADS_TOO_BROAD, matching: MATCH_TOO_BROAD }),
@@ -283,7 +288,7 @@ describe("CriteriaSummary", () => {
   // advice back.
   it("rådet uteblir helt när ingen bevakning är för bred", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "a", ads: counted(42), matching: matchCounted(7) }),
           criterion({ id: "b", ads: counted(13), matching: matchCounted(2) }),
@@ -303,7 +308,7 @@ describe("CriteriaSummary", () => {
   // anywhere in the block, so the label must carry itself.
   it("annonsetiketten är självbärande — ingen syftning på företag som inte renderas", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: counted(42) })])}
         reference={REFERENCE}
       />,
@@ -329,7 +334,7 @@ describe("CriteriaSummary", () => {
   // an unanswerable ads magnitude. `sharedRefusal` stays null and the single-arm branch is reached.
   it("när bara annonstalet saknas skalas påståendet till sitt eget led", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ ads: ADS_NOT_MATERIALISED, matching: MATCH_NOT_ASSESSED }),
         ])}
@@ -346,7 +351,7 @@ describe("CriteriaSummary", () => {
 
   it("ej framräknad renderar okunskap, aldrig en nolla och aldrig ett råd", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ ads: ADS_NOT_MATERIALISED, matching: MATCH_NOT_MATERIALISED }),
         ])}
@@ -365,7 +370,7 @@ describe("CriteriaSummary", () => {
 
   it("ej bedömd matchning nudgar, medan annonstalet står kvar", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: counted(42), matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
       />,
@@ -383,7 +388,7 @@ describe("CriteriaSummary", () => {
   // refusal must NOT fire — the single-arm sentence is the correct one here.
   it("ej bedömd bredvid en för bred bevakning ger den ENARMADE vägran, inte den delade", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: ADS_TOO_BROAD, matching: MATCH_NOT_ASSESSED })])}
         reference={REFERENCE}
       />,
@@ -400,7 +405,7 @@ describe("CriteriaSummary", () => {
 
   it("en räknad nolla skrivs ut som ett svar, men får ingen länk", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: counted(0), matching: matchCounted(0) })])}
         reference={REFERENCE}
       />,
@@ -412,7 +417,7 @@ describe("CriteriaSummary", () => {
 
   it("mättat tal renderas som 10 000+, aldrig som takets siffra", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ ads: counted(10000, true) })])}
         reference={REFERENCE}
       />,
@@ -424,7 +429,7 @@ describe("CriteriaSummary", () => {
   // Heading resolution: the user's own label wins; else derived from the tree; else neutral.
   it("rubriken faller etikett → härledd → neutral", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "a", label: "Mitt eget namn" }),
           criterion({ id: "b", label: null }),
@@ -446,7 +451,7 @@ describe("CriteriaSummary", () => {
   // point and they do not depend on the tree.
   it("degraderat referensträd blankar rubriken till neutral men behåller talen", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ label: null, ads: counted(42), matching: matchCounted(7) })])}
         reference={null}
       />,
@@ -464,7 +469,7 @@ describe("CriteriaSummary", () => {
       criterion({ id: `id-${i}`, label: `Bevakning ${i}` }),
     );
     render(
-      <CriteriaSummary criteria={ok(items)} reference={REFERENCE} />,
+      <CriteriaSummary heading={COPY.heading} criteria={ok(items)} reference={REFERENCE} />,
     );
 
     const names = [...document.querySelectorAll(".jp-appsummary__watchname")].map((n) =>
@@ -509,7 +514,7 @@ describe("CriteriaSummary", () => {
 
   it("en bevakning på ETT löv går att skilja från en på hela huvudgruppen", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "narrow", label: null, sniCodes: ["62100"] }),
           criterion({
@@ -534,7 +539,7 @@ describe("CriteriaSummary", () => {
 
   it("breddraden renderas även under en egen etikett och under ett degraderat träd", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([
           criterion({ id: "labelled", label: "Utveckling i Göteborg", sniCodes: ["62100"] }),
         ])}
@@ -550,17 +555,17 @@ describe("CriteriaSummary", () => {
   });
 
   it("inga breddrader när listan är tom eller inte kunde läsas", () => {
-    const { unmount } = render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} />);
+    const { unmount } = render(<CriteriaSummary heading={COPY.heading} criteria={ok([])} reference={REFERENCE} />);
     expect(breadthLines()).toHaveLength(0);
     unmount();
 
-    render(<CriteriaSummary criteria={errored} reference={REFERENCE} />);
+    render(<CriteriaSummary heading={COPY.heading} criteria={errored} reference={REFERENCE} />);
     expect(breadthLines()).toHaveLength(0);
   });
 
   it("raden står mellan namnet och annonsraderna, aldrig efter dem", () => {
     render(
-      <CriteriaSummary
+      <CriteriaSummary heading={COPY.heading}
         criteria={ok([criterion({ label: null, sniCodes: ["62100"] })])}
         reference={REFERENCE_FOUR_LEAVES}
       />,
@@ -570,5 +575,61 @@ describe("CriteriaSummary", () => {
     const order = [...watch.children].map((c) => c.className.split(" ")[0]);
     expect(order[0]).toBe("jp-appsummary__watchname");
     expect(order[1]).toBe("jp-criterion-breadth");
+  });
+
+  // ── #1717: the block's name ─────────────────────────────────────────────────────────────────
+  // Only ONE value is producible here: the sole call site always passes the heading, never null.
+  // That is why there is no `heading={null}` fixture in this file, unlike `company-summary.test`.
+
+  it("the heading renders as an h3 carrying the block class, before the anchor", () => {
+    render(
+      <CriteriaSummary criteria={ok([criterion()])} reference={REFERENCE} heading={COPY.heading} />,
+    );
+
+    const block = document.querySelector(".jp-appsummary");
+    const heading = screen.getByRole("heading", { level: 3, name: COPY.heading });
+    expect(heading).toHaveClass("jp-appsummary__heading");
+    // Pinned on DOM order rather than on text: a name that stands BELOW the anchor names nothing.
+    expect(block?.firstElementChild).toBe(heading);
+    // The uppercase is CSS's, never the string's — otherwise AT spells the name out letter by letter.
+    expect(heading.textContent).toBe(COPY.heading);
+  });
+
+  it("the anchor is UNCHANGED by the heading — it still carries the count and no number", () => {
+    // design-reviewer's own B3 (#1707) refused a number in the anchor, and #1717 does not reopen it:
+    // the heading stands ABOVE the anchor and the anchor keeps `t("anchor", {count})` at every N.
+    render(
+      <CriteriaSummary
+        criteria={ok([criterion({ id: "a" }), criterion({ id: "b" })])}
+        reference={REFERENCE}
+        heading={COPY.heading}
+      />,
+    );
+
+    expect(
+      document.querySelector(".jp-appsummary__totals")?.textContent?.trim(),
+    ).toBe("2 branschbevakningar");
+  });
+
+  it("the heading stays in the empty state", () => {
+    render(<CriteriaSummary criteria={ok([])} reference={REFERENCE} heading={COPY.heading} />);
+
+    expect(screen.getByRole("heading", { level: 3, name: COPY.heading })).toBeInTheDocument();
+    expect(screen.getByText(COPY.emptyTitle)).toBeInTheDocument();
+  });
+
+  it("the heading stays in the unreadable state, and the class stays on the root element", () => {
+    render(
+      <CriteriaSummary criteria={{ kind: "error" }} reference={REFERENCE} heading={COPY.heading} />,
+    );
+
+    const root = document.querySelector(".jp-appsummary");
+    const heading = screen.getByRole("heading", { level: 3, name: COPY.heading });
+    // Two children now, so the branch cannot be a lone <p>. The class must still sit on the ROOT:
+    // `.jp-appsummary:has(+ .jp-appsummary)` carries the line between the two blocks.
+    expect(root?.tagName).toBe("DIV");
+    expect(root).toHaveClass("jp-appsummary--unavailable");
+    expect(root?.firstElementChild).toBe(heading);
+    expect(screen.getByText(COPY.unavailable)).toBeInTheDocument();
   });
 });

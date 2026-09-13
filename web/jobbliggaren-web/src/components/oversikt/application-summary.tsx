@@ -39,6 +39,20 @@ interface ApplicationSummaryProps {
    * pinnen först.
    */
   readonly linkHref: string | null;
+  /**
+   * Blockets namn, eller `null` för att rendera inget namn alls (#1717).
+   *
+   * Obligatorisk och utan default, samma regel och samma skäl som `linkHref` ovan — och båda
+   * anropsställena skickar i dag `null`, vilket är ett VAL och inte en frånvaro: regeln
+   * `design-reviewer` band är att ett block namnges av närmaste rubrik ovanför sig, och den här
+   * sektionen har en enda innehållstyp, så dess h2 "Mina ansökningar" namnger redan blocket. En
+   * h3 här vore en tautologi (design-reviewer A1/B4, 2026-09-13).
+   *
+   * Propen finns ändå, och det är avsiktligt: de tre sammanfattningarna delar en grammatik, och
+   * ett gemensamt kontrakt gör frånvaron läsbar vid anropsstället i stället för osynlig. Blir
+   * sektionen någon gång tvåtypad är rubriken en prop bort, inte en refaktorering.
+   */
+  readonly heading: string | null;
 }
 
 /**
@@ -62,16 +76,32 @@ interface ApplicationSummaryProps {
 export function ApplicationSummary({
   pipeline,
   linkHref,
+  heading,
 }: ApplicationSummaryProps) {
   const t = useTranslations("oversikt.summary");
   const tEnum = useTranslations("applications.enums");
   const tCounts = useTranslations("applications.ui");
 
+  // Paritet med de två syskonen: samma villkor, samma klass, samma plats. Med `heading={null}`
+  // på båda anropsställena renderar varje gren nedan exakt vad den renderade före #1717.
+  const headingNode =
+    heading !== null ? (
+      <h3 className="jp-appsummary__heading">{heading}</h3>
+    ) : null;
+
   if (pipeline.kind !== "ok") {
+    if (headingNode === null) {
+      return (
+        <p className="jp-appsummary jp-appsummary--unavailable">
+          {t("unavailable")}
+        </p>
+      );
+    }
     return (
-      <p className="jp-appsummary jp-appsummary--unavailable">
-        {t("unavailable")}
-      </p>
+      <div className="jp-appsummary jp-appsummary--unavailable">
+        {headingNode}
+        <p style={{ margin: 0 }}>{t("unavailable")}</p>
+      </div>
     );
   }
 
@@ -81,6 +111,7 @@ export function ApplicationSummary({
   if (total === 0) {
     return (
       <div className="jp-appsummary jp-appsummary--empty">
+        {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
         <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men INTE solid: en-primär-per-skärm är redan spenderad på
@@ -100,6 +131,7 @@ export function ApplicationSummary({
 
   return (
     <div className="jp-appsummary">
+      {headingNode}
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
           {tCounts("counts.totalWithActive", { count: total, active })}

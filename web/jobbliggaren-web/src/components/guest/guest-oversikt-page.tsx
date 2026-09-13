@@ -243,6 +243,7 @@ export function GuestOversiktPage() {
               <ApplicationSummary
                 pipeline={pipeline}
                 linkHref="/gast/ansokningar"
+                heading={null}
               />
             }
             summaryOwns={summaryOwns}
@@ -261,7 +262,15 @@ export function GuestOversiktPage() {
             notices={companyNotices}
             emptyBody={tOversikt("notices.emptyCompanies")}
             summary={
-              <CompanySummary watches={companyWatches} linkHref={null} />
+              /* #1717 — heading är null på BÅDA blocken här, och det är ett val: gäst-demons
+                 sektioner har en enda innehållstyp var, så deras h2 namnger redan blocket.
+                 Rubriken löser en asymmetri som inte finns på den här ytan, och skulle bara
+                 läsa som ny vokabulär (design-reviewer B4). */
+              <CompanySummary
+                watches={companyWatches}
+                linkHref={null}
+                heading={null}
+              />
             }
             summaryOwns={companySummaryOwns}
           />

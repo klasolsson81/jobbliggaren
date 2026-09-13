@@ -5154,6 +5154,29 @@ a.jp-adminnav__link[aria-current="page"]::after {
      för 2 — den enda touch-relevanta tätheten blocket självt inför. */
   gap: 4px;
 }
+/* #1717 — blockets namn. Sektionen "Företagsbevakning" (h2) rymmer TVÅ innehållstyper, så h2:n
+   namnger bara den ena; den andra namngavs enbart av sin räknemening. Regeln bindningen vilar på är
+   att varje innehållsblock namnges av närmaste rubrik ovanför sig — i sektioner med ett enda block
+   gör h2:n redan det, vilket är varför ansökningsblocket inte får någon (design-reviewer B1/A1).
+
+   Overline är husets befintliga namn-på-block (sidfotens kolumnhuvuden, hero-kickern, header-stats,
+   `.jp-notice__label`). Skillnaden mot notisetiketten är SCOPE, inte register: etiketten namnger en
+   RAD i radens egen kolumn, den här ett BLOCK över blocket — därför införs ingen etikettkolumn och
+   ingen etikett tas bort (design-reviewer B2/A2). Inga nya tokens.
+
+   `--jp-ink-1`, aldrig ink-2: ink-2 klarar kontrastgolvet, men 11px grått är just den grå småtext
+   som är stående avvisad, och ett strukturnamn ska inte spendera kontrastmarginal. Versalerna sätts
+   här och aldrig i DOM-texten, så AT läser namnet som ord — samma konstruktion som
+   `.jp-notice__label`. */
+.jp-appsummary__heading {
+  margin: 0;
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--jp-ink-1);
+}
 /* En egen viktnivå under ankaret: identisk typografi gjorde "1 branschbevakning" och
    "Utveckling i Göteborg" till jämlikar (design-reviewer Major 1a). Ankaret behåller bold. */
 .jp-appsummary__watchname {

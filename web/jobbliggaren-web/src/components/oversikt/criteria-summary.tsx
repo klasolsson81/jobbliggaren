@@ -36,6 +36,19 @@ interface CriteriaSummaryProps {
    * numbers — they are the point of this block and they do not depend on it.
    */
   readonly reference: CriterionReference | null;
+  /**
+   * The block's name, or `null` to render no name at all (#1717).
+   *
+   * Required and without a default, the same rule and the same reason as `CompanySummary.heading`:
+   * an omitted prop would hand every call site a heading, and the one surface that must not have
+   * one would get it without anyone choosing it. `null` is a decision, never an absence.
+   *
+   * This block carried the sharper half of the defect: the section's h2 reads "Företagsbevakning"
+   * and named the sibling, so this one was named by its count sentence alone. The screen-reader
+   * half was already repaired (`TOTALS_ID` + `aria-labelledby` below, design-reviewer Minor 5);
+   * the sighted reader got no counterpart until now (design-reviewer B1, 2026-09-13).
+   */
+  readonly heading: string | null;
 }
 
 /**
@@ -81,7 +94,7 @@ interface CriteriaSummaryProps {
  * the number would give the block two structures and put the commonest states outside the pattern.
  * A number stands at the level where it is exact, which here is the row.</p>
  */
-export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
+export function CriteriaSummary({ criteria, reference, heading }: CriteriaSummaryProps) {
   const t = useTranslations("oversikt.criteriaSummary");
   // The neutral heading fallback, the derived label's "m.fl." suffix and the too-broad CTA are the
   // catalogue's own strings, read rather than transcribed: one untitled watch must not be called two
@@ -89,9 +102,28 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   // `jobads.companyWatches.filter` from a foreign namespace.
   const tRow = useTranslations("pages.foretag.criteria");
 
+  // Rendered in ALL three states, unconditionally (design-reviewer B1): the name is the block's,
+  // and the empty state is exactly when a reader most needs to know WHICH block is empty.
+  const headingNode =
+    heading !== null ? (
+      <h3 className="jp-appsummary__heading">{heading}</h3>
+    ) : null;
+
   if (criteria.kind !== "ok") {
+    // Without a heading the single-`<p>` form is left UNTOUCHED — that is what keeps a
+    // heading-less caller byte-identical (design-reviewer B4). With one, the branch carries two
+    // children, and the class stays on the root so `.jp-appsummary:has(+ .jp-appsummary)` still
+    // matches.
+    if (headingNode === null) {
+      return (
+        <p className="jp-appsummary jp-appsummary--unavailable">{t("unavailable")}</p>
+      );
+    }
     return (
-      <p className="jp-appsummary jp-appsummary--unavailable">{t("unavailable")}</p>
+      <div className="jp-appsummary jp-appsummary--unavailable">
+        {headingNode}
+        <p style={{ margin: 0 }}>{t("unavailable")}</p>
+      </div>
     );
   }
 
@@ -100,6 +132,7 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   if (items.length === 0) {
     return (
       <div className="jp-appsummary jp-appsummary--empty">
+        {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
         <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Emphasised but not solid: one-primary-per-screen is already spent, and the setup card
@@ -125,6 +158,7 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
 
   return (
     <div className="jp-appsummary">
+      {headingNode}
       <p className="jp-appsummary__anchor">
         {/* No ad total beside the count, and its absence is the decision: a sum over predicates
             that may overlap is not an exact number, and "exakta siffror" is the requirement. The

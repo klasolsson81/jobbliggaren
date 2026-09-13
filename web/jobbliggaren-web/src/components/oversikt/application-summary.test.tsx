@@ -30,7 +30,7 @@ describe("ApplicationSummary", () => {
   it("linkHref={null} renderar ingen ankarlänk", () => {
     // Grenen finns för ytor där etiketten inte har någon sann destination (#1572).
     render(
-      <ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref={null} />,
+      <ApplicationSummary heading={null} pipeline={ok([group("Submitted", 2)])} linkHref={null} />,
     );
 
     expect(
@@ -43,7 +43,7 @@ describe("ApplicationSummary", () => {
   });
 
   it("visar alla sju poster även när bara en status har en grupp", () => {
-    render(<ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />);
+    render(<ApplicationSummary heading={null} pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />);
 
     const list = screen.getByRole("list", { name: "Ansökningar per steg" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(7);
@@ -55,7 +55,7 @@ describe("ApplicationSummary", () => {
 
   it("ankarraden räknar totalt över alla tio och aktiva över de sex", () => {
     render(
-      <ApplicationSummary
+      <ApplicationSummary heading={null}
         pipeline={ok([
           group("Submitted", 2),
           group("Acknowledged", 1),
@@ -73,7 +73,7 @@ describe("ApplicationSummary", () => {
 
   it("rullar ihop de fyra terminala statusarna till en post", () => {
     render(
-      <ApplicationSummary
+      <ApplicationSummary heading={null}
         pipeline={ok([
           group("Rejected", 3),
           group("Accepted", 1),
@@ -92,7 +92,7 @@ describe("ApplicationSummary", () => {
   });
 
   it("visar tomt-läget med nästa steg när kontot saknar ansökningar", () => {
-    render(<ApplicationSummary pipeline={ok([])} linkHref="/ansokningar" />);
+    render(<ApplicationSummary heading={null} pipeline={ok([])} linkHref="/ansokningar" />);
 
     expect(
       screen.getByText("Du har inga ansökningar än"),
@@ -105,7 +105,7 @@ describe("ApplicationSummary", () => {
   });
 
   it("säger att antalet inte kunde hämtas i stället för att påstå noll", () => {
-    render(<ApplicationSummary pipeline={{ kind: "error" }} linkHref="/ansokningar" />);
+    render(<ApplicationSummary heading={null} pipeline={{ kind: "error" }} linkHref="/ansokningar" />);
 
     expect(
       screen.getByText(
@@ -121,10 +121,44 @@ describe("ApplicationSummary", () => {
     // Kontrastgarantin bor i CSS-regeln och verifieras renderat, inte här:
     // vitest laddar aldrig globals.css. Detta test mäter bara markeringen.
     const { container } = render(
-      <ApplicationSummary pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />,
+      <ApplicationSummary heading={null} pipeline={ok([group("Submitted", 2)])} linkHref="/ansokningar" />,
     );
 
     // Fem tomma aktiva steg + den terminala posten.
     expect(container.querySelectorAll('[data-empty="true"]')).toHaveLength(6);
+  });
+
+  // ── #1717: det här blocket bär INGEN rubrik, och det är ett val ─────────────────────────────
+  // Båda anropsställena skickar `heading={null}` (`oversikt-page.tsx:439`,
+  // `guest-oversikt-page.tsx:246`), så `null` är det enda producerbara värdet här. Regeln
+  // `design-reviewer` band är rubrik-per-innehållstyp: sektionens h2 "Mina ansökningar" står ensam
+  // över en enda innehållstyp och namnger redan blocket, så en h3 vore en tautologi (A1/B4).
+
+  it("renderar ingen h3 — sektionens h2 namnger redan blocket", () => {
+    render(
+      <ApplicationSummary
+        pipeline={ok([group("Submitted", 2)])}
+        linkHref="/ansokningar"
+        heading={null}
+      />,
+    );
+
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    // Kontroll: blocket renderade faktiskt, annars mäter frånvaron ovan ingenting.
+    expect(document.querySelector(".jp-appsummary__totals")).not.toBeNull();
+  });
+
+  it("ohämtbar-läget är ORÖRT av #1717 — fortfarande en ensam <p>", () => {
+    // Pinnen på att blocket renderar byte-identiskt efter #1717. Faller den här har grenen bytt
+    // form för ett anropsställe som aldrig skickar en rubrik.
+    render(
+      <ApplicationSummary pipeline={{ kind: "error" }} linkHref="/ansokningar" heading={null} />,
+    );
+
+    const root = document.querySelector(".jp-appsummary");
+    expect(root?.tagName).toBe("P");
+    expect(root).toHaveClass("jp-appsummary--unavailable");
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
   });
 });

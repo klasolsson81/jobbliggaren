@@ -431,7 +431,13 @@ export function OversiktPage({
           emptyBody={t("notices.emptyApplications")}
           prefTypes={prefTypesFor("applications")}
           summary={
-            <ApplicationSummary pipeline={pipeline} linkHref="/ansokningar" />
+            /* heading={null} och det är ett val: sektionens h2 "Mina ansökningar" står ensam
+               över en enda innehållstyp och namnger redan blocket (design-reviewer A1/B4). */
+            <ApplicationSummary
+              pipeline={pipeline}
+              linkHref="/ansokningar"
+              heading={null}
+            />
           }
           summaryOwns={summaryOwns}
         />
@@ -452,16 +458,24 @@ export function OversiktPage({
           prefTypes={prefTypesFor("companies")}
           summary={
             <>
+              {/* #1717 — de TVÅ blocken i den här sektionen är de enda på sidan vars sektions-h2
+                  inte namnger dem: "Företagsbevakning" är paraplyet över båda, så var och en
+                  måste bära sitt eget namn (design-reviewer B1/B3). */}
               <CompanySummary
                 watches={companyWatches}
                 linkHref="/foretag/bevakade"
+                heading={t("companySummary.heading")}
               />
               {/* #1681 del 3 — andra sammanfattningen i SAMMA sektion, och det är härlett
                   och inte valt: en egen sektion hade renderat "inga notiser" för alltid,
                   eftersom branschbevakningar per konstruktion inte skickar några notiser
                   (ADR 0117, samma mening som `criteria-section.tsx` bär). Och två
                   rubriker med samma svenska substantiv på en sida är sämre än en. */}
-              <CriteriaSummary criteria={criteria} reference={criterionReference} />
+              <CriteriaSummary
+                criteria={criteria}
+                reference={criterionReference}
+                heading={t("criteriaSummary.heading")}
+              />
             </>
           }
           summaryOwns={companySummaryOwns}

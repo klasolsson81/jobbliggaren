@@ -79,8 +79,8 @@ export default function Loading() {
         {/* Företagsbevakning — notices UNDER two standing summaries. The comment that stood here
             said "notices only" for this section too; that became false with #1558, which gave the
             section `CompanySummary`, and #1681 del 3 adds `CriteriaSummary` beside it. Both render
-            unconditionally (anchor, empty state or an unreadable line), so one anchor-shaped row
-            each is reserved rather than nothing.
+            unconditionally (anchor, empty state or an unreadable line), so a heading row and an
+            anchor-shaped row each are reserved rather than nothing — the heading since #1717.
 
             The criteria block's own per-watch ROWS are deliberately NOT reserved: their number
             varies 0-20 and a fallback cannot know it, so reserving a guess would over-reserve for
@@ -93,6 +93,11 @@ export default function Loading() {
           </div>
           {[0, 1].map((summary) => (
             <div key={summary} className="jp-appsummary">
+              {/* #1717 — blockets overline-rubrik. Reserverad BARA här: det är den enda sektion
+                  vars h2 är ett paraply över två innehållstyper, så det är den enda vars block
+                  bär ett eget namn. Ansökningssektionen ovan får därför ingen (design-reviewer
+                  B1/A1) — en rad reserverad där hade skiftat en rubrik som aldrig kommer. */}
+              <span className="jp-skeleton block h-3 w-32" />
               <div className="jp-appsummary__anchor">
                 <span className="jp-skeleton block h-6 w-48" />
                 <span className="jp-skeleton block h-6 w-40" />

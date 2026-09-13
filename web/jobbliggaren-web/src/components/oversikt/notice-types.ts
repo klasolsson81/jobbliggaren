@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /**
  * RSC-safe home for the notice-type SSOT (#726 regression fix). NO "use client" directive:
  * NOTICE_TYPES is a runtime value read by the Server Component oversikt-page.tsx. When it lived
@@ -25,3 +27,40 @@ export const NOTICE_TYPES = {
 
 export type NoticeType<S extends NoticeSource = NoticeSource> =
   (typeof NOTICE_TYPES)[S][number];
+
+export type NoticeKind = "info" | "warning" | "brand" | "success";
+
+/**
+ * One notice as every list on `/oversikt` renders it. Lives here, not in a component module: the
+ * RSC orchestrator, the shared list hook and the two list cards all type against it, and a
+ * contract must not depend on the view that happens to render it (dotnet-architect, 2026-09-13).
+ */
+export interface NoticeData {
+  readonly id: string;
+  readonly kind: NoticeKind;
+  readonly label: string;
+  readonly text: ReactNode;
+  readonly cta: string;
+  readonly href: string;
+  readonly time: string;
+  /**
+   * F4-12 PR-B (ADR 0076): en notis kan vara icke-avfärdbar (default `true`).
+   * `false` på den persistenta setup-nudgen — den ska inte gå att markera som
+   * läst, den löses upp först när användaren angett ett yrke. Då renderas
+   * ingen dismiss-knapp (X).
+   */
+  readonly dismissible?: boolean;
+}
+
+/**
+ * En notis i en källsektion. Utökar {@link NoticeData} med `source` + `type` för
+ * inställnings-filtrering och "markera alla"-omfattning (#726). Mappad union:
+ * `type` måste tillhöra just sin `source` (compile-time-länken till
+ * {@link NOTICE_TYPES}).
+ */
+export type SectionNoticeData = {
+  [S in NoticeSource]: NoticeData & {
+    readonly source: S;
+    readonly type: NoticeType<S>;
+  };
+}[NoticeSource];

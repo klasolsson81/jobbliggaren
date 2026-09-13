@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { NOTICE_ICONS } from "./notice-icons";
 import { NoticeDismissButton } from "./notice-dismiss-button";
 import { NoticeListCard } from "./notice-list-card";
-import type { SectionNoticeData } from "./notice-section";
+import type { SectionNoticeData } from "./notice-types";
 
 interface RequiresYouCardProps {
   /** The action notices — every kind but `info`. The orchestrator does the split. */

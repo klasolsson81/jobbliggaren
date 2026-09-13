@@ -36,15 +36,18 @@ import { CompaniesCard } from "./companies-card";
 import { CriteriaCard, criteriaCardIsWide } from "./criteria-card";
 import { MarkAllReadRow } from "./mark-all-read-row";
 import { MatchingCard } from "./matching-card";
-import { NoticePrefsPopover, type NoticePrefGroup } from "./notice-prefs-popover";
-import { NoticeToolbar } from "./notice-toolbar";
-import { NOTICE_TYPES } from "./notice-types";
 import {
+  NoticePrefsPopover,
+  type NoticePrefGroup,
   type NoticePrefType,
+} from "./notice-prefs-popover";
+import { NoticeToolbar } from "./notice-toolbar";
+import {
+  NOTICE_TYPES,
   type NoticeSource,
   type NoticeType,
   type SectionNoticeData,
-} from "./notice-section";
+} from "./notice-types";
 import { RecentEventsCard } from "./recent-events-card";
 import { RequiresYouCard } from "./requires-you-card";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";

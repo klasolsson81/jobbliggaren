@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { NoticeRow, type NoticeData, type NoticeKind } from "./notice-row";
+import { NoticeRow } from "./notice-row";
 import { NoticePrefsPopover, type NoticePrefType } from "./notice-prefs-popover";
 import { useNoticeList } from "./use-notice-list";
 
@@ -11,23 +11,16 @@ import { useNoticeList } from "./use-notice-list";
 // NOT be defined in this "use client" module: the Server Component oversikt-page.tsx reads
 // NOTICE_TYPES, and a value imported across the "use client" boundary becomes a client reference
 // (undefined on the server) → `NOTICE_TYPES[source].map(...)` crashed the server render (#726).
-import { NOTICE_TYPES, type NoticeSource, type NoticeType } from "./notice-types";
+import {
+  NOTICE_TYPES,
+  type NoticeKind,
+  type NoticeSource,
+  type NoticeType,
+  type SectionNoticeData,
+} from "./notice-types";
 
 export { NOTICE_TYPES };
-export type { NoticeSource, NoticeType, NoticePrefType };
-
-/**
- * En notis i en källsektion. Utökar `NoticeData` med `source` + `type` för
- * inställnings-filtrering och "markera alla"-omfattning (#726). Mappad union:
- * `type` måste tillhöra just sin `source` (compile-time-länken till
- * {@link NOTICE_TYPES}).
- */
-export type SectionNoticeData = {
-  [S in NoticeSource]: NoticeData & {
-    readonly source: S;
-    readonly type: NoticeType<S>;
-  };
-}[NoticeSource];
+export type { NoticeSource, NoticeType, NoticePrefType, SectionNoticeData };
 
 interface NoticeSectionProps {
   readonly source: NoticeSource;

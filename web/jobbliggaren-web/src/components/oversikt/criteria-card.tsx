@@ -130,7 +130,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
           variant="standalone"
           adviceStatedByCaller={false}
           actionOfferedByCaller={false}
-          matchingStatedByCaller={counted !== null}
+          omitMatchingCount={counted !== null}
         />
         {counted !== null && counted > 0 && (
           <OversiktCardFoot>

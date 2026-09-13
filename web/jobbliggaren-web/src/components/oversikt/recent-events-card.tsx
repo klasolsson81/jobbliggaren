@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { NOTICE_ICONS } from "./notice-icons";
 import { NoticeDismissButton } from "./notice-dismiss-button";
 import { NoticeListCard } from "./notice-list-card";
-import type { SectionNoticeData } from "./notice-section";
+import type { SectionNoticeData } from "./notice-types";
 
 interface RecentEventsCardProps {
   /** The `info` notices — matching, followed-company ads, the latest search. */

@@ -8,8 +8,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import type { NoticeKind } from "./notice-row";
-import type { NoticeSource } from "./notice-types";
+import type { NoticeKind, NoticeSource } from "./notice-types";
 import { useDismissedNotices } from "./use-dismissed-notices";
 import { useNoticePrefs } from "./use-notice-prefs";
 

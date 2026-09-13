@@ -2,7 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import type { SectionNoticeData } from "./notice-section";
+import type { SectionNoticeData } from "./notice-types";
 import { useNoticeList } from "./use-notice-list";
 
 interface NoticeListCardProps {

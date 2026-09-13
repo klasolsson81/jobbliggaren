@@ -130,7 +130,6 @@
     "companiesLabel": "Watch",
     "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View new ads",
-    "calloutLabel": "Matching",
     "calloutText": "<b>Matching is not complete.</b> You have not specified which occupations you are looking for, so Jobbliggaren cannot show which job ads suit you.",
     "calloutCta": "Set up matching",
     "calloutHint": "Takes a couple of minutes"

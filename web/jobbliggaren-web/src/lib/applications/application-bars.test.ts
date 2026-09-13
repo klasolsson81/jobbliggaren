@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { countByStatus } from "./pipeline-counts";
+import { PIPELINE_ORDER } from "./status";
 import { applicationBars } from "./application-bars";
 import type { PipelineGroupDto } from "@/lib/dto/applications";
 
@@ -57,6 +58,14 @@ describe("applicationBars", () => {
     expect(bars.active).toBe(1);
     expect(bars.terminal).toBe(3);
     expect(bars.rows.find((r) => r.key === "submitted")?.fraction).toBe(0.25);
+  });
+
+  // BARS is a hand-written list beside ACTIVE_PIPELINE_STATUSES; nothing in the type system ties
+  // them together. This pins that the bars sum to the big number they sit under — a seventh active
+  // status without a bar would break it (dotnet-architect, 2026-09-13).
+  it("the bars partition the active statuses: their counts sum to the active count", () => {
+    const bars = applicationBars(countByStatus(PIPELINE_ORDER.map((s) => group(s, 1))));
+    expect(bars.rows.reduce((n, r) => n + r.count, 0)).toBe(bars.active);
   });
 
   it("an empty pipeline has no denominator and no fractions above zero", () => {

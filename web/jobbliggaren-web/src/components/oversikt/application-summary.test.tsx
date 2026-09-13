@@ -140,7 +140,6 @@ describe("ApplicationSummary", () => {
       <ApplicationSummary
         pipeline={ok([group("Submitted", 2)])}
         linkHref="/ansokningar"
-       
       />,
     );
 

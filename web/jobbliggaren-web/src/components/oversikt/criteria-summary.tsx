@@ -41,8 +41,7 @@ interface CriteriaSummaryProps {
    *
    * Required and without a default, for contract parity with `CompanySummary.heading` — but the
    * reason that prop gives is ITS own and does not transfer: this component has ONE call site and
-   * it always passes the heading. The `null` arm exists so the three summaries share one contract,
-   * not because any surface here declines a name.
+   * it always passes the heading.
    *
    * This block carried the sharper half of the defect: the section's h2 reads "Företagsbevakning"
    * and named the sibling, so this one was named by its count sentence alone. The screen-reader

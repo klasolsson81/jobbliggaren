@@ -89,6 +89,12 @@ Bas-token = text/ikon; `-bg` = pill/banner-bakgrund. Tailwind-alias:
 | `--jp-danger-bg` | `#FBE0E0` | `#3F1419` |
 | `--jp-info` | `#1B5396` | `#8FBEEF` |
 | `--jp-info-bg` | `#DEE9F8` | `#1B3358` |
+| `--jp-info-fill` | `#1B5396` | (skiftas EJ) — ADR 0140, /oversikt-kortets solida knapp |
+| `--jp-info-hover` | `#164478` | (skiftas EJ) — ADR 0140 |
+| `--jp-info-border` | `#C5D8F0` | `#2E4F7E` — ADR 0140, kortkant |
+| `--jp-follow-fill` | `#3E6C74` | (skiftas EJ) — ADR 0140, /oversikt-kortets solida knapp |
+| `--jp-follow-hover` | `#2F5860` | (skiftas EJ) — ADR 0140 |
+| `--jp-follow-border` | `#C5DDE1` | `#245059` — ADR 0140, kortkant |
 
 ## Dekorativa accenter
 

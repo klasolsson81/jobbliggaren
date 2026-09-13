@@ -2149,8 +2149,10 @@
   font-variant-numeric: tabular-nums;
 }
 /* "N nya": sidans enda pill, och en LÄNK till annonserna den räknar (#1576). margin-left auto
-   sätter den vid huvudets högerkant. */
-.jp-ov-card__pill {
+   sätter den vid huvudets högerkant. Scopad under huvudet (0,2,0) för att vinna över den globala
+   länkfärgen `a:not(.jp-btn, …)` (0,1,1) — mätt 2026-09-13: utan scopet renderade texten i
+   accent-700 på teal, 1,6:1. */
+.jp-ov-card__head .jp-ov-card__pill {
   margin-left: auto;
   flex: 0 0 auto;
   display: inline-flex;
@@ -2166,7 +2168,7 @@
   white-space: nowrap;
   transition: background 90ms linear;
 }
-.jp-ov-card__pill:hover { background: var(--jp-follow-hover); }
+.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); }
 
 /* Det stora talet. Enheten är baseline-alignad efter talet; ett omätt tal renderas som en
    en-dash och utan enhet (HeaderStats-doktrinen). */

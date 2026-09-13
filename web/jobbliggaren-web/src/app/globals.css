@@ -89,12 +89,19 @@
   --jp-warning:    #A34A06;  --jp-warning-bg: #FCE9D1;  /* #193: pill text 4.2->5.0:1 on warning-bg */
   --jp-danger:     #BE1B1B;  --jp-danger-bg:  #FBE0E0;
   --jp-info:       #1B5396;  --jp-info-bg:    #DEE9F8;
+  /* ADR 0140 — /oversikt-kortens info-axel. `-fill`/`-hover` följer knapp-kontraktet och
+     dark-skiftas ALDRIG (vit text på fyllningen i båda teman, som --jp-accent-800); `-border`
+     är kortets dekorativa hairline mot `-bg` och skiftar med tinten. */
+  --jp-info-fill:   #1B5396;  --jp-info-hover:  #164478;  --jp-info-border: #C5D8F0;
   /* #1000 / ADR 0116 — "bevakad"-tillstånd (slate-teal). En FJÄRDE status-axel
      (relation) vid sidan av grön=grad, blå=handling (sparad/ansökt), neutral=tid:
      BEVAKAR-taggen + `.jp-job[data-followed]`-vänsterkanten. Icke-grön (grad+
      interaktion låst, ADR 0068), icke-blå (sparad/ansökt), icke-danger. AA:
      text/border mot vitt kort 5.83:1, mot --jp-follow-bg 4.92:1. */
   --jp-follow:     #3E6C74;  --jp-follow-bg:  #E2EEF0;
+  /* ADR 0140 — samma tre roller för bevakad-axeln; `--jp-follow` själv är text/kant och skiftar
+     till #7FC4CE i dark, vilket är exakt varför fyllningen behöver en egen, oskiftad token. */
+  --jp-follow-fill: #3E6C74;  --jp-follow-hover: #2F5860;  --jp-follow-border: #C5DDE1;
 
   /* Accenter (v3-kanon) */
   --jp-leaf-600:  #1C7530;   --jp-leaf-50:  #DFF3E5;  /* #193: "Ny"-tag 3.76->4.97:1 on leaf-50 */
@@ -196,6 +203,7 @@
      (namngivna, dokumenterade, swappbara — medvetna undantag utanför H-skalan;
      skal-rungarna i @theme bär all skalburen typografi). */
   --jp-fs-oversikt-day:  30px;  /* .jp-oversikt__today__day — stor datum-numeral */
+  --jp-fs-oversikt-num:  40px;  /* .jp-ov-num — kortens stora tal på /oversikt (ADR 0140) */
   --jp-fs-countcard-num: 26px;  /* .jp-wizard__countcard-num — wizard-räknarsiffra */
   --jp-fs-brand-word:    24px;  /* brand-lockupens ordmärke */
 
@@ -343,9 +351,11 @@
   --jp-warning: #FBC267;  --jp-warning-bg: #3F2A0B;
   --jp-danger:  #FB8989;  --jp-danger-bg:  #3F1419;
   --jp-info:    #8FBEEF;  --jp-info-bg:    #1B3358;
+  --jp-info-border: #2E4F7E;   /* ADR 0140 — -fill/-hover skiftas EJ (knapp-kontraktet) */
   /* #1000 / ADR 0116 — "bevakad" (slate-teal), dark. Text/border mot mörk kort-yta
      7.21:1, mot --jp-follow-bg 6.84:1. */
   --jp-follow:  #7FC4CE;  --jp-follow-bg:  #153338;
+  --jp-follow-border: #245059; /* ADR 0140 — -fill/-hover skiftas EJ (knapp-kontraktet) */
 
   --jp-leaf-600:  #5BCB7B;  --jp-leaf-50:  #143E29;
   /* #290 — dark leaf-ramp extensions (mirror :root rungs). Stark/Bra/Grund
@@ -5139,75 +5149,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    för sitt radläge på /foretag/bevakade; här äger blockets `gap` avståndet. */
 .jp-appsummary .jp-matchline { margin-top: 0; font-size: var(--text-body); }
 
-/* #1681 del 3 — branschbevakningar på Översikt. EN RAD PER BEVAKNING, aldrig en summa:
-   kriterier är predikat utan unikhetsvillkor (CompanyWatchCriterionConfiguration avstår
-   `UNIQUE(user_id, sni_codes, kommun_codes)` medvetet), så två kriterier kan överlappa och
-   ett duplicerat dubblar en summa exakt. Företagsbevakningens ankarrad ärver därför inte
-   hit — dess summa är exakt bara tack vare unikindexet på (UserId, OrganizationNumber).
-
-   Inga nya tokens: färg, vikt och linje är blockets egna. Radgapet är större än blockets
-   6px eftersom varje post bär upp till tre rader (namn + två annonsrader) och posterna
-   annars läses som en enda styckesmassa. */
-.jp-appsummary__watches {
-  list-style: none;
-  padding: 0;
-  /* Ankaret får INTE binda hårdare till första bevakningen än bevakningarna till varandra
-     (design-reviewer Major 1b). Radavståndet är 12+12 px kring hårlinjen; 18 px plus blockets
-     egna 6 px gap ger 24 px här, alltså lika mycket — utan en linje, så ankaret läser som
-     rubrik till listan och inte som en post i den. */
-  margin: 18px 0 0;
-  display: flex;
-  flex-direction: column;
-  /* Noll: avståndet ägs av hårlinjeregeln nedan, annars adderas de två. */
-  gap: 0;
-}
-/* Husets svar på N staplade block av samma typ är hårlinjerader, inte luft (DESIGN.md §6 —
-   `.jp-table--flat`, `.jp-attentionqueue`). Vid MaxPerUser = 20 gör det en liggare av det som
-   annars blir en styckesmassa, utan att något visningstak väljs. Lätt linje = radgräns; den
-   starka linjen på blockets nederkant = blockgräns. */
-.jp-appsummary__watch + .jp-appsummary__watch {
-  border-top: 1px solid var(--jp-border);
-  padding-top: 12px;
-  margin-top: 12px;
-}
-.jp-appsummary__watch {
-  display: flex;
-  flex-direction: column;
-  /* 4px-rutnätet (DESIGN.md §5). Ger dessutom 4 px mellan två intilliggande textlänkar i stället
-     för 2 — den enda touch-relevanta tätheten blocket självt inför. */
-  gap: 4px;
-}
-/* En egen viktnivå under ankaret: identisk typografi gjorde "1 branschbevakning" och
-   "Utveckling i Göteborg" till jämlikar (design-reviewer Major 1a). Ankaret behåller bold. */
-.jp-appsummary__watchname {
-  margin: 0;
-  color: var(--jp-ink-1);
-  font-weight: var(--jp-fw-semibold);
-}
-/* Löpande prosa kapas vid ~68ch (jobbpilot-design-a11y §8). Utan taket mäter raderna 144ch vid
-   1280 px. Gäller blockets egna rader, aldrig `.jp-matchline` i övrigt. */
-.jp-appsummary__watch .jp-matchline,
-.jp-appsummary__advice {
-  max-width: 68ch;
-}
-/* Rådet står en gång under listan, inte en gång per rad. Avståndet matchar ankare→lista (18 px):
-   med 12 px låg ett BLOCK-påstående tätare mot sista bevakningen än ankaret mot listan, så det
-   läste som en fortsättning på just den raden (design-reviewer, omkontroll 2026-09-07). Medvetet
-   INGEN hårlinje här — då hade rådet blivit en tjugoförsta post i liggaren. */
-.jp-appsummary__advice { margin-top: 18px; }
-/* Två sammanfattningar i samma sektion delar klass, typografi och vänsterkant, så linjen mellan
-   dem BÄR information och måste nå UI-golvet 3:1 (jobbpilot-design-a11y §4). Basregeln lämnas
-   orörd — den bärs även av ApplicationSummary, där linjen bara skiljer grammatiker. */
-.jp-appsummary:has(+ .jp-appsummary) {
-  border-bottom-color: var(--jp-border-strong);
-}
-
 /* Branschbevakningens BREDD ("1 bransch · 1 kommun") — en klass, delad av alla fyra ytor som visar
    ett kriterium: `/oversikt`, katalogen och de två detaljsidorna (design-reviewer B-7, 2026-09-08).
-   Egen sektion och inte inuti `/oversikt`-blocket ovan, eftersom en regel fyra ytor läser inte hör
-   hemma under en enskild ytas rubrik — och två regler för `.jp-appsummary__advice` ska inte ha en
-   främmande regel emellan sig (design-reviewer + code-reviewer, omkontroll samma dag). Inga nya
-   tokens.
+   Egen sektion: en regel fyra ytor läser hör inte hemma under en enskild ytas rubrik
+   (design-reviewer + code-reviewer, omkontroll 2026-09-08). Inga nya tokens.
 
    `font-variant-numeric` sätts HÄR och aldrig som Tailwind-utility i JSX: `.jp-*` ligger utanför
    Tailwinds lager och slår därför varje utility för en egenskap regeln själv sätter, så en utility
@@ -5341,8 +5286,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 
 /* ── Översikt-notiscenter (#726) ─────────────────────────────────────────────
-   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar), åtgärds-
-   kort (setup-callout), kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
+   Sektioner per källa (notice-section), sid-toolbar (notice-toolbar),
+   kugghjuls-popover, läst-läge-fot och tomt-läge. Tokens
    only — inga nya hex; mörkt tema kommer gratis via `--jp-*`. */
 
 /* Läst (dismissad men ej borttagen) notisrad — de-emfaserad via AA-säkra
@@ -5388,68 +5333,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-oversikt-toolbar__receipt {
   font-size: var(--text-body-sm);
   color: var(--jp-ink-2);
-}
-
-/* "Kräver åtgärd"-kort (setup-nudge, ej avfärdbart, aldrig i en lista). */
-.jp-callout-block { margin-top: 24px; }
-.jp-callout {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  background: var(--jp-surface);
-  border: 1px solid var(--jp-border);
-  border-radius: var(--jp-r-md);
-  box-shadow: var(--jp-shadow-card);
-  overflow: hidden;
-}
-.jp-callout__strip {
-  flex: 0 0 4px;
-  align-self: stretch;
-  background: var(--jp-warning);
-}
-.jp-callout__body {
-  flex: 1 1 320px;
-  min-width: 0;
-  padding: 20px 24px 22px;
-}
-.jp-callout__label {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-overline);
-  font-weight: var(--jp-fw-bold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--jp-warning);
-  margin-bottom: 8px;
-}
-.jp-callout__text {
-  font-size: var(--text-ui);
-  line-height: 1.5;
-  color: var(--jp-ink-1);
-  max-width: 62ch;
-  margin: 0;
-}
-.jp-callout__text b {
-  font-weight: var(--jp-fw-bold);
-  color: var(--jp-ink-1);
-}
-.jp-callout__aside {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  padding: 18px 24px;
-}
-.jp-callout__hint {
-  font-size: var(--text-micro);
-  color: var(--jp-ink-3);
-}
-@media (max-width: 640px) {
-  .jp-callout__aside {
-    align-items: stretch;
-    width: 100%;
-    padding: 0 24px 20px;
-  }
 }
 
 /* Sidans ikon-only-form: kugghjulet i sektionshuvudet och toolbarens uppdatera-kontroll
@@ -5514,6 +5397,21 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-2);
   padding: 10px 14px 8px;
 }
+/* Grupprubrik i den samlade popovern på /oversikt (ADR 0140 Beslut 4): ett kugghjul bär alla
+   nio typerna, så raderna behöver sin källa som avdelare. Samma register som huvudet, ett steg
+   tystare; renderas aldrig i en en-grupps-popover. */
+.jp-notice-prefs__grouptitle {
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-2);
+  padding: 8px 14px 2px;
+  border-top: 1px solid var(--jp-border-soft);
+  margin-top: 4px;
+}
+.jp-notice-prefs__heading + .jp-notice-prefs__grouptitle {
+  border-top: 0;
+  margin-top: 0;
+}
 .jp-notice-prefs__row {
   display: flex;
   align-items: center;
@@ -5525,6 +5423,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-notice-prefs__row:hover {
   background: var(--jp-surface-2);
+}
+/* Touch-golvet (DESIGN.md §5): raden var 38px under 768 sedan #726; den samlade popovern på
+   /oversikt tredubblar raderna, så golvet sätts här (design-reviewer Minor 10, 2026-09-13). */
+@media (max-width: 768px) {
+  .jp-notice-prefs__row { min-height: 44px; }
 }
 .jp-notice-prefs__row input {
   width: 15px;
@@ -5609,7 +5512,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-top: 24px;
 }
 /* Hinten är INNEHÅLL, inte metadata: den är det enda som säger att knappen är
-   ofarlig. Därför ink-1 — aldrig .jp-callout__hint:s micro + ink-3, som är rätt för
+   ofarlig. Därför ink-1 — aldrig micro + ink-3, som är rätt för
    en kvalificerare men fel för det bärande skälet att våga klicka (DESIGN.md §4).
    body-sm och inte body: hinten sitter under en 14px semibold kontrolletikett, och
    16px hade lagt kvalificeraren över kontrollen i vikt. */

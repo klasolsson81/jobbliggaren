@@ -176,7 +176,7 @@ export default async function BevakningBrowsePage({ params, searchParams }: Prop
             producer refuses above 400 org.nrs, and its municipality axis is the ad's WORKPLACE while
             this kommun is the company's registered SEAT. */}
         {/* This page is one criterion by construction, so nothing above the row states the advice
-            and the row carries it whole — the same reason `CriteriaSummary` passes `false` at N=1. */}
+            and the row carries it whole — the same reason `CriteriaCard` passes `false` at N=1. */}
         <CriterionAdLines
           criterionId={id}
           ads={ads}

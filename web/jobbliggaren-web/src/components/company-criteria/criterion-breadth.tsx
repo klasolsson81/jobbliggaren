@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 
-// Parity `criterion-row.tsx` / `criteria-summary.tsx`: the middle dot joins the two axes and is a
+// Parity `criterion-row.tsx` / `criteria-card.tsx`: the middle dot joins the two axes and is a
 // layout glyph, not copy. It stays inside the rendered string rather than becoming a separate node,
 // exactly as the delivered catalogue row has it — a separator promoted to an element would need an
 // aria treatment the catalogue never gave it, and the two rows must read alike.

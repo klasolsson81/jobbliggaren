@@ -144,6 +144,25 @@ Bas-token = text/ikon, `-bg` = pill/banner-bakgrund. Tailwind-aliasen
 
 Dekorativa accenter (leaf/coral/amber) → `references/tokens-full.md`.
 
+### /oversikt-korten (DOKUMENTERAT undantag — ADR 0140)
+
+Kortens tre axlar tintas med `-bg` och kantas med en egen dekorativ hairline; varje kort bär EN
+solid knapp i axelns `-fill`. **`-fill`/`-hover` dark-skiftas ALDRIG** (knapp-kontraktet, som
+`--jp-accent-800`); `-border` skiftar med tinten. Gäller ENBART `/oversikt`. ⚠ Fyllningen mot sitt
+eget korts tint mäter 6,62 / 4,92 / 6,28 i light men **2,03 / 2,31 / 1,64 i dark** (accent-800 på
+accent-50, follow-fill på follow-bg, info-fill på info-bg) — under 3:1, skriven skuld inför
+dark-flippen (`DARK_MODE_ENABLED = false`; ADR 0140 Beslut 2).
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--jp-follow-fill` | `#3E6C74` | (skiftas EJ) | Solid knapp + ikonruta i Bevakade företag-kortet, vit text (5,83:1) |
+| `--jp-follow-hover` | `#2F5860` | (skiftas EJ) | Hover på den knappen (7,82:1) |
+| `--jp-follow-border` | `#C5DDE1` | `#245059` | Kortkant mot `--jp-follow-bg` (dekorativ, 1,20:1 / 1,51:1) |
+| `--jp-info-fill` | `#1B5396` | (skiftas EJ) | Solid knapp + ikonruta i Branschbevakning-kortet, vit text (7,71:1) |
+| `--jp-info-hover` | `#164478` | (skiftas EJ) | Hover på den knappen (9,85:1) |
+| `--jp-info-border` | `#C5D8F0` | `#2E4F7E` | Kortkant mot `--jp-info-bg` (dekorativ, 1,18:1 / 1,53:1) |
+| `--jp-fs-oversikt-num` | `40px` | — | `.jp-ov-num` — kortens stora tal |
+
 ### Hero / gradient (DOKUMENTERAT undantag — ADR 0068)
 
 | Token | Värde | Use |

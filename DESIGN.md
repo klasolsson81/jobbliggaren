@@ -33,7 +33,7 @@ Referenser som **inte** ska kännas:
 | Ljus default + dark mode stöds (auto via `prefers-color-scheme` + manuell toggle) | Forcerad dark utan användarval |
 | Mörkgrön accent (`--jp-accent-700`, ADR 0068) | Neon, lila, cyan-accenter |
 | Rak svensk copy | Emojis, utropstecken, "Let's go!" |
-| Tabeller och listor | Kort-layouter överallt |
+| Tabeller och listor (**scoped undantag:** `/oversikt` är ett kort-rutnät, ADR 0140) | Kort-layouter överallt |
 | `border-radius` via `--jp-r-*` | Radier över `--jp-r-lg` |
 | Muted statusfärger | Glow, drop shadow, glasmorfism |
 | Breadcrumbs + hierarki | Flata sidor utan kontext |
@@ -69,6 +69,7 @@ Paletten är medvetet begränsad. Civic-produkter bygger tillit genom konsekvens
 - **CV-mall-accenter (scoped undantag, PR-8b / ADR 0096):** de fyra kuraterade accentfärgerna för mallbyggarens CV-render — Marinblå `#1E3A5F`, Skogsgrön `#15603F`, Vinröd `#7A2E35`, Grafit `#3A4451` — gäller ENBART den exporterade CV-PDF:en (rubriker/streck på ljusa mallar; hela sidopanel-bakgrunden i Mörk panel under vit text, Klas 2026-07-12 "panelfärg = vald accent"). App-UI:t behåller den enda gröna interaktions-accenten (ADR 0068) — CV:t är ett användardokument, inte app-chrome, så en kuraterad flerfärgspalett där är en medveten avgränsad avvikelse (samma slag av scoped undantag som hero-gradienten). Varje accent WCAG-AA-gardad som par mot vitt (≥4.5:1, Skogsgrön ljusast = 7.56:1) via `CvPalette`-fitnessfunktionen; slutna `CvAccentColor`-SmartEnum-värden, aldrig fri hex. Bor i renderaren (`Infrastructure/Resumes/Rendering/CvPalette`), inte i `globals.css` (ingen app-yta konsumerar dem).
 - **Neutraler (v3, ADR 0052; ink-3 mörkad i #296):** ink `#0C1A2E` / `#455366` / `#4F5D72` (text-tertiary mörkad från `#7C8AA0` till en hög-kontrast slate-navy så all 11–12.5px metadata-text klarar WCAG AA — min 5.45:1, issue #296; ink-1/-2 oförändrade av G1), surfaces `#FFFFFF` / `#F4F6FA` / `#E8EDF4`, canvas `#F4F6FA` light / `#0B1525` dark (mörk navy-grå, inte svart), placeholder `#626B78` (WCAG-motiverad).
 - **Statusfärger:** success `#16793B`, warning `#A34A06` (mörkad från `#B4540B` för 4.5:1 pill-text, issue #193), danger `#BE1B1B`, info `#1B5396` + bg-varianter — endast för status (aldrig dekoration); oförändrade av accentbytet.
+- **`/oversikt`-kortens fyllning och kant (scoped undantag, ADR 0140):** korten på Översikten tintas per axel — accent (`--jp-accent-50`/`-100`), bevakad (`--jp-follow-bg` + ny `--jp-follow-border` `#C5DDE1` light / `#245059` dark) och info (`--jp-info-bg` + ny `--jp-info-border` `#C5D8F0` / `#2E4F7E`) — och bär EN solid knapp var i axelns fyllning: `--jp-accent-800`, ny `--jp-follow-fill` `#3E6C74` (hover `--jp-follow-hover` `#2F5860`) och ny `--jp-info-fill` `#1B5396` (hover `--jp-info-hover` `#164478`). Fyllnings- och hover-tokens dark-skiftas ALDRIG (knapp-kontraktet, vit text ≥ 5,83:1 i båda teman); kant-tokens är dekorativa hairlines (1,2:1 mot tinten) och skiftar med den. Gäller ENBART `/oversikt`; ingen annan yta får en solid follow-/info-knapp.
 - **Bevakad-tillstånd (slate-teal, ADR 0116):** `--jp-follow` `#3E6C74` light / `#7FC4CE` dark (text/border/kort-vänsterkant) + `--jp-follow-bg` `#E2EEF0` / `#153338` (fyllning) — en FJÄRDE semantisk axel (relation: "du bevakar arbetsgivaren") vid sidan av grön=grad, blå=sparad/ansökt, neutral=tid. Bär `.jp-tag[data-tag="followed"]` (BEVAKAR-taggen, /jobb-kort + annonsmodal) + `.jp-job[data-followed]`-vänsterkanten (pseudo-element, överlever grön hover). Icke-grön (grad+interaktion låst, ADR 0068), icke-blå (sparad/ansökt), icke-danger. AA: light 5.83:1 mot vitt kort / 4.92:1 mot bg; dark 7.21:1 / 6.84:1 (design-reviewer re-verifierar mot rendering, §12).
 - **Borders:** border `#C9D2E0` (dekorativa hairlines), border-soft `#E3E8F0`, border-strong `#7C8AA0` (informationsbärande dividers, mörkad från `#97A4B8` till 3.5:1-UI-golvet, issue #193 — delar nu värde med border-input, medveten tonalitet), border-input `#7C8AA0`; border-modal/-structural per ADR 0041 (re-homade på v3-border).
 - **Skuggor:** bara shadow-card/pop/modal (popovers/dropdowns/modal) — djup skapas via border/hairline, aldrig på cards/knappar
@@ -149,7 +150,7 @@ Regler:
 - Destructive actions kräver alltid bekräftelse-dialog
 - Icon-only buttons kräver `aria-label`
 - Loading state: ersätt label med "Sparar…", behåll bredd, sätt `disabled`
-- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan
+- Inga stats-kort runt enstaka värden — visa siffran direkt i rad/tabell ovanför listan. **Scoped undantag (ADR 0140): `/oversikt` är ett rutnät av sex kort med ett stort tal var (`--jp-fs-oversikt-num` 40px), en solid CTA per kort i kortets egen axelfärg, aldrig fler.** Undantaget når ingen annan sida.
 
 Full spec, variant-states och JSX-kompositionsexempel → **jobbpilot-design-components**.
 

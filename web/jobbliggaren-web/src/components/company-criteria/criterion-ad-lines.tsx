@@ -28,7 +28,8 @@ import type {
  *
  * ⚠ It decides the ANTECEDENT and nothing else. Whether the too-broad advice is hoisted out of the
  * row is `adviceStatedByCaller`; whether the row's CTA has anywhere to go is
- * `actionOfferedByCaller`. Three independent facts, three props — see each prop.
+ * `actionOfferedByCaller`; whether the caller renders the matching number itself is
+ * `omitMatchingCount`. Four independent facts, four props — see each prop.
  */
 export type CriterionAdLinesVariant = "withCompanies" | "standalone";
 
@@ -82,6 +83,21 @@ interface CriterionAdLinesProps {
    * delete a live way forward (ADR 0047).</p>
    */
   readonly actionOfferedByCaller: boolean;
+  /**
+   * Omit the matching NUMBER because the caller renders it itself — the big number of the
+   * Branschbevakning card on `/oversikt` (ADR 0140) — so this component renders the ads line only.
+   *
+   * <p><b>Invariant: `true` only while `matching.count !== null` AND the caller renders that
+   * number.</b> The prop names an action on this component's own output, not a fact about the
+   * caller's surface, which is why it is named for what it does (dotnet-architect, 2026-09-13).
+   * It reaches the number arm and nothing else — a refusal, a not-materialised set or a
+   * not-assessed profile has no number to omit, and the reason arms are never suppressed,
+   * because a big number that is absent must be explained beneath it.</p>
+   *
+   * <p>Optional and default `false`: three of the four callers render no number themselves, and
+   * absence there is the ordinary case rather than a choice each must write out.</p>
+   */
+  readonly omitMatchingCount?: boolean;
 }
 
 /**
@@ -124,6 +140,7 @@ export function CriterionAdLines({
   variant,
   adviceStatedByCaller,
   actionOfferedByCaller,
+  omitMatchingCount = false,
 }: CriterionAdLinesProps) {
   const t = useTranslations("pages.foretag.criteria");
   // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
@@ -270,7 +287,7 @@ export function CriterionAdLines({
               {tWatch("matchNudgeCta")}
             </Link>
           </p>
-        ) : (
+        ) : omitMatchingCount ? null : (
           <p className="jp-matchline tabular-nums">
             {matching.count > 0 ? (
               <Link

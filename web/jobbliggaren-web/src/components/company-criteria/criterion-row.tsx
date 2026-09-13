@@ -54,7 +54,7 @@ interface CriterionRowProps {
  * grading `#1681` part 2 put on `GET /me/company-watch-criteria`, and until this delta the row
  * rendered none of it: `/oversikt` linked here and answered more than the page it linked to. The
  * ladder is {@link CriterionAdLines}, of which this row is the THIRD consumer — the criterion detail
- * page and `CriteriaSummary` are the other two — because a copy of seven honesty branches is how
+ * page and `CriteriaCard` are the other two — because a copy of seven honesty branches is how
  * three surfaces come to disagree about one watch (ADR 0139, "Båda ytorna läser samma källa").</p>
  */
 export function CriterionRow({ item, reference, adviceStatedByCaller }: CriterionRowProps) {

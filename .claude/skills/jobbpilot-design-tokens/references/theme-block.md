@@ -68,6 +68,9 @@ names, not class sets.
   --jp-warning:#A34A06; --jp-warning-bg:#FCE9D1;
   --jp-danger:#BE1B1B;  --jp-danger-bg:#FBE0E0;
   --jp-info:#1B5396;    --jp-info-bg:#DEE9F8;
+  /* ADR 0140 — /oversikt-korten; -fill/-hover skiftas EJ */
+  --jp-info-fill:#1B5396;   --jp-info-hover:#164478;   --jp-info-border:#C5D8F0;
+  --jp-follow-fill:#3E6C74; --jp-follow-hover:#2F5860; --jp-follow-border:#C5DDE1;
 
   /* Dekorativa accenter */
   --jp-leaf-600:#1C7530; --jp-leaf-50:#DFF3E5;
@@ -137,6 +140,7 @@ names, not class sets.
   --jp-warning:#FBC267; --jp-warning-bg:#3F2A0B;
   --jp-danger:#FB8989;  --jp-danger-bg:#3F1419;
   --jp-info:#8FBEEF;    --jp-info-bg:#1B3358;
+  --jp-info-border:#2E4F7E; --jp-follow-border:#245059; /* ADR 0140 */
   --jp-leaf-600:#5BCB7B; --jp-leaf-50:#143E29;
   /* --jp-focus omdefinieras EJ: var(--jp-accent-700) resolvar själv
      till #6EE7A8 via accent-skiftet. Hero-tokens omdefinieras EJ

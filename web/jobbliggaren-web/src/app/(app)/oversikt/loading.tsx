@@ -5,18 +5,22 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * Route-level loading state for /oversikt (#739 — finding
  * `p1-no-loading-tsx-any-primary-route`). The page fans out over several
  * endpoints and is `force-dynamic`, so navigation to it dead-clicked until the
- * whole dashboard rendered. This paints the pagehero + the notice ledger shape
- * immediately.
+ * whole dashboard rendered. This paints the pagehero + the six card frames of
+ * the bento grid (ADR 0140) immediately.
  *
- * Re-uses the real structural classes (`jp-pagehero`, `jp-section`,
- * `jp-appsummary`) so the shape matches on swap. sr-only `role="status"`
- * announces; visuals are decorative. Sync RSC, flat-grey skeletons, no
- * animation.
+ * Re-uses the real structural classes (`jp-pagehero`, `jp-ov-grid`, `jp-ov-card`)
+ * so the shape matches on swap. sr-only `role="status"` announces; visuals are
+ * decorative. Sync RSC, flat-grey skeletons, no animation.
  *
  * ⚠ **No pagehero aside.** The authenticated Översikt hero has none — the
  * TodayCard it used to mirror was removed in #726 — and `PageHeroSkeleton`
  * omits the `__aside` element entirely for `aside={null}`, which is what
  * keeps the band from over-reserving a wrapped row at narrow widths (#1385).
+ *
+ * The Branschbevakning card is reserved at `span 4`, the one-watch form: a
+ * fallback cannot know whether the account holds two or more watches, and
+ * reserving the full-row form would over-reserve for every account that holds
+ * one. Same call, same reasoning, as leaving the setup callout unreserved before.
  */
 export default function Loading() {
   const t = useTranslations("pages");
@@ -30,86 +34,70 @@ export default function Loading() {
       <PageHeroSkeleton kicker aside={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">
-        {/* The "Kräver åtgärd" card between the toolbar and the first section is
-            DELIBERATELY not reserved. It renders only while the account has
-            stated no desired occupation, so a fallback cannot know whether it is
-            coming; reserving its ~140px would over-reserve for every account
-            that has. An unreserved conditional block is the lesser shift. */}
-        {/* Notice toolbar: the time-only stamp, the icon-only refresh control and its
-            receipt region on the left (#1556), mark-all on the right. */}
-        <div className="mb-3 flex items-center justify-between gap-4">
-          <span className="jp-skeleton block h-4 w-48" />
-          <span className="jp-skeleton block h-4 w-36" />
+        {/* Toolbar: the time-only stamp + refresh on the left, the single gear on the right. */}
+        <div className="jp-oversikt-toolbar">
+          <div className="jp-oversikt-toolbar__left">
+            <span className="jp-skeleton block h-4 w-48" />
+          </div>
+          <span className="jp-skeleton block h-8 w-8" />
         </div>
 
-        {/* Mina ansökningar — the only section carrying a standing summary
-            above its notice rows (#1548). */}
-        <section className="jp-section">
-          <div className="jp-section__head">
-            <span className="jp-skeleton block h-5 w-40" />
-            <span className="jp-skeleton block h-4 w-8" />
-          </div>
-          <div className="jp-appsummary">
-            <div className="jp-appsummary__anchor">
-              <span className="jp-skeleton block h-6 w-48" />
-              <span className="jp-skeleton block h-6 w-40" />
+        <div className="jp-ov-grid">
+          {/* Kräver dig — three action rows. */}
+          <div className="jp-ov-card jp-ov-card--list" data-span="8">
+            <div className="jp-ov-card__head">
+              <span className="jp-skeleton block h-6 w-32" />
+              <span className="jp-skeleton block h-4 w-14" />
             </div>
-            <span className="jp-skeleton block h-6 w-full max-w-3xl" />
-          </div>
-          <div className="flex flex-col gap-3">
-            {[0, 1].map((row) => (
-              <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
+            {[0, 1, 2].map((row) => (
+              <span key={row} className="jp-skeleton block h-[72px] w-full" />
             ))}
           </div>
-        </section>
 
-        {/* Jobbannonser — notices only. */}
-        <section className="jp-section">
-          <div className="jp-section__head">
-            <span className="jp-skeleton block h-5 w-44" />
-            <span className="jp-skeleton block h-4 w-8" />
+          {/* Mina ansökningar — number, four bars, button. */}
+          <div className="jp-ov-card" data-span="4">
+            <div className="jp-ov-card__head">
+              <span className="jp-skeleton block h-10 w-10" />
+              <span className="jp-skeleton block h-5 w-36" />
+            </div>
+            <span className="jp-skeleton mt-[18px] block h-10 w-40" />
+            <div className="mt-4 flex flex-col gap-2">
+              {[0, 1, 2, 3].map((row) => (
+                <span key={row} className="jp-skeleton block h-4 w-full" />
+              ))}
+            </div>
+            <span className="jp-skeleton mt-[18px] block h-11 w-full" />
           </div>
-          <div className="flex flex-col gap-3">
-            {[0, 1].map((row) => (
-              <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
-            ))}
-          </div>
-        </section>
 
-        {/* Företagsbevakning — notices UNDER two standing summaries. The comment that stood here
-            said "notices only" for this section too; that became false with #1558, which gave the
-            section `CompanySummary`, and #1681 del 3 adds `CriteriaSummary` beside it. Both render
-            unconditionally (anchor, empty state or an unreadable line), so a heading row and an
-            anchor-shaped row each are reserved rather than nothing — the heading since #1717.
-
-            The criteria block's own per-watch ROWS are deliberately NOT reserved: their number
-            varies 0-20 and a fallback cannot know it, so reserving a guess would over-reserve for
-            the common account and under-reserve for the full one. Same call, and the same reasoning,
-            as the "Kräver åtgärd" card above — an unreserved variable block is the lesser shift. */}
-        <section className="jp-section">
-          <div className="jp-section__head">
-            <span className="jp-skeleton block h-5 w-44" />
-            <span className="jp-skeleton block h-4 w-8" />
-          </div>
-          {[0, 1].map((summary) => (
-            <div key={summary} className="jp-appsummary">
-              {/* #1717 — blockets overline-rubrik. Reserverad BARA här: det är den enda sektion
-                  vars h2 är ett paraply över två innehållstyper, så det är den enda vars block
-                  bär ett eget namn. Ansökningssektionen ovan får därför ingen (design-reviewer
-                  B1/A1) — en rad reserverad där hade skiftat en rubrik som aldrig kommer. */}
-              <span className="jp-skeleton block h-3 w-32" />
-              <div className="jp-appsummary__anchor">
-                <span className="jp-skeleton block h-6 w-48" />
-                <span className="jp-skeleton block h-6 w-40" />
+          {/* Matchning · Bevakade företag · Branschbevakning — one number card each. */}
+          {(["accent", "follow", "info"] as const).map((tone) => (
+            <div key={tone} className={`jp-ov-card jp-ov-card--${tone}`} data-span="4">
+              <div className="jp-ov-card__head">
+                <span className="jp-skeleton block h-10 w-10" />
+                <span className="jp-skeleton block h-5 w-36" />
               </div>
+              <span className="jp-skeleton mt-[18px] block h-10 w-48" />
+              <span className="jp-skeleton mt-3 block h-4 w-2/3" />
+              <span className="jp-skeleton mt-[18px] block h-11 w-full" />
             </div>
           ))}
-          <div className="flex flex-col gap-3">
-            {[0, 1].map((row) => (
-              <span key={row} className="jp-skeleton block h-4 w-2/3 max-w-full" />
+
+          {/* Senaste händelser — three feed rows. */}
+          <div className="jp-ov-card jp-ov-card--list" data-span="12">
+            <div className="jp-ov-card__head">
+              <span className="jp-skeleton block h-6 w-44" />
+              <span className="jp-skeleton block h-4 w-14" />
+            </div>
+            {[0, 1, 2].map((row) => (
+              <span key={row} className="jp-skeleton block h-9 w-full" />
             ))}
           </div>
-        </section>
+        </div>
+
+        {/* Mark-all row, last on the page. */}
+        <div className="jp-notice-bulk">
+          <span className="jp-skeleton block h-4 w-44" />
+        </div>
       </div>
     </>
   );

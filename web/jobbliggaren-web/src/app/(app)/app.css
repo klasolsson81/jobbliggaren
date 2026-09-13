@@ -2072,3 +2072,464 @@
   border-top: 1px solid var(--jp-border-soft);
   font-size: var(--text-body-sm);
 }
+
+/* ── /oversikt som bento-dashboard (ADR 0140, #1723) ──────────────────────────
+   Sex kort i ett 12-kolumnsrutnät. Ett SCOPAT undantag från DESIGN.md §1.2/§6 (kortlayout,
+   stats-kort runt ett tal) — den här sidan och ingen annan. Bara tokens; de sju ADR 0140-tokens
+   är deklarerade i globals.css intill sin axel. Olagrade .jp-* som resten av huset: en
+   Tailwind-utility för en egenskap regeln själv sätter är verkningslös. */
+.jp-ov-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+.jp-ov-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--jp-surface);
+  border: 1px solid var(--jp-border);
+  /* --jp-r-lg är modalradien och taket — inget över 8px (DESIGN.md §5). Ingen skugga. */
+  border-radius: var(--jp-r-lg);
+  padding: 22px 24px;
+}
+.jp-ov-card[data-span="4"]  { grid-column: span 4; }
+.jp-ov-card[data-span="6"]  { grid-column: span 6; }
+.jp-ov-card[data-span="8"]  { grid-column: span 8; }
+.jp-ov-card[data-span="12"] { grid-column: span 12; }
+/* Tintade axlar. Kanten är axelns dekorativa hårlinje (1,2:1 mot tinten, ADR 0140 Beslut 2). */
+.jp-ov-card--accent { background: var(--jp-accent-50); border-color: var(--jp-accent-100); }
+.jp-ov-card--follow { background: var(--jp-follow-bg); border-color: var(--jp-follow-border); }
+.jp-ov-card--info   { background: var(--jp-info-bg);   border-color: var(--jp-info-border); }
+/* De två listkorten: bredare padding, 20px-rubrik, ingen ikonruta. */
+.jp-ov-card--list {
+  padding: 24px 28px;
+  gap: 14px;
+}
+/* Kräver dig bär en 6px varningskant så länge något kräver läsaren; tomt byter kanten till
+   neutral — kortet står kvar, larmet går (handoffens tillståndstabell). */
+/* Skelettet på de tintade korten: --jp-surface-3 mäter 1,01–1,04:1 mot tinterna (osynligt), så
+   follow/info lånar sin kants token; accent-100 kollapsar på accent-50 i dark och border-soft
+   mätte 1,08:1 i light, därför --jp-border där (1,33:1 light / 2,22:1 dark; design-reviewer
+   Minor 7 + omkontroll). */
+.jp-ov-card--accent .jp-skeleton { background: var(--jp-border); }
+.jp-ov-card--follow .jp-skeleton { background: var(--jp-follow-border); }
+.jp-ov-card--info   .jp-skeleton { background: var(--jp-info-border); }
+.jp-ov-card--requires { border-left: 6px solid var(--jp-warning); }
+.jp-ov-card--requires[data-empty="true"] { border-left-color: var(--jp-border-strong); }
+
+.jp-ov-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.jp-ov-card__icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--jp-r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-accent-50);
+  color: var(--jp-accent-700);
+}
+/* Ikonrutan bär axelns FYLLNING — samma token som kortets solida CTA, aldrig dark-skiftad. */
+.jp-ov-card--accent .jp-ov-card__icon { background: var(--jp-accent-800); color: var(--jp-on-fill); }
+.jp-ov-card--follow .jp-ov-card__icon { background: var(--jp-follow-fill); color: var(--jp-on-fill); }
+.jp-ov-card--info   .jp-ov-card__icon { background: var(--jp-info-fill);   color: var(--jp-on-fill); }
+.jp-ov-card__title {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-h4);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-heading-2);
+}
+.jp-ov-card__title--lg {
+  font-size: var(--text-h2);
+  letter-spacing: -0.01em;
+}
+.jp-ov-card__count {
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* "N nya": sidans enda pill, och en LÄNK till annonserna den räknar (#1576). margin-left auto
+   sätter den vid huvudets högerkant. Scopad under huvudet (0,2,0) för att vinna över den globala
+   länkfärgen `a:not(.jp-btn, …)` (0,1,1) — mätt 2026-09-13: utan scopet renderade texten i
+   accent-700 på teal, 1,6:1. */
+.jp-ov-card__head .jp-ov-card__pill {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--jp-r-pill);
+  background: var(--jp-follow-fill);
+  color: var(--jp-on-fill);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-bold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 90ms linear;
+}
+.jp-ov-card__head .jp-ov-card__pill:hover { background: var(--jp-follow-hover); }
+
+/* Det stora talet. Enheten är baseline-alignad efter talet; ett omätt tal renderas som en
+   en-dash och utan enhet (HeaderStats-doktrinen). */
+.jp-ov-num {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 0;
+}
+.jp-ov-num__value {
+  font-size: var(--jp-fs-oversikt-num);
+  font-weight: var(--jp-fw-bold);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--jp-ink-1);
+}
+.jp-ov-num__unit {
+  font-size: var(--text-ui);
+  color: var(--jp-ink-2);
+}
+.jp-ov-sub {
+  margin: 12px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+/* Talet i sekundärraden är en länk i ink-1 (mockens form), inte accent: raden är prosa och
+   understrykningen bär affordansen. */
+.jp-ov-sub .jp-countlink { color: var(--jp-ink-1); }
+/* Upplysningsraderna (saknad länk, notisfilter) i Bevakade företag-kortet: .jp-appsummary gav dem
+   blockets gap, kortet ger ingen — så raden bär sin egen marginal, kortets sekundärrads-mått, och
+   body-sm så en upplysning inte väger tyngre än raden den kvalificerar (design-reviewer Major 2). */
+.jp-ov-card .jp-transparency-note {
+  margin-top: 12px;
+  font-size: var(--text-body-sm);
+}
+/* Tomt-, ohämtbar- och setup-copy i ett kort — innehåll, aldrig metadata (DESIGN.md §4). */
+.jp-ov-card__emptytitle {
+  margin: 18px 0 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-ov-card__emptybody {
+  margin: 6px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-2);
+}
+.jp-ov-card__unavailable {
+  margin: 12px 0 0;
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
+}
+.jp-ov-card__text {
+  margin: 18px 0 0;
+  font-size: var(--text-ui);
+  line-height: 1.5;
+  color: var(--jp-ink-1);
+}
+.jp-ov-card__text b { font-weight: var(--jp-fw-bold); }
+.jp-ov-card__hint {
+  margin: 8px 0 0;
+  font-size: var(--text-micro);
+  color: var(--jp-ink-3);
+  text-align: center;
+}
+/* Foten sätter CTA:n på kortets golv så tre kort i rad delar knappbaslinje, med handoffens
+   18px-minimum ovanför. */
+.jp-ov-card__foot {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+/* Kort-CTA på .jp-btn-chassit: 44px, husets höjd och inte mockens 40 (ADR 0140 Beslut 3).
+   Modifiern sätter bara färg. Matchning-kortet bär .jp-btn--primary (sidans primär). */
+.jp-ov-cta {
+  width: 100%;
+  font-size: var(--text-body-sm);
+  font-weight: var(--jp-fw-bold);
+}
+.jp-ov-cta--follow {
+  background: var(--jp-follow-fill);
+  color: var(--jp-on-fill);
+  border-color: var(--jp-follow-fill);
+}
+.jp-ov-cta--follow:hover {
+  background: var(--jp-follow-hover);
+  border-color: var(--jp-follow-hover);
+}
+.jp-ov-cta--info {
+  background: var(--jp-info-fill);
+  color: var(--jp-on-fill);
+  border-color: var(--jp-info-fill);
+}
+.jp-ov-cta--info:hover {
+  background: var(--jp-info-hover);
+  border-color: var(--jp-info-hover);
+}
+/* Outline: leder till en lista, inte till annonser — den solida nivån är för annons-CTA:er. */
+.jp-ov-cta--outline {
+  background: var(--jp-surface);
+  color: var(--jp-accent-700);
+  border-color: var(--jp-accent-700);
+}
+.jp-ov-cta--outline:hover { background: var(--jp-accent-50); }
+
+/* Ansökningskortets staplar: namn · spår · tal. Fyllningen stiger på accent-rampen steg för
+   steg; nollsteg skiljs med VIKT, aldrig opacity (WCAG 1.4.3 på en icke-interaktiv lista). */
+.jp-ov-bars {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jp-ov-bars__row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-body-sm);
+}
+.jp-ov-bars__name { color: var(--jp-ink-2); }
+.jp-ov-bars__track {
+  height: 8px;
+  border-radius: var(--jp-r-sm);
+  background: var(--jp-surface-3);
+  overflow: hidden;
+}
+.jp-ov-bars__fill {
+  display: block;
+  height: 100%;
+}
+.jp-ov-bars__fill[data-tone="draft"]        { background: var(--jp-accent-100); }
+.jp-ov-bars__fill[data-tone="submitted"]    { background: var(--jp-accent-300); }
+.jp-ov-bars__fill[data-tone="acknowledged"] { background: var(--jp-accent-500); }
+.jp-ov-bars__fill[data-tone="interview"]    { background: var(--jp-accent-700); }
+.jp-ov-bars__fill[data-tone="offer"]        { background: var(--jp-accent-800); }
+.jp-ov-bars__num {
+  text-align: right;
+  font-weight: var(--jp-fw-bold);
+  color: var(--jp-ink-1);
+}
+.jp-ov-bars__row[data-empty="true"] .jp-ov-bars__num {
+  font-weight: var(--jp-fw-regular);
+  color: var(--jp-ink-2);
+}
+.jp-ov-bars__row--terminal {
+  padding-top: 8px;
+  border-top: 1px solid var(--jp-border-soft);
+}
+
+/* Kräver dig-raderna: ikonruta · etikett+tid över text · rad-CTA · avfärda. Radens CTA är
+   .jp-btn--sm .jp-btn--emphasis (36px) — betonad, aldrig solid (N rader = N knappar). */
+.jp-ov-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jp-ov-action {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 32px;
+  gap: 16px;
+  align-items: center;
+  background: var(--jp-surface-2);
+  border-radius: var(--jp-r-md);
+  padding: 14px 16px;
+}
+.jp-ov-action__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--jp-r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jp-ov-action[data-kind="warning"] .jp-ov-action__icon { background: var(--jp-warning-bg); color: var(--jp-warning); }
+.jp-ov-action[data-kind="success"] .jp-ov-action__icon { background: var(--jp-success-bg); color: var(--jp-success); }
+.jp-ov-action[data-kind="brand"]   .jp-ov-action__icon { background: var(--jp-accent-50);  color: var(--jp-accent-700); }
+.jp-ov-action[data-kind="info"]    .jp-ov-action__icon { background: var(--jp-info-bg);    color: var(--jp-info); }
+.jp-ov-action__body { min-width: 0; }
+.jp-ov-action__meta {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+/* Samma register som .jp-notice__label: versalerna sätts här, aldrig i DOM-texten. */
+.jp-ov-action__label {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-ink-2);
+}
+.jp-ov-action[data-kind="warning"] .jp-ov-action__label { color: var(--jp-warning); }
+.jp-ov-action[data-kind="success"] .jp-ov-action__label { color: var(--jp-success); }
+.jp-ov-action[data-kind="brand"]   .jp-ov-action__label { color: var(--jp-accent-700); }
+.jp-ov-action[data-kind="info"]    .jp-ov-action__label { color: var(--jp-info); }
+.jp-ov-action__time {
+  font-size: var(--text-micro);
+  color: var(--jp-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.jp-ov-action__text {
+  margin: 3px 0 0;
+  font-size: var(--text-body);
+  line-height: 1.4;
+  color: var(--jp-ink-1);
+}
+.jp-ov-action__text b { font-weight: var(--jp-fw-bold); }
+.jp-ov-action__cta { white-space: nowrap; }
+/* Läst rad: presentationella delar till ink-3; kontrollerna behåller full kontrast
+   (WCAG 1.4.3/1.4.11 — samma regel som .jp-notice--read). Selektorerna står EFTER kind-färgerna
+   och vinner på källordning. */
+.jp-ov-action--read .jp-ov-action__label,
+.jp-ov-action--read .jp-ov-action__text,
+.jp-ov-action--read .jp-ov-action__time { color: var(--jp-ink-3); }
+.jp-ov-action--read .jp-ov-action__text b { color: inherit; }
+
+/* Senaste händelser-raderna: hårlinjer, ikonruta · etikett · text · textlänk · tid · avfärda.
+   CTA, tid och avfärda-knapp är .jp-notice-familjens egna klasser — samma kontroller, samma mått. */
+.jp-ov-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.jp-ov-event {
+  display: grid;
+  grid-template-columns: 36px 150px minmax(0, 1fr) auto 100px 32px;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--jp-border-soft);
+}
+.jp-ov-event__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--jp-r-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--jp-info-bg);
+  color: var(--jp-info);
+}
+.jp-ov-event__label {
+  font-family: var(--jp-font-mono);
+  font-size: var(--text-overline);
+  font-weight: var(--jp-fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-info);
+}
+.jp-ov-event__text {
+  min-width: 0;
+  font-size: var(--text-ui);
+  line-height: 1.4;
+  color: var(--jp-ink-1);
+}
+.jp-ov-event__text b { font-weight: var(--jp-fw-bold); }
+.jp-ov-event--read .jp-ov-event__label,
+.jp-ov-event--read .jp-ov-event__text,
+.jp-ov-event--read .jp-notice__time { color: var(--jp-ink-3); }
+.jp-ov-event--read .jp-ov-event__text b { color: inherit; }
+/* Tomraden i ett listkort: innehåll, ink-1. Kortet försvinner aldrig. */
+.jp-ov-list-empty {
+  padding: 4px 0;
+  font-size: var(--text-body);
+  color: var(--jp-ink-1);
+}
+
+/* Branschbevakning vid två eller fler: en liggarrad per bevakning i kortets egen tint, aldrig
+   en summa (CTO #1681 del 3 D1). Hårlinjen mellan rader är axelns kant-token. */
+.jp-ov-criteria {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jp-ov-criteria__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jp-ov-criteria__row + .jp-ov-criteria__row {
+  border-top: 1px solid var(--jp-info-border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.jp-ov-criteria__name {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--jp-fw-semibold);
+  color: var(--jp-ink-1);
+}
+/* Löpande prosa kapas vid ~68ch (jobbpilot-design-a11y §8); i ett kort äger kortet avståndet. */
+.jp-ov-card .jp-matchline {
+  margin-top: 6px;
+  max-width: 68ch;
+  font-size: var(--text-body-sm);
+}
+/* (0,2,0) — samma specificitet som .jp-ov-card .jp-matchline ovan och SENARE i källordning, annars
+   äter den regeln de 18px och rådet läser som en fortsättning på sista raden (design-reviewer
+   Major 3, 2026-09-13; samma dom som omkontrollen 2026-09-07 på den gamla ytan). */
+.jp-ov-card .jp-ov-criteria__advice { margin-top: 18px; }
+
+/* Responsivt: under 1024 en kolumn i samma ordning; under 880 staplas raderna som .jp-notice;
+   under 768 44px hit-targets (DESIGN.md §5). */
+@media (max-width: 1023px) {
+  .jp-ov-card[data-span="4"],
+  .jp-ov-card[data-span="6"],
+  .jp-ov-card[data-span="8"] { grid-column: span 12; }
+}
+@media (max-width: 880px) {
+  .jp-ov-action {
+    grid-template-columns: 44px minmax(0, 1fr) 32px;
+    grid-template-areas:
+      "icon body dismiss"
+      "cta  cta  cta";
+    row-gap: 10px;
+  }
+  .jp-ov-action__icon { grid-area: icon; align-self: start; }
+  .jp-ov-action__body { grid-area: body; }
+  .jp-ov-action__cta  { grid-area: cta; justify-self: start; }
+  .jp-ov-action .jp-notice__dismiss { grid-area: dismiss; align-self: start; }
+  .jp-ov-event {
+    grid-template-columns: 36px minmax(0, 1fr) 32px;
+    grid-template-areas:
+      "icon label dismiss"
+      "icon text  text"
+      "icon cta   time";
+    row-gap: 4px;
+  }
+  .jp-ov-event__icon  { grid-area: icon; align-self: start; }
+  .jp-ov-event__label { grid-area: label; }
+  .jp-ov-event__text  { grid-area: text; }
+  .jp-ov-event .jp-notice__cta     { grid-area: cta; justify-self: start; padding-left: 0; }
+  .jp-ov-event .jp-notice__time    { grid-area: time; justify-self: end; }
+  .jp-ov-event .jp-notice__dismiss { grid-area: dismiss; align-self: start; }
+  .jp-ov-bars__row { grid-template-columns: 100px minmax(0, 1fr) 24px; }
+}
+@media (max-width: 768px) {
+  .jp-ov-card { padding: 18px 16px; }
+  .jp-ov-card--list { padding: 20px 16px; }
+  .jp-ov-action { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .jp-ov-event  { grid-template-columns: 36px minmax(0, 1fr) 44px; }
+  .jp-ov-action .jp-notice__dismiss,
+  .jp-ov-event .jp-notice__dismiss { width: 44px; height: 44px; }
+  /* Pillen är en länk och kortets enda väg till de nya annonserna — samma 44px-golv som varje
+     annan kontroll här (DESIGN.md §5; design-reviewer Blocker 1). */
+  .jp-ov-card__head .jp-ov-card__pill { height: 44px; padding: 0 14px; }
+}

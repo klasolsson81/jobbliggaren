@@ -243,7 +243,6 @@ export function GuestOversiktPage() {
               <ApplicationSummary
                 pipeline={pipeline}
                 linkHref="/gast/ansokningar"
-                heading={null}
               />
             }
             summaryOwns={summaryOwns}
@@ -262,10 +261,12 @@ export function GuestOversiktPage() {
             notices={companyNotices}
             emptyBody={tOversikt("notices.emptyCompanies")}
             summary={
-              /* #1717 — heading är null på BÅDA blocken här, och det är ett val: gäst-demons
-                 sektioner har en enda innehållstyp var, så deras h2 namnger redan blocket.
-                 Rubriken löser en asymmetri som inte finns på den här ytan, och skulle bara
-                 läsa som ny vokabulär (design-reviewer B4). */
+              /* #1717 — `heading={null}` här och inte en rubrik: gäst-demons sektioner har en
+                 enda innehållstyp var, så deras h2 namnger redan blocket. Rubriken löser en
+                 asymmetri som inte finns på den här ytan och skulle bara läsa som ny vokabulär.
+                 Propen är obligatorisk just för att det valet ska stå skrivet (design-reviewer
+                 B4) — `ApplicationSummary` bär ingen prop alls, eftersom "inget namn" är dess
+                 enda korrekta svar. */
               <CompanySummary
                 watches={companyWatches}
                 linkHref={null}

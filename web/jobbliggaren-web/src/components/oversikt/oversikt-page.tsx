@@ -431,13 +431,10 @@ export function OversiktPage({
           emptyBody={t("notices.emptyApplications")}
           prefTypes={prefTypesFor("applications")}
           summary={
-            /* heading={null} och det är ett val: sektionens h2 "Mina ansökningar" står ensam
-               över en enda innehållstyp och namnger redan blocket (design-reviewer A1/B4). */
-            <ApplicationSummary
-              pipeline={pipeline}
-              linkHref="/ansokningar"
-              heading={null}
-            />
+            /* Ingen rubrikprop, och det är regeln och inte en lucka: ett block namnges av
+               närmaste rubrik ovanför sig, och den här sektionen har en enda innehållstyp — h2:n
+               "Mina ansökningar" namnger alltså redan blocket (design-reviewer A1, #1717). */
+            <ApplicationSummary pipeline={pipeline} linkHref="/ansokningar" />
           }
           summaryOwns={summaryOwns}
         />

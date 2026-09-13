@@ -92,7 +92,7 @@ export function CompanySummary({
     return (
       <div className="jp-appsummary jp-appsummary--unavailable">
         {headingNode}
-        <p style={{ margin: 0 }}>{t("unavailable")}</p>
+        <p>{t("unavailable")}</p>
       </div>
     );
   }

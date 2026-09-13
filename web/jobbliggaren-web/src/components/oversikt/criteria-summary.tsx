@@ -39,9 +39,10 @@ interface CriteriaSummaryProps {
   /**
    * The block's name, or `null` to render no name at all (#1717).
    *
-   * Required and without a default, the same rule and the same reason as `CompanySummary.heading`:
-   * an omitted prop would hand every call site a heading, and the one surface that must not have
-   * one would get it without anyone choosing it. `null` is a decision, never an absence.
+   * Required and without a default, for contract parity with `CompanySummary.heading` — but the
+   * reason that prop gives is ITS own and does not transfer: this component has ONE call site and
+   * it always passes the heading. The `null` arm exists so the three summaries share one contract,
+   * not because any surface here declines a name.
    *
    * This block carried the sharper half of the defect: the section's h2 reads "Företagsbevakning"
    * and named the sibling, so this one was named by its count sentence alone. The screen-reader
@@ -122,7 +123,7 @@ export function CriteriaSummary({ criteria, reference, heading }: CriteriaSummar
     return (
       <div className="jp-appsummary jp-appsummary--unavailable">
         {headingNode}
-        <p style={{ margin: 0 }}>{t("unavailable")}</p>
+        <p>{t("unavailable")}</p>
       </div>
     );
   }
@@ -187,7 +188,7 @@ export function CriteriaSummary({ criteria, reference, heading }: CriteriaSummar
                   moreSuffix: tRow("moreSuffix"),
                   separator: SEPARATOR,
                 });
-          const heading =
+          const rowName =
             userLabel.length > 0 ? userLabel : (derived ?? tRow("row.untitled"));
 
           return (
@@ -195,8 +196,9 @@ export function CriteriaSummary({ criteria, reference, heading }: CriteriaSummar
               {/* Not a heading element: the section owns the only heading tier here, and twenty h3s
                   would flood heading navigation with summary lines rather than landmarks. The name
                   is the programmatic context for the two links beneath it (WCAG 2.4.4), which is
-                  what the enclosing <li> provides. */}
-              <p className="jp-appsummary__watchname">{heading}</p>
+                  what the enclosing <li> provides. Distinct from the block's own `heading` prop:
+                  that one names the BLOCK, this names one ROW. */}
+              <p className="jp-appsummary__watchname">{rowName}</p>
               {/* How wide the watch is, and it is NOT derivable from the name above it: a watch on
                   one leaf and a watch on its whole huvudgrupp render the identical heading, so
                   without this line a user cannot tell her own narrow watch from a broad one

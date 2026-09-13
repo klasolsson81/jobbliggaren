@@ -89,7 +89,8 @@ const REFERENCE: CriterionReference = {
 // because every consumer is an authenticated surface and there was never a second value.
 const HREF = "/foretag/branschbevakningar";
 // The catalogue copy, read and never transcribed: a literal drifts from the string on the next
-// copy edit. The single call site passes exactly this (`oversikt-page.tsx:477`), so no fixture
+// copy edit. The single call site — `<CriteriaSummary>` in `oversikt-page.tsx` — passes exactly
+// this, so no fixture
 // below builds a heading production cannot produce.
 const COPY = messages.oversikt.criteriaSummary;
 

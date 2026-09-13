@@ -525,8 +525,8 @@ describe("CompanySummary", () => {
   });
 
   // ── #1717: blockets namn ────────────────────────────────────────────────────────────────────
-  // Båda värdena är producerbara: `/oversikt` skickar rubriken (`oversikt-page.tsx:467`),
-  // gäst-demon skickar `null` (`guest-oversikt-page.tsx:271`). Ingen fixtur här bygger ett
+  // Båda värdena är producerbara: `<CompanySummary>` i `oversikt-page.tsx` skickar rubriken,
+  // samma element i `guest-oversikt-page.tsx` skickar `null`. Ingen fixtur här bygger ett
   // tillstånd något anropsställe inte kan framkalla.
 
   it("rubriken renderas som h3 med blockets klass, före ankaret", () => {

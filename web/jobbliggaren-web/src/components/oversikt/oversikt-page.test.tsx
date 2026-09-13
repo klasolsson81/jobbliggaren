@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OversiktPage } from "./oversikt-page";
+import messages from "../../../messages/sv";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -644,7 +645,10 @@ describe("OversiktPage — 'Markera alla' sitter EFTER sektionerna (#1557)", () 
     ].map((h) => h.textContent);
     // Exactly two, in render order — not "at least one": a single heading over two blocks is the
     // very defect #1717 closes, and `getByRole` would pass on it.
-    expect(headings).toEqual(["Bevakade företag", "Branschbevakningar"]);
+    expect(headings).toEqual([
+      messages.oversikt.companySummary.heading,
+      messages.oversikt.criteriaSummary.heading,
+    ]);
 
     // The counterfactual, and it is what makes the assertion above mean something: the rule is
     // heading-per-content-type, so a section holding ONE type must carry none (design-reviewer A1).

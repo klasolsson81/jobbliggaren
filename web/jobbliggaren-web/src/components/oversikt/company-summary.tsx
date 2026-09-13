@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { InfoDialog } from "@/components/common/info-dialog";
-import {
-  buildCompanyJobsHref,
-  isLinkableOrgNr,
-} from "@/lib/job-ads/company-jobs-href";
+import { summariseWatches } from "@/lib/company-watches/watch-summary";
 import { EyeOff, Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -59,6 +56,9 @@ interface CompanySummaryProps {
  * med samma grammatik men annan betydelse (stående tillstånd vs händelser). Formen
  * varierar därför inte med antalet: den är densamma vid 1 som vid 25 bevakningar, och
  * inget företagsnamn renderas.
+ *
+ * Siffrorna och länkregeln bor i `summariseWatches` (ADR 0140): samma tal renderas som ett kort
+ * på `/oversikt`, och en andra härledning hade varit en andra sanning.
  */
 export function CompanySummary({
   watches,
@@ -114,64 +114,11 @@ export function CompanySummary({
     );
   }
 
-  // Summan är exakt för att employer-bevakningar är disjunkta PER KONSTRUKTION: det unika
-  // indexet `ux_company_watches_user_orgnr_active` på (UserId, OrganizationNumber) ger en
-  // rad per arbetsgivare och användare, och en annons har en arbetsgivare. Det villkor som
-  // bryter invarianten är en `BrandGroup`-bevakning — dess rad summerar över sina medlemmar
-  // och kan därför täcka en annan rads org.nr — och dto:n bär varken `targetType` eller
-  // `brandGroupId`, så klienten kan inte upptäcka en sådan rad. Det arbetet bor i #1566.
-  const activeAds = items.reduce((sum, w) => sum + w.activeAdCount, 0);
-
-  // `some`, inte `every`. Backendens SSYK-gate sätts en gång per request, så alla
-  // bevakningar är null eller ingen — men brister den gaten någon gång tystnar raden
-  // hellre än summerar en delmängd och underskattar tyst. Förenkla inte till `every`.
-  const matchingNotAssessed = items.some((w) => w.matchingAdCount === null);
-  const matchingAds = matchingNotAssessed
-    ? null
-    : items.reduce((sum, w) => sum + (w.matchingAdCount ?? 0), 0);
-
-  // En rad över alla bevakningar, aldrig en per bevakning — en per-bevakningsrad vore
-  // katalogen från /foretag/bevakade, byggd genom bakdörren.
-  const filteredWatches = items.filter((w) => w.filter !== null).length;
-
-  // Klas-direktiv 2026-08-30: the sums link straight to the ads, so a user reaches them in one
-  // click instead of going through /foretag/bevakade first.
-  //
-  // EVERY watch must be linkable or neither sum links. A masked sole-prop and a brand-group watch
-  // both arrive with `organizationNumber: null`, and their ads would be missing from the
-  // destination while the number beside the link still counted them -- the count/click divergence
-  // this route exists to avoid. Partial is worse than plain text here.
-  const linkableOrgNrs = items.flatMap((w) =>
-    !w.isProtectedIdentity &&
-    w.organizationNumber &&
-    isLinkableOrgNr(w.organizationNumber)
-      ? [w.organizationNumber]
-      : []
-  );
-  const everyWatchLinkable = linkableOrgNrs.length === items.length;
-
   // `linkHref === null` means this surface has no authenticated destination at all (#1572: the
-  // guest demo). The ad links go to `/jobb`, an `(app)/` segment and therefore in
-  // PROTECTED_PREFIXES, so rendering them there would hand a guest a link to `/logga-in` --
-  // the same failure `linkHref` was made required to prevent. One prop, one meaning.
+  // guest demo). One prop, one meaning: it gates the anchor link, the ad links and the rule
+  // dialog alike.
   const surfaceCanLink = linkHref !== null;
-
-  // A 0 is a negation, not a number, so it gets no link -- parity the watch row.
-  const activeAdsHref =
-    surfaceCanLink && everyWatchLinkable && activeAds > 0
-      ? buildCompanyJobsHref(linkableOrgNrs, "all")
-      : null;
-  const matchingAdsHref =
-    surfaceCanLink && everyWatchLinkable && matchingAds !== null && matchingAds > 0
-      ? buildCompanyJobsHref(linkableOrgNrs, "matching")
-      : null;
-
-  // Shown only where a link would otherwise have rendered -- an account whose watches have no
-  // ads at all is not missing anything, so it stays quiet. Parity with the watch row, which
-  // explains the same absence per row.
-  const notLinkableCount = items.length - linkableOrgNrs.length;
-  const explainMissingLinks =
-    surfaceCanLink && notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+  const summary = summariseWatches(items, surfaceCanLink);
 
   return (
     <div className="jp-appsummary">
@@ -179,16 +126,16 @@ export function CompanySummary({
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
           {t.rich("anchor", {
-            count: items.length,
-            active: activeAds,
+            count: summary.count,
+            active: summary.activeAds,
             // The accessible name is the visible text -- 2.5.3 Label in Name holds by
             // construction, and the plural lives in ONE key rather than a visible copy and an
             // aria copy that can drift. There is exactly one such link on the page and its
             // enclosing paragraph is the programmatic context 2.4.4 asks for, so no suffix is
             // owed here. The watch card is the opposite case and does carry one.
             lnk: (chunks) =>
-              activeAdsHref ? (
-                <Link href={activeAdsHref} className="jp-countlink" prefetch={false}>
+              summary.activeAdsHref ? (
+                <Link href={summary.activeAdsHref} className="jp-countlink" prefetch={false}>
                   {chunks}
                 </Link>
               ) : (
@@ -208,13 +155,13 @@ export function CompanySummary({
           `!hasStatedDesiredOccupation`, där SetupCallout redan står med samma mål. En
           BEDÖMD nolla skrivs däremot alltid ut; att tysta ett mätt tal är issuets egen
           felklass. */}
-      {matchingAds !== null && (
+      {summary.matchingAds !== null && (
         <p className="jp-matchline tabular-nums">
           {t.rich("matching", {
-            count: matchingAds,
+            count: summary.matchingAds,
             lnk: (chunks) =>
-              matchingAdsHref ? (
-                <Link href={matchingAdsHref} className="jp-countlink" prefetch={false}>
+              summary.matchingAdsHref ? (
+                <Link href={summary.matchingAdsHref} className="jp-countlink" prefetch={false}>
                   {chunks}
                 </Link>
               ) : (
@@ -239,7 +186,7 @@ export function CompanySummary({
         </p>
       )}
 
-      {explainMissingLinks && (
+      {summary.explainMissingLinks && (
         <p className="jp-transparency-note">
           <EyeOff size={16} aria-hidden="true" />
           <span>{t("notLinkable")}</span>
@@ -249,10 +196,10 @@ export function CompanySummary({
       {/* Utan den här raden går ett per-bevakningsfilter som tystar allt inte att skilja
           från "inget publicerat" — och sammanfattningen ställer nu volym intill just den
           tystnaden. */}
-      {filteredWatches > 0 && (
+      {summary.filteredWatches > 0 && (
         <p className="jp-transparency-note">
           <Filter size={16} aria-hidden="true" />
-          <span>{t("filter", { count: filteredWatches })}</span>
+          <span>{t("filter", { count: summary.filteredWatches })}</span>
         </p>
       )}
     </div>

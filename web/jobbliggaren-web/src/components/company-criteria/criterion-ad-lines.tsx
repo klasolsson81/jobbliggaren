@@ -82,6 +82,20 @@ interface CriterionAdLinesProps {
    * delete a live way forward (ADR 0047).</p>
    */
   readonly actionOfferedByCaller: boolean;
+  /**
+   * Does the CALLER render the matching NUMBER itself — as the big number of the Branschbevakning
+   * card on `/oversikt` (ADR 0140) — so this component renders the ads line only?
+   *
+   * <p><b>A FOURTH independent fact.</b> It is true only while `matching.count !== null`: a
+   * refusal, a not-materialised set or a not-assessed profile has no number for the caller to
+   * state, so the caller passes `false` and this component states the reason as before. It
+   * reaches the number arm and nothing else — the reason arms are never suppressed, because a
+   * big number that is absent must be explained beneath it.</p>
+   *
+   * <p>Optional and default `false`: three of the four callers state nothing themselves, and
+   * absence there is the ordinary case rather than a choice each must write out.</p>
+   */
+  readonly matchingStatedByCaller?: boolean;
 }
 
 /**
@@ -124,6 +138,7 @@ export function CriterionAdLines({
   variant,
   adviceStatedByCaller,
   actionOfferedByCaller,
+  matchingStatedByCaller = false,
 }: CriterionAdLinesProps) {
   const t = useTranslations("pages.foretag.criteria");
   // Klas 2026-09-05: the personal count works "på samma sätt som vanlig företagsbevakning", so it
@@ -270,7 +285,7 @@ export function CriterionAdLines({
               {tWatch("matchNudgeCta")}
             </Link>
           </p>
-        ) : (
+        ) : matchingStatedByCaller ? null : (
           <p className="jp-matchline tabular-nums">
             {matching.count > 0 ? (
               <Link

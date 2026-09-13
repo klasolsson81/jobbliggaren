@@ -37,6 +37,9 @@ const NO_FILTER = null;
 // keep passing after the component forked its own copy, which is the drift these tests exist
 // to catch.
 const RULE = messages.jobads.companyWatches.filter;
+// Samma idiom som RULE ovan: rubriken och tomt-/ohämtbar-copyn LÄSES ur katalogen,
+// aldrig transkriberas — en literal här driver isär från strängen vid nästa copy-ändring.
+const COPY = messages.oversikt.companySummary;
 
 function visibleText(el: Element | null): string {
   return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -54,7 +57,7 @@ function anchorText(): string {
 describe("CompanySummary", () => {
   it("ankarraden summerar bevakningar och aktiva annonser", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ id: "a", activeAdCount: 136 }),
           watch({ id: "b", activeAdCount: 4 }),
@@ -72,21 +75,21 @@ describe("CompanySummary", () => {
   // Defekten issuet stänger: bevakningar med aktiva annonser fick inte läsa som tomma
   // bara för att inget NYTT publicerats sedan besöket.
   it("bevakning med aktiva annonser läser aldrig som tom", () => {
-    render(<CompanySummary watches={ok([watch({ activeAdCount: 136 })])} linkHref="/foretag/bevakade" />);
+    render(<CompanySummary heading={COPY.heading} watches={ok([watch({ activeAdCount: 136 })])} linkHref="/foretag/bevakade" />);
 
     expect(anchorText()).toBe("1 bevakat företag · 136 aktiva annonser");
     expect(screen.queryByText("Du bevakar inga företag än")).toBeNull();
   });
 
   it("noll aktiva annonser är ett mätt tillstånd, inte ett tomt-läge", () => {
-    render(<CompanySummary watches={ok([watch({ activeAdCount: 0 })])} linkHref="/foretag/bevakade" />);
+    render(<CompanySummary heading={COPY.heading} watches={ok([watch({ activeAdCount: 0 })])} linkHref="/foretag/bevakade" />);
 
     expect(anchorText()).toBe("1 bevakat företag · inga aktiva annonser");
   });
 
   it("bedömd matchning renderas, och en bedömd nolla skrivs ut", () => {
     const { rerender } = render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ id: "a", activeAdCount: 136, matchingAdCount: 9 }),
           watch({ id: "b", activeAdCount: 4, matchingAdCount: 2 }),
@@ -99,7 +102,7 @@ describe("CompanySummary", () => {
     ).toBe("11 matchande annonser hos dina bevakade företag");
 
     rerender(
-      <CompanySummary watches={ok([watch({ matchingAdCount: 0 })])} linkHref="/foretag/bevakade" />,
+      <CompanySummary heading={COPY.heading} watches={ok([watch({ matchingAdCount: 0 })])} linkHref="/foretag/bevakade" />,
     );
     expect(
       screen.getByText("Inga matchande annonser hos dina bevakade företag"),
@@ -108,7 +111,7 @@ describe("CompanySummary", () => {
 
   it("ej bedömd matchning tiger helt — ingen nolla, ingen nudge", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: null })])}
         linkHref="/foretag/bevakade"
       />,
@@ -127,7 +130,7 @@ describe("CompanySummary", () => {
   // produktionen gör, bara att läsningen degraderar säkert om invarianten brister.
   it("blandad null och tal: raden tystnar hellre än underskattar", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ id: "a", matchingAdCount: 9 }),
           watch({ id: "b", matchingAdCount: null }),
@@ -141,7 +144,7 @@ describe("CompanySummary", () => {
 
   it("filter-raden visas en gång över alla bevakningar, inte en per bevakning", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({
             id: "a",
@@ -175,13 +178,13 @@ describe("CompanySummary", () => {
   });
 
   it("inget filter någonstans → ingen filter-rad", () => {
-    render(<CompanySummary watches={ok([watch({ filter: NO_FILTER })])} linkHref="/foretag/bevakade" />);
+    render(<CompanySummary heading={COPY.heading} watches={ok([watch({ filter: NO_FILTER })])} linkHref="/foretag/bevakade" />);
 
     expect(screen.queryByText(/notisfilter/)).toBeNull();
   });
 
   it("noll bevakningar ger tomt-läget med Sök företag", () => {
-    render(<CompanySummary watches={ok([])} linkHref="/foretag/bevakade" />);
+    render(<CompanySummary heading={COPY.heading} watches={ok([])} linkHref="/foretag/bevakade" />);
 
     expect(screen.getByText("Du bevakar inga företag än")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sök företag" })).toHaveAttribute(
@@ -192,7 +195,7 @@ describe("CompanySummary", () => {
   });
 
   it("säger att bevakningarna inte kunde hämtas i stället för att påstå noll", () => {
-    render(<CompanySummary watches={{ kind: "error" }} linkHref="/foretag/bevakade" />);
+    render(<CompanySummary heading={COPY.heading} watches={{ kind: "error" }} linkHref="/foretag/bevakade" />);
 
     expect(
       screen.getByText(
@@ -208,7 +211,7 @@ describe("CompanySummary", () => {
     // Klas-direktiv 2026-08-30: ett klick, inte två. Backend har bundit `string[]` hela tiden
     // (ADR 0087 D6), så axeln bär hela bevakningsmängden.
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
           watch({
@@ -247,7 +250,7 @@ describe("CompanySummary", () => {
     // `/logga-in` for a guest. `linkHref: null` was made required by #1572 to stop exactly this,
     // and the ad links now read it too.
     const { container } = render(
-      <CompanySummary
+      <CompanySummary heading={null}
         watches={ok([
           watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
         ])}
@@ -266,7 +269,7 @@ describe("CompanySummary", () => {
     // The explanation blames the DATA ("Antalen ovan saknar länk"). On a surface
     // that links nothing by design, that sentence would be false about the cause.
     render(
-      <CompanySummary
+      <CompanySummary heading={null}
         watches={ok([
           watch({ organizationNumber: null, isProtectedIdentity: true, activeAdCount: 40 }),
         ])}
@@ -281,7 +284,7 @@ describe("CompanySummary", () => {
     // design-reviewer Major 4: the watch row explains this same absence per row; the summary
     // said nothing at all, so the number just stood there with no route and no reason.
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ organizationNumber: "5566524301", activeAdCount: 100 }),
           watch({
@@ -306,7 +309,7 @@ describe("CompanySummary", () => {
     // Parity with the row: an account whose watches have no ads at all is not missing a route.
     // Without this the note would fire on every masked watch, including ones with nothing to link.
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({
             organizationNumber: null,
@@ -332,7 +335,7 @@ describe("CompanySummary", () => {
     // ten digits and the one other on-wire form is an HMAC token the handler masks to null. The
     // test asserts only that the READ side degrades safely, never that production emits this.
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ organizationNumber: "55665243", activeAdCount: 100 }),
         ])}
@@ -354,7 +357,7 @@ describe("CompanySummary", () => {
     // watch, whose counts are summed over member org.nrs the FE schema never receives. Removing
     // the `w.organizationNumber` half of the gate leaves the masked test green and this one red.
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({
             organizationNumber: null,
@@ -384,7 +387,7 @@ describe("CompanySummary", () => {
     // Partiellt vore värre än ingenting: den maskade radens annonser saknas i destinationen
     // medan talet bredvid länken fortfarande räknar dem. Det är count/click-divergensen.
     const { container } = render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({ organizationNumber: "5566524301", activeAdCount: 100, matchingAdCount: 7 }),
           watch({
@@ -413,7 +416,7 @@ describe("CompanySummary", () => {
     //
     // Assertionen går mot markup, inte mot text: `textContent` ser inte `href`.
     const { container } = render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([
           watch({
             companyName: "Friday Väst AB",
@@ -456,7 +459,7 @@ describe("CompanySummary", () => {
   // watch-filter-dialogen på /foretag/bevakade. Regeln är nu nåbar där talet står.
   it("matchningsraden bär en ?-hjälp som förklarar vad som räknas som matchande", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
         linkHref="/foretag/bevakade"
       />,
@@ -469,7 +472,7 @@ describe("CompanySummary", () => {
 
   it("?-hjälpen tiger när matchningen inte är bedömd", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: null })])}
         linkHref="/foretag/bevakade"
       />,
@@ -488,7 +491,7 @@ describe("CompanySummary", () => {
   // to one and not the other fails here.
   it("regeltexten är lika med watch-dialogens katalogsträngar", async () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={COPY.heading}
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
         linkHref="/foretag/bevakade"
       />,
@@ -507,7 +510,7 @@ describe("CompanySummary", () => {
   // rule's second sentence sends the reader to Matchning, which that demo has no route for.
   it("?-hjälpen tiger på en yta utan autentiserat mål", () => {
     render(
-      <CompanySummary
+      <CompanySummary heading={null}
         watches={ok([watch({ activeAdCount: 136, matchingAdCount: 9 })])}
         linkHref={null}
       />,
@@ -519,5 +522,85 @@ describe("CompanySummary", () => {
     expect(
       screen.queryByRole("button", { name: RULE.onlyMatchedHelpAria }),
     ).not.toBeInTheDocument();
+  });
+
+  // ── #1717: blockets namn ────────────────────────────────────────────────────────────────────
+  // Båda värdena är producerbara: `<CompanySummary>` i `oversikt-page.tsx` skickar rubriken,
+  // samma element i `guest-oversikt-page.tsx` skickar `null`. Ingen fixtur här bygger ett
+  // tillstånd något anropsställe inte kan framkalla.
+
+  it("rubriken renderas som h3 med blockets klass, före ankaret", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 12 })])}
+        linkHref="/foretag/bevakade"
+        heading={COPY.heading}
+      />,
+    );
+
+    const block = document.querySelector(".jp-appsummary");
+    const heading = screen.getByRole("heading", { level: 3, name: COPY.heading });
+    expect(heading).toHaveClass("jp-appsummary__heading");
+    // FÖRE ankaret, och pinnat på DOM-ordning i stället för på text: rubriken namnger blocket,
+    // så den som står under ankaret namnger ingenting (design-reviewer B1).
+    expect(block?.firstElementChild).toBe(heading);
+    // Versalerna ägs av CSS, aldrig av strängen — annars läser AT namnet bokstav för bokstav.
+    expect(heading.textContent).toBe(COPY.heading);
+  });
+
+  it("heading={null} renderar ingen rubrik alls — gästytans gren", () => {
+    render(
+      <CompanySummary
+        watches={ok([watch({ activeAdCount: 12 })])}
+        linkHref={null}
+        heading={null}
+      />,
+    );
+
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    // Kontroll: blocket renderade faktiskt, annars mäter frånvaron ovan ingenting.
+    expect(document.querySelector(".jp-appsummary__totals")).not.toBeNull();
+  });
+
+  it("rubriken står kvar i tomt-läget — där läsaren mest behöver veta vilket block som är tomt", () => {
+    render(<CompanySummary watches={ok([])} linkHref="/foretag/bevakade" heading={COPY.heading} />);
+
+    expect(
+      screen.getByRole("heading", { level: 3, name: COPY.heading }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(COPY.emptyTitle)).toBeInTheDocument();
+  });
+
+  it("rubriken står kvar i ohämtbar-läget, och klassen stannar på rotelementet", () => {
+    render(
+      <CompanySummary
+        watches={{ kind: "error" }}
+        linkHref="/foretag/bevakade"
+        heading={COPY.heading}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { level: 3, name: COPY.heading });
+    const root = document.querySelector(".jp-appsummary");
+    // Grenen bär två barn nu och kan därför inte vara en ensam <p>. Klassen MÅSTE ändå sitta på
+    // rotelementet: `.jp-appsummary:has(+ .jp-appsummary)` bär linjen mellan de två blocken.
+    expect(root?.tagName).toBe("DIV");
+    expect(root).toHaveClass("jp-appsummary--unavailable");
+    expect(root?.firstElementChild).toBe(heading);
+    expect(screen.getByText(COPY.unavailable)).toBeInTheDocument();
+  });
+
+  it("utan rubrik är ohämtbar-läget ORÖRT — den ensamma <p>-formen", () => {
+    // Det här är pinnen på att gästytan renderar byte-identiskt efter #1717: ändras grenen till
+    // en <div> även när heading är null, faller den här och inte någon annan (design-reviewer B4).
+    render(
+      <CompanySummary watches={{ kind: "error" }} linkHref={null} heading={null} />,
+    );
+
+    const root = document.querySelector(".jp-appsummary");
+    expect(root?.tagName).toBe("P");
+    expect(root).toHaveClass("jp-appsummary--unavailable");
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
   });
 });

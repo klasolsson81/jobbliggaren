@@ -36,6 +36,19 @@ interface CriteriaSummaryProps {
    * numbers — they are the point of this block and they do not depend on it.
    */
   readonly reference: CriterionReference | null;
+  /**
+   * The block's name, or `null` to render no name at all (#1717).
+   *
+   * Required and without a default, for contract parity with `CompanySummary.heading` — but the
+   * reason that prop gives is ITS own and does not transfer: this component has ONE call site and
+   * it always passes the heading.
+   *
+   * This block carried the sharper half of the defect: the section's h2 reads "Företagsbevakning"
+   * and named the sibling, so this one was named by its count sentence alone. The screen-reader
+   * half was already repaired (`TOTALS_ID` + `aria-labelledby` below, design-reviewer Minor 5);
+   * the sighted reader got no counterpart until now (design-reviewer B1, 2026-09-13).
+   */
+  readonly heading: string | null;
 }
 
 /**
@@ -81,7 +94,7 @@ interface CriteriaSummaryProps {
  * the number would give the block two structures and put the commonest states outside the pattern.
  * A number stands at the level where it is exact, which here is the row.</p>
  */
-export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
+export function CriteriaSummary({ criteria, reference, heading }: CriteriaSummaryProps) {
   const t = useTranslations("oversikt.criteriaSummary");
   // The neutral heading fallback, the derived label's "m.fl." suffix and the too-broad CTA are the
   // catalogue's own strings, read rather than transcribed: one untitled watch must not be called two
@@ -89,9 +102,28 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   // `jobads.companyWatches.filter` from a foreign namespace.
   const tRow = useTranslations("pages.foretag.criteria");
 
+  // Rendered in ALL three states, unconditionally (design-reviewer B1): the name is the block's,
+  // and the empty state is exactly when a reader most needs to know WHICH block is empty.
+  const headingNode =
+    heading !== null ? (
+      <h3 className="jp-appsummary__heading">{heading}</h3>
+    ) : null;
+
   if (criteria.kind !== "ok") {
+    // Without a heading the single-`<p>` form is left UNTOUCHED — that is what keeps a
+    // heading-less caller byte-identical (design-reviewer B4). With one, the branch carries two
+    // children, and the class stays on the root so `.jp-appsummary:has(+ .jp-appsummary)` still
+    // matches.
+    if (headingNode === null) {
+      return (
+        <p className="jp-appsummary jp-appsummary--unavailable">{t("unavailable")}</p>
+      );
+    }
     return (
-      <p className="jp-appsummary jp-appsummary--unavailable">{t("unavailable")}</p>
+      <div className="jp-appsummary jp-appsummary--unavailable">
+        {headingNode}
+        <p>{t("unavailable")}</p>
+      </div>
     );
   }
 
@@ -100,6 +132,7 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
   if (items.length === 0) {
     return (
       <div className="jp-appsummary jp-appsummary--empty">
+        {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
         <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Emphasised but not solid: one-primary-per-screen is already spent, and the setup card
@@ -125,6 +158,7 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
 
   return (
     <div className="jp-appsummary">
+      {headingNode}
       <p className="jp-appsummary__anchor">
         {/* No ad total beside the count, and its absence is the decision: a sum over predicates
             that may overlap is not an exact number, and "exakta siffror" is the requirement. The
@@ -153,7 +187,7 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
                   moreSuffix: tRow("moreSuffix"),
                   separator: SEPARATOR,
                 });
-          const heading =
+          const rowName =
             userLabel.length > 0 ? userLabel : (derived ?? tRow("row.untitled"));
 
           return (
@@ -161,8 +195,9 @@ export function CriteriaSummary({ criteria, reference }: CriteriaSummaryProps) {
               {/* Not a heading element: the section owns the only heading tier here, and twenty h3s
                   would flood heading navigation with summary lines rather than landmarks. The name
                   is the programmatic context for the two links beneath it (WCAG 2.4.4), which is
-                  what the enclosing <li> provides. */}
-              <p className="jp-appsummary__watchname">{heading}</p>
+                  what the enclosing <li> provides. Distinct from the block's own `heading` prop:
+                  that one names the BLOCK, this names one ROW. */}
+              <p className="jp-appsummary__watchname">{rowName}</p>
               {/* How wide the watch is, and it is NOT derivable from the name above it: a watch on
                   one leaf and a watch on its whole huvudgrupp render the identical heading, so
                   without this line a user cannot tell her own narrow watch from a broad one

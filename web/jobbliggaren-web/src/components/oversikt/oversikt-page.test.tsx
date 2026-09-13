@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OversiktPage } from "./oversikt-page";
+import messages from "../../../messages/sv";
 
 import type { JobSeekerProfileDto } from "@/lib/dto/me";
 import type { ApiResult } from "@/lib/dto/_helpers";
@@ -610,5 +611,48 @@ describe("OversiktPage — 'Markera alla' sitter EFTER sektionerna (#1557)", () 
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(last.contains(row!)).toBe(false);
+  });
+
+  // ── #1717: WIRING. The two blocks in Företagsbevakning are named at the CALL SITE, and this is
+  // the only place that can see it: `company-summary.test` / `criteria-summary.test` pass the prop
+  // themselves, so a `heading={null}` regression in `oversikt-page.tsx` survives both of them
+  // (measured by mutation 2026-09-13 — M-wiring-company survived the component suites).
+
+  it("båda blocken i Företagsbevakning bär sitt eget namn, och ansökningsblocket bär inget", () => {
+    renderOversikt(true, {
+      companyWatches: { kind: "ok", data: [makeWatch()] },
+      criteria: {
+        kind: "ok",
+        data: [
+          {
+            id: "aaaa1111-0000-4000-8000-000000000001",
+            sniCodes: ["62010"],
+            municipalityCodes: ["1480"],
+            label: "Utveckling i Göteborg",
+            createdAt: "2026-08-01T08:00:00+00:00",
+            updatedAt: "2026-08-01T08:00:00+00:00",
+            ads: { magnitude: 42, saturated: false, tooBroad: false, notMaterialised: false },
+            matching: { count: 7, tooBroad: false, notMaterialised: false },
+          },
+        ],
+      },
+      pipeline: { kind: "ok", data: [{ status: "Submitted", count: 2, applications: [] }] },
+    });
+
+    const companies = screen.getByRole("region", { name: "Företagsbevakning" });
+    const headings = [
+      ...companies.querySelectorAll("h3.jp-appsummary__heading"),
+    ].map((h) => h.textContent);
+    // Exactly two, in render order — not "at least one": a single heading over two blocks is the
+    // very defect #1717 closes, and `getByRole` would pass on it.
+    expect(headings).toEqual([
+      messages.oversikt.companySummary.heading,
+      messages.oversikt.criteriaSummary.heading,
+    ]);
+
+    // The counterfactual, and it is what makes the assertion above mean something: the rule is
+    // heading-per-content-type, so a section holding ONE type must carry none (design-reviewer A1).
+    const applications = screen.getByRole("region", { name: "Mina ansökningar" });
+    expect(applications.querySelectorAll("h3.jp-appsummary__heading")).toHaveLength(0);
   });
 });

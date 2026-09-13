@@ -127,4 +127,39 @@ describe("ApplicationSummary", () => {
     // Fem tomma aktiva steg + den terminala posten.
     expect(container.querySelectorAll('[data-empty="true"]')).toHaveLength(6);
   });
+
+  // ── #1717: det här blocket bär INGEN rubrik, och det är strukturellt ────────────────────────
+  // Komponenten har ingen rubrikprop över huvud taget. Regeln `design-reviewer` band är
+  // rubrik-per-innehållstyp: sektionens h2 "Mina ansökningar" står ensam över en enda
+  // innehållstyp och namnger redan blocket, så en h3 vore en tautologi (A1). En prop vars enda
+  // producerbara värde var `null` hade dessutom lämnat en gren produktionen aldrig når och
+  // §5 `Tests:` förbjuder en fixtur att framkalla — den är borttagen i stället för pinnad.
+
+  it("renderar ingen h3 — sektionens h2 namnger redan blocket", () => {
+    render(
+      <ApplicationSummary
+        pipeline={ok([group("Submitted", 2)])}
+        linkHref="/ansokningar"
+      />,
+    );
+
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    // Kontroll: blocket renderade faktiskt, annars mäter frånvaron ovan ingenting.
+    expect(document.querySelector(".jp-appsummary__totals")).not.toBeNull();
+  });
+
+  it("ohämtbar-läget är ORÖRT av #1717 — fortfarande en ensam <p>", () => {
+    // Pinnen på att blocket renderar byte-identiskt efter #1717. Komponentens egen diff mot basen
+    // är tom, så det här pinnar formen snarare än att upptäcka den — men faller den, har någon
+    // gett blocket en rubrikgren den inte ska ha.
+    render(
+      <ApplicationSummary pipeline={{ kind: "error" }} linkHref="/ansokningar" />,
+    );
+
+    const root = document.querySelector(".jp-appsummary");
+    expect(root?.tagName).toBe("P");
+    expect(root).toHaveClass("jp-appsummary--unavailable");
+    expect(document.querySelector(".jp-appsummary__heading")).toBeNull();
+  });
 });

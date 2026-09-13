@@ -32,6 +32,18 @@ interface CompanySummaryProps {
    * `mock-adapters.test.ts` pinnar gästmockens bevakningsmängd som icke-tom.
    */
   readonly linkHref: string | null;
+  /**
+   * Blockets namn, eller `null` för att rendera inget namn alls (#1717).
+   *
+   * Obligatorisk och utan default, av samma skäl som `linkHref` ovan: en utelämnad prop hade
+   * tyst gett varje anropsställe en rubrik, och den ENA yta som inte ska ha en — gäst-demon,
+   * vars sektion har en enda innehållstyp — hade fått den utan att någon valde det.
+   *
+   * `null` är alltså ett val och inte en frånvaro. `design-reviewer` B1/B4 (2026-09-13): ett
+   * block namnges av närmaste rubrik ovanför sig, så där sektionens h2 redan står ensam över
+   * en enda innehållstyp vore en h3 en tautologi.
+   */
+  readonly heading: string | null;
 }
 
 /**
@@ -51,6 +63,7 @@ interface CompanySummaryProps {
 export function CompanySummary({
   watches,
   linkHref,
+  heading,
 }: CompanySummaryProps) {
   const t = useTranslations("oversikt.companySummary");
   // The matching rule is read from the keys the watch-filter dialog already owns, never copied:
@@ -58,11 +71,29 @@ export function CompanySummary({
   // duplicating the two sentences here is how the two surfaces drift apart on the next edit.
   const tRule = useTranslations("jobads.companyWatches.filter");
 
+  // Renderas i ALLA tre lägena, ovillkorligt (design-reviewer B1): namnet är blockets, och
+  // tomt-läget är just när läsaren mest behöver veta VILKET block som är tomt.
+  const headingNode =
+    heading !== null ? (
+      <h3 className="jp-appsummary__heading">{heading}</h3>
+    ) : null;
+
   if (watches.kind !== "ok") {
+    // Utan rubrik behålls den ensamma `<p>`-formen ORÖRD — det är den som gör gäst-ytan
+    // byte-identisk (design-reviewer B4). Med rubrik måste grenen bära två barn, och klassen
+    // stannar på rotelementet så `.jp-appsummary:has(+ .jp-appsummary)` fortsätter matcha.
+    if (headingNode === null) {
+      return (
+        <p className="jp-appsummary jp-appsummary--unavailable">
+          {t("unavailable")}
+        </p>
+      );
+    }
     return (
-      <p className="jp-appsummary jp-appsummary--unavailable">
-        {t("unavailable")}
-      </p>
+      <div className="jp-appsummary jp-appsummary--unavailable">
+        {headingNode}
+        <p>{t("unavailable")}</p>
+      </div>
     );
   }
 
@@ -71,6 +102,7 @@ export function CompanySummary({
   if (items.length === 0) {
     return (
       <div className="jp-appsummary jp-appsummary--empty">
+        {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
         <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men inte solid: en-primär-per-skärm är redan spenderad, och i
@@ -143,6 +175,7 @@ export function CompanySummary({
 
   return (
     <div className="jp-appsummary">
+      {headingNode}
       <p className="jp-appsummary__anchor">
         <span className="jp-appsummary__totals tabular-nums">
           {t.rich("anchor", {

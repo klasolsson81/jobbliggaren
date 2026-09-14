@@ -112,6 +112,8 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.ScbCompanyRegisterSyncWor
 // Instance — a package implementation detail, not a contract of this host, and one
 // nothing in the suite measures (code-reviewer, 2026-09-06).
 builder.Services.AddScoped<CompanyWatchCriterionMaterialisationWorker>();
+// #1682 — the occupation × SNI-division profile wrapper, same explicit registration for the same reason.
+builder.Services.AddScoped<OccupationDivisionProfileWorker>();
 // ADR 0080 Vag 4 PR-4b — Strong-digest-dispatch (kadens-cap:ad sammanfattning). Två cron-ingångar
 // (Daglig/Veckovis) via DigestDispatchWorker; jobbet filtrerar konsenterade användare på den kadens
 // det anropas för (cron = fönstret). Cap via IOptions (Digest-sektionen, ValidateDataAnnotations +

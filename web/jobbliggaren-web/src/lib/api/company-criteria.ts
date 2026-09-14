@@ -10,6 +10,8 @@ import {
   criterionAdCountResponseSchema,
   criterionMagnitudeSchema,
   createCriterionResultSchema,
+  occupationDivisionsSchema,
+  type OccupationDivisions,
   type ListCompanyWatchCriteriaResult,
   type CriterionReference,
   type CompanyBrowseResponse,
@@ -413,4 +415,28 @@ function parseRetryAfterHeader(headerValue: string | null): number {
   if (!headerValue) return DEFAULT_RETRY_AFTER_SECONDS;
   const seconds = Number.parseInt(headerValue.trim(), 10);
   return Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_RETRY_AFTER_SECONDS;
+}
+
+/**
+ * #1682 — `GET /occupation-divisions?q=`: the bransch picker's occupation block. `authedFetch`
+ * (no-store): the answer varies per word and per corpus and the backend sends `private, no-store`.
+ * Called from the BFF route the debounced client read hits; never from a Server Component.
+ */
+export async function getOccupationDivisions(
+  word: string,
+): Promise<ApiResult<OccupationDivisions>> {
+  const sessionId = await getSessionId();
+  if (!sessionId) return { kind: "unauthorized" };
+
+  try {
+    const params = new URLSearchParams({ q: word });
+    const res = await authedFetch(sessionId, `${BASE}/occupation-divisions?${params}`);
+    return await responseToResult(
+      res,
+      occupationDivisionsSchema,
+      "GET /api/v1/me/company-watch-criteria/occupation-divisions",
+    );
+  } catch {
+    return { kind: "error" };
+  }
 }

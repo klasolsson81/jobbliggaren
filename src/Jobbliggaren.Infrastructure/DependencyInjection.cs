@@ -1357,6 +1357,25 @@ public static class DependencyInjection
             Jobbliggaren.Application.CompanyRegister.Abstractions.ICompanyWatchCriterionMaterialiser,
             CompanyRegister.CompanyWatchCriterionMaterialiser>();
 
+        // #1682 — the occupation × SNI-division profile: its own options section (Enabled default
+        // true, the same inversion the block above argues), the store on the concrete AppDbContext,
+        // and the two ports — one writes, one reads, and they change for different reasons. Here in
+        // the general module, deliberately NOT in AddScbCompanyRegister: that module is gated on
+        // ScbRegister:Enabled (default false), and a profile job that vanished with it would leave the
+        // picker's occupation block permanently "not profiled" in the default configuration.
+        services.AddOptions<CompanyRegister.OccupationDivisionProfileOptions>()
+            .Bind(configuration.GetSection(CompanyRegister.OccupationDivisionProfileOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddScoped<CompanyRegister.OccupationDivisionProfileStore>();
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyRegister.Abstractions.IOccupationDivisionProfileBuilder,
+            CompanyRegister.OccupationDivisionProfileBuilder>();
+        services.AddScoped<
+            Jobbliggaren.Application.CompanyRegister.Abstractions.IOccupationDivisionProfileQuery,
+            CompanyRegister.OccupationDivisionProfileQuery>();
+
         // #560 company-search wave (CTO F1) — ICompanyRegisterSearchQuery: the GENERAL register
         // search (/foretag/sok; every axis optional, browse-all legal). A SEPARATE port from the
         // criterion browse above — opposite absent-axis semantics (omitted clause vs fail-loud),

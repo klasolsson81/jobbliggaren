@@ -72,6 +72,8 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
             .ShouldBe(HttpStatusCode.Unauthorized);
         (await _client.GetAsync($"{Endpoint}/{Guid.NewGuid()}/companies", ct)).StatusCode
             .ShouldBe(HttpStatusCode.Unauthorized);
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions?q=systemutvecklare", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -428,6 +430,134 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         var response = await _client.GetAsync($"{Endpoint}/{id}/ads?{query}", ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    /// <summary>
+    /// #1682 — the occupation block's read at the wire, and the one seam no other test crosses: the
+    /// profile is keyed on <c>job_ads.occupation_group_concept_id</c> as the ACL writes it, the deriver
+    /// answers <c>OccupationCandidate.OccupationGroupConceptId</c> out of the taxonomy, and the feature
+    /// is alive only while those are one keyspace. A drift there is SILENT — every word answers "too
+    /// few ads" at zero, an honest refusal over a dead feature, green suite — so the ads here carry the
+    /// deriver test's own golden id (<see cref="MjukvaraGroup"/>, provenance in
+    /// <c>OccupationCodeDeriverIntegrationTests</c>) and the assertion runs through the real deriver,
+    /// the real builder out of the Api's own graph, and the real endpoint. The 400 and the cache
+    /// header are proven only here: the handler unit test constructs the query directly.
+    /// </summary>
+    [Fact]
+    public async Task OccupationDivisions_answers_from_the_profile_the_job_built_over_the_ads_the_ACL_keyed_and_400s_below_the_floor()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await AuthenticateAsync(ct);
+        await SeedRegisterAsync(ct, ("5560000062", "Kodhuset AB"));
+        await SeedRegisterRowAsync("5560000078", "Bemanningshuset AB", "78200", ct);
+        // 21 = the derived floor (100 / 5 + 1): one fewer and the answer is a refusal, not a profile.
+        // Split 20 / 1: the single ad under huvudgrupp 78 is 4.76 %, under the 5 % cut, so the
+        // below-threshold residual on the wire is a real number produced end-to-end, never a zero.
+        await SeedOccupationAdsAsync(MjukvaraGroup, ct, ("5560000062", 20), ("5560000078", 1));
+        await BuildProfileAsync(ct);
+
+        var ok = await _client.GetAsync($"{Endpoint}/occupation-divisions?q=systemutvecklare", ct);
+        ok.StatusCode.ShouldBe(HttpStatusCode.OK);
+        ok.Headers.CacheControl!.ToString().ShouldContain("private");
+        ok.Headers.CacheControl!.ToString().ShouldContain("no-store");
+
+        var body = await ok.Content.ReadFromJsonAsync<JsonElement>(ct);
+        body.GetProperty("word").GetString().ShouldBe("systemutvecklare");
+        var mjukvara = body.GetProperty("occupations").EnumerateArray()
+            .Single(o => o.GetProperty("occupationGroupConceptId").GetString() == MjukvaraGroup);
+        mjukvara.GetProperty("state").GetString().ShouldBe("profiled");
+        mjukvara.GetProperty("totalAds").GetInt32().ShouldBe(21);
+        var division = mjukvara.GetProperty("divisions").EnumerateArray().ShouldHaveSingleItem();
+        division.GetProperty("code").GetString().ShouldBe("62");
+        division.GetProperty("adCount").GetInt32().ShouldBe(20);
+        division.GetProperty("sharePercent").GetInt32().ShouldBe(95, "20/21 = 95.24 %");
+        mjukvara.GetProperty("belowThresholdAdCount").GetInt32().ShouldBe(1, "the 78 ad: 1/21 = 4.76 %, under the cut");
+        mjukvara.GetProperty("belowThresholdSharePercent").GetInt32().ShouldBe(5);
+        mjukvara.GetProperty("withoutDivisionAdCount").GetInt32().ShouldBe(0);
+
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions?q=a", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.BadRequest);
+        (await _client.GetAsync($"{Endpoint}/occupation-divisions", ct)).StatusCode
+            .ShouldBe(HttpStatusCode.BadRequest, "a missing q binds to the empty word, which the validator refuses");
+    }
+
+    /// <summary>The deriver test's golden ssyk-4 id for "Mjukvaru- och systemutvecklare m.fl.".</summary>
+    private const string MjukvaraGroup = "DJh5_yyF_hEM";
+
+    /// <summary>
+    /// Active ads under one occupation group, split across employers, through <c>JobAd.Import</c> with
+    /// the group in the payload the way the ACL reads it out (<c>TestFacets.FromPayload</c>). Owns the
+    /// group's slice of the shared table first: the profile counts every ad under the id, so a row
+    /// left by another class's run would inflate the denominator these assertions rest on.
+    /// </summary>
+    private async Task SeedOccupationAdsAsync(
+        string occupationGroupConceptId, CancellationToken ct, params (string OrgNr, int Count)[] employers)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM job_ads WHERE occupation_group_concept_id = {0};", [occupationGroupConceptId], ct);
+
+        var published = new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+        var offset = 0;
+        foreach (var (orgNr, count) in employers)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var externalId = $"ext-{Guid.NewGuid():N}";
+                var payload =
+                    $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}},"
+                    + $"\"occupation_group\":{{\"concept_id\":\"{occupationGroupConceptId}\"}}}}";
+                var import = JobAd.Import(
+                    title: $"Systemutvecklare {offset}",
+                    company: Company.Create($"Bolag {orgNr}").Value,
+                    description: "beskrivning",
+                    url: $"https://example.com/jobs/{externalId}",
+                    external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+                    rawPayload: payload,
+                    facets: TestFacets.FromPayload(payload),
+                    publishedAt: published.AddHours(-offset),
+                    expiresAt: published.AddDays(60),
+                    clock: new FixedClock(published.AddHours(-offset)),
+                    declaredContacts: [],
+                    extractTerms: TestKeywordExtraction.None);
+                import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
+                db.JobAds.Add(import.Value);
+                offset++;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>One Active register row with its own primary SNI code, through the production upsert.</summary>
+    private async Task SeedRegisterRowAsync(string orgNr, string name, string sni, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entry = new ScbCompanyRegisterEntry
+        {
+            OrganizationNumber = orgNr,
+            Name = name,
+            SeatMunicipalityCode = KommunStockholm,
+            SeatMunicipalityName = "Stockholm",
+            SniCodes = [sni],
+            HasAdvertisingBlock = false,
+            ScbStatusRaw = "1",
+            Status = CompanyRegisterStatus.Active,
+        };
+        await new ScbCompanyRegisterStore(db).UpsertBatchAsync(
+            [entry], new DateTimeOffset(2026, 7, 16, 10, 0, 0, TimeSpan.Zero), ct);
+    }
+
+    /// <summary>The PRODUCTION builder out of the Api's own graph — the profile has exactly one writer.</summary>
+    private async Task BuildProfileAsync(CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var result = await scope.ServiceProvider
+            .GetRequiredService<IOccupationDivisionProfileBuilder>()
+            .BuildAsync(ct);
+        result.RowsWritten.ShouldBeGreaterThan(0, "the builder is enabled by default in the Api graph too");
     }
 
     /// <summary>

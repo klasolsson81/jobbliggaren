@@ -244,6 +244,16 @@ internal static class MappedPlaintextExposureRegistry
             ["taxonomy_relations.source_concept_id"] = PlaintextExposure.NoPersonalData,
             ["taxonomy_relations.related_concept_id"] = PlaintextExposure.NoPersonalData,
             ["taxonomy_snapshot_meta.taxonomy_version"] = PlaintextExposure.NoPersonalData,
+
+            // ── #1682 (ADR 0141) — the occupation × SNI-division profile, a corpus statistic. ─────
+            // STEP 1 passes: no row is attributable to a person — the tables carry no user_id, no
+            // criterion_id and no organization_number; a row is (occupation group, huvudgrupp, count)
+            // aggregated over job_ads ⋈ company_register, and the run row is one timestamp and five
+            // counters. So the columns get their own verdicts (STEP 2), and each is a closed code or a
+            // constant key: no user write path reaches any of it.
+            ["occupation_division_profiles.occupation_group_concept_id"] = PlaintextExposure.NoPersonalData,
+            ["occupation_division_profiles.division_code"] = PlaintextExposure.NoPersonalData,
+            ["occupation_division_profile_runs.profile_key"] = PlaintextExposure.NoPersonalData,
         };
 
     /// <summary>

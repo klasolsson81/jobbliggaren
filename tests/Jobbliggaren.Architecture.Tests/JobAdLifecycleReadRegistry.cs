@@ -447,5 +447,13 @@ public static class JobAdLifecycleReadRegistry
             "The Art. 17 match runs db.Database.SqlQuery('... FROM job_ads WHERE status <> {erased} ...'); the "
             + "erased exclusion is in the SQL string. (The subsequent re-fetch on the returned ids DOES call "
             + "get_JobAds and IS classified in Sites above.)"),
+        new("Jobbliggaren.Infrastructure.CompanyRegister.OccupationDivisionProfileStore", "RebuildAsync",
+            "#1682 — the occupation x SNI-division profile is ONE raw NpgsqlCommand (INSERT ... SELECT ... FROM "
+            + "job_ads j LEFT JOIN company_register r ... WHERE j.status = ANY(@ad_statuses)), so the IL scan sees no "
+            + "get_JobAds site. Lifecycle decision, in words: AnyStatus as a POSITIVE allow-list bound to "
+            + "[Active, Archived] — every ad we have seen counts (Klas 2026-09-14), and the list is positive so "
+            + "the Erased Art. 17 tombstone, and any status added later, is excluded by construction rather than "
+            + "by a '<>' that would silently admit it (#864 D4). No org.nr reaches C# scope: the aggregate is "
+            + "computed server-side and only counts come back."),
     ];
 }

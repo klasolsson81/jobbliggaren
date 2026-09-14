@@ -36,6 +36,7 @@ public static partial class RateLimitingExtensions
     public const string CompanyBrowsePolicy = "company-watch-browse";
     public const string CompanyWatchCriteriaListPolicy = "company-watch-criteria-list";
     public const string CriterionCountPreviewPolicy = "criterion-count-preview";
+    public const string OccupationDivisionsPolicy = "occupation-divisions";
     public const string FollowSeenMarkPolicy = "follow-seen-mark";
     public const string CompanyLookupPolicy = "company-lookup";
     public const string ResumeImportPolicy = "resume-import";
@@ -436,6 +437,29 @@ public static partial class RateLimitingExtensions
                         TokensPerPeriod = Math.Max(1, rateLimitOpts.CriterionCountPreview.PermitLimit / rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
                         ReplenishmentPeriod = TimeSpan.FromSeconds(
                             rateLimitOpts.CriterionCountPreview.WindowSeconds / (double)rateLimitOpts.CriterionCountPreview.SegmentsPerWindow),
+                        QueueLimit = 0,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            // Partition: UserId (claim "sub"). #1682 — the bransch picker's occupation block, the
+            // picker's SECOND live read beside preview-count: same debounce-burst profile, same
+            // 30/10 s, and its OWN bucket for the same bulkhead reason (the derivation and the numbers
+            // are in RateLimitingOptions.OccupationDivisions). TokenBucket, QueueLimit=0. Auth-gated →
+            // anonym NoLimiter-bypass. security-auditor BLOCKING verifierar tal.
+            options.AddPolicy(OccupationDivisionsPolicy, ctx =>
+            {
+                var userId = ctx.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                    return RateLimitPartition.GetNoLimiter("anonymous-occupation-divisions");
+
+                return RateLimitPartition.GetTokenBucketLimiter(userId, _ =>
+                    new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = rateLimitOpts.OccupationDivisions.PermitLimit,
+                        TokensPerPeriod = Math.Max(1, rateLimitOpts.OccupationDivisions.PermitLimit / rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(
+                            rateLimitOpts.OccupationDivisions.WindowSeconds / (double)rateLimitOpts.OccupationDivisions.SegmentsPerWindow),
                         QueueLimit = 0,
                         AutoReplenishment = true,
                     });

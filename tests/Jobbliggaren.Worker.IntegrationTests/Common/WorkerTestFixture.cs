@@ -81,6 +81,9 @@ public sealed class WorkerTestFixture : IAsyncLifetime
                 // measurable. The cron is deliberately NOT the shipped default and NOT the SCB one,
                 // so binding against either would be visible.
                 ["CompanyWatchMaterialisation:CadenceCron"] = "11 11 * * *",
+                // #1682 — the same discipline for the profile job's own section: a value that is neither
+                // the shipped default (35 3) nor any sibling's, so a bind against the wrong section shows.
+                ["OccupationDivisionProfile:CadenceCron"] = "22 22 * * *",
                 ["ScbRegister:SyncCadenceCron"] = "0 6 * * 6",
                 ["ScbRegister:Enabled"] = "false",
                 // ADR 0066 — lokal envelope. FieldEncryptionOptionsValidator har

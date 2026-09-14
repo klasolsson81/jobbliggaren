@@ -46,19 +46,23 @@ public class ScbCompanyRegisterLayerTests
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToList();
 
-        // Two entries, and the allowlist is CLOSED — a new public type in this namespace fails the
+        // Three entries, and the allowlist is CLOSED — a new public type in this namespace fails the
         // build until a human puts it here on purpose. #1681 (ADR 0139) added the second:
         // CompanyWatchMaterialisationOptions is a config contract the Worker binds, exactly like its
         // neighbour, and it is a SEPARATE section precisely so the materialisation job does not
         // inherit ScbRegister:Enabled=false (security-auditor Major 3). Everything else the #1681 wave
         // introduced — the member/state POCOs, their EF configurations, the write-boundary filter, the
         // store and the orchestrator — stays internal and is covered by this same assertion.
+        // #1682 (ADR 0141) added the third on the same ground: OccupationDivisionProfileOptions is the
+        // profile job's own section (own cron, own Enabled), and its POCOs, configurations, store,
+        // builder and query stay internal under this assertion.
         publicTypes.ShouldBe(
             [
                 "Jobbliggaren.Infrastructure.CompanyRegister.CompanyWatchMaterialisationOptions",
+                "Jobbliggaren.Infrastructure.CompanyRegister.OccupationDivisionProfileOptions",
                 "Jobbliggaren.Infrastructure.CompanyRegister.ScbRegisterOptions",
             ],
-            $"only the two options contracts may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
+            $"only the three options contracts may be public in {InfraCompanyRegisterNs}.*; found: {string.Join(", ", publicTypes)}");
     }
 
     [Fact]

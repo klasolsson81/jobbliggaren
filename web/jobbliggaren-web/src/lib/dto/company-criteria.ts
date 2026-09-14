@@ -297,3 +297,43 @@ export interface CriterionPredicateInput {
   readonly sniCodes: ReadonlyArray<string>;
   readonly municipalityCodes: ReadonlyArray<string>;
 }
+
+/**
+ * #1682 — `GET /api/v1/me/company-watch-criteria/occupation-divisions?q=`: a typed OCCUPATION word
+ * resolved to the occupation groups it denotes and, per group, where that occupation's employers sit
+ * by SNI huvudgrupp, counted from our own ads. Codes only — the division names come from the
+ * reference tree the picker already holds (ADR 0137: a term that translates travels as a code).
+ * The three states are the wire form of the backend's `OccupationDivisionProfileState`; the nullable
+ * members are non-null exactly under the state that has them, and the schema does not re-encode
+ * that invariant — the renderer branches on `state` and never reads a number the state does not carry.
+ * Under `profiled` every ad is in exactly one of three places — `divisions`, `belowThreshold*` (real
+ * huvudgrupper under the share cut) or `withoutDivision*` (no huvudgrupp known) — so the surface can
+ * account for the whole denominator.
+ */
+export const divisionShareSchema = z.object({
+  code: z.string(),
+  adCount: z.number().int(),
+  sharePercent: z.number().int(),
+});
+export type DivisionShare = z.infer<typeof divisionShareSchema>;
+
+export const occupationDivisionCandidateSchema = z.object({
+  occupationGroupConceptId: z.string(),
+  label: z.string(),
+  matchedOn: z.string(),
+  state: z.enum(["profiled", "tooFewAds", "notProfiled"]),
+  totalAds: z.number().int().nullable(),
+  divisions: z.array(divisionShareSchema).nullable(),
+  belowThresholdAdCount: z.number().int().nullable(),
+  belowThresholdSharePercent: z.number().int().nullable(),
+  withoutDivisionAdCount: z.number().int().nullable(),
+  withoutDivisionSharePercent: z.number().int().nullable(),
+  profiledAt: z.string().nullable(),
+});
+export type OccupationDivisionCandidate = z.infer<typeof occupationDivisionCandidateSchema>;
+
+export const occupationDivisionsSchema = z.object({
+  word: z.string(),
+  occupations: z.array(occupationDivisionCandidateSchema),
+});
+export type OccupationDivisions = z.infer<typeof occupationDivisionsSchema>;

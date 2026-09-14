@@ -50,6 +50,7 @@ public sealed partial class RecurringJobRegistrar(
     IRecurringJobManager manager,
     IOptions<ScbRegisterOptions> scbOptions,
     IOptions<CompanyWatchMaterialisationOptions> materialisationOptions,
+    IOptions<OccupationDivisionProfileOptions> profileOptions,
     ILogger<RecurringJobRegistrar> logger) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
@@ -198,6 +199,20 @@ public sealed partial class RecurringJobRegistrar(
             RecurringJobIds.SweepChangedCompanyWatchCriteria,
             job => job.SweepAsync(CancellationToken.None),
             materialisationOptions.Value.SweepCron);
+
+        // #1682 — rebuild the occupation × SNI-division profile out of our own ads. Config-driven cron
+        // (OccupationDivisionProfile:CadenceCron; default 03:35 UTC — after the 02:00 snapshot's
+        // 3 600 s lock clears at 03:00, inside the ingest-consumer cluster with ten minutes' padding
+        // either side). Its OWN options section and its own Enabled, for the reason the block above
+        // gives: a cadence tied to another feature's flag runs exactly as often as that flag is true.
+        // Clock-padded, not chained: job_ads has TWO writers (the stream job on */10 is the other), so
+        // a watermark on the snapshot's audit row would fire as often as this cron while claiming to
+        // track ingest (senior-cto-advisor D1, 2026-09-14). Registered unconditionally — the
+        // kill-switch is in the job — so the registrar id-set stays equal to RecurringJobIds.All.
+        manager.AddOrUpdate<OccupationDivisionProfileWorker>(
+            RecurringJobIds.BuildOccupationDivisionProfile,
+            job => job.RunAsync(CancellationToken.None),
+            profileOptions.Value.CadenceCron);
 
         // WARM-START (CTO-bind 2026-07-13, A′ punkt 4): trigga landing-stats-refreshen EN gång vid
         // Worker-boot i stället för att vänta upp till 5 minuter på nästa cron-tick.

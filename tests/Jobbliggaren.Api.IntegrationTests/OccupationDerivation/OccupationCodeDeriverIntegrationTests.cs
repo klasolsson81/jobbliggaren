@@ -243,6 +243,31 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
     }
 
     // =================================================================
+    // (b2) #1682 — the two acceptance words of the bransch picker's occupation block.
+    // The issue's own measurement was ILIKE over labels; the picker resolves the typed word
+    // through THIS deriver, a different operator (exact, then Snowball-stemmed and spread-gated).
+    // The block cannot render for a word the deriver returns nothing for, so the two words the
+    // issue names as acceptance are pinned here against the live seeded snapshot, and the groups
+    // they resolve to are written to the test output so the session can read them.
+    // =================================================================
+
+    [Theory]
+    [InlineData("systemutvecklare")]
+    [InlineData("sjuksköterska")]
+    public async Task DeriveAsync_BranschPickerAcceptanceWord_ResolvesToAtLeastOneGroup(string word)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sut = NewDeriver();
+
+        var result = await sut.DeriveAsync(word, ct);
+
+        result.Candidates.ShouldNotBeEmpty();
+        foreach (var c in result.Candidates)
+            TestContext.Current.TestOutputHelper?.WriteLine(
+                $"{word} -> {c.OccupationGroupConceptId} {c.OccupationGroupLabel} [{c.MatchKind}] on '{c.MatchedOn}'");
+    }
+
+    // =================================================================
     // (c) Nonsense title → empty candidates (never throws, never auto-selects)
     // =================================================================
 

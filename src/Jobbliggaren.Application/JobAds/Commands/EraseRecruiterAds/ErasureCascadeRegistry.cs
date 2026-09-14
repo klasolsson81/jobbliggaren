@@ -628,6 +628,14 @@ public static class ErasureCascadeRegistry
             ["taxonomy_relations.source_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.related_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
             ["taxonomy_relations.kind"] = ErasureColumnDisposition.NotRecruiterData,
+            // #1682 (ADR 0141) — the occupation × SNI-division profile: an aggregate over job_ads ⋈
+            // company_register keyed on occupation-group concept id and huvudgrupp code, plus a
+            // one-row run record. No column can hold a recruiter's identifier — the codes are closed
+            // taxonomy/SNI values and profile_key is a constant — and the count an erased ad once
+            // contributed vanishes at the next rebuild, since Erased is outside the job's allow-list.
+            ["occupation_division_profiles.occupation_group_concept_id"] = ErasureColumnDisposition.NotRecruiterData,
+            ["occupation_division_profiles.division_code"] = ErasureColumnDisposition.NotRecruiterData,
+            ["occupation_division_profile_runs.profile_key"] = ErasureColumnDisposition.NotRecruiterData,
         };
 
     /// <summary>
@@ -1078,5 +1086,20 @@ public static class ErasureCascadeRegistry
                 "Closed domain: source_concept_id / related_concept_id are taxonomy identifiers "
                 + "and kind is the relation-type enum stored by name, from the same taxonomy sync "
                 + "as taxonomy_concepts. Ids and enum names only.",
+
+            ["occupation_division_profiles:NotRecruiterData"] =
+                "Closed domain (#1682, ADR 0141): occupation_group_concept_id is copied from "
+                + "job_ads.occupation_group_concept_id (a taxonomy identifier) and division_code is "
+                + "LEFT(sni_codes[1], 2) from company_register or one of two non-digit sentinels. The "
+                + "only write path is OccupationDivisionProfileStore.RebuildAsync, a GROUP BY over "
+                + "those two columns - no user, no free text and no ad text can reach the table, and "
+                + "an ad an erasure removed stops contributing at the next rebuild because Erased is "
+                + "outside the job's status allow-list.",
+
+            ["occupation_division_profile_runs:NotRecruiterData"] =
+                "Closed domain (#1682, ADR 0141): profile_key is the single constant "
+                + "OccupationDivisionProfileRun.CurrentKey, written only by the same RebuildAsync "
+                + "upsert; the other columns are a timestamp and five integer counters. Nothing on "
+                + "the row can hold an identifier.",
         };
 }

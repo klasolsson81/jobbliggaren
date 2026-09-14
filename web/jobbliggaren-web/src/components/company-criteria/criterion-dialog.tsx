@@ -25,6 +25,7 @@ import {
 import { toggleGroup } from "@/lib/company-criteria/criterion-selection";
 import { formatMagnitude } from "@/lib/company-criteria/format-magnitude";
 import { useCriterionPreviewCount } from "@/lib/hooks/use-criterion-preview-count";
+import { resolveOccupationDivisions } from "@/lib/company-criteria/resolve-occupation-divisions";
 import {
   createCriterionAction,
   updateCriterionAction,
@@ -176,6 +177,9 @@ export function CriterionDialog({
             // saved watch renders counts its leaves under "bransch" (#1711).
             selectedCountLabel={tc("sniPickedCount", { count: sniPicked })}
             optionsUnavailable={t("optionsUnavailable")}
+            // The SNI axis answers an occupation word with where its employers are (#1682); the
+            // kommun axis below passes no resolver and stays as it is.
+            resolveOccupations={resolveOccupationDivisions}
           />
 
           <CriterionPicker

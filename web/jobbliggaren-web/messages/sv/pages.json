@@ -477,7 +477,9 @@
         "tooBroadShort": "Bevakningen matchar fler företag än vi kan räkna annonser för.",
         "matchingTooBroadShort": "Vi kan inte räkna hur många av annonserna som matchar dig.",
         "adsNotMaterialisedOnly": "Antalet aktiva annonser är inte framräknat än. Det visas här automatiskt när det är klart.",
-        "tooBroadAdviceOnList": "Bevakningar vi inte kan räkna annonser för visas utan annonssiffror. Färre branscher eller kommuner ger färre företag."
+        "adsTooBroadAdviceOnList": "Bevakningar vi inte kan räkna annonser för visas utan annonssiffror.",
+        "matchingTooBroadAdviceOnList": "För bevakningar med fler annonser än vi kan matcha visas inte hur många som matchar dig.",
+        "tooBroadAdviceRemedy": "Färre branscher eller kommuner ger färre företag."
       },
       "browse": {
         "lede": "Aktiva företag i registret som matchar din bevakning.",

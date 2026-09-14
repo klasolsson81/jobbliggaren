@@ -149,8 +149,10 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
   }
 
   // Stated once for the whole card when ANY row is refused, never once per row (design-reviewer,
-  // 2026-09-07). ONE value gates the rows' short refusal and this advice line alike.
-  const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
+  // 2026-09-07) — one sentence per refused arm, and a row refusing both is counted under the ads
+  // arm only, the same collapse `CriterionAdLines` applies within a row (senior-cto-advisor, #1715).
+  const anyAdsTooBroad = items.some((i) => i.ads.tooBroad);
+  const anyMatchingOnlyTooBroad = items.some((i) => i.matching.tooBroad && !i.ads.tooBroad);
 
   return (
     <OversiktCard
@@ -187,9 +189,14 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
           </li>
         ))}
       </ul>
-      {anyTooBroad && (
+      {(anyAdsTooBroad || anyMatchingOnlyTooBroad) && (
         <p className="jp-matchline jp-ov-criteria__advice">
-          {t("criteriaSummary.tooBroadAdvice")}{" "}
+          {[
+            anyAdsTooBroad ? t("criteriaSummary.adsTooBroadAdvice") : null,
+            anyMatchingOnlyTooBroad ? t("criteriaSummary.matchingTooBroadAdvice") : null,
+          ]
+            .filter((sentence) => sentence !== null)
+            .join(" ")}{" "}
           <Link className="jp-nudgelink" href={CATALOGUE_HREF}>
             {tRow("ads.matchingTooBroadCta")}
           </Link>

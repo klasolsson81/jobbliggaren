@@ -36,14 +36,16 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
   const t = useTranslations("pages.foretag.criteria");
   const [createOpen, setCreateOpen] = useState(false);
 
-  // Stated once for the whole list when ANY row is refused, never once per row. Both arms count:
-  // the ads arm is what the rows show, and a matching-only refusal is still a watch the advice would
-  // help. Parity `criteria-card.tsx`, deliberately not extracted — see the prop's docblock.
-  const anyTooBroad = items.some((i) => i.ads.tooBroad || i.matching.tooBroad);
+  // Stated once for the whole list when ANY row is refused, never once per row — one sentence per
+  // refused arm, and a row refusing both is counted under the ads arm only, the same collapse
+  // `CriterionAdLines` applies within a row (senior-cto-advisor, #1715). Parity
+  // `criteria-card.tsx`, deliberately not extracted — see the prop's docblock.
+  const anyAdsTooBroad = items.some((i) => i.ads.tooBroad);
+  const anyMatchingOnlyTooBroad = items.some((i) => i.matching.tooBroad && !i.ads.tooBroad);
 
-  // ONE value, gating both the rows' short refusal and this section's advice line below. The rule it
-  // encodes has a single home in `CriterionAdLines`' own prop docblock; this is a pointer, not a
-  // restatement (#1173).
+  // ONE value, gating the rows' short refusal and whether this section's advice speaks at all. The
+  // rule it encodes has a single home in `CriterionAdLines`' own prop docblock; this is a pointer,
+  // not a restatement (#1173).
   const adviceStatedByCaller = items.length > 1;
 
   const atMax = items.length >= MAX_PER_USER;
@@ -92,11 +94,19 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
           </ul>
           {/* The rows state the STATUS; this states what to do about it — and it carries no link,
               because the action is the "Ändra" button in every row rather than a page to travel to
-              (senior-cto-advisor D2, 2026-09-08). Deliberately NOT the `/oversikt` block's sentence:
-              that one rewords the refusal the rows already carry above it, and its "här" points at
+              (senior-cto-advisor D2, 2026-09-08). Deliberately NOT the `/oversikt` block's sentences:
+              those reword the refusal the rows already carry above it, and their "här" points at
               another block. */}
-          {anyTooBroad && adviceStatedByCaller && (
-            <p className="jp-matchline jp-criteria-advice">{t("ads.tooBroadAdviceOnList")}</p>
+          {(anyAdsTooBroad || anyMatchingOnlyTooBroad) && adviceStatedByCaller && (
+            <p className="jp-matchline jp-criteria-advice">
+              {[
+                anyAdsTooBroad ? t("ads.adsTooBroadAdviceOnList") : null,
+                anyMatchingOnlyTooBroad ? t("ads.matchingTooBroadAdviceOnList") : null,
+                t("ads.tooBroadAdviceRemedy"),
+              ]
+                .filter((sentence) => sentence !== null)
+                .join(" ")}
+            </p>
           )}
         </>
       )}

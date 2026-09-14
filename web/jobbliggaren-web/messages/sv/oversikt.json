@@ -38,7 +38,8 @@
     "emptyBody": "En branschbevakning är en sparad sökning på bransch och kommun. Annonserna från företagen som matchar samlas här.",
     "emptyCta": "Ny branschbevakning",
     "unavailable": "Branschbevakningar kunde inte hämtas. Uppdatera sidan för att försöka igen.",
-    "tooBroadAdvice": "En bevakning som matchar fler företag än vi kan räkna annonser för får inga tal här."
+    "adsTooBroadAdvice": "En bevakning som matchar fler företag än vi kan räkna annonser för får inga tal här.",
+    "matchingTooBroadAdvice": "En bevakning med fler annonser än vi kan matcha visar inte hur många som matchar dig."
   },
   "cards": {
     "requiresYou": "Kräver dig",

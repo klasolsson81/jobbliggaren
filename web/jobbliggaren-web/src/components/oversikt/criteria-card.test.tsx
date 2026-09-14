@@ -185,7 +185,9 @@ describe("CriteriaCard — two or more watches", () => {
         reference={REFERENCE}
       />,
     );
-    expect(within(card()).getByText(COPY.criteriaSummary.tooBroadAdvice, { exact: false })).toBeInTheDocument();
+    expect(within(card()).getByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeInTheDocument();
+    // A row refusing both arms is counted under the ads arm only — the block collapses as the row does.
+    expect(within(card()).queryByText(COPY.criteriaSummary.matchingTooBroadAdvice, { exact: false })).toBeNull();
     expect(within(card()).getAllByText("Bevakningen matchar fler företag än vi kan räkna annonser för.")).toHaveLength(1);
   });
 
@@ -210,6 +212,10 @@ describe("CriteriaCard — two or more watches", () => {
     // The ads-arm short form says the ADS could not be counted; beside "3 000 aktiva annonser" that
     // is a contradiction, and no row may carry it here.
     for (const row of rows) expect(text(row)).not.toContain("fler företag än vi kan räkna annonser för");
+    // The block advice names the matching arm and nothing else: no row here lacks an ad number.
+    expect(within(card()).getByText(COPY.criteriaSummary.matchingTooBroadAdvice, { exact: false })).toBeInTheDocument();
+    expect(within(card()).queryByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeNull();
+    expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute("href", "/foretag/branschbevakningar");
   });
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {
     expect(criteriaCardIsWide(two)).toBe(true);

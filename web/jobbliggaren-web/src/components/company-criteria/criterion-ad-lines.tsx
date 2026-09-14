@@ -210,7 +210,7 @@ export function CriterionAdLines({
       ) : sharedRefusal === "tooBroad" ? (
         <p className="jp-matchline">
           {shortRefusal ? (
-            t("ads.tooBroadShort")
+            t("ads.adsTooBroadShort")
           ) : (
             <>
               {t("ads.adsAndMatchingTooBroad")}
@@ -223,7 +223,7 @@ export function CriterionAdLines({
       ) : ads.tooBroad ? (
         <p className="jp-matchline">
           {shortRefusal ? (
-            t("ads.tooBroadShort")
+            t("ads.adsTooBroadShort")
           ) : (
             <>
               {t("ads.adsTooBroad")}

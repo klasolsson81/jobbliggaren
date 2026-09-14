@@ -211,7 +211,7 @@ describe("CriteriaSection", () => {
   // §5 `Tests:` — the actor that produces the state is named above and is `src/`-side; the fixture
   // is the shape it emits, not a hand-built impossibility. Both zod refinements hold.
   //
-  // Without this arm the gate's second term (`|| i.matching.tooBroad`) could not be told apart from
+  // Without this arm the gate's second term could not be told apart from
   // its first in any run, which is precisely how the first version of the advice shipped a sentence
   // saying no ad numbers are shown above a row showing one.
   it("en bevakning kan visa sitt annonstal och ändå vägra matchningen — och rådet får inte motsäga talet", () => {

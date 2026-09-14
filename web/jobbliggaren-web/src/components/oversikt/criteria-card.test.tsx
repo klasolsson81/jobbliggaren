@@ -117,6 +117,17 @@ describe("CriteriaCard — one watch", () => {
     expect(card().textContent).not.toMatch(/(^|\D)0(\D|$)/);
   });
 
+  // The same guard-3 state as the N ≥ 2 case below, in the one-watch form: the row carries the FULL
+  // matching refusal here, and it must name the ads, never the companies (design-reviewer, #1715).
+  it("a refused matching beside a counted ad number at N = 1: the full sentence names the ads, never the companies", () => {
+    render(<CriteriaCard criteria={ok([criterion({ ads: counted(3000), matching: MATCH_TOO_BROAD })])} reference={REFERENCE} />);
+    expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
+    expect(text(card().querySelector<HTMLElement>("a.jp-countlink"))).toBe("3 000 aktiva annonser");
+    expect(text(card())).toContain("Bevakningen har fler annonser än vi kan matcha.");
+    expect(text(card())).not.toContain("fler företag än vi kan räkna annonser för");
+    expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toBeInTheDocument();
+  });
+
   it("not materialised: ignorance, not refusal — the ads link stands, the number waits, no advice", () => {
     render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_MATERIALISED })])} reference={REFERENCE} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
@@ -193,8 +204,8 @@ describe("CriteriaCard — two or more watches", () => {
 
   // A watch with 2 001-10 000 active ads: CriterionMatchingAdSetResolver.ResolveIdsAsync refuses the
   // matching set above MaxSetSize (2 000) while the ad count runs to Ceiling (10 000), so ONE row
-  // carries a counted ad number AND a refused matching number (#1715). The mirror pairing - a
-  // refused ad count beside a counted matching number - is unreachable: the resolver's first guard
+  // carries a counted ad number AND a refused matching number (#1715). The mirror pairing — a
+  // refused ad count beside a counted matching number — is unreachable: the resolver's first guard
   // refuses the matching set before any count.
   it("a refused matching beside a counted ad number names the number it lacks, never the number it stands beside", () => {
     render(
@@ -217,6 +228,7 @@ describe("CriteriaCard — two or more watches", () => {
     expect(within(card()).queryByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeNull();
     expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute("href", "/foretag/branschbevakningar");
   });
+
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {
     expect(criteriaCardIsWide(two)).toBe(true);
     expect(criteriaCardIsWide(ok([criterion()]))).toBe(false);

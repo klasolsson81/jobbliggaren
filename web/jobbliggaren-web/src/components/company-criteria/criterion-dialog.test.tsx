@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { CriterionDialog } from "./criterion-dialog";
-import { CriterionBreadth } from "./criterion-breadth";
 import type {
   CompanyWatchCriterion,
   CriterionReference,
@@ -79,20 +78,18 @@ function openEdit(sniCodes: string[], municipalityCodes: string[]) {
   );
   return screen.getByRole("dialog");
 }
-// The two picker counters, in axis order (branscher, kommuner): the `font-medium` live line the picker
-// renders unconditionally beneath its filter status.
+// The two picker counters, one per axis. The picker's <section> and its tree root both carry
+// `role="group"` under the axis name, so the group is the one that holds the counter; and NOT just
+// `p[aria-live]` — the filter status above each counter is a polite `role="status"` too (the
+// `criterion-picker.test.tsx` precedent).
+const COUNTER = 'p[aria-live="polite"]:not([role])';
 function counters(dialog: HTMLElement): string[] {
-  return [...dialog.querySelectorAll<HTMLElement>('p.font-medium[aria-live="polite"]')]
-    .map((p) => p.textContent?.trim() ?? "")
-    .slice(0, 2);
-}
-function breadth(sniCodes: string[], municipalityCodes: string[]): string {
-  const { container, unmount } = render(
-    <CriterionBreadth sniCodes={sniCodes} municipalityCodes={municipalityCodes} />,
-  );
-  const text = container.textContent?.replace(/\s+/g, " ").trim() ?? "";
-  unmount();
-  return text;
+  return ["Branscher", "Kommuner"].map((axis) => {
+    const group = within(dialog)
+      .getAllByRole("group", { name: axis })
+      .find((g) => g.querySelector(COUNTER) !== null);
+    return group?.querySelector<HTMLElement>(COUNTER)?.textContent?.trim() ?? "";
+  });
 }
 
 describe("CriterionDialog — the pick counters (#1711)", () => {
@@ -119,9 +116,10 @@ describe("CriterionDialog — the pick counters (#1711)", () => {
   });
 
   // design-reviewer B-2 (2026-09-08): the breadth line counts RAW leaves so a narrow watch and a broad
-  // one are tellable apart. The dialog answers a different question under a different noun, so the
-  // two numbers may differ for the same watch without either being wrong.
-  it("one leaf and the whole huvudgrupp are both 1 val in the dialog; the breadth line is what tells them apart", () => {
+  // one are tellable apart (pinned in `criterion-breadth.test.tsx`). The dialog answers a different
+  // question under a different noun, so the two numbers may differ for the same watch without
+  // either being wrong.
+  it("one leaf and the whole huvudgrupp are both 1 val in the dialog", () => {
     const { unmount } = render(
       <CriterionDialog
         open
@@ -133,9 +131,6 @@ describe("CriterionDialog — the pick counters (#1711)", () => {
     expect(counters(screen.getByRole("dialog"))).toEqual(["1 val", "1 val"]);
     unmount();
     expect(counters(openEdit(WHOLE_HUVUDGRUPP, WHOLE_LAN))).toEqual(["1 val", "1 val"]);
-
-    expect(breadth(["62100"], WHOLE_LAN)).toBe("1 bransch · 2 kommuner");
-    expect(breadth(WHOLE_HUVUDGRUPP, WHOLE_LAN)).toBe("4 branscher · 2 kommuner");
   });
 
   it("the clear control beside the counter uses the same noun", () => {

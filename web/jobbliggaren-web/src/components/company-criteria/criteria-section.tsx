@@ -95,8 +95,7 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
           {/* The rows state the STATUS; this states what to do about it — and it carries no link,
               because the action is the "Ändra" button in every row rather than a page to travel to
               (senior-cto-advisor D2, 2026-09-08). Deliberately NOT the `/oversikt` block's sentences:
-              those reword the refusal the rows already carry above it, and their "här" points at
-              another block. */}
+              those reword the refusal the rows already carry above it. */}
           {(anyAdsTooBroad || anyMatchingOnlyTooBroad) && adviceStatedByCaller && (
             <p className="jp-matchline jp-criteria-advice">
               {[

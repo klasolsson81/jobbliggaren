@@ -27,7 +27,7 @@ interface CriterionBreadthProps {
  * carries a SECOND count — `decomposeSelection(...).length`, what the edit dialog shows — which
  * collapses a fully selected node to one option (`criterion-options.ts`, `allSelected`). Under that
  * rule the narrow watch and the whole huvudgrupp would BOTH read "1 bransch" and this component
- * would answer nothing. That second count is named "val", never "bransch" or "kommun" (#1711).</p>
+ * would answer nothing. That second count is named "val" (#1711).</p>
  *
  * <p>Rendered unconditionally wherever a criterion is shown — including under a user-set label, and
  * including when the reference tree degraded and the heading falls back to the neutral noun. In

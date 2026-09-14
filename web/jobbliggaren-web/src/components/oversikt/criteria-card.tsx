@@ -151,6 +151,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
   // Stated once for the whole card when ANY row is refused, never once per row (design-reviewer,
   // 2026-09-07) — one sentence per refused arm, and a row refusing both is counted under the ads
   // arm only, the same collapse `CriterionAdLines` applies within a row (senior-cto-advisor, #1715).
+  // Parity `criteria-section.tsx`, deliberately not extracted — see that component's own comment.
   const anyAdsTooBroad = items.some((i) => i.ads.tooBroad);
   const anyMatchingOnlyTooBroad = items.some((i) => i.matching.tooBroad && !i.ads.tooBroad);
 

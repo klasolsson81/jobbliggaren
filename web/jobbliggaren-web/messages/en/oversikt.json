@@ -38,7 +38,8 @@
     "emptyBody": "An industry watch is a saved search by industry and municipality. Ads from the matching companies are collected here.",
     "emptyCta": "New industry watch",
     "unavailable": "Industry watches could not be loaded. Refresh the page to try again.",
-    "tooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here."
+    "adsTooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here.",
+    "matchingTooBroadAdvice": "A watch with more ads than we can match does not show how many of them match you."
   },
   "cards": {
     "requiresYou": "Needs you",

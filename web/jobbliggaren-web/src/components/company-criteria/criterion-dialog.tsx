@@ -171,9 +171,10 @@ export function CriterionDialog({
             collapseAria={(name) => tc("sniCollapseAria", { name })}
             // Counts what the user PICKED, not what it expanded to. One click on a section used to
             // report "52 valda branscher" while the label beside it named one division — the same
-            // number the /foretag/sok chips contradicted (#999 design finding 4). One key, one
-            // semantic: both surfaces now count decomposed nodes.
-            selectedCountLabel={tc("sniSelectedCount", { count: sniPicked })}
+            // number the /foretag/sok chips contradicted (#999 design finding 4). Named "val", not
+            // "bransch": a pick may be a whole avdelning or huvudgrupp, and the breadth line the
+            // saved watch renders counts its leaves under "bransch" (#1711).
+            selectedCountLabel={tc("sniPickedCount", { count: sniPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 
@@ -190,7 +191,8 @@ export function CriterionDialog({
             groupAria={tc("kommunGroupAria")}
             expandAria={(name) => tc("kommunExpandAria", { name })}
             collapseAria={(name) => tc("kommunCollapseAria", { name })}
-            selectedCountLabel={tc("kommunSelectedCount", { count: kommunPicked })}
+            // "val", not "kommun": a whole län is one pick and is not a kommun (#1711).
+            selectedCountLabel={tc("kommunPickedCount", { count: kommunPicked })}
             optionsUnavailable={t("optionsUnavailable")}
           />
 

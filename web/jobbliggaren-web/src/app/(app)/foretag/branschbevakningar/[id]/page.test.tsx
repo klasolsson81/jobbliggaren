@@ -320,8 +320,9 @@ describe("BevakningBrowsePage — the personal match count", () => {
     await renderWith({ count: null, tooBroad: true });
 
     expect(
-      screen.getByText(/matchar fler företag än vi kan räkna annonser för/),
+      screen.getByText(/Bevakningen har fler annonser än vi kan matcha\./),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/fler företag än vi kan räkna annonser för/)).toBeNull();
     // A refusal that names an action carries the way there — the arm two rows up already does.
     expect(
       screen.getByRole("link", { name: "Ändra bevakningen" }),

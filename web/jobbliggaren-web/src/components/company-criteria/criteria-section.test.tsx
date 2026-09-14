@@ -192,6 +192,10 @@ describe("CriteriaSection", () => {
     // The advice the short refusal drops is supplied once, beneath the list.
     expect(document.querySelectorAll(".jp-criteria-advice")).toHaveLength(1);
     expect(occurrences(text, "Färre branscher eller kommuner ger färre företag")).toBe(1);
+    // The ads-only arm renders the sentence the surface shipped with, byte for byte.
+    expect(document.querySelector(".jp-criteria-advice")?.textContent).toBe(
+      "Bevakningar vi inte kan räkna annonser för visas utan annonssiffror. Färre branscher eller kommuner ger färre företag.",
+    );
     // Still no route back to this page, at any N.
     expect(screen.queryAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(0);
   });
@@ -207,7 +211,7 @@ describe("CriteriaSection", () => {
   // §5 `Tests:` — the actor that produces the state is named above and is `src/`-side; the fixture
   // is the shape it emits, not a hand-built impossibility. Both zod refinements hold.
   //
-  // Without this arm the gate's second term (`|| i.matching.tooBroad`) could not be told apart from
+  // Without this arm the gate's second term could not be told apart from
   // its first in any run, which is precisely how the first version of the advice shipped a sentence
   // saying no ad numbers are shown above a row showing one.
   it("en bevakning kan visa sitt annonstal och ändå vägra matchningen — och rådet får inte motsäga talet", () => {
@@ -228,15 +232,21 @@ describe("CriteriaSection", () => {
     const adsLink = document.querySelector('a.jp-countlink[href="/foretag/branschbevakningar/a/annonser"]');
     expect(adsLink).not.toBeNull();
     expect(adsLink?.textContent?.replace(/\s+/g, " ")).toBe("3 000 aktiva annonser");
+    // The row's matching line names the number it lacks (#1715): the ads-arm short form said the ADS
+    // could not be counted, directly beneath a link that counts them.
+    const refusedRow = adsLink!.closest("li")!;
+    expect(refusedRow.textContent).toContain("Vi kan inte räkna hur många av annonserna som matchar dig.");
+    expect(refusedRow.textContent).not.toContain("fler företag än vi kan räkna annonser för");
     // The block advice fires — through the matching arm alone.
     const advice = document.querySelector(".jp-criteria-advice");
     expect(advice).not.toBeNull();
-    // …and it must not claim the number above it is absent. It identifies its set by PROPERTY
-    // ("bevakningar vi inte kan räkna annonser för"), which this watch is not one of, rather than by
-    // pointing at "de bevakningarna" (design-reviewer Major 1, code-reviewer Major 1).
+    // …and it names the matching arm, never the ads arm: no row here lacks an ad number, and the
+    // ads sentence beneath a counted number was the defect (#1715).
     const adviceText = advice?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     expect(adviceText).not.toContain("de bevakningarna");
-    expect(adviceText).toContain("Bevakningar vi inte kan räkna annonser för");
+    expect(adviceText).toContain("För bevakningar med fler annonser än vi kan matcha");
+    expect(adviceText).not.toContain("vi inte kan räkna annonser för");
+    expect(occurrences(adviceText, "Färre branscher eller kommuner ger färre företag")).toBe(1);
   });
 
   it("rådet uteblir helt när ingen bevakning är för bred", () => {

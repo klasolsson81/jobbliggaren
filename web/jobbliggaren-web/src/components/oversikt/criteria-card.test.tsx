@@ -63,6 +63,7 @@ const REFERENCE: CriterionReference = {
 };
 
 const COPY = messages.oversikt;
+const ADS_COPY = messages.pages.foretag.criteria.ads;
 const ID = "11111111-1111-1111-1111-111111111111";
 
 function card() {
@@ -114,6 +115,17 @@ describe("CriteriaCard — one watch", () => {
     );
     expect(within(card()).queryByRole("link", { name: COPY.cards.criteriaCtaAria })).toBeNull();
     expect(card().textContent).not.toMatch(/(^|\D)0(\D|$)/);
+  });
+
+  // The same guard-3 state as the N ≥ 2 case below, in the one-watch form: the row carries the FULL
+  // matching refusal here, and it must name the ads, never the companies (design-reviewer, #1715).
+  it("a refused matching beside a counted ad number at N = 1: the full sentence names the ads, never the companies", () => {
+    render(<CriteriaCard criteria={ok([criterion({ ads: counted(3000), matching: MATCH_TOO_BROAD })])} reference={REFERENCE} />);
+    expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
+    expect(text(card().querySelector<HTMLElement>("a.jp-countlink"))).toBe("3 000 aktiva annonser");
+    expect(text(card())).toContain("Bevakningen har fler annonser än vi kan matcha.");
+    expect(text(card())).not.toContain("fler företag än vi kan räkna annonser för");
+    expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toBeInTheDocument();
   });
 
   it("not materialised: ignorance, not refusal — the ads link stands, the number waits, no advice", () => {
@@ -184,8 +196,37 @@ describe("CriteriaCard — two or more watches", () => {
         reference={REFERENCE}
       />,
     );
-    expect(within(card()).getByText(COPY.criteriaSummary.tooBroadAdvice, { exact: false })).toBeInTheDocument();
+    expect(within(card()).getByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeInTheDocument();
+    // A row refusing both arms is counted under the ads arm only — the block collapses as the row does.
+    expect(within(card()).queryByText(COPY.criteriaSummary.matchingTooBroadAdvice, { exact: false })).toBeNull();
     expect(within(card()).getAllByText("Bevakningen matchar fler företag än vi kan räkna annonser för.")).toHaveLength(1);
+  });
+
+  // A watch with 2 001-10 000 active ads: CriterionMatchingAdSetResolver.ResolveIdsAsync refuses the
+  // matching set above MaxSetSize (2 000) while the ad count runs to Ceiling (10 000), so ONE row
+  // carries a counted ad number AND a refused matching number (#1715). The mirror pairing — a
+  // refused ad count beside a counted matching number — is unreachable: the resolver's first guard
+  // refuses the matching set before any count.
+  it("a refused matching beside a counted ad number names the number it lacks, never the number it stands beside", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([criterion({ id: "a", ads: counted(3000), matching: MATCH_TOO_BROAD }), criterion({ id: "b" })])}
+        reference={REFERENCE}
+      />,
+    );
+    const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
+    const refused = rows[0]!;
+    const adsLink = refused.querySelector<HTMLAnchorElement>("a.jp-countlink");
+    expect(adsLink).toHaveAttribute("href", buildCriterionAdsHref("a", 1, "all"));
+    expect(text(adsLink)).toBe("3 000 aktiva annonser");
+    expect(within(refused).getByText(ADS_COPY.matchingTooBroadShort)).toBeInTheDocument();
+    // The ads-arm short form says the ADS could not be counted; beside "3 000 aktiva annonser" that
+    // is a contradiction, and no row may carry it here.
+    for (const row of rows) expect(text(row)).not.toContain("fler företag än vi kan räkna annonser för");
+    // The block advice names the matching arm and nothing else: no row here lacks an ad number.
+    expect(within(card()).getByText(COPY.criteriaSummary.matchingTooBroadAdvice, { exact: false })).toBeInTheDocument();
+    expect(within(card()).queryByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeNull();
+    expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute("href", "/foretag/branschbevakningar");
   });
 
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {

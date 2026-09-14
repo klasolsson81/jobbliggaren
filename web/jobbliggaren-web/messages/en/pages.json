@@ -415,6 +415,7 @@
       "sniExpandAria": "Show industries in {name}",
       "sniCollapseAria": "Hide industries in {name}",
       "sniSelectedCount": "{count, plural, one {# industry selected} other {# industries selected}}",
+      "sniPickedCount": "{count, plural, one {# selection} other {# selections}}",
       "kommunHeading": "Municipalities",
       "kommunHelp": "Choose one or more municipalities. You can pick a whole county or individual municipalities.",
       "kommunFilterLabel": "Search municipality",
@@ -422,7 +423,7 @@
       "kommunGroupAria": "Municipalities",
       "kommunExpandAria": "Show municipalities in {name}",
       "kommunCollapseAria": "Hide municipalities in {name}",
-      "kommunSelectedCount": "{count, plural, one {# municipality selected} other {# municipalities selected}}",
+      "kommunPickedCount": "{count, plural, one {# selection} other {# selections}}",
       "dialog": {
         "createTitle": "New industry watch",
         "editTitle": "Edit watch",

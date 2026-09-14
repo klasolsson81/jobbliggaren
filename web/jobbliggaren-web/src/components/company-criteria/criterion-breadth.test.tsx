@@ -59,8 +59,9 @@ describe("CriterionBreadth", () => {
 
   // The count is `sniCodes.length` and NOT `decomposeSelection(...).length`, which the edit dialog
   // uses and which collapses a fully selected node to one option (`criterion-options.ts`). Under
-  // that rule this fixture would read "1 bransch" and the test above would fail. #1711 owns the
-  // divergence; this line is the guard that a harmonisation cannot land here unnoticed.
+  // that rule this fixture would read "1 bransch" and the test above would fail. The divergence is
+  // closed by vocabulary, not by harmonisation (#1711: the dialog's count is named "val"); this
+  // line is the guard that a harmonisation cannot land here unnoticed.
   it("räknar RÅA löv, aldrig pickerns dekomponerade tal", () => {
     render(
       <CriterionBreadth sniCodes={WHOLE_HUVUDGRUPP} municipalityCodes={ONE_KOMMUN} />,

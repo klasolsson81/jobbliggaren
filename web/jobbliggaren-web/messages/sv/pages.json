@@ -415,6 +415,7 @@
       "sniExpandAria": "Visa branscher i {name}",
       "sniCollapseAria": "Dölj branscher i {name}",
       "sniSelectedCount": "{count, plural, one {# vald bransch} other {# valda branscher}}",
+      "sniPickedCount": "{count, plural, one {# val} other {# val}}",
       "kommunHeading": "Kommuner",
       "kommunHelp": "Välj en eller flera kommuner. Du kan välja ett helt län eller enskilda kommuner.",
       "kommunFilterLabel": "Sök kommun",
@@ -422,7 +423,7 @@
       "kommunGroupAria": "Kommuner",
       "kommunExpandAria": "Visa kommuner i {name}",
       "kommunCollapseAria": "Dölj kommuner i {name}",
-      "kommunSelectedCount": "{count, plural, one {# vald kommun} other {# valda kommuner}}",
+      "kommunPickedCount": "{count, plural, one {# val} other {# val}}",
       "dialog": {
         "createTitle": "Ny branschbevakning",
         "editTitle": "Ändra bevakning",

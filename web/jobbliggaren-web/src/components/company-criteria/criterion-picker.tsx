@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CriterionTree, CheckBox } from "./criterion-tree";
+import { cn } from "@/lib/utils";
 import { groupTriState } from "@/lib/company-criteria/criterion-selection";
 import type {
   CriterionOption,
@@ -288,8 +289,8 @@ export function CriterionPicker({
                   // Name from author, so the row announces the same string in every environment. Letting
                   // the name be computed from the child spans depends on whose separator rule you
                   // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
-                  // whether or not the JSX contains one, while jsdom concatenates without it and reports
-                  // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
+                  // whether or not the JSX contains one, while jsdom concatenates the spans without
+                  // it. An explicit `{" "}` would therefore be a text node that
                   // exists only to satisfy the test environment — and a whitespace-only node directly in
                   // a flex container is not rendered anyway (CSS Flexbox L1 §4). The name is a SUPERSET
                   // of the visible text, not equal to it: the code leads the name while the row shows it
@@ -330,7 +331,11 @@ export function CriterionPicker({
                       view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
                       7 of 25 names and `partihandel` 4 of 56, on rows carrying no annotation at
                       all, which is a regression on a surface this delta only passes through. */}
-                  <span className="min-w-0 break-words">{option.name}</span>
+                  {/* Below `sm` the row wraps, and a flex item wraps BEFORE it shrinks: with its natural
+                      basis a long name dropped to a second line and left the checkbox alone on the first
+                      once the code no longer filled that line (measured at 400, #1682 round 1). `flex-1`
+                      gives it a zero basis, so it joins the checkbox's line and breaks internally. */}
+                  <span className="min-w-0 break-words max-sm:flex-1">{option.name}</span>
                   {/* Why this row is here at all. Without it a row appears containing none of the
                       typed characters — a result with no visible reason, which AGENTS.md §5 rules
                       out for match surfaces ("matched/missing keywords are always surfaced"). It
@@ -355,23 +360,31 @@ export function CriterionPicker({
                       longest word painted 24-30 px INTO this box at 390, which the old `truncate`
                       had been hiding rather than preventing. */}
                   {matchedAlias && (
-                    <span className="w-full min-w-0 truncate text-caption text-text-secondary sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
+                    // `max-sm:order-last`: below `sm` this is a full-width line of its own, and the code
+                    // below it must not follow it onto a THIRD line — an unchecked row would then reserve
+                    // an empty line for a code nothing reveals on touch. Ordering the alias last on the
+                    // narrow arm keeps the code on the checkbox's line; the DOM order stays name, alias,
+                    // code, which is what `sm` and up render.
+                    <span className="w-full min-w-0 truncate text-caption text-text-secondary max-sm:order-last sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
                       {t("matchedVia", { term: matchedAlias })}
                     </span>
                   )}
                   {/* Last, and hidden at rest (#1682 — Klas 2026-09-06: the number is clutter in the
-                      search). Revealed on hover, on keyboard focus and while the row is selected, so a
-                      user who knows the code can verify a pick without a pointer. `invisible`, not
-                      `hidden`: the slot keeps its width, so revealing the code moves nothing. From `sm`
-                      up it trails the alias when there is one and takes the row's end otherwise. */}
+                      search). Revealed on hover, on keyboard focus and while the row is checked or
+                      mixed, so a user who knows the code can verify a pick without a pointer.
+                      `invisible`, not `hidden`: the slot keeps its width, so revealing the code moves
+                      nothing. Two arms, both measured: from `sm` up the row is one line and the code
+                      trails the alias when there is one (`sm:ps-2`, the same column break the alias
+                      keeps against the name) and takes the row's end otherwise; below `sm` it sits at
+                      the end of the checkbox's line, before the alias line (see `max-sm:order-last`). */}
                   <span
-                    className={[
+                    className={cn(
                       "jp-mono shrink-0 text-caption tabular-nums text-text-secondary",
-                      matchedAlias ? "ms-auto sm:ms-0" : "ms-auto",
+                      matchedAlias ? "ms-auto sm:ms-0 sm:ps-2" : "ms-auto",
                       state === "unchecked"
                         ? "invisible group-hover:visible group-focus-visible:visible"
                         : "visible",
-                    ].join(" ")}
+                    )}
                   >
                     {option.code}
                   </span>

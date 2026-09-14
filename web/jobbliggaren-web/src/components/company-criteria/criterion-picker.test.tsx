@@ -155,6 +155,11 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     expect(row).toHaveClass("group");
     // The code is the LAST child: the name leads the row now.
     expect(row.lastElementChild).toBe(code);
+    // Below `sm` the name takes a zero basis so it shares the checkbox's line instead of wrapping
+    // under it (round 1, measured at 400). jsdom pins the hook; the rendered corpus pins the line.
+    expect(
+      within(row).getByText("Dataprogrammering, datakonsultverksamhet"),
+    ).toHaveClass("max-sm:flex-1");
   });
 
   it("shows the code while the row is selected, so a pick can be verified without a pointer (#1682)", async () => {

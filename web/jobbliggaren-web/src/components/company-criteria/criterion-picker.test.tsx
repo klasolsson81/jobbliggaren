@@ -132,20 +132,42 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     }
   });
 
-  it("renders the code VISIBLY, not only in the authored name", async () => {
+  it("keeps the code in the row, last and hidden at rest, revealed on hover and focus (#1682)", async () => {
     // The row's name comes from `aria-label`, which is what makes it identical in every environment —
-    // but it also decouples the name from the JSX. Delete the visible code span and every name
-    // assertion above still passes while the row loses the level cue that is the whole remedy for the
-    // filtered view. This is the assertion that notices. (Not a WCAG 2.5.3 break: removing visible
-    // text leaves the name a superset of it. The direction that DOES break label-in-name is adding
-    // visible text without updating the label, which the component comment states.)
+    // but it also decouples the name from the JSX. Delete the code span and every name assertion
+    // above still passes while a sighted user loses the level cue on hover. This is the assertion
+    // that notices. jsdom has no cascade, so what it pins is the reveal hook the CSS attaches to,
+    // not the rendered visibility — that is the rendered measurement in the PR body. (Not a WCAG
+    // 2.5.3 break: the name is a superset of the visible text. The direction that DOES break
+    // label-in-name is adding visible text without updating the label, which the component comment
+    // states.)
     renderPicker();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "datapro");
     const row = screen.getByRole("checkbox", {
       name: "62 Dataprogrammering, datakonsultverksamhet",
     });
-    expect(within(row).getByText("62")).toHaveClass("jp-mono");
+    const code = within(row).getByText("62");
+    expect(code).toHaveClass("jp-mono");
+    expect(code).toHaveClass("invisible");
+    expect(code).toHaveClass("group-hover:visible");
+    expect(code).toHaveClass("group-focus-visible:visible");
+    expect(row).toHaveClass("group");
+    // The code is the LAST child: the name leads the row now.
+    expect(row.lastElementChild).toBe(code);
+  });
+
+  it("shows the code while the row is selected, so a pick can be verified without a pointer (#1682)", async () => {
+    renderPicker({ selected: new Set(["62010", "62020"]) });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "datapro");
+    const row = screen.getByRole("checkbox", {
+      name: "62 Dataprogrammering, datakonsultverksamhet",
+    });
+    expect(row).toHaveAttribute("aria-checked", "true");
+    const code = within(row).getByText("62");
+    expect(code).toHaveClass("visible");
+    expect(code).not.toHaveClass("invisible");
   });
 
   it("toggles a matched parent as its whole expansion, not as itself", async () => {

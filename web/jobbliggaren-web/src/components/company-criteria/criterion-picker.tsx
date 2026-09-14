@@ -286,19 +286,20 @@ export function CriterionPicker({
                   role="checkbox"
                   aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
                   // Name from author, so the row announces the same string in every environment. Letting
-                  // the name be computed from the two child spans depends on whose separator rule you
+                  // the name be computed from the child spans depends on whose separator rule you
                   // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
                   // whether or not the JSX contains one, while jsdom concatenates without it and reports
                   // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
                   // exists only to satisfy the test environment — and a whitespace-only node directly in
-                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
-                  // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
-                  // mind: the name no longer tracks the JSX, so anything visible added to this row has
-                  // to be added here too, or the label stops containing the visible text. The alias
-                  // (#1115) is exactly such an addition, so it is appended here when it is rendered.
-                  // The comma is for prosody: without it a screen reader runs the name and the
-                  // annotation together into one sentence. The segment, not the whole term, keeps
-                  // the label scannable by ear.
+                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The name is a SUPERSET
+                  // of the visible text, not equal to it: the code leads the name while the row shows it
+                  // last and only on hover, focus or selection (#1682, below). WCAG 2.5.3 asks that the
+                  // name CONTAIN the visible text, which a superset satisfies — the direction that
+                  // breaks it is adding visible text without adding it here, so anything visible added
+                  // to this row has to be added here too. The alias (#1115) is exactly such an
+                  // addition, so it is appended here when it is rendered. The comma is for prosody:
+                  // without it a screen reader runs the name and the annotation together into one
+                  // sentence. The segment, not the whole term, keeps the label scannable by ear.
                   aria-label={
                     matchedAlias
                       ? `${option.code} ${option.name}, ${t("matchedVia", { term: matchedAlias })}`
@@ -316,15 +317,14 @@ export function CriterionPicker({
                   // rendered, so equal indent on two rows can suggest a sibling relationship that does
                   // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
                   // carries the level in text: its length says which level it is (`A` / `62` / `62100`),
-                  // it lands in the row's accessible name, and two codes side by side settle whether the
-                  // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
+                  // and it leads the row's accessible name because `role="checkbox"` admits no
+                  // `aria-level` — the name is the only carrier a screen reader gets, which is why the
+                  // code stays in it after #1682 stopped showing it at rest. SNI 2025 has
+                  // "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                  className="jp-criterionrow flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
+                  className="group jp-criterionrow flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
                 >
                   <CheckBox state={state} />
-                  <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
-                    {option.code}
-                  </span>
                   {/* `min-w-0` so the flex row may shrink it, but NOT `truncate`: the name is the
                       primary content, and an unclipped name is already this component's own form — the tree
                       view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
@@ -359,6 +359,22 @@ export function CriterionPicker({
                       {t("matchedVia", { term: matchedAlias })}
                     </span>
                   )}
+                  {/* Last, and hidden at rest (#1682 — Klas 2026-09-06: the number is clutter in the
+                      search). Revealed on hover, on keyboard focus and while the row is selected, so a
+                      user who knows the code can verify a pick without a pointer. `invisible`, not
+                      `hidden`: the slot keeps its width, so revealing the code moves nothing. From `sm`
+                      up it trails the alias when there is one and takes the row's end otherwise. */}
+                  <span
+                    className={[
+                      "jp-mono shrink-0 text-caption tabular-nums text-text-secondary",
+                      matchedAlias ? "ms-auto sm:ms-0" : "ms-auto",
+                      state === "unchecked"
+                        ? "invisible group-hover:visible group-focus-visible:visible"
+                        : "visible",
+                    ].join(" ")}
+                  >
+                    {option.code}
+                  </span>
                 </div>
               );
             })

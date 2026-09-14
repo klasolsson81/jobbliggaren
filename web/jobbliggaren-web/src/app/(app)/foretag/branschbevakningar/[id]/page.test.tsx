@@ -316,9 +316,6 @@ describe("BevakningBrowsePage — the personal match count", () => {
     expect(screen.queryByText(/Inga matchande annonser/)).toBeNull();
   });
 
-  // Guard 3 of `CriterionMatchingAdSetResolver.ResolveIdsAsync`: the matching set refused above
-  // `MaxSetSize` on a COUNTED magnitude (the fixture's 12). This page always renders the full
-  // sentence, so it names the ads, never the companies (#1715, design-reviewer 2026-09-14).
   it("refuses the question for a watch too broad to grade, and renders no number", async () => {
     await renderWith({ count: null, tooBroad: true });
 

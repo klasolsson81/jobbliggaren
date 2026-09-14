@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CriterionTree, CheckBox } from "./criterion-tree";
+import { cn } from "@/lib/utils";
 import { groupTriState } from "@/lib/company-criteria/criterion-selection";
 import type {
   CriterionOption,
@@ -286,19 +287,20 @@ export function CriterionPicker({
                   role="checkbox"
                   aria-checked={state === "indeterminate" ? "mixed" : state === "checked"}
                   // Name from author, so the row announces the same string in every environment. Letting
-                  // the name be computed from the two child spans depends on whose separator rule you
+                  // the name be computed from the child spans depends on whose separator rule you
                   // get: MEASURED in Chromium's own AX tree, the space is inserted by the browser
-                  // whether or not the JSX contains one, while jsdom concatenates without it and reports
-                  // "68Fastighetsverksamhet". An explicit `{" "}` would therefore be a text node that
+                  // whether or not the JSX contains one, while jsdom concatenates the spans without
+                  // it. An explicit `{" "}` would therefore be a text node that
                   // exists only to satisfy the test environment — and a whitespace-only node directly in
-                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The visible text is
-                  // exactly this string, so WCAG 2.5.3 holds — and that is now a coupling to keep in
-                  // mind: the name no longer tracks the JSX, so anything visible added to this row has
-                  // to be added here too, or the label stops containing the visible text. The alias
-                  // (#1115) is exactly such an addition, so it is appended here when it is rendered.
-                  // The comma is for prosody: without it a screen reader runs the name and the
-                  // annotation together into one sentence. The segment, not the whole term, keeps
-                  // the label scannable by ear.
+                  // a flex container is not rendered anyway (CSS Flexbox L1 §4). The name is a SUPERSET
+                  // of the visible text, not equal to it: the code leads the name while the row shows it
+                  // last and only on hover, focus or selection (#1682, below). WCAG 2.5.3 asks that the
+                  // name CONTAIN the visible text, which a superset satisfies — the direction that
+                  // breaks it is adding visible text without adding it here, so anything visible added
+                  // to this row has to be added here too. The alias (#1115) is exactly such an
+                  // addition, so it is appended here when it is rendered. The comma is for prosody:
+                  // without it a screen reader runs the name and the annotation together into one
+                  // sentence. The segment, not the whole term, keeps the label scannable by ear.
                   aria-label={
                     matchedAlias
                       ? `${option.code} ${option.name}, ${t("matchedVia", { term: matchedAlias })}`
@@ -316,21 +318,26 @@ export function CriterionPicker({
                   // rendered, so equal indent on two rows can suggest a sibling relationship that does
                   // not exist — and padding reaches no screen reader at all (WCAG 1.3.1). The CODE
                   // carries the level in text: its length says which level it is (`A` / `62` / `62100`),
-                  // it lands in the row's accessible name, and two codes side by side settle whether the
-                  // rows are related. SNI 2025 has "Dataprogrammering" at two levels; its codes differ.
+                  // and it leads the row's accessible name because `role="checkbox"` admits no
+                  // `aria-level` — the name is the only carrier a screen reader gets, which is why the
+                  // code stays in it after #1682 stopped showing it at rest. SNI 2025 has
+                  // "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                  className="jp-criterionrow flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
+                  // `jp-criterionrow--filtered` scopes the hover surface to THIS row kind: the tree rows
+                  // share `jp-criterionrow` for the touch-target floor but carry no code to reveal.
+                  className="group jp-criterionrow jp-criterionrow--filtered flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
                 >
                   <CheckBox state={state} />
-                  <span className="jp-mono shrink-0 text-caption tabular-nums text-text-secondary">
-                    {option.code}
-                  </span>
                   {/* `min-w-0` so the flex row may shrink it, but NOT `truncate`: the name is the
                       primary content, and an unclipped name is already this component's own form — the tree
                       view renders full names on rows measuring 59 px. Clipping it made `reparation` cut
                       7 of 25 names and `partihandel` 4 of 56, on rows carrying no annotation at
                       all, which is a regression on a surface this delta only passes through. */}
-                  <span className="min-w-0 break-words">{option.name}</span>
+                  {/* Below `sm` the row wraps, and a flex item wraps BEFORE it shrinks: with its natural
+                      basis a long name dropped to a second line and left the checkbox alone on the first
+                      once the code no longer filled that line (measured at 400, #1682 round 1). `flex-1`
+                      gives it a zero basis, so it joins the checkbox's line and breaks internally. */}
+                  <span className="min-w-0 break-words max-sm:flex-1">{option.name}</span>
                   {/* Why this row is here at all. Without it a row appears containing none of the
                       typed characters — a result with no visible reason, which AGENTS.md §5 rules
                       out for match surfaces ("matched/missing keywords are always surfaced"). It
@@ -355,10 +362,39 @@ export function CriterionPicker({
                       longest word painted 24-30 px INTO this box at 390, which the old `truncate`
                       had been hiding rather than preventing. */}
                   {matchedAlias && (
-                    <span className="w-full min-w-0 truncate text-caption text-text-secondary sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
+                    // `max-sm:order-last`: below `sm` this is a full-width line of its own, and the code
+                    // below it must not follow it onto a THIRD line — an unchecked row would then reserve
+                    // an empty line for a code nothing reveals on touch. Ordering the alias last on the
+                    // narrow arm keeps the code on the checkbox's line; the DOM order stays name, alias,
+                    // code, which is what `sm` and up render.
+                    <span className="w-full min-w-0 truncate text-caption text-text-secondary max-sm:order-last sm:ms-auto sm:w-auto sm:max-w-[45%] sm:shrink-0 sm:ps-2">
                       {t("matchedVia", { term: matchedAlias })}
                     </span>
                   )}
+                  {/* Last, and hidden at rest (#1682 — Klas 2026-09-06: the number is clutter in the
+                      search). Revealed on hover, on keyboard focus and while the row is checked or
+                      mixed, so a user who knows the code can verify a pick without a pointer.
+                      `invisible`, not `hidden`: the slot keeps its width, so revealing the code moves
+                      nothing. Two arms, both measured: from `sm` up the row is one line and the code
+                      trails the alias when there is one (`sm:ps-2`, the same column break the alias
+                      keeps against the name) and takes the row's end otherwise; below `sm` it sits at
+                      the end of the checkbox's line, before the alias line (see `max-sm:order-last`). */}
+                  {/* `text-(length:--text-caption)`, not `text-caption`: tailwind-merge files both
+                      `text-caption` and `text-text-secondary` under text-colour and keeps only the last,
+                      so through `cn()` the caption size silently vanished and the code rendered at the
+                      name's 14 px (design-reviewer, round 1 re-check). The length form is what
+                      `ui/dialog.tsx` uses for the same reason. */}
+                  <span
+                    className={cn(
+                      "jp-mono shrink-0 text-(length:--text-caption) tabular-nums text-text-secondary",
+                      matchedAlias ? "ms-auto sm:ms-0 sm:ps-2" : "ms-auto",
+                      state === "unchecked"
+                        ? "invisible group-hover:visible group-focus-visible:visible"
+                        : "visible",
+                    )}
+                  >
+                    {option.code}
+                  </span>
                 </div>
               );
             })

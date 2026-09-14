@@ -15,6 +15,7 @@ using Jobbliggaren.Application.CompanyWatches.Queries.GetCriterionReference;
 using Jobbliggaren.Application.CompanyWatches.Queries.GetMyMatchingAdCountForCriterion;
 using Jobbliggaren.Application.CompanyWatches.Queries.ListCompanyWatchCriteria;
 using Jobbliggaren.Application.CompanyWatches.Queries.PreviewCriterionMatchMagnitude;
+using Jobbliggaren.Application.CompanyWatches.Queries.ResolveOccupationDivisions;
 using Jobbliggaren.Application.JobAds.Queries;
 using Mediator;
 
@@ -71,6 +72,23 @@ public static class CompanyWatchCriteriaEndpoints
 
             return Results.Ok(tree);
         }).RequireRateLimiting(RateLimitingExtensions.TaxonomyReadPolicy);
+
+        // #1682 — a typed OCCUPATION word in the bransch picker: which occupation groups it denotes and
+        // where their employers sit by huvudgrupp, counted from our own ads. Here on the picker's own
+        // family, not under /job-ads/taxonomy: the data is register-derived and criterion-facing, and
+        // filing it as static taxonomy would dress a measurement as reference data (#560 bind 4 —
+        // senior-cto-advisor D3, 2026-09-14). q-shaped and client-debounced like /job-ads/facet-counts,
+        // so private, no-store (varies per word + corpus + auth) and its OWN bucket — the picker's
+        // second live read after preview-count, and a shared budget would let either starve the other
+        // (bulkhead). A missing/too-short q is a clean 400 from the validator. No {id} in the route:
+        // "occupation-divisions" cannot collide with the {id:guid}-constrained siblings.
+        group.MapGet("/occupation-divisions", async (
+            IMediator mediator, HttpContext http, string? q = null, CancellationToken ct = default) =>
+        {
+            http.Response.Headers.CacheControl = "private, no-store";
+            var result = await mediator.Send(new ResolveOccupationDivisionsQuery(q ?? string.Empty), ct);
+            return Results.Ok(result);
+        }).RequireRateLimiting(RateLimitingExtensions.OccupationDivisionsPolicy);
 
         // Create — the command binds straight from the body (CreateSavedSearchCommand parity):
         // { "criteria": { "sniCodes": [...], "municipalityCodes": [...] }, "label": "..." }.

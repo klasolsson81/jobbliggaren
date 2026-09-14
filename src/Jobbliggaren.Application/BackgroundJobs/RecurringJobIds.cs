@@ -71,6 +71,15 @@ public static class RecurringJobIds
     public const string SweepChangedCompanyWatchCriteria = "sweep-changed-company-watch-criteria";
 
     /// <summary>
+    /// #1682 — rebuild the occupation-group × SNI-division profile out of our own ads, the measured
+    /// answer the bransch picker gives a typed occupation word. Cron is config-driven
+    /// (<c>OccupationDivisionProfile:CadenceCron</c>), its own section, clock-padded after the daily
+    /// snapshot ingest rather than chained to it (senior-cto-advisor D1, 2026-09-14). A third actor
+    /// beside the two above — "our own ad corpus moved" — so a third id, not a third method.
+    /// </summary>
+    public const string BuildOccupationDivisionProfile = "build-occupation-division-profile";
+
+    /// <summary>
     /// The closed set of triggerable recurring-job ids. Ordinal comparison — these
     /// are stable internal slugs, not user text.
     /// </summary>
@@ -94,5 +103,6 @@ public static class RecurringJobIds
         SyncScbCompanyRegister,
         MaterialiseCompanyWatchCriteria,
         SweepChangedCompanyWatchCriteria,
+        BuildOccupationDivisionProfile,
     }.ToFrozenSet(StringComparer.Ordinal);
 }

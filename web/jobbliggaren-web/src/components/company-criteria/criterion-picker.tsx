@@ -8,8 +8,11 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CriterionTree, CheckBox } from "./criterion-tree";
+import { OccupationDivisionBlock } from "./occupation-division-block";
 import { cn } from "@/lib/utils";
 import { groupTriState } from "@/lib/company-criteria/criterion-selection";
+import type { OccupationDivisionsResolver } from "@/lib/company-criteria/resolve-occupation-divisions";
+import { useOccupationDivisions } from "@/lib/hooks/use-occupation-divisions";
 import type {
   CriterionOption,
   CriterionTreeNode,
@@ -117,6 +120,12 @@ interface CriterionPickerProps {
   readonly collapseAria: (name: string) => string;
   /** Axis-specific message when the reference tree is empty (degraded load). */
   readonly optionsUnavailable: string;
+  /**
+   * #1682 — answers an OCCUPATION word with the occupation groups it denotes and where their
+   * employers are by huvudgrupp, counted from our own ads. Data, not a mode flag: the SNI axis passes
+   * its resolver, the kommun axis passes nothing and renders exactly as before.
+   */
+  readonly resolveOccupations?: OccupationDivisionsResolver;
 }
 
 export function CriterionPicker({
@@ -134,6 +143,7 @@ export function CriterionPicker({
   expandAria,
   collapseAria,
   optionsUnavailable,
+  resolveOccupations,
 }: CriterionPickerProps) {
   // The component's OWN strings, not the page's. Three surfaces render this
   // picker (`/foretag/sok`'s bransch popover and both pickers in the criterion
@@ -147,6 +157,12 @@ export function CriterionPicker({
 
   const trimmed = filter.trim().toLocaleLowerCase("sv-SE");
   const isFiltering = trimmed.length > 0;
+
+  // #1682 — the occupation block's data for the current word, debounced and abortable; inert
+  // without a resolver. A word that resolves to SEVERAL occupation groups is a choice the user makes
+  // (never a pick made for her); the block owns that choice and is mounted under `key={trimmed}`
+  // below, so a new word is a new block with no choice — no effect has to reset anything.
+  const { data: occupationData } = useOccupationDivisions(trimmed, resolveOccupations);
 
   // Matches at EVERY level (#999): a section, a division and a leaf can all carry the searched word,
   // and the control this replaced searched all three. Leaf-only matching is why "hard to find" survived
@@ -259,6 +275,20 @@ export function CriterionPicker({
         >
           {hasSelection ? selectedCountLabel : ""}
         </p>
+      )}
+
+      {/* #1682 — the occupation block, OUTSIDE the box below and its zero-hits gate: `systemutvecklare`
+          matches no SNI name and used to end in "Inga träffar" with no box at all, and this is the
+          answer that survives that. Ticking a huvudgrupp here calls the same `onToggle(leafCodes)`
+          the rows do. */}
+      {isFiltering && occupationData !== null && occupationData.occupations.length > 0 && (
+        <OccupationDivisionBlock
+          key={trimmed}
+          data={occupationData}
+          options={options}
+          selected={selected}
+          onToggle={onToggle}
+        />
       )}
 
       {/* The list cap is viewport-relative so the panel it sits in stays a SINGLE scroller. Measured at

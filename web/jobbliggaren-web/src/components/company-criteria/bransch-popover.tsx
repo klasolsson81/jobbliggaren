@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { JobbToolbarPopover } from "@/components/job-ads/jobb-toolbar-popover";
 import { CriterionPicker } from "./criterion-picker";
+import { resolveOccupationDivisions } from "@/lib/company-criteria/resolve-occupation-divisions";
 import {
   decomposeSelection,
   flattenCriterionOptions,
@@ -131,6 +132,7 @@ export function BranschPopover({
           expandAria={(name) => tc("sniExpandAria", { name })}
           collapseAria={(name) => tc("sniCollapseAria", { name })}
           optionsUnavailable={t("branschUnavailable")}
+          resolveOccupations={resolveOccupationDivisions}
         />
       </div>
     </JobbToolbarPopover>

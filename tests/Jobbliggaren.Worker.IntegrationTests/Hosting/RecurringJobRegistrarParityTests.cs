@@ -46,6 +46,7 @@ public class RecurringJobRegistrarParityTests
             manager,
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "30 5 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -85,6 +86,7 @@ public class RecurringJobRegistrarParityTests
                 CadenceCron = "11 11 * * *",
                 SweepCron = "*/7 * * * *",
             }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -122,6 +124,7 @@ public class RecurringJobRegistrarParityTests
             manager,
             Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
             Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "35 3 * * *" }),
             NullLogger<RecurringJobRegistrar>.Instance);
 
         await registrar.StartAsync(CancellationToken.None);
@@ -169,5 +172,34 @@ public class RecurringJobRegistrarParityTests
         // alone would silently absorb).
         registered.Count.ShouldBe(RecurringJobIds.All.Count);
         registered.Distinct(StringComparer.Ordinal).Count().ShouldBe(registered.Count);
+    }
+
+    [Fact]
+    public async Task StartAsync_FeedsTheProfileJobItsOwnCron_AndItsOwnWorkerType()
+    {
+        // #1682 — the profile job reads OccupationDivisionProfile:CadenceCron from ITS OWN section, for
+        // the same reason the materialisation job does: a cadence tied to another section's flag runs
+        // exactly as often as that flag is true. The cron here is neither the shipped default nor either
+        // sibling's, so a bind against the wrong section would show as the wrong string below.
+        var manager = Substitute.For<IRecurringJobManager>();
+        var registrar = new RecurringJobRegistrar(
+            manager,
+            Options.Create(new ScbRegisterOptions { SyncCadenceCron = "0 6 * * 6" }),
+            Options.Create(new CompanyWatchMaterialisationOptions { CadenceCron = "11 11 * * *" }),
+            Options.Create(new OccupationDivisionProfileOptions { CadenceCron = "22 22 * * *" }),
+            NullLogger<RecurringJobRegistrar>.Instance);
+
+        await registrar.StartAsync(CancellationToken.None);
+
+        var call = manager.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IRecurringJobManager.AddOrUpdate))
+            .Single(c => (string)c.GetArguments()[0]!
+                == RecurringJobIds.BuildOccupationDivisionProfile);
+
+        var job = (Hangfire.Common.Job)call.GetArguments()[1]!;
+        job.Type.ShouldBe(typeof(OccupationDivisionProfileWorker));
+        job.Method.Name.ShouldBe(nameof(OccupationDivisionProfileWorker.RunAsync));
+        ((string)call.GetArguments()[2]!).ShouldBe("22 22 * * *",
+            "profiljobbet måste få sin EGEN cron — varken materialiseringens eller SCB:s");
     }
 }

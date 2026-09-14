@@ -185,6 +185,17 @@ public class RateLimitingOptionsTests
     }
 
     [Fact]
+    public void Defaults_OccupationDivisions_Is30Per10s()
+    {
+        // #1682 — the picker's occupation block, the same debounce-burst family as
+        // CriterionCountPreview and its own bucket beside it.
+        var sut = new RateLimitingOptions();
+
+        sut.OccupationDivisions.PermitLimit.ShouldBe(30);
+        sut.OccupationDivisions.WindowSeconds.ShouldBe(10);
+    }
+
+    [Fact]
     public void SectionName_IsRateLimiting()
     {
         RateLimitingOptions.SectionName.ShouldBe("RateLimiting");

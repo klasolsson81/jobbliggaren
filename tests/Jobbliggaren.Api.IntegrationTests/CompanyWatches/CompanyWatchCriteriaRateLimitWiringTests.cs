@@ -77,6 +77,10 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
         // POST /preview-count  -> the picker's live magnitude preview (its OWN CriterionCountPreview).
         PolicyFor(routes, "POST", r => r.EndsWith("preview-count", StringComparison.Ordinal))
             .ShouldBe(RateLimitingExtensions.CriterionCountPreviewPolicy);
+        // GET /occupation-divisions -> the picker's occupation block (#1682), its OWN bucket beside
+        // preview-count: the picker's two live reads must not be able to starve each other.
+        PolicyFor(routes, "GET", r => r.EndsWith("occupation-divisions", StringComparison.Ordinal))
+            .ShouldBe(RateLimitingExtensions.OccupationDivisionsPolicy);
         // PATCH/DELETE /{id}   -> mutations (MeWrite).
         PolicyFor(routes, "PATCH", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
         PolicyFor(routes, "DELETE", IsIdRoute).ShouldBe(RateLimitingExtensions.MeWritePolicy);
@@ -94,7 +98,7 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
 
     // GET base, POST base, GET /reference, GET /{id}/companies, GET /{id}/ads,
     // GET /{id}/ad-count, POST /preview-count, PATCH /{id}, DELETE /{id}.
-    private const int ExpectedRouteCount = 9;
+    private const int ExpectedRouteCount = 10;
 
     // The group root ".../company-watch-criteria" (both the GET list and the POST create map "/").
     private static bool IsBase(string raw) =>

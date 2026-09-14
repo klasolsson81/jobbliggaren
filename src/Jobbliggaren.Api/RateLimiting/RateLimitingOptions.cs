@@ -518,6 +518,24 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
+    /// GET /me/company-watch-criteria/occupation-divisions (#1682 — the bransch picker's occupation
+    /// block: a typed word resolved to occupation groups and their measured huvudgrupp shares) —
+    /// partitionerat per UserId (claim "sub"). Same debounce-burst profile as
+    /// <see cref="CriterionCountPreview"/> (~1 req/400 ms client debounce while the user types) and
+    /// its OWN bucket for the same reason: the picker now has two live reads, and a shared budget
+    /// would let a typing burst starve the magnitude preview or the reverse (bulkhead, Nygard). The
+    /// read is a PK lookup over ~5 000 profile rows plus an in-memory deriver call with no register
+    /// join, so it is not a <c>CompanyBrowse</c> cost class. 30/10 s riktvärde, symmetri med
+    /// FacetCounts/MatchCountPreview/CriterionCountPreview; security-auditor verifierar/justerar
+    /// (BLOCKING). IOptions-bundet (§5.1).
+    /// </summary>
+    public PolicyOptions OccupationDivisions { get; init; } = new()
+    {
+        PermitLimit = 30,
+        WindowSeconds = 10,
+    };
+
+    /// <summary>
     /// Användarägda /me/*-mutationer (saved-job-ads POST/DELETE, recent-searches
     /// DELETE) (Pre-4 STEG 5, TD-87) — partitionerat per UserId (claim "sub"),
     /// anonym → NoLimiter (alla RequireAuthorization-gated). Egen policy (ej

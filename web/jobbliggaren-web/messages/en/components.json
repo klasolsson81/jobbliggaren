@@ -4,6 +4,17 @@
     "noMatch": "No matches. Clear the search field to browse the whole list.",
     "filterMatches": "{count, plural, one {# match} other {# matches}}",
     "filterTooMany": "{count} matches. Type more to narrow the list, or browse the whole list below.",
-    "matchedVia": "matched on {term}"
+    "matchedVia": "matched on {term}",
+    "occupationChoose": "Which occupation do you mean?",
+    "occupationChangeChoice": "Change occupation",
+    "occupationHeading": "{label} is an occupation, not an industry.",
+    "occupationIntro": "Across the {count, plural, one {# ad} other {# ads}} we have seen for it, the employers are in:",
+    "occupationShare": "{percent} % ({count, plural, one {# ad} other {# ads}})",
+    "occupationNotInRegister": "Employers outside the register: {percent} % ({count, plural, one {# ad} other {# ads}})",
+    "occupationTooFew": "Too few ads ({count}) to say where the employers are.",
+    "occupationNotProfiled": "The distribution cannot be shown right now.",
+    "occupationAdsSeen": "{count, plural, one {# ad} other {# ads}} seen",
+    "occupationTooFewShort": "too few ads ({count})",
+    "occupationNotProfiledShort": "cannot be shown right now"
   }
 }

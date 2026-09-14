@@ -1792,6 +1792,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
    an artefact rather than as the row answering the pointer. The tree rows share `.jp-criterionrow`
    for the touch-target floor above but carry no code, so they are not in this selector. */
 .jp-criterionrow--filtered:hover { background: var(--jp-surface-3); }
+/* #1682 — the occupation block's choice rows ("Vilket yrke menar du?"): the same hover surface as
+   the rows above, and an inset focus ring because the buttons sit edge-to-edge in a bordered list. */
+.jp-occupation__choice:hover { background: var(--jp-surface-3); }
+.jp-occupation__choice:focus-visible { outline-offset: -2px; }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;

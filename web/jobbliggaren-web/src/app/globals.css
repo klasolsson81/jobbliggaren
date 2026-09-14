@@ -1703,6 +1703,17 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   text-decoration: underline;
 }
+/* #1682 — a text action that destroys nothing ("Byt yrke"): .jp-clearlink's geometry in the app's one
+   interaction colour. Danger is for the action that clears a selection, never for a step back. */
+.jp-textaction {
+  background: transparent;
+  border: 0;
+  color: var(--jp-accent-700);
+  font-size: var(--text-caption);
+  font-weight: var(--jp-fw-semibold);
+  cursor: pointer;
+  text-decoration: underline;
+}
 .jp-popover__body {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1793,9 +1804,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
    for the touch-target floor above but carry no code, so they are not in this selector. */
 .jp-criterionrow--filtered:hover { background: var(--jp-surface-3); }
 /* #1682 — the occupation block's choice rows ("Vilket yrke menar du?"): the same hover surface as
-   the rows above, and an inset focus ring because the buttons sit edge-to-edge in a bordered list. */
+   the rows above. Separate bordered boxes with room around them, so the global focus ring stands. */
 .jp-occupation__choice:hover { background: var(--jp-surface-3); }
-.jp-occupation__choice:focus-visible { outline-offset: -2px; }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;

@@ -97,7 +97,7 @@ public class CompanyWatchCriteriaRateLimitWiringTests(ApiFactory factory)
     }
 
     // GET base, POST base, GET /reference, GET /{id}/companies, GET /{id}/ads,
-    // GET /{id}/ad-count, POST /preview-count, PATCH /{id}, DELETE /{id}.
+    // GET /{id}/ad-count, POST /preview-count, GET /occupation-divisions, PATCH /{id}, DELETE /{id}.
     private const int ExpectedRouteCount = 10;
 
     // The group root ".../company-watch-criteria" (both the GET list and the POST create map "/").

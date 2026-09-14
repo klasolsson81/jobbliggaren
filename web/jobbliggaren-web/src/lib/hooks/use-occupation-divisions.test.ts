@@ -14,8 +14,10 @@ const answer = (word: string): OccupationDivisions => ({
       state: "tooFewAds",
       totalAds: 3,
       divisions: null,
-      notInRegisterAdCount: null,
-      notInRegisterSharePercent: null,
+      belowThresholdAdCount: null,
+      belowThresholdSharePercent: null,
+      withoutDivisionAdCount: null,
+      withoutDivisionSharePercent: null,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
   ],
@@ -26,9 +28,8 @@ describe("useOccupationDivisions", () => {
     const resolve = vi.fn<OccupationDivisionsResolver>(async (word) => answer(word));
     const { result } = renderHook(() => useOccupationDivisions("sjuksköterska", resolve));
 
-    expect(result.current.data).toBeNull();
-    await waitFor(() => expect(result.current.data?.word).toBe("sjuksköterska"));
-    expect(result.current.loading).toBe(false);
+    expect(result.current).toBeNull();
+    await waitFor(() => expect(result.current?.word).toBe("sjuksköterska"));
     expect(resolve).toHaveBeenCalledTimes(1);
   });
 
@@ -38,8 +39,8 @@ describe("useOccupationDivisions", () => {
     const short = renderHook(() => useOccupationDivisions("s", resolve));
 
     await new Promise((r) => setTimeout(r, 500));
-    expect(none.result.current.data).toBeNull();
-    expect(short.result.current.data).toBeNull();
+    expect(none.result.current).toBeNull();
+    expect(short.result.current).toBeNull();
     expect(resolve).not.toHaveBeenCalled();
   });
 
@@ -49,12 +50,12 @@ describe("useOccupationDivisions", () => {
       ({ word }: { word: string }) => useOccupationDivisions(word, resolve),
       { initialProps: { word: "sjuksköterska" } },
     );
-    await waitFor(() => expect(result.current.data?.word).toBe("sjuksköterska"));
+    await waitFor(() => expect(result.current?.word).toBe("sjuksköterska"));
 
     rerender({ word: "sjuksköterskan" });
     // Synchronously after the change: the old answer is gone, not lingering for the debounce.
-    expect(result.current.data).toBeNull();
-    await waitFor(() => expect(result.current.data?.word).toBe("sjuksköterskan"));
+    expect(result.current).toBeNull();
+    await waitFor(() => expect(result.current?.word).toBe("sjuksköterskan"));
   });
 
   it("aborts the attempt in flight when the word changes inside the debounce", async () => {
@@ -70,7 +71,7 @@ describe("useOccupationDivisions", () => {
     rerender({ word: "sjuksk" });
     rerender({ word: "sjuksköterska" });
 
-    await waitFor(() => expect(result.current.data?.word).toBe("sjuksköterska"));
+    await waitFor(() => expect(result.current?.word).toBe("sjuksköterska"));
     expect(seen).toEqual(["sjuksköterska"]);
   });
 
@@ -81,7 +82,8 @@ describe("useOccupationDivisions", () => {
     const { result } = renderHook(() => useOccupationDivisions("sjuksköterska", resolve));
 
     await waitFor(() => expect(resolve).toHaveBeenCalled());
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.data).toBeNull();
+    // Let the rejection settle: the answer for the word is then null, not absent.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(result.current).toBeNull();
   });
 });

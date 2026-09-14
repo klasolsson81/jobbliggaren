@@ -15,7 +15,10 @@ public sealed record OccupationDivisionsDto(
 /// One occupation group the word resolved to, with its evidence (<see cref="MatchedOn"/> — the
 /// occupation-name label that grounded the match, explainable by design) and its profile in one of
 /// three states. The nullable members are non-null exactly under the state that has them, inherited
-/// from <c>OccupationDivisionProfile</c>. Names stay Swedish in every locale (ADR 0137 decision 2 —
+/// from <c>OccupationDivisionProfile</c>. Every profiled ad is in exactly one of three places —
+/// <see cref="Divisions"/>, <see cref="BelowThresholdAdCount"/> (real huvudgrupper under the share
+/// cut) or <see cref="WithoutDivisionAdCount"/> (no huvudgrupp known) — so the surface can show the
+/// whole denominator and never a distribution that reads as complete while a third of it is missing. Names stay Swedish in every locale (ADR 0137 decision 2 —
 /// register data is a proper noun); <see cref="Label"/> is the group's taxonomy label.
 /// </summary>
 public sealed record OccupationDivisionCandidateDto(
@@ -25,8 +28,10 @@ public sealed record OccupationDivisionCandidateDto(
     string State,
     int? TotalAds,
     IReadOnlyList<DivisionShareDto>? Divisions,
-    int? NotInRegisterAdCount,
-    int? NotInRegisterSharePercent,
+    int? BelowThresholdAdCount,
+    int? BelowThresholdSharePercent,
+    int? WithoutDivisionAdCount,
+    int? WithoutDivisionSharePercent,
     DateTimeOffset? ProfiledAt)
 {
     public const string StateProfiled = "profiled";

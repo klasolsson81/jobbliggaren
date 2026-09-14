@@ -17,7 +17,8 @@ import {
  * The answer is stored WITH the word it answers and exposed only while that word is still the
  * current one: a block that answered a previous word would be a claim about the wrong thing, and
  * the deriver matches whole stemmed words, so mid-word there is nothing to show anyway. Without a
- * resolver (the kommun axis) the hook is inert.
+ * resolver (the kommun axis) the hook is inert. No pending flag: the block appears when the answer
+ * does, and nothing renders a spinner for a read this short (the spinner doctrine).
  */
 const DEBOUNCE_MS = 400;
 
@@ -29,16 +30,14 @@ interface Answer {
 export function useOccupationDivisions(
   word: string,
   resolve: OccupationDivisionsResolver | undefined,
-): { readonly data: OccupationDivisions | null; readonly loading: boolean } {
+): OccupationDivisions | null {
   const [answer, setAnswer] = useState<Answer | null>(null);
-  const [pendingWord, setPendingWord] = useState<string | null>(null);
 
   useEffect(() => {
     if (!resolve || word.length < OCCUPATION_MIN_WORD_LENGTH) return;
 
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      setPendingWord(word);
       void (async () => {
         let data: OccupationDivisions | null = null;
         try {
@@ -48,7 +47,6 @@ export function useOccupationDivisions(
         }
         if (controller.signal.aborted) return;
         setAnswer({ word, data });
-        setPendingWord(null);
       })();
     }, DEBOUNCE_MS);
 
@@ -58,8 +56,5 @@ export function useOccupationDivisions(
     };
   }, [word, resolve]);
 
-  return {
-    data: answer !== null && answer.word === word ? answer.data : null,
-    loading: pendingWord === word,
-  };
+  return answer !== null && answer.word === word ? answer.data : null;
 }

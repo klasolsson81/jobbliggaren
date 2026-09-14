@@ -56,15 +56,16 @@ public sealed record OccupationDivisionShare(string DivisionCode, int AdCount);
 /// <summary>
 /// The profile of one occupation group. The nullable members are non-null exactly under the states
 /// that have them, enforced in the constructor rather than left to readers (the
-/// <c>MaterialisedAdCount</c> idiom). <see cref="NotInRegisterAdCount"/> is a scalar beside
-/// <see cref="Divisions"/>, never a member of it: the not-in-register bucket is not a huvudgrupp and
-/// must never be checkable, and keeping it off the list makes that unrepresentable rather than a rule.
+/// <c>MaterialisedAdCount</c> idiom). <see cref="WithoutDivisionAdCount"/> is a scalar beside
+/// <see cref="Divisions"/>, never a member of it: the ads whose employer gave us no huvudgrupp — not
+/// in the register, or in it without an SNI code — are not a huvudgrupp and must never be checkable,
+/// and keeping them off the list makes that unrepresentable rather than a rule.
 /// </summary>
 public sealed record OccupationDivisionProfile(
     OccupationDivisionProfileState State,
     int? TotalAds,
     IReadOnlyList<OccupationDivisionShare>? Divisions,
-    int? NotInRegisterAdCount,
+    int? WithoutDivisionAdCount,
     DateTimeOffset? ProfiledAt)
 {
     public int? TotalAds { get; } =
@@ -83,12 +84,12 @@ public sealed record OccupationDivisionProfile(
                 + "fördelning vi just sagt att underlaget inte bär.",
                 nameof(Divisions));
 
-    public int? NotInRegisterAdCount { get; } =
-        (State == OccupationDivisionProfileState.Profiled) == (NotInRegisterAdCount is not null)
-            ? NotInRegisterAdCount
+    public int? WithoutDivisionAdCount { get; } =
+        (State == OccupationDivisionProfileState.Profiled) == (WithoutDivisionAdCount is not null)
+            ? WithoutDivisionAdCount
             : throw new ArgumentException(
-                "Ej-i-registret-hinken följer huvudgrupperna: den finns exakt när de finns.",
-                nameof(NotInRegisterAdCount));
+                "Hinken utan huvudgrupp följer huvudgrupperna: den finns exakt när de finns.",
+                nameof(WithoutDivisionAdCount));
 
     public DateTimeOffset? ProfiledAt { get; } =
         (State != OccupationDivisionProfileState.NotProfiled) == (ProfiledAt is not null)
@@ -99,9 +100,9 @@ public sealed record OccupationDivisionProfile(
     public static OccupationDivisionProfile Profiled(
         int totalAds,
         IReadOnlyList<OccupationDivisionShare> divisions,
-        int notInRegisterAdCount,
+        int withoutDivisionAdCount,
         DateTimeOffset profiledAt) =>
-        new(OccupationDivisionProfileState.Profiled, totalAds, divisions, notInRegisterAdCount, profiledAt);
+        new(OccupationDivisionProfileState.Profiled, totalAds, divisions, withoutDivisionAdCount, profiledAt);
 
     public static OccupationDivisionProfile TooFewAds(int totalAds, DateTimeOffset profiledAt) =>
         new(OccupationDivisionProfileState.TooFewAds, totalAds, null, null, profiledAt);

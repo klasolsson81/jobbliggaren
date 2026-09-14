@@ -27,8 +27,8 @@ internal sealed class OccupationDivisionProfileRow
     /// <see cref="DivisionCode"/> for the ads whose employer is not in the register (no org.nr on
     /// the ad, or an org.nr the register does not hold). Two characters, non-digit: it cannot
     /// collide with a real huvudgrupp code and cannot survive a careless <c>LEFT(code, 2)</c>
-    /// unnoticed. It never crosses the Application boundary — the query port maps it to
-    /// <c>OccupationDivisionProfile.NotInRegisterAdCount</c>.
+    /// unnoticed. It never crosses the Application boundary — the query port folds it, with
+    /// <see cref="NoSniCode"/>, into <c>OccupationDivisionProfile.WithoutDivisionAdCount</c>.
     /// </summary>
     public const string NotInRegisterCode = "--";
 

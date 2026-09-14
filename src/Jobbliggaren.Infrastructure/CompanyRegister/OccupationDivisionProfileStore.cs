@@ -168,18 +168,17 @@ internal sealed class OccupationDivisionProfileStore(AppDbContext db)
     /// <summary>
     /// AGENTS.md §3.6, all three conditions evaluated rather than inherited: one periodic writer (this
     /// job), read-only between runs, and <c>occupation_group_concept_id</c> reaches a <c>WHERE</c>.
-    /// Called once per COMPLETED run after the write, never per batch; plain <c>ANALYZE</c> on the two
-    /// profile tables only, schema-qualified — never <c>job_ads</c> or <c>company_register</c>, which
-    /// are other jobs' tables and a different change-reason.
+    /// Called once per COMPLETED run after the write, never per batch; plain <c>ANALYZE</c> on the
+    /// profile table only, schema-qualified — not the one-row run table, whose only predicate column
+    /// is a constant no statistic can inform, and never <c>job_ads</c> or <c>company_register</c>,
+    /// which are other jobs' tables and a different change-reason.
     /// </summary>
     public async Task AnalyzeAsync(CancellationToken cancellationToken)
     {
         var connection = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = connection.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        cmd.CommandText =
-            "ANALYZE public.occupation_division_profiles;"
-            + "ANALYZE public.occupation_division_profile_runs;";
+        cmd.CommandText = "ANALYZE public.occupation_division_profiles;";
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 

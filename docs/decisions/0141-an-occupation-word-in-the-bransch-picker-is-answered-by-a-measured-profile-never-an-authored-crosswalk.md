@@ -64,8 +64,9 @@ declared as a `RawSqlNonReach` in `JobAdLifecycleReadRegistry` (ADR 0113) with t
 
 **4. Employers outside the register are their own bucket, never dropped.** `LEFT JOIN`, with two
 non-digit sentinels in storage (`--` not in register, `-?` in the register without an SNI code) that
-never cross the Application boundary: the port maps them to a typed `NotInRegisterAdCount` scalar
-beside — never inside — the division list, so the bucket is structurally unpickable. Measured: 3 037
+never cross the Application boundary: the port folds them into one typed `WithoutDivisionAdCount`
+scalar beside — never inside — the division list, so the bucket is structurally unpickable, and the
+name claims no more than the two populations it holds (dotnet-architect, PR 2). Measured: 3 037
 of 83 280 ads (3.6 %) sit in it; the second sentinel measured zero and is counted on the run row so
 that a bucket that starts filling is visible rather than silent.
 
@@ -77,7 +78,7 @@ per completed ingest run"* is unsatisfiable as written: `job_ads` has **two** wr
 daily, the stream every ten minutes), so a watermark on the snapshot's audit row fires exactly as
 often as a daily cron while claiming to track ingest, and one on every `JobAdsSynced` row rebuilds
 144 times a day for a distribution that moves by fractions of a percent. A rebuild is 163 ms, so
-over-running is cheap; the claim, not the cost, decided it (CTO D1). The tables are `ANALYZE`d once
+over-running is cheap; the claim, not the cost, decided it (CTO D1). The profile table is `ANALYZE`d once
 per completed run that wrote rows (AGENTS.md §3.6, all three conditions evaluated). Hangfire's
 default retry is kept: the next scheduled attempt is 24 h away.
 

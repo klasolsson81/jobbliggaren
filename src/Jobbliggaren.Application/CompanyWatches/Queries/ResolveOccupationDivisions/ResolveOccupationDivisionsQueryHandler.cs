@@ -50,18 +50,22 @@ public sealed class ResolveOccupationDivisionsQueryHandler(
         {
             return new OccupationDivisionCandidateDto(
                 candidate.OccupationGroupConceptId, candidate.OccupationGroupLabel, candidate.MatchedOn,
-                state, profile.TotalAds, null, null, null, profile.ProfiledAt);
+                state, profile.TotalAds, null, null, null, null, null, profile.ProfiledAt);
         }
 
         var total = profile.TotalAds!.Value;
         var divisions = profile.Divisions!
             .Select(d => new DivisionShareDto(d.DivisionCode, d.AdCount, SharePercent(d.AdCount, total)))
             .ToList();
-        var notInRegister = profile.NotInRegisterAdCount!.Value;
+        var withoutDivision = profile.WithoutDivisionAdCount!.Value;
+        var belowThreshold = total - divisions.Sum(d => d.AdCount) - withoutDivision;
 
         return new OccupationDivisionCandidateDto(
             candidate.OccupationGroupConceptId, candidate.OccupationGroupLabel, candidate.MatchedOn,
-            state, total, divisions, notInRegister, SharePercent(notInRegister, total), profile.ProfiledAt);
+            state, total, divisions,
+            belowThreshold, SharePercent(belowThreshold, total),
+            withoutDivision, SharePercent(withoutDivision, total),
+            profile.ProfiledAt);
     }
 
     /// <summary>Whole percent, half away from zero — the one rounding every renderer inherits.</summary>

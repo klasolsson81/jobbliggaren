@@ -27,7 +27,7 @@ public interface IOccupationDivisionProfileBuilder
 {
     /// <summary>
     /// Replaces the whole profile from the current ad corpus and register, in one transaction, and
-    /// ANALYZEs the profile tables once the rows are in (AGENTS.md §3.6). A disabled builder returns
+    /// ANALYZEs the profile table once the rows are in (AGENTS.md §3.6). A disabled builder returns
     /// an all-zero result and logs that it was disabled; it never throws for being off.
     /// </summary>
     Task<OccupationDivisionProfileResult> BuildAsync(CancellationToken cancellationToken);

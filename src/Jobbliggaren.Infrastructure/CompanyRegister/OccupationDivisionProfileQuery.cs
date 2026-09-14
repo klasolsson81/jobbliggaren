@@ -7,7 +7,7 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 /// <summary>
 /// #1682 — the read side behind <see cref="IOccupationDivisionProfileQuery"/>. Applies the two
 /// product thresholds — the share cut and the derived floor — at read time over the store's full
-/// measurement, and maps the storage sentinels to the typed <c>NotInRegisterAdCount</c> scalar so
+/// measurement, and folds the two storage sentinels into the typed <c>WithoutDivisionAdCount</c> scalar so
 /// no bare string crosses the Application boundary (§5). The age gate runs first and in SQL, so an
 /// over-age profile costs no scan.
 /// </summary>
@@ -52,7 +52,7 @@ internal sealed class OccupationDivisionProfileQuery(
             }
 
             // Both sentinels are "the employer gave us no huvudgrupp"; the reader sees one honest line.
-            var notInRegister = rows
+            var withoutDivision = rows
                 .Where(r => IsSentinel(r.DivisionCode))
                 .Sum(r => r.AdCount);
 
@@ -65,7 +65,7 @@ internal sealed class OccupationDivisionProfileQuery(
                 .Select(r => new OccupationDivisionShare(r.DivisionCode, r.AdCount))
                 .ToList();
 
-            result[id] = OccupationDivisionProfile.Profiled(total, divisions, notInRegister, profiledAt);
+            result[id] = OccupationDivisionProfile.Profiled(total, divisions, withoutDivision, profiledAt);
         }
 
         return result;

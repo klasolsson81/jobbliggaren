@@ -1,11 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getOccupationDivisions } from "@/lib/api/company-criteria";
 
-/**
- * #1682 — BFF for the bransch picker's occupation block. GET with `q`; the backend validates the
- * word (2–100 characters) and answers 400 below the floor, which this route passes through as an
- * empty-bodied 400 rather than inventing a message. Same result mapping as the preview-count route.
- */
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q") ?? "";
   const result = await getOccupationDivisions(q);

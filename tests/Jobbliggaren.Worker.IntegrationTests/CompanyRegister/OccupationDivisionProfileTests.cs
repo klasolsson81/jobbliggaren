@@ -18,7 +18,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.CompanyRegister;
 /// Deliberately not InMemory: every property under test is one InMemory cannot see — the
 /// <c>LEFT JOIN</c> that keeps not-in-register ads as their own bucket, <c>sni_codes[1]</c> on a
 /// <c>text[]</c>, the positive status allow-lists on both sides of the join, the one-transaction
-/// replace, and the <c>ANALYZE</c> the job owes the tables it loads.
+/// replace, and the <c>ANALYZE</c> the job owes the table it loads.
 ///
 /// <para>
 /// Test premises (AGENTS.md §5 <c>Tests:</c>): every ad is produced by <see cref="JobAd.Import"/>, the
@@ -37,7 +37,11 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
 
     private const string OrgIt = "5560000001";          // Active, primary 62201 -> division 62
     private const string OrgCare = "5560000002";        // Deregistered, primary 86101 -> division 86
-    private const string OrgNoSni = "5560000003";       // Active, empty sni_codes
+    // Active, empty sni_codes: the shape ScbCompanyRegisterClient.MapRow writes when all five
+    // Bransch slots are blank (measured at zero rows in production, 2026-09-14).
+    private const string OrgNoSni = "5560000003";
+    private const string OrgFarm = "5560000004";        // Active, primary 01110 -> division 01
+    private const string OrgRetail = "5560000047";      // Active, primary 47110 -> division 47
     private const string OrgUnknown = "5560009999";     // never in the register
 
     [Fact]
@@ -48,7 +52,8 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         await SeedRegisterAsync(ct,
             (OrgIt, ["62201", "70100"], CompanyRegisterStatus.Active),
             (OrgCare, ["86101"], CompanyRegisterStatus.Deregistered),
-            (OrgNoSni, [], CompanyRegisterStatus.Active));
+            (OrgNoSni, [], CompanyRegisterStatus.Active),
+            (OrgFarm, ["01110"], CompanyRegisterStatus.Active));
 
         var ogX = "og-x-" + Guid.NewGuid().ToString("N")[..8];
         var ogY = "og-y-" + Guid.NewGuid().ToString("N")[..8];
@@ -60,6 +65,7 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         await SeedAdAsync(ogX, OrgUnknown, ct);    // org.nr the register does not hold
         await SeedAdAsync(ogX, null, ct);          // no org.nr on the ad at all
         await SeedAdAsync(ogX, OrgNoSni, ct);      // in the register, no SNI code
+        await SeedAdAsync(ogX, OrgFarm, ct);       // leading zero in the code
         await SeedAdAsync(ogY, OrgIt, ct);
         await ArchiveAsync(archived, ct);
         await EraseAsync(erased, ct);
@@ -67,8 +73,8 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         var result = await BuildAsync(new FixedClock(T0), ct);
 
         result.OccupationGroupsProfiled.ShouldBe(2);
-        result.RowsWritten.ShouldBe(5);
-        result.AdsCounted.ShouldBe(8, "the erased Art. 17 tombstone is the ninth ad and must not count");
+        result.RowsWritten.ShouldBe(6);
+        result.AdsCounted.ShouldBe(9, "the erased Art. 17 tombstone is the tenth ad and must not count");
         result.AdsNotInRegister.ShouldBe(2);
         result.AdsInRegisterWithoutSni.ShouldBe(1);
 
@@ -79,13 +85,14 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
             [(ogX, "86")] = 1,   // the deregistered employer's division
             [(ogX, OccupationDivisionProfileRow.NotInRegisterCode)] = 2,
             [(ogX, OccupationDivisionProfileRow.NoSniCode)] = 1,
+            [(ogX, "01")] = 1,   // left("01110", 2) on text: the leading zero is load-bearing
             [(ogY, "62")] = 1,
         }, ignoreOrder: true);
 
         var run = await ReadRunAsync(ct);
         run.ShouldNotBeNull();
         run.ProfiledAt.ShouldBe(T0);
-        run.AdsCounted.ShouldBe(8);
+        run.AdsCounted.ShouldBe(9);
     }
 
     [Fact]
@@ -140,14 +147,20 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         await SeedRegisterAsync(ct,
             (OrgIt, ["62201"], CompanyRegisterStatus.Active),
             ("5560000011", ["70100"], CompanyRegisterStatus.Active),
-            (OrgCare, ["86101"], CompanyRegisterStatus.Active));
+            (OrgRetail, ["47110"], CompanyRegisterStatus.Active),
+            (OrgCare, ["86101"], CompanyRegisterStatus.Active),
+            (OrgNoSni, [], CompanyRegisterStatus.Active));
 
-        // 25 ads: 20 -> 62 (80 %), 3 -> 70 (12 %), 1 -> 86 (4 %, under 5 %), 1 not in register.
+        // 40 ads: 32 -> 62 (80 %), 3 -> 70 (7.5 %), 2 -> 47 (EXACTLY 5 %: 2 * 100 = 5 * 40, admitted —
+        // the cut is >=, never >), 1 -> 86 (2.5 %, cut), 1 not in register, 1 in the register with
+        // no SNI code — the second sentinel, which must fold into the same scalar as the first.
         var ogBig = "og-big-" + Guid.NewGuid().ToString("N")[..8];
-        for (var i = 0; i < 20; i++) await SeedAdAsync(ogBig, OrgIt, ct);
+        for (var i = 0; i < 32; i++) await SeedAdAsync(ogBig, OrgIt, ct);
         for (var i = 0; i < 3; i++) await SeedAdAsync(ogBig, "5560000011", ct);
+        for (var i = 0; i < 2; i++) await SeedAdAsync(ogBig, OrgRetail, ct);
         await SeedAdAsync(ogBig, OrgCare, ct);
         await SeedAdAsync(ogBig, OrgUnknown, ct);
+        await SeedAdAsync(ogBig, OrgNoSni, ct);
 
         // 20 ads: exactly one under the floor — at 20 a single ad clears 5 % on its own.
         var ogSmall = "og-small-" + Guid.NewGuid().ToString("N")[..8];
@@ -160,9 +173,13 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
 
         var big = profiles[ogBig];
         big.State.ShouldBe(OccupationDivisionProfileState.Profiled);
-        big.TotalAds.ShouldBe(25);
-        big.Divisions.ShouldBe([new OccupationDivisionShare("62", 20), new OccupationDivisionShare("70", 3)]);
-        big.NotInRegisterAdCount.ShouldBe(1);
+        big.TotalAds.ShouldBe(40);
+        big.Divisions.ShouldBe([
+            new OccupationDivisionShare("62", 32),
+            new OccupationDivisionShare("70", 3),
+            new OccupationDivisionShare("47", 2),
+        ]);
+        big.WithoutDivisionAdCount.ShouldBe(2, "-- and -? are two storage facts and ONE honest line at the port");
         big.ProfiledAt.ShouldBe(T0);
 
         var small = profiles[ogSmall];
@@ -196,20 +213,23 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
     }
 
     [Fact]
-    public async Task Build_AnalyzesTheProfileTables_OncePerRunThatWroteRows_AndNotWhenDisabled()
+    public async Task Build_AnalyzesTheProfileTable_OncePerRunThatWroteRows_NeverWhenDisabledOrWhenNothingWasWritten()
     {
         var ct = TestContext.Current.CancellationToken;
         await ResetAsync(ct);
         await SeedRegisterAsync(ct, (OrgIt, ["62201"], CompanyRegisterStatus.Active));
-        await SeedAdAsync("og-an-" + Guid.NewGuid().ToString("N")[..8], OrgIt, ct);
 
         var before = await AnalyzeCountAsync("occupation_division_profiles", ct);
         await BuildAsync(new FixedClock(T0), ct, enabled: false);
         (await AnalyzeCountAsync("occupation_division_profiles", ct)).ShouldBe(before, "a disabled run loads nothing");
 
         await BuildAsync(new FixedClock(T0), ct);
+        (await AnalyzeCountAsync("occupation_division_profiles", ct))
+            .ShouldBe(before, "an enabled run over an empty corpus wrote no rows and is not a bulk-load path (§3.6)");
+
+        await SeedAdAsync("og-an-" + Guid.NewGuid().ToString("N")[..8], OrgIt, ct);
+        await BuildAsync(new FixedClock(T0), ct);
         (await AnalyzeCountAsync("occupation_division_profiles", ct)).ShouldBe(before + 1);
-        (await AnalyzeCountAsync("occupation_division_profile_runs", ct)).ShouldBeGreaterThan(0);
     }
 
     [Fact]
@@ -221,6 +241,7 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         var options = scope.ServiceProvider.GetRequiredService<IOptions<OccupationDivisionProfileOptions>>().Value;
         options.CadenceCron.ShouldBe("22 22 * * *");
         options.MinimumAdsPerGroup.ShouldBe(21, "derived from the 5 % threshold: 1/20 clears it, 1/21 does not");
+        options.Enabled.ShouldBeTrue("default-on is the decision: the job never inherits ScbRegister:Enabled=false (ADR 0141 point 5)");
 
         scope.ServiceProvider.GetRequiredService<IOccupationDivisionProfileBuilder>()
             .ShouldBeOfType<OccupationDivisionProfileBuilder>();

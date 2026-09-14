@@ -306,6 +306,9 @@ export interface CriterionPredicateInput {
  * The three states are the wire form of the backend's `OccupationDivisionProfileState`; the nullable
  * members are non-null exactly under the state that has them, and the schema does not re-encode
  * that invariant — the renderer branches on `state` and never reads a number the state does not carry.
+ * Under `profiled` every ad is in exactly one of three places — `divisions`, `belowThreshold*` (real
+ * huvudgrupper under the share cut) or `withoutDivision*` (no huvudgrupp known) — so the surface can
+ * account for the whole denominator.
  */
 export const divisionShareSchema = z.object({
   code: z.string(),
@@ -321,8 +324,10 @@ export const occupationDivisionCandidateSchema = z.object({
   state: z.enum(["profiled", "tooFewAds", "notProfiled"]),
   totalAds: z.number().int().nullable(),
   divisions: z.array(divisionShareSchema).nullable(),
-  notInRegisterAdCount: z.number().int().nullable(),
-  notInRegisterSharePercent: z.number().int().nullable(),
+  belowThresholdAdCount: z.number().int().nullable(),
+  belowThresholdSharePercent: z.number().int().nullable(),
+  withoutDivisionAdCount: z.number().int().nullable(),
+  withoutDivisionSharePercent: z.number().int().nullable(),
   profiledAt: z.string().nullable(),
 });
 export type OccupationDivisionCandidate = z.infer<typeof occupationDivisionCandidateSchema>;

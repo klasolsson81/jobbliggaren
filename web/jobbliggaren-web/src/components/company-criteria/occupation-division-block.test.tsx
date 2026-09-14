@@ -39,6 +39,11 @@ const REFERENCE: CriterionReference = {
 };
 const OPTIONS = flattenCriterionOptions(buildSniNodes(REFERENCE));
 
+// The share's "27 %" is one token in sv (NBSP before the sign, DESIGN.md §8). An accessible name
+// keeps the byte, so role queries spell it; `getByText` normalises whitespace, so text queries use a
+// plain space and one raw `textContent` read pins the byte.
+const NBSP = " ";
+
 const PROFILED: OccupationDivisions = {
   word: "systemutvecklare",
   occupations: [
@@ -52,8 +57,12 @@ const PROFILED: OccupationDivisions = {
         { code: "78", adCount: 615, sharePercent: 27 },
         { code: "62", adCount: 375, sharePercent: 17 },
       ],
-      notInRegisterAdCount: 395,
-      notInRegisterSharePercent: 18,
+      // 2249 - 615 - 375 - 395: the ads in huvudgrupper under the share cut, which the surface must
+      // name — without this line the four numbers above read as the whole.
+      belowThresholdAdCount: 864,
+      belowThresholdSharePercent: 38,
+      withoutDivisionAdCount: 395,
+      withoutDivisionSharePercent: 18,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
   ],
@@ -69,8 +78,11 @@ const TWO: OccupationDivisions = {
       state: "profiled",
       totalAds: 3317,
       divisions: [{ code: "78", adCount: 1146, sharePercent: 35 }],
-      notInRegisterAdCount: 10,
-      notInRegisterSharePercent: 0,
+      belowThresholdAdCount: 2161,
+      belowThresholdSharePercent: 65,
+      // 10 / 3317 rounds to 0 %: the one share that must never print as a zero.
+      withoutDivisionAdCount: 10,
+      withoutDivisionSharePercent: 0,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
     {
@@ -80,8 +92,10 @@ const TWO: OccupationDivisions = {
       state: "tooFewAds",
       totalAds: 12,
       divisions: null,
-      notInRegisterAdCount: null,
-      notInRegisterSharePercent: null,
+      belowThresholdAdCount: null,
+      belowThresholdSharePercent: null,
+      withoutDivisionAdCount: null,
+      withoutDivisionSharePercent: null,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
   ],
@@ -96,29 +110,43 @@ function renderBlock(data: OccupationDivisions) {
 }
 
 describe("OccupationDivisionBlock — one occupation", () => {
-  it("says the word is an occupation, cites the match, and lists the divisions with share and count", () => {
+  it("says the word is an occupation, lists the divisions with share and count, and accounts for the rest", () => {
     renderBlock(PROFILED);
     expect(
       screen.getByText("Mjukvaru- och systemutvecklare m.fl. är ett yrke, inte en bransch."),
     ).toBeInTheDocument();
-    expect(screen.getByText("träff på Systemutvecklare/Programmerare")).toBeInTheDocument();
     expect(
       screen.getByText("I de 2 249 annonser vi sett för yrket finns arbetsgivarna i:"),
     ).toBeInTheDocument();
     // Row names: code first (the level cue), the tree's sentence-cased name, then the share.
     expect(
-      screen.getByRole("checkbox", { name: "78 Arbetsförmedling, bemanning, 27 % (615 annonser)" }),
+      screen.getByRole("checkbox", {
+        name: `78 Arbetsförmedling, bemanning, 27${NBSP}% (615 annonser)`,
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", {
-        name: "62 Dataprogrammering, datakonsultverksamhet, 17 % (375 annonser)",
+        name: `62 Dataprogrammering, datakonsultverksamhet, 17${NBSP}% (375 annonser)`,
       }),
     ).toBeInTheDocument();
-    // The not-in-register bucket is a plain line, never a checkbox.
-    expect(
-      screen.getByText("Arbetsgivare utanför registret: 18 % (395 annonser)"),
-    ).toBeInTheDocument();
     expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    // The rest of the denominator, as plain lines — never checkboxes.
+    expect(
+      screen.getByText(`Övriga branscher, var för sig för små att visa: 38 % (864 annonser)`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(`Arbetsgivare utan bransch i registret: 18 % (395 annonser)`),
+    ).toBeInTheDocument();
+    // The byte itself: the number and the sign never break apart.
+    expect(
+      screen.getByText(`Arbetsgivare utan bransch i registret: 18 % (395 annonser)`).textContent,
+    ).toContain(`18${NBSP}%`);
+  });
+
+  it("cites the match last, so the heading and the intro read as one paragraph", () => {
+    renderBlock(PROFILED);
+    const group = screen.getByRole("group");
+    expect(group.lastElementChild).toHaveTextContent("träff på Systemutvecklare/Programmerare");
   });
 
   it("ticks a division exactly as the tree would: onToggle with the division's leaf codes", async () => {
@@ -126,7 +154,7 @@ describe("OccupationDivisionBlock — one occupation", () => {
     const user = userEvent.setup();
     await user.click(
       screen.getByRole("checkbox", {
-        name: "62 Dataprogrammering, datakonsultverksamhet, 17 % (375 annonser)",
+        name: `62 Dataprogrammering, datakonsultverksamhet, 17${NBSP}% (375 annonser)`,
       }),
     );
     expect(onToggle).toHaveBeenCalledWith(["62100", "62201"]);
@@ -143,13 +171,27 @@ describe("OccupationDivisionBlock — one occupation", () => {
     );
     expect(
       screen.getByRole("checkbox", {
-        name: "62 Dataprogrammering, datakonsultverksamhet, 17 % (375 annonser)",
+        name: `62 Dataprogrammering, datakonsultverksamhet, 17${NBSP}% (375 annonser)`,
       }),
     ).toHaveAttribute("aria-checked", "mixed");
   });
 
+  it("leaves the below-threshold line out when nothing sits under the cut", () => {
+    renderBlock({
+      ...PROFILED,
+      occupations: [
+        {
+          ...PROFILED.occupations[0]!,
+          belowThresholdAdCount: 0,
+          belowThresholdSharePercent: 0,
+        },
+      ],
+    });
+    expect(screen.queryByText(/Övriga branscher/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Arbetsgivare utan bransch i registret/)).toBeInTheDocument();
+  });
+
   it("refuses honestly under the floor — a count, never a zero list", () => {
-    const [profiledCandidate] = TWO.occupations;
     renderBlock({
       word: "djursjukskötare",
       occupations: [{ ...TWO.occupations[1]!, label: "Djursjukskötare m.fl." }],
@@ -158,7 +200,6 @@ describe("OccupationDivisionBlock — one occupation", () => {
       screen.getByText("För få annonser (12) för att säga var arbetsgivarna finns."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(profiledCandidate).toBeDefined();
   });
 
   it("says it does not know when the profile is absent or over-age", () => {
@@ -172,8 +213,10 @@ describe("OccupationDivisionBlock — one occupation", () => {
           state: "notProfiled",
           totalAds: null,
           divisions: null,
-          notInRegisterAdCount: null,
-          notInRegisterSharePercent: null,
+          belowThresholdAdCount: null,
+          belowThresholdSharePercent: null,
+          withoutDivisionAdCount: null,
+          withoutDivisionSharePercent: null,
           profiledAt: null,
         },
       ],
@@ -201,27 +244,45 @@ describe("OccupationDivisionBlock — several occupations (the confirm step, ADR
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("renders the chosen group's map once chosen, with a way back to the choice", async () => {
+  it("renders the chosen group's map once chosen, moves focus to its heading, and offers a way back", async () => {
     renderBlock(TWO);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /Grundutbildade sjuksköterskor/ }));
 
-    expect(
-      screen.getByText("Grundutbildade sjuksköterskor är ett yrke, inte en bransch."),
-    ).toBeInTheDocument();
+    const heading = screen.getByText("Grundutbildade sjuksköterskor är ett yrke, inte en bransch.");
+    expect(heading).toBeInTheDocument();
+    // The activated button unmounted with its view; focus lands on the group's name, not <body>.
+    expect(heading).toHaveFocus();
     // The thousands group is a non-breaking space in sv (CLAUDE.md §10), which the role-name matcher
     // does not normalise — hence the regex.
     expect(
-      screen.getByRole("checkbox", { name: /^78 Arbetsförmedling, bemanning, 35 % \(1.146 annonser\)$/ }),
+      screen.getByRole("checkbox", {
+        name: /^78 Arbetsförmedling, bemanning, 35 % \(1.146 annonser\)$/,
+      }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Byt yrke" }));
-    expect(screen.getByText("Vilket yrke menar du?")).toBeInTheDocument();
+    // A step back destroys nothing, so it does not wear the clear action's danger colour.
+    const back = screen.getByRole("button", { name: "Byt yrke" });
+    expect(back).toHaveClass("jp-textaction");
+    expect(back).not.toHaveClass("jp-clearlink");
+    await user.click(back);
+    const question = screen.getByText("Vilket yrke menar du?");
+    expect(question).toHaveFocus();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("keeps a division the reference tree does not carry out of the list", () => {
-    renderBlock({
+  it("prints a rounded-zero share as 'under 1 %' beside its count, never as a zero", async () => {
+    renderBlock(TWO);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Grundutbildade sjuksköterskor/ }));
+    expect(
+      screen.getByText(`Arbetsgivare utan bransch i registret: under 1 % (10 annonser)`),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/0 % \(10 annonser\)/)).not.toBeInTheDocument();
+  });
+
+  it("keeps a division the reference tree does not carry out of the list, and draws no empty box", () => {
+    const { container } = renderBlock({
       ...PROFILED,
       occupations: [
         {
@@ -232,5 +293,9 @@ describe("OccupationDivisionBlock — several occupations (the confirm step, ADR
     });
     const group = screen.getByRole("group");
     expect(within(group).queryByRole("checkbox")).not.toBeInTheDocument();
+    // The rows box is the block's only bordered, rounded container; with no row it is not drawn.
+    expect(container.querySelector(".rounded-md.border")).toBeNull();
+    // The plain lines still answer the intro's colon.
+    expect(within(group).getByText(/Arbetsgivare utan bransch i registret/)).toBeInTheDocument();
   });
 });

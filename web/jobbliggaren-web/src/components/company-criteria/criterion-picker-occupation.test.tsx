@@ -8,7 +8,8 @@ import type { OccupationDivisionsResolver } from "@/lib/company-criteria/resolve
 
 // #1682 — the picker's occupation block through the picker itself: the resolver is a PROP (data,
 // not a mode flag), the block renders outside the zero-hits box, ticking goes through the picker's
-// own `onToggle`, and the picker keeps its one filter live region.
+// own `onToggle`, and the picker keeps its one filter live region — which names the block when it
+// answers.
 const REFERENCE: CriterionReference = {
   sniVersion: "2025",
   kommunVersion: "2026",
@@ -40,6 +41,9 @@ const REFERENCE: CriterionReference = {
 const NODES = buildSniNodes(REFERENCE);
 const OPTIONS = flattenCriterionOptions(NODES);
 
+// Accessible names keep the NBSP the share is written with (DESIGN.md §8); text matchers normalise it.
+const NBSP = " ";
+
 const SYSTEMUTVECKLARE: OccupationDivisions = {
   word: "systemutvecklare",
   occupations: [
@@ -53,8 +57,10 @@ const SYSTEMUTVECKLARE: OccupationDivisions = {
         { code: "78", adCount: 615, sharePercent: 27 },
         { code: "62", adCount: 375, sharePercent: 17 },
       ],
-      notInRegisterAdCount: 395,
-      notInRegisterSharePercent: 18,
+      belowThresholdAdCount: 864,
+      belowThresholdSharePercent: 38,
+      withoutDivisionAdCount: 395,
+      withoutDivisionSharePercent: 18,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
   ],
@@ -70,8 +76,10 @@ const SJUKSKOTERSKA: OccupationDivisions = {
       state: "profiled",
       totalAds: 3317,
       divisions: [{ code: "78", adCount: 1146, sharePercent: 35 }],
-      notInRegisterAdCount: 10,
-      notInRegisterSharePercent: 0,
+      belowThresholdAdCount: 2161,
+      belowThresholdSharePercent: 65,
+      withoutDivisionAdCount: 10,
+      withoutDivisionSharePercent: 0,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
     {
@@ -81,8 +89,10 @@ const SJUKSKOTERSKA: OccupationDivisions = {
       state: "tooFewAds",
       totalAds: 12,
       divisions: null,
-      notInRegisterAdCount: null,
-      notInRegisterSharePercent: null,
+      belowThresholdAdCount: null,
+      belowThresholdSharePercent: null,
+      withoutDivisionAdCount: null,
+      withoutDivisionSharePercent: null,
       profiledAt: "2026-09-14T03:35:00+00:00",
     },
   ],
@@ -119,12 +129,15 @@ function renderPicker(resolve: OccupationDivisionsResolver | null = resolver) {
 const SLOW = { timeout: 3000 };
 
 describe("CriterionPicker — the occupation block (#1682)", () => {
-  it("answers an occupation word that matches no SNI name: the block survives the zero-hits gate", async () => {
-    renderPicker();
+  it("answers an occupation word that matches no SNI name: the block survives the zero-hits gate, and the one region says so", async () => {
+    // A spy around the resolver: the 400 ms debounce is what the rate-limit bucket on the other side
+    // was derived against, and typing sixteen characters must cost ONE call, not sixteen.
+    const spy = vi.fn<OccupationDivisionsResolver>(resolver);
+    renderPicker(spy);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "systemutvecklare");
 
-    // The filter itself found nothing, and says so in its ONE live region …
+    // The filter itself found nothing, and says so in its ONE live region at once …
     expect(screen.getByRole("status")).toHaveTextContent("Inga träffar");
     // … while the block appears beside it with the measured answer.
     await waitFor(() =>
@@ -133,9 +146,16 @@ describe("CriterionPicker — the occupation block (#1682)", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getAllByRole("status")).toHaveLength(1);
+    // … and the same region now names the block, instead of telling the reader to clear the field.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Inga träffar bland branscherna, men systemutvecklare är ett yrke. Svaret står nedan",
+    );
     expect(
-      screen.getByRole("checkbox", { name: "78 Arbetsförmedling, bemanning, 27 % (615 annonser)" }),
+      screen.getByRole("checkbox", {
+        name: `78 Arbetsförmedling, bemanning, 27${NBSP}% (615 annonser)`,
+      }),
     ).toBeInTheDocument();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("ticks a division through the picker's own onToggle, with the division's leaf codes", async () => {
@@ -143,7 +163,7 @@ describe("CriterionPicker — the occupation block (#1682)", () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "systemutvecklare");
     const row = await screen.findByRole("checkbox", {
-      name: "62 Dataprogrammering, datakonsultverksamhet, 17 % (375 annonser)",
+      name: `62 Dataprogrammering, datakonsultverksamhet, 17${NBSP}% (375 annonser)`,
     });
     await user.click(row);
     expect(onToggle).toHaveBeenCalledWith(["62100", "62201"]);
@@ -191,11 +211,13 @@ describe("CriterionPicker — the occupation block (#1682)", () => {
     await user.type(screen.getByLabelText("Sök bransch"), "data");
     await new Promise((r) => setTimeout(r, 500));
     expect(screen.queryByText(/är ett yrke, inte en bransch/)).not.toBeInTheDocument();
-    // The SNI rows still render as before.
+    // The SNI rows still render as before, and the region carries the plain count.
     expect(
       within(screen.getByRole("group", { name: "Branscher" })).getByRole("checkbox", {
         name: "62100 Dataprogrammering",
       }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/träffar$/);
+    expect(screen.getByRole("status")).not.toHaveTextContent("yrke");
   });
 });

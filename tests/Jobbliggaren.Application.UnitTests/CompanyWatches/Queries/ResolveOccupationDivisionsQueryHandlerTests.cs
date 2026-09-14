@@ -33,7 +33,7 @@ public class ResolveOccupationDivisionsQueryHandlerTests
                 ["DJh5_yyF_hEM"] = OccupationDivisionProfile.Profiled(
                     totalAds: 2249,
                     divisions: [new OccupationDivisionShare("78", 615), new OccupationDivisionShare("62", 375)],
-                    notInRegisterAdCount: 395,
+                    withoutDivisionAdCount: 395,
                     profiledAt: ProfiledAt),
             });
 
@@ -47,8 +47,10 @@ public class ResolveOccupationDivisionsQueryHandlerTests
         one.MatchedOn.ShouldBe("Systemutvecklare/Programmerare");
         one.TotalAds.ShouldBe(2249);
         one.Divisions.ShouldBe([new DivisionShareDto("78", 615, 27), new DivisionShareDto("62", 375, 17)]);
-        one.NotInRegisterAdCount.ShouldBe(395);
-        one.NotInRegisterSharePercent.ShouldBe(18, "395/2249 = 17.56 %, rounded half away from zero");
+        one.BelowThresholdAdCount.ShouldBe(864, "2249 - 615 - 375 - 395: every profiled ad is in exactly one of the three places");
+        one.BelowThresholdSharePercent.ShouldBe(38, "864/2249 = 38.42 %");
+        one.WithoutDivisionAdCount.ShouldBe(395);
+        one.WithoutDivisionSharePercent.ShouldBe(18, "395/2249 = 17.56 %, rounded half away from zero");
         one.ProfiledAt.ShouldBe(ProfiledAt);
     }
 
@@ -82,7 +84,8 @@ public class ResolveOccupationDivisionsQueryHandlerTests
         dto.Occupations[1].State.ShouldBe(OccupationDivisionCandidateDto.StateTooFewAds);
         dto.Occupations[1].TotalAds.ShouldBe(12);
         dto.Occupations[1].Divisions.ShouldBeNull();
-        dto.Occupations[1].NotInRegisterSharePercent.ShouldBeNull();
+        dto.Occupations[1].WithoutDivisionSharePercent.ShouldBeNull();
+        dto.Occupations[1].BelowThresholdAdCount.ShouldBeNull();
     }
 
     [Fact]
@@ -107,8 +110,38 @@ public class ResolveOccupationDivisionsQueryHandlerTests
         one.State.ShouldBe(OccupationDivisionCandidateDto.StateNotProfiled);
         one.TotalAds.ShouldBeNull();
         one.Divisions.ShouldBeNull();
-        one.NotInRegisterAdCount.ShouldBeNull();
+        one.WithoutDivisionAdCount.ShouldBeNull();
+        one.BelowThresholdAdCount.ShouldBeNull();
         one.ProfiledAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Handle_SharePercent_RoundsAMidpointAwayFromZero_NeverToEven()
+    {
+        // 1/8 = 12.5 % is a true midpoint: half-away-from-zero says 13, banker's rounding says 12.
+        // Every other fixture in this class sits off the midpoint, so this is the only case that
+        // can tell the delivered MidpointRounding from the default.
+        var ct = TestContext.Current.CancellationToken;
+        var deriver = Substitute.For<IOccupationCodeDeriver>();
+        deriver.DeriveAsync("kock", ct).Returns(new OccupationDerivationResult(
+            "kock",
+            [new OccupationCandidate("kock", "Kockar och kallskänkor", OccupationMatchKind.ExactOccupationName, "Kock")]));
+        var profiles = Substitute.For<IOccupationDivisionProfileQuery>();
+        profiles.GetDivisionProfilesAsync(Arg.Any<IReadOnlyList<string>>(), ct)
+            .Returns(new Dictionary<string, OccupationDivisionProfile>
+            {
+                ["kock"] = OccupationDivisionProfile.Profiled(
+                    8, [new OccupationDivisionShare("56", 6), new OccupationDivisionShare("78", 1)], 1, ProfiledAt),
+            });
+
+        var dto = await new ResolveOccupationDivisionsQueryHandler(deriver, profiles)
+            .Handle(new ResolveOccupationDivisionsQuery("kock"), ct);
+
+        var one = dto.Occupations.ShouldHaveSingleItem();
+        one.Divisions.ShouldBe([new DivisionShareDto("56", 6, 75), new DivisionShareDto("78", 1, 13)]);
+        one.WithoutDivisionSharePercent.ShouldBe(13);
+        one.BelowThresholdAdCount.ShouldBe(0);
+        one.BelowThresholdSharePercent.ShouldBe(0);
     }
 
     [Fact]

@@ -11,7 +11,8 @@ namespace Jobbliggaren.Infrastructure.CompanyRegister;
 ///
 /// <para>
 /// <see cref="CadenceCron"/> is clock-padded after the daily snapshot ingest, not chained to it:
-/// the snapshot's window is 02:00 UTC plus a 3 600 s concurrency lock, so it is clear by 03:00, and
+/// the snapshot starts 02:00 UTC and its measured runtime is tens of minutes, so it is clear well
+/// before 03:00, and
 /// 03:35 sits inside the existing ingest-consumer cluster (retain 03:15, matching 03:20, watch-scan
 /// 03:25, expire 03:45) with ten minutes' padding either side. A level-triggered watermark on the
 /// snapshot's audit row was measured out: <c>job_ads</c> has TWO writers, the stream job on

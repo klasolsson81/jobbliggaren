@@ -162,7 +162,8 @@ export function CriterionPicker({
   // without a resolver. A word that resolves to SEVERAL occupation groups is a choice the user makes
   // (never a pick made for her); the block owns that choice and is mounted under `key={trimmed}`
   // below, so a new word is a new block with no choice — no effect has to reset anything.
-  const { data: occupationData } = useOccupationDivisions(trimmed, resolveOccupations);
+  const occupationData = useOccupationDivisions(trimmed, resolveOccupations);
+  const occupationAnswers = occupationData !== null && occupationData.occupations.length > 0;
 
   // Matches at EVERY level (#999): a section, a division and a leaf can all carry the searched word,
   // and the control this replaced searched all three. Leaf-only matching is why "hard to find" survived
@@ -245,7 +246,14 @@ export function CriterionPicker({
 
           Gated on there being a catalogue: with a degraded reference the box below says "Registret
           kunde inte laddas", and announcing "0 träffar" over it would claim a search ran against a
-          catalogue that is not there. */}
+          catalogue that is not there.
+
+          #1682: when the occupation block answers, the message says so. "Inga träffar. Rensa
+          sökfältet" over a block that answers tells a screen-reader user to do the one thing that
+          removes the answer, and a sighted first-time user reads a denial two lines above a full
+          answer (design-reviewer Blocker 1, PR 2). Same region, same one-message rule: the text
+          changes twice — the filter's outcome at once, the block's 400 ms later — and both are
+          mutations of a region already in the DOM. */}
       <p
         className="min-h-6 text-body-sm tabular-nums text-text-primary"
         role="status"
@@ -253,10 +261,14 @@ export function CriterionPicker({
       >
         {isFiltering && nodes.length > 0
           ? filteredOptions.length === 0
-            ? t("noMatch")
+            ? occupationAnswers
+              ? t("noMatchOccupation", { word: filter.trim() })
+              : t("noMatch")
             : tooMany
               ? t("filterTooMany", { count: filteredOptions.length })
-              : t("filterMatches", { count: filteredOptions.length })
+              : occupationAnswers
+                ? t("filterMatchesOccupation", { count: filteredOptions.length, word: filter.trim() })
+                : t("filterMatches", { count: filteredOptions.length })
           : ""}
       </p>
 
@@ -281,7 +293,7 @@ export function CriterionPicker({
           matches no SNI name and used to end in "Inga träffar" with no box at all, and this is the
           answer that survives that. Ticking a huvudgrupp here calls the same `onToggle(leafCodes)`
           the rows do. */}
-      {isFiltering && occupationData !== null && occupationData.occupations.length > 0 && (
+      {isFiltering && occupationAnswers && occupationData !== null && (
         <OccupationDivisionBlock
           key={trimmed}
           data={occupationData}

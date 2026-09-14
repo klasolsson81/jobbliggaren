@@ -228,6 +228,11 @@ describe("CriteriaSection", () => {
     const adsLink = document.querySelector('a.jp-countlink[href="/foretag/branschbevakningar/a/annonser"]');
     expect(adsLink).not.toBeNull();
     expect(adsLink?.textContent?.replace(/\s+/g, " ")).toBe("3 000 aktiva annonser");
+    // The row's matching line names the number it lacks (#1715): the ads-arm short form said the ADS
+    // could not be counted, directly beneath a link that counts them.
+    const refusedRow = adsLink!.closest("li")!;
+    expect(refusedRow.textContent).toContain("Vi kan inte räkna hur många av annonserna som matchar dig.");
+    expect(refusedRow.textContent).not.toContain("fler företag än vi kan räkna annonser för");
     // The block advice fires — through the matching arm alone.
     const advice = document.querySelector(".jp-criteria-advice");
     expect(advice).not.toBeNull();

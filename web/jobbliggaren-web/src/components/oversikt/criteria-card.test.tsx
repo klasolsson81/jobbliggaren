@@ -63,6 +63,7 @@ const REFERENCE: CriterionReference = {
 };
 
 const COPY = messages.oversikt;
+const ADS_COPY = messages.pages.foretag.criteria.ads;
 const ID = "11111111-1111-1111-1111-111111111111";
 
 function card() {
@@ -188,6 +189,28 @@ describe("CriteriaCard — two or more watches", () => {
     expect(within(card()).getAllByText("Bevakningen matchar fler företag än vi kan räkna annonser för.")).toHaveLength(1);
   });
 
+  // A watch with 2 001-10 000 active ads: CriterionMatchingAdSetResolver.ResolveIdsAsync refuses the
+  // matching set above MaxSetSize (2 000) while the ad count runs to Ceiling (10 000), so ONE row
+  // carries a counted ad number AND a refused matching number (#1715). The mirror pairing - a
+  // refused ad count beside a counted matching number - is unreachable: the resolver's first guard
+  // refuses the matching set before any count.
+  it("a refused matching beside a counted ad number names the number it lacks, never the number it stands beside", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([criterion({ id: "a", ads: counted(3000), matching: MATCH_TOO_BROAD }), criterion({ id: "b" })])}
+        reference={REFERENCE}
+      />,
+    );
+    const rows = [...card().querySelectorAll<HTMLElement>(".jp-ov-criteria__row")];
+    const refused = rows[0]!;
+    const adsLink = refused.querySelector<HTMLAnchorElement>("a.jp-countlink");
+    expect(adsLink).toHaveAttribute("href", buildCriterionAdsHref("a", 1, "all"));
+    expect(text(adsLink)).toBe("3 000 aktiva annonser");
+    expect(within(refused).getByText(ADS_COPY.matchingTooBroadShort)).toBeInTheDocument();
+    // The ads-arm short form says the ADS could not be counted; beside "3 000 aktiva annonser" that
+    // is a contradiction, and no row may carry it here.
+    for (const row of rows) expect(text(row)).not.toContain("fler företag än vi kan räkna annonser för");
+  });
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {
     expect(criteriaCardIsWide(two)).toBe(true);
     expect(criteriaCardIsWide(ok([criterion()]))).toBe(false);

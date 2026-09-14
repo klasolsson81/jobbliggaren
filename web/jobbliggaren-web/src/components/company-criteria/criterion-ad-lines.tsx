@@ -265,7 +265,7 @@ export function CriterionAdLines({
         (matching.tooBroad ? (
           <p className="jp-matchline">
             {shortRefusal ? (
-              t("ads.tooBroadShort")
+              t("ads.matchingTooBroadShort")
             ) : (
               <>
                 {t("ads.matchingTooBroad")}

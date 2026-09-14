@@ -152,7 +152,12 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     expect(code).toHaveClass("invisible");
     expect(code).toHaveClass("group-hover:visible");
     expect(code).toHaveClass("group-focus-visible:visible");
+    // The caption SIZE, in the twMerge-safe length form: through `cn()` the bare `text-caption`
+    // was silently dropped as a colour conflict and the code rendered at the name's size (round 1).
+    expect(code).toHaveClass("text-(length:--text-caption)");
     expect(row).toHaveClass("group");
+    // The hover surface is scoped to the filtered row; tree rows carry no code to reveal.
+    expect(row).toHaveClass("jp-criterionrow--filtered");
     // The code is the LAST child: the name leads the row now.
     expect(row.lastElementChild).toBe(code);
     // Below `sm` the name takes a zero basis so it shares the checkbox's line instead of wrapping
@@ -213,11 +218,12 @@ describe("CriterionPicker — the filter view (#999: all three levels)", () => {
     // measurement in the PR body (38px before, 44px after, at 375 and 768). What it CAN pin is the
     // hook the media query attaches to, which is the part a refactor silently drops.
     renderPicker();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Informations- och kommunikationsverksamhet",
-      }),
-    ).toHaveClass("jp-criterionrow");
+    const treeRow = screen.getByRole("checkbox", {
+      name: "Informations- och kommunikationsverksamhet",
+    });
+    expect(treeRow).toHaveClass("jp-criterionrow");
+    // …but not the filtered row's hover-surface class: a tree row has no code to reveal (#1682).
+    expect(treeRow).not.toHaveClass("jp-criterionrow--filtered");
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Sök bransch"), "system");

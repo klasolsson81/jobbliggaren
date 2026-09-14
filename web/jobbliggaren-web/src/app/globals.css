@@ -1787,10 +1787,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-criterionrow:focus-visible {
   outline-offset: -2px;
 }
-/* Same hover surface as `.jp-checkitem` below: since #1682 the row reveals its SNI code on hover,
-   and a number lighting up on an otherwise unchanged row reads as an artefact rather than as the
-   row answering the pointer. */
-.jp-criterionrow:hover { background: var(--jp-surface-3); }
+/* Same hover surface as `.jp-checkitem` below, on the FILTERED row only: since #1682 that row
+   reveals its SNI code on hover, and a number lighting up on an otherwise unchanged row reads as
+   an artefact rather than as the row answering the pointer. The tree rows share `.jp-criterionrow`
+   for the touch-target floor above but carry no code, so they are not in this selector. */
+.jp-criterionrow--filtered:hover { background: var(--jp-surface-3); }
 .jp-checkitem:hover { background: var(--jp-surface-3); }
 .jp-checkitem__box {
   width: 20px;

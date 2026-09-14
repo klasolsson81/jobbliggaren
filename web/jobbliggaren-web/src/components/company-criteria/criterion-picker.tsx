@@ -323,7 +323,9 @@ export function CriterionPicker({
                   // code stays in it after #1682 stopped showing it at rest. SNI 2025 has
                   // "Dataprogrammering" at two levels; its codes differ.
                   style={{ paddingInlineStart: 12 + option.depth * 20 }}
-                  className="group jp-criterionrow flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
+                  // `jp-criterionrow--filtered` scopes the hover surface to THIS row kind: the tree rows
+                  // share `jp-criterionrow` for the touch-target floor but carry no code to reveal.
+                  className="group jp-criterionrow jp-criterionrow--filtered flex cursor-pointer flex-wrap items-center gap-x-2.5 gap-y-0.5 border-b border-border py-2 pe-3 text-body-sm text-text-primary last:border-b-0 sm:flex-nowrap"
                 >
                   <CheckBox state={state} />
                   {/* `min-w-0` so the flex row may shrink it, but NOT `truncate`: the name is the

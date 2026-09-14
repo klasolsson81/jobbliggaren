@@ -42,7 +42,7 @@ export interface OccupationDivisionBlockProps {
   readonly onToggle: (leafCodes: ReadonlyArray<string>) => void;
 }
 
-type T = ReturnType<typeof useTranslations<"components.criterionPicker">>;
+type Translate = ReturnType<typeof useTranslations<"components.criterionPicker">>;
 
 export function OccupationDivisionBlock({
   data,
@@ -249,13 +249,13 @@ function resolveRows(
 
 // A whole percent that rounds to zero beside a non-zero count would be a printed zero that is not
 // one. The rows cannot reach it (the 5 % cut), the two plain lines can.
-function formatShare(t: T, percent: number, count: number): string {
+function formatShare(t: Translate, percent: number, count: number): string {
   return percent === 0 && count > 0
     ? t("occupationShareUnderOne", { count })
     : t("occupationShare", { percent, count });
 }
 
-function candidateStatus(t: T, c: OccupationDivisionCandidate): string {
+function candidateStatus(t: Translate, c: OccupationDivisionCandidate): string {
   switch (c.state) {
     case "profiled":
       return t("occupationAdsSeen", { count: c.totalAds ?? 0 });

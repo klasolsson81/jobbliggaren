@@ -111,7 +111,7 @@ function renderBlock(data: OccupationDivisions) {
 
 describe("OccupationDivisionBlock — one occupation", () => {
   it("says the word is an occupation, lists the divisions with share and count, and accounts for the rest", () => {
-    renderBlock(PROFILED);
+    const { container } = renderBlock(PROFILED);
     expect(
       screen.getByText("Mjukvaru- och systemutvecklare m.fl. är ett yrke, inte en bransch."),
     ).toBeInTheDocument();
@@ -141,6 +141,8 @@ describe("OccupationDivisionBlock — one occupation", () => {
     expect(
       screen.getByText(`Arbetsgivare utan bransch i registret: 18 % (395 annonser)`).textContent,
     ).toContain(`18${NBSP}%`);
+    // Positive control for the "no empty box" test below: with rows, the bordered box IS drawn.
+    expect(container.querySelector(".rounded-md.border")).not.toBeNull();
   });
 
   it("cites the match last, so the heading and the intro read as one paragraph", () => {
@@ -232,6 +234,31 @@ describe("OccupationDivisionBlock — one occupation", () => {
 });
 
 describe("OccupationDivisionBlock — several occupations (the confirm step, ADR 0040)", () => {
+  it("lists a group whose profile is absent with the short status, never a number", () => {
+    renderBlock({
+      ...TWO,
+      occupations: [
+        ...TWO.occupations,
+        {
+          occupationGroupConceptId: "rev",
+          label: "Revisorer m.fl.",
+          matchedOn: "Revisor",
+          state: "notProfiled",
+          totalAds: null,
+          divisions: null,
+          belowThresholdAdCount: null,
+          belowThresholdSharePercent: null,
+          withoutDivisionAdCount: null,
+          withoutDivisionSharePercent: null,
+          profiledAt: null,
+        },
+      ],
+    });
+    expect(screen.getByRole("button", { name: /Revisorer m\.fl\./ })).toHaveTextContent(
+      "fördelningen kan inte visas",
+    );
+  });
+
   it("asks which occupation is meant and never picks one itself", () => {
     renderBlock(TWO);
     expect(screen.getByText("Vilket yrke menar du?")).toBeInTheDocument();
@@ -282,7 +309,7 @@ describe("OccupationDivisionBlock — several occupations (the confirm step, ADR
   });
 
   it("keeps a division the reference tree does not carry out of the list, and draws no empty box", () => {
-    const { container } = renderBlock({
+    renderBlock({
       ...PROFILED,
       occupations: [
         {
@@ -293,8 +320,10 @@ describe("OccupationDivisionBlock — several occupations (the confirm step, ADR
     });
     const group = screen.getByRole("group");
     expect(within(group).queryByRole("checkbox")).not.toBeInTheDocument();
-    // The rows box is the block's only bordered, rounded container; with no row it is not drawn.
-    expect(container.querySelector(".rounded-md.border")).toBeNull();
+    // Scoped to the group: the confirm step's choice buttons wear the same classes, and this
+    // fixture has one occupation so none render — the scope keeps that true under any fixture.
+    // The positive control (box drawn when rows survive) sits in the first test above.
+    expect(group.querySelector(".rounded-md.border")).toBeNull();
     // The plain lines still answer the intro's colon.
     expect(within(group).getByText(/Arbetsgivare utan bransch i registret/)).toBeInTheDocument();
   });

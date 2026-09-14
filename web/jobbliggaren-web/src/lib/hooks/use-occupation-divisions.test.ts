@@ -76,14 +76,21 @@ describe("useOccupationDivisions", () => {
   });
 
   it("degrades to null when the resolver throws (never a stale or invented answer)", async () => {
-    const resolve = vi.fn<OccupationDivisionsResolver>(async () => {
-      throw new Error("network");
+    const resolve = vi.fn<OccupationDivisionsResolver>(async (word) => {
+      if (word === "chef") throw new Error("network");
+      return answer(word);
     });
-    const { result } = renderHook(() => useOccupationDivisions("sjuksköterska", resolve));
+    const { result, rerender } = renderHook(
+      ({ word }: { word: string }) => useOccupationDivisions(word, resolve),
+      { initialProps: { word: "sjuksköterska" } },
+    );
+    // Positive control: a real answer is showing before the failing word arrives.
+    await waitFor(() => expect(result.current?.word).toBe("sjuksköterska"));
 
-    await waitFor(() => expect(resolve).toHaveBeenCalled());
-    // Let the rejection settle: the answer for the word is then null, not absent.
+    rerender({ word: "chef" });
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith("chef", expect.anything()));
     await new Promise((r) => setTimeout(r, 50));
+    // The earlier answer is gone and nothing replaced it: null, not the stale one.
     expect(result.current).toBeNull();
   });
 });

@@ -98,9 +98,31 @@ const SJUKSKOTERSKA: OccupationDivisions = {
   ],
 };
 
+// A word that BOTH matches an SNI name (the leaf "Personaluthyrning") and resolves to an occupation:
+// the region's matches arm must name the block too.
+const PERSONAL: OccupationDivisions = {
+  word: "personal",
+  occupations: [
+    {
+      occupationGroupConceptId: "hr",
+      label: "Personal- och HR-specialister",
+      matchedOn: "Personalspecialist",
+      state: "tooFewAds",
+      totalAds: 7,
+      divisions: null,
+      belowThresholdAdCount: null,
+      belowThresholdSharePercent: null,
+      withoutDivisionAdCount: null,
+      withoutDivisionSharePercent: null,
+      profiledAt: "2026-09-14T03:35:00+00:00",
+    },
+  ],
+};
+
 const resolver: OccupationDivisionsResolver = async (word) => {
   if (word === "systemutvecklare") return SYSTEMUTVECKLARE;
   if (word === "sjuksköterska") return SJUKSKOTERSKA;
+  if (word === "personal") return PERSONAL;
   return { word, occupations: [] };
 };
 
@@ -156,6 +178,29 @@ describe("CriterionPicker — the occupation block (#1682)", () => {
       }),
     ).toBeInTheDocument();
     expect(spy).toHaveBeenCalledTimes(1);
+    // The block's focus-management effect runs on mount too; it must not pull focus out of the
+    // field the user is typing in — only a choice or "Byt yrke" moves focus.
+    expect(screen.getByLabelText("Sök bransch")).toHaveFocus();
+  });
+
+  it("names the block in the region's matches arm when the word also matches SNI rows", async () => {
+    renderPicker();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sök bransch"), "personal");
+    await screen.findByText("Personal- och HR-specialister är ett yrke, inte en bransch.", undefined, SLOW);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 träff. personal är också ett yrke, se svaret nedan.",
+    );
+    // The SNI row is still there beside the block's honest refusal.
+    expect(
+      within(screen.getByRole("group", { name: "Branscher" })).getByRole("checkbox", {
+        name: "78200 Personaluthyrning",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("För få annonser (7) för att säga var arbetsgivarna finns."),
+    ).toBeInTheDocument();
   });
 
   it("ticks a division through the picker's own onToggle, with the division's leaf codes", async () => {

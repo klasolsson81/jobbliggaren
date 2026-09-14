@@ -220,6 +220,7 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         await SeedRegisterAsync(ct, (OrgIt, ["62201"], CompanyRegisterStatus.Active));
 
         var before = await AnalyzeCountAsync("occupation_division_profiles", ct);
+        var beforeRuns = await AnalyzeCountAsync("occupation_division_profile_runs", ct);
         await BuildAsync(new FixedClock(T0), ct, enabled: false);
         (await AnalyzeCountAsync("occupation_division_profiles", ct)).ShouldBe(before, "a disabled run loads nothing");
 
@@ -230,6 +231,8 @@ public class OccupationDivisionProfileTests(WorkerTestFixture fixture)
         await SeedAdAsync("og-an-" + Guid.NewGuid().ToString("N")[..8], OrgIt, ct);
         await BuildAsync(new FixedClock(T0), ct);
         (await AnalyzeCountAsync("occupation_division_profiles", ct)).ShouldBe(before + 1);
+        (await AnalyzeCountAsync("occupation_division_profile_runs", ct))
+            .ShouldBe(beforeRuns, "the one-row run table is deliberately left out (dotnet-architect, PR 2)");
     }
 
     [Fact]

@@ -449,8 +449,11 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         await AuthenticateAsync(ct);
         await SeedRegisterAsync(ct, ("5560000062", "Kodhuset AB"));
+        await SeedRegisterRowAsync("5560000078", "Bemanningshuset AB", "78200", ct);
         // 21 = the derived floor (100 / 5 + 1): one fewer and the answer is a refusal, not a profile.
-        await SeedOccupationAdsAsync("5560000062", MjukvaraGroup, count: 21, ct);
+        // Split 20 / 1: the single ad under huvudgrupp 78 is 4.76 %, under the 5 % cut, so the
+        // below-threshold residual on the wire is a real number produced end-to-end, never a zero.
+        await SeedOccupationAdsAsync(MjukvaraGroup, ct, ("5560000062", 20), ("5560000078", 1));
         await BuildProfileAsync(ct);
 
         var ok = await _client.GetAsync($"{Endpoint}/occupation-divisions?q=systemutvecklare", ct);
@@ -466,9 +469,10 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         mjukvara.GetProperty("totalAds").GetInt32().ShouldBe(21);
         var division = mjukvara.GetProperty("divisions").EnumerateArray().ShouldHaveSingleItem();
         division.GetProperty("code").GetString().ShouldBe("62");
-        division.GetProperty("adCount").GetInt32().ShouldBe(21);
-        division.GetProperty("sharePercent").GetInt32().ShouldBe(100);
-        mjukvara.GetProperty("belowThresholdAdCount").GetInt32().ShouldBe(0);
+        division.GetProperty("adCount").GetInt32().ShouldBe(20);
+        division.GetProperty("sharePercent").GetInt32().ShouldBe(95, "20/21 = 95.24 %");
+        mjukvara.GetProperty("belowThresholdAdCount").GetInt32().ShouldBe(1, "the 78 ad: 1/21 = 4.76 %, under the cut");
+        mjukvara.GetProperty("belowThresholdSharePercent").GetInt32().ShouldBe(5);
         mjukvara.GetProperty("withoutDivisionAdCount").GetInt32().ShouldBe(0);
 
         (await _client.GetAsync($"{Endpoint}/occupation-divisions?q=a", ct)).StatusCode
@@ -481,13 +485,13 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
     private const string MjukvaraGroup = "DJh5_yyF_hEM";
 
     /// <summary>
-    /// Active ads for one employer under one occupation group, through <c>JobAd.Import</c> with the
-    /// group in the payload the way the ACL reads it out (<c>TestFacets.FromPayload</c>). Owns the
+    /// Active ads under one occupation group, split across employers, through <c>JobAd.Import</c> with
+    /// the group in the payload the way the ACL reads it out (<c>TestFacets.FromPayload</c>). Owns the
     /// group's slice of the shared table first: the profile counts every ad under the id, so a row
     /// left by another class's run would inflate the denominator these assertions rest on.
     /// </summary>
     private async Task SeedOccupationAdsAsync(
-        string orgNr, string occupationGroupConceptId, int count, CancellationToken ct)
+        string occupationGroupConceptId, CancellationToken ct, params (string OrgNr, int Count)[] employers)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -495,30 +499,55 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
             "DELETE FROM job_ads WHERE occupation_group_concept_id = {0};", [occupationGroupConceptId], ct);
 
         var published = new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
-        for (var i = 0; i < count; i++)
+        var offset = 0;
+        foreach (var (orgNr, count) in employers)
         {
-            var externalId = $"ext-{Guid.NewGuid():N}";
-            var payload =
-                $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}},"
-                + $"\"occupation_group\":{{\"concept_id\":\"{occupationGroupConceptId}\"}}}}";
-            var import = JobAd.Import(
-                title: $"Systemutvecklare {i}",
-                company: Company.Create("Kodhuset AB").Value,
-                description: "beskrivning",
-                url: $"https://example.com/jobs/{externalId}",
-                external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
-                rawPayload: payload,
-                facets: TestFacets.FromPayload(payload),
-                publishedAt: published.AddHours(-i),
-                expiresAt: published.AddDays(60),
-                clock: new FixedClock(published.AddHours(-i)),
-                declaredContacts: [],
-                extractTerms: TestKeywordExtraction.None);
-            import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
-            db.JobAds.Add(import.Value);
+            for (var i = 0; i < count; i++)
+            {
+                var externalId = $"ext-{Guid.NewGuid():N}";
+                var payload =
+                    $"{{\"id\":\"{externalId}\",\"employer\":{{\"organization_number\":\"{orgNr}\"}},"
+                    + $"\"occupation_group\":{{\"concept_id\":\"{occupationGroupConceptId}\"}}}}";
+                var import = JobAd.Import(
+                    title: $"Systemutvecklare {offset}",
+                    company: Company.Create($"Bolag {orgNr}").Value,
+                    description: "beskrivning",
+                    url: $"https://example.com/jobs/{externalId}",
+                    external: ExternalReference.Create(JobSource.Platsbanken, externalId).Value,
+                    rawPayload: payload,
+                    facets: TestFacets.FromPayload(payload),
+                    publishedAt: published.AddHours(-offset),
+                    expiresAt: published.AddDays(60),
+                    clock: new FixedClock(published.AddHours(-offset)),
+                    declaredContacts: [],
+                    extractTerms: TestKeywordExtraction.None);
+                import.IsSuccess.ShouldBeTrue($"seed: JobAd.Import måste lyckas ({import.Error?.Code})");
+                db.JobAds.Add(import.Value);
+                offset++;
+            }
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>One Active register row with its own primary SNI code, through the production upsert.</summary>
+    private async Task SeedRegisterRowAsync(string orgNr, string name, string sni, CancellationToken ct)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entry = new ScbCompanyRegisterEntry
+        {
+            OrganizationNumber = orgNr,
+            Name = name,
+            SeatMunicipalityCode = KommunStockholm,
+            SeatMunicipalityName = "Stockholm",
+            SniCodes = [sni],
+            HasAdvertisingBlock = false,
+            ScbStatusRaw = "1",
+            Status = CompanyRegisterStatus.Active,
+        };
+        await new ScbCompanyRegisterStore(db).UpsertBatchAsync(
+            [entry], new DateTimeOffset(2026, 7, 16, 10, 0, 0, TimeSpan.Zero), ct);
     }
 
     /// <summary>The PRODUCTION builder out of the Api's own graph — the profile has exactly one writer.</summary>

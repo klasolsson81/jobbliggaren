@@ -168,10 +168,6 @@ internal sealed class OccupationDivisionProfileStore(AppDbContext db)
     /// <summary>
     /// AGENTS.md §3.6, all three conditions evaluated rather than inherited: one periodic writer (this
     /// job), read-only between runs, and <c>occupation_group_concept_id</c> reaches a <c>WHERE</c>.
-    /// Called once per COMPLETED run after the write, never per batch; plain <c>ANALYZE</c> on the
-    /// profile table only, schema-qualified — not the one-row run table, whose only predicate column
-    /// is a constant no statistic can inform, and never <c>job_ads</c> or <c>company_register</c>,
-    /// which are other jobs' tables and a different change-reason.
     /// </summary>
     public async Task AnalyzeAsync(CancellationToken cancellationToken)
     {

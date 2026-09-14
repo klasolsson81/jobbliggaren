@@ -377,9 +377,14 @@ export function CriterionPicker({
                       trails the alias when there is one (`sm:ps-2`, the same column break the alias
                       keeps against the name) and takes the row's end otherwise; below `sm` it sits at
                       the end of the checkbox's line, before the alias line (see `max-sm:order-last`). */}
+                  {/* `text-(length:--text-caption)`, not `text-caption`: tailwind-merge files both
+                      `text-caption` and `text-text-secondary` under text-colour and keeps only the last,
+                      so through `cn()` the caption size silently vanished and the code rendered at the
+                      name's 14 px (design-reviewer, round 1 re-check). The length form is what
+                      `ui/dialog.tsx` uses for the same reason. */}
                   <span
                     className={cn(
-                      "jp-mono shrink-0 text-caption tabular-nums text-text-secondary",
+                      "jp-mono shrink-0 text-(length:--text-caption) tabular-nums text-text-secondary",
                       matchedAlias ? "ms-auto sm:ms-0 sm:ps-2" : "ms-auto",
                       state === "unchecked"
                         ? "invisible group-hover:visible group-focus-visible:visible"

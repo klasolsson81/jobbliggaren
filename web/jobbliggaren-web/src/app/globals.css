@@ -1589,7 +1589,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0; color: var(--jp-hero-ink);
   /* A single long word is wider than the content box on narrow viewports, and the
      plate then scrolls the document sideways (WCAG 2.1 AA 1.4.10, #1727). `hyphens`
-     breaks on the Swedish dictionary with a visible hyphen (<html lang="sv">);
+     breaks on the dictionary for the document's own lang with a visible hyphen;
      `overflow-wrap` is the net for what the dictionary cannot divide — this title is
      data-derived on the criterion and guest-application surfaces, so the string is
      not ours to bound. Both are inert when the word fits, which is why they are

@@ -40,9 +40,38 @@ const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, (m) => m
 type Rule = { selector: string; properties: string[]; start: number; inMedia: string | null };
 
 /**
+ * Splits a selector list on TOP-LEVEL commas only. A bare `prelude.split(",")` tears
+ * `a:not(.jp-btn, [data-slot="button"])` into three fragments that match nothing and print as
+ * nonsense when the sweep reports a failure. `globals.css` carries exactly that selector.
+ */
+function splitSelectorList(prelude: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < prelude.length; i++) {
+    const c = prelude[i];
+    if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(prelude.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(prelude.slice(start));
+  return out.map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean);
+}
+
+/**
  * Flat rule reader: every `selector { ... }`, with the enclosing at-rule prelude when there is one.
  * Deliberately not a full CSS parser — it only needs selector text, property names and byte order,
  * and a parser that understood more could disagree with the browser in ways this guard cannot check.
+ *
+ * It must nonetheless be fail-CLOSED, because a parser that silently sees no rules makes the sweep
+ * below report a clean stylesheet. The one error direction that matters is a `;`-terminated
+ * at-statement — `@import "tailwindcss";`, `@custom-variant dark (...);`, both live at the top of
+ * this file — whose text would otherwise glue onto the NEXT prelude. When the next block is the
+ * `@media` itself, its prelude stops starting with "@media", every rule inside reads as
+ * unconditional, and the sweep goes quiet on a stylesheet that does carry a dead declaration.
  */
 function readRules(cssText: string): Rule[] {
   const src = stripComments(cssText);
@@ -53,6 +82,11 @@ function readRules(cssText: string): Rule[] {
 
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
+    // A `;` outside any block body ends an at-statement; the next prelude starts after it.
+    if (ch === ";" && src.slice(tokenStart, i).trim().startsWith("@")) {
+      tokenStart = i + 1;
+      continue;
+    }
     if (ch === "{") {
       const prelude = src.slice(tokenStart, i).trim().replace(/\s+/g, " ");
       if (prelude.startsWith("@")) {
@@ -72,7 +106,7 @@ function readRules(cssText: string): Rule[] {
         .map((m) => (m[2] ?? "").toLowerCase())
         .filter((p) => !p.startsWith("--"));
       const media = atStack.find((a) => a.prelude.startsWith("@media"))?.prelude ?? null;
-      for (const selector of prelude.split(",").map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean)) {
+      for (const selector of splitSelectorList(prelude)) {
         rules.push({ selector, properties, start: i, inMedia: media });
       }
       i = j - 1;
@@ -128,6 +162,17 @@ const PRE_FIX_FIXTURE = `
 .jp-pagehero__aside--stacked { flex-direction: column; align-items: flex-end; }
 `;
 
+/**
+ * The same pre-fix shape behind a `;`-terminated at-statement. `code-reviewer` found that the
+ * parser read this as CLEAN (PR #1730): the at-statement glued onto the `@media` prelude, which
+ * then stopped starting with "@media", so every rule inside looked unconditional and the sweep
+ * went silent on a stylesheet carrying both casualties. `globals.css` opens with three `@import`
+ * and a `@custom-variant`, so this is the file's real shape, not a synthetic one.
+ */
+const PRE_FIX_BEHIND_AT_STATEMENT = `@import "tailwindcss";
+@custom-variant dark (&:where([data-theme="dark"]));
+${PRE_FIX_FIXTURE}`;
+
 describe("globals.css — the .jp-pagehero narrow-viewport arm (#1727)", () => {
   it("detects the pre-fix shape — both casualties, not just the title", () => {
     // Bind 2 of the CTO ruling: a mutation that proves one half is not a pin. Moving the block
@@ -136,6 +181,25 @@ describe("globals.css — the .jp-pagehero narrow-viewport arm (#1727)", () => {
       ".jp-pagehero__title { font-size }",
       ".jp-pagehero__aside--stacked { align-items }",
     ]);
+  });
+
+  it("still detects it behind a `;`-terminated at-statement — the sweep must fail CLOSED", () => {
+    // Without the `;` handling in readRules this returns [], and the file-wide assertion below
+    // would then pass on any stylesheet at all. That is the one error direction a guard must not
+    // have, so it is pinned rather than trusted.
+    expect(deadMediaDeclarations(PRE_FIX_BEHIND_AT_STATEMENT)).toEqual([
+      ".jp-pagehero__title { font-size }",
+      ".jp-pagehero__aside--stacked { align-items }",
+    ]);
+  });
+
+  it("reads every top-level rule in globals.css, so the sweep below covers the whole file", () => {
+    // The mis-parse above does not announce itself — it drops rules. `:root` is the canary: the
+    // file declares three and the first one follows `@custom-variant`, which is exactly the
+    // position that used to swallow it.
+    const roots = readRules(CSS).filter((r) => r.selector === ":root");
+    const declared = [...stripComments(CSS).matchAll(/(^|\n)\s*:root\s*\{/g)].length;
+    expect(roots).toHaveLength(declared);
   });
 
   it("leaves no dead media declaration anywhere in globals.css", () => {

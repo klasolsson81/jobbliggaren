@@ -1574,15 +1574,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   /* Avgränsning mot mörk canvas — paritet med .jp-hero__plate (G1). */
   border: 1px solid var(--jp-border-soft);
 }
-@media (max-width: 720px) {
-  .jp-pagehero { padding: 16px 20px 0; }
-  .jp-pagehero__inner { padding: 28px 24px; }
-  .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
-  /* #805 punkt 7: den stackade asiden (ansökningar) går full bredd och
-     vänsterjusteras på smala skärmar i stället för att hänga i högerkanten. */
-  .jp-pagehero__aside--stacked { align-items: stretch; width: 100%; }
-  .jp-pagehero__aside--stacked .jp-pagehero__btnrow { justify-content: flex-start; }
-}
 .jp-pagehero__main { flex: 1 1 320px; min-width: 0; }
 .jp-pagehero__kicker {
   font-family: var(--jp-font-mono);
@@ -1596,6 +1587,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--jp-fs-hero-title); font-weight: var(--jp-fw-heavy);
   letter-spacing: -0.025em; line-height: 1.1;
   margin: 0; color: var(--jp-hero-ink);
+  /* A single long word is wider than the content box on narrow viewports, and the
+     plate then scrolls the document sideways (WCAG 2.1 AA 1.4.10, #1727). `hyphens`
+     breaks on the Swedish dictionary with a visible hyphen (<html lang="sv">);
+     `overflow-wrap` is the net for what the dictionary cannot divide — this title is
+     data-derived on the criterion and guest-application surfaces, so the string is
+     not ours to bound. Both are inert when the word fits, which is why they are
+     unconditional: an aside can squeeze this column narrow above 720px too. */
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
@@ -1604,6 +1604,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-pagehero__aside {
   flex: 0 0 auto; display: flex; align-items: center;
   gap: 12px; flex-wrap: wrap;
+}
+/* Narrow viewport (<=720px). MUST follow the base rules above: a media query adds
+   no specificity, so an identical selector (0,1,0) earlier in source order loses
+   silently. That is exactly what held .jp-pagehero__title at 44px on every width
+   until #1727 — .jp-hero__title escapes it only by sitting after its own base rule. */
+@media (max-width: 720px) {
+  .jp-pagehero { padding: 16px 20px 0; }
+  .jp-pagehero__inner { padding: 28px 24px; }
+  .jp-pagehero__title { font-size: var(--jp-fs-hero-title-sm); }
 }
 .jp-pagehero .jp-btn {
   white-space: nowrap;
@@ -5831,6 +5840,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+/* #805 punkt 7: the stacked aside goes full width and left-aligns on narrow
+   screens instead of hanging at the right edge. It lives here, after the
+   --stacked base rules above, for the same source-order reason as the pagehero
+   arm: `align-items: stretch` previously sat in the pagehero block and lost to
+   `align-items: flex-end` below, which left `justify-content: flex-start` inert
+   (a shrink-to-fit row inside a flex-end column has nothing to justify). */
+@media (max-width: 720px) {
+  .jp-pagehero__aside--stacked { align-items: stretch; width: 100%; }
+  .jp-pagehero__aside--stacked .jp-pagehero__btnrow { justify-content: flex-start; }
 }
 /* Vit-fylld sekundär i den stackade asiden (scopad — övriga pageheroes behåller
    outline-behandlingen ovan). Källordning efter `.jp-pagehero .jp-btn--secondary`

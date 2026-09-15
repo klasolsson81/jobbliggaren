@@ -163,15 +163,20 @@ const PRE_FIX_FIXTURE = `
 `;
 
 /**
- * The same pre-fix shape behind a `;`-terminated at-statement. `code-reviewer` found that the
- * parser read this as CLEAN (PR #1730): the at-statement glued onto the `@media` prelude, which
- * then stopped starting with "@media", so every rule inside looked unconditional and the sweep
- * went silent on a stylesheet carrying both casualties. `globals.css` opens with three `@import`
- * and a `@custom-variant`, so this is the file's real shape, not a synthetic one.
+ * The same pre-fix shape with a `;`-terminated at-statement IMMEDIATELY BEFORE the `@media`.
+ * `code-reviewer` found the parser read that as CLEAN (PR #1730): the at-statement glued onto the
+ * `@media` prelude, which then stopped starting with "@media", so every rule inside looked
+ * unconditional and the sweep went silent on a stylesheet carrying both casualties.
+ *
+ * The at-statements are spliced in at the `@media` rather than written at the top, because the
+ * position is the whole test. At the top, the block they swallow is `.jp-pagehero`'s base padding,
+ * whose loss does not change what the sweep returns — the fixture then passes on the very parser it
+ * exists to catch. Anchoring the splice keeps the position from drifting back.
  */
-const PRE_FIX_BEHIND_AT_STATEMENT = `@import "tailwindcss";
-@custom-variant dark (&:where([data-theme="dark"]));
-${PRE_FIX_FIXTURE}`;
+const PRE_FIX_BEHIND_AT_STATEMENT = PRE_FIX_FIXTURE.replace(
+  "@media",
+  '@import "tailwindcss";\n@custom-variant dark (&:where([data-theme="dark"]));\n@media',
+);
 
 describe("globals.css — the .jp-pagehero narrow-viewport arm (#1727)", () => {
   it("detects the pre-fix shape — both casualties, not just the title", () => {

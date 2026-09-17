@@ -213,6 +213,33 @@ public class RegisterConfirmationTests(ApiFactory factory)
             .ShouldBe(TermsAcceptance.CurrentPrivacyPolicyVersion);
     }
 
+    [Fact]
+    public async Task POST_register_with_accept_terms_false_is_identical_for_a_fresh_and_a_taken_address()
+    {
+        // #1736 (ADR 0142 D6). The terms refusal is a validator rejection that runs before the handler
+        // and reads only the flag, so it cannot depend on whether the address exists. Pinned the way
+        // this file pins every other response: move the refusal into the handler after the
+        // taken-address branch and this goes 400-for-fresh / 202-for-taken — the #714 oracle.
+        var ct = TestContext.Current.CancellationToken;
+        var taken = $"regconf-terms-taken-{Guid.NewGuid()}@example.com";
+        (await RegisterAsync(taken, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        var forTaken = await RegisterWithoutTermsAsync(taken, ct);
+        var forFresh = await RegisterWithoutTermsAsync(
+            $"regconf-terms-fresh-{Guid.NewGuid()}@example.com", ct);
+
+        forTaken.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        forFresh.StatusCode.ShouldBe(forTaken.StatusCode);
+        (await forFresh.Content.ReadAsStringAsync(ct))
+            .ShouldBe(await forTaken.Content.ReadAsStringAsync(ct));
+    }
+
+    private Task<HttpResponseMessage> RegisterWithoutTermsAsync(string email, CancellationToken ct)
+        => _client.PostAsJsonAsync(
+            "/api/v1/auth/register",
+            new { email, password = StrongPassword, displayName = "Test User", acceptTerms = false },
+            ct);
+
     // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for
     // the fresh and taken branches) is pinned at the UNIT level in
     // RegisterCommandHandlerTests.Handle_FlagOn_SendFaultIsIndistinguishableBetweenFreshAndTakenAddresses,

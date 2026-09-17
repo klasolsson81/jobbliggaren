@@ -270,7 +270,7 @@ with the version constants and one total factory, `AcceptCurrent(IDateTimeProvid
 corrected 2026-09-17, amendment below). `JobSeeker.Register(Guid userId, string? displayName,
 TermsAcceptance acceptance, IDateTimeProvider clock)` **replaces** the current signature — not an
 overload, so the consent-less path stops being callable (§2.2); the cost is one call site in `src/`
-(`RegisterCommandHandler.cs:113`) plus every test call site, swept by the compiler in one mechanical
+(`RegisterCommandHandler.cs`) plus every test call site, swept by the compiler in one mechanical
 commit and counted in the PR body with `git grep -c 'JobSeeker\.Register(' -- src tests`. Mapped as
 `OwnsOne(...)` + `Navigation(...).IsRequired(false)` →
 three nullable columns `terms_accepted_at`, `terms_version`, `privacy_policy_version` on
@@ -320,7 +320,13 @@ command member, so an omitted field binds to `false` and is refused): the valida
 before the handler and so before `CreateUserAsync`, leaving no Identity user behind and reading nothing
 but the flag. The aggregate's refusal and the validator's are two propositions, not one rule in two
 homes. `JobSeekerRegisteredDomainEvent` carries no versions: **the row is the Art. 5(2) accountability
-record**, the event announces that a registration happened. The parity pin lives in Domain.UnitTests
+record**, the event announces that a registration happened. The three columns are all-or-nothing at
+the database (`ck_job_seekers_terms_all_or_none`, `num_nonnulls(…) IN (0, 3)`): the optional owned
+mapping reads "no stamp" from all three NULL, and the constraint holds that sentinel where raw SQL
+lives (security-auditor, PR #1751). When the terms change, re-acceptance is recorded **append-only** —
+a row per acceptance — never by overwriting these three columns; the shape is named here so the first
+terms bump does not reach for the overwrite that would delete the earlier Art. 5(2) evidence. The
+parity pin lives in Domain.UnitTests
 with the walk-up shared through `tests/Shared/ContentLegalMessages.cs`; it reads `terms.updated` and
 `privacy.updated` by path, never by a file-wide sweep — the file carries five `updated` dates.
 

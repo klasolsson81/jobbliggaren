@@ -442,13 +442,24 @@ public class JobSeekerTests
         setter.ShouldNotBeNull();
         setter.IsPublic.ShouldBeFalse();
 
-        // (2) A new INSTANCE method taking a TermsAcceptance — an `UpdateTermsAcceptance`, or a
-        // re-acceptance path added later. The stamp is written once, in the constructor Register
-        // calls, so the only member carrying this type is the static factory. A setter kept private
-        // while such a method appears would pass arm (1) alone.
+        // (2) A new INSTANCE method taking a TermsAcceptance — an `UpdateTermsAcceptance`. The stamp
+        // is written once, in the constructor Register calls, so the only member carrying this type
+        // is the static factory. A setter kept private while such a method appears would pass arm
+        // (1) alone.
         typeof(JobSeeker)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.GetParameters().Any(p => p.ParameterType == typeof(TermsAcceptance)))
+            .Select(m => m.Name)
+            .ShouldBeEmpty();
+
+        // (3) A re-acceptance path that builds the stamp inside — `ReAcceptTerms(clock)` — takes no
+        // TermsAcceptance and passes arms (1) and (2). Caught by name: no public instance method of
+        // the aggregate names the terms (the property's own accessor is a special name and excluded).
+        // Re-acceptance is append-only by ADR 0142 D6's amendment, never an in-place rewrite, so a
+        // method here would be the wrong home by construction.
+        typeof(JobSeeker)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => !m.IsSpecialName && m.Name.Contains("Terms", StringComparison.Ordinal))
             .Select(m => m.Name)
             .ShouldBeEmpty();
     }

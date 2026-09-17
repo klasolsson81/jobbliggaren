@@ -2485,6 +2485,11 @@ git tag v<X.Y.Z> <HEAD> && git push origin v<X.Y.Z>             # → prod (manu
 CC får **inte** push:a en prod-tag (ren `v*`) utan explicit Klas-GO i
 sessionen. dev/rc-tags är CC-tillåtna efter grön CI.
 
+**Utrullningsordning för policyversionen (ADR 0142 D6, #1736):** `TermsAcceptance.CurrentPrivacyPolicyVersion`
+i API-imagen och `privacy.updated` i web-imagen är samma datum — pinnat i ett träd, inte vid deploy.
+Webben ska ut **senast samtidigt** som API:t: API först stämplar en policyversion som ingen levande sida
+bär. Compose-modellen drar alla images i samma reconcile; vid en delad utrullning gäller web först.
+
 ---
 
 ## 4. Efter deploy (verifiering)

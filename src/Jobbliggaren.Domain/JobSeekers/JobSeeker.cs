@@ -16,7 +16,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     /// versions of the terms and the privacy policy were current then. Art. 6(1)(b) contract
     /// formation, not Art. 7 consent, so there is no withdrawal counterpart — "withdrawing" the
     /// terms is closing the account. Stamped once by <see cref="Register"/>, never updated: no
-    /// setter reaches it and no method rewrites it. <c>null</c> only on the rows written before the
+    /// public setter reaches it and no method rewrites it. <c>null</c> only on the rows written before the
     /// stamp existed (migration AddTermsAcceptanceToJobSeeker); every row <see cref="Register"/>
     /// writes carries one. The row is the Art. 5(2) accountability record —
     /// <see cref="JobSeekerRegisteredDomainEvent"/> announces that a registration happened and

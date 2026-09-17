@@ -14,7 +14,7 @@ using NpgsqlTypes;
 namespace Jobbliggaren.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260917141433_AddTermsAcceptanceToJobSeeker")]
+    [Migration("20260917153605_AddTermsAcceptanceToJobSeeker")]
     partial class AddTermsAcceptanceToJobSeeker
     {
         /// <inheritdoc />
@@ -622,7 +622,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_job_seekers_user_id");
 
-                    b.ToTable("job_seekers", (string)null);
+                    b.ToTable("job_seekers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_job_seekers_terms_all_or_none", "num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Matching.UserJobAdMatch", b =>

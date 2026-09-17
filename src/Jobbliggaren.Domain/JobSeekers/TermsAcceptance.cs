@@ -11,8 +11,7 @@ namespace Jobbliggaren.Domain.JobSeekers;
 /// <b>Naming is deliberate.</b> This is contract formation (Art. 6(1)(b)), not consent in the Art. 7
 /// sense — a <c>consent_*</c> name would imply an Art. 7(3) withdrawal right that does not exist;
 /// "withdrawing" the terms is closing the account. <see cref="PrivacyPolicyVersion"/> stamps the
-/// <b>Art. 13 notice version</b> for Art. 5(2) accountability, never an acceptance fact: the checkbox
-/// accepts the terms, and the privacy policy is linked as read.
+/// <b>Art. 13 notice version</b> for Art. 5(2) accountability, never an acceptance fact (ADR 0142 D6).
 /// </para>
 /// <para>
 /// <b>The versions are constants here, never inputs.</b> Domain reads no files; each value is the ISO

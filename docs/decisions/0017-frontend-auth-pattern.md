@@ -285,3 +285,21 @@ by `RedisSessionStoreTests.GetAsync_Performance_1000Calls_P99Under5ms`
 - CVE-2025-29927 (middleware bypass)
 - ADR 0015 (frontend stack)
 - ADR 0018 (cookie/CSRF strategy)
+
+## Amendment 2026-09-17 (ADR 0142, epic #1732) — point 7's OAuth-readiness executes through `AspNetUserLogins`
+
+*Affects Decision point 7 and the Consequences bullet "OAuth can be added in Fas 1 without schema*
+*migration (column already there)".*
+
+Point 7 reserved OAuth-readiness as a single-provider pair on the user row — the `AuthProvider`
+enum column and the unique `(Provider, ProviderUserId)` index. Measured at `081e4c67`, 2026-09-17:
+the two columns are read **nowhere** in `src/` — declaration (`ApplicationUser.cs`), EF
+configuration and migrations only — and `AspNetUserLogins` has never been written. ADR 0142 D8
+executes point 7's intent through Identity's own `AspNetUserLogins` table instead (many-to-one,
+provider key + subject, the table `UserManager.AddLoginAsync` already maintains), and part 6d of
+#1732 drops the two columns and the index. The `(auth)/oauth/[provider]/callback` 501 stub is
+replaced by the Next route handlers ADR 0142 D8 specifies. The Consequences bullet quoted above is
+therefore false at HEAD: OAuth is added **with** a migration (6d removes; 6a adds nothing to the
+schema). Everything else in this ADR — custom cookie auth, opaque Redis sessions, Auth.js and
+Better Auth rejected — is unchanged and remains the ground ADR 0142 builds on. Additive amendment;
+no text above this block was edited.

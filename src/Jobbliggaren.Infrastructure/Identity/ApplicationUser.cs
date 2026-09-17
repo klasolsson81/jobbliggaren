@@ -2,14 +2,11 @@ using Microsoft.AspNetCore.Identity;
 
 namespace Jobbliggaren.Infrastructure.Identity;
 
+// Public setters here follow IdentityUser<T> convention — ApplicationUser is
+// an Identity framework entity, not a domain aggregate. CLAUDE.md §2.2
+// (private setters) applies to domain aggregates in src/Jobbliggaren.Domain/.
 public sealed class ApplicationUser : IdentityUser<Guid>
 {
-    // Public setters here follow IdentityUser<T> convention — ApplicationUser is
-    // an Identity framework entity, not a domain aggregate. CLAUDE.md §2.2
-    // (private setters) applies to domain aggregates in src/Jobbliggaren.Domain/.
-    public AuthProvider Provider { get; set; } = AuthProvider.Local;
-    public string? ProviderUserId { get; set; }
-
     /// <summary>
     /// When this Identity user row was created. DB-stamped via a <c>now()</c> store
     /// default (see <c>ApplicationUserConfiguration</c>) — <c>UserManager.CreateAsync</c>

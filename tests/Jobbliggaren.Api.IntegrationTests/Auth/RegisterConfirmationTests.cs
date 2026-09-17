@@ -2,6 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Domain.JobSeekers;
+using Jobbliggaren.Infrastructure.Identity;
+using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -25,7 +31,7 @@ public class RegisterConfirmationTests(ApiFactory factory)
         string email, string password, CancellationToken ct, string displayName = "Test User")
         => _client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email, password, displayName },
+            new { email, password, displayName, acceptTerms = true },
             ct);
 
     [Fact]
@@ -179,6 +185,32 @@ public class RegisterConfirmationTests(ApiFactory factory)
             e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.EmailConfirmation);
         _factory.Emails.Sent.ShouldNotContain(e =>
             e.ToEmail == freshEmail && e.Kind == RecordedEmailKind.AccountExistsNotice);
+    }
+
+    [Fact]
+    public async Task POST_register_fresh_stamps_the_job_seeker_row_on_the_202_path()
+    {
+        // #1736 (ADR 0142 D6). The 202 branch mints no session and returns an empty body, so nothing
+        // on the wire says whether the acceptance was recorded — and the stamp is written BEFORE the
+        // confirmation send, which is the ordering that makes this branch a stamped one. An account
+        // that exists with no acceptance row is precisely the Art. 5(2) gap the column exists to close.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"regconf-terms-{Guid.NewGuid()}@example.com";
+
+        (await RegisterAsync(email, StrongPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var user = await scope.ServiceProvider
+            .GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);
+        user.ShouldNotBeNull();
+        var seeker = await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .JobSeekers.SingleAsync(js => js.UserId == user.Id, ct);
+
+        seeker.TermsAcceptance.ShouldNotBeNull();
+        seeker.TermsAcceptance.AcceptedAt.ShouldNotBe(default);
+        seeker.TermsAcceptance.TermsVersion.ShouldBe(TermsAcceptance.CurrentTermsVersion);
+        seeker.TermsAcceptance.PrivacyPolicyVersion
+            .ShouldBe(TermsAcceptance.CurrentPrivacyPolicyVersion);
     }
 
     // NOTE: send-failure symmetry (CTO-bind Risk 1 — a transport fault must yield the same response for

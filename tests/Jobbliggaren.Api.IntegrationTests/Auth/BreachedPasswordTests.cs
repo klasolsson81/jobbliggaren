@@ -38,7 +38,7 @@ public class BreachedPasswordTests(ApiFactory factory)
 
         var response = await _client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email = $"pwned-reg-{Guid.NewGuid()}@example.se", password = breached, displayName = "Test User" },
+            new { email = $"pwned-reg-{Guid.NewGuid()}@example.se", password = breached, displayName = "Test User", acceptTerms = true },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -58,7 +58,7 @@ public class BreachedPasswordTests(ApiFactory factory)
 
         var response = await _client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email = $"pwned-open-{Guid.NewGuid()}@example.se", password, displayName = "Test User" },
+            new { email = $"pwned-open-{Guid.NewGuid()}@example.se", password, displayName = "Test User", acceptTerms = true },
             ct);
 
         // CTO-bind FORK 1 end-to-end: an HIBP outage must never block registration.

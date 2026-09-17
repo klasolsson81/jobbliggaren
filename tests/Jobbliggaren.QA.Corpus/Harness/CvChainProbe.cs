@@ -146,7 +146,7 @@ internal static class CvChainProbe
         // factory methods. That legacy population is exactly what the DQ6 arm still stands on,
         // so the case keeps measuring the rung it was built for; what changed is which actor
         // produced its premise, not what it proves.
-        var seeker = JobSeeker.Register(userId, "Korpus Testkonto", clock).Value;
+        var seeker = JobSeeker.Register(userId, "Korpus Testkonto", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = accountDisplayName;
         await db.SaveChangesAsync(ct);

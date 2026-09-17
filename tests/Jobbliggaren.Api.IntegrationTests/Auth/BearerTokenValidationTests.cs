@@ -107,7 +107,7 @@ public class BearerTokenValidationTests(ApiFactory factory)
         // Register för att få en giltig session
         var registerResponse = await client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email = $"bearer-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Bearer Test" },
+            new { email = $"bearer-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Bearer Test", acceptTerms = true },
             ct);
         var json = await registerResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct);
         var sessionId = json.GetProperty("sessionId").GetString()!;
@@ -127,7 +127,7 @@ public class BearerTokenValidationTests(ApiFactory factory)
 
         var registerResponse = await client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email = $"case-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Case Test" },
+            new { email = $"case-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Case Test", acceptTerms = true },
             ct);
         var json = await registerResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct);
         var sessionId = json.GetProperty("sessionId").GetString()!;

@@ -67,7 +67,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
     // Seeds a JobSeeker for the user (never-visited → null watermark) against REAL Postgres.
     private static async Task SeedSeekerAsync(AppDbContext db, Guid userId, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Watermark User", ClockAt(T0)).Value;
+        var seeker = JobSeeker.Register(userId, "Watermark User", TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
     }

@@ -42,7 +42,7 @@ public class DeleteResumeVersionGuardTranslationTests(ApiFactory factory)
     private static async Task<(JobSeekerId seekerId, ResumeVersionId versionId)> SeedSeekerAndResumeAsync(
         IServiceScope scope, AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, ct);
 

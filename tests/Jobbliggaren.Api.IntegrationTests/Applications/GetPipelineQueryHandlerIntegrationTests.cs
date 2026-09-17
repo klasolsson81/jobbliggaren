@@ -51,7 +51,7 @@ public class GetPipelineQueryHandlerIntegrationTests
         IDateTimeProvider clock,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         return seeker;

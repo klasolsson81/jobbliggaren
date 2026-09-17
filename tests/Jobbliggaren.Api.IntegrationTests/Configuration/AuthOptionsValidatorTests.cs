@@ -289,6 +289,7 @@ public class AuthOptionsValidatorTests
                     email = $"announce-{Guid.NewGuid()}@example.com",
                     password = "T3stlosen123456",
                     displayName = "Test User",
+                    acceptTerms = true,
                 },
                 TestContext.Current.CancellationToken);
 

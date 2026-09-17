@@ -261,7 +261,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(DateTimeOffset.UtcNow.AddDays(-1));
-            var seeker = JobSeeker.Register(reverseOrphanUserId, "Reverse Orphan", clock).Value;
+            var seeker = JobSeeker.Register(reverseOrphanUserId, "Reverse Orphan", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
             reverseOrphanSeekerId = seeker.Id;
@@ -831,7 +831,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         // JobSeeker.Register tar IDateTimeProvider — vi använder en FixedClock
         // för registreringstid och en separat FixedClock för soft-delete.
         var registerClock = new FixedClock(deletedAt.AddDays(-1)); // registrerades före radering
-        var seekerResult = JobSeeker.Register(user.Id, "HardDelete Seed", registerClock);
+        var seekerResult = JobSeeker.Register(user.Id, "HardDelete Seed", TermsAcceptance.AcceptCurrent(registerClock), registerClock);
         seekerResult.IsSuccess.ShouldBeTrue();
         var jobSeeker = seekerResult.Value;
 

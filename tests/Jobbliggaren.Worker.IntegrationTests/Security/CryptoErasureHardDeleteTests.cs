@@ -108,9 +108,10 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
                 .Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
             userId = user.Id;
 
+            var clock = new FixedClock(deletedAt.AddDays(-1));
             var seeker = JobSeeker.Register(
                 user.Id, "CryptoErasure Seed",
-                new FixedClock(deletedAt.AddDays(-1))).Value;
+                TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
             jsId = seeker.Id;
@@ -250,9 +251,10 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
 
             // Registrera + soft-delete UTAN att någonsin skapa en DEK
             // (ingen PII skriven ⇒ ingen GetOrCreateDataKeyAsync).
+            var clock = new FixedClock(deletedAt.AddDays(-1));
             var seeker = JobSeeker.Register(
                 user.Id, "CryptoErasure NoKey",
-                new FixedClock(deletedAt.AddDays(-1))).Value;
+                TermsAcceptance.AcceptCurrent(clock), clock).Value;
             seeker.SoftDelete(new FixedClock(deletedAt));
             seedDb.JobSeekers.Add(seeker);
             await seedDb.SaveChangesAsync(ct);

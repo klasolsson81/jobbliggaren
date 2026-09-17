@@ -111,7 +111,7 @@ public class ResetPasswordConfirmsAddressTests(ApiFactory factory)
         // Flag-ON registration: 202, no session, EmailConfirmed=false.
         var register = await _confirmationClient.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email, password = RegisterPassword, displayName = "Test User" },
+            new { email, password = RegisterPassword, displayName = "Test User", acceptTerms = true },
             ct);
         register.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 

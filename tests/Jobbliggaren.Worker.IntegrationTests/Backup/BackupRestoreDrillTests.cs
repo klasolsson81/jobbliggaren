@@ -710,7 +710,8 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
             (await userManager.CreateAsync(user, "RestoreDrillPass123!"))
                 .Succeeded.ShouldBeTrue("seed: the Identity user must be created");
 
-            var seeker = JobSeeker.Register(user.Id, "Restore Drill Seed", new FixedClock(deletedAt.AddDays(-1))).Value;
+            var clock = new FixedClock(deletedAt.AddDays(-1));
+            var seeker = JobSeeker.Register(user.Id, "Restore Drill Seed", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
             jsId = seeker.Id;

@@ -19,7 +19,7 @@ public class LoginTests(ApiFactory factory)
         var password = "T3stlosen123456";
 
         await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password, displayName = "Login User" }, ct);
+            new { email, password, displayName = "Login User", acceptTerms = true }, ct);
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login",
             new { email, password }, ct);
@@ -36,7 +36,7 @@ public class LoginTests(ApiFactory factory)
         var email = $"wrong-{Guid.NewGuid()}@example.com";
 
         await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password = "T3stlosen123456", displayName = "User" }, ct);
+            new { email, password = "T3stlosen123456", displayName = "User", acceptTerms = true }, ct);
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login",
             new { email, password = "WrongPwd!" }, ct);
@@ -57,7 +57,7 @@ public class LoginTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var existingEmail = $"oracle-{Guid.NewGuid()}@example.com";
         await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email = existingEmail, password = "T3stlosen123456", displayName = "User" }, ct);
+            new { email = existingEmail, password = "T3stlosen123456", displayName = "User", acceptTerms = true }, ct);
 
         var wrongPassword = await _client.PostAsJsonAsync("/api/v1/auth/login",
             new { email = existingEmail, password = "WrongPwd!" }, ct);

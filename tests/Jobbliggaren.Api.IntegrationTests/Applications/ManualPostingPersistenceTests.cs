@@ -31,7 +31,7 @@ public class ManualPostingPersistenceTests(ApiFactory factory)
     private static async Task<JobSeekerId> SeedSeekerAsync(
         AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker.Id;

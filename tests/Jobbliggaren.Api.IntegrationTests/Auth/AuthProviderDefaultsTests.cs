@@ -22,6 +22,7 @@ public class AuthProviderDefaultsTests(ApiFactory factory)
             email,
             password = "T3stlosen123456",
             displayName = "Provider Test User",
+            acceptTerms = true,
         };
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);

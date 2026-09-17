@@ -26,7 +26,7 @@ public class RegistrationsClosedTests(ApiFactory factory)
         HttpClient client, string email, CancellationToken ct)
         => client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email, password = StrongPassword, displayName = "Test User" },
+            new { email, password = StrongPassword, displayName = "Test User", acceptTerms = true },
             ct);
 
     [Fact]

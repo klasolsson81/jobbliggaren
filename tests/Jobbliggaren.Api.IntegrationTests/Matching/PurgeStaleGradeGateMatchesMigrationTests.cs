@@ -88,7 +88,7 @@ public sealed class PurgeStaleGradeGateMatchesMigrationTests(ApiFactory factory)
         AppDbContext db, MatchPreferences preferences, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Purge552 Test", ClockAt(T0)).Value;
+        var seeker = JobSeeker.Register(userId, "Purge552 Test", TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
         seeker.UpdateMatchPreferences(preferences, ClockAt(T0));
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);

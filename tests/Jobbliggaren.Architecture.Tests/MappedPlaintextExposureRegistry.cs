@@ -106,9 +106,8 @@ internal static class MappedPlaintextExposureRegistry
             // ── ASP.NET Identity: one row per user. ───────────────────────────────────────────
             ["AspNetUsers"] = "One row per registered user. Holds email, normalized_email, "
                 + "user_name and normalized_user_name (UserAccountService writes UserName = email, "
-                + "so three of these are the address), phone_number, password_hash, and the OAuth "
-                + "provider's identifier for her. Two of the four entries in the oldest delivered "
-                + "enumeration are here.",
+                + "so three of these are the address), phone_number and password_hash. Two of the "
+                + "four entries in the oldest delivered enumeration are here.",
             ["AspNetUserClaims"] = "One row per user claim. Both claim_type and claim_value are "
                 + "unvalidated text on a per-person row.",
             ["AspNetUserLogins"] = "One row per external login. provider_key is the OAuth "

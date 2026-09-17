@@ -363,6 +363,45 @@ has no dependency on 1a and lands first (CTO: SRP at PR level — a 187-file ref
 against green main with no semantic change in flight). The bootstrap stays in the test assembly and
 never becomes an `IDev*` port. 1b touches it once (the new `Register` signature).
 
+#### Amendment 2026-09-17 (#1734, part 0.5) — two bootstraps, routed by subject
+
+*Decided by `senior-cto-advisor` on a measurement: `docs/reviews/2026-09-17-1734-harness-form-cto.md`.*
+
+**Measured 2026-09-17:** with the passwordless shape applied to every call site, the integration suite
+went red and further tests passed vacuously, all of them on password, address-confirmation or
+`Session`-profile subjects. D9's "zero behaviour change" for every call site and "built against
+`IUserAccountService.CreateUserAsync`" cannot both hold with "passwordless user": that port takes a
+password, and a test whose subject is a password cannot run on an account without one.
+
+**The form.** Two service-level bootstraps in the test assembly share one core (`JobSeeker.Register`
+→ save → `ISessionStore.CreateAsync(userId, lifetime)`), and neither issues an HTTP call:
+`RegisterAndGetSessionIdAsync` produces D10's account shape (`UserManager.CreateAsync(user)` with
+`EmailConfirmed = true`, no password, `SessionLifetime.Persistent`);
+`RegisterWithPasswordAndGetSessionIdAsync` produces the shape of the flag-OFF branch of
+`RegisterCommandHandler` (`IUserAccountService.CreateUserAsync(email, password)`, address
+unconfirmed, `SessionLifetime.Session`).
+
+**Routing rule.** A test class uses the password bootstrap when its subject is a password surface
+this ADR removes (password login, `/auth/verify`, change-password, forgot/reset-password, lockout,
+breached password, the password re-auth on `/me/delete` and change-email, confirm-email-change) or
+the `Session` profile. Every other class uses the passwordless one. Membership follows the subject,
+never whether a class went red: a vacuous pass is green.
+
+**Migration rule.** A class moves to the passwordless bootstrap in the PR that removes its password
+or `Session` premise (3a for `/auth/verify` and `/me/delete`, 5a for the rest). The password
+bootstrap, `DefaultTestPassword` and `LoginAndGetSessionIdAsync` are deleted in the PR that moves the
+last class, which ties them to the surfaces rather than to a part number.
+
+**Pin.** `SessionBootstrapTests` runs both bootstraps against the registrations-closed host, whose
+`/auth/register` refuses (`RegistrationsClosedTests` is the counterfactual), and asserts that the
+session authenticates there and that each account shape holds (password hash, `EmailConfirmed`,
+lifetime).
+
+**Later parts.** 1a replaces the passwordless bootstrap's direct `UserManager.CreateAsync(user)` with
+D10's `CreatePasswordlessUserAsync`; 1b changes the shared core's one `Register` call. The
+`.gitleaks.toml` entry matches the password value, which test files outside this part carry; it
+goes when the last literal goes, not in 0.5.
+
 ### D10 — The dev seam, the mail dependency, and the boot gate
 
 `CreatePasswordlessUserAsync(string email, ct)` → `Result<Guid>` with the same duplicate collapse

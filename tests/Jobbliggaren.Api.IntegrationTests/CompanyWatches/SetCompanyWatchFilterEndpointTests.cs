@@ -45,7 +45,7 @@ public class SetCompanyWatchFilterEndpointTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"cw-filter-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"cw-filter-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

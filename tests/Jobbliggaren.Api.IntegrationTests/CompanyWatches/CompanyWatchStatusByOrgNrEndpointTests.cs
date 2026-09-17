@@ -32,9 +32,9 @@ public class CompanyWatchStatusByOrgNrEndpointTests(ApiFactory factory)
 
     private HttpClient NewClient() => factory.CreateClient();
 
-    private static async Task AuthenticateAsync(HttpClient client, CancellationToken ct)
+    private async Task AuthenticateAsync(HttpClient client, CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

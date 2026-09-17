@@ -27,7 +27,7 @@ public class MeTests(ApiFactory factory)
     public async Task GET_me_with_valid_session_returns_user_info()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me", ct);
@@ -50,7 +50,7 @@ public class MeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"me-email-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email: email, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me", ct);
@@ -65,7 +65,7 @@ public class MeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, displayName: "Me User", ct: ct);
+            factory, displayName: "Me User", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await _client.GetAsync("/api/v1/me/profile", ct);

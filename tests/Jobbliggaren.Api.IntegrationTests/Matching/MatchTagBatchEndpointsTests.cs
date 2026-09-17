@@ -23,8 +23,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// the real preference→profile→grade path. Parity <c>JobAdStatusEndpointsTests</c> +
 /// <c>MatchScorerIntegrationTests</c> seeding.
 /// <para>
-/// A user registered via <c>RegisterAndGetSessionIdAsync</c> already HAS a JobSeeker
-/// (RegisterCommandHandler creates it). We state their match preferences via the existing
+/// A user registered via <c>RegisterAndGetSessionIdAsync</c> already HAS a JobSeeker.
+/// We state their match preferences via the existing
 /// <c>PUT /me/match-preferences</c> endpoint, then seed JobAds whose facet columns
 /// (occupation_group / region / employment, Postgres generated columns derived from
 /// raw_payload) carry the SAME concept-ids — so the deterministic ladder produces a known
@@ -39,7 +39,7 @@ public class MatchTagBatchEndpointsTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
     }

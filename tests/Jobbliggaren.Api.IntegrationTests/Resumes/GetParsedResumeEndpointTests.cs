@@ -37,7 +37,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     {
         var client = f.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            f, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -45,7 +45,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
@@ -247,7 +247,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         // refuse a personnummer-shaped display name, and that refusal is pinned one project over
         // in Jobbliggaren.Domain.UnitTests (JobSeekerTests, the
         // Register/UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure theories).
-        // So the account is registered through the real endpoint with a CLEAN name, and the
+        // So the account is registered with a CLEAN name, and the
         // column is then written directly, exactly as a pre-invariant row sits in the database
         // today: the invariant is forward-only, because EF materializes an existing row through
         // the private constructor and past the factory methods. That population is precisely
@@ -262,7 +262,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var client = _factory.CreateClient();
         var email = $"parsed-{Guid.NewGuid():N}@jobbliggaren.test";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client,
+            _factory,
             email: email,
             displayName: "Anna Andersson",
             ct: ct);

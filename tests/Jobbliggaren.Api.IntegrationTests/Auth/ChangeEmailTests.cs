@@ -73,7 +73,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-wrong-{Guid.NewGuid()}@example.se";
         var newEmail = $"ce-wrong-new-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, "FelLosen123456", newEmail, ct);
 
@@ -100,7 +100,7 @@ public class ChangeEmailTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-emptycur-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, current, $"ce-new-{Guid.NewGuid()}@example.se", ct);
 
@@ -118,7 +118,7 @@ public class ChangeEmailTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-badnew-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         // Correct current password, so the ONLY failure is the malformed/missing new email.
         var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
@@ -132,10 +132,10 @@ public class ChangeEmailTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         // Another account already owns the target address.
         var takenEmail = $"ce-taken-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, takenEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, takenEmail, ct: ct);
 
         var email = $"ce-taker-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, takenEmail, ct);
 
@@ -157,7 +157,7 @@ public class ChangeEmailTests(ApiFactory factory)
         // is benign (the user already knows their own address, so it is not an enumeration oracle).
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-self-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, email, ct);
 
@@ -174,7 +174,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-ok-{Guid.NewGuid()}@example.se";
         var newEmail = $"ce-ok-new-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
 
@@ -204,7 +204,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-audit-{Guid.NewGuid()}@example.se";
         var newEmail = $"ce-audit-new-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Accepted);
@@ -247,7 +247,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-nodeliver-{Guid.NewGuid()}@example.se";
         var newEmail = $"ce-nodeliver-new-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         HttpResponseMessage refused;
         using (_factory.Emails.Incapable())

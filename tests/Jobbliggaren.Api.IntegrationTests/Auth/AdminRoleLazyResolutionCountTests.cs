@@ -59,7 +59,7 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
     {
         var client = _host.CreateClient();
         var email = $"count-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var me = await client.GetAsync("/api/v1/me", ct);

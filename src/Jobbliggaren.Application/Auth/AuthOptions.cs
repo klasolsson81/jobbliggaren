@@ -25,13 +25,12 @@ public sealed class AuthOptions
     /// flipping this ON in production must wait for a live email provider AND a one-time
     /// <c>EmailConfirmed=true</c> backfill of pre-existing accounts (they were created
     /// under instant-login and must not be locked out). Dev/Test set it <c>true</c>; the
-    /// default integration-test host keeps it <c>false</c> so the instant-login test
-    /// bootstrap (RegisterAndGetSessionIdAsync) is unaffected.
+    /// default integration-test host keeps it <c>false</c>.
     /// </para>
     /// <para>
     /// A settable (not init-only) property so the integration harness can force the value via
-    /// <c>PostConfigure&lt;AuthOptions&gt;</c> — the base host pins it OFF (protecting the 142
-    /// instant-login bootstrap sites) and the flag-ON test classes flip it ON per class.
+    /// <c>PostConfigure&lt;AuthOptions&gt;</c> — the base host pins it OFF and the flag-ON test
+    /// classes flip it ON per class.
     /// </para>
     /// </summary>
     public bool RequireEmailConfirmation { get; set; }

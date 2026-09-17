@@ -55,7 +55,7 @@ public class DeleteResumeCascadesOriginalFileTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"delete-cascade-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"delete-cascade-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

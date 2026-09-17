@@ -58,7 +58,7 @@ public class AdminBackgroundJobsMutationAuthTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var email = $"admin-jobs-mut-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // Confirm the client is actually authenticated (non-Admin) so the 403 is a role denial, not a

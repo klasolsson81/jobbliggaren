@@ -15,9 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 // 400 ProblemDetails vid ogiltig concept-id (ej 500). Round-trip bevisas mot
 // GET /api/v1/me/profile, vars DTO projicerar de tre listorna.
 //
-// JobSeeker-aggregatet skapas av RegisterCommandHandler vid registrering, så en
-// authad user via RegisterAndGetSessionIdAsync HAR redan en JobSeeker. Handler-/
-// validator-enhetstester lever i Application.UnitTests (PR #121) — dupliceras ej.
+// Handler-/validator-enhetstester lever i Application.UnitTests (PR #121) — dupliceras ej.
 [Collection("Api")]
 public class MatchPreferencesTests(ApiFactory factory)
 {
@@ -25,7 +23,7 @@ public class MatchPreferencesTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
     }

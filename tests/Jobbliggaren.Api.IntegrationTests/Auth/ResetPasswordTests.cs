@@ -121,7 +121,7 @@ public class ResetPasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-ok-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var link = await EmittedResetLinkAsync(email, ct);
         var response = await ResetAsync(link, EndToEndPassword, ct);
@@ -143,7 +143,7 @@ public class ResetPasswordTests(ApiFactory factory)
         // grants nothing beyond an activation that has already happened, here it grants the account.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-single-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var link = await EmittedResetLinkAsync(email, ct);
 
         (await ResetAsync(link, SingleUsePassword, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -172,7 +172,7 @@ public class ResetPasswordTests(ApiFactory factory)
         if (accountExists)
         {
             var email = $"rp-badtoken-{Guid.NewGuid()}@example.se";
-            await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+            await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
             uid = (await EmittedResetLinkAsync(email, ct)).UserId;
         }
         else
@@ -197,7 +197,7 @@ public class ResetPasswordTests(ApiFactory factory)
         // (a leaked password) that sent them here.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-pwned-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         _factory.BreachChecks.SetVerdict(BreachedPassword, BreachCheckVerdict.Breached);
 
         var link = await EmittedResetLinkAsync(email, ct);
@@ -230,7 +230,7 @@ public class ResetPasswordTests(ApiFactory factory)
         // perfectly good link to go request another one.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-short-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var link = await EmittedResetLinkAsync(email, ct);
 
         var response = await ResetAsync(link, TooShortPassword, ct);
@@ -257,7 +257,7 @@ public class ResetPasswordTests(ApiFactory factory)
         // mechanism, and this runs against the real Testcontainers Redis rather than a fake.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-sessions-{Guid.NewGuid()}@example.se";
-        var deviceA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var deviceA = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var deviceB = await AuthTestHelpers.LoginAndGetSessionIdAsync(_client, email, ct: ct);
 
         // Both authenticate BEFORE the reset — without this the 401s below are satisfiable by sessions
@@ -283,7 +283,7 @@ public class ResetPasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-audit-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var link = await EmittedResetLinkAsync(email, ct);
 
         (await ResetAsync(link, AuditPassword, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -314,7 +314,7 @@ public class ResetPasswordTests(ApiFactory factory)
         // the recipient is asserted rather than merely the kind.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-notice-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var link = await EmittedResetLinkAsync(email, ct);
 
         (await ResetAsync(link, NoticePassword, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);

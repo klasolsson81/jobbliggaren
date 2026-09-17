@@ -27,7 +27,7 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
     {
         var client = f.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"analysis-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            f, email: $"analysis-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -35,7 +35,7 @@ public class ParsedResumeAnalysisEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"analysis-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"analysis-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

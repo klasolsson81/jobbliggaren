@@ -1,4 +1,3 @@
-using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -60,16 +59,6 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
                 opts.Configuration = _redisCs;
                 opts.InstanceName = "jobbliggaren:";
             });
-
-            // #714 — force email-confirmation-first OFF (parity with ApiFactory). Development env loads
-            // appsettings.Development.json where the flag is ON; without this override the AuthWrite
-            // rate-limit test's RegisterAndGetSessionIdAsync gets a 202 (empty body) instead of a session.
-            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
-
-            // ADR 0083 Amendment 2026-08-03 - the kill-switch defaults CLOSED, and this factory
-            // registers users (RegisterAndGetSessionIdAsync). Pinned explicitly, like the line
-            // above, so the harness never depends on a dev config file it does not own.
-            services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
     }
 

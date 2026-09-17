@@ -92,7 +92,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var newEmail = $"cec-ok-new-{Guid.NewGuid()}@example.se";
 
         // Two devices so we can prove ALL sessions are invalidated (C6), not just the confirmer's.
-        var deviceA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        var deviceA = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, oldEmail, ct: ct);
         var deviceB = await AuthTestHelpers.LoginAndGetSessionIdAsync(_client, oldEmail, ct: ct);
 
         var userId = await GetUserIdAsync(oldEmail, ct);
@@ -140,7 +140,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var oldEmail = $"cec-audit-old-{Guid.NewGuid()}@example.se";
         var newEmail = $"cec-audit-new-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, oldEmail, ct: ct);
 
         var userId = await GetUserIdAsync(oldEmail, ct);
         var token = await GenerateUrlSafeTokenAsync(userId, newEmail, ct);
@@ -168,7 +168,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var oldEmail = $"cec-badtok-{Guid.NewGuid()}@example.se";
         var newEmail = $"cec-badtok-new-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, oldEmail, ct: ct);
         var userId = await GetUserIdAsync(oldEmail, ct);
 
         var response = await ConfirmAsync(userId, newEmail, "not-a-real-token", ct);
@@ -191,7 +191,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
 
         // Oracle A — a garbage token against a KNOWN user.
         var knownEmail = $"cec-oracle-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, knownEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, knownEmail, ct: ct);
         var knownUserId = await GetUserIdAsync(knownEmail, ct);
         var badTokenResponse = await ConfirmAsync(knownUserId, newEmail, "garbage-token-value", ct);
 
@@ -220,12 +220,12 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var takenEmail = $"cec-toctou-taken-{Guid.NewGuid()}@example.se";
 
         // User A requests a change to takenEmail (mint a real token bound to A + takenEmail) ...
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, oldEmail, ct: ct);
         var userIdA = await GetUserIdAsync(oldEmail, ct);
         var token = await GenerateUrlSafeTokenAsync(userIdA, takenEmail, ct);
 
         // ... but before A confirms, a SECOND account claims takenEmail (TOCTOU).
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, takenEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, takenEmail, ct: ct);
 
         var response = await ConfirmAsync(userIdA, takenEmail, token, ct);
 
@@ -256,8 +256,8 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var intendedNew = $"cec-xbind-new-{Guid.NewGuid()}@example.se";
         var otherNew = $"cec-xbind-other-{Guid.NewGuid()}@example.se";
 
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailA, ct: ct);
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailB, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailA, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailB, ct: ct);
         var userIdA = await GetUserIdAsync(emailA, ct);
         var userIdB = await GetUserIdAsync(emailB, ct);
 
@@ -295,7 +295,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var oldEmail = $"cec-emitted-old-{Guid.NewGuid()}@example.se";
         var newEmail = $"cec-emitted-new-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, oldEmail, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, oldEmail, ct: ct);
         var userId = await GetUserIdAsync(oldEmail, ct);
         var urlSafeToken = await GenerateUrlSafeTokenAsync(userId, newEmail, ct);
 

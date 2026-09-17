@@ -16,7 +16,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client,
+            factory,
             email: $"e2e-{Guid.NewGuid():N}@jobbliggaren.test",
             ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
@@ -458,7 +458,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
         // User A skapar ett CV
         var clientA = NewClientFor(factory);
         var sessionA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientA, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionA);
 
         var postA = await clientA.PostAsJsonAsync("/api/v1/resumes", CreateBody("CV för A"), ct);
@@ -467,7 +467,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
         // User B försöker hämta A:s CV
         var clientB = NewClientFor(factory);
         var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientB, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var getB = await clientB.GetAsync($"/api/v1/resumes/{idA}", ct);
@@ -482,7 +482,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
 
         var clientA = NewClientFor(factory);
         var sessionA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientA, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionA);
 
         var postA = await clientA.PostAsJsonAsync("/api/v1/resumes", CreateBody(), ct);
@@ -490,7 +490,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
 
         var clientB = NewClientFor(factory);
         var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientB, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var patchB = await clientB.PatchAsJsonAsync(
@@ -510,7 +510,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
 
         var clientA = NewClientFor(factory);
         var sessionA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientA, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-a-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionA);
 
         var postA = await clientA.PostAsJsonAsync("/api/v1/resumes", CreateBody(), ct);
@@ -518,7 +518,7 @@ public class ResumesEndpointsTests(ApiFactory factory)
 
         var clientB = NewClientFor(factory);
         var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            clientB, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"e2e-b-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var delB = await clientB.DeleteAsync($"/api/v1/resumes/{idA}", ct);

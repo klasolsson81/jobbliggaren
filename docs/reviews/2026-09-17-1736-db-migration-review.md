@@ -84,3 +84,57 @@ Inga blocking eller non-blocking findings. Migrationen är redo för `agents-don
 Reviewed head `402fe30a`; commit `41aa7def` (the Playwright register helper and the registration-gate
 runbook probe gain `acceptTerms`) landed after this verdict and touches no migration, configuration or
 Domain file. The agent's line references were spot-checked by the session against the worktree.
+
+---
+
+## Scoped re-check (2026-09-17) — fix delta `41aa7def..c2c355d2`, report-only, same agent
+
+**Verdict:** APPROVE stands for head `c2c355d2`. 0 blocking, 0 non-blocking in the delta. Transcribed
+verbatim from the agent's reply.
+
+### Scoped re-check: c2c355d2 (re-scaffold after security-auditor Minor 2, PR #1751)
+
+**Verdikt: APPROVE står kvar för head c2c355d2.** Denna omkontroll är report-only och skopad till fix-deltat (`41aa7def..c2c355d2`, endast `src/Jobbliggaren.Infrastructure` + de fyra berörda testfilerna) — ingen ny granskning av rader utanför deltat.
+
+#### Re-scaffoldad migration
+
+Gammal migration (`20260917141433_...`, .cs + .Designer.cs) borttagen — bekräftat, `find` hittar inget spår. Ny migration `20260917153605_AddTermsAcceptanceToJobSeeker.cs`:
+
+- **Up:** samma tre nullable `AddColumn` (oförändrade typer/maxlength/nullability) + `AddCheckConstraint(name: "ck_job_seekers_terms_all_or_none", table: "job_seekers", sql: "num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)")` sist — korrekt ordning: kolumnerna måste finnas innan constraint:en refererar dem.
+- **Down:** `DropCheckConstraint` **före** de tre `DropColumn` — rätt ordning (explicit, även om Postgres skulle cascade-droppa constraint:en automatiskt när en refererad kolumn droppas; den explicita ordningen är den konventionella EF-scaffoldade formen och gör Down självdokumenterande).
+
+#### Constraint-granskning
+
+- **Namn:** `ck_job_seekers_terms_all_or_none` — följer `ck_<table>_<rule>` exakt.
+- **`num_nonnulls`** är core PostgreSQL (9.6+, finns i PG 18) — inget Npgsql-specifikt.
+- **Uttryckt via Fluent API, inte rå SQL-migration:** `JobSeekerConfiguration.cs` använder `builder.ToTable("job_seekers", t => t.HasCheckConstraint(name, sql))`, samma form som `TaxonomySnapshotMetaConfiguration.cs:14` (`ck_taxonomy_snapshot_meta_singleton`). Snapshot-diffen (`b.ToTable("job_seekers", null, t => { t.HasCheckConstraint(...); })`) speglar exakt samma mönster som `taxonomy_snapshot_meta`s snapshot-block (rad 1543-1546) — verifierad parity, inte bara ett påstått mönster. Detta är rätt väg: ett CHECK-villkor är per definition ett SQL-booleskt uttryck, och `HasCheckConstraint` ÄR Fluent API-ytan för det — det är inte `migrationBuilder.Sql(...)`-genvägen mitt uppdrag varnar för.
+- **`ADD CONSTRAINT` validerar befintliga rader:** eftersom kolumnerna läggs till NULL för alla befintliga rader (ingen backfill, inget `defaultValue`) blir `num_nonnulls(...) = 0` för varje förmigrationsrad, vilket uppfyller `IN (0, 3)` — valideringen kan aldrig fela mot en befintlig rad så länge kolumnerna är nullable och obackfyllda, vilket de är.
+
+#### Testerna (läst, ej körda enligt instruktion)
+
+**`AddTermsAcceptanceToJobSeekerMigrationTests.cs`** — journey head → previous → head på egen Testcontainer, som app-rollen. Nytt jämfört med förra rundan: (1) läser `pg_constraint` (`contype='c'`) vid varje stopp och verifierar constraint:en finns vid head, är borta efter rollback; (2) **sätter in en förmigrationsrad** (`INSERT INTO job_seekers (id, user_id, display_name, preferences, created_at) ...`) medan databasen står vid `PreviousMigration`, kör sedan forward-migrationen på den populerade tabellen, och läser sedan explicit att radens tre kolumner kom ut NULL (`ReadTermsColumnsAreNullAsync` → `(true, true, true)`). Kommentaren i testet (rad 213-217) namnger exakt vad det fångar: en `defaultValue` på `terms_version` skulle lämna `is_nullable = YES` (klarar alla andra kontroller) men denna EFFEKT-läsning skulle fånga den — rimligt konstruerad mutationsresistens, konsistent med det rapporterade 1/1.
+
+**`TermsAcceptanceBackcompatTests.cs`** — ny `PartiallyNulledRow_IsRefusedByTheAllOrNothingConstraint`: seedar en stämplad rad, nollar bara `terms_version` via rå SQL, förväntar `PostgresException` med `SqlState == PostgresErrorCodes.CheckViolation` (23514) och `ConstraintName == "ck_job_seekers_terms_all_or_none"` — exakt målsökt mot constraint:en, inte en generisk exception-fångst.
+
+**Värt att notera (ingen finding, en observation om disciplin):** klassens doc-kommentar korrigerades ärligt i denna commit — föregående runda påstod att `Navigation(...).IsRequired(false)` var det enda som gav `null`-läsningen ("and nothing else asserts it"); den nya texten (rad 16-19) erkänner att en mutation visade att EF läser en all-null owned-rad som `null` **med eller utan** den flaggan, och skriver om påståendet till vad som faktiskt bär vikten (de nullable kolumnerna + `is_nullable`-läsningarna i migrationstestet). Det är en självrättelse av ett tidigare överdrivet påstående, inte ett nytt fynd — men värt att lyfta som bevis på att mutationsclaimet i uppdraget är substantierat, inte bara transkriberat.
+
+`MalformedJsonbSeedTestBase.cs` fick bara en kommentarsrad förklarande varför basklassen återanvänds för icke-jsonb-kolumner — ingen beteendeändring. `JobSeekerTests.cs` och `RegisterConfirmationTests.cs` ligger utanför migrationsskopet (aggregatets publika yta respektive #714-oraklet för `acceptTerms=false`) men motsäger inget av ovanstående.
+
+#### Hotspot / bas
+
+Ingen annan migration har landat på `origin/main` sedan `41aa7def` (fetch + `git log 41aa7def..origin/main -- .../Migrations .../Identity/Migrations` tomt). Ingen kollision.
+
+#### Sammanfattning
+
+| Kontroll | Status |
+|---|---|
+| Constraint-namn `ck_<table>_<rule>` | ✓ |
+| `num_nonnulls` core PG, uttryckt via Fluent API (ej rå SQL-migration) | ✓ |
+| ADD CONSTRAINT validerar befintliga (NULL×3) rader utan att kunna fela | ✓ |
+| Down-ordning: constraint droppas före kolumnerna | ✓ |
+| Snapshot-parity med `TaxonomySnapshotMetaConfiguration`-mönstret | ✓ (verifierad, inte antagen) |
+| Migrationstest: pg_constraint-läsning + populerad-tabell-scenario + mutationsresistent effekt-läsning | ✓ |
+| Backcompat-test: CheckViolation + rätt constraint-namn | ✓ |
+| Ingen konkurrerande migration på main | ✓ |
+
+Inga blocking eller non-blocking findings i detta deltat. APPROVE står kvar för c2c355d2.

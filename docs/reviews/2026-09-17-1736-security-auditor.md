@@ -232,3 +232,56 @@ den publicerade "Senast uppdaterad: 2026-09-17" i web-imagen. Rullas API:t ut f�
 en policyversion som ingen levande sida bär — en ansvarighetspost som är fel i det enda fält den
 finns för. Webben ska ut senast samtidigt som API:t. Det behövs ingen kodändring, men det behöver
 stå någonstans som läses vid cutover.
+
+---
+
+## Scoped re-check (2026-09-17) — fix delta `41aa7def..c2c355d2`, report-only, same agent
+
+**Verdict:** Minors 1–4 CLOSED; no new Blocker/Major; **APPROVE stands against the final diff
+`88b6ea93..c2c355d2` (0 Blocker / 0 Major)**; escalations (1)–(3) restated verbatim below. Transcribed
+verbatim from the agent's reply.
+
+### Scoped re-check: PR #1751 fix delta (CLAUDE.md §9.6, report-only)
+
+**Scope:** `git diff 41aa7def..c2c355d2` (one commit, `c2c355d2`). **No edits, no commits, no suites run.** HEAD measured at review time: `c2c355d2` (`git rev-parse HEAD`). I additionally read the intervening `402fe30a..41aa7def` so my final-diff statement below is not made against a commit I never saw.
+
+#### Per-Minor verdict
+
+**Minor 1 (docstring vs live checkbox) — CLOSED.** `src/Jobbliggaren.Domain/JobSeekers/TermsAcceptance.cs:13-14` now reads "…for Art. 5(2) accountability, never an acceptance fact (ADR 0142 D6)." The clause describing the checkbox is gone: `git grep -n "linked as read" -- src/` returns **0**. The replacement asserts only the column's meaning, which ADR 0142 D6 defines and which is true of the tree; it makes no claim about the FE copy, which is exactly the property I asked for. The delta adds a line, so this was correctly routed back to me rather than closed mechanically.
+
+**Minor 2 (partial-NULL row) — CLOSED, and closed better than I asked.** `src/Jobbliggaren.Infrastructure/Persistence/Configurations/JobSeekerConfiguration.cs:12-19` carries `ck_job_seekers_terms_all_or_none` with `num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)` — the right predicate: it admits 0 (the legacy shape the two pre-1b rows hold) and 3 (stamped), and refuses 1 and 2. `AddCheckConstraint` runs after the three `AddColumn`s in `Up`; `DropCheckConstraint` runs **first** in `Down` — correct ordering in both directions. Designer and `AppDbContextModelSnapshot` both carry it. Three pins, and they cover different things: `PartiallyNulledRow_IsRefusedByTheAllOrNothingConstraint` asserts `SqlState` 23514 **and** the constraint name (a rename cannot pass it silently); the journey reads `pg_constraint` at head and its **absence** at the previous migration; and the populated-table forward step proves `ADD CONSTRAINT` validated against the all-NULL legacy shape rather than merely being declared. On `job_seekers` the validating scan is two rows, so the `ACCESS EXCLUSIVE` lock `ADD CONSTRAINT` takes is not a deploy-availability concern here.
+
+**Minor 3 (deploy order) — CLOSED.** `docs/runbooks/release-checklist.md:2488-2492` states the direction correctly: web out no later than the API, because API-first stamps a policy version no live page carries; on a split rollout, web first. That is the safe direction, not the reverse.
+
+**Minor 4 (re-acceptance shape) — CLOSED.** ADR 0142 D6's amendment now binds append-only, a row per acceptance, never an overwrite of the three columns, with the reason written out (the overwrite deletes the earlier Art. 5(2) evidence). That was the whole ask — name the shape while it is cheap.
+
+#### New in delta
+
+**No new Blocker and no new Major.** Three things I read closely and clear:
+
+- `tests/Jobbliggaren.Api.IntegrationTests/Auth/RegisterConfirmationTests.cs:216-234` — `POST_register_with_accept_terms_false_is_identical_for_a_fresh_and_a_taken_address` pins identical status **and identical body bytes** for the two branches. This is a genuine strengthening of the #714 anti-enumeration property, not paperwork: it fails the moment the terms refusal is moved into the handler behind the taken-address branch. It belongs in my area 3 and I would have asked for it had it not been written.
+- The backcompat helper's raw SQL is parameterized (`@id`, `AddWithValue`) on its own `NpgsqlConnection`; no concatenation, no credential handling, no leak. Area 7 clear.
+- The corrected backcompat docblock discloses a **weaker** pin than the original claimed — measured 2026-09-17, EF reads an all-null owned row as `null` with or without `Navigation(...).IsRequired(false)`, so what the call buys is the nullable columns, pinned by the journey's `is_nullable` reads. Reporting a mutation that came back green, instead of quietly keeping the stronger sentence, is the right direction and I am recording it as such.
+
+#### Two ungraded observations for the session (not findings in my scale, not reasons to hold the PR)
+
+1. **The migration was re-scaffolded after its reviewer signed off.** `docs/reviews/2026-09-17-1736-db-migration-review.md:11,17-18` reviews `20260917141433` and states "exakt tre `AddColumn` i `Up` … exakt tre `DropColumn` i `Down`. Inget annat i filen." The shipping migration is `20260917153605` with **four** operations in each direction. The citation itself is dated provenance and does not decay, but the verdict's content no longer describes what ships, and it is the only db-migration-writer sign-off in the PR. Under §9.6's closing rule the constraint went back to nobody: it adds lines, so it is not a mechanical closure. Either db-migration-writer takes a scoped re-check on the constraint + re-scaffold, or that report gains one line recording that the constraint landed after its verdict and who graded it. Routing is senior-cto-advisor's, not mine. (Measured: the old id survives only in `docs/reviews/*`, never in `src/` or `tests/`.)
+2. **`tests/Jobbliggaren.Domain.UnitTests/JobSeekers/JobSeekerTests.cs` arm (3) is name-based and partial by construction** — `ReAccept(clock)` or `Renew(clock)` contains no "Terms" and passes it. The delta's own comment says the arm is by name, so nothing is overstated; I note only that the ADR binding, not this arm, is what actually holds Minor 4.
+
+#### Does the APPROVE stand?
+
+**Yes.** Against the **final** diff `88b6ea93..c2c355d2`: **0 Blocker, 0 Major.** `41aa7def` is test and runbook only (`web/jobbliggaren-web/tests/e2e/helpers/auth.ts` and the `docs/runbooks/registration-gate.md` probe body gain `acceptTerms: true`) and is correct for the right reason — the gate probe must pass validation so its answer measures the kill-switch (503) and not the validator. Per §12's Klas-direktiv 2026-07-16 scope clarification, a security-critical change **with** tests and a security-auditor APPROVE issued against the final diff rides the normal automerge flow. My APPROVE is issued against head `c2c355d2`; if content moves again it does not carry over.
+
+**Eskalering till Klas:** ja — oförändrad, och den ska bäras ordagrant tills du svarar.
+
+(1) **Rutans text.** ADR 0142 D6, som du ratificerade i `f2961a32`, binder ordagrant att kryssrutan godkänner **villkoren** och att integritetspolicyn **länkas som läst, aldrig "godkänner … och integritetspolicyn"**. Texten i `messages/{sv,en}/pages.json:600,615` säger fortfarande precis den förbjudna formuleringen, på båda språken, i både etiketten och vägran — mätt på `c2c355d2`, `pages.json` är orörd i fixdeltat. Från och med den här PR:en finns det en **lagrad post** som vilar på den motsatta karaktäriseringen. **Du avgör:** rättas de fyra strängarna in-block, eller hålls det till del 2 där notisen ändå flyttar till `/logga-in`? Jag blockerar inte #1751 för det — fyndet är mitt, graderat mot epiken den 2026-09-17, och dess hem är del 2 — men **det står öppet tills texten ändras**. Att docstringen inte längre påstår motsatsen är rätt förval: det förtiger ingenting och föregriper inte ditt svar. En sak till, som *inte* är ett nytt fynd utan samma öppna: när texten flyttar i del 2 ska D6:s egen presens-mening ("the privacy policy is linked as read in a sibling sentence") svepas med — den beskriver ett tillstånd som ännu inte råder.
+
+(2) **Jag har fortfarande INTE mätt om bärarpremissen, och ingenting i den här bedömningen vilar på den.** ADR/ROPA-premissen "de två kontona, båda Klas egna" är mätt 2026-08-23 och återges som premiss, inte som min mätning. Jag föreslår och signerar **ingen** §9.6 (3)-acceptans här, och ingen grad ovan är satt på bärarfrånvaro. Om någon längre fram vill åberopa (3) för något i den här epiken måste mätningen tas om då — en bärarfrånvaro ärvs aldrig från en tidigare rad.
+
+(3) **Utrullningsordningen** är nu skriven i `docs/runbooks/release-checklist.md:2488-2492` och behöver inget beslut av dig — den ska bara läsas vid cutover.
+
+### Session's note on observation 1
+
+db-migration-writer took the scoped re-check on the constraint + re-scaffold the same hour (appended to
+`docs/reviews/2026-09-17-1736-db-migration-review.md`): APPROVE stands for `c2c355d2`, four operations
+in each direction reviewed, `Down` order verified. The route the observation asked for was taken.

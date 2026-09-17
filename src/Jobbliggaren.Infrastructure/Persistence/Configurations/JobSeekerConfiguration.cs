@@ -38,9 +38,7 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         // queryable). Explicit HasColumnName on every property: the global snake_case convention
         // would otherwise prefix the navigation name (terms_acceptance_*). Navigation.IsRequired(false)
         // is obligatory, the ManualPosting/AdSnapshot form: EF Core 10 defaults an owned reference to
-        // required, and without it EF cannot tell "no stamp" — the rows written before
-        // AddTermsAcceptanceToJobSeeker, all three columns NULL — from an all-null instance. That
-        // sentinel is unambiguous by construction here: every property is non-nullable inside the
+        // required. The all-null sentinel is unambiguous by construction here: every property is non-nullable inside the
         // type, so a present stamp never writes an all-null row (the property AdSnapshot has to argue
         // for via captured_at). varchar(20) is headroom over a 10-char ISO date; the value has no
         // Domain reader that would give a shared constant a consumer.

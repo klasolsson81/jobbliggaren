@@ -15,10 +15,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Persistence;
 /// added to a table that already had rows, so "no acceptance" has to load as
 /// <c>TermsAcceptance == null</c> rather than as an all-null instance or a crash. Measured
 /// 2026-09-17: EF reads an all-null owned row as <c>null</c> with or without
-/// <c>Navigation(...).IsRequired(false)</c> — that mutation leaves the read-side facts here green —
-/// so what the call buys is the nullable columns in the scaffolded migration, pinned by
-/// <c>AddTermsAcceptanceToJobSeekerMigrationTests</c>' <c>is_nullable</c> reads. The facts here pin
-/// the read side; the last one pins that a half-stamped row cannot exist at all.
+/// <c>Navigation(...).IsRequired(false)</c> — that mutation leaves the read-side facts here green.
+/// The facts here pin the read side; the last one pins that a half-stamped row cannot exist at all.
 ///
 /// <para>
 /// <b>The premise (AGENTS.md §5 Tests).</b> An all-NULL row is a state NO path in <c>src/</c>

@@ -123,7 +123,7 @@ public class PromoteParsedResumeCommandHandlerTests
     private static async Task<(ParsedResume Parsed, JobSeeker Owner)> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId, PersonnummerScanOutcome? pnr = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildPendingReview(seeker.Id, pnr);
         db.ParsedResumes.Add(parsed);
@@ -217,7 +217,7 @@ public class PromoteParsedResumeCommandHandlerTests
     public async Task Handle_PreambleFromTheParseCarriesAPersonnummer_IsRefused_ScannedNotBypassed()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Anna Andersson", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Anna Andersson", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         // The parse is NOT flagged — PersonnummerScanOutcome.None — which is the whole point:
@@ -326,7 +326,7 @@ public class PromoteParsedResumeCommandHandlerTests
     public async Task Handle_WhenParsedResumeNotFound_ReturnsNotFoundFailure_NoCrossUserLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -352,7 +352,7 @@ public class PromoteParsedResumeCommandHandlerTests
         // Another user's ParsedResume.
         var (otherParsed, _) = await SeedOwnedAsync(db, Guid.NewGuid());
         // The requesting user has a JobSeeker but does not own the artifact.
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -503,7 +503,7 @@ public class PromoteParsedResumeCommandHandlerTests
     public async Task Handle_WhenParsedResumeNotFound_DoesNotRunReviewReconcile()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

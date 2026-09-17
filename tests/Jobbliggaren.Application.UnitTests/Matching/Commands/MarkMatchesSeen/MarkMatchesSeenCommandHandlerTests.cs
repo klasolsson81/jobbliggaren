@@ -45,7 +45,7 @@ public class MarkMatchesSeenCommandHandlerTests
 
     private JobSeeker SeedSeeker(AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
         db.SaveChanges();
         return seeker;

@@ -22,7 +22,7 @@ public class LoginEmailConfirmationTests(ApiFactory factory)
 
     private Task<HttpResponseMessage> RegisterAsync(string email, CancellationToken ct)
         => _client.PostAsJsonAsync(
-            "/api/v1/auth/register", new { email, password = Password, displayName = "Test User" }, ct);
+            "/api/v1/auth/register", new { email, password = Password, displayName = "Test User", acceptTerms = true }, ct);
 
     private Task<HttpResponseMessage> LoginAsync(string email, string password, CancellationToken ct)
         => _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }, ct);

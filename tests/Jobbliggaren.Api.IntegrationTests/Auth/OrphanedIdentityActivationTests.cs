@@ -50,7 +50,7 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
     private Task<HttpResponseMessage> RegisterAsync(string email, CancellationToken ct)
         => _client.PostAsJsonAsync(
             "/api/v1/auth/register",
-            new { email, password = StrongPassword, displayName = "Test User" },
+            new { email, password = StrongPassword, displayName = "Test User", acceptTerms = true },
             ct);
 
     private Task<HttpResponseMessage> ResendAsync(string email, CancellationToken ct)

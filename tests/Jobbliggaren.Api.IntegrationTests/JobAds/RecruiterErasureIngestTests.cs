@@ -1089,7 +1089,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1118,7 +1118,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1155,7 +1155,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1197,7 +1197,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -1242,7 +1242,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -2442,7 +2442,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -2504,7 +2504,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), displayName, clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), displayName, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker.Id;
@@ -3023,7 +3023,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3165,7 +3165,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3199,7 +3199,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         using (var seed = _provider.CreateScope())
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3378,7 +3378,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -3409,7 +3409,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -3652,7 +3652,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 
@@ -3705,7 +3705,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         {
             var db = seed.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock();
-            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", clock).Value;
+            var seeker = JobSeeker.Register(Guid.NewGuid(), "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
 

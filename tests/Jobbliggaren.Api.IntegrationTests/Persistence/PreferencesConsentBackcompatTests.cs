@@ -28,7 +28,7 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent Backcompat", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent Backcompat", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;
@@ -130,7 +130,7 @@ public sealed class PreferencesConsentBackcompatTests(ApiFactory factory)
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent On", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Consent On", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, clock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);

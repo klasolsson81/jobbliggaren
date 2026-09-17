@@ -65,7 +65,7 @@ public class GetNewFollowedCompanyAdCountQueryHandlerTests
         new(db, user, _profileBuilder, _perUserSearch);
 
     private void SeedSeeker(AppDbContext db, Guid userId) =>
-        db.JobSeekers.Add(JobSeeker.Register(userId, "Test User", _clock).Value); // null watermark
+        db.JobSeekers.Add(JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(_clock), _clock).Value); // null watermark
 
     private CompanyWatchId SeedWatch(AppDbContext db, Guid userId, bool onlyMatched, bool active = true)
     {

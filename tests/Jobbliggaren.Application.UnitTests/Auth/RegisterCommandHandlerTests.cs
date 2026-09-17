@@ -20,7 +20,8 @@ public class RegisterCommandHandlerTests
     private static RegisterCommand ValidCommand() => new(
         Email: "klas@example.com",
         Password: "S3kret!pass",
-        DisplayName: "Klas Olsson");
+        DisplayName: "Klas Olsson",
+        AcceptTerms: true);
 
     private static RegisterCommandHandler CreateHandler(
         IAppDbContext? db = null,
@@ -383,7 +384,7 @@ public class RegisterCommandHandlerTests
             userAccountService: userAccountService, emailSender: emailSender, requireEmailConfirmation: true);
 
         var result = await handler.Handle(
-            new RegisterCommand("klas@example.com", "S3kret!pass", "Anna 811218-9876"),
+            new RegisterCommand("klas@example.com", "S3kret!pass", "Anna 811218-9876", AcceptTerms: true),
             CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
@@ -716,7 +717,8 @@ public class RegisterCommandHandlerTests
             new RegisterCommand(
                 Email: takenEmail,
                 Password: "S3kret!pass",
-                DisplayName: "Någon Annan"),
+                DisplayName: "Någon Annan",
+                AcceptTerms: true),
             CancellationToken.None);
 
         fresh.IsFailure.ShouldBeTrue();
@@ -765,4 +767,40 @@ public class RegisterCommandHandlerTests
         await userAccountService.DidNotReceive().CreateUserAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
+
+    // ---------- #1736 (ADR 0142 D6) — the terms-acceptance stamp ----------
+
+    [Fact]
+    public async Task Handle_WithValidCommand_AddsSeekerStampedWithTheCurrentTerms()
+    {
+        var userId = Guid.NewGuid();
+        var db = Substitute.For<IAppDbContext>();
+        var seekerSet = Substitute.For<DbSet<JobSeeker>>();
+        db.JobSeekers.Returns(seekerSet);
+        JobSeeker? added = null;
+        seekerSet.Add(Arg.Do<JobSeeker>(js => added = js));
+
+        var handler = CreateHandler(
+            db: db,
+            userAccountService: UserAccountServiceCreating(userId),
+            sessionStore: DefaultSessionStore(userId));
+
+        await handler.Handle(ValidCommand(), CancellationToken.None);
+
+        added.ShouldNotBeNull();
+        added.TermsAcceptance.ShouldNotBeNull();
+        // The handler's OWN clock read, not the one Register makes for CreatedAt — two facts, two
+        // reads. Both come off the same fake here, so what this pins is that the stamp is taken
+        // from the injected clock at all rather than from DateTimeOffset.UtcNow.
+        added.TermsAcceptance.AcceptedAt.ShouldBe(FakeDateTimeProvider.Default.UtcNow);
+        added.TermsAcceptance.TermsVersion.ShouldBe(TermsAcceptance.CurrentTermsVersion);
+        added.TermsAcceptance.PrivacyPolicyVersion
+            .ShouldBe(TermsAcceptance.CurrentPrivacyPolicyVersion);
+    }
+
+    // There is deliberately NO handler test for AcceptTerms = false: ValidationBehavior throws
+    // before the handler is invoked, so the handler never sees an unaccepted command and such a
+    // test would assert about a state the pipeline does not produce. The rule is pinned where it
+    // lives, in RegisterCommandValidatorTests.Validate_AcceptTermsFalse_FailsOnTheAcceptTermsField,
+    // and end to end in RegisterTests.
 }

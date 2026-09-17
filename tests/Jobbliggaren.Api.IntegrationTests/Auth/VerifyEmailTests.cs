@@ -35,7 +35,7 @@ public class VerifyEmailTests(ApiFactory factory)
 
     private Task<HttpResponseMessage> RegisterAsync(string email, CancellationToken ct)
         => _client.PostAsJsonAsync(
-            "/api/v1/auth/register", new { email, password = Password, displayName = "Test User" }, ct);
+            "/api/v1/auth/register", new { email, password = Password, displayName = "Test User", acceptTerms = true }, ct);
 
     private Task<HttpResponseMessage> VerifyAsync(Guid uid, string? token, CancellationToken ct)
         => _client.PostAsJsonAsync("/api/v1/auth/verify-email", new { uid, token }, ct);

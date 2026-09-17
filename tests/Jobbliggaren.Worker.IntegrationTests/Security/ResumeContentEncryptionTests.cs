@@ -123,8 +123,9 @@ public class ResumeContentEncryptionTests(WorkerTestFixture fixture)
     {
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
         var seeker = JobSeeker.Register(
-            Guid.NewGuid(), "C4.4 Test", new FixedClock(DateTimeOffset.UtcNow)).Value;
+            Guid.NewGuid(), "C4.4 Test", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;

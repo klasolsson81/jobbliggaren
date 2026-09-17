@@ -23,7 +23,7 @@ public class AddNoteCommandHandlerTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
@@ -52,7 +52,7 @@ public class AddNoteCommandHandlerTests
     public async Task Handle_WhenApplicationNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

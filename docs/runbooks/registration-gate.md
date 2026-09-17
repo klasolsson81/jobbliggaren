@@ -306,7 +306,7 @@ sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
 Then probe, **with a body that passes validation**:
 
 ```bash
-printf '{"email":"probe@example.com","password":"%s","displayName":"probe"}' \
+printf '{"email":"probe@example.com","password":"%s","displayName":"probe","acceptTerms":true}' \
   "$(openssl rand -base64 18)" \
   | sudo docker exec -i jobbliggaren-caddy curl -sS -X POST \
       http://api:8080/api/v1/auth/register -H 'Content-Type: application/json' \

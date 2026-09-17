@@ -27,7 +27,7 @@ public class LockoutTests(ApiFactory factory)
 
     private async Task RegisterAsync(string email, string password, CancellationToken ct) =>
         await _client.PostAsJsonAsync("/api/v1/auth/register",
-            new { email, password, displayName = "Lockout User" }, ct);
+            new { email, password, displayName = "Lockout User", acceptTerms = true }, ct);
 
     private Task<HttpResponseMessage> LoginAsync(string email, string password, CancellationToken ct) =>
         _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password }, ct);

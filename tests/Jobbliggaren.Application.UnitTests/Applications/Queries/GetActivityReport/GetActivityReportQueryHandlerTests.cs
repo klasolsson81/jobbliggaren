@@ -100,7 +100,7 @@ public class GetActivityReportQueryHandlerTests
 
     private async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, Guid userId, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Test", _clock).Value;
+        var seeker = JobSeeker.Register(userId, "Test", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;

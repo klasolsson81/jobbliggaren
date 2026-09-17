@@ -87,7 +87,7 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Rewrap Test", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Rewrap Test", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -102,7 +102,7 @@ public class MasterKeyRewrapIntegrationTests(WorkerTestFixture fixture)
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Rewrap Test 2", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Rewrap Test 2", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 

@@ -57,7 +57,7 @@ public class AdSnapshotCaptureLocationIntegrationTests
     private async Task<JobSeekerId> SeedSeekerAsync(
         IServiceScope scope, AppDbContext db, IDateTimeProvider clock)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         // Read-handlern materialiserar aggregatet (krypterad cover_letter-väg) →

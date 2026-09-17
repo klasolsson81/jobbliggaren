@@ -94,7 +94,7 @@ public class GetMyNewMatchCountQueryHandlerTests
 
     private void SeedSeeker(AppDbContext db, Guid userId, DateTimeOffset? lastSeen)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         if (lastSeen is { } seen)
         {
             // Stamp the watermark directly at the desired instant (clock pointed at `seen` so

@@ -23,7 +23,7 @@ public class CreateApplicationCommandHandlerTests
     public async Task Handle_WithValidCommand_ReturnsSuccessWithNonEmptyGuid()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -69,7 +69,7 @@ public class CreateApplicationCommandHandlerTests
     public async Task Handle_WithValidCommand_AddsApplicationToDbExactlyOnce()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -87,7 +87,7 @@ public class CreateApplicationCommandHandlerTests
     public async Task Handle_WithJobAdId_SetsJobAdIdOnApplication()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

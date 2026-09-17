@@ -52,7 +52,7 @@ public class UpdateFollowedCompanyNotificationConsentCommandHandlerTests
 
     private static async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", ClockT0).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(ClockT0), ClockT0).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         return seeker;

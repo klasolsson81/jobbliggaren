@@ -58,7 +58,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         int draftCount = 1,
         int submittedCount = 0)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         var apps = new List<DomainApplication>();
@@ -246,7 +246,7 @@ public class GetApplicationsQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", clock).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         var app = DomainApplication.Create(seeker.Id, null, null, null, clock).Value;
         app.TransitionTo(ApplicationStatus.Submitted, clock);

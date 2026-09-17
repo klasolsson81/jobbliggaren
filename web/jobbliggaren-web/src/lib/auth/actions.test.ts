@@ -76,6 +76,8 @@ describe("registerAction (#541 — DisplayName must reach the backend)", () => {
       displayName: "Anna Andersson",
       email: "anna@example.se",
       password: "password1",
+      // #1736: the acceptance the form gates on is forwarded, so the API can require and record it.
+      acceptTerms: true,
       // PR2b-3b: no rememberMe in the form → a session-scoped session (false).
       rememberMe: false,
     });

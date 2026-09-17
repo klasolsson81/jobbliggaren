@@ -30,7 +30,7 @@ public class CreateResumeCommandHandlerTests
     private static async Task<JobSeeker> SeedJobSeekerAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return seeker;

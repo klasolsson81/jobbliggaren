@@ -4,6 +4,10 @@ using Mediator;
 
 namespace Jobbliggaren.Application.Auth.Commands.Register;
 
+// AcceptTerms (#1736, ADR 0142 D6) is the holder's acceptance of the terms; RegisterCommandValidator
+// requires it. Deliberately no default: a JSON body that omits the field binds to false and is
+// refused (fail-closed by construction), and a defaulted parameter invites someone to write "= true".
+//
 // RememberMe mirrors LoginCommand — the "Håll mig inloggad" opt-in at registration. It applies only
 // on the legacy instant-login path (flag OFF); email-confirmation-first registration (#714) mints no
 // session, so RememberMe is inert there.
@@ -11,4 +15,5 @@ public sealed record RegisterCommand(
     string? Email,
     string? Password,
     string? DisplayName,
+    bool AcceptTerms,
     bool RememberMe = false) : ICommand<Result<RegisterOutcome>>;

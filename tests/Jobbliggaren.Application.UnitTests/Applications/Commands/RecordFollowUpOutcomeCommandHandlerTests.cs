@@ -29,7 +29,7 @@ public class RecordFollowUpOutcomeCommandHandlerTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
@@ -91,7 +91,7 @@ public class RecordFollowUpOutcomeCommandHandlerTests
     public async Task Handle_WhenApplicationNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -126,7 +126,7 @@ public class RecordFollowUpOutcomeCommandHandlerTests
         var (_, ownerApp, ownerFollowUpId) = await SeedWithPendingFollowUpAsync(db, ownerUserId);
 
         // Aktuell user (annan) har egen JobSeeker men inte ansökan.
-        var attacker = JobSeeker.Register(_userId, "Attacker", FakeDateTimeProvider.Default).Value;
+        var attacker = JobSeeker.Register(_userId, "Attacker", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(attacker);
         await db.SaveChangesAsync(CancellationToken.None);
 

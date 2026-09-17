@@ -186,7 +186,7 @@ export async function registerAction(
     const res = await fetch(`${env.BACKEND_URL}/api/v1/auth/register`, {
       method: "POST",
       headers: { ...(await forwardedHeaders()), "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName, email, password, rememberMe }),
+      body: JSON.stringify({ displayName, email, password, rememberMe, acceptTerms }),
       cache: "no-store",
     });
 

@@ -38,7 +38,7 @@ public class GetNewSavedSearchResultsCountQueryHandlerTests
 
     private static JobSeeker SeedSeeker(AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SaveChanges();
         return seeker;

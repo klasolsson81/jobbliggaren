@@ -76,7 +76,7 @@ public class ReviewParsedResumeQueryHandlerTests
     private static async Task<(ParsedResume Parsed, JobSeeker Owner)> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -228,7 +228,7 @@ public class ReviewParsedResumeQueryHandlerTests
     public async Task Handle_ShouldReturnNullAndNotCallEngine_WhenParsedResumeNotFound()
     {
         var db = CreateDb();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -247,7 +247,7 @@ public class ReviewParsedResumeQueryHandlerTests
         // Another user's parsed resume.
         var (otherParsed, _) = await SeedOwnedAsync(db, Guid.NewGuid());
         // The requesting user has a job seeker but does not own the artifact.
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

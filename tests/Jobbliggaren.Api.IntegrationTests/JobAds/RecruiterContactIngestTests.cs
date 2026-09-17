@@ -830,7 +830,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock();
 
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), "Sökande", TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 

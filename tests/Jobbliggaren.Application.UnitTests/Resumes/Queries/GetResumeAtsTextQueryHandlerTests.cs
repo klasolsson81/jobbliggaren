@@ -46,7 +46,7 @@ public class GetResumeAtsTextQueryHandlerTests
     private static async Task<Resume> SeedOwnedResumeAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
@@ -90,7 +90,7 @@ public class GetResumeAtsTextQueryHandlerTests
     public async Task Handle_ShouldReturnNullAndNotLogCrossUserAttempt_WhenResumeUnknown()
     {
         var db = CreateDb();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -109,7 +109,7 @@ public class GetResumeAtsTextQueryHandlerTests
         var db = CreateDb();
         var otherResume = await SeedOwnedResumeAsync(db, Guid.NewGuid());
         // The requesting user has a job seeker but does not own the resume.
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -172,7 +172,7 @@ public class GetResumeAtsTextQueryHandlerTests
 
         // Premise: the domain layer accepts pnr-shaped free text (the guard is not domain-level).
         var premise = Resume.Create(
-            JobSeeker.Register(Guid.NewGuid(), "Owner", FakeDateTimeProvider.Default).Value.Id,
+            JobSeeker.Register(Guid.NewGuid(), "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value.Id,
             "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         premise.UpdateMasterContent(pnrContent, FakeDateTimeProvider.Default).IsSuccess.ShouldBeTrue();
 
@@ -199,7 +199,7 @@ public class GetResumeAtsTextQueryHandlerTests
     public async Task Handle_ShouldReturnNull_WhenResumeIsSoftDeleted()
     {
         var db = CreateDb();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         resume.SoftDelete(FakeDateTimeProvider.Default);

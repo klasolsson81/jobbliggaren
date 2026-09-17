@@ -619,7 +619,10 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_job_seekers_user_id");
 
-                    b.ToTable("job_seekers", (string)null);
+                    b.ToTable("job_seekers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_job_seekers_terms_all_or_none", "num_nonnulls(terms_accepted_at, terms_version, privacy_policy_version) IN (0, 3)");
+                        });
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Matching.UserJobAdMatch", b =>
@@ -1776,8 +1779,41 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                                 .HasConstraintName("fk_job_seekers_job_seekers_id");
                         });
 
+                    b.OwnsOne("Jobbliggaren.Domain.JobSeekers.TermsAcceptance", "TermsAcceptance", b1 =>
+                        {
+                            b1.Property<Guid>("JobSeekerId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateTimeOffset>("AcceptedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("terms_accepted_at");
+
+                            b1.Property<string>("PrivacyPolicyVersion")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("privacy_policy_version");
+
+                            b1.Property<string>("TermsVersion")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("terms_version");
+
+                            b1.HasKey("JobSeekerId");
+
+                            b1.ToTable("job_seekers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("JobSeekerId")
+                                .HasConstraintName("fk_job_seekers_job_seekers_id");
+                        });
+
                     b.Navigation("Preferences")
                         .IsRequired();
+
+                    b.Navigation("TermsAcceptance");
                 });
 
             modelBuilder.Entity("Jobbliggaren.Domain.Resumes.Resume", b =>

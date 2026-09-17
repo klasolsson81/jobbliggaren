@@ -77,7 +77,8 @@ public static class AuthTestHelpers
         SessionLifetime lifetime,
         CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, displayName, services.GetRequiredService<IDateTimeProvider>());
+        var clock = services.GetRequiredService<IDateTimeProvider>();
+        var seeker = JobSeeker.Register(userId, displayName, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seeker.IsFailure)
             throw new InvalidOperationException($"Bootstrap JobSeeker.Register failed: {seeker.Error.Code}");
 

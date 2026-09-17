@@ -131,7 +131,6 @@ public class IdempotentAdminRoleSeederAuditEvidenceTests
         {
             Email = email,
             UserName = email,
-            Provider = AuthProvider.Local,
         };
         var result = await userManager.CreateAsync(user, AdminPassword);
         result.Succeeded.ShouldBeTrue(string.Join("; ", result.Errors.Select(e => e.Description)));

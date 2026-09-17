@@ -67,7 +67,7 @@ export async function ensureTestUser(baseURL: string, runId: number): Promise<vo
   const res = await fetch(`${baseURL}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD, displayName: "E2E Testare" }),
+    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD, displayName: "E2E Testare", acceptTerms: true }),
   });
   if (!res.ok && res.status !== 409) {
     if (res.status === 400) {

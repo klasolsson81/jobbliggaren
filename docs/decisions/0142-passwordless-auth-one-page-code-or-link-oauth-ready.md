@@ -125,8 +125,9 @@ subject, limit, window)` (Redis `INCR` + `EXPIRE`, atomic). **The address normal
 home:** `RedisCooldownGate.Key`'s `Trim().Normalize().ToUpperInvariant()` is lifted to an internal
 shared function that the shipped gate delegates to, and every new hashing site calls it (security
 Major 3) — a copy that forgets `ToUpperInvariant` gives 2^k independent windows for one account
-(U+017F / NFD, `RedisCooldownGate.cs:43-64`). `ICooldownGate.cs:16`'s "lower-invariant" is a wrong
-comment and is corrected in the same PR.
+(U+017F / NFD, `RedisCooldownGate.cs:43-64`). The lift is pinned by the existing
+`RedisCooldownGateTests` sweep, **extended to the new keys** in 1a. `ICooldownGate.cs:16`'s
+"lower-invariant" is a wrong comment and is corrected in the same PR.
 
 ### D2 — The request path never reads the account
 
@@ -390,11 +391,15 @@ contract. Both existing accounts have `EmailConfirmed=true` and log in by code w
 
 ## Open — Klas decides (put to him in plain text 2026-09-17; not settled here)
 
-**The default that holds until he answers, written so the sequence is not blocked:** part 5 is
-split into **5a** (teardown of the password surfaces, `RequireEmailConfirmation` retired, runbooks
-and BUILD.md truth-sync, #734 re-pointed) and **5b** (`password_hash` nulled). **5b does not open
-until Klas has answered**, and no break-glass is designed until he names one. This keeps the step
-reversible, which is the only default that forecloses nothing.
+**The default that holds until he answers — parts 0.5 and 1b proceed, parts 1a and 5b wait:**
+part 5 is split into **5a** (teardown of the password surfaces, `RequireEmailConfirmation`
+retired, runbooks and BUILD.md truth-sync, #734 re-pointed) and **5b** (`password_hash` nulled).
+**5b does not open until Klas has answered, and not before 5a is merged and measured live on
+`dev.jobbliggaren.se`** (the same gate 4b has against 4a). **1a (#1735) does not open until the
+three answers are in this ADR** — `security-auditor`'s condition below, made operative: #1735
+carries `blocked` since 2026-09-17 and 0.5 (#1734) and 1b (#1736) are not gated. No break-glass is
+designed until he names one. This keeps the irreversible step reversible and the two parts whose
+right answer depends on his reply unopened, which is the only default that forecloses nothing.
 
 The escalation, verbatim from `senior-cto-advisor`:
 
@@ -402,9 +407,13 @@ The escalation, verbatim from `senior-cto-advisor`:
 >
 > I dag bryter ett mailavbrott (Scaleway nere, utgången API-nyckel, en avvisad avsändardomän) bara registrering och lösenordsåterställning — inloggning fungerar ändå, eftersom lösenordet finns. Efter den här epiken är kodmailet den **enda** inloggningsvägen: OAuth är blockerat på nycklar du inte har ännu, och del 5 nollar `password_hash`. Då gäller: **ingen kan logga in alls, inklusive du själv, och det finns ingen reservväg.** Adminseedern löser upp konton via e-post och hjälper inte här.
 >
-> 1. **Accepterar du att ett mailavbrott = totalt inloggningsstopp?**
-> 2. **Vill du ha en break-glass?** (a) en Development/ops-gated engångskod som skrivs ut i loggen på lådan, (b) en andra mailprovider som fallback, eller (c) att lösenordet behålls för ditt eget adminkonto och bara för det.
-> 3. **Ska del 5 (nollningen av `password_hash`) över huvud taget köras före lansering?** Alternativet är att låta lösenordsvägen ligga kvar inaktiv men intakt tills OAuth är live.
+> Tre frågor, och jag behöver ditt svar innan ADR 0142 skrivs:
+>
+> 1. **Accepterar du att ett mailavbrott = totalt inloggningsstopp?** (Detta är ett tillgänglighetsbeslut med produktkonsekvens, inte ett tekniskt val — därför frågar jag.)
+> 2. **Vill du ha en break-glass?** De realistiska formerna är (a) en Development/ops-gated engångskod som skrivs ut i loggen på lådan, (b) en andra mailprovider som fallback, eller (c) att lösenordet behålls för ditt eget adminkonto och bara för det.
+> 3. **Ska del 5 (nollningen av `password_hash`) över huvud taget köras före lansering?** Alternativet är att låta lösenordsvägen ligga kvar inaktiv men intakt tills OAuth är live — det kostar att BUILD.md beskriver två auth-vägar ett tag till, men det gör steget reverterbart.
+>
+> Jag rekommenderar inget här: valet beror på hur mycket driftavbrott du tål på `jobbliggaren.se` under introduktionen av de första testanvändarna, och det är din bedömning. Frågan rör också #734 (go-live-grinden), som är din.
 
 `security-auditor`'s cost per break-glass form (verbatim, no recommendation):
 
@@ -414,9 +423,10 @@ The escalation, verbatim from `senior-cto-advisor`:
 >
 > **(c) Lösenord kvar enbart för adminkontot.** Kräver att 5b blir "nolla alla utom en", varmed invarianten blir *"passwordless utom ett konto"* — ett villkorat påstående ingen billig test kan uttrycka. Och det kräver att **hela lösenordsytan** lever vidare: `/auth/login`, `ValidateCredentialsAsync`, lockout-vägen, `PwnedPasswordValidator` och lösenords-UI:t. Alltså faller inte bara 5b utan **5a**. Den återinför dessutom lockout-DoS:et (Major 11) på exakt det konto vars tillgänglighet break-glassen finns för att skydda. Högst säkerhetskostnad; enda formen som varken behöver mejl eller logg.
 
-`security-auditor` adds: the three answers must be in this ADR **before part 1a opens**, because
-where the lockout hole closes (D3) and the boot refusal (D10) get different right answers depending
-on whether a break-glass exists.
+`security-auditor`, verbatim: *"de tre svaren måste in i ADR 0142 innan del 1a öppnas, eftersom
+Major 11 och Major 12 (var lockout-hålet stängs, och att boot-vägran tappar sitt
+`RegistrationsOpen`-villkor) får olika rätt svar beroende på om en break-glass finns."* That is the
+gate on #1735 named in the default above.
 
 `design-reviewer`'s question, verbatim: *"provider-märkenas färgsättning saknar token och kan inte
 lösas inom DESIGN.md. … Jag behöver ditt besked om du vill (a) monokromt hela vägen och avstå de
@@ -506,7 +516,9 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   integritetspolicyn."*), never inside the acceptance. "Skapa konto" the only primary. The D4
   disclosure directly above it.
 - **Link landing** (design M5): `<form action={consumeLinkAction}>` with the token in a hidden
-  input and a submit button — works with JS off; no `useEffect` consumption (scanners GET);
+  input and a submit button — works with JS off; no `useEffect` consumption (scanners GET); this is
+the simpler form, so **a live token stays in the browser history for up to 15 min** (the 303-hop
+form that moves it into a short-lived cookie was not chosen);
   `Cache-Control: no-store` on GET **and** POST; `referrer: "no-referrer"` **measured** against the
   global `strict-origin-when-cross-origin` rule (a route rule that does not win is a rule that does
   not exist); expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
@@ -580,14 +592,15 @@ Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from 
 comment; 5a/5b are one issue, #1743, until it is split):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
-(`Persistence`) → **1a** #1735 challenge/verify/link, store, both dispatchers, mail, dev seam,
-`IRateBudget`, the boot-gate change, the edge-scrub pin, the register → **1c** #1737 `complete`,
+(`Persistence`) → **1a** #1735 (**`blocked` until Klas's three D10 answers are in this ADR**)
+challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the boot-gate change,
+the edge-scrub pin, the register → **1c** #1737 `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
 **4a** #1741 display name nullable, `Resume.FullName` optional → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**opens only on
-Klas's answer**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
+Klas's answer, and only after 5a is merged and measured live on `dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
 (`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

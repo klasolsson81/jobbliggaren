@@ -154,7 +154,7 @@ The original "Max-Age: 14 days (sliding, refreshed on use)" row described the si
 always-persistent session profile that existed until 2026-07-05 — every login received the same
 silent 14-day cookie, with no user choice. Per **ADR 0142** (which carries the persistent-login legal-basis analysis; until 2026-09-17 this
 pointer read "ADR 0093", a number that holds a different ADR — the analysis was never written,
-#1494; ADR 0142 is a local-only file per the ADR 0072 docs-privacy convention), the cookie now branches on an explicit "Håll mig inloggad" checkbox at login/register:
+#1494), the cookie now branches on an explicit "Håll mig inloggad" checkbox at login/register:
 
 | Choice | Cookie `Max-Age` | Server-side lifetime |
 |---|---|---|

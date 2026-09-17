@@ -20,7 +20,7 @@ public class AttachResumeVersionEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"attach-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"attach-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

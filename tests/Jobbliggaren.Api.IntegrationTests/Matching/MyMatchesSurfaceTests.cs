@@ -549,7 +549,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.GetAsync("/api/v1/me/new-match-count", ct);
@@ -569,7 +569,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.GetAsync("/api/v1/me/matches", ct);
@@ -585,7 +585,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // The registered user already has a JobSeeker (RegisterCommandHandler auto-provisions

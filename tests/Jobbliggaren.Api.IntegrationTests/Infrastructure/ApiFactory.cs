@@ -194,16 +194,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
             // #714 — pin email-confirmation-first OFF for the base host. The factory forces
             // Development env (above), which loads appsettings.Development.json where the flag is ON
-            // (dev runs the confirmation-first flow). Without this override every [Collection("Api")]
-            // test would inherit the flag → RegisterAndGetSessionIdAsync (142 sites) would get a 202
-            // with no sessionId and break. PostConfigure runs after config binding and wins; the
+            // (dev runs the confirmation-first flow). PostConfigure runs after config binding and wins; the
             // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
             // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
             services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
 
             // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
-            // base host must pin it OPEN or every register-based bootstrap (RegisterAndGetSessionIdAsync
-            // and friends) would be refused before an account is created. Pinned here rather than
+            // base host must pin it OPEN or every register-based bootstrap would be refused before an
+            // account is created. Pinned here rather than
             // inherited from appsettings.Development.json for the same reason the line above is: the
             // harness must not depend on a dev config file it does not own. The derived hosts below
             // register their PostConfigure AFTER this one and override only the flags they name, so
@@ -251,7 +249,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
     /// </para>
     /// </summary>
-    internal HttpClient CreateRegistrationsClosedClient()
+    internal HttpClient CreateRegistrationsClosedClient() => RegistrationsClosedHost().CreateClient();
+
+    /// <summary>The cached registrations-CLOSED host behind <see cref="CreateRegistrationsClosedClient"/>.</summary>
+    internal WebApplicationFactory<Program> RegistrationsClosedHost()
     {
         lock (_registrationsClosedLock)
         {
@@ -267,7 +268,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             }));
         }
 
-        return _registrationsClosedHost.CreateClient();
+        return _registrationsClosedHost;
     }
 
     private readonly CapturingLoggerProvider _closedHostLogs = new();

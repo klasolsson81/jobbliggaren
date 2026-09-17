@@ -120,7 +120,7 @@ public class LockoutTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"lockout-verify-{Guid.NewGuid()}@example.com";
         var password = AuthTestHelpers.DefaultTestPassword;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, password, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(factory, email, password, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // 5 failed /verify attempts -> locks the account.

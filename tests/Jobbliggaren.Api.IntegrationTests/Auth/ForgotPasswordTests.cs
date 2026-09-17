@@ -49,7 +49,7 @@ public class ForgotPasswordTests(ApiFactory factory)
     // Auth:RequireEmailConfirmation is OFF (ApiFactory pins it so) — the session it returns is
     // discarded here, so the ONLY mail this class can observe for a recipient is the reset link's.
     private async Task CreateAccountAsync(string email, CancellationToken ct)
-        => _ = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        => _ = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
     private int ResetMailCount(string email)
         => _factory.Emails.Sent.Count(e =>

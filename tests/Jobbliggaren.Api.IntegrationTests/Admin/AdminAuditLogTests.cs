@@ -30,7 +30,7 @@ public class AdminAuditLogTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var email = $"admin-audit-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var me = await client.GetAsync("/api/v1/me", ct);

@@ -24,7 +24,7 @@ public class RefreshSessionTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    // A registered user gets a Legacy-profile session (rememberMe threading ships later),
+    // A user registered without rememberMe gets a Session-profile session,
     // which never rotates → refresh only slides. Pins the endpoint wiring + the
     // rotated:false contract end-to-end, and that the session still authenticates after.
     [Fact]
@@ -33,7 +33,7 @@ public class RefreshSessionTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
 
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.PostAsync(RefreshEndpoint, content: null, ct);

@@ -22,8 +22,8 @@ public class VerifyCredentialsTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"verify-{Guid.NewGuid()}@example.com";
         var password = "T3stlosen123456";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email, password, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(
+            factory, email, password, ct: ct);
 
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
@@ -41,8 +41,8 @@ public class VerifyCredentialsTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"verify-wrong-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email, "T3stlosen123456", ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(
+            factory, email, "T3stlosen123456", ct: ct);
 
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);
@@ -76,8 +76,8 @@ public class VerifyCredentialsTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"verify-noop-{Guid.NewGuid()}@example.com";
         var password = "T3stlosen123456";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email, password, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(
+            factory, email, password, ct: ct);
 
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", sessionId);

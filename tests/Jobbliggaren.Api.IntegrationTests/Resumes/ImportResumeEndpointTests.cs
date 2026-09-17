@@ -45,7 +45,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"import-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"import-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

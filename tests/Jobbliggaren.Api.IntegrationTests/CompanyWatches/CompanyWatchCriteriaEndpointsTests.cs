@@ -44,7 +44,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
     private async Task AuthenticateAsync(CancellationToken ct)
     {
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 
@@ -173,7 +173,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
 
         // ...user B probes it, plus an id that exists for nobody.
         var clientB = _factory.CreateClient();
-        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(clientB, ct: ct);
+        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var foreign = await clientB.GetAsync($"{Endpoint}/{theirId}/companies", ct);
@@ -393,7 +393,7 @@ public class CompanyWatchCriteriaEndpointsTests(ApiFactory factory)
         var theirId = await CreateAsync(ct);
 
         var clientB = _factory.CreateClient();
-        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(clientB, ct: ct);
+        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
 
         var foreignAds = await clientB.GetAsync($"{Endpoint}/{theirId}/ads", ct);

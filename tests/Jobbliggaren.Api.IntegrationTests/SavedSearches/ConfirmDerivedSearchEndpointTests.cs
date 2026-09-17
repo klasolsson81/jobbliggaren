@@ -23,7 +23,7 @@ public class ConfirmDerivedSearchEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"confirm-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            factory, email: $"confirm-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

@@ -72,7 +72,7 @@ public class BreachedPasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"pwned-cp-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         // Hardcoded TEST fixture password, not a real secret. gitleaks:allow
         const string breached = "BreachedChange123456";
         _factory.BreachChecks.SetVerdict(breached, BreachCheckVerdict.Breached);
@@ -95,7 +95,7 @@ public class BreachedPasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"pwned-cpopen-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         // Hardcoded TEST fixture password, not a real secret. gitleaks:allow
         const string newPassword = "UnavailableChange123456";
         _factory.BreachChecks.SetVerdict(newPassword, BreachCheckVerdict.Unavailable);

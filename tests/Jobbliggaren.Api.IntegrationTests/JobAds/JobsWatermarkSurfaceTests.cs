@@ -37,7 +37,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
     private async Task<HttpClient> AuthedClientAsync(CancellationToken ct)
     {
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

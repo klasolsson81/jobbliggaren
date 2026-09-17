@@ -29,7 +29,7 @@ public class DeleteApplicationEndpointTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"delete-app-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"delete-app-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

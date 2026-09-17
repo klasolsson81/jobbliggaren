@@ -37,7 +37,7 @@ public class SavedSearchResultsSeenSurfaceTests(ApiFactory factory)
     {
         var client = _factory.CreateClient();
         var email = $"{prefix}-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

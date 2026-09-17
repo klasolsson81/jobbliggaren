@@ -139,7 +139,7 @@ public class ResetPasswordConfirmsAddressTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-confirms-flagoff-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var link = await EmittedResetLinkAsync(email, ct);
 
@@ -166,7 +166,7 @@ public class ResetPasswordConfirmsAddressTests(ApiFactory factory)
         // recorded behind it.
         var ct = TestContext.Current.CancellationToken;
         var email = $"rp-confirms-badtoken-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         // A real uid with a junk token. The token is in the Base64Url alphabet on purpose: a malformed
         // one short-circuits at the decode and would leave a write placed after it uncaught.

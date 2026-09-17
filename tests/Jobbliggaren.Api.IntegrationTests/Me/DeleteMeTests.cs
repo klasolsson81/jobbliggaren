@@ -81,7 +81,7 @@ public class DeleteMeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"delete-me-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var response = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
 
@@ -99,7 +99,7 @@ public class DeleteMeTests(ApiFactory factory)
         // gatar ReauthenticationBehavior operationen och handlern körs aldrig.
         var ct = TestContext.Current.CancellationToken;
         var email = $"delete-wrong-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var response = await PostDeleteAsync(sessionId, "FelLosen!", ct);
 
@@ -120,7 +120,7 @@ public class DeleteMeTests(ApiFactory factory)
         // 400 (validering) — inte 401 (re-auth). Tomt vs fel = 400 vs 401 avslöjar inget om kontot.
         var ct = TestContext.Current.CancellationToken;
         var email = $"delete-empty-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var response = await PostDeleteAsync(sessionId, password, ct);
 
@@ -145,14 +145,14 @@ public class DeleteMeTests(ApiFactory factory)
 
         // Konto A — vanligt fel lösenord (ej låst). EN delete (AccountDeletion-limit=1/user).
         var emailA = $"delete-oracle-wrong-{Guid.NewGuid()}@example.se";
-        var sessionA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailA, password, ct: ct);
+        var sessionA = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailA, password, ct: ct);
         var wrongResponse = await PostDeleteAsync(sessionA, "FelLosen!", ct);
 
         // Konto B — lås via 5 misslyckade /auth/verify (AuthWrite höjd i test → ingen 429), sedan EN
         // /me/delete med RÄTT lösenord. Låst → ValidateCredentials avvisar → samma centrala 401.
         // /verify används för lås-loopen så /me/delete träffas bara EN gång (limit=1/user).
         var emailB = $"delete-oracle-locked-{Guid.NewGuid()}@example.se";
-        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, emailB, password, ct: ct);
+        var sessionB = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailB, password, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
         for (var i = 0; i < 5; i++)
             await _client.PostAsJsonAsync("/api/v1/auth/verify", new { password = "FelLosen!" }, ct);
@@ -179,7 +179,7 @@ public class DeleteMeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"login-blocked-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -208,7 +208,7 @@ public class DeleteMeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"sess-invalidated-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -225,7 +225,7 @@ public class DeleteMeTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"audit-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email: email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
 
         var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);

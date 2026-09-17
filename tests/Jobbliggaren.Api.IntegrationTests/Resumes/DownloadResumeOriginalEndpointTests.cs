@@ -60,7 +60,7 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
     {
         var client = f.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            client, email: $"original-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            f, email: $"original-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }
@@ -68,7 +68,7 @@ public class DownloadResumeOriginalEndpointTests(ApiFactory factory)
     private async Task AuthenticateAsync(CancellationToken ct)
     {
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _client, email: $"original-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
+            _factory, email: $"original-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
     }
 

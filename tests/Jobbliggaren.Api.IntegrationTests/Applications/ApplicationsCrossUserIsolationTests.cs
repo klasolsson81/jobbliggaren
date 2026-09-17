@@ -27,7 +27,7 @@ public class ApplicationsCrossUserIsolationTests(ApiFactory factory)
     {
         var client = factory.CreateClient();
         var email = $"{userPrefix}-{Guid.NewGuid()}@example.com";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return client;
     }

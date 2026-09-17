@@ -39,7 +39,7 @@ public class AdminBackfillSourceFileNameMaskTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(client, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         var response = await client.PostAsync(Path, content: null, ct);

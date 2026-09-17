@@ -78,7 +78,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-wrong-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, "FelLosen123456", NewPassword, ct);
 
@@ -101,7 +101,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-emptycur-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, current, NewPassword, ct);
 
@@ -118,7 +118,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-weaknew-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newPw, ct);
 
@@ -130,7 +130,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-ok-{Guid.NewGuid()}@example.se";
-        var oldSession = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var oldSession = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         var response = await ChangeAsync(oldSession, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
 
@@ -159,7 +159,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-multi-{Guid.NewGuid()}@example.se";
-        var deviceA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var deviceA = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
         var deviceB = await AuthTestHelpers.LoginAndGetSessionIdAsync(_client, email, ct: ct);
 
         // Both sessions authenticate before the change.
@@ -178,7 +178,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-audit-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, NewPassword, ct))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -204,7 +204,7 @@ public class ChangePasswordTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-persist-{Guid.NewGuid()}@example.se";
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_client, email, ct: ct);
+        await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
         // Log in with rememberMe = true → a Persistent session.
         var loginResp = await _client.PostAsJsonAsync(

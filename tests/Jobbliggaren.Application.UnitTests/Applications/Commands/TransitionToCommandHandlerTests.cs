@@ -24,7 +24,7 @@ public class TransitionToCommandHandlerTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
@@ -67,7 +67,7 @@ public class TransitionToCommandHandlerTests
     public async Task Handle_WhenApplicationNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -87,7 +87,7 @@ public class TransitionToCommandHandlerTests
         var (_, otherApp) = await SeedAsync(db, otherUserId);
 
         // Egen JobSeeker för current user (annars filtreras inte ut korrekt)
-        var ownSeeker = JobSeeker.Register(_userId, "Current User", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Current User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -110,7 +110,7 @@ public class TransitionToCommandHandlerTests
     {
         // TD-67 / ADR 0031: okänt id är INTE cross-user-attempt — ska inte logga.
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

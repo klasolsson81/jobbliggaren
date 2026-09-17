@@ -82,7 +82,7 @@ public class ReviewResumeQueryHandlerTests
     private static async Task<Resume> SeedOwnedResumeAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId, Action<Resume>? configure = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Anna Andersson", FakeDateTimeProvider.Default).Value;
         configure?.Invoke(resume);
@@ -209,7 +209,7 @@ public class ReviewResumeQueryHandlerTests
     public async Task Handle_ShouldReturnNullAndNotCallEngine_WhenResumeNotFound()
     {
         var db = CreateDb();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -227,7 +227,7 @@ public class ReviewResumeQueryHandlerTests
         var db = CreateDb();
         var otherResume = await SeedOwnedResumeAsync(db, Guid.NewGuid());
         // The requesting user has a job seeker but does not own the resume.
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

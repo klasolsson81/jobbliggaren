@@ -15,7 +15,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seekerResult = JobSeeker.Register(userId, "Klas Olsson", FakeDateTimeProvider.Default);
+        var seekerResult = JobSeeker.Register(userId, "Klas Olsson", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seekerResult.Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -73,7 +73,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Fresh Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Fresh Seeker", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -99,7 +99,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Consenting Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Consenting Seeker", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Daily, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -126,7 +126,7 @@ public class GetMyProfileQueryHandlerTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Following Seeker", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Following Seeker", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);

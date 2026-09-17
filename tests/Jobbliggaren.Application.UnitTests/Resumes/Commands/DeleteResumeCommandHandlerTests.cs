@@ -44,7 +44,7 @@ public class DeleteResumeCommandHandlerTests
         Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -93,7 +93,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_WhenResumeNotFound_ThrowsNotFoundException()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -111,7 +111,7 @@ public class DeleteResumeCommandHandlerTests
         var otherUserId = Guid.NewGuid();
         var resume = await SeedResumeAsync(db, otherUserId);
 
-        var ownSeeker = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -130,7 +130,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_DeletingPrimaryResume_UnsetsJobSeekerPrimaryResumeId()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
@@ -154,7 +154,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_DeletingNonPrimaryResume_DoesNotChangeJobSeekerPrimaryResumeId()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var primary = Resume.Create(seeker.Id, "Primary", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         var other = Resume.Create(seeker.Id, "Other", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -188,7 +188,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_DeletingImportedResume_CascadeErasesCoupledOriginalFile()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());
@@ -224,7 +224,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_DeletingTemplateResume_LeavesUnrelatedOriginalUntouched()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         // A Template-origin CV has a null SourceParsedResumeId (F2 back-compat) → cascade skipped.
@@ -254,7 +254,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_ImportedResumeWithNoCapturedOriginal_SoftDeletesWithoutThrowing()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         // SourceParsedResumeId is set, but no ResumeFile was ever captured for it (pre-PR-9a
@@ -280,7 +280,7 @@ public class DeleteResumeCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherUserId = Guid.NewGuid();
-        var otherSeeker = JobSeeker.Register(otherUserId, "Other User", FakeDateTimeProvider.Default).Value;
+        var otherSeeker = JobSeeker.Register(otherUserId, "Other User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(otherSeeker);
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());
@@ -295,7 +295,7 @@ public class DeleteResumeCommandHandlerTests
         db.ResumeFiles.Add(otherFile);
 
         // The current user has their own JobSeeker but does NOT own the target resume.
-        var ownSeeker = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -314,7 +314,7 @@ public class DeleteResumeCommandHandlerTests
     public async Task Handle_OriginalWithMatchingParsedIdButDifferentOwner_IsNotErased()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var parsedId = new ParsedResumeId(Guid.NewGuid());

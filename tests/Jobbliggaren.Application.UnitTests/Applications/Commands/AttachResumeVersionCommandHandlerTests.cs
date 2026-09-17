@@ -37,7 +37,7 @@ public class AttachResumeVersionCommandHandlerTests
         Infrastructure.Persistence.AppDbContext db,
         Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var app = DomainApplication.Create(seeker.Id, null, null, null, FakeDateTimeProvider.Default).Value;
@@ -147,7 +147,7 @@ public class AttachResumeVersionCommandHandlerTests
         var (_, otherApp) = await SeedSeekerAndAppAsync(db, otherUserId);
 
         // Egen JobSeeker för current user (annars stoppas vi tidigare på JobSeeker.NotFound).
-        var ownSeeker = JobSeeker.Register(_userId, "Current User", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Current User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -170,7 +170,7 @@ public class AttachResumeVersionCommandHandlerTests
     public async Task Handle_WhenApplicationIdUnknown_DoesNotLogCrossUserAttempt()
     {
         var db = TestAppDbContextFactory.Create();
-        var ownSeeker = JobSeeker.Register(_userId, "Current User", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Current User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -200,7 +200,7 @@ public class AttachResumeVersionCommandHandlerTests
         var (mySeeker, myApp) = await SeedSeekerAndAppAsync(db, _userId);
 
         var otherUserId = Guid.NewGuid();
-        var otherSeeker = JobSeeker.Register(otherUserId, "Other User", FakeDateTimeProvider.Default).Value;
+        var otherSeeker = JobSeeker.Register(otherUserId, "Other User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(otherSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
         var otherResume = await SeedResumeForAsync(db, otherSeeker.Id);
@@ -253,7 +253,7 @@ public class AttachResumeVersionCommandHandlerTests
     public async Task Handle_WhenApplicationInTerminalStatus_ReturnsDomainFailure()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         // Bygg en Accepted-ansökan (terminal) — transitions via aggregatet.

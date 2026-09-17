@@ -95,7 +95,7 @@ public class BackgroundMatchingJobTopDirectTests
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Test", NowClock).Value;
+        var seeker = JobSeeker.Register(userId, "Test", TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         seeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);

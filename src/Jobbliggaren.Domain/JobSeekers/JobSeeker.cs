@@ -11,6 +11,19 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public string DisplayName { get; private set; } = null!;
     public Preferences Preferences { get; private set; } = null!;
 
+    /// <summary>
+    /// ADR 0142 D6 (#1736) — the contract stamp: when the holder accepted the terms, and which
+    /// versions of the terms and the privacy policy were current then. Art. 6(1)(b) contract
+    /// formation, not Art. 7 consent, so there is no withdrawal counterpart — "withdrawing" the
+    /// terms is closing the account. Stamped once by <see cref="Register"/>, never updated: no
+    /// setter reaches it and no method rewrites it. <c>null</c> only on the rows written before the
+    /// stamp existed (migration AddTermsAcceptanceToJobSeeker); every row <see cref="Register"/>
+    /// writes carries one. The row is the Art. 5(2) accountability record —
+    /// <see cref="JobSeekerRegisteredDomainEvent"/> announces that a registration happened and
+    /// carries no versions.
+    /// </summary>
+    public TermsAcceptance? TermsAcceptance { get; private set; }
+
     // F4-12 (ADR 0076) — the user's STATED job-search preferences (desired
     // occupation-groups/regions/employment-types) that feed the deterministic
     // match score. Distinct concern from notification/locale Preferences (SRP).
@@ -66,11 +79,13 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         Guid userId,
         string displayName,
         Preferences preferences,
+        TermsAcceptance termsAcceptance,
         DateTimeOffset createdAt) : base(id)
     {
         UserId = userId;
         DisplayName = displayName;
         Preferences = preferences;
+        TermsAcceptance = termsAcceptance;
         CreatedAt = createdAt;
     }
 
@@ -127,11 +142,22 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public static Result<JobSeeker> Register(
         Guid userId,
         string? displayName,
+        TermsAcceptance acceptance,
         IDateTimeProvider clock)
     {
         if (userId == Guid.Empty)
             return Result.Failure<JobSeeker>(
                 DomainError.Validation("JobSeeker.UserIdRequired", "UserId krävs."));
+
+        // ADR 0142 D6 — the acceptance is a precondition of the aggregate existing, so a seeker is
+        // constructible only with one (this signature REPLACED the acceptance-less one; there is no
+        // overload). Refused at runtime rather than trusted to the parameter's nullability: NRT is
+        // not a runtime guarantee, and the userId guard above defends a non-nullable parameter the
+        // same way.
+        if (acceptance is null)
+            return Result.Failure<JobSeeker>(DomainError.Validation(
+                "JobSeeker.TermsAcceptanceRequired",
+                "Ett konto kan inte skapas utan godkända användarvillkor."));
 
         var nameResult = ValidateDisplayName(displayName);
         if (nameResult.IsFailure)
@@ -140,7 +166,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         var validatedName = nameResult.Value;
         var now = clock.UtcNow;
         var id = JobSeekerId.New();
-        var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), now);
+        var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), acceptance, now);
         jobSeeker.RaiseDomainEvent(
             new JobSeekerRegisteredDomainEvent(id, userId, validatedName, now));
 

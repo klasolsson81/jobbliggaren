@@ -24,7 +24,7 @@ public class UnsaveJobAdCommandHandlerTests
     private async Task<(JobSeeker seeker, SavedJobAd saved, JobAdId jobAdId)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
         var jobAdId = new JobAdId(Guid.NewGuid());
         var saved = SavedJobAd.Save(seeker.Id, jobAdId, _clock.UtcNow);

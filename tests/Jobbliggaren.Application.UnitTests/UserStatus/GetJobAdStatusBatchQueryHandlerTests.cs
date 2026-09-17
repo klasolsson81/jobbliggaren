@@ -62,7 +62,7 @@ public class GetJobAdStatusBatchQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, "Test", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
 
         var jobAd1 = CreateJobAd(_clock, "j1");
@@ -93,8 +93,8 @@ public class GetJobAdStatusBatchQueryHandlerTests
     {
         var ct = TestContext.Current.CancellationToken;
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test", _clock).Value;
-        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), "Other", _clock).Value;
+        var seeker = JobSeeker.Register(_userId, "Test", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
+        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), "Other", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.AddRange(seeker, otherSeeker);
 
         var jobAd = CreateJobAd(_clock, "j1");

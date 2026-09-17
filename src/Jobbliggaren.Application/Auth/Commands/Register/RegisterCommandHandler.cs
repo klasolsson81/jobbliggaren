@@ -110,7 +110,11 @@ public sealed partial class RegisterCommandHandler(
 
         var userId = createResult.Value;
 
-        var seekerResult = JobSeeker.Register(userId, command.DisplayName, clock);
+        // #1736 (ADR 0142 D6): the validator has already required AcceptTerms, so the stamp is the
+        // published versions at the clock's now. It is read from the clock a second time inside
+        // Register for CreatedAt — two facts, so two reads, and not coupled to save one.
+        var seekerResult = JobSeeker.Register(
+            userId, command.DisplayName, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seekerResult.IsFailure)
         {
             await userAccountService.DeleteUserAsync(userId, cancellationToken);

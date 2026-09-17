@@ -38,7 +38,7 @@ public class RunSavedSearchQueryHandlerTests
         string? region = null, string? q = null, string? employer = null,
         bool remote = false)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         // Default: alla null kräver minst ett kriterium → occupationGroup
         // default. Single-element-lista ⇒ samma beteende som gammalt
@@ -215,7 +215,7 @@ public class RunSavedSearchQueryHandlerTests
         var db = TestAppDbContextFactory.Create();
         var otherUserId = Guid.NewGuid();
         var (_, otherSaved) = await SeedAsync(db, otherUserId);
-        var ownSeeker = JobSeeker.Register(_userId, "Current", FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, "Current", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

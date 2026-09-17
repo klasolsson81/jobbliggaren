@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Jobbliggaren.Infrastructure.Email;
+using Jobbliggaren.TestSupport;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Email;
@@ -56,7 +57,7 @@ public class ContactAddressMatchesPublishedContactTests
     [InlineData("en")]
     public void ContactAddress_MatchesTheAddressPublishedInTheWebApp(string language)
     {
-        var json = File.ReadAllText(ContentLegalPath(language));
+        var json = ContentLegalMessages.ReadAllText(language);
 
         // The structured key the /kontakt page renders from.
         using var document = JsonDocument.Parse(json);
@@ -96,33 +97,11 @@ public class ContactAddressMatchesPublishedContactTests
         // as well, one word wider than the fact.)
         foreach (var language in new[] { "sv", "en" })
         {
-            var json = File.ReadAllText(ContentLegalPath(language));
+            var json = ContentLegalMessages.ReadAllText(language);
 
             json.ShouldNotBeNullOrWhiteSpace();
             json.ShouldContain("\"contact\"");
             json.ShouldContain('@');
         }
-    }
-
-    /// <summary>
-    /// Walks up from the test binary until the repo root is found, so the test project's own depth is
-    /// not hardcoded. Fails loud and names the path it looked for.
-    /// </summary>
-    private static string ContentLegalPath(string language)
-    {
-        var relative = Path.Combine(
-            "web", "jobbliggaren-web", "messages", language, "content-legal.json");
-
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, relative);
-            if (File.Exists(candidate)) return candidate;
-            dir = dir.Parent;
-        }
-
-        throw new FileNotFoundException(
-            $"Could not find {relative} by walking up from {AppContext.BaseDirectory}. "
-            + "The contact-address mirror needs the repo checkout to be present.");
     }
 }

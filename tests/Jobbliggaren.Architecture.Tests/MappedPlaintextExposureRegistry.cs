@@ -121,7 +121,10 @@ internal static class MappedPlaintextExposureRegistry
             // ── The seeker's own records. ─────────────────────────────────────────────────────
             ["job_seekers"] = "One row per seeker (UserId). display_name, match_preferences, the "
                 + "preferences ToJson container and Language inside it — #1435 measured all four as "
-                + "free text with no taxonomy lookup and, for Language, no server-side validation.",
+                + "free text with no taxonomy lookup and, for Language, no server-side validation. "
+                + "terms_version and privacy_policy_version (#1736) are Domain constants, not free "
+                + "text, and the row test exposes them all the same: a closed domain beside her id is "
+                + "still her data.",
             ["applications"] = "One row per application she made (JobSeekerId). Her manual_* entries "
                 + "and the frozen snapshot_* block are both her record of having applied.",
             ["application_status_changes"] = "One row per status transition on an application, so "

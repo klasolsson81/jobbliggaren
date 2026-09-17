@@ -113,7 +113,7 @@ public class ApplyCvImprovementsCommandHandlerTests
         ResumeContent? content = null,
         Action<Resume>? configure = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         if (content is not null)
@@ -346,7 +346,7 @@ public class ApplyCvImprovementsCommandHandlerTests
     public async Task Handle_ShouldThrowNotFound_WhenResumeNotFound_NoLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -364,7 +364,7 @@ public class ApplyCvImprovementsCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherResume = await SeedResumeAsync(db, Guid.NewGuid(), WeakContent());
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(CancellationToken.None);
 

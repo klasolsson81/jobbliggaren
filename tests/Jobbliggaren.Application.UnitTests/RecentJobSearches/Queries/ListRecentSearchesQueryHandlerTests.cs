@@ -54,7 +54,7 @@ public class ListRecentSearchesQueryHandlerTests
     private async Task<JobSeeker> SeedSeekerAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         return seeker;
@@ -1020,7 +1020,7 @@ public class ListRecentSearchesQueryHandlerTests
         db.RecentJobSearches.Add(CaptureRow(seeker.Id, "mine", now));
 
         // Annan användare
-        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), "Other", FakeDateTimeProvider.Default).Value;
+        var otherSeeker = JobSeeker.Register(Guid.NewGuid(), "Other", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(otherSeeker);
         db.RecentJobSearches.Add(CaptureRow(otherSeeker.Id, "theirs", now));
         await db.SaveChangesAsync(CancellationToken.None);

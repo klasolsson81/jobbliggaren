@@ -28,7 +28,7 @@ public class GetMyProfileHasStatedDesiredOccupationTests
         var userId = Guid.NewGuid();
         var db = TestAppDbContextFactory.Create();
 
-        var seeker = JobSeeker.Register(userId, "Klas Olsson", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Klas Olsson", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         if (prefs is not null)
             seeker.UpdateMatchPreferences(prefs, FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seeker);

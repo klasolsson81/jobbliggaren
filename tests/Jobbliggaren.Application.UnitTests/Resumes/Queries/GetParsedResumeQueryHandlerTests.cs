@@ -80,7 +80,7 @@ public class GetParsedResumeQueryHandlerTests
     private static async Task<ParsedResume> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -118,7 +118,7 @@ public class GetParsedResumeQueryHandlerTests
     public async Task Handle_ShouldReturnNull_WhenArtifactNotFound_AndNotLogCrossUser()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -135,7 +135,7 @@ public class GetParsedResumeQueryHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -196,7 +196,7 @@ public class GetParsedResumeQueryHandlerTests
         // forward-only, since EF materializes an existing row past the factory methods, and that
         // legacy population is exactly what the DQ6 arm still stands on. The seam is uniform so
         // there is one path to read rather than a branch on the caller's argument.
-        var seeker = JobSeeker.Register(_userId, "Seeded Owner", FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
         var parsed = ParsedResume.Create(

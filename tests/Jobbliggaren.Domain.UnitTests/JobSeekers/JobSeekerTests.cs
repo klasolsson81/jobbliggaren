@@ -1,3 +1,4 @@
+using System.Reflection;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.JobSeekers.Events;
 using Jobbliggaren.Domain.Resumes;
@@ -14,7 +15,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_WithValidData_CreatesJobSeeker()
     {
-        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock);
+        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.UserId.ShouldBe(ValidUserId);
@@ -26,7 +27,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_WithValidData_RaisesJobSeekerRegisteredEvent()
     {
-        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock);
+        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var events = result.Value.DomainEvents;
@@ -40,7 +41,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_WithEmptyUserId_Fails()
     {
-        var result = JobSeeker.Register(Guid.Empty, "Klas", Clock);
+        var result = JobSeeker.Register(Guid.Empty, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.UserIdRequired");
@@ -49,7 +50,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_WithBlankDisplayName_Fails()
     {
-        var result = JobSeeker.Register(ValidUserId, "   ", Clock);
+        var result = JobSeeker.Register(ValidUserId, "   ", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.DisplayNameRequired");
@@ -60,7 +61,7 @@ public class JobSeekerTests
     {
         var tooLong = new string('A', 201);
 
-        var result = JobSeeker.Register(ValidUserId, tooLong, Clock);
+        var result = JobSeeker.Register(ValidUserId, tooLong, TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.DisplayNameTooLong");
@@ -69,7 +70,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_TrimsDisplayName()
     {
-        var result = JobSeeker.Register(ValidUserId, "  Klas  ", Clock);
+        var result = JobSeeker.Register(ValidUserId, "  Klas  ", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.DisplayName.ShouldBe("Klas");
@@ -78,7 +79,7 @@ public class JobSeekerTests
     [Fact]
     public void SoftDelete_WhenActive_RaisesJobSeekerDeletedDomainEvent()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.ClearDomainEvents();
 
         seeker.SoftDelete(Clock);
@@ -93,7 +94,7 @@ public class JobSeekerTests
     [Fact]
     public void SoftDelete_WhenAlreadyDeleted_IsIdempotentAndDoesNotRaiseEvent()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.SoftDelete(Clock);
         seeker.ClearDomainEvents();
 
@@ -105,7 +106,7 @@ public class JobSeekerTests
     [Fact]
     public void Register_CreatesDefaultPreferences()
     {
-        var result = JobSeeker.Register(ValidUserId, "Klas", Clock);
+        var result = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.Preferences.Language.ShouldBe("sv");
@@ -121,7 +122,7 @@ public class JobSeekerTests
     [Fact]
     public void SetPrimaryResume_FromNull_SetsAndRaisesEventAndUpdatesTimestamp()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.ClearDomainEvents();
         var resumeId = ResumeId.New();
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
@@ -141,7 +142,7 @@ public class JobSeekerTests
     [Fact]
     public void SetPrimaryResume_OverwritePrevious_RaisesEventWithNewId()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var firstResume = ResumeId.New();
         var secondResume = ResumeId.New();
         seeker.SetPrimaryResume(firstResume, Clock);
@@ -161,7 +162,7 @@ public class JobSeekerTests
     [Fact]
     public void SetPrimaryResume_DefaultGuid_ReturnsValidationFailure()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
 
         var result = seeker.SetPrimaryResume(default, Clock);
 
@@ -172,7 +173,7 @@ public class JobSeekerTests
     [Fact]
     public void SetPrimaryResume_SameResumeId_IsIdempotentNoEvent()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var resumeId = ResumeId.New();
         seeker.SetPrimaryResume(resumeId, Clock);
         var prevUpdatedAt = seeker.UpdatedAt;
@@ -190,7 +191,7 @@ public class JobSeekerTests
     [Fact]
     public void UnsetPrimaryResume_FromSet_NullifiesAndRaisesEventWithNull()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.SetPrimaryResume(ResumeId.New(), Clock);
         seeker.ClearDomainEvents();
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(2));
@@ -210,7 +211,7 @@ public class JobSeekerTests
     [Fact]
     public void UnsetPrimaryResume_AlreadyNull_IsIdempotent()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var initialUpdatedAt = seeker.UpdatedAt;
         seeker.ClearDomainEvents();
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
@@ -246,7 +247,7 @@ public class JobSeekerTests
     [InlineData("Anna 811218-9876")] // embedded in an otherwise ordinary name
     public void Register_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
     {
-        var result = JobSeeker.Register(ValidUserId, pnrName, Clock);
+        var result = JobSeeker.Register(ValidUserId, pnrName, TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
@@ -259,7 +260,7 @@ public class JobSeekerTests
         // a personnummer. The date+Luhn authority governs the guard, so it must NOT over-flag
         // — over-flagging refuses a legitimate name, which is the direction that harms a real
         // user. Parity with ResumeTests.Create_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag.
-        var result = JobSeeker.Register(ValidUserId, "811218-9875", Clock);
+        var result = JobSeeker.Register(ValidUserId, "811218-9875", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.DisplayName.ShouldBe("811218-9875");
@@ -272,7 +273,7 @@ public class JobSeekerTests
         // validator returned rather than the caller's string. Pinned because Register composes
         // the aggregate and the event from one canonical value; regressing to the raw argument
         // would put an untrimmed name on the wire the day a dispatcher exists.
-        var result = JobSeeker.Register(ValidUserId, "  Anna Andersson  ", Clock);
+        var result = JobSeeker.Register(ValidUserId, "  Anna Andersson  ", TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         var evt = result.Value.DomainEvents.ShouldHaveSingleItem()
@@ -288,7 +289,7 @@ public class JobSeekerTests
         // comparison to >= survives every other length test.
         var exactly200 = new string('A', 200);
 
-        var result = JobSeeker.Register(ValidUserId, exactly200, Clock);
+        var result = JobSeeker.Register(ValidUserId, exactly200, TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.DisplayName.Length.ShouldBe(200);
@@ -303,7 +304,7 @@ public class JobSeekerTests
     [InlineData("Anna 811218-9876")]
     public void UpdateDisplayName_WithPersonnummerShapedDisplayName_ReturnsFailure(string pnrName)
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var before = seeker.DisplayName;
         var beforeUpdatedAt = seeker.UpdatedAt;
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
@@ -319,7 +320,7 @@ public class JobSeekerTests
     [Fact]
     public void UpdateDisplayName_WithPersonnummerLookalikeFailingLuhn_IsAllowed_NoOverFlag()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
 
         var result = seeker.UpdateDisplayName("811218-9875", laterClock);
@@ -336,7 +337,7 @@ public class JobSeekerTests
     [Fact]
     public void UpdateDisplayName_WithBlankDisplayName_Fails()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
 
         var result = seeker.UpdateDisplayName("   ", Clock);
 
@@ -347,7 +348,7 @@ public class JobSeekerTests
     [Fact]
     public void UpdateDisplayName_WithTooLongDisplayName_Fails()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         // Literal, deliberately NOT MaxDisplayNameLength + 1: a derived length follows a
         // mutated constant and would stop killing that mutant (parity with Register's case).
         var tooLong = new string('A', 201);
@@ -361,7 +362,7 @@ public class JobSeekerTests
     [Fact]
     public void UpdateDisplayName_TrimsDisplayName()
     {
-        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", Clock).Value;
+        var seeker = JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(1));
 
         var result = seeker.UpdateDisplayName("  Anna  ", laterClock);
@@ -369,5 +370,86 @@ public class JobSeekerTests
         result.IsSuccess.ShouldBeTrue();
         seeker.DisplayName.ShouldBe("Anna");
         seeker.UpdatedAt.ShouldBe(laterClock.UtcNow);
+    }
+
+    // ---------------------------------------------------------------
+    // #1736 (ADR 0142 D6) — the terms-acceptance stamp. The aggregate is constructible only WITH
+    // one (the acceptance-less Register signature was replaced, not overloaded), and the stamp is
+    // written once, in the private constructor, and never rewritten.
+    // ---------------------------------------------------------------
+
+    [Fact]
+    public void Register_WithNullTermsAcceptance_Fails()
+    {
+        // `null!` is the point of the test, not a convenience: the parameter is non-nullable, and
+        // the aggregate refuses at runtime anyway because NRT is not a runtime guarantee. Delete
+        // the guard and this is the only test that notices.
+        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", null!, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.TermsAcceptanceRequired");
+    }
+
+    [Fact]
+    public void Register_WithEmptyUserIdAndNullTermsAcceptance_ReportsTheUserIdFailure()
+    {
+        // Guard ORDER, not merely guard presence. Swapping the two guards leaves every other test
+        // in this file green, so the ordering needs a request that is wrong in both ways.
+        var result = JobSeeker.Register(Guid.Empty, "Klas Olsson", null!, Clock);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("JobSeeker.UserIdRequired");
+    }
+
+    [Fact]
+    public void Register_WithValidData_CarriesTheTermsAcceptanceItWasGiven()
+    {
+        var acceptance = TermsAcceptance.AcceptCurrent(Clock);
+
+        var result = JobSeeker.Register(ValidUserId, "Klas Olsson", acceptance, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TermsAcceptance.ShouldBe(acceptance);
+    }
+
+    [Fact]
+    public void Register_RaisesTheEventWithItsExistingFields_AndNoTermsVersions()
+    {
+        // The ROW is the Art. 5(2) accountability record; the event only announces that a
+        // registration happened. Pinned reflectively so adding a version to the event — a second
+        // home for the same fact, and one no consumer reads — is a deliberate edit here.
+        var seeker = JobSeeker
+            .Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+
+        var evt = seeker.DomainEvents.ShouldHaveSingleItem()
+            .ShouldBeOfType<JobSeekerRegisteredDomainEvent>();
+
+        evt.GetType()
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => p.Name)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ShouldBe(["DisplayName", "JobSeekerId", "OccurredAt", "UserId"]);
+    }
+
+    [Fact]
+    public void TermsAcceptance_HasNoPublicWritePathOnTheAggregate()
+    {
+        // Two arms, each catching a different mutation.
+        //
+        // (1) The `private set` relaxed to a public one: the stamp becomes assignable by any caller
+        // holding the aggregate, so a registered acceptance could be back-dated or re-versioned.
+        var setter = typeof(JobSeeker).GetProperty(nameof(JobSeeker.TermsAcceptance))!.SetMethod;
+        setter.ShouldNotBeNull();
+        setter.IsPublic.ShouldBeFalse();
+
+        // (2) A new INSTANCE method taking a TermsAcceptance — an `UpdateTermsAcceptance`, or a
+        // re-acceptance path added later. The stamp is written once, in the constructor Register
+        // calls, so the only member carrying this type is the static factory. A setter kept private
+        // while such a method appears would pass arm (1) alone.
+        typeof(JobSeeker)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.GetParameters().Any(p => p.ParameterType == typeof(TermsAcceptance)))
+            .Select(m => m.Name)
+            .ShouldBeEmpty();
     }
 }

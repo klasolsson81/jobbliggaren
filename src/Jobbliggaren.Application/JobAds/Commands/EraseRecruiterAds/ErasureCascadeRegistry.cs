@@ -501,6 +501,12 @@ public static class ErasureCascadeRegistry
             ["job_seekers.preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.Language"] = ErasureColumnDisposition.MatchedHumanErases,
 
+            // ── job_seekers: the terms-acceptance stamp (#1736, ADR 0142 D6) ─────────────────
+            // Two version tokens whose sole write path is TermsAcceptance.AcceptCurrent — a Domain
+            // constant, the same shape as resume_files.pnr_consent_dialog_version. No user write path.
+            ["job_seekers.terms_version"] = ErasureColumnDisposition.NotRecruiterData,
+            ["job_seekers.privacy_policy_version"] = ErasureColumnDisposition.NotRecruiterData,
+
             // ── user-authored, DEK-ENCRYPTED: held, and NOT searchable ───────────────────────
             // Form A (ADR 0049 C3 / 0066) — the column carries `v1:<base64>` at rest, sealed under
             // the OWNING USER'S key. Cross-checked against EncryptedFieldRegistry by
@@ -779,6 +785,14 @@ public static class ErasureCascadeRegistry
                 + "and no varchar(N) because it lives inside jsonb. It is unbounded arbitrary text. "
                 + "No key is named in the SQL, so a member added to the container is searched the "
                 + "day it lands.",
+
+            ["job_seekers:NotRecruiterData"] =
+                "Closed domain: terms_version and privacy_policy_version are the version tokens of the "
+                + "Art. 6(1)(b) terms stamp (#1736, ADR 0142 D6). Their sole write path is "
+                + "TermsAcceptance.AcceptCurrent, which stamps two Domain constants; no request carries "
+                + "a version and no user text reaches either column. The same shape as "
+                + "resume_files.pnr_consent_dialog_version. terms_accepted_at is timestamptz and "
+                + "outside the text sweep.",
 
             ["application_notes:HeldButNotSearchable"] =
                 "HELD, AND WE CANNOT SEARCH IT. application_notes.content is encrypted at rest "

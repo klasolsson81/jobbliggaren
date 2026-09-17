@@ -5,6 +5,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -24,7 +25,7 @@ public sealed class SessionBootstrapTests(ApiFactory factory)
     public async Task RegisterAndGetSessionIdAsync_on_the_closed_host_mints_a_persistent_session_for_a_confirmed_passwordless_user()
     {
         var ct = TestContext.Current.CancellationToken;
-        var host = factory.RegistrationsClosedHost();
+        var host = factory.GetRegistrationsClosedHost();
         var email = $"bootstrap-passwordless-{Guid.NewGuid():N}@example.se";
 
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(host, email, ct: ct);
@@ -40,7 +41,7 @@ public sealed class SessionBootstrapTests(ApiFactory factory)
     public async Task RegisterWithPasswordAndGetSessionIdAsync_on_the_closed_host_mints_a_session_profile_session_for_an_unconfirmed_user_with_a_password()
     {
         var ct = TestContext.Current.CancellationToken;
-        var host = factory.RegistrationsClosedHost();
+        var host = factory.GetRegistrationsClosedHost();
         var email = $"bootstrap-password-{Guid.NewGuid():N}@example.se";
 
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(host, email, ct: ct);
@@ -75,6 +76,12 @@ public sealed class SessionBootstrapTests(ApiFactory factory)
         var session = await scope.ServiceProvider.GetRequiredService<ISessionStore>()
             .GetAsync(SessionId.FromRaw(sessionId), ct);
         session.ShouldNotBeNull();
+        session.UserId.ShouldBe(user.Id);
+
+        (await scope.ServiceProvider.GetRequiredService<IAppDbContext>().JobSeekers
+            .AsNoTracking()
+            .AnyAsync(js => js.UserId == user.Id, ct))
+            .ShouldBeTrue();
 
         return (user, session);
     }

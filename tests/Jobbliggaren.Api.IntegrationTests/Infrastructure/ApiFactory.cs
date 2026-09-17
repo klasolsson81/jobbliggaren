@@ -249,10 +249,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
     /// </para>
     /// </summary>
-    internal HttpClient CreateRegistrationsClosedClient() => RegistrationsClosedHost().CreateClient();
+    internal HttpClient CreateRegistrationsClosedClient() => GetRegistrationsClosedHost().CreateClient();
 
     /// <summary>The cached registrations-CLOSED host behind <see cref="CreateRegistrationsClosedClient"/>.</summary>
-    internal WebApplicationFactory<Program> RegistrationsClosedHost()
+    internal WebApplicationFactory<Program> GetRegistrationsClosedHost()
     {
         lock (_registrationsClosedLock)
         {

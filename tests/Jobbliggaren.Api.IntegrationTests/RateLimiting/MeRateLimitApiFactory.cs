@@ -17,8 +17,6 @@ namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 /// - Aggressiva limits (3/60s) på de tre nya "me"-policyerna (MeListRead,
 ///   JobAdStatusBatch, MeWrite) för test-snabbhet — annars krävs 40-60+
 ///   sekventiella anrop för att trigga 429.
-/// - Höjd AuthWrite (10000/min) så registrerings-flödet inte själv rate-
-///   limit:as på den delade 127.0.0.1-IP-bucketen.
 ///
 /// Egen Postgres + Redis Testcontainer (cold-start ~16s) — acceptabelt för
 /// isolerat test-flöde. Speglar ListReadRateLimitApiFactory exakt.
@@ -74,11 +72,6 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
 
-        // AuthWrite höjs så registration-flödet inte rate-limit:as (delade
-        // 127.0.0.1-bucket med övriga tester).
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", "10000");
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
-
         // De tre nya "me"-policyerna aggressiva för test-snabbhet (TD-87 + TD-92).
         // MeListRead: GET /api/v1/me/profile m.fl. — partition UserId (claim "sub").
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", "3");
@@ -105,8 +98,6 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", null);

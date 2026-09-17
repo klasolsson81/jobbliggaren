@@ -163,8 +163,6 @@ public class AuthOptionsValidatorTests
     [InlineData("Test")]
     public void The_dangerous_combination_is_exempt_in_Development_and_Test(string environmentName)
     {
-        // Measured: the integration harness forces Development, so the instant-login bootstrap sites
-        // are exempt by THIS clause and not by accident.
         ValidatorFor(environmentName).Validate(null, Options(open: true, confirm: false))
             .Succeeded.ShouldBeTrue();
     }

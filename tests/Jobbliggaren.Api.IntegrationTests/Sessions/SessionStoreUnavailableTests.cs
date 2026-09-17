@@ -32,7 +32,6 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
 
         // Registrera en giltig session via fungerande store
-        var goodClient = factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         // Bygg en ny factory-instans där den inre store:n timeout:ar (degraderad Redis) och
@@ -55,7 +54,6 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var goodClient = factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         await using var brokenFactory = new BrokenSessionStoreFactory(factory);
@@ -75,7 +73,6 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var goodClient = factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         await using var brokenFactory = new BrokenSessionStoreFactory(factory);

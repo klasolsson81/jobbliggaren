@@ -588,8 +588,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
-        // The registered user already has a JobSeeker (RegisterCommandHandler auto-provisions
-        // one) → MarkMatchesSeen succeeds with 204 (not NotFound/400).
+        // The registered user already has a JobSeeker → MarkMatchesSeen succeeds with 204 (not NotFound/400).
         var seen = await client.PostAsync("/api/v1/me/matches/seen", content: null, ct);
         seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 

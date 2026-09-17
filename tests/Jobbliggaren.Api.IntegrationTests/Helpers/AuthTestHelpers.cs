@@ -13,8 +13,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Helpers;
 public static class AuthTestHelpers
 {
     /// <summary>
-    /// Default test-lösenord för integration-tester. Inte ett riktigt secret —
-    /// gitleaks-fingerprint redan ignored för denna fil.
+    /// Default test-lösenord för integration-tester. Inte ett riktigt secret.
     /// </summary>
     public const string DefaultTestPassword = "T3stlosen123456";
 

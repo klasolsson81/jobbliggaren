@@ -45,9 +45,6 @@ public class ForgotPasswordTests(ApiFactory factory)
     private Task<HttpResponseMessage> ForgotAsync(string? email, CancellationToken ct)
         => _client.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email }, ct);
 
-    // Registration is the only account-creation path on the base host, and it mails nothing while
-    // Auth:RequireEmailConfirmation is OFF (ApiFactory pins it so) — the session it returns is
-    // discarded here, so the ONLY mail this class can observe for a recipient is the reset link's.
     private async Task CreateAccountAsync(string email, CancellationToken ct)
         => _ = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 

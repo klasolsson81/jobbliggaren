@@ -376,7 +376,7 @@ password, and a test whose subject is a password cannot run on an account withou
 **The form.** Two service-level bootstraps in the test assembly share one core (`JobSeeker.Register`
 → save → `ISessionStore.CreateAsync(userId, lifetime)`), and neither issues an HTTP call:
 `RegisterAndGetSessionIdAsync` produces D10's account shape (`UserManager.CreateAsync(user)` with
-`EmailConfirmed = true`, no password, `SessionLifetime.Persistent`);
+`EmailConfirmed = true`, no password) with a `SessionLifetime.Persistent` session;
 `RegisterWithPasswordAndGetSessionIdAsync` produces the shape of the flag-OFF branch of
 `RegisterCommandHandler` (`IUserAccountService.CreateUserAsync(email, password)`, address
 unconfirmed, `SessionLifetime.Session`).
@@ -397,8 +397,8 @@ last class, which ties them to the surfaces rather than to a part number.
 session authenticates there and that each account shape holds (password hash, `EmailConfirmed`,
 lifetime).
 
-**Later parts.** 1a replaces the passwordless bootstrap's direct `UserManager.CreateAsync(user)` with
-D10's `CreatePasswordlessUserAsync`; 1b changes the shared core's one `Register` call. The
+**Later parts.** The PR that introduces D10's `CreatePasswordlessUserAsync` replaces the passwordless
+bootstrap's direct `UserManager.CreateAsync(user)` with it; 1b changes the shared core's one `Register` call. The
 `.gitleaks.toml` entry matches the password value, which test files outside this part carry; it
 goes when the last literal goes, not in 0.5.
 

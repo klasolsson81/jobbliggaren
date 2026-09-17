@@ -34,8 +34,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// The exemption is an ALLOWLIST (Development, Test), never <c>!IsProduction()</c> — a denylist would
 /// exempt Staging and every unrecognised environment name silently, which is the class of silence this
 /// change repairs. It reuses the house's established exemption predicate rather than inventing a
-/// third. Measured: the integration harness forces Development, so the 142 instant-login bootstrap
-/// sites are exempt by that clause and not by accident.
+/// third.
 /// </para>
 /// <para>
 /// <b>Rule 2 asks the sender, never the configuration key.</b> <see cref="IEmailSender.CanDeliver"/>

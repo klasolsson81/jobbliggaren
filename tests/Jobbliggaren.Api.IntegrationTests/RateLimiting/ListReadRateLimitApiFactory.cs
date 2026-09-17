@@ -14,8 +14,6 @@ namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 /// <summary>
 /// Dedikerad factory för ListReadRateLimitTests. Behöver:
 /// - Aggressiv ListRead (3/60s) för test-snabbhet
-/// - Höjd AuthWrite (10000/min) så registrerings-flödet inte krockar med
-///   StrictRateLimitApiFactory:s AuthWriteRateLimitTests-budget
 ///
 /// Egen Postgres + Redis Testcontainer (cold-start ~16s) — acceptabelt för
 /// isolerad test-flöde. Per CTO-rond 2026-05-13 F2-P9 + security-auditor
@@ -72,10 +70,6 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
 
-        // AuthWrite höjs så registration-flödet inte rate-limit:as (delade
-        // 127.0.0.1-bucket med övriga tester).
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", "10000");
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", "60");
         // ListRead aggressiv för test-snabbhet (default 60/min skulle kräva
         // 61+ sequential requests).
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", "3");
@@ -94,8 +88,6 @@ public sealed class ListReadRateLimitApiFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
-        Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__ListRead__WindowSeconds", null);
 

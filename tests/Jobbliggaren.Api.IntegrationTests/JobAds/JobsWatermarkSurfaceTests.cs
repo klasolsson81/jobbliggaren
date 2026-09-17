@@ -94,8 +94,7 @@ public sealed class JobsWatermarkSurfaceTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = await AuthedClientAsync(ct);
 
-        // The registered user already has a JobSeeker (RegisterCommandHandler auto-provisions
-        // one) → MarkJobsSeen succeeds with 204 (not NotFound/400).
+        // The registered user already has a JobSeeker → MarkJobsSeen succeeds with 204 (not NotFound/400).
         var seen = await client.PostAsync("/api/v1/me/jobs/seen", content: null, ct);
         seen.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 

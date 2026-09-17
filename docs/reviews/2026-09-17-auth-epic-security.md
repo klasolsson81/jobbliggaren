@@ -181,3 +181,55 @@ ADR 0142 ska bära denna text (den är skriven för att kopieras):
 **(c) Lösenord kvar enbart för adminkontot.** Kräver att 5b blir "nolla alla utom en", varmed invarianten blir *"passwordless utom ett konto"* — ett villkorat påstående ingen billig test kan uttrycka. Och det kräver att **hela lösenordsytan** lever vidare: `/auth/login`, `ValidateCredentialsAsync`, lockout-vägen, `PwnedPasswordValidator` och lösenords-UI:t. Alltså faller inte bara 5b utan **5a**. Den återinför dessutom lockout-DoS:et (Major 11) på exakt det konto vars tillgänglighet break-glassen finns för att skydda. Högst säkerhetskostnad; enda formen som varken behöver mejl eller logg.
 
 **Eskalering till Klas:** ja — CTO:ns tre obesvarade D10-frågor står kvar och ADR 0142 kan inte skrivas färdig utan dem: (1) accepterar du att ett mailavbrott = totalt inloggningsstopp, inklusive för dig själv? (2) vill du ha en break-glass, och i så fall form (a), (b) eller (c) — säkerhetskostnaden per form står i blocket direkt ovan och ska transkriberas oavkortat med frågan? (3) ska del 5b (nollningen av `password_hash`) köras före lansering, eller ligger lösenordsvägen kvar inaktiv men intakt tills OAuth är live? Jag lägger till en fjärde, som är min och inte hans: **de tre svaren måste in i ADR 0142 innan del 1a öppnas**, eftersom Major 11 och Major 12 (var lockout-hålet stängs, och att boot-vägran tappar sitt `RegistrationsOpen`-villkor) får olika rätt svar beroende på om en break-glass finns.
+
+---
+
+## Scoped re-check (report-only, 2026-09-17, against commit `9d591eb5` on PR #1748)
+
+> Transcribed verbatim by the driving session. Scope: the agent's own Blocker, Major 1–13 and Minor 1–4 against ADR 0142 + the 0017/0018 amendments. No files edited by the agent, no issues filed. Disposition of the two partly-open rows and the 0018 sentence is in the PR #1748 verdict table.
+
+## Security-audit: omkontroll av fix-deltat 9d591eb5 (PR #1748, ADR 0142)
+**Status:** ✓ Approved för deltat — 0 nya Blocker/Major. Två rader står **delvis öppna** (Major 3, Minor 3); Minor blockerar inte merge, Major 3 gör det.
+**Auktoritet:** CLAUDE.md §9.6 (rapport-läge, skopat till deltat) · min rapport `C:/tmp/jbl-1733/docs/reviews/2026-09-17-auth-epic-security.md`
+
+Delta mätt: `git show 9d591eb5 --stat` → 4 filer, +675/−7. ADR:n är 612 rader, `git ls-files` bekräftar att den är spårad (främjad).
+
+### Fynd → status
+
+| # | Fynd | Status | Var i ADR 0142 |
+|---|---|---|---|
+| **B1** | Dev-seamens grind namnges | **stängd** | `### D10` — `MapDevEnvironmentOnlyEndpoints` + `AddDevOnlyTestingSupport` ordagrant, "never `MapDevResetMyDataEndpoint`", "No flag may widen it", smoke-test-par i **båda** polariteterna |
+| **M1** | Budget före bränning, existensoberoende | **stängd** | `### D2` + `## Attempt budget` ("only after the budget admits it") |
+| **M2** | Hotmodell för `codeHash` | **stängd — val (a)** | `### D1`, "Threat model, chosen": Redis-läsare **ÄR** i scope, koden skyddas med samma DataProtector-purpose som adressen, bara 128-bitars länktoken hashas. Postformen är omskriven till `codeProtected`; `codeHash` grep:ar till **noll** i ADR:n. Valet är det starkare av mina två och stänger raden rent |
+| **M3** | Ett hem för normaliseraren | **delvis öppen** | `### D1` bär ETT hem + att varje ny plats kallar den + `ICooldownGate.cs:16`-rättelsen. **Saknas:** min klausul "svepet utökas till de nya nycklarna" — `RedisCooldownGateTests` grep:ar till noll i ADR:n. Egenskapen är bunden men dess pin är inte; utan pin kan en ny hashningsplats gå förbi hemmet och inget fångar det. Ingen namngiven avvikelse, alltså utelämnad snarare än avfärdad. **Stängs av en mening i 1a:s DoD** |
+| **M4** | Edge-scrub-pinnen + #706-skälet | **stängd** | `## Page form` → "Link landing": (i) ny mall + `/logga-in/lank` in i `RenderedLinks()`/`TokenLink` i 1a, (ii) `token` exakt, skiftlägeskänsligt, (iii) `ShouldNotBeEmpty` i 5a, (iv) skälet utskrivet |
+| **M5** | State-cookien obligatorisk | **stängd** | `### D8` — "mandatory, not complementary", callbacken **vägrar** utan match, ingen fallback till Redis-posten, `GETDEL`, Lax-skälet utskrivet |
+| **M6** | Ingen kontorad före samtycke, båda vägarna | **stängd** | `### D3` (bägge vägarna + Art. 6(1)(b) andra ledet) och `### D6` (NOT NULL för varje rad efter 1b som skrivvägsegenskap, inte factory-konvention) |
+| **M7** | D4-rättsgrunden + båda 0093-pekarna | **stängd** | `### D4` + `0018` `Amendment 2026-09-17`. Se verbatim-mätningen nedan; båda pekarna (rad 155, 179) ompekade |
+| **M8** | Art. 13-notisen följer insamlingspunkten; `privacy_policy_version` är notisstämpel | **stängd** | `### D6` ("no new separate notice") + `## Page form` (hintraden på `/logga-in`; kryssrutan godkänner **villkoren**, policyn i syskonmening) |
+| **M9 (a–d)** | Art. 30-posten, grannbulleten, keyringens blast radius, copy-följer-data | **stängd** | `## Processing register and DoD 8` (a: egen `Datafält`-bullet + egen `Retention`-rad; b: `Sessioner`-klausulen; d: 5b/4b/3a). (c) i `### D1`: "three token kinds" rättas i 1a, `PersistKeysToFileSystem` utan `ProtectKeysWith*` utskriven, `DataProtection:KeyPath` mätt på lådan = 1a:s DoD |
+| **M10** | IdP:er som självständiga controllers + Kap. V per provider | **stängd** | `### D8` sista stycket — alla tre leden, "a provider that is not covered does not ship", Art. 49 avvisad |
+| **M11** | Lockout-DoS i 1c + `security_stamp` i 5b | **stängd** | `### D3` (null-hash-gaten **före** `IsLockedOutAsync`, `TryPreparePasswordResetAsync` → null, utmaningsvägen rör aldrig lockout) + `## Implementation status` (5b roterar `security_stamp` i samma sats, `Down` explicit throw) |
+| **M12** | Boot-vägran tappar `RegistrationsOpen` | **stängd** | `### D10` — ordagrant, `CanDeliver` kvar som frågan, nya fail-fast-nycklar under §11:s dev-boot-kontrakt |
+| **M13** | Dev-seamen återanvänder `IsReservedRecipient` | **stängd** | `### D10` — samma medlem, 404 för icke-reserverad, storleks-/TTL-bunden, håller **koden** aldrig kroppen. *Delklausulen om `ConsoleEmailSender.cs:130`-kommentaren ("a complete cut of the producer set") **faller** — jag har mätt om den: cutten gäller skrivningar till sänkan, och dekoratören ligger under samma mottagargrind och skriver inte i sänkan. Meningen blir alltså inte falsk under ADR:ns val. Premissen håller inte; ingen fix, ingen issue* |
+| **m1** | Skild försöksbokföring länk/kod, `linkTokenHash` null vid `isNewAddress` | **stängd** | `### D1` |
+| **m2** | Primitiver (CSPRNG+rejection, S256, fail-closed claim, `/user/emails`) | **stängd** | `### D8` + `### D10` + budgettabellen |
+| **m3** | Token ur URL:en efter hopp | **delvis öppen** | `## Page form` → "Link landing" valde den **enklare** formen (dolt fält, inget 303-hopp) och bär `no-store` på GET **och** POST samt `no-referrer` **mätt** mot den globala regeln. **Saknas:** det villkor jag knöt till just det valet — att en levande token då ligger kvar i webbläsarhistoriken i upp till 15 min. `histor` grep:ar till noll. Minor: blockerar inte |
+| **m4** | Små bindningar (6 st) | **stängd** | `### D2` (Strict), `### D1` (cookie-ekot + den nåbara buggen), `### D3` (`pendingDeletion` återställer aldrig), `## Processing register` (Art. 15/17-raden + ingen DPIA med skäl), `### D9` (0.5 stannar i testassemblyn) |
+
+### D4-analysen — mätt, inte bedömd
+`diff` mellan blocket i min rapport och blocket under `### D4`: **identiskt, 13 rader, noll avvikelser.** Break-glass-blocket: identiskt, enda skillnaden är blockquote-markörer på tomrader. Båda ligger ordagrant där de ska.
+
+### Eskaleringen och defaulten
+CTO:ns tre frågor står ordagrant under `## Open — Klas decides`, oavkortat. Min **fjärde** punkt bärs — "the three answers must be in this ADR **before part 1a opens**" — men **översatt till engelska, inte ordagrant**. Substansen (bindningen till 1a, och att det är Major 11/12 som får olika rätt svar) är intakt; jag graderar det som buret.
+
+**Är defaulten förenlig med min fjärde punkt?** Ja, men bara genom läsning, och ADR:n säger det inte själv. Defaultens rubrikmening är skriven "so the sequence is not blocked" och namnger bara 5b; min mening tre stycken ned grindar 1a. De är **kumulativa, inte motstridiga** — 0.5 (#1734) och 1b (#1736) är genuint oberoende av break-glass-svaret, så sekvensen är faktiskt inte blockerad, och 1a är grindad. Men den läsordningen är inte utskriven, och den som stannar vid rubrikmeningen öppnar 1a. Det är ett beslut om sekvens, inte om säkerhet, och det hör hemma i eskaleringen nedan snarare än som eget fynd.
+
+### Noteringar utan gradering (inte mina rader)
+- **Design B1(a) — bekräftas: inget orakel.** Fyra grunder, alla mätta mot ADR-texten: (1) konsumenten skriver **alltid** en post, så wrong/expired/burned skiljer aldrig känd från okänd adress; (2) den gren som faktiskt bär kontoexistens (kod+länk / bara kod / stängd / pendingDeletion) ligger bakom inkorgen och syns inte i verify-utfallet; (3) `ChallengeId` är ≥128 bitar och cookie-bunden, så bara den som mintade ser distinktionen — och hen har själv orsakat varje tillstånd den skiljer på; (4) dummy-jämförelse på varje väg stänger tidskanalen. Ett villkor jag skriver ut: en **över-budget**-mint är per M1 en no-op utan post, så innehavaren får `expired` i stället för `wrong`. Det avslöjar innehavarens egen budgetstatus, inte någon annans, och är därför inte heller ett orakel — men det är förutsättningen bekräftelsen vilar på och den bör inte tyst ändras.
+- `0018:157` säger att ADR 0142 är "a local-only file per the ADR 0072 docs-privacy convention". Den är **främjad och spårad** (`git ls-files` träffar, och README-raden listar den). Faktiskt fel mening i spårad fil, inte formulering — code-reviewer/adr-keeper, inte min gradering.
+- För verdikt-tabellens skull: min rapports sammanfattningsrad säger "12 Major" medan listan numrerar **13**. Listan är den rätta; talet i sammanfattningen är ett räknefel i min egen rapport, inget i deltat.
+
+**Nya-i-deltat Blocker/Major:** inga.
+
+**Eskalering till Klas:** ja — tre saker, varav de tre första är CTO:ns obesvarade D10-frågor som ADR:n korrekt bär som ÖPPNA (mailavbrott = totalt inloggningsstopp? break-glass (a)/(b)/(c)? ska 5b köras före lansering?), och en fjärde som är min: **ADR:n grindar 1a på dina svar i en mening, men dess egen default-rubrik är skriven "so the sequence is not blocked" och namnger bara 5b. Avgör explicit om del 1a (#1735) får öppnas innan svaren är i ADR:n.** Min position är oförändrad: Major 12 (boot-vägran) och Major 11 (var lockout-hålet stängs) landar i 1a respektive 1c och får olika rätt svar beroende på om en break-glass finns — 0.5 och 1b kan köras nu, 1a bör vänta.

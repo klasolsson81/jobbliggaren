@@ -125,3 +125,45 @@ Delegera till: nextjs-ui-engineer (del 3b)
 3 Blocker, 6 Major, 5 Minor — samtliga formegenskaper ADR 0142 ska bära före kod. B1 kräver ett namngivet val mellan två grenar (säkerhet mot slutförbarhet), B2 en omskriven vilotext, B3 en placering. `[6a]`-märkta delar är FAS-DEFERRAL och mäts i 6a. **Ingen rendering finns**, så detta verdikt gäller formen, inte ytan: del 2:s PR måste rendera alla sju tillstånd plus villkors- och länkstegen i **båda** teman innan designverdikt (DESIGN.md §12, AGENTS.md §8 p.4). Delegera fixar till adr-keeper (del 0) och nextjs-ui-engineer (del 2/3b). Re-review efter fix: samma agent, report-only, scopad till fix-deltat (CLAUDE.md §9.6). Inga filer redigerade, inga issues filade, HEAD orörd (`081e4c67`).
 
 **Eskalering till Klas:** ja — **provider-märkenas färgsättning saknar token och kan inte lösas inom DESIGN.md.** §7 säger "stroke/outline only, inga filled variants" och "färg ärvs via `currentColor` — aldrig hårdkodad ikonfärg", men Googles, LinkedIns och GitHubs varumärkesvillkor kräver deras egna märken i egen färgsättning på en "Logga in med"-knapp. Mitt förslag: **monokroma `currentColor`-märken i `--jp-ink-1` så länge knapparna är inaktiva** (inget varumärkeskrav utlöses av en knapp som inte loggar in någon), och att frågan om färgmärken avgörs i 6a som ett **scopat undantag skrivet in i DESIGN.md §3** (samma slag som `CvPalette` och `/oversikt`-korten), aldrig som tre lösa hex-literaler i en komponent. Jag behöver ditt besked om du vill (a) monokromt hela vägen och avstå de officiella märkena, eller (b) ett scopat DESIGN.md-undantag för de tre officiella märkena i 6a.
+
+---
+
+## Scoped re-check (report-only, 2026-09-17, against commit `9d591eb5` on PR #1748)
+
+> Transcribed verbatim by the driving session. Scope: the agent's own fourteen findings against ADR 0142. No files edited by the agent.
+
+## Design-review: omkontroll av fix-deltat, ADR 0142 (PR #1748)
+**Status:** ✓ Godkänd — alla 14 egna fynd bärs av ADR:en
+**Auktoritet:** DESIGN.md §§1, 5, 6, 7, 9, 12 · CLAUDE.md §9.6 (rapport-läge, scopad till deltat)
+**Mätt:** `git show 9d591eb5 --stat` (4 filer, +675/−7) · `docs/decisions/0142-…md` läst i sin helhet. Inga filer redigerade, HEAD orörd.
+
+| Fynd | Status | Var i ADR:en |
+|---|---|---|
+| B1 uniform verify-svar | **stängd — gren (a) vald** | "D3 — Verify, then branch after proof", 1:a stycket + "Alternatives considered" (B1(b) avvisad med skäl) |
+| B2 falsk vilotext + lapse | **stängd** | "Page form" → Code step (vilotext + hjälptext ordagrant) + "Attempt budget" lapse-trigger **7** |
+| B3 180-dagarsupplysningen | **stängd — båda stegen** | "D4 — Sessions persistent by default" (kod- **och** villkorssteget, ovanför primären, `text-body-sm text-text-primary`) + "Page form" → Consent step |
+| M1 ordning + "Eller"-divider | stängd | "Page form" → `/logga-in`, two orders |
+| M2 provider-knapparnas form | stängd (+ "Kommer snart" tillagt) | "Page form" → Provider buttons |
+| M3 ett kodfält + förvarning | stängd¹ | "Page form" → Code step |
+| M4 de sju tillstånden | stängd | "Page form" → The seven states (tabell + kanaldisciplin) |
+| M5 `/lank` utan JS | stängd² | "Page form" → Link landing (+ `no-referrer` **mätt**, skärpning) |
+| M6 Mina sidor (a)–(g) | stängd, alla sju | "Page form" → "Mina sidor" |
+| Minor 1 Art. 13-raden + villkorsetikett | stängd³ | "D6" sista stycket + "Page form" → Consent step |
+| Minor 2 sidform, bredd, h1 per rutt | stängd | "Page form" → Routes stay in `(auth)` |
+| Minor 3 i18n-paritet, döda nycklar | stängd⁴ | "Page form" → Copy |
+| Minor 4 `landing.auth.free/fine` | stängd | "Page form" → Copy |
+| Minor 5 touch-golv + "Byt e-postadress" | stängd | "Page form" → Copy (≤768px) + Code step |
+
+Namngivna avvikelser (alla under min Minor-tröskel, ingen öppnar fyndet):
+¹ `aria-required` oskrivet (`aria-invalid` bärs av kanaldisciplinen). ² primärens etikett "Fortsätt till Jobbliggaren" och feltillståndens egen `h1` oskrivna; delade meningen finns. ³ `aria-describedby="email-hint email-privacy"`-parningen oskriven på steg 1. ⁴ nyckellistan ej uppräknad; "del 5" förfinat till **5a** (korrekt efter splitten).
+B1: ADR:en presenterar `Missing` som `expired` i stället för mitt fyrvägs-svar — **motiverad avvikelse, starkare än mitt förslag** (tar bort orakelrisken helt, innehavarens utmaning existerade alltid).
+Minor 4: ADR:en anger `registrera/page.tsx:42-43`; **jag mätte om — 42-43 är rätt, min rapports :44-45 var fel.** Rättelsen är ADR:ens, inte min.
+
+### Bra gjort
+- `no-referrer` binds som **mätt** mot den globala `strict-origin-when-cross-origin`-regeln — en regel som inte vinner är ingen regel; det var inte mitt fynd utan en skärpning.
+- Provider-knapparnas "Kommer snart" som **synlig text** gör min `aria-disabled`-poäng operativ i stället för bara semantisk.
+
+### Nya-i-deltat Blocker/Major
+**inga.** (Deltat är prosa, ingen rendering; jag mätte tokens ADR:en åberopar: `--jp-ink-1`, `--jp-text-primary`, `text-body-sm`, `.jp-icon-btn` finns alla, och `--jp-ink-1` flippar korrekt i `[data-theme="dark"]` till `#F4F7FC` — defaulten faller alltså inte i dark.) Kvarstår sedan förra ronden och gäller **del 2/3b, inte detta delta:** alla sju kodstegstillstånd plus villkors- och länksteget ska renderas i **båda** teman före designverdikt (AGENTS.md §8 p.4) — ADR:en binder det själv i "Page form"-ingressen. Detta var min **enda** scopade omkontroll (CLAUDE.md §9.6-taket).
+
+**Eskalering till Klas:** kvarstår **öppen** och är korrekt buren. Min fråga står ordagrant under "Open — Klas decides" (första meningen + båda alternativen (a)/(b) ord för ord, med markerad ellips över mellanledet som bar §7-grunden och mitt förslag). Defaulten — monokromt `currentColor` i `--jp-ink-1` medan knapparna är inaktiva, färgfrågan 6a:s — är **en default, inte ett beslut jag inte tog**: den halvan utlöser inget varumärkeskrav (en knapp som inte loggar in någon) och är mitt eget förslag; det beslut som återstår, ett scopat DESIGN.md §3-undantag för de tre officiella märkena, är uttryckligen skjutet till Klas och till 6a. Klas har ännu inte svarat — frågan ska ställas i klartext samma tur som det här verdiktet levereras, tillsammans med CTO:ns tre break-glass-frågor som `security-auditor` kräver besvarade **före del 1a öppnar**.

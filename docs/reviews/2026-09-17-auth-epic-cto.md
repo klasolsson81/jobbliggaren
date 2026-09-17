@@ -170,3 +170,67 @@ Inget annat i D2–D4, D6, D7, D9 är ett fasstrategiskt val — D4 och D7 är r
 - MDN / CSP Level 3 `form-action`: hävdas tvärs redirects i Chromium och Firefox — grunden för bind 1 i D8
 
 **Inga filer redigerade. Rapporten är ett beslut, inte en mätning av allt — det jag lutar mig på står i mättabellen överst, med fil och rad.**
+
+---
+
+## Scoped re-check (report-only, 2026-09-17, against commit `9d591eb5` on PR #1748)
+
+> Transcribed verbatim by the driving session. Scope: the agent's own decisions and binds against ADR 0142 + the 0017/0018 amendments + the README row. No files edited by the agent. Disposition of the three open items is recorded in the PR #1748 verdict table.
+
+Mätt: `git show 9d591eb5 --stat` (4 filer, +675/−7) och hela deltat läst. Graderat mot min egen rapport `docs/reviews/2026-09-17-auth-epic-cto.md`.
+
+### Bind → utfall
+
+| # | Bind / beslut | Utfall | Var i ADR:en |
+|---|---|---|---|
+| D8 | Variant B vald | stängd | "D8 — OAuth hand-rolled behind a port, last: Variant B" |
+| D8 | "inget JWT-paket"-motivet **struket** och ersatt (ingen JWKS/rotationscache/egen signaturväg) | stängd | D8, st. 1 ("The epic's 'so no JWT package' is struck") |
+| D8-1 | start bara via `<a href>`, aldrig form/Server Action; `form-action 'self'` tvärs redirects; pinnas i 6a:s Playwright | stängd | D8 → "Next route handlers" (rad 331–333) |
+| D8-2 | "200 + dokument" behålls, `proxy.ts`-citatet ersätts av eget SameSite-skäl + ADR 0018:s cookie-tabell | stängd | D8 "Next route handlers"; felet dessutom rättat i "Context" (de två falska epik-påståendena) |
+| D8-3 | ett hem för publik bas-URL (`EmailOptions.BaseUrl`), ingen `OAuth:RedirectBaseUrl` | stängd | D8 "Contract" |
+| D8-4 | state-cookie + Redis-post = två roller, inte dubbellagring | stängd | D8 "Next route handlers" ("two roles, not double storage") |
+| D8-5 | GitHub: enbart `/user/emails` med `primary && verified` | stängd | D8, st. 1 |
+| D1 | Redis bakom `ILoginChallengeStore`; samtycke + `AspNetUserLogins` i Postgres | stängd | D1, rubrikraden |
+| D1-1 | cookiens adress är visningsekó, aldrig indata; pinnas med avvikande-adress-test | stängd | D1 ("The cookie's address is an echo, never an input") |
+| D1-2 | egen kanalinstans för login-utskicket; ingen endpoint grenar på enqueue-retur | stängd, **med namngiven avvikelse (starkare)** | D2 "The dispatcher is a second port and a second channel" — egen **port** som returnerar `void` i stället för två instanser av samma port; `IPasswordResetDispatcher` orörd, DRY som `internal abstract BoundedDispatchChannel<T>`. Bindets invariant (ingen grening, egen kapacitet, egen dropplogg) hålls hårdare än jag skrev det. |
+| D1-3 | keyringen mätt (`DataProtection:KeyPath`) innan 1a går live | stängd | D1 ("measured set on the box before 1a goes live") — plus ett fynd jag inte hade (nycklarna persisteras **oskyddade**) |
+| D5 | alternativ (ii), två koder | stängd | D5, rubrikraden |
+| D5-1 | ordning: re-auth mot nuvarande adress först, avvisar före mint | stängd | D5, st. 2 |
+| D5-2 | `Password` → purpose-scopad grant; tripwire-testet behållet i sin tvingande roll; `DeleteAccountCommand` följer | stängd, **med namngiven avvikelse** | D5, st. 2 — ADR:en **mäter** att `ReauthenticationTripwireTests` inte pinnar medlemsnamnet (tre assertions: markör, validator, namespace) och rättar bara dess prosa. Assertions oförändrade, så den tvingande rollen står. Avvikelsen är mot min formulering, inte mot bindet. |
+| D5-3 | grant-bindning i två led, `complete` hävdar båda | stängd, **med namngiven avvikelse (starkare)** | D3 "Grants are ONE port with `purpose` as an enum" — hävdandet flyttat **in i** `RedeemAsync` (purpose + subject), så ingen handler kan glömma. |
+| D5-4 | notisen till gamla adressen behålls | stängd | D5, rubrikraden |
+| Del | 0.5 före 1a (SRP på PR-nivå, 187 anropsplatser) | stängd | D9 + "Implementation status" (0 → 0.5 → 1b → 1a) |
+| Del-1 | 1b före 1a | stängd | "Implementation status" |
+| Del-2 | 6d avblockeras, in i 1b:s migrationsfönster | stängd, **med namngiven avvikelse (presentation)** | "Implementation status" — migrationsordningen `1b → 6d → 4a → 4b → 5b` är exakt min, men i part-prosan står 6d sist (efter 6c) med noten om flytten. Bindande raden finns; läsordningen är otydlig. |
+| Del-3 | 4a/4b två PR:er för att 4b är oåterkallelig; **4b öppnar först när 4a är mergad och mätt live** | stängd | "Implementation status" (#1742) + "Alternatives considered". Not: "measured live" utan att namnge `dev.jobbliggaren.se`. |
+| Del-4 | 5 delas i 5a/5b | stängd | "Open — Klas decides" + "Implementation status" |
+| Del-4b | **5b öppnar först när 5a är mergad och mätt live** | **ÖPPEN** | Finns ingenstans. Grepat: enda villkoret som skrivits för 5b är Klas-svaret ("opens only on Klas's answer"). Klas-grinden ersätter inte sekvensgrinden — han kan svara innan 5a mergat, och då reser nollningen utan att rivningen är mätt live. Detta är exakt den defekt jag avvisade på 4a/4b. |
+| Del-5 | formuleringsrättelsen om 1a (persistent-by-default levereras i del 2, copyn i samma PR som flippen) | stängd | D4, st. 1 ("1a does not claim persistent-by-default is delivered (CTO's wording correction)") |
+| Esk. | eskaleringen transkriberad **ordagrant** | **ÖPPEN** | "Open — Klas decides" — se nedan |
+
+### Eskaleringen: nej, inte ordagrant
+
+ADR rad 399 säger *"The escalation, verbatim from `senior-cto-advisor`"*. Fyra passager ur min text saknas:
+
+1. Ramen *"Tre frågor, och jag behöver ditt svar innan ADR 0142 skrivs:"*
+2. Fråga 1:s parentes *"(Detta är ett tillgänglighetsbeslut med produktkonsekvens, inte ett tekniskt val — därför frågar jag.)"*
+3. Fråga 3:s slutled *"— det kostar att BUILD.md beskriver två auth-vägar ett tag till, men det gör steget reverterbart."*
+4. **Hela slutstycket**: *"Jag rekommenderar inget här: valet beror på hur mycket driftavbrott du tål på `jobbliggaren.se` under introduktionen av de första testanvändarna, och det är din bedömning. Frågan rör också #734 (go-live-grinden), som är din."*
+
+(4) är den bärande: den säger uttryckligen att CTO **inte** rekommenderar, och den pekar på **#734**. Utan den läser Klas tre frågor utan att veta att ingen lutning finns bakom dem, och kopplingen till go-live-grinden är borta. Ordet "verbatim" är därmed ett falskt påstående i en tracked fil. Stängs genom att **återställa de fyra passagerna** (återställning av citerad källtext skapar inget nytt påstående — den gör det befintliga sant); alternativt genom att stryka "verbatim", vilket jag avråder från eftersom §9.2 säger att en parafraserad eskalering är tappad, inte levererad.
+
+### Defaulten: en default, inte ett beslut jag inte tog — men den är ofullständig
+
+*"5b öppnar inte förrän Klas svarat"* och *"ingen break-glass designas förrän han namnger en"* är båda **äkta defaults**. Fråga 3 gäller just om 5b ska köras alls före lansering — att öppna 5b före svaret vore att besvara frågan åt honom; fråga 2 gäller vilken form break-glassen ska ha, och att designa en före svaret vore att välja form åt honom. ADR:ens egen formulering ("the only default that forecloses nothing") är rätt beskrivning. Jag känner igen mitt beslut i båda.
+
+**Men** defaulten är skriven för 5b och bara för 5b, medan dokumentet samtidigt transkriberar en villkorsmening som gäller **1a** (se Major 1 nedan) och tappar mitt eget sekvensvillkor för 5b (Del-4b ovan).
+
+### Nya-i-deltat Blocker/Major
+
+**Major 1 (mitt betyg) — ett transkriberat bindande villkor utan operativ disposition.** Rad 417: *"`security-auditor` adds: the three answers must be in this ADR **before part 1a opens**, because where the lockout hole closes (D3) and the boot refusal (D10) get different right answers depending on whether a break-glass exists."* ADR:en levererar ändå D3:s 1c-stängning och D10:s ändrade boot-vägran som **Accepted**, och "Implementation status" sätter 1a som fjärde del utan grind. Antingen väntar 1a på Klas — vilket ingenstans står — eller så är auditörens villkor tyst överkört. Jag kan inte lösa det: `1a`-väntan är samma tillgänglighetsfråga som Klas äger, och villkoret tillhör `security-auditor`. **Rätt disposition är STOPP till Klas** (`blocked`-etikett), inte en mening jag skriver. Att stryka auditörens mening är inte ett alternativ — ett bindande villkor disponeras inte genom att raderas.
+
+**Major 2 (mitt betyg) — eskaleringen är märkt "verbatim" men är förkortad** (fyra passager, se ovan). Stängs mekaniskt-nära genom återställning av källtexten.
+
+**Öppet bind (inte ny Major, mitt eget fynd som inte stängdes):** Del-4b — 5b:s sekvensvillkor mot 5a saknas.
+
+Inga andra nya Blocker/Major i deltat. Inga formuleringsfynd rapporterade, inga fynd på rader deltat inte rör. ADR 0017:s och 0018:s amendments samt README-raderna bär mina beslut korrekt (0017 punkt 7 → `AspNetUserLogins` + 6d; 0018 persistent-by-default, `Max-Age` 180 d från del 2, **båda** döda "ADR 0093"-pekarna ompekade, #1494 stängd).

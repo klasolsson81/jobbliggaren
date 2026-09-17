@@ -159,3 +159,33 @@ Nej. (CTO:ns break-glass-eskalering står kvar obesvarad och är hans, inte en n
 - Mätta filer: `JobSeeker.cs:108-148` · `UserAccountService.cs:100-155, 346-372` · `IReauthenticatingRequest.cs:19-22` · `ReauthenticationService.cs:12-107` · `ReauthenticationTripwireTests.cs:30-88` · `RedisCooldownGate.cs:26-70` · `RedisSessionStore.cs:19-22, 480-506` · `PasswordResetDispatchChannel.cs:61-105` · `PasswordResetDispatchService.cs:67-113` · `DependencyInjection.cs:1590-1614, 1621-1826` · `Worker/Program.cs:49-61` · `ApplicationUserConfiguration.cs:13-36` · `JobSeekerConfiguration.cs:22-24` · `EmailOptions.cs:29` · `AuthOptionsValidatorTests.cs:204-241` · `WorkerLayerTests.cs:17-36` · `ContactAddressMatchesPublishedContactTests.cs:111-127` · `content-legal.json:8, 231`
 
 **Inga filer redigerade.**
+
+---
+
+## Scoped re-check (report-only, 2026-09-17, against commit `9d591eb5` on PR #1748)
+
+> Transcribed verbatim by the driving session. Scope: the agent's own eleven recommendations against ADR 0142 + the 0017/0018 amendments. No files edited by the agent.
+
+### Sammanfattning
+OK — alla elva rekommendationer bärs av ADR 0142 (kommit `9d591eb5`, 4 filer / +675). Tre bärs med namngiven avvikelse, alla tre motiverade och ingen av dem försvagande. Inga nya Kritiskt/Viktigt i deltat.
+
+| # | Rekommendation | Status | Var i ADR:en |
+|---|---|---|---|
+| 1 | `ILoginChallengeStore.ConsumeAsync` — en `Consume`, aldrig läs/skriv-par | **Stängd** (avvikelse A) | D1, kodblocket + "`ConsumeAsync`'s contract, in its XML doc" |
+| 2 | `TryClaimAsync` som egen atomär `SET NX`, inte `ICooldownGate` | **Stängd** | D1, "**`TryClaimAsync` is its own atomic `SET NX`**" (inkl. att claimen inte är unikhetens hem) |
+| 3 | Grant-lagret: en port, `purpose` som enum, bindningen inuti `Redeem` | **Stängd** | D3, "**Grants are ONE port with `purpose` as an enum**" (TTL 10 min tillagt) |
+| 4 | Två dispatcher-portar, den nya returnerar `void` | **Stängd** | D2, "**The dispatcher is a second port and a second channel, and it returns `void`**" + `internal abstract BoundedDispatchChannel<T>` |
+| 5 | `VerifiedEmail`-typen; `redirect_uri` ur `EmailOptions.BaseUrl`, ej parameter | **Stängd** (avvikelse B) | D8, "**Contract:**" |
+| 6 | `IReauthenticatingRequest.Password` → grant; tripwiren pinnar inte namnet | **Stängd** | D5, stycket "Order: re-auth … runs first" (soft-delete-grinden ordagrant, `EmailNotConfirmed`-meningen **raderas**) |
+| 7 | `JobSeeker.Register` ersätts; `TermsAcceptance` + versionerna i Domain; paritetstest | **Stängd** | D6 i sin helhet (`OwnsOne(...).IsRequired(false)`, ej `ToJson`; paritetstest båda locales, "ends with") |
+| 8 | `CreatePasswordlessUserAsync` + de två hålen i `UserAccountService` | **Stängd** | Signaturen i D10; hålen i D3 ("**1c closes two holes**" — lockout-bindningen, `AccessFailedAsync`-ordningen, `TryPreparePasswordResetAsync` → `null`) |
+| 9 | Api-only-registrering + testparet, och att ingen vakt fångar felregistreringen | **Stängd** | D2, "**The consumer registers in the Api composition only**" (residualen namngiven) |
+| 10 | Redis-nyckelformen, `IRateBudget`, en normaliseringsplats | **Stängd** (avvikelse C) | D1, "**Keys** follow the delivered cooldown form" + "**The mint budget is a counter, not a cooldown**" |
+| 11 | Migrationerna per kontext; 5b `security_stamp` + `Down` | **Stängd** | "Implementation status" → "**Migration order (single-owner)**": 1b/4a/4b `Persistence`, 6d + 5b `Identity`, 5b roterar `security_stamp` i samma sats, `Down` en explicit `throw`, SQL:en till `db-migration-writer` |
+
+**Namngivna avvikelser**
+- **A (#1):** koden DataProtector-skyddas i stället för att hashas (security Major 2). **Ingen kollision.** Min mening band *placeringen* — "hashning + jämförelse bor i adaptern", dvs. Application ser verdicten, aldrig verben — inte algoritmen. ADR:en behåller meningen ordagrant ("Hashing and comparison live in the adapter"), hashar länktoken och skyddar koden; motivet (10⁶-preimage gör osaltad hash verkningslös mot samma läsare adressen krypteras mot) är korrekt och starkare än mitt. Invarianterna jag skyddade — INCR före jämförelse, atomär radering vid träff, `Record` icke-null endast vid `Verified`, dummy-jämförelse alltid — står kvar. Adaptern måste förstås `Unprotect`:a före konstanttidsjämförelsen (DataProtection är icke-deterministisk); det är implementationsform för 1a, inte ett ADR-hål.
+- **B (#5):** min nice-to-have `IPublicBaseUrl` togs inte. Ej ett fynd — den var nice-to-have och ADR:en skriver ut "the one home".
+- **C (#10):** starkare än rekommenderat. Jag bad varje ny hashningsplats kopiera `RedisCooldownGate.Key`:s normalisering; ADR:en *lyfter* den till en delad intern funktion som den skeppade gaten delegerar till. Det rör skeppad kod, men bevarar semantiken och tar bort divergensrisken helt — bättre än mitt förslag, och min "ändra inte `RedisCooldownGate`" gällde dess SETNX-semantik, inte normaliseraren. `ICooldownGate.cs:16`-kommentaren rättas i samma PR.
+
+**Nya-i-deltat Kritiskt/Viktigt: inga.**

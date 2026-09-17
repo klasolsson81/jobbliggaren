@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-08-28",
+    "updated": "Last updated: 2026-09-17",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -29,7 +29,7 @@
           "A CV file you upload may contain information about other people, for example references. Such information is processed only as part of your own document, for example when the file's text is read out for your own CV review. It is never used for any other purpose, never shown to anyone else and never used to contact anyone. The file is stored encrypted and only for your own use."
         ],
         "list": [
-          "Email address, password (stored as a cryptographic hash, never in plaintext), display name and account identifier, as well as an identifier from an external login service if you log in via one. Used to create and secure your account and to identify you in the service.",
+          "Email address, password (stored as a cryptographic hash, never in plaintext), display name and account identifier, as well as an identifier from an external login service if you log in via one. Also the time you accepted the terms of use and which versions of the terms and the privacy policy applied then. Used to create and secure your account, to identify you in the service and to show that the terms were accepted.",
           "Display name, language preference and your matching preferences, for example occupation, region, type of employment and skills you want to match against. Used to show relevant jobs and to tailor the service to your choices.",
           "Your CV and content parsed from it. Used to store, display and work with your CV in the service.",
           "Your uploaded original CV file. When you import a CV, we store the file you uploaded in its original form and encrypted, so you can download it again and later continue working from it. If the file's text contains a personal identity number, the file is stored only if you explicitly approve it when you upload the file; without your approval it is not stored. You can withdraw your choice at any time by removing the draft or the CV, and the file is then deleted immediately.",

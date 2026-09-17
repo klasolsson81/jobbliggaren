@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-08-28",
+    "updated": "Senast uppdaterad: 2026-09-17",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -29,7 +29,7 @@
           "En cv-fil du laddar upp kan innehålla uppgifter om andra personer, till exempel referenser. Sådana uppgifter behandlas bara som en del av ditt eget dokument, till exempel när filens text läses ut för din egen cv-granskning. De används aldrig för något annat ändamål, visas aldrig för någon annan och används aldrig för att kontakta någon. Filen lagras krypterad och bara för din egen användning."
         ],
         "list": [
-          "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Används för att skapa och säkra ditt konto och identifiera dig i tjänsten.",
+          "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Dessutom tidpunkten då du godkände användarvillkoren och vilka versioner av villkoren och integritetspolicyn som gällde då. Används för att skapa och säkra ditt konto, identifiera dig i tjänsten och kunna visa att villkoren har godkänts.",
           "Visningsnamn, språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
           "Din uppladdade originalfil av cv:t. När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Innehåller filens text ett personnummer sparas filen bara om du uttryckligen godkänner det när du laddar upp den; utan ditt godkännande sparas den inte. Du kan när som helst ångra ditt val genom att ta bort utkastet eller cv:t, då raderas filen direkt.",

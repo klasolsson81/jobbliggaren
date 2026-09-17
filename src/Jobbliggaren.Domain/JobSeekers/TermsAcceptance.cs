@@ -35,7 +35,7 @@ public sealed record TermsAcceptance
     public const string CurrentTermsVersion = "2026-06-28";
 
     /// <summary>The "Senast uppdaterad" date of the published privacy policy (<c>privacy.updated</c>).</summary>
-    public const string CurrentPrivacyPolicyVersion = "2026-08-28";
+    public const string CurrentPrivacyPolicyVersion = "2026-09-17";
 
     public DateTimeOffset AcceptedAt { get; }
     public string TermsVersion { get; }

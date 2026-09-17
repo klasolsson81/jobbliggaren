@@ -265,12 +265,14 @@ sends, which is arithmetic.
 
 ### D6 — The consent record: a contract stamp, not Art. 7 consent
 
-`TermsAcceptance` is a Domain value object (`JobSeekers/TermsAcceptance.cs`, `readonly record
-struct`, factory returning `Result<TermsAcceptance>`: `AcceptedAt ≠ default`, both versions
-non-empty and from the known set). `JobSeeker.Register(Guid userId, string? displayName,
+`TermsAcceptance` is a Domain value object (`JobSeekers/TermsAcceptance.cs`, a `sealed record`,
+with the version constants and one total factory, `AcceptCurrent(IDateTimeProvider clock)` —
+corrected 2026-09-17, amendment below). `JobSeeker.Register(Guid userId, string? displayName,
 TermsAcceptance acceptance, IDateTimeProvider clock)` **replaces** the current signature — not an
 overload, so the consent-less path stops being callable (§2.2); the cost is one call site in `src/`
-(`RegisterCommandHandler.cs:113`) plus 0.5's bootstrap. Mapped as `OwnsOne(...).IsRequired(false)` →
+(`RegisterCommandHandler.cs:113`) plus every test call site, swept by the compiler in one mechanical
+commit and counted in the PR body with `git grep -c 'JobSeeker\.Register(' -- src tests`. Mapped as
+`OwnsOne(...)` + `Navigation(...).IsRequired(false)` →
 three nullable columns `terms_accepted_at`, `terms_version`, `privacy_policy_version` on
 `job_seekers` (parity with `Preferences`; not `ToJson` — an Art. 7(1)-grade record is queryable).
 Nullable only for the two pre-existing rows; **NOT NULL for every row written after 1b** is a
@@ -292,6 +294,40 @@ parse the prose, assert it **ends with** the Domain constant, both locales.
 address is collected on `/logga-in`, so the same link line the `/registrera` checkbox carries today
 sits under the email field as a second hint row — *"Så behandlar vi din e-postadress:
 integritetspolicyn."* — no new separate notice.
+
+#### Amendment 2026-09-17 (#1736, part 1b) — the form as delivered, and three corrections above
+
+*Decided by `dotnet-architect` (`docs/reviews/2026-09-17-1736-architect-form.md`) and
+`senior-cto-advisor` (`docs/reviews/2026-09-17-1736-cto-signature.md`), both before code.*
+
+**Three sentences in D6 were corrected in place today, and this records why.** (1) The value object is
+a `sealed record`, not the `readonly record struct` first written: `OwnsOne` requires a reference type,
+so the two halves of the sentence could not both hold, and D6's own "parity with `Preferences`" ground
+— `Preferences` is a `sealed record` — picks the class. (2) The factory is **total**:
+`TermsAcceptance.AcceptCurrent(IDateTimeProvider clock)` stamps the two Domain constants at the clock's
+now. No request in this epic carries the version the user saw — registration and the code-step
+`complete` both send a bool — so a `Result`-returning `Create(termsVersion, privacyPolicyVersion,
+acceptedAt)` would ship with one caller passing the constants and a failure branch no caller reaches;
+it is **deferred to the part that first carries a version, as scheduling, not omitted**. The known-set
+refusal has nothing to refuse until then. (3) The cost sentence counted `src/` and called the test side
+one file; every test call site is swept, by the compiler, in one mechanical commit, and the count is a
+PR-body fact with its regeneration command rather than a number frozen here.
+
+**Also bound.** `Register` refuses a null acceptance with `JobSeeker.TermsAcceptanceRequired` after the
+`userId` guard — the non-nullable parameter is defended at runtime the way `Guid.Empty` already is.
+The API refuses `acceptTerms=false` in `RegisterCommandValidator` (`Equal(true)`, no default on the
+command member, so an omitted field binds to `false` and is refused): the validation behavior runs
+before the handler and so before `CreateUserAsync`, leaving no Identity user behind and reading nothing
+but the flag. The aggregate's refusal and the validator's are two propositions, not one rule in two
+homes. `JobSeekerRegisteredDomainEvent` carries no versions: **the row is the Art. 5(2) accountability
+record**, the event announces that a registration happened. The parity pin lives in Domain.UnitTests
+with the walk-up shared through `tests/Shared/ContentLegalMessages.cs`; it reads `terms.updated` and
+`privacy.updated` by path, never by a file-wide sweep — the file carries five `updated` dates.
+
+**The signature conflict with the issue bodies is resolved for this ADR.** #1736's body and #1741's
+body wrote `Register` without `displayName`; both were filed before this ADR was ratified. The ADR
+governs and the bodies were corrected on 2026-09-17: `DisplayName` stays required and validated until
+4a, which also owns the fate of the parameter and of the event's non-nullable `DisplayName`.
 
 ### D7 — The account has no name and the CV stops requiring one
 

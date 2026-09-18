@@ -48,7 +48,6 @@ public sealed class SubjectFingerprintTests
     [Fact]
     public void Hex_CollapsesADecomposedSpellingOntoItsComposedForm()
     {
-        // Escaped code points, because an editor normalising this file would make the test vacuous.
         const string composed = "bö@example.com";
         const string decomposed = "bö@example.com";
         composed.ShouldNotBe(decomposed);

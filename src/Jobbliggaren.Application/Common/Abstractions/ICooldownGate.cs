@@ -13,8 +13,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// SILENT uniform no-op, so cooldown state never correlates with account existence; an authenticated caller
 /// (change-email) MAY surface <c>false</c> as a visible error. <paramref name="scope"/> namespaces the
 /// window so distinct actions never collide; <paramref name="subject"/> (an email address or a user id) is
-/// normalised the way Identity normalises a lookup key and SHA-256-hashed by the implementation — the raw
-/// value is never written to Redis.
+/// trimmed, normalised the way Identity normalises a lookup key and SHA-256-hashed by the implementation —
+/// the raw value is never written to Redis.
 /// </para>
 /// </summary>
 public interface ICooldownGate

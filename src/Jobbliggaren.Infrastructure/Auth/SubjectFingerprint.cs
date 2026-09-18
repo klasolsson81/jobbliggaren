@@ -5,7 +5,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
 /// The one home of the Redis-key fingerprint for a subject (an email address or a user id): the subject
-/// normalised the way Identity normalises a lookup key, then SHA-256, lower-case hex. One-way — the raw
+/// trimmed and normalised the way Identity normalises a lookup key, then SHA-256, lower-case hex. One-way — the raw
 /// value is never written to Redis. Every Redis key derived from an address calls this function, and none
 /// carries its own copy (ADR 0142 D1, security-auditor Major 3).
 /// </summary>

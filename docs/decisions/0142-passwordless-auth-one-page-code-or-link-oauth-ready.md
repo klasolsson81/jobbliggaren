@@ -470,7 +470,7 @@ after 1a mail is needed for login, not only registration. The rule keeps asking 
 (`Auth:LoginChallengeDispatch:Capacity`, the budget windows) follow CLAUDE.md §11's dev-boot
 contract. Both existing accounts have `EmailConfirmed=true` and log in by code with no data change.
 
-## Open — Klas decides (put to him in plain text 2026-09-17; answered 2026-09-18)
+## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)
 

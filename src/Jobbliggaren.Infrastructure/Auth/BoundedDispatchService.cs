@@ -14,7 +14,7 @@ internal abstract class BoundedDispatchService<T>(
     IServiceScopeFactory scopeFactory)
     : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected sealed override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // CancellationToken.None, deliberately, and NOT the stopping token — the drain depends on it.
         //
@@ -37,7 +37,7 @@ internal abstract class BoundedDispatchService<T>(
         }
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    public sealed override async Task StopAsync(CancellationToken cancellationToken)
     {
         // Complete the writer FIRST so the loop above sees the end of the stream and drains. That is
         // the ONLY thing that ends the loop — see ExecuteAsync for why it must not observe the stopping

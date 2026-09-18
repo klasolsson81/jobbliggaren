@@ -154,8 +154,7 @@ public class RedisCooldownGateTests
     public async Task TryBeginAsync_CollapsesADecomposedSpellingOntoItsComposedForm()
     {
         // The second axis, independent of casing: Identity runs Normalize() (NFC) before upper-casing,
-        // so an NFD spelling of any accented address is the same account. Built from code points rather
-        // than pasted, because an editor normalising this file would silently make the test vacuous.
+        // so an NFD spelling of any accented address is the same account.
         var ct = TestContext.Current.CancellationToken;
         const string composed = "bö@example.com";        // o-with-diaeresis, one code point
         const string decomposed = "bö@example.com";     // o + combining diaeresis

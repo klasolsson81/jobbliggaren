@@ -18,7 +18,6 @@ using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
-using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Infrastructure.Persistence;

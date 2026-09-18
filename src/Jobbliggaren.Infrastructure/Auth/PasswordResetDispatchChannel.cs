@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using Jobbliggaren.Application.Auth;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -34,69 +33,40 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// click on a form that is already throttled.
 /// </para>
 /// </summary>
-internal sealed partial class PasswordResetDispatchChannel : IPasswordResetDispatcher
+internal sealed partial class PasswordResetDispatchChannel
+    : BoundedDispatchChannel<PasswordResetDispatch>, IPasswordResetDispatcher
 {
-    private readonly Channel<PasswordResetDispatch> _channel;
     private readonly ILogger<PasswordResetDispatchChannel> _logger;
-    private readonly int _capacity;
 
     public PasswordResetDispatchChannel(
         IOptions<PasswordResetDispatchOptions> options,
         ILogger<PasswordResetDispatchChannel> logger)
+        : base(options.Value.Capacity)
     {
         _logger = logger;
-        _capacity = options.Value.Capacity;
-
-        // DropWrite, never Wait. `Wait` makes the write block once the queue is full, which puts a
-        // load-dependent delay back on an unauthenticated endpoint — the same class of channel this
-        // whole change exists to remove, one step sideways, plus a self-inflicted latency DoS.
-        // SingleReader: exactly one consumer (PasswordResetDispatchService), so no concurrency
-        // ceremony and the channel can use its faster path.
-        //
-        // The drop is observed through the itemDropped CALLBACK, not through TryWrite's return, and
-        // that is a fact about the BCL rather than a preference: under DropWrite, TryWrite returns
-        // TRUE even when the queue is full — the write is accepted and the new item is then discarded.
-        // A first draft of this class read the bool as "queued", and its test caught it. The callback
-        // is the only place a drop is visible.
-        _channel = Channel.CreateBounded<PasswordResetDispatch>(
-            new BoundedChannelOptions(_capacity)
-            {
-                FullMode = BoundedChannelFullMode.DropWrite,
-                SingleReader = true,
-                SingleWriter = false,
-            },
-            itemDropped: _ => LogQueueFull(_logger, _capacity));
     }
-
-    /// <summary>The consumer's end. Internal — only the hosted service reads it.</summary>
-    internal ChannelReader<PasswordResetDispatch> Reader => _channel.Reader;
-
-    /// <summary>Closes the writer so a draining consumer sees the end of the stream on shutdown.</summary>
-    internal void Complete() => _channel.Writer.TryComplete();
 
     public bool TryEnqueue(PasswordResetDispatch dispatch)
     {
-        // Returns immediately whether the queue is empty or full, and — load-bearing — it does so in
-        // the same time for an address that resolves to an account and one that does not, because
-        // nothing here looks at the address at all.
-        //
         // The bool means "the channel accepted the write", which under DropWrite is false ONLY once the
         // writer has been completed, i.e. during shutdown. A FULL queue returns true and silently
-        // discards the item; that case is reported by the itemDropped callback above. The caller
-        // answers the uniform 202 in either case, so it does not branch on this — the value exists so a
-        // shutdown-time enqueue is not mistaken for a queued one.
-        return _channel.Writer.TryWrite(dispatch);
+        // discards the item; that case is reported by OnItemDropped. The caller answers the uniform 202
+        // in either case, so it does not branch on this — the value exists so a shutdown-time enqueue is
+        // not mistaken for a queued one.
+        return TryWrite(dispatch);
     }
+
+    protected override void OnItemDropped() => LogQueueFull(_logger, Capacity);
 
     /// <summary>
     /// A drop is NOT silent, which is the whole answer to "then the user gets nothing and no error".
     /// <para>
     /// The line carries the capacity and nothing else: no address, no user id — the request path does
-    /// not even know a user id at this point, and the dropped item is deliberately not read here even
-    /// though the callback receives it. It is therefore written BEFORE any lookup and is byte-identical
-    /// for an existing and a non-existent account, so it leaks nothing while still telling an operator
-    /// the queue is saturated. Warning, because a saturated queue on this endpoint is either an
-    /// incident or an attack, and Debug is filtered out where it matters.
+    /// not even know a user id at this point, and the dropped item is deliberately not read here. It is
+    /// therefore written BEFORE any lookup and is byte-identical for an existing and a non-existent
+    /// account, so it leaks nothing while still telling an operator the queue is saturated. Warning,
+    /// because a saturated queue on this endpoint is either an incident or an attack, and Debug is
+    /// filtered out where it matters.
     /// </para>
     /// </summary>
     [LoggerMessage(1007, LogLevel.Warning,

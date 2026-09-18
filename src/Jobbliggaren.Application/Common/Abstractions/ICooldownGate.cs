@@ -13,14 +13,14 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// SILENT uniform no-op, so cooldown state never correlates with account existence; an authenticated caller
 /// (change-email) MAY surface <c>false</c> as a visible error. <paramref name="scope"/> namespaces the
 /// window so distinct actions never collide; <paramref name="subject"/> (an email address or a user id) is
-/// normalised (trim + lower-invariant) and SHA-256-hashed by the implementation — the raw value is never
-/// written to Redis.
+/// normalised the way Identity normalises a lookup key and SHA-256-hashed by the implementation — the raw
+/// value is never written to Redis.
 /// </para>
 /// </summary>
 public interface ICooldownGate
 {
     /// <summary>
-    /// Atomically begins a cooldown <paramref name="window"/> for the <paramref name="scope"/>+<paramref
+    /// Begins a cooldown <paramref name="window"/> for the <paramref name="scope"/>+<paramref
     /// name="subject"/> pair: returns <c>true</c> if it was NOT in cooldown (and starts a fresh window),
     /// <c>false</c> if it still is (no window is (re)started). The caller decides whether a <c>false</c> is
     /// a silent uniform no-op (anti-enumeration) or a visible error (authenticated path).

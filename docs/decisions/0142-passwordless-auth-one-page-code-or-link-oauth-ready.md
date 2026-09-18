@@ -1,8 +1,8 @@
 # ADR 0142 — Passwordless auth: one page, code or link, OAuth-ready
 
-**Status:** Accepted for D1–D9 and the parts sequence · **D10's break-glass and the timing of the
-`password_hash` nulling are OPEN and Klas's** (the "Open — Klas decides" section carries the
-questions verbatim and the default that holds until he answers) · **Date:** 2026-09-17 ·
+**Status:** Accepted for D1–D10 and the parts sequence · **D10's three questions answered by Klas on
+2026-09-18** (mail outage = total login stop accepted, no break-glass, 5b deletes before launch — verbatim
+under "Open — Klas decides") · **Date:** 2026-09-17 ·
 **Deciders:** Klas (the directive 2026-09-16; the four answers 2026-09-17: consent as a checkbox in
 its own step after the code, `/logga-in` as the single URL, provider buttons visible but inactive,
 the CV name optional with no confirm step), `senior-cto-advisor` (D8 Variant B, D1 Redis, D5 (ii),
@@ -470,7 +470,38 @@ after 1a mail is needed for login, not only registration. The rule keeps asking 
 (`Auth:LoginChallengeDispatch:Capacity`, the budget windows) follow CLAUDE.md §11's dev-boot
 contract. Both existing accounts have `EmailConfirmed=true` and log in by code with no data change.
 
-## Open — Klas decides (put to him in plain text 2026-09-17; not settled here)
+## Open — Klas decides (put to him in plain text 2026-09-17; answered 2026-09-18)
+
+### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)
+
+| # | Question | Answer |
+|---|---|---|
+| 1 | Is a mail outage = a total login stop acceptable? | **Yes.** *"Ja det ärokej, mejl och OAuth är enda vägen in, vi ska inte ha lösenord."* |
+| 2 | A break-glass — (a) a one-time code in the box's log, (b) a second mail provider, (c) a password kept for the admin account only? | **None.** *"ingen"* |
+| 3 | Should part 5 (nulling `password_hash`) run before launch at all? | **Yes, delete.** *"Ja, radera"* |
+
+**What the answers settle, and what they do not:**
+
+- **The gate on 1a is met by this block**, written as the first commit of 1a's own PR (#1735) rather than in
+  a standalone docs PR.
+- **`security-auditor`'s Major 12 lands in 1a as D10 binds it:** the boot refusal drops its
+  `RegistrationsOpen` condition and keeps asking the sender's capability (`CanDeliver`), never
+  `Email:Provider`. With no break-glass, mail is a login path from 1a on and the only one once 5a removes
+  the password surface, until an IdP goes live.
+- **`security-auditor`'s Major 11 stays in 1c as D3 binds it.** Form (c) — a password kept for the admin
+  account — was the only form that would have kept the password surface alive past 5a and reintroduced the
+  lockout DoS on that account, and it was declined. 5b therefore nulls **every** `password_hash`, with
+  `security_stamp` rotated in the same statement, never "all but one".
+- **No break-glass is designed**; none of forms (a)–(c) is built.
+- **5b still does not open until 5a is merged and measured live on `dev.jobbliggaren.se`.** Answer 3 removes
+  only the Klas half of its gate.
+- **The attempt budget's lapse trigger 6 is now a scheduled event**, and its re-measurement is owed in 5b's PR.
+- **Klas, 2026-09-18, on the same thread (1a's plan session):** the manual Identity `bootstrap` procedure
+  (parked, #1172) is written **in 5a's PR** — *"Ja, i 5a:s PR"* — because 5b is an Identity-context
+  migration and that context has no automatic apply path (`migrate` runs `schema`, `AppDbContext` only).
+
+The default and the escalations below are the record of what was asked; the answers above supersede the
+default.
 
 **The default that holds until he answers — parts 0.5 and 1b proceed, parts 1a and 5b wait:**
 part 5 is split into **5a** (teardown of the password surfaces, `RequireEmailConfirmation`
@@ -641,7 +672,7 @@ request path never reads the account, which is stronger anti-enumeration than to
 basis is written (#1494 closes); OAuth-readiness is real (`AspNetUserLogins`) instead of two dead
 columns; the CV stops requiring a name the product never needed.
 
-**Negative, accepted.** Mail becomes a hard dependency of login — the residual Klas decides
+**Negative, accepted.** Mail becomes a hard dependency of login — accepted by Klas on 2026-09-18
 (above). Three OAuth adapters are written and tested by hand (≈ 3 × 150 lines + contract tests)
 instead of configured. Two mails and two code entries for an email change. Seventeen PRs instead of
 fifteen. A new PII key class in Redis for ≤ 15 min, with the keyring as its confidentiality bound.
@@ -673,15 +704,15 @@ Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from 
 comment; 5a/5b are one issue, #1743, until it is split):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
-(`Persistence`) → **1a** #1735 (**`blocked` until Klas's three D10 answers are in this ADR**)
+(`Persistence`) → **1a** #1735 (Klas's three D10 answers written into this ADR 2026-09-18 as the first commit of its PR)
 challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the boot-gate change,
 the edge-scrub pin, the register → **1c** #1737 `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
 **4a** #1741 display name nullable, `Resume.FullName` optional → **4b** #1742 (opens only after 4a
-is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed → **5b** `password_hash`
-nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**opens only on
-Klas's answer, and only after 5a is merged and measured live on `dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
+is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
+nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
+`dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
 (`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

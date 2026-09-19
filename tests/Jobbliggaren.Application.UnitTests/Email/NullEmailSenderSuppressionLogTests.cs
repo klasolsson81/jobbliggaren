@@ -18,8 +18,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// security-auditor Major without turning a single line red (code-reviewer Major D1, 2026-08-09).
 /// </para>
 /// <para>
-/// <b>The pair is the test.</b> A lone Warning assertion passes against a class that put all six
-/// kinds at Warning, and a lone Debug assertion passes against one that put all six at Debug. Only
+/// <b>The pair is the test.</b> A lone Warning assertion passes against a class that put every
+/// kind at Warning, and a lone Debug assertion passes against one that put every kind at Debug. Only
 /// asserting both sides of the split proves there IS a split.
 /// </para>
 /// </summary>
@@ -105,21 +105,22 @@ public class NullEmailSenderSuppressionLogTests
     [InlineData("email-change-confirmation")]
     [InlineData("password-reset")]
     [InlineData("password-changed-notice")]
+    [InlineData("login-challenge")]
     public async Task EveryAccountLifecycleKind_LogsAtWarning(string expectedKind)
     {
         var (sender, log) = Create();
         var ct = CancellationToken.None;
         var userId = Guid.NewGuid();
 
-        // All six, so the mapping is pinned kind by kind rather than by one representative. Three are
+        // Every kind, so the mapping is pinned kind by kind rather than by one representative. Four are
         // UNREACHABLE in production, but by TWO different mechanisms and the distinction matters:
-        //   · email-change-confirmation and password-reset — their callers READ CanDeliver and refuse
-        //     before minting or sending (#1087, #1171).
+        //   · email-change-confirmation, password-reset and login-challenge — their callers READ
+        //     CanDeliver and refuse before minting or sending (#1087, #1171, #1735).
         //   · password-changed-notice — its caller has NO CanDeliver branch. It is unreachable
         //     INDIRECTLY: no reset token can be minted while the sender cannot deliver, so the event
         //     this notice reports cannot occur (the same trigger-unreachability argument
         //     security-auditor accepted 2026-08-09 for the old-address notice).
-        // All three are raised at Warning anyway: if one ever fires, an invariant broke, which is a
+        // All four are raised at Warning anyway: if one ever fires, an invariant broke, which is a
         // louder event than a missing provider, not a quieter one.
         await sender.SendEmailConfirmationAsync(
             "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
@@ -130,6 +131,8 @@ public class NullEmailSenderSuppressionLogTests
         await sender.SendPasswordResetAsync(
             "user@example.com", new PasswordResetEmail(userId, "tok"), ct);
         await sender.SendPasswordChangedNoticeAsync("user@example.com", ct);
+        await sender.SendLoginChallengeAsync(
+            "user@example.com", new LoginChallengeEmail.RegistrationClosed(), ct);
 
         var record = log.Records
             .Where(r => r.Message.Contains(expectedKind, StringComparison.Ordinal))

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.JobSeekers;
@@ -13,7 +14,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// #183 — locks <see cref="ScalewayEmailSender"/>'s message composition, its eight-way template
+/// #183 — locks <see cref="ScalewayEmailSender"/>'s message composition, its template
 /// mapping, and its PII discipline against a fake <see cref="HttpMessageHandler"/>. Successor to
 /// the deleted <c>SesEmailSenderTests</c>; the invariants that survived the provider swap are
 /// carried over and the transport-specific ones are new.
@@ -37,9 +38,9 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 ///     field, so the header travels in the generic list. That it survives that route is the
 ///     condition on which security-auditor Major 2 (2026-08-12) stays closed across the provider
 ///     swap.</item>
-///   <item><b>The eight-way template mapping</b> — one fact per port method, asserting the exact
+///   <item><b>The template mapping</b> — one fact per port method, asserting the exact
 ///     subject AND a body substring unique to that template AND the kebab email-kind that reaches
-///     the log. This is where a copy-paste bug lands, and two of the eight subjects differ by a
+///     the log. This is where a copy-paste bug lands, and two of the subjects differ by a
 ///     single word ("Bekräfta din e-postadress" vs "Bekräfta din nya e-postadress"), so the subject
 ///     assertions are <c>ShouldBe</c>, never <c>ShouldContain</c>. The predecessor suite covered
 ///     six of eight while claiming one per port method; the two account-lifecycle mails added by
@@ -418,7 +419,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     {
         // GROUND 2 of the Art. 30 register's retention claim, asserted against the bytes that
         // actually leave this adapter rather than against a template rendered in isolation. The
-        // breadth of the ground (all eight templates, plus the counterfactuals that prove this
+        // breadth of the ground (every template, plus the counterfactuals that prove this
         // detector can fail) lives in `EmailHtmlNoRemoteResourceTests` and
         // `RemoteResourceDetectorTests`; this fact closes the seam, so a sender that wrapped,
         // decorated or rewrote the HTML on its way into the request could not slip a remote resource
@@ -436,7 +437,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             .ShouldBeEmpty();
     }
 
-    // ---------- the eight-way template mapping ----------
+    // ---------- the template mapping ----------
 
     [Fact]
     public async Task ScalewayEmailSender_SendsAMatchNotification_SelectsTheMatchNotificationTemplate()
@@ -555,6 +556,24 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         LoggedSurface().ShouldContain("EmailKind=password-changed-notice");
     }
 
+    /// <summary>#1735's login-challenge mail, in its code-and-link variant.</summary>
+    [Fact]
+    public async Task ScalewayEmailSender_SendsALoginChallenge_SelectsTheLoginChallengeTemplate()
+    {
+        var sut = CreateSut();
+
+        await sut.SendLoginChallengeAsync(
+            Recipient,
+            new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), LoginLinkToken.FromRaw(UrlSafeToken)),
+            CancellationToken.None);
+
+        SubjectSent().ShouldBe("Din inloggningskod till Jobbliggaren");
+        TextSent().ShouldContain("042917");
+        TextSent().ShouldContain($"{_options.BaseUrl}/logga-in/lank?token={UrlSafeToken}");
+        LoggedSurface().ShouldContain("EmailKind=login-challenge");
+        LoggedSurface().ShouldNotContain("042917");
+    }
+
     // ---------- CancellationToken propagation ----------
 
     /// <summary>
@@ -602,7 +621,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
     [Fact]
     public Task ScalewayEmailSender_SendsAMatchNotification_ForwardsTheCancellationTokenToTheTransport() =>
-        // Second arm: the eight methods share one private SendAsync, but a future refactor that
+        // Second arm: the methods share one private SendAsync, but a future refactor that
         // inlined composition per method would break exactly one of them silently.
         AssertCallerCancellationReachesTheTransport((sut, token) =>
             sut.SendMatchNotificationEmailAsync(Recipient, SampleMatchContent(), token));

@@ -126,6 +126,16 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
+    public Task SendLoginChallengeAsync(
+        string toEmail,
+        LoginChallengeEmail content,
+        CancellationToken cancellationToken)
+    {
+        var body = EmailTemplates.LoginChallenge(_options.BaseUrl, content);
+        WriteEmail("login-challenge", toEmail, body.Subject, body.PlainTextBody);
+        return Task.CompletedTask;
+    }
+
     // THE GATE (#1208). Every IEmailSender method above funnels through here, which is what makes
     // this a complete cut of the producer set: an invariant enforced at the writer holds for every
     // future write, where a reading of the sink only ever covers the writes already taken.

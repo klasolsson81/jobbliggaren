@@ -82,6 +82,9 @@ public sealed class PasswordResetDispatchServiceShutdownTests
         public Task SendEmailConfirmationAsync(string t, EmailConfirmationEmail c, CancellationToken ct) => Task.CompletedTask;
         public Task SendAccountExistsNoticeAsync(string t, CancellationToken ct) => Task.CompletedTask;
         public Task SendPasswordChangedNoticeAsync(string t, CancellationToken ct) => Task.CompletedTask;
+
+        public Task SendLoginChallengeAsync(string t, LoginChallengeEmail c, CancellationToken ct) =>
+            Task.CompletedTask;
     }
 
     [Fact]

@@ -16,7 +16,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// resolves to outside Development/Test, which is the live default today.
 ///
 /// Suppression is logged WITHOUT any recipient/token, and the level is split by consequence:
-/// <b>Warning</b> for the four account-lifecycle kinds, <b>Debug</b> for the two notification
+/// <b>Warning</b> for every account-lifecycle kind, <b>Debug</b> for the two notification
 /// kinds. security-auditor's minimum named three (<c>email-confirmation</c>,
 /// <c>email-changed-notification</c>, <c>account-exists-notice</c>);
 /// <c>email-change-confirmation</c> is raised with them for a different reason, stated because it
@@ -188,6 +188,15 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedConsequential("password-changed-notice");
+        return Task.CompletedTask;
+    }
+
+    public Task SendLoginChallengeAsync(
+        string toEmail,
+        LoginChallengeEmail content,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("login-challenge");
         return Task.CompletedTask;
     }
 

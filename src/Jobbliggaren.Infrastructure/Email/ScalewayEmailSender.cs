@@ -158,6 +158,14 @@ public sealed partial class ScalewayEmailSender(
             "password-changed-notice",
             cancellationToken);
 
+    public Task SendLoginChallengeAsync(
+        string toEmail, LoginChallengeEmail content, CancellationToken cancellationToken) =>
+        SendAsync(
+            toEmail,
+            EmailTemplates.LoginChallenge(_options.BaseUrl, content),
+            "login-challenge",
+            cancellationToken);
+
     private async Task SendAsync(
         string toEmail,
         EmailTemplates.EmailContent body,

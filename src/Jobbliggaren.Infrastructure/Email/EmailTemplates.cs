@@ -38,7 +38,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// code emitting none; see <see cref="EmailHtml"/> for the full ground and the pin.
 /// </para>
 /// </summary>
-internal static class EmailTemplates
+internal static partial class EmailTemplates
 {
     public sealed record EmailContent(string Subject, string PlainTextBody, string HtmlBody);
 

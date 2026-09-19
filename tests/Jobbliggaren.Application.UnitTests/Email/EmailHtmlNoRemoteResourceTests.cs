@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using System.Text.Unicode;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Matching.Jobs.DigestDispatch;
 using Jobbliggaren.Domain.JobSeekers;
@@ -11,8 +12,8 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// GROUND 2 of the Art. 30 retention claim for "Utgående transaktionell e-post", pinned over ALL
-/// EIGHT templates, plus the content facts that keep the absence assertion from being vacuous
+/// GROUND 2 of the Art. 30 retention claim for "Utgående transaktionell e-post", pinned over EVERY
+/// template, plus the content facts that keep the absence assertion from being vacuous
 /// (#183, 2026-08-12 — security-auditor condition 1).
 ///
 /// <para>
@@ -79,7 +80,7 @@ public class EmailHtmlNoRemoteResourceTests
     // ---------- fixtures: one per template, each mirroring a production call site ----------
 
     /// <summary>
-    /// All eight templates rendered the way their production callers render them. The shapes are
+    /// Every template rendered the way its production callers render it. The shapes are
     /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s, <c>RegisterCommandHandler</c>'s,
     /// <c>ChangeEmailCommandHandler</c>'s and the reset endpoints'. Grade labels come from
     /// <c>NotifiableMatchGradeLabels</c> verbatim — "Stark match", never "Stark matchning", which no
@@ -145,7 +146,21 @@ public class EmailHtmlNoRemoteResourceTests
             EmailTemplates.PasswordReset(BaseUrl, new PasswordResetEmail(UserId, UrlSafeToken))),
 
         ("PasswordChangedNotice", EmailTemplates.PasswordChangedNotice(BaseUrl)),
+
+        // #1735: the dispatcher and each variant it selects, shaped as LoginChallengeIssuer sends them.
+        ("LoginChallenge/code-and-link", EmailTemplates.LoginChallenge(BaseUrl, SampleCodeAndLink)),
+        ("LoginCodeAndLink", EmailTemplates.LoginCodeAndLink(BaseUrl, SampleCodeAndLink)),
+        ("LoginLinkOnly", EmailTemplates.LoginLinkOnly(BaseUrl, new LoginChallengeEmail.LinkOnly(SampleLink))),
+        ("LoginRegistrationClosed", EmailTemplates.LoginRegistrationClosed()),
+        ("LoginPendingDeletion", EmailTemplates.LoginPendingDeletion(
+            new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)))),
     ];
+
+    private static readonly LoginLinkToken SampleLink =
+        LoginLinkToken.FromRaw("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
+
+    private static readonly LoginChallengeEmail.CodeAndLink SampleCodeAndLink =
+        new(LoginCode.FromRaw("042917"), SampleLink);
 
     /// <summary>A body filled to the cap, which is the only state in which a remainder can exist.</summary>
     private static List<MatchNotificationItem> FullMatchPage() =>
@@ -240,7 +255,7 @@ public class EmailHtmlNoRemoteResourceTests
     public void EmailHtml_TheTemplateSet_CoversEveryTemplateMethod()
     {
         // Compared against REFLECTION, not against a hardcoded count. A count closes shrinkage only:
-        // add a ninth template with no fixture and a `ShouldBe(10)` stays green while the Theory above
+        // add a template with no fixture and a `ShouldBe(10)` stays green while the Theory above
         // never renders it, so the register would claim a measured property over a template nothing
         // measured. That is the direction that actually happened once already — PasswordReset and
         // PasswordChangedNotice reached production without an Art. 30 entry (dotnet-architect Viktigt 2

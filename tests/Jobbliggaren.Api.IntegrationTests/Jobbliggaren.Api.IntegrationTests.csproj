@@ -55,5 +55,14 @@
          the Worker suite's CompanyRegisterPlanFixture can adopt the same posture without a
          second copy. -->
     <Compile Include="..\Shared\TestDatabaseProvisioner.cs" Link="Shared\TestDatabaseProvisioner.cs" />
+    <!-- #1735 - the compose-file reader. VolatileRedisContainer builds the non-persisted Redis from the
+         deploy stack's own declaration, through the same reader DeployComposeVolatileRedisTests pins it with. -->
+    <Compile Include="..\Shared\ComposeFile.cs" Link="Shared\ComposeFile.cs" />
+  </ItemGroup>
+
+  <!-- #1735 - the deploy stack's compose file, read by VolatileRedisContainer. -->
+  <ItemGroup>
+    <Content Include="..\..\deploy\docker-compose.yml"
+             Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

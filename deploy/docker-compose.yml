@@ -409,7 +409,7 @@ services:
     healthcheck:
       # The aspnet image ships no curl or wget deliberately (see its Dockerfile), so the
       # probe is a bash /dev/tcp socket against the strict readiness endpoint — which
-      # checks Postgres CanConnect and Redis PING and answers 503 until both are up.
+      # checks Postgres CanConnect and a PING on each Redis instance, and answers 503 until all three are up.
       test:
         - CMD
         - bash

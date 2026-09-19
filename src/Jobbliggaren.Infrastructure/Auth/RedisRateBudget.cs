@@ -4,19 +4,19 @@ using StackExchange.Redis;
 namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
-/// Redis-backed <see cref="IRateBudget"/>. The key is
+/// Redis-backed <see cref="IRateBudget"/>, on the volatile instance. The key is
 /// <c>jobbliggaren:budget/{scope}/v1/{fingerprint}</c>, the fingerprint being
 /// <see cref="SubjectFingerprint.Hex"/>, so two spellings of one account share one counter and the raw
 /// address is never written.
 /// </summary>
-internal sealed class RedisRateBudget(IConnectionMultiplexer redis) : IRateBudget
+internal sealed class RedisRateBudget(VolatileRedisConnection redis) : IRateBudget
 {
-    // IConnectionMultiplexer bypasses IDistributedCache's InstanceName, so the namespace is carried by hand
+    // A raw multiplexer bypasses IDistributedCache's InstanceName, so the namespace is carried by hand
     // (parity RedisSessionStore.KeyPrefix).
     private const string KeyPrefix = "jobbliggaren:";
 
     public Task<bool> TryConsumeAsync(RateBudgetScope scope, string subject, CancellationToken ct) =>
-        RedisFaults.GuardAsync(async () =>
+        redis.ExecuteAsync(async db =>
         {
             var key = Key(scope, subject);
 
@@ -24,7 +24,7 @@ internal sealed class RedisRateBudget(IConnectionMultiplexer redis) : IRateBudge
             // left without one would lock the address out for good, and with no break-glass nothing would
             // ever lift it (security-auditor, 2026-09-19). NX sets the TTL only on a key that has none, so
             // the window starts at the first counted call and a refused call never extends it.
-            var transaction = redis.GetDatabase().CreateTransaction();
+            var transaction = db.CreateTransaction();
             var count = transaction.StringIncrementAsync(key);
             var expire = transaction.KeyExpireAsync(key, scope.Window, ExpireWhen.HasNoExpiry);
             await transaction.ExecuteAsync();

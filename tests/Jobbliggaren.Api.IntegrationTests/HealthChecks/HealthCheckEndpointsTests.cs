@@ -11,7 +11,7 @@ namespace Jobbliggaren.Api.IntegrationTests.HealthChecks;
 /// med olika semantik:
 /// <list type="bullet">
 ///   <item><c>/api/live</c>: 200 så länge processen är upp (ingen DB/Redis-check).</item>
-///   <item><c>/api/ready</c>: 200 när Postgres + Redis svarar (DbContext-check + Redis-PING).</item>
+///   <item><c>/api/ready</c>: 200 när Postgres och båda Redis-instanserna svarar (DbContext-check + två Redis-PING).</item>
 /// </list>
 ///
 /// Förutsättning: <see cref="ApiFactory"/> startar Testcontainers Postgres +

@@ -9,7 +9,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// 503 can be driven end to end without a fourth <c>WebApplicationFactory</c> (the EF ceiling documented on
 /// <see cref="RecordingEmailSender.Incapable"/>). The fault thrown is the adapters' own contract: on a Redis
 /// fault <c>RedisRateBudget</c> and <c>RedisLoginChallengeStore</c> throw
-/// <see cref="LoginChallengeStoreUnavailableException"/> with the Redis exception's type name, which
+/// <see cref="VolatileRedisUnavailableException"/> with the Redis exception's type name, which
 /// <c>RedisRateBudgetTests</c> and <c>RedisLoginChallengeStoreTests</c> measure against a stopped container.
 /// </summary>
 internal sealed class LoginChallengeFaults
@@ -25,7 +25,7 @@ internal sealed class LoginChallengeFaults
     internal void ThrowIfUnavailable()
     {
         if (_unavailable)
-            throw new LoginChallengeStoreUnavailableException("RedisConnectionException");
+            throw new VolatileRedisUnavailableException("RedisConnectionException");
     }
 
     private sealed class Scope(LoginChallengeFaults owner) : IDisposable

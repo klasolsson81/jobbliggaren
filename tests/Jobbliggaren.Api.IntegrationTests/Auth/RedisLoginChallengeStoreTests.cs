@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Globalization;
 using System.Text;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
@@ -20,9 +21,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// </summary>
 public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
 {
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    // The deploy stack's own `redis-volatile`, so the contract is measured on the configuration the box runs.
+    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
     private readonly IDataProtectionProvider _keyring = new EphemeralDataProtectionProvider();
+
+    // The test's OWN reader, beside the connection the store is given (see RedisRateBudgetTests).
     private ConnectionMultiplexer _mux = null!;
+    private VolatileRedisConnection _connection = null!;
     private RedisLoginChallengeStore _store = null!;
 
     public async ValueTask InitializeAsync()
@@ -30,18 +35,20 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
         await _redis.StartAsync();
         var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
+        _connection = new VolatileRedisConnection(connectionString);
         _store = Store(_keyring);
     }
 
     public async ValueTask DisposeAsync()
     {
+        _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
         await _redis.DisposeAsync();
     }
 
     private RedisLoginChallengeStore Store(IDataProtectionProvider keyring) =>
-        new(_mux, keyring, NullLogger<RedisLoginChallengeStore>.Instance);
+        new(_connection, keyring, NullLogger<RedisLoginChallengeStore>.Instance);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -411,7 +418,7 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
     {
         await _redis.StopAsync(Ct);
 
-        await Should.ThrowAsync<LoginChallengeStoreUnavailableException>(
+        await Should.ThrowAsync<VolatileRedisUnavailableException>(
             () => _store.ConsumeCodeAsync(ChallengeId.Generate(), LoginCode.FromRaw("123456"), Ct));
     }
 

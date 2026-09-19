@@ -99,6 +99,9 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        // One container behind both keys: this host asserts nothing about which instance a key lands on.
+        // VolatileRedisPlacementTests does, on ApiFactory's two containers.
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _redisCs);
         // ADR 0066 (#802): master-nyckeln (Local-only, krävs i ALLA miljöer) sätts
         // systemiskt av TestSecrets-module-init (process-env-var) före boot.
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", "365");
@@ -110,6 +113,7 @@ public sealed class ProdSeederBubbleFactory : WebApplicationFactory<Program>, IA
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
 
         GC.SuppressFinalize(this);

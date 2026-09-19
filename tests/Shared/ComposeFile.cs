@@ -26,6 +26,17 @@ internal sealed class ComposeFile(string relativePath)
         return _lines[(start + 1)..(end < 0 ? _lines.Length : end)];
     }
 
+    /// <summary>The block's own keys — the ones at its shallowest indent — in the order written.</summary>
+    public static IReadOnlyList<string> Keys(IReadOnlyList<string> block)
+    {
+        var settings = block.Where(l => !IsComment(l) && !string.IsNullOrWhiteSpace(l)).ToList();
+        if (settings.Count == 0)
+            return [];
+
+        var indent = settings.Min(Indent);
+        return settings.Where(l => Indent(l) == indent).Select(l => l.Trim().Split(':', 2)[0]).ToList();
+    }
+
     /// <summary>The value of the one <c>key: value</c> line in the block, or null when the key is absent.</summary>
     public static string? Setting(IReadOnlyList<string> block, string key)
     {

@@ -33,8 +33,6 @@
              Link="src\Jobbliggaren.Api\Dockerfile" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- #1735 - the compose-file reader (tests/Shared). Linked rather than duplicated: Api.IntegrationTests
-       builds a real container from the same file these pins read, and two readers would drift. -->
   <ItemGroup>
     <Compile Include="..\Shared\ComposeFile.cs" Link="Shared\ComposeFile.cs" />
   </ItemGroup>

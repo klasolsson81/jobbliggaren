@@ -719,7 +719,7 @@ services:
     tmpfs:
       - /data:size=16m
     # mem_limit >= 2 x maxmemory + the tmpfs, and the relation is a security condition rather than
-    # tuning (ADR 0142, lapse trigger 5). A flood that meets the cgroup limit before Redis's own
+    # tuning. A flood that meets the cgroup limit before Redis's own
     # refusal is a SIGKILL, a restart, and every budget counter reset on the attacker's schedule.
     mem_limit: 160m
     # The dataset never reaches a disk through Redis. Without this line it could through swap.

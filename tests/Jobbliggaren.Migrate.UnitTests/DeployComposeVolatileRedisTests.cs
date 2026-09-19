@@ -12,13 +12,13 @@ namespace Jobbliggaren.Migrate.UnitTests;
 /// <para>
 /// Three layers, and each test below names the one it holds. <c>--save ""</c> and <c>--appendonly no</c>
 /// write nothing by themselves, but both are runtime-mutable — any client on the network can
-/// <c>CONFIG SET appendonly yes</c> (measured on Redis 8.6.5, 2026-09-19) — so the MOUNT is what makes a
+/// <c>CONFIG SET appendonly yes</c> (measured on Redis 8.6.5 and 8.10.1, 2026-09-19) — so the MOUNT is what makes a
 /// disk unreachable: <c>/data</c> is Redis's only write path, and it is a sized tmpfs under a read-only
 /// root. The deploy stack adds a cgroup limit the flood cannot reach before Redis's own refusal.
 /// </para>
 ///
 /// <para>
-/// Every assertion is scoped to one SERVICE BLOCK, never to the file — the trap
+/// Every lookup of a service's key is scoped to that SERVICE BLOCK, never to the file — the trap
 /// <see cref="DeployComposeDataProtectionTests"/> records: a key hoisted into an <c>x-*</c> anchor still
 /// occurs exactly once while a second service silently inherits it.
 /// </para>
@@ -42,11 +42,34 @@ public class DeployComposeVolatileRedisTests
     private static readonly ComposeFile Deploy = new(DeployFile);
     private static readonly ComposeFile Dev = new(DevFile);
 
+    /// <summary>The volatile service in each stack.</summary>
+    public static TheoryData<string, string> BothStacks => new()
+    {
+        { DeployFile, DeployService },
+        { DevFile, DevService },
+    };
+
     /// <summary>The volatile service in each stack, with the durable sibling it must differ from.</summary>
-    public static TheoryData<string, string, string> BothStacks => new()
+    public static TheoryData<string, string, string> BothStacksWithDurableSibling => new()
     {
         { DeployFile, DeployService, "redis" },
         { DevFile, DevService, "redis-dev" },
+    };
+
+    /// <summary>The volatile service in each stack, with every key its block declares.</summary>
+    public static TheoryData<string, string, string[]> BothStacksWithTheirKeys => new()
+    {
+        {
+            DeployFile, DeployService,
+            [
+                "image", "container_name", "command", "read_only", "tmpfs", "mem_limit", "memswap_limit",
+                "healthcheck", "security_opt", "logging", "restart", "networks",
+            ]
+        },
+        {
+            DevFile, DevService,
+            ["image", "container_name", "command", "read_only", "tmpfs", "ports", "healthcheck", "restart"]
+        },
     };
 
     private static IReadOnlyList<string> Command(IReadOnlyList<string> block) =>
@@ -58,7 +81,7 @@ public class DeployComposeVolatileRedisTests
 
     [Theory]
     [MemberData(nameof(BothStacks))]
-    public void Instance_BothPersistenceMechanisms_AreSwitchedOff(string file, string service, string _)
+    public void Instance_BothPersistenceMechanisms_AreSwitchedOff(string file, string service)
     {
         var command = Command(new ComposeFile(file).ServiceBlock(service));
 
@@ -69,7 +92,7 @@ public class DeployComposeVolatileRedisTests
     }
 
     [Theory]
-    [MemberData(nameof(BothStacks))]
+    [MemberData(nameof(BothStacksWithDurableSibling))]
     public void Instance_DeclaresNoVolume_WhereItsDurableSiblingDoes(string file, string service, string durable)
     {
         var compose = new ComposeFile(file);
@@ -85,7 +108,7 @@ public class DeployComposeVolatileRedisTests
 
     [Theory]
     [MemberData(nameof(BothStacks))]
-    public void Instance_DataDirectory_IsASizedTmpfsUnderAReadOnlyRoot(string file, string service, string _)
+    public void Instance_DataDirectory_IsASizedTmpfsUnderAReadOnlyRoot(string file, string service)
     {
         var block = new ComposeFile(file).ServiceBlock(service);
 
@@ -99,7 +122,7 @@ public class DeployComposeVolatileRedisTests
 
     [Theory]
     [MemberData(nameof(BothStacks))]
-    public void Instance_RefusesWritesWhenFull_RatherThanEvicting(string file, string service, string _)
+    public void Instance_RefusesWritesWhenFull_RatherThanEvicting(string file, string service)
     {
         // An evicting policy lets a flood evict a target's budget key: a budget reset the attacker chooses.
         var command = Command(new ComposeFile(file).ServiceBlock(service));
@@ -109,7 +132,7 @@ public class DeployComposeVolatileRedisTests
     }
 
     [Theory]
-    [MemberData(nameof(BothStacks))]
+    [MemberData(nameof(BothStacksWithDurableSibling))]
     public void Instance_Image_IsItsDurableSiblingsTag(string file, string service, string durable)
     {
         // In the deploy stack this is load-bearing: jobbliggaren-reconcile.sh allow-lists upstream images by
@@ -119,6 +142,16 @@ public class DeployComposeVolatileRedisTests
 
         ComposeFile.Setting(compose.ServiceBlock(service), "image").ShouldNotBeNull()
             .ShouldBe(ComposeFile.Setting(compose.ServiceBlock(durable), "image"));
+    }
+
+    [Theory]
+    [MemberData(nameof(BothStacksWithTheirKeys))]
+    public void Instance_DeclaredKeys_AreExactlyThePinnedSet(string file, string service, string[] expected)
+    {
+        // Every other lookup in this class asks for one key at a time, so a key none of them names passes:
+        // `volumes_from: [redis]` mounts the durable sibling's volume, and compose ignores whatever is
+        // nested under an `x-*` key.
+        ComposeFile.Keys(new ComposeFile(file).ServiceBlock(service)).ShouldBe(expected, ignoreOrder: true);
     }
 
     [Fact]
@@ -132,7 +165,7 @@ public class DeployComposeVolatileRedisTests
     public void RedisVolatile_CgroupLimit_ClearsTwiceMaxmemoryPlusTheTmpfs_AndAllowsNoSwap()
     {
         // The RELATION, not three numbers: a limit the flood reaches before Redis's own refusal is a SIGKILL,
-        // a restart, and every budget counter reset on the attacker's schedule (ADR 0142, lapse trigger 5).
+        // a restart, and every budget counter reset on the attacker's schedule.
         // Deploy stack only — the limits answer a hostile peer on a shared host.
         var block = Deploy.ServiceBlock(DeployService);
         var maxmemory = ComposeFile.Mebibytes(ArgumentAfter(Command(block), "--maxmemory"));
@@ -161,7 +194,7 @@ public class DeployComposeVolatileRedisTests
     }
 
     [Fact]
-    public void Worker_IsNotGivenTheKey_AndNoAnchorCarriesIt()
+    public void Worker_IsNotGivenTheKey_AndNoTopLevelAnchorCarriesIt()
     {
         // The worker composes neither store. Hoisted into x-app-connections the key would still occur once
         // in the file while BOTH services merged it.
@@ -170,10 +203,13 @@ public class DeployComposeVolatileRedisTests
         ComposeFile.Setting(worker, KeyVariable).ShouldBeNull();
         worker.ShouldNotContain(l => l.Trim() == $"{DeployService}:");
         Deploy.Preamble.ShouldNotContain(l => l.Contains($"{KeyVariable}:", StringComparison.Ordinal));
+
+        // The control: the same read finds the durable instance's key where x-app-connections declares it.
+        Deploy.Preamble.ShouldContain(l => l.Contains("ConnectionStrings__Redis:", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void DevApi_IsPointedAtTheDevInstancesLoopbackPort()
+    public void DevApi_VolatileRedisPort_IsTheLoopbackPortTheDevInstancePublishes()
     {
         // The dev Api reads a COMMITTED value, not an environment variable, so the pair that has to agree is
         // appsettings.Development.json and the port the dev service publishes.

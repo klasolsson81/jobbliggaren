@@ -65,6 +65,7 @@ public class LoginChallengeRequestTests(ApiFactory factory)
     private async Task DrainAsync()
     {
         var sentinel = NewAddress("drain");
+        await CreateAccountAsync(sentinel);
         (await RequestAsync(sentinel)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
         await AwaitMailAsync(sentinel);
     }

@@ -185,11 +185,13 @@ public sealed class LoginChallengeIssuerTests
         message.ShouldNotContain("@");
     }
 
-    [Fact]
-    public async Task Past_the_global_cap_an_address_without_an_account_gets_its_record_and_no_mail()
+    [Theory]
+    [InlineData("no-account")]
+    [InlineData("profile-missing")]
+    public async Task Past_the_global_cap_an_address_without_an_account_gets_its_record_and_no_mail(string subject)
     {
         var logger = new CapturingLogger<LoginChallengeIssuer>();
-        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), logger);
+        var issuer = await IssuerAsync(subject, Guid.NewGuid(), logger);
         _budget.TryConsumeAsync(
                 LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
                 Arg.Any<CancellationToken>())

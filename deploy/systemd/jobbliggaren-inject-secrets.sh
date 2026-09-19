@@ -623,6 +623,10 @@ if [[ "${1:-}" == "--check" ]]; then
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
   fi
 
+  if [[ $api_refuses -ne 0 && $missing -eq 0 ]]; then
+    log "The provider line above stops api alone: api will crash-loop by design while worker serves."
+  fi
+
   # ITS OWN SENTENCE, AND THE DISTINCTION IS THE POINT: in this state the stack is HEALTHY. An
   # operator who reads the crash-loop summary above and then finds api serving would conclude the
   # alarm is wrong and learn to discount it — which is how a real one gets ignored later.
@@ -630,10 +634,6 @@ if [[ "${1:-}" == "--check" ]]; then
   # ONLY EXPIRED / UNSET / UNREADABLE REACH THIS. The advance notice exits 0 and never gets here,
   # by the latching argument in EXPIRY_NOTICE_DAYS — so every state that does reach it is one
   # where mail is ALREADY dead, not one where it will be.
-  if [[ $api_refuses -ne 0 ]]; then
-    log "The provider line above stops api alone: api will crash-loop by design while worker serves."
-  fi
-
   if [[ $expiring -ne 0 ]]; then
     log "The key line above is NOT a crash-loop: api and worker serve normally and only outbound"
     log "mail is affected. It exits non-zero because mail is dead NOW — an expired key, or a"

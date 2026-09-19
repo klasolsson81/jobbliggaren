@@ -31,6 +31,8 @@ public sealed class LoginProofChainTests
         typeof(LoginProofOutcome).Assembly,
         typeof(IdentityInboxProofRecorder).Assembly,
         typeof(Jobbliggaren.Api.Endpoints.AuthEndpoints).Assembly,
+        typeof(Jobbliggaren.Worker.Auditing.WorkerSystemUser).Assembly,
+        typeof(Jobbliggaren.Migrate.ConnectionStringFactory).Assembly,
     ];
 
     private static string[] ConsumersOf(Type dependency) =>

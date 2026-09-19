@@ -578,12 +578,29 @@ if grep -qF "EXPIRED:" "$TMPROOT/out"; then
 else
   pass=$((pass + 1)); echo "  ok   and the key date stays inert while the provider is Console"
 fi
+if grep -qF "stops api alone" "$TMPROOT/out" && ! grep -qF "api and worker will crash-loop" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   and it says api alone, never api and worker"
 else
-  skipped=$((skipped + 8))
+  fail=$((fail + 1)); echo "  FAIL the Console refusal was not summarised as api alone" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+
+seed_all_secrets
+rm -f "$SECRETS/${EXPECTED_FILES[0]}"
+write_env "EMAIL_PROVIDER=Console"
+run_check || true
+if grep -qF "api and worker will crash-loop" "$TMPROOT/out" && ! grep -qF "worker serves" "$TMPROOT/out"; then
+  pass=$((pass + 1)); echo "  ok   a missing file beside Console reports the crash-loop of both, never a serving worker"
+else
+  fail=$((fail + 1)); echo "  FAIL a missing file beside Console printed a contradictory summary" >&2
+  sed 's/^/       /' "$TMPROOT/out" >&2
+fi
+else
+  skipped=$((skipped + 10))
   echo "  SKIP expiry cases: this filesystem does not honour chmod, so the mode branch sets the"
   echo "       blocking counter in every case — the exit-0 cases can never reach 0, and the"
   echo "       exit-1 cases reach it through the wrong branch carrying the summary these pins"
-  echo "       assert ABSENT. Eight cases. They RUN in CI."
+  echo "       assert ABSENT. Ten cases. They RUN in CI."
 fi
 
 echo "-- a missing host-only DIRECTORY is the post-reboot state"

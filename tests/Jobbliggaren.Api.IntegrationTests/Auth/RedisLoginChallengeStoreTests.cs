@@ -347,10 +347,10 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
     public async Task A_lost_keyring_degrades_every_live_challenge_to_missing_without_throwing()
     {
         var (id, issued) = await PutAsync("keyring@example.com");
-        var afterRotation = Store(new EphemeralDataProtectionProvider());
+        var afterLoss = Store(new EphemeralDataProtectionProvider());
 
-        (await afterRotation.ConsumeCodeAsync(id, issued.Code!.Value, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
-        (await afterRotation.ConsumeLinkAsync(issued.Link!.Value, Ct)).ShouldBeNull();
+        (await afterLoss.ConsumeCodeAsync(id, issued.Code!.Value, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
+        (await afterLoss.ConsumeLinkAsync(issued.Link!.Value, Ct)).ShouldBeNull();
     }
 
     [Theory]

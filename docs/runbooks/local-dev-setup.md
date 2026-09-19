@@ -126,6 +126,12 @@ openssl rand -base64 32   # → CompanyWatchPseudonymization:PepperBase64
 openssl rand -base64 32   # → CvReviewFingerprintPseudonymization:PepperBase64
 ```
 
+**`ConnectionStrings:VolatileRedis` (#1735) krävs av API:t vid start men hör INTE hemma i
+`appsettings.Local.json`.** Värdet ligger i `appsettings.Development.json` (`localhost:6381`,
+containern `jobbliggaren-redis-volatile-dev`). `Program.cs` lägger `appsettings.Local.json` EFTER
+miljövariablerna, så ett värde där skulle skriva över den instans varje testvärd pekar sig själv mot.
+Worker:n behöver ingen sådan nyckel.
+
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
 källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
 `ValidateOnStart`-option ska den läggas till i mallen **OCH §7:s fälla-4-lista i SAMMA PR** som
@@ -209,6 +215,19 @@ falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel r
 innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
 Samma procedur för 5433 (test-postgres), 6379/6380/6381 (redis), 5341/5342 (seq).
+
+### 6.1b `/api/ready` svarar 503, eller `POST /auth/challenge` svarar 503 (#1735)
+
+API:t startar även när `redis-volatile-dev` är nere (anslutningen går i återanslutningsläge i stället
+för att fälla starten), men readiness-kontrollen `redis-volatile` blir Unhealthy och varje anrop som
+rör inloggningsutmaningen svarar den uniforma 503:an. Loggraden är `event_name=store_unavailable
+store=volatile-redis`. Vanligaste orsaken: en `docker compose up -d` som kördes före #1773 och aldrig
+om efteråt, så containern finns inte.
+
+```bash
+docker compose up -d
+docker exec jobbliggaren-redis-volatile-dev redis-cli ping   # → PONG
+```
 
 ### 6.2 Docker Desktop inte igång
 
@@ -361,6 +380,11 @@ Alla tre startas av CC som bakgrundsprocesser.
    `CvReviewFingerprintPseudonymization`) via env, **lästa ur API:ts `appsettings.Local.json`
    så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
    krypterade/pseudonymiserade data).
+6. **API:t vägrar starta utan `ConnectionStrings:VolatileRedis` (#1735).** I `Development` kommer
+   värdet ur `appsettings.Development.json`, så startblocket nedan exporterar inget. Kör du API:t i
+   en ANNAN miljö lokalt måste du exportera `ConnectionStrings__VolatileRedis="localhost:6381"`
+   själv; felet heter `ConnectionStrings:VolatileRedis is missing`. Worker:n läser aldrig nyckeln.
+   Containern måste dessutom vara uppe — se §6.1b för hur det ser ut när den inte är det.
 
 ### Portar (matchar `docker-compose.yml`)
 

@@ -165,7 +165,7 @@ public class DeployComposeVolatileRedisTests
     public void RedisVolatile_CgroupLimit_ClearsTwiceMaxmemoryPlusTheTmpfs_AndAllowsNoSwap()
     {
         // The RELATION, not three numbers: a limit the flood reaches before Redis's own refusal is a SIGKILL,
-        // a restart, and every budget counter reset on the attacker's schedule.
+        // a restart, and every budget counter reset on the attacker's schedule (ADR 0142, lapse trigger 5).
         // Deploy stack only — the limits answer a hostile peer on a shared host.
         var block = Deploy.ServiceBlock(DeployService);
         var maxmemory = ComposeFile.Mebibytes(ArgumentAfter(Command(block), "--maxmemory"));

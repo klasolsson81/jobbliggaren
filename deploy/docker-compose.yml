@@ -696,8 +696,14 @@ services:
     # write path, and it is a tmpfs under a read-only root. Hence no `volumes:` key, and the tmpfs
     # carries a size so a switched-on AOF fails its write instead of growing to the cgroup limit.
     #
-    # WHAT THIS DOES NOT CLOSE: a client on this network can still restart the instance or read it.
-    # That is parity with `redis` and belongs to #1759 (Redis identities and command allowlists).
+    # WHAT ENFORCES IT: the api refuses to boot without ConnectionStrings__VolatileRedis, the two stores
+    # can be handed no other connection (VolatileRedisIsolationTests), and what these fields DO is
+    # measured on a container built from them (VolatileRedisPersistenceProbeTests).
+    #
+    # WHAT THIS DOES NOT CLOSE: a client on this network can still restart the instance, read it, or
+    # switch the append-only file on. That file lands on the tmpfs, so an expired key's payload stays
+    # in RAM for the container's lifetime and never reaches a disk. All three belong to #1759 (Redis
+    # identities and command allowlists); the first two are parity with `redis`.
     #
     # SAME TAG AS `redis`, and that block's UPSTREAM_ALLOWLIST note is this tag's home too: the two
     # move together, or each gets its own allowlist entry.
@@ -719,7 +725,7 @@ services:
     tmpfs:
       - /data:size=16m
     # mem_limit >= 2 x maxmemory + the tmpfs, and the relation is a security condition rather than
-    # tuning. A flood that meets the cgroup limit before Redis's own
+    # tuning (ADR 0142, lapse trigger 5). A flood that meets the cgroup limit before Redis's own
     # refusal is a SIGKILL, a restart, and every budget counter reset on the attacker's schedule.
     mem_limit: 160m
     # The dataset never reaches a disk through Redis. Without this line it could through swap.

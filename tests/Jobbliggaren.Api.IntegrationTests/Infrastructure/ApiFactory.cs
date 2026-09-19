@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
@@ -181,6 +182,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // resolves the real sender even via GetServices<IEmailSender>().
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(_emailSender);
+
+            // #1735 — the swap above removed the Development composition's login-code capture with the sender it
+            // wrapped; wrap the recording sender the same way, or /dev/login-code is only ever tested on its 404.
+            services.AddDevLoginCodeCapture();
 
             // #204 / TD-83 PR2 — replace the real HangfireBackgroundJobController (composed in the Api
             // root, wrapping Hangfire's IRecurringJobManager/IBackgroundJobClient/IMonitoringApi) with

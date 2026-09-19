@@ -2408,7 +2408,8 @@ borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
 operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
-e-postadress. Ingen av dem får finnas när riktiga användare gör det.
+e-postadress. `login-code` (#1735) lämnar ut inloggningskoden till en reserverad adress
+utan brevlåda. Ingen av dem får finnas när riktiga användare gör det.
 
 ⛔ **KLAS-BESLUT 2026-09-06, och det gäller `reset-my-data` ensamt:** *"Ja den får vara kvar.
 Jag kommer säga till när CC ska ta bort den."* Rivningen nedan körs på Klas ord, inte på
@@ -2429,9 +2430,14 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - de två map-grindarna och boot-annonseringen i `src/Jobbliggaren.Api/Program.cs`
    - `src/Jobbliggaren.Api/Observability/DevToolsLog.cs`
    - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Configuration/DevToolsOptions.cs`,
-     `Commands/ResetMyData/`, `Commands/ConfirmEmail/`, `Abstractions/`)
+     `Commands/ResetMyData/`, `Commands/ConfirmEmail/`, `Commands/TakeLoginCode/`,
+     `Abstractions/`)
+   - `src/Jobbliggaren.Infrastructure/Auth/DevEmailConfirmer.cs` och
+     `src/Jobbliggaren.Infrastructure/Auth/DevLoginCodeCapture.cs`; att katalogen ovan rivs
+     bryter bygget i båda, så de kan inte bli kvar
    - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
-     och `AddDevOnlyTestingSupport` i samma fil
+     och `AddDevOnlyTestingSupport` + `AddDevLoginCodeCapture` i samma fil, och anropet av
+     `AddDevLoginCodeCapture` i `tests/Jobbliggaren.Api.IntegrationTests/Infrastructure/ApiFactory.cs`
    - `"DevTools"`-sektionen i `src/Jobbliggaren.Api/appsettings.Development.json`
    - `deploy/docker-compose.yml` (`DevTools__EnableResetMyData` på `api`,
      `DEV_TOOLS_RESET_ENABLED` på `web`), `deploy/.env.example`-blocket, och
@@ -2442,20 +2448,24 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
    - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
      `web/jobbliggaren-web/src/lib/env.test.ts`,
-     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevLoginCodeEndpointTests.cs`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Configuration/DevLoginCodeCaptureCompositionTests.cs`,
+     `tests/Jobbliggaren.Application.UnitTests/Auth/DevLoginCodeCaptureTests.cs`
    - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
      i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
      strykning, och det är därför avstängningen i steg 1 kommer först.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**
-   `ProductionStartupSmokeTests` mäter att båda rutterna är omappade; de är meningslösa
+   `ProductionStartupSmokeTests` mäter att rutterna är omappade; de är meningslösa
    först när det inte finns någon rutt att mappa.
 4. **Verifiera efteråt:** `grep -rnE --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=bin
-   --exclude-dir=obj "api/v1/dev|DevTools|DEV_TOOLS" src web tests deploy`
+   --exclude-dir=obj "api/v1/dev|DevTools|DEV_TOOLS|(class|interface|record) I?Dev[A-Z]" src web tests deploy`
    → noll träffar utanför den här filen. **Den vidare formen är avsiktlig:** token
    `api/v1/dev` finns varken i `DevToolsLog.cs`, `env.ts`,
    `"DevTools"`-sektionen, compose-sloten, `.env.example`-raden eller
    `DeployComposeDevToolsGateTests` — en grind som mäter en annan mängd än steg 2
-   river är sämre än ingen grind.
+   river är sämre än ingen grind. Det sista alternativet fångar dev-sömmens typer, som alla
+   heter `Dev*`/`IDev*` (senior-cto-advisor Q4, 2026-09-19).
    ⚠ **Uteslutningarna är inte kosmetik — utan dem kan kriteriet aldrig uppnås.** Mätt
    2026-08-27 på ett byggt träd: **90 filer med bara `node_modules`/`.next` uteslutna, 22
    när `bin`/`obj` också utesluts.** Resten är kompilerade `.dll`/`.pdb`, `.next`-chunks

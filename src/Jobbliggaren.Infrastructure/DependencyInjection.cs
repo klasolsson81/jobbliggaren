@@ -104,10 +104,41 @@ public static class DependencyInjection
         // environments, this dead handler would turn a deployed boot into a startup crash
         // — remove the whole dev-seam before then (REMOVE BEFORE LAUNCH).
         if (environment.IsDevelopment())
+        {
             services.AddScoped<
                 Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,
                 Auth.DevEmailConfirmer>();
+            services.AddDevLoginCodeCapture();
+        }
 
+        return services;
+    }
+
+    /// <summary>
+    /// DEV-ONLY — REMOVE BEFORE LAUNCH (Klas). Wraps the last-registered <see cref="IEmailSender"/> in
+    /// <see cref="Auth.DevLoginCodeCapturingEmailSender"/> and registers the capture it feeds as
+    /// <see cref="Jobbliggaren.Application.Dev.Abstractions.IDevLoginCodeReader"/> (#1735). Its one production
+    /// caller is <see cref="AddDevOnlyTestingSupport"/>, under <c>IsDevelopment()</c> and no flag (security-auditor
+    /// Q15 condition 1). Internal so no host can call it; the integration host calls it again after it swaps
+    /// the sender, since that swap removes the wrapper.
+    /// </summary>
+    internal static IServiceCollection AddDevLoginCodeCapture(this IServiceCollection services)
+    {
+        var sender = services.LastOrDefault(d => d.ServiceType == typeof(IEmailSender))
+            ?? throw new InvalidOperationException("The login-code capture wraps an IEmailSender; none is registered.");
+
+        services.TryAddSingleton<Auth.DevLoginCodeCapture>();
+        services.TryAddSingleton<Jobbliggaren.Application.Dev.Abstractions.IDevLoginCodeReader>(
+            sp => sp.GetRequiredService<Auth.DevLoginCodeCapture>());
+        services.Remove(sender);
+        services.Add(new ServiceDescriptor(
+            typeof(IEmailSender),
+            sp => new Auth.DevLoginCodeCapturingEmailSender(
+                (IEmailSender)(sender.ImplementationInstance
+                    ?? sender.ImplementationFactory?.Invoke(sp)
+                    ?? ActivatorUtilities.CreateInstance(sp, sender.ImplementationType!)),
+                sp.GetRequiredService<Auth.DevLoginCodeCapture>()),
+            sender.Lifetime));
         return services;
     }
 

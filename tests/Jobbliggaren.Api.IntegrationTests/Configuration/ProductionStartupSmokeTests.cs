@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Application.Dev.Abstractions;
+using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -165,6 +166,21 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     }
 
     [Fact]
+    public async Task POST_dev_login_code_is_unmapped_in_Production_env()
+    {
+        // #1735 — the login-code seam sits beside confirm-email and shares its ENVIRONMENT gate. The flag-on
+        // polarity is the universally quantified route-table test below, which admits reset-my-data alone.
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/login-code",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task POST_dev_reset_my_data_is_unmapped_in_Production_env_when_the_flag_is_absent()
     {
         // The fail-closed DEFAULT, measured rather than assumed: this host sets no DevTools
@@ -256,5 +272,17 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         using var scope = _factory.Services.CreateScope();
 
         scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
+    }
+
+    // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture
+    // is in the container. The capturing sender is not asserted here: this host replaces IEmailSender, so
+    // DevLoginCodeCaptureCompositionTests measures that half on the unswapped composition.
+    [Fact]
+    public void The_login_code_capture_is_not_registered_in_Production_env()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        scope.ServiceProvider.GetService<IDevLoginCodeReader>().ShouldBeNull();
+        scope.ServiceProvider.GetService<DevLoginCodeCapture>().ShouldBeNull();
     }
 }

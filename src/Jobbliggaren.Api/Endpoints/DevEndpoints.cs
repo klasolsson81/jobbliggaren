@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Application.Dev.Commands.ConfirmEmail;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
+using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -52,6 +53,22 @@ public static class DevEndpoints
                 ? Results.NoContent()
                 : Results.NotFound();
         });
+
+        // DEV-ONLY — the login code the last challenge mail to a RESERVED address carried (#1735, ADR 0142
+        // D10), taken once, so a flow can sign in without a mailbox. The code alone signs nothing in: it is
+        // verified against the challenge id its requester holds. The same two gates as confirm-email: this
+        // map, and IDevLoginCodeReader registered only in Development. REMOVE BEFORE LAUNCH.
+        group.MapPost("/login-code", async (
+            DevLoginCodeRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body?.Email))
+                return Results.BadRequest();
+
+            var code = await mediator.Send(new DevTakeLoginCodeCommand(body.Email), ct);
+            return code is null ? Results.NotFound() : Results.Ok(new { code });
+        });
     }
 
     /// <summary>
@@ -83,4 +100,7 @@ public static class DevEndpoints
 
     /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/confirm-email</c> (#796).</summary>
     public sealed record ConfirmEmailDevRequest(string? Email);
+
+    /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/login-code</c> (#1735).</summary>
+    public sealed record DevLoginCodeRequest(string? Email);
 }

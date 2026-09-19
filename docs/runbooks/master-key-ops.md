@@ -33,10 +33,9 @@ reboot destroys them and an operator must re-inject.
 > draft of this runbook stated the escrow as delivered fact when it was not; this one states it
 > as decided, which it now is, and points at where the reasoning lives rather than restating it.
 >
-> **What is still owed before cutover is not the decision but the act:** the four crypto values
-> are held (row 26, dated), **the age private key is not** — row 32 is open, the identity was
-> not found in four roots on 2026-08-07, and generating a fresh one is free until the first
-> backup lands. **Do not cut over on an empty row 32.**
+> Current recovery evidence is recorded under §5. The backup age identity's dated custody
+> record belongs to [`backup-restore.md`](backup-restore.md) §1; neither historical record
+> substitutes for a current recovery check.
 >
 > **One measured input for that decision, because it is new:** `OLD_KEY` in step 3 lives on
 > tmpfs like everything else here. A reboot between step 4 and step 9 therefore destroys BOTH
@@ -280,7 +279,9 @@ What it does, in order:
 > docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc 'SELECT DISTINCT cmk_key_id FROM user_data_keys'
 > ```
 >
-> Otherwise pass the value it prints: `sudo JBL_MASTER_KEY_ID=<value> …inject-secrets.sh`. The
+> For one returned identity, reconcile it with escrow before passing
+> `sudo JBL_MASTER_KEY_ID=<value> …inject-secrets.sh`. Multiple identities require the
+> partial-rotation recovery in §5; never pass a multi-line result as one identity. The
 > identity is also part of what escrow must hold — **the bytes AND the identity**, not just the
 > bytes.
 >
@@ -300,7 +301,8 @@ What it does, in order:
 >
 > | State | Identity to pass |
 > |---|---|
-> | Query returns a value | that value |
+> | Query returns exactly one value | that value, reconciled with escrow |
+> | Query returns multiple values | stop; map every generation under §5 before starting writers |
 > | Empty, and no rotation has ever been performed | the default (`local-v1`) |
 > | **Empty, and a rotation has been performed** | **read it from escrow — never the default** |
 >
@@ -579,10 +581,9 @@ the damage unrecoverable.
    rotation its marker. ⚠ **Escrow all FOUR values, not only the one that changed.** The script
    skips files that already exist, so a master-key rotation leaves the three peppers untouched;
    an escrow written from this run alone would drop them. Carry them across from the outgoing
-   escrow, and keep that outgoing copy until step 7 succeeds — §1 requires the escrow to
-   span the rotation window, both generations. **Destroy the outgoing copy once step 7 has
-   succeeded**, not before and not never: an escrow of a retired generation is worse than none,
-   because its holder believes they have the live one.
+   escrow. Keep both generations, distinctly labelled, until the retirement predicate in
+   §5.3 holds. The same predicate governs the outgoing escrow and the temporary `OLD_KEY`;
+   an application read alone does not establish backup recoverability.
 
    ⚠ **Do not carry a pepper forward "verbatim" on the escrow's own authority — the box is the
    authority.** Row 26 records that the escrow↔box link is still operator-attested at both ends,
@@ -633,7 +634,9 @@ the damage unrecoverable.
    > `dek_version` is untouched by a rotation, so the new DEK artefact pairs with **any**
    > retained main artefact, not only ones taken after it.
 
-9. **Only after steps 7 and 8 succeed:** `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`.
+9. **Only after steps 7 and 8 succeed and §5.3 is verified:**
+   `sudo rm -f /run/jobbliggaren/secrets/OLD_KEY`. Retire the outgoing escrow generation
+   under the same predicate, preserving the unchanged peppers and current generation.
 
    > **If step 5, 7 or 8 fails, STOP and do NOT remove `OLD_KEY`.** It is the only way back:
    > step 4 already replaced the live key, so rows still wrapped under the retiring key can be
@@ -650,22 +653,112 @@ the damage unrecoverable.
 
 ---
 
-## 5. Recovery, and the one way to lose everything
+## 5. Independent recovery and cold-start checklist (#1760)
 
-**Losing a value destroys what it protects, irreversibly** — and that is true of all four, not
-only the master key. The master key: every encrypted field. The company-watch pepper: every
-stored organisation-number token, because the backfill destroyed the plaintext in place. The
-CV-fingerprint pepper: every Ignored/Resolved finding decision reverts to Open. (The audit
-pepper is the exception — nothing reads back against it.)
+This section supplies key-recovery evidence to #197, #1761 and #1762. Use §3 for injection,
+§4 for rewrap, and [`backup-restore.md`](backup-restore.md) §5–§6 for the data restore and
+deletion reconciliation. #1766 owns Data Protection protection at rest. A rehearsal or a
+passing check is not authorization to rotate keys, restart the host or restore live data.
 
-With no at-rest copy, an **off-box escrow is the only recovery path**, and per §1 it exists for
-the four crypto values since 2026-08-12 — **but for the generation in force when it was written,
-and not for the age private key, whose row is still open.** Crypto-erasure is the design
-(ADR 0049 Beslut 2) — the same property that makes an account deletion final makes a lost key
-final.
+### 5.1 Recovery matrix
 
-If an escrow copy exists: inject it (§3). If it does not, there is nothing to recover and no
-procedure here will help.
+Record the inventory privately against the reviewed commit and deployed image revision.
+For each row, record its recovery owner, generation or provider credential identifier,
+verification date, result and outstanding owner attestation. Keep values, escrow locations,
+operator identities and operational evidence out of the public repository. The source column
+names a recovery class, not a claim that an independent copy has been verified.
+
+| Material and source | Dependency | Verification method | Remaining owner attestation |
+|---|---|---|---|
+| Field master key plus `FieldEncryption:LocalMasterKeyId`; independent escrow of each required generation | `user_data_keys.wrapped_dek`, owner binding, text fields and binary resume content | Fresh `LocalDataKeyProvider` unwraps an envelope produced before recovery; decrypt both text and binary content; reconcile all `cmk_key_id` values | Exact bytes and identity available outside the failed host; all generations still needed by §5.3 included |
+| Current permitted DEK artefact and its `dek_version`; backup storage under #197 | Per-user keys needed by retained main artefacts | Follow backup §5–§6 pairing and deletion reconciliation; inventory `cmk_key_id` and `dek_version` separately | Retrieval access and deletion-safe artefact pair verified; do not retain obsolete DEK dumps as extra escrow |
+| `AuditPseudonymization:PepperBase64`; independent escrow | Audit identifier correlation across recovery | A fresh `HmacIdentifierPseudonymizer` reproduces the prior synthetic identifier token | Exact pepper continuity, or an explicitly recorded correlation break |
+| `CompanyWatchPseudonymization:PepperBase64`; independent escrow | Stored protected organisation-number tokens | A fresh `HmacProtectedIdentityTokenizer` reproduces the prior synthetic token | Exact pepper; replacement cannot reconstruct erased source identifiers |
+| `CvReviewFingerprintPseudonymization:PepperBase64`; independent escrow | Stored finding-status fingerprints | A fresh `HmacFindingFingerprinter` reproduces the same rubric/verdict fingerprint | Exact pepper plus the matching rubric/canonicalisation version |
+| API Data Protection keyring, application discriminator and any wrapping-key access required by #1766; recoverable keyring copy | Identity tokens and login-challenge payloads; separate from the field master key and Redis session identifiers | Fresh `AddApiDataProtection` registration unprotects a prior synthetic payload with the restored ring and the same purpose; verify wrong/missing ring and wrong discriminator refusal | All required key IDs, revocation metadata and any private wrapping material recoverable independently; assess outstanding-token loss separately |
+| Backup age identity corresponding to the recorded public recipient; off-host escrow | Decryption of encrypted main/DEK artefacts | Backup §5 drill retrieves and decrypts the permitted pair; a recipient alone cannot decrypt | Private identity and any unlock material available without the failed host/workstation |
+| Backup retrieval and upload credentials; provider recovery path and host-only injection | Retrieval, scheduled backup and log export | Backup runbook plus injection `--check-host`; verify retrieval with the intended recovery identity | Recovery rights, retention/deletion controls and provider-account recovery; upload access alone is insufficient |
+| `Email:Scaleway:SecretKey`, project and region; provider recovery path/escrow | Mail delivery and the API boot contract | §3 `--check`, current mail configuration and an authorized reserved-recipient delivery check | Credential validity/expiry and recovery access; no break-glass login is introduced here |
+| Database role credentials; protected deployment configuration/provider recovery path | Database access before API/Worker composition and any separately authorized migration | Check intended role connection and grants under existing deployment/backup procedures | Recoverable role credentials; master/bootstrap access distinguished from application access |
+| Redis connection credentials where configured; auth-store topology owned by #1735/#1759 | Sessions, cooldowns, challenge state and readiness | Use the current owners' connection/readiness and auth lifecycle tests | Correct service identities and access; do not restore volatile challenges or counters as escrow |
+| SSH/provider rescue, registry access, edge, Seq and monitoring credentials; their respective recovery paths | Reach the host, obtain verified images, admit traffic and observe recovery | Existing deployment, hardening, log-sink and host-detection procedures | Access remains possible after host and normal-workstation loss, including MFA/unlock dependencies |
+
+Peppers have no application generation selector. Give each a private inventory revision;
+do not infer its bytes from a revision label. `cmk_key_id` identifies the wrapping master key,
+`dek_version` identifies a user's DEK generation, and the envelope version identifies its
+layout. They are three independent axes. The API's pinned Data Protection application name
+is `jobbliggaren-api`; the Worker does not share that keyring.
+
+### 5.2 Ordered rehearsal and cold start
+
+1. Record the approved scope and current #1735/#1759/#1767 owners. Read the current §3
+   prerequisites, including the effects of host-only credential injection on log export.
+   Use a disposable destination and synthetic material for the rehearsal; retain live
+   restart/restore as a separate authorized maintenance step.
+2. Inventory metadata first: required filenames and access modes, every master generation
+   referenced by the selected DEK artefact, `dek_version`, Data Protection key IDs and
+   application name, provider credential IDs/expiry, reviewed commit and image revision.
+   An empty DEK table cannot establish the active master-key identity.
+3. Have the owner retrieve every required category through a path independent of the failed
+   host and ordinary workstation. Check access, MFA and decryption dependencies too: two
+   copies unlocked only by the same lost device do not prove independent recovery. Record
+   attested, machine-verified and unverified results separately; never request values in chat.
+4. Establish the destination's storage/memory posture, verified images, dependency services
+   and file traversal/read permissions using the existing runbooks. For host loss, #197
+   prepares the permitted main/DEK pair and deletion reconciliation before writers start.
+   For an interrupted rotation, map every returned `cmk_key_id` to escrow and complete the
+   §4 copy drill before deciding how to resume. The runtime provider loads one master key;
+   do not start writers over an unresolved mixture or guess a generation from query order.
+5. Restore the Data Protection ring and any protection dependencies under #1766's contract.
+   Restore the exact field-key identity, bytes and peppers through §3's existing injection
+   path. It writes sequentially and skips existing files: an aborted run can leave a partial
+   set. Preserve verified entries and diagnose the missing category before resuming.
+6. Run `--check` and, when the host-only category is in scope, `--check-host`. They answer
+   different sets. A missing or unreadable `_FILE` target refuses configuration loading;
+   an empty file contributes no value and can leave an older lower-precedence value in
+   force. Verify the configuration sources, not just file presence. Do not interpret either
+   detector or options validation as proof that the key bytes match stored data.
+7. Start a fresh test process/provider with no surviving DEK cache. Decrypt synthetic text
+   and binary content written before recovery, reproduce all three pepper-derived values,
+   and unprotect a prior Data Protection payload. Repeat with wrong bytes, missing material,
+   a partial set and wrong Data Protection application identity. A well-formed wrong master
+   key passes shape validation but fails old-ciphertext authentication. Correct bytes with
+   an omitted/wrong master ID can decrypt while stamping the wrong future rewrap marker.
+8. For an authorized live recovery, use the existing readiness, encrypted-field read and
+   monitoring checks. Record checks not performed as outstanding. Close #1760 only when
+   independent custody/access attestations and the required operational evidence are complete;
+   a synthetic pass supplies mechanism evidence only.
+
+Reproduce the isolated code checks without production configuration:
+
+```powershell
+dotnet test --project tests/Jobbliggaren.Application.UnitTests -- --filter-class '*ColdStartKeyRecoveryTests'
+```
+
+Run the existing `deploy/systemd/jobbliggaren-inject-secrets.test.sh` fixture in Linux with
+`JBL_REQUIRE_MODE_CASES=1`. It verifies missing/partial sets and both detector contracts;
+it does not perform the interactive injection, real escrow retrieval or a host reboot.
+The code suite uses synthetic files, fresh providers and the production crypto/configuration
+implementations; its pepper checks invoke the existing validators without booting API/Worker.
+
+### 5.3 Retirement and permanent loss
+
+Retire a master generation only after §4 steps 7 and 8 succeed **and** the selected permitted
+DEK artefact has been verified with the new key against the retained main-artefact window
+under backup §5–§6. No live or permitted recovery row may still require the outgoing master
+generation. Resolve mixed `cmk_key_id` rows and any failed/partial rewrap first. Apply this
+predicate to both `OLD_KEY` and the outgoing escrow; retain the unchanged peppers. Follow
+#197's DEK retirement and deletion reconciliation, rather than preserving old DEK dumps to
+make a key-recovery check pass.
+
+If a required master generation is permanently lost, its wrapped DEKs and dependent fields
+cannot be recovered by generating a replacement. Stop the affected recovery, preserve the
+remaining evidence and record the affected generations/data with the owner. Loss of the
+company-watch pepper breaks the stored-token lookup; loss of the CV pepper breaks finding
+status continuity; audit-pepper replacement breaks correlation across the change. A missing
+Data Protection key invalidates dependent tokens/payloads even when field decryption works.
+Use the auth owners' expiry/reissue policy; do not relabel replacement material as recovered.
+Record any data-loss response and owner decision privately.
 
 ---
 

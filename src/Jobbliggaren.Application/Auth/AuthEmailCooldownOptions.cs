@@ -4,8 +4,8 @@ namespace Jobbliggaren.Application.Auth;
 
 /// <summary>
 /// #703 — anti-email-bomb cooldown windows for the auth outbound-email surfaces that send to a
-/// REQUESTER-chosen address: the registration account-exists notice, the change-email request, and the
-/// forgot-password request (#1171). Bound in
+/// REQUESTER-chosen address: the registration account-exists notice, the change-email request, the
+/// forgot-password request (#1171) and the login-challenge request (#1735). Bound in
 /// the Api composition root under <c>Auth:EmailCooldown</c>. The confirmation-link RESEND window keeps its
 /// own #733 <see cref="ResendCooldownOptions"/> (the sections stay independent — merging them would break
 /// the already-shipped <c>Auth:ResendCooldown</c> config key). Range-guarded + ValidateOnStart so a

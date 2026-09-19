@@ -489,7 +489,7 @@ registered sender cannot deliver) **drops both its `RegistrationsOpen` and its
 registration. The rule keeps asking the sender's **capability** (`CanDeliver`), never the
 `Email:Provider` key. The budget parameters are constants in `LoginChallengePolicy`, never
 configuration; `Auth:LoginChallengeDispatch:Capacity` and
-`AuthEmailCooldown:LoginChallengeWindowSeconds` are range-validated options with code defaults, so
+`Auth:EmailCooldown:LoginChallengeWindowSeconds` are range-validated options with code defaults, so
 neither is a key a fresh dev boot needs and CLAUDE.md §11's contract is not triggered. Both existing
 accounts have `EmailConfirmed=true` and log in by code with no data change. An account whose address
 is unconfirmed is confirmed by its first passwordless proof, and in the same Identity write its

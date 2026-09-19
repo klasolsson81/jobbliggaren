@@ -67,6 +67,7 @@ From the repository root, with Node and a local Docker engine:
 ```sh
 docker build -t jobbliggaren-edge-probe deploy/caddy
 node scripts/edge-probe.mjs jobbliggaren-edge-probe
+node --test tests/edge-probe-guards.test.mjs
 dotnet test --project tests/Jobbliggaren.Api.IntegrationTests -- --filter-class '*ForwardedClientBudgetTests'
 ```
 

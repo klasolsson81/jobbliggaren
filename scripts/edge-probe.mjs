@@ -7,6 +7,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {assertForwardedAddress, assertLocalDockerEndpoint} from './edge-probe-guards.mjs';
 
 // No remote target option: only a newly created local Docker sandbox is tested.
 const root = process.cwd();
@@ -22,6 +23,13 @@ const auth = `Basic ${Buffer.from('probe:synthetic-only').toString('base64')}`;
 const rows = [];
 function docker(...args) {
   return execFileSync('docker', args, {encoding:'utf8', timeout:60000, maxBuffer:2*1024*1024}).trim();
+}
+function createContainer(...args) {
+  const name = `${id}-${owned.length}`;
+  owned.push(name);
+  docker('create','--name',name,'--label',`jobbliggaren.edge-probe=${id}`,
+    '--memory','128m','--cpus','1','--pids-limit','64',...args);
+  return name;
 }
 function request({method='GET', url='/', headers={}, bytes=0, chunked=false}={}) {
   assert(++count <= 100, 'Request ceiling exceeded');
@@ -61,15 +69,15 @@ function slowRequest(body, limit) {
 try {
   assert(!process.env.DOCKER_HOST, 'Unset DOCKER_HOST: remote engines are not supported');
   const context = JSON.parse(docker('context','inspect'))[0];
-  assert(/^(npipe|unix):/.test(context.Endpoints.docker.Host), 'Only a local Docker engine is permitted');
+  assertLocalDockerEndpoint(context.Endpoints.docker.Host);
   const imageInfo = JSON.parse(docker('image','inspect',image))[0];
   const nodeImage = JSON.parse(docker('image','inspect','node:22-alpine'))[0].Id;
   console.log(JSON.stringify({imageId:imageInfo.Id, nodeImage, sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()}));
-  const passwordHash = docker('run','--rm','--network','none',imageInfo.Id,'caddy','hash-password','--plaintext','synthetic-only');
+  const passwordHash = docker('start','-a',createContainer('--network','none',imageInfo.Id,'caddy','hash-password','--plaintext','synthetic-only'));
   const env = ['-e','SITE_HOST=http://:8080','-e','ACME_EMAIL=probe@example.com','-e','ACME_CA=https://acme.invalid/directory','-e','BASIC_AUTH_USER=probe','-e',`BASIC_AUTH_HASH=${passwordHash}`];
   const mount = ['--mount',`type=bind,source=${path.join(root,'deploy/caddy/Caddyfile')},target=/etc/caddy/Caddyfile,readonly`,
     '--mount',`type=bind,source=${path.join(root,'deploy/caddy/challenge')},target=/etc/caddy/challenge,readonly`];
-  const config = JSON.parse(docker('run','--rm','--network','none',...mount,...env,imageInfo.Id,'caddy','adapt','--config','/etc/caddy/Caddyfile'));
+  const config = JSON.parse(docker('start','-a',createContainer('--network','none',...mount,...env,imageInfo.Id,'caddy','adapt','--config','/etc/caddy/Caddyfile')));
   const server = Object.values(config.apps.http.servers)[0];
   const handlers = [];
   function visit(v) {
@@ -92,11 +100,11 @@ http.createServer((req,res) => {
 }).listen(3000,'0.0.0.0');
 `);
   docker('network','create',id); networkCreated = true;
-  const stub = docker('run','-d','--rm','--network',id,'--network-alias','web','--memory','96m','--cpus','0.5','--pids-limit','32',
+  const stub = createContainer('--network',id,'--network-alias','web',
     '--mount',`type=bind,source=${path.join(scratch,'upstream.cjs')},target=/probe.cjs,readonly`,nodeImage,'node','/probe.cjs');
-  owned.push(stub);
-  const edge = docker('run','-d','--rm','--network',id,'--publish','127.0.0.1::8080','--memory','128m','--cpus','1','--pids-limit','64',
-    ...mount,...env,imageInfo.Id); owned.push(edge);
+  docker('start',stub);
+  const edge = createContainer('--network',id,'--publish','127.0.0.1::8080',...mount,...env,imageInfo.Id);
+  docker('start',edge);
   port = Number(docker('port',edge,'8080/tcp').split(':').at(-1));
   assert(Number.isInteger(port) && port > 0);
   console.log(JSON.stringify({sandbox:{network:id,containers:[...owned],port}}));
@@ -119,6 +127,7 @@ http.createServer((req,res) => {
   });
   await check('forwarding headers are replaced at the edge',async () => {
     const baseline=JSON.parse((await request()).body);
+    assertForwardedAddress(baseline.xff);
     for (const value of ['198.51.100.7','198.51.100.7, 203.0.113.8','127.0.0.1']) {
       const r=await request({headers:{'X-Forwarded-For':value,'X-Forwarded-Proto':'https'}});
       assert.equal(r.status,200); const got=JSON.parse(r.body);
@@ -147,7 +156,17 @@ http.createServer((req,res) => {
   await check('normal traffic recovers after refusals',async () => assert.equal((await request()).status,200));
   console.log(JSON.stringify({passed:rows.length, requests:count, boundary:'HTTP/1.1 plain local edge with synthetic upstream; no Next/API/TLS/provider verdict'}));
 } finally {
-  for (const container of owned.reverse()) {try {docker('rm','-f',container);} catch (error) {console.error('Owned container cleanup failed:',container);process.exitCode=1;}}
+  for (const container of owned.reverse()) {
+    try {
+      const info = JSON.parse(docker('container','inspect',container))[0];
+      assert.equal(info.Config.Labels['jobbliggaren.edge-probe'],id,'Container ownership mismatch');
+      docker('rm','-f',container);
+    } catch (error) {
+      if (!String(error.stderr).includes('No such container')) {
+        console.error('Owned container cleanup failed:',container); process.exitCode=1;
+      }
+    }
+  }
   if (networkCreated) {try {docker('network','rm',id);} catch {console.error('Owned network cleanup failed:',id);process.exitCode=1;}}
   assert(path.resolve(scratch).startsWith(path.resolve(os.tmpdir())+path.sep+'edge-probe-'));
   rmSync(scratch,{recursive:true,force:true});

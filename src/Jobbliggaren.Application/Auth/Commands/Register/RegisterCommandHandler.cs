@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth.Dtos;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
@@ -163,7 +164,7 @@ public sealed partial class RegisterCommandHandler(
         var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Session;
         var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
-        auditLogger.LoginSucceeded(userId, session.Id.ToString());
+        auditLogger.LoginSucceeded(userId, session.Id.ToString(), LoginMethod.Password);
 
         return Result.Success(new RegisterOutcome(new SessionDto(session.Id.Reveal())));
     }

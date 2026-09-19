@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -53,7 +54,7 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger();
 
-        sut.LoginSucceeded(Guid.NewGuid(), "abc123…");
+        sut.LoginSucceeded(Guid.NewGuid(), "abc123…", LoginMethod.Password);
 
         recorder.Latest.EventId.Id.ShouldBe(1001);
         recorder.Latest.Level.ShouldBe(LogLevel.Information);
@@ -65,7 +66,7 @@ public class AuthAuditLoggerTests
         var (sut, recorder) = CreateLogger();
         var userId = Guid.NewGuid();
 
-        sut.LoginSucceeded(userId, "abc123…");
+        sut.LoginSucceeded(userId, "abc123…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain(userId.ToString());
     }
@@ -163,7 +164,7 @@ public class AuthAuditLoggerTests
         // så även CloudWatch-loggen följer GDPR Art. 5(1)(c) data minimisation.
         var (sut, recorder) = CreateLogger(ip: "10.0.0.123");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("10.0.0.0");
         recorder.Latest.Message.ShouldNotContain("10.0.0.123");
@@ -185,7 +186,7 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger(ip: null);
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("Ip=unknown");
     }
@@ -197,7 +198,7 @@ public class AuthAuditLoggerTests
         // som RequestContextProvider, så app-loggen aldrig bär unik IPv6-adress.
         var (sut, recorder) = CreateLogger(ip: "2001:db8:1234:5678:90ab:cdef:1234:5678");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("2001:db8:1234::");
         recorder.Latest.Message.ShouldNotContain("90ab");

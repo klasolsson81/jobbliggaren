@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Register;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -185,7 +186,7 @@ public class RegisterCommandHandlerTests
             Arg.Any<CancellationToken>());
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
-        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
+        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<LoginMethod>());
     }
 
     [Fact]
@@ -678,7 +679,7 @@ public class RegisterCommandHandlerTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
-        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
+        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<LoginMethod>());
         emailSender.ReceivedCalls().ShouldBeEmpty();
     }
 

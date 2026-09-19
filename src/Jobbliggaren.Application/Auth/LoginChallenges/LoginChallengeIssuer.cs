@@ -1,4 +1,3 @@
-using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Microsoft.Extensions.Logging;
@@ -59,16 +58,10 @@ public sealed partial class LoginChallengeIssuer(
                 new LoginChallengeEmail.CodeAndLink(Required(issued.Code), Required(issued.Link)),
             (LoginChallengeKind.LinkOnly, _) => new LoginChallengeEmail.LinkOnly(Required(issued.Link)),
             (LoginChallengeKind.PendingDeletion, LoginSubject.PendingDeletion pending) =>
-                new LoginChallengeEmail.PendingDeletion(PermanentDeletionEarliest(pending.DeletedAt)),
+                new LoginChallengeEmail.PendingDeletion(AccountRestoreWindow.PermanentDeletionEarliest(pending.DeletedAt)),
             (LoginChallengeKind.RegistrationClosed, _) => new LoginChallengeEmail.RegistrationClosed(),
             _ => throw new InvalidOperationException($"No mail content for {kind}."),
         };
-
-    // The earliest date the hard-delete job can remove the account: its cutoff is the restore window before
-    // "now", so a row soft-deleted at T is removed at the first run after T + window. The UTC date of T +
-    // window is on or before that run, which is what the mail's "tidigast" promises.
-    private static DateOnly PermanentDeletionEarliest(DateTimeOffset deletedAt) =>
-        DateOnly.FromDateTime(deletedAt.AddDays(HardDeleteAccountsJob.RestoreWindowDays).UtcDateTime);
 
     private static T Required<T>(T? value) where T : struct =>
         value ?? throw new InvalidOperationException("The store did not mint a credential the plan asked for.");

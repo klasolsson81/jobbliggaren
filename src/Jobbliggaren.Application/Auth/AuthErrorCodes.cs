@@ -256,4 +256,38 @@ public static class AuthErrorCodes
     /// </summary>
     public const string InvalidPasswordResetTokenMessage =
         "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.";
+
+    // ── #1735 — the login challenge's answers to a presented code or link (ADR 0142 D3). The cookie holder
+    // is told which of wrong / expired / burned happened: they minted the challenge, a record is always
+    // written, so the distinction carries no account information. Missing and expired are ONE code. As with
+    // the codes above, the browser renders its own copy; these messages follow the page form's wording.
+
+    /// <summary>A wrong code, with more than one attempt left. Validation → 400.</summary>
+    public const string LoginCodeWrong = "Auth.LoginCodeWrong";
+
+    public const string LoginCodeWrongMessage = "Koden stämmer inte. Kontrollera siffrorna och försök igen.";
+
+    /// <summary>A wrong code, with exactly one attempt left: the page warns before the burn. Validation → 400.</summary>
+    public const string LoginCodeWrongLastAttempt = "Auth.LoginCodeWrongLastAttempt";
+
+    public const string LoginCodeWrongLastAttemptMessage =
+        "Koden stämmer inte. Ett försök kvar. Sedan behöver du begära en ny kod.";
+
+    /// <summary>The code arm is burned after the last wrong attempt. Gone → 410.</summary>
+    public const string LoginCodeBurned = "Auth.LoginCodeBurned";
+
+    public const string LoginCodeBurnedMessage =
+        "Du har skrivit fel kod tre gånger. Av säkerhetsskäl behöver du en ny kod.";
+
+    /// <summary>No live challenge: expired, used, replaced or never written — one answer. Gone → 410.</summary>
+    public const string LoginCodeExpired = "Auth.LoginCodeExpired";
+
+    public static readonly string LoginCodeExpiredMessage =
+        $"Koden har gått ut. Den gäller i {(int)LoginChallenges.LoginChallengePolicy.ChallengeTtl.TotalMinutes} minuter.";
+
+    /// <summary>A link that cannot be used, for any reason — one answer. Gone → 410.</summary>
+    public const string LoginLinkUnusable = "Auth.LoginLinkUnusable";
+
+    public const string LoginLinkUnusableMessage =
+        "Länken går inte att använda. Begär en ny kod på inloggningssidan.";
 }

@@ -2,7 +2,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 
 public interface IAuthAuditLogger
 {
-    void LoginSucceeded(Guid userId, string sessionIdPrefix);
+    /// <summary>A session was granted; <paramref name="method"/> records how it was earned (#1735).</summary>
+    void LoginSucceeded(Guid userId, string sessionIdPrefix, Auth.LoginChallenges.LoginMethod method);
     void LoginFailed(string emailHash);
 
     /// <summary>

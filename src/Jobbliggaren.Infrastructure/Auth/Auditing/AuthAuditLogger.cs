@@ -12,10 +12,10 @@ public sealed partial class AuthAuditLogger(
     IIpAnonymizer ipAnonymizer)
     : IAuthAuditLogger
 {
-    public void LoginSucceeded(Guid userId, string sessionIdPrefix)
+    public void LoginSucceeded(Guid userId, string sessionIdPrefix, LoginMethod method)
     {
         var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, resolvedIp, resolvedAgent);
+        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, method, resolvedIp, resolvedAgent);
     }
 
     public void LoginFailed(string emailHash)
@@ -88,9 +88,10 @@ public sealed partial class AuthAuditLogger(
     }
 
     [LoggerMessage(1001, LogLevel.Information,
-        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Ip={Ip} UserAgent={UserAgent}")]
+        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Method={Method} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogLoginSucceeded(
-        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, string ip, string userAgent);
+        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, LoginMethod method, string ip,
+        string userAgent);
 
     [LoggerMessage(1002, LogLevel.Warning,
         "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]

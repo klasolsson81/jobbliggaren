@@ -1811,6 +1811,9 @@ public static class DependencyInjection
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
+        services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
+        services.AddScoped<PasswordlessSessionGrant>();
+        services.AddScoped<LoginProofOutcome>();
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

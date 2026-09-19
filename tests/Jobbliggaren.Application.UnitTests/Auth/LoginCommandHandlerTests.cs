@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Dtos;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
@@ -179,7 +180,7 @@ public class LoginCommandHandlerTests
 
         await handler.Handle(ValidCommand(), ct);
 
-        auditLogger.Received(1).LoginSucceeded(userId, Arg.Any<string>());
+        auditLogger.Received(1).LoginSucceeded(userId, Arg.Any<string>(), LoginMethod.Password);
     }
 
     [Fact]
@@ -351,7 +352,7 @@ public class LoginCommandHandlerTests
 
         await sessionStore.DidNotReceive().CreateAsync(
             Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
-        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>());
+        auditLogger.DidNotReceive().LoginSucceeded(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<LoginMethod>());
 
         // The refusal IS audited, identically to the soft-delete arm. Not merely symmetry: without it
         // the brute-force signal would go quiet for a population whose credentials are valid.

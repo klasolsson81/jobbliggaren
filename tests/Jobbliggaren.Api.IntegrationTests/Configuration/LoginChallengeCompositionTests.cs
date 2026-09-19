@@ -29,7 +29,7 @@ public sealed class LoginChallengeCompositionTests
             .Build();
 
     [Fact]
-    public void AddIdentityAndSessions_registers_the_dispatcher_its_consumer_the_store_and_the_budget()
+    public void AddIdentityAndSessions_registers_the_dispatcher_its_consumer_the_store_the_budget_and_the_inbox_proof()
     {
         var services = new ServiceCollection();
 
@@ -40,6 +40,7 @@ public sealed class LoginChallengeCompositionTests
             && d.ImplementationType == typeof(LoginChallengeDispatchService));
         services.ShouldContain(d => d.ServiceType == typeof(ILoginChallengeStore));
         services.ShouldContain(d => d.ServiceType == typeof(IRateBudget));
+        services.ShouldContain(d => d.ServiceType == typeof(IInboxProofRecorder));
     }
 
     [Fact]
@@ -53,5 +54,6 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldNotContain(d => d.ImplementationType == typeof(LoginChallengeDispatchService));
         services.ShouldNotContain(d => d.ServiceType == typeof(ILoginChallengeStore));
         services.ShouldNotContain(d => d.ServiceType == typeof(IRateBudget));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IInboxProofRecorder));
     }
 }

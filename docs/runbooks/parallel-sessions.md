@@ -284,7 +284,7 @@ single most dangerous one.
 ## 7. DB / runtime / port rules
 
 ```
-dev:   Postgres 5435 · Redis 6379 · Seq 5341     (container DB/user "jobbliggaren")
+dev:   Postgres 5435 · Redis 6379 · Redis (non-persisted) 6381 · Seq 5341     (container DB/user "jobbliggaren")
 test:  Postgres 5433 · Redis 6380                (DB "jobbliggaren_test", profile "test")
 ```
 

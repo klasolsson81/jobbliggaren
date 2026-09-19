@@ -56,7 +56,7 @@ esac
 #
 # CONTAINED, because one of the two callers runs an image nothing has attested. Reading two
 # numbers needs no network, no capabilities and no way to acquire more — and the compose file
-# already sets `no-new-privileges` on all nine services, so an uncontained `docker run` here
+# already sets `no-new-privileges` on all ten services, so an uncontained `docker run` here
 # would be the loosest execution on the box. `--network none` also removes the default bridge
 # and `NET_RAW` with it.
 out=$(/usr/bin/docker run --rm --network none --cap-drop ALL \

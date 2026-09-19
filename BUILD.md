@@ -1706,7 +1706,7 @@ byggt:
 
 **Backend — en netcup RS 1000 G12** (x86 AMD EPYC 9645, 4 dedikerade kärnor / 8 GB DDR5 ECC
 / 256 GB NVMe, Debian 13, Nürnberg). Hela backend-stacken kör i **Docker Compose** på boxen:
-.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis + **Caddy**
+.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis (två instanser: den durabla `redis` och `redis-volatile` utan persistens, ADR 0142 D1) + **Caddy**
 (reverse proxy, auto-TLS via Let's Encrypt **direkt**, HTTP-01/TLS-ALPN-01 — ingen DNS-01 och
 ingen CDN, Klas-beslut K3). **`mem_limit` sätts på varje tjänst, Postgres inklusive** — den
 tidigare hybrid-doktrinen ("generös/osatt på Postgres") vilade uttryckligen på att 16 GB löste

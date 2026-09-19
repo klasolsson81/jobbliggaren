@@ -13,6 +13,13 @@
          subject, and the later compose pins followed the copy rather than adding a second one. -->
     <Content Include="..\..\deploy\docker-compose.yml"
              Link="deploy\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- #1735 - the dev stack's compose file and the Api's Development settings.
+         DeployComposeVolatileRedisTests reads both: the non-persisted Redis exists in both stacks, and
+         the dev Api is pointed at it by a committed value rather than by an environment variable. -->
+    <Content Include="..\..\docker-compose.yml"
+             Link="docker-compose.yml" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\Jobbliggaren.Api\appsettings.Development.json"
+             Link="src\Jobbliggaren.Api\appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- #1232 - PooledConnectionResetTests parses every ConnectionStrings__Postgres the repo
          composes. The deploy stack is one surface; CI's e2e host is the other, and it composes
          its own value rather than reading the compose file. -->
@@ -24,6 +31,12 @@
          the failure lands on the first token mint, so nothing else in the repo would catch it. -->
     <Content Include="..\..\src\Jobbliggaren.Api\Dockerfile"
              Link="src\Jobbliggaren.Api\Dockerfile" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- #1735 - the compose-file reader (tests/Shared). Linked rather than duplicated: Api.IntegrationTests
+       builds a real container from the same file these pins read, and two readers would drift. -->
+  <ItemGroup>
+    <Compile Include="..\Shared\ComposeFile.cs" Link="Shared\ComposeFile.cs" />
   </ItemGroup>
 
   <ItemGroup>

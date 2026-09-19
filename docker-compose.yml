@@ -1,7 +1,7 @@
 # Compose Specification v5 — ingen top-level `version:`-nyckel (obsolete sedan 2024).
 #
 # Profiles:
-#   (default)  — postgres-dev, redis-dev, seq
+#   (default)  — postgres-dev, redis-dev, redis-volatile-dev, seq
 #   test       — postgres-test, redis-test
 #   full       — allt ovan (default-services + test-services)
 #
@@ -63,6 +63,38 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - jobbliggaren_redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  redis-volatile-dev:
+    # The dev counterpart of the deploy stack's `redis-volatile` (deploy/docker-compose.yml is the
+    # original and explains the form): a Redis nothing can persist from. No `volumes:` key on purpose,
+    # and /data is a tmpfs under a read-only root, because the two flags are runtime-mutable and the
+    # mount is not. The deploy service's memory limits are left out here: they answer a hostile peer on
+    # a shared host, which a developer's machine does not have.
+    # `appsettings.Development.json` points the Api at the port below.
+    image: redis:8.10-alpine
+    container_name: jobbliggaren-redis-volatile-dev
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+    read_only: true
+    tmpfs:
+      - /data:size=16m
+    ports:
+      - "127.0.0.1:6381:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

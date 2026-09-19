@@ -1602,6 +1602,16 @@ public static class DependencyInjection
     public const string DataProtectionKeyPathConfigKey = "DataProtection:KeyPath";
 
     /// <summary>
+    /// #1735 — the connection string NAME of the non-persisted Redis instance both stacks declare
+    /// (<c>redis-volatile</c>, ADR 0142 D1). <c>VolatileRedis</c> rather than <c>RedisVolatile</c>:
+    /// <c>ConnectionStrings__Redis</c> would otherwise be a strict prefix of this key's environment form, and
+    /// the compose pins scan lines. <c>DeployComposeVolatileRedisTests</c> derives the environment variable
+    /// from this constant, so a rename here fails that pin rather than silently pointing the deploy stack at
+    /// nothing.
+    /// </summary>
+    public const string VolatileRedisConnectionStringName = "VolatileRedis";
+
+    /// <summary>
     /// #1350 — the Api's Data-Protection keyring. Its own method rather than four lines inside
     /// <see cref="AddIdentityAndSessions"/>, because that one needs Postgres and Redis to register
     /// at all and this must be testable without either (CLAUDE.md §2.4).

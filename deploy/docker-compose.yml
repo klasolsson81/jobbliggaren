@@ -349,6 +349,12 @@ services:
       # fail-stops a Production boot on an empty value, which is why the committed
       # appsettings.Production.json leaves it empty and the value is injected here.
       ForwardedHeaders__KnownNetworks__0: "172.28.0.0/24"
+      # The non-persisted `redis-volatile` below, built for the login challenge's stores (ADR 0142
+      # D1). Inline rather than in x-app-connections because the worker composes neither store and
+      # must not be handed the key. DeployComposeVolatileRedisTests pins the literal value — a key
+      # that resolved to `redis` would defeat the instance silently — this placement, and the key's
+      # absence from `worker` and from every x-* anchor.
+      ConnectionStrings__VolatileRedis: "redis-volatile:6379"
       # Registration gate (#734). Absent knob renders `false` — AuthOptions' own default, and
       # the posture the box has today: POST /auth/register answers 503, so no NEW account can
       # be created. Both flags are passed, not just the gate: AuthOptionsValidator is the single
@@ -417,6 +423,9 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      # On `api` alone: the worker composes no store that runs on it.
+      redis-volatile:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -662,6 +671,59 @@ services:
     volumes:
       - redis_data:/data
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    restart: unless-stopped
+    networks: [stack]
+
+  redis-volatile:
+    # Built for the login challenge's TTL-bounded keys (ADR 0142 D1): challenge records, the address
+    # index and the rate budgets. NOTHING THIS SERVICE HOLDS MAY REACH A DISK. The closed-registration
+    # mail states how long an address is kept, so a key's TTL has to be its whole lifetime — which it
+    # is not on `redis` above, where an expired key stays in the AOF until the next rewrite.
+    #
+    # THREE LAYERS, each closing what the one before leaves open (measured 2026-09-19 on 8.6.5):
+    # `--save ""` and `--appendonly no` write nothing on their own, but both are runtime-mutable —
+    # any client on this network can `CONFIG SET appendonly yes` — so it is the MOUNT that makes a
+    # disk unreachable. `CONFIG SET dir` is a protected config, /data is therefore Redis's only
+    # write path, and it is a tmpfs under a read-only root. Hence no `volumes:` key, and the tmpfs
+    # carries a size so a switched-on AOF fails its write instead of growing to the cgroup limit.
+    #
+    # WHAT THIS DOES NOT CLOSE: a client on this network can still restart the instance or read it.
+    # That is parity with `redis` and belongs to #1759 (Redis identities and command allowlists).
+    #
+    # SAME TAG AS `redis`, and that block's UPSTREAM_ALLOWLIST note is this tag's home too: the two
+    # move together, or each gets its own allowlist entry.
+    image: redis:8.6-alpine
+    container_name: jobbliggaren-redis-volatile
+    # `noeviction`, not an evicting policy: a flood would otherwise evict a target's budget key,
+    # which is a budget reset the attacker chooses. A full instance refuses login writes instead.
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - noeviction
+    read_only: true
+    tmpfs:
+      - /data:size=16m
+    # mem_limit >= 2 x maxmemory + the tmpfs, and the relation is a security condition rather than
+    # tuning (ADR 0142, lapse trigger 5). A flood that meets the cgroup limit before Redis's own
+    # refusal is a SIGKILL, a restart, and every budget counter reset on the attacker's schedule.
+    mem_limit: 160m
+    # The dataset never reaches a disk through Redis. Without this line it could through swap.
+    memswap_limit: 160m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

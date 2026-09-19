@@ -306,10 +306,6 @@ What it does, in order:
 > | Empty, and no rotation has ever been performed | the default (`local-v1`) |
 > | **Empty, and a rotation has been performed** | **read it from escrow — never the default** |
 >
-> The third row is why row 26 requires escrow to hold the identity alongside the bytes: after a
-> reboot the box keeps no record of which generation is in force, and the database cannot supply
-> it while the table is empty. Escrow is the only source.
-
 Then verify, and do not skip this — the whole point of the model is that a partial injection
 looks like a healthy box from the outside:
 

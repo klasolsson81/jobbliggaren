@@ -1,0 +1,4 @@
+user default reset off
+user api-persistent reset on #{{API_PERSISTENT_SHA256}} resetchannels -@all +ping +echo +client|setname +client|setinfo +quit (~jobbliggaren:session:* +hmget +hmset +expire +unlink) (~jobbliggaren:session:*:rotating +set) (~jobbliggaren:user:*:sessions +sadd +srem +smembers +expire +pexpire +unlink) (~jobbliggaren:user:*:revoked ~jobbliggaren:user:*:deleted +exists +setex +psetex) (~jobbliggaren:cd/resend-confirm/v1/* ~jobbliggaren:cd/account-exists/v1/* ~jobbliggaren:cd/change-email-target/v1/* ~jobbliggaren:cd/change-email-user/v1/* ~jobbliggaren:cd/password-reset/v1/* ~jobbliggaren:company-registry:v1:* +hmget +hmset +expire) (~jobbliggaren:landing:stats:v1 +hmget)
+user worker-persistent reset on #{{WORKER_PERSISTENT_SHA256}} resetchannels -@all +ping +echo +client|setname +client|setinfo +quit (~jobbliggaren:landing:stats:v1 +hmset +expire)
+user health-persistent reset on #{{HEALTH_PERSISTENT_SHA256}} resetchannels -@all +ping

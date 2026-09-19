@@ -49,8 +49,7 @@ public interface IEmailSender
     /// <para>
     /// <b>This exists because <c>NullEmailSender</c> was an LSP violation without it (#1087).</b> It
     /// is registered as a valid <see cref="IEmailSender"/> in every non-Development/Test environment
-    /// and is the live default today (<c>Email:Provider</c> is unset in every committed
-    /// <c>appsettings*.json</c>). Dropping a notification is correct — a missed convenience. Dropping
+    /// where <c>Email:Provider</c> is unset, as it is in every committed <c>appsettings*.json</c>. Dropping a notification is correct — a missed convenience. Dropping
     /// an ownership-confirmation link is not: <c>ChangeEmailCommandHandler</c> minted a token, mailed
     /// it into the void, returned <c>Result.Success</c> and had a <c>User.EmailChangeRequested</c>
     /// audit row stamped, while the address is only ever swapped when the link is opened. The user

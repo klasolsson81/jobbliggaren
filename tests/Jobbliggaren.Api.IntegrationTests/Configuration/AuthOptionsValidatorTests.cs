@@ -17,14 +17,14 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// ADR 0083 Amendment 2026-08-03 + senior-cto-advisor D1 (2026-08-09) — the two combinations that
-/// must not boot outside Development/Test, both of them requiring public registration OPEN:
+/// ADR 0083 Amendment 2026-08-03 + senior-cto-advisor D1 (2026-08-09) + security-auditor Major 12
+/// (#1735) — the two conditions that must not boot outside Development/Test:
 /// <list type="number">
 /// <item>open WITHOUT email confirmation — legacy instant-login (an account bound to an address the
 /// registrant may not own) plus the acknowledged-deferred duplicate-enumeration oracle, on a public
 /// IP;</item>
-/// <item>open WITH email confirmation but a sender that cannot deliver — the account is created,
-/// login is blocked on <c>EmailConfirmed</c>, and the activation link reaches nobody.</item>
+/// <item>a sender that cannot deliver, whatever the flags say — login is a mailed code or link with no
+/// break-glass, so nobody could log in and every request would still answer 202.</item>
 /// </list>
 /// Prerequisites are owned by <c>docs/runbooks/registration-gate.md</c>.
 /// <para>
@@ -54,8 +54,8 @@ public class AuthOptionsValidatorTests
 
     /// <summary>
     /// The REAL <see cref="NullEmailSender"/>, not a substitute answering false. It is what
-    /// <c>AddEmailSender</c> registers outside Development/Test with <c>Email:Provider</c> unset —
-    /// the live default today — so the refusal cases rest on the exact object production composes.
+    /// <c>AddEmailSender</c> registers outside Development/Test with <c>Email:Provider</c> unset, so the
+    /// refusal cases rest on the exact object that composition produces.
     /// </summary>
     private static NullEmailSender NonDeliveringSender() =>
         new(NullLogger<NullEmailSender>.Instance);
@@ -86,47 +86,58 @@ public class AuthOptionsValidatorTests
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain("registration-gate.md");
         result.FailureMessage.ShouldContain(environmentName);
-        // Rule 1's remedy key, in ENV-VAR form with the double underscore. The colon form
-        // ("Auth:RequireEmailConfirmation=true") is a substring of rule 2's message too, so it
-        // cannot tell the two apart; this one appears in rule 1's message and nowhere else.
+        // Rule 1's remedy key, in ENV-VAR form with the double underscore: it appears in rule 1's message
+        // and nowhere else.
         result.FailureMessage.ShouldContain("Auth__RequireEmailConfirmation=true");
     }
 
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    [InlineData("SomethingNobodyNamedYet")]
-    public void Open_with_email_confirmation_but_a_sender_that_cannot_deliver_refuses_to_boot(
-        string environmentName)
+    public static TheoryData<string, bool, bool> EnvironmentsAndTheFlagPairsRuleOneAdmits()
     {
-        // The configuration that strands a registrant: the account is created, login is blocked on
-        // EmailConfirmed, and the activation link goes to a sender that drops it.
+        var rows = new TheoryData<string, bool, bool>();
+        foreach (var environmentName in new[] { "Production", "Staging", "SomethingNobodyNamedYet" })
+        {
+            rows.Add(environmentName, false, false);
+            rows.Add(environmentName, false, true);
+            rows.Add(environmentName, true, true);
+        }
+
+        return rows;
+    }
+
+    [Theory]
+    [MemberData(nameof(EnvironmentsAndTheFlagPairsRuleOneAdmits))]
+    public void A_sender_that_cannot_deliver_refuses_to_boot_whatever_the_flags_say(
+        string environmentName, bool open, bool confirm)
+    {
+        // Login is a mailed code or link with no break-glass (#1735), so a host that cannot deliver locks
+        // every account out. (false, false) is the committed default composition: Email:Provider unset,
+        // registration closed.
         var result = ValidatorFor(environmentName, NonDeliveringSender())
-            .Validate(null, Options(open: true, confirm: true));
+            .Validate(null, Options(open, confirm));
 
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain(environmentName);
-        result.FailureMessage.ShouldContain("registration-gate.md");
+        result.FailureMessage.ShouldContain("deploy/.env.example");
         // The remedy an operator can act on, and the sender that was actually registered.
         result.FailureMessage.ShouldContain("Email__Provider=Scaleway");
         result.FailureMessage.ShouldContain(nameof(NullEmailSender));
     }
 
     [Fact]
-    public void Open_with_confirmation_refuses_when_the_sender_cannot_deliver_and_boots_when_it_can()
+    public void A_closed_host_refuses_when_the_sender_cannot_deliver_and_boots_when_it_can()
     {
         // The crossing counterfactual for the theory above, in ONE test so a later tidy-up cannot
         // separate the control from the arm that gives it meaning. Same environment, same flags,
         // EXACTLY one input different: what the registered sender answers to CanDeliver. Without the
-        // second half, "open + confirm refuses in Production" would go on passing even if the rule
-        // had degenerated into "open + confirm always refuses" — which would take the whole gate down
+        // second half, "closed refuses in Production" would go on passing even if the rule
+        // had degenerated into "Production always refuses" — which would take the whole host down
         // the day email goes live, i.e. the one day it must let the host boot.
         ValidatorFor("Production", NonDeliveringSender())
-            .Validate(null, Options(open: true, confirm: true))
+            .Validate(null, Options(open: false, confirm: false))
             .Failed.ShouldBeTrue();
 
         ValidatorFor("Production", DeliveringSender())
-            .Validate(null, Options(open: true, confirm: true))
+            .Validate(null, Options(open: false, confirm: false))
             .Succeeded.ShouldBeTrue();
     }
 
@@ -136,26 +147,10 @@ public class AuthOptionsValidatorTests
     [InlineData(true, true)]
     public void Every_other_combination_boots_in_Production(bool open, bool confirm)
     {
-        // Fires in ONE direction. The fail-safe default (both false, i.e. an absent Auth section) must
-        // still boot clean — a guard that also broke the safe state would have replaced one outage
-        // class with another. The sender delivers here; the closed-registration rows' non-delivering
-        // half is the theory below, and (true, true)'s is the crossing pair above.
+        // Rule 1 fires in ONE direction. The fail-safe default (both false, i.e. an absent Auth section)
+        // must boot clean with a delivering sender — a guard that also broke the safe state would have
+        // replaced one outage class with another. Every row's non-delivering half is the theory above.
         ValidatorFor("Production").Validate(null, Options(open, confirm)).Succeeded.ShouldBeTrue();
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Closed_registration_boots_in_Production_even_when_nothing_can_be_delivered(
-        bool confirm)
-    {
-        // Rule 2 keys on RegistrationsOpen, and the committed default composes exactly this pair:
-        // Email:Provider is unset in every appsettings*.json, so NullEmailSender is what a deployed
-        // host gets, with registrations closed by AuthOptions' fail-safe default. A rule that also
-        // refused here would have taken that host down to prevent a state it cannot reach.
-        ValidatorFor("Production", NonDeliveringSender())
-            .Validate(null, Options(open: false, confirm))
-            .Succeeded.ShouldBeTrue();
     }
 
     [Theory]
@@ -186,8 +181,8 @@ public class AuthOptionsValidatorTests
     /// <summary>
     /// The Api/Worker asymmetry, pinned at the call site rather than only in the rule. Both hosts call
     /// <c>AddEmailSender</c>, but only the Api composes a validator over <c>AuthOptions</c> — the
-    /// Worker owns no registration surface, so a shared env file must not take it down for a condition
-    /// it cannot exercise. Without these, the natural "helpful" edit (bind the validator in the Worker
+    /// Worker owns no registration or login surface, so a shared env file must not take it down for a
+    /// condition it cannot exercise. Without these, the natural "helpful" edit (bind the validator in the Worker
     /// for parity, or move the check into the shared email seam) lands green.
     /// <para>
     /// All three run the same instrument over the same configuration and differ only in which
@@ -242,7 +237,7 @@ public class AuthOptionsValidatorTests
         public void AddEmailSender_registers_no_validator_for_AuthOptions()
         {
             // The seam BOTH hosts share. A rule placed here would refuse the Worker's boot for a
-            // registration flow the Worker does not serve.
+            // registration or login flow the Worker does not serve.
             var env = Substitute.For<IHostEnvironment>();
             env.EnvironmentName.Returns("Production");
             var services = new ServiceCollection();

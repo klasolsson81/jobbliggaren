@@ -60,9 +60,9 @@ public sealed class AuthOptions
     /// account bound to an address the registrant may not own and puts the acknowledged-deferred
     /// duplicate-enumeration oracle on a public IP. Going live therefore needs BOTH flags plus a real
     /// <c>Email:Provider</c> — the prerequisites are owned by
-    /// <c>docs/runbooks/registration-gate.md</c>. <b>All three are enforced, not merely documented:</b> since 2026-08-09 the same validator also refuses to boot when both
-    /// flags are on and the registered sender cannot deliver, because that configuration creates
-    /// accounts whose activation link reaches nobody.
+    /// <c>docs/runbooks/registration-gate.md</c>. <b>All three are enforced, not merely documented:</b> since 2026-08-09 the same validator also refuses to boot when the
+    /// registered sender cannot deliver, and since #1735 whatever either flag says, because login itself
+    /// is a mailed code or link.
     /// </para>
     /// <para>
     /// Both flags are read through singleton <c>IOptions</c>, and deployed config arrives as

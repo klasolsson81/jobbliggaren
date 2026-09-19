@@ -15,9 +15,9 @@ box, and the only sanctioned way to bring an account into existence there. Owned
 Registration is closed by default and the default is not an omission: the app becomes
 publicly reachable before its legal and security gates are green, so an unset value must
 fail closed. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
-where it refuses the boot on an open gate without email confirmation, and again on an open
-gate whose sender cannot deliver — so the two flags and the mail provider are one interlock,
-not three switches. **Writing an account straight into
+where it refuses the boot on an open gate without email confirmation, and on any sender that
+cannot deliver, open gate or not (since #1735 login itself is a mailed code) — so the two flags
+and the mail provider are one interlock, not three switches. **Writing an account straight into
 the database is not an alternative to this procedure**; `AuthOptions`' own documentation
 forbids it, and this file is the path it prescribes instead.
 
@@ -32,7 +32,7 @@ forbids it, and this file is the path it prescribes instead.
    GDPR gate is `release-checklist.md` §2.5 (#183 closed 2026-09-06); this runbook only needs
    it to already be done. Read §2.5 itself for where that gate stands. Unsatisfied — including a
    flip taken outside that gate — this procedure does not start. Under `Console` the api
-   resolves `NullEmailSender`, which cannot deliver, and opening the gate is a boot refusal.
+   resolves `NullEmailSender`, which cannot deliver, and the api refuses to boot at all.
 2. **The Scaleway artifacts exist:** a Transactional Email API key (secret key) and the
    project id, generated in the Scaleway console. Producing them is the operator's step
    (`master-key-ops.md`'s secrets table records the current key); this runbook only needs them

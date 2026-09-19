@@ -1,4 +1,6 @@
 using System.Net;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -81,6 +83,13 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         // innan denna ConfigureWebHost-callback körs).
         builder.ConfigureServices(services =>
         {
+            // #1735 (security-auditor Major 12) — outside Development/Test the Api refuses to boot on a sender
+            // that cannot deliver, and this host would otherwise compose NullEmailSender, or a real provider from
+            // a developer's Local.json. A delivering in-process fake, registered last, keeps the boot on the path
+            // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+
             // UseHttpsRedirection-middleware behöver veta vilken port att redirecta TILL.
             // Default-resolver kollar ASPNETCORE_URLS / ASPNETCORE_HTTPS_PORTS / HTTPS_PORT —
             // ingen är satt i WebApplicationFactory-test-host → middleware loggar varning

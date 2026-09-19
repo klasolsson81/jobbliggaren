@@ -32,8 +32,7 @@ public sealed class RequestPasswordResetCommandHandler(
         //
         // #1171 is delivery-dependent in the strictest sense on this port: the password changes only
         // when the emailed link is opened, so a dropped send leaves someone who has already lost access
-        // with a "check your inbox" message and no link. NullEmailSender is the live default outside
-        // Development/Test, so this is the ordinary configuration, not an edge case.
+        // with a "check your inbox" message and no link.
         //
         // Why FIRST rather than merely present. Checked here the gate reads NO input, so the 503/202
         // partition is a property of the server's configuration and can carry no information about any

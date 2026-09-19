@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
@@ -38,6 +40,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
         builder.ConfigureServices(services =>
         {
+            // #1735 (security-auditor Major 12) — outside Development/Test the Api refuses to boot on a sender
+            // that cannot deliver, and this host would otherwise compose NullEmailSender, or a real provider from
+            // a developer's Local.json. A delivering in-process fake, registered last, keeps the boot on the path
+            // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
             services.AddDbContext<AppDbContext>(options =>

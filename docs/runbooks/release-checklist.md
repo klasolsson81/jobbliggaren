@@ -2230,10 +2230,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
       åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth bärs av ingen annan
       mekanism.
-      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två kombinationer utanför
-      Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och (sedan
-      2026-08-09) `RegistrationsOpen` MED `RequireEmailConfirmation` när den registrerade
-      avsändaren inte kan leverera. Allt som följer i den här noten gäller **båda** reglerna:
+      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två villkor utanför
+      Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och en registrerad
+      avsändare som inte kan leverera (sedan 2026-08-09 med båda flaggorna på, sedan #1735
+      oavsett flaggorna, eftersom inloggningen själv är en kod per e-post). Allt som följer i den här noten gäller **båda** reglerna:
       garantin bärs av **den ivriga
       `IOptions<AuthOptions>`-läsningen** vid boot-announcement i `Program.cs`: den ligger
       bevisligen före `app.Run()` och därmed före att Kestrel binder socketen. `ValidateOnStart`

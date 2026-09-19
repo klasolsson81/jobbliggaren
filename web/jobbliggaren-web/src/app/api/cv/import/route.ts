@@ -79,6 +79,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       "Content-Type": contentType,
     },
     body: request.body,
+    signal: request.signal,
     duplex: "half",
     cache: "no-store",
   };

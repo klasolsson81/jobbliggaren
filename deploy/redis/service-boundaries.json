@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "internalPairs": [
+    [
+      "caddy",
+      "web"
+    ],
+    [
+      "web",
+      "api"
+    ],
+    [
+      "api",
+      "postgres"
+    ],
+    [
+      "worker",
+      "postgres"
+    ],
+    [
+      "migrate",
+      "postgres"
+    ],
+    [
+      "migrate-rewrap",
+      "postgres"
+    ],
+    [
+      "api",
+      "redis-persistent"
+    ],
+    [
+      "worker",
+      "redis-persistent"
+    ],
+    [
+      "api",
+      "redis-volatile"
+    ],
+    [
+      "api",
+      "seq"
+    ],
+    [
+      "worker",
+      "seq"
+    ]
+  ],
+  "egressOwners": [
+    "caddy",
+    "api",
+    "worker"
+  ],
+  "secretFiles": {
+    "api": [
+      "api-persistent",
+      "api-volatile"
+    ],
+    "worker": [
+      "worker-persistent"
+    ],
+    "redis-persistent": [
+      "persistent-acl",
+      "health-persistent"
+    ],
+    "redis-volatile": [
+      "volatile-acl",
+      "health-volatile"
+    ]
+  }
+}

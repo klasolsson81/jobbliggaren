@@ -18,7 +18,6 @@ using Jobbliggaren.Application.Dev.Configuration;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
-using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Logging;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -301,7 +300,7 @@ app.Use(async (ctx, next) =>
         ctx.Response.StatusCode = 500;
         await ctx.Response.WriteAsJsonAsync(new { error = "Ett internt fel uppstod." });
     }
-    catch (SessionStoreUnavailableException ex)
+    catch (StoreUnavailableException ex)
     {
         // #512: log the outage BEFORE writing 503. Auth runs outside the Mediator pipeline, so
         // LoggingBehavior never sees this — without this line a Redis outage produces zero log

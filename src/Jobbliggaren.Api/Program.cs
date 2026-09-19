@@ -220,7 +220,7 @@ builder.Services.AddHsts(o =>
 
 // #512: throttled Error log for the store-unavailable 503 path (below). Singleton so the
 // throttle windows are shared across all requests of the host — a Redis outage fans out to
-// every request on that store, so one log per window and store is enough for the TD-77 alarm.
+// every request on that store, so one log per window and store is enough for the #1172 alarm.
 builder.Services.AddSingleton<StoreUnavailableLog>();
 
 var app = builder.Build();

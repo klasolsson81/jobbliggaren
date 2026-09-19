@@ -28,8 +28,8 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
     internal ConnectionMultiplexer Challenge { get; private set; } = null!;
 
     // #1735 — the stores reach the volatile instance only through VolatileRedisConnection, which owns a
-    // private multiplexer. Built from the same options as Challenge, so an adapter under test runs as the
-    // same `api-volatile` ACL identity.
+    // private multiplexer. It is handed the options Challenge connects with, so an adapter under test runs
+    // as the same `api-volatile` ACL identity; the holder itself turns AbortOnConnectFail off.
     internal VolatileRedisConnection ChallengeAdapter { get; private set; } = null!;
     internal ConnectionMultiplexer PersistentAdmin { get; private set; } = null!;
     internal ConnectionMultiplexer VolatileAdmin { get; private set; } = null!;
@@ -52,7 +52,7 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
         Api = await ConnectAsync(Persistent, ApiPersistent);
         Worker = await ConnectAsync(Persistent, WorkerPersistent);
         Challenge = await ConnectAsync(Volatile, ApiVolatile);
-        ChallengeAdapter = new VolatileRedisConnection(OptionsFor(Volatile, ApiVolatile).ToString());
+        ChallengeAdapter = new VolatileRedisConnection(OptionsFor(Volatile, ApiVolatile));
     }
 
     public async ValueTask DisposeAsync()

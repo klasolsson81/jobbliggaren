@@ -12,7 +12,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Observability;
 /// Unit tests for <see cref="StoreUnavailableLog"/> (#512, epic #484; store-aware since #1735): it must emit
 /// exactly one dedicated-event-id Error record per outage window AND STORE (throttled), carry ONLY the inner
 /// Redis exception's TYPE — never its message, which can embed the operated key and with it a raw userId
-/// (§5 / GDPR Art. 5(1)(c) data-minimisation) — and use the <c>store_unavailable</c> event_name the TD-77
+/// (§5 / GDPR Art. 5(1)(c) data-minimisation) — and use the <c>store_unavailable</c> event_name the #1172
 /// alarm keys on. Every emit goes through a real exception's <c>Store</c> and <c>InnerType</c>, the way
 /// <c>Program.cs</c> calls it.
 /// </summary>

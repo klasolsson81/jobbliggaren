@@ -84,7 +84,7 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
 
         // #512: the outage must be observable — a dedicated Error event on the 503 path, so
-        // the TD-77 5xx alarm has a signal. Filter on the dedicated event-id (the request
+        // the #1172 5xx alarm has a signal. Filter on the dedicated event-id (the request
         // pipeline emits many other records); assert on the one we own.
         var unavailableLogs = brokenFactory.LogProvider.Logs
             .Where(l => l.EventId.Id == 2050).ToList();

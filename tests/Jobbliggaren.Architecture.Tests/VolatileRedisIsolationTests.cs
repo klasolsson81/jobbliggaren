@@ -32,6 +32,12 @@ public class VolatileRedisIsolationTests
     /// <summary>The routes to the DURABLE instance: the registered multiplexer and the cache built on it.</summary>
     private static readonly Type[] DurableRoutes = [typeof(IConnectionMultiplexer), typeof(IDistributedCache)];
 
+    // A type from that assembly, or one carrying it: Task<IDatabase> lives in CoreLib and hands out a database.
+    private static bool Mentions(Type type, Assembly assembly) =>
+        type.Assembly == assembly
+        || (type.HasElementType && Mentions(type.GetElementType()!, assembly))
+        || type.GetGenericArguments().Any(argument => Mentions(argument, assembly));
+
     private static List<Type> ConstructorParameterTypes(Type type) =>
         type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .SelectMany(c => c.GetParameters())
@@ -92,9 +98,9 @@ public class VolatileRedisIsolationTests
                         | BindingFlags.DeclaredOnly)
             .Where(m => m switch
             {
-                FieldInfo f => !f.IsPrivate && f.FieldType.Assembly == redisAssembly,
-                PropertyInfo p => p.GetMethod is { IsPrivate: false } && p.PropertyType.Assembly == redisAssembly,
-                MethodInfo m2 => !m2.IsPrivate && m2.ReturnType.Assembly == redisAssembly,
+                FieldInfo f => !f.IsPrivate && Mentions(f.FieldType, redisAssembly),
+                PropertyInfo p => p.GetMethod is { IsPrivate: false } && Mentions(p.PropertyType, redisAssembly),
+                MethodInfo m2 => !m2.IsPrivate && Mentions(m2.ReturnType, redisAssembly),
                 _ => false,
             })
             .Select(m => m.Name)

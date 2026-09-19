@@ -17,8 +17,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// </para>
 ///
 /// <para>
-/// <b><see cref="ExecuteAsync{T}"/> is the only route to the database</b>, so a consumer cannot forget the
-/// fault translation: a degraded instance surfaces as <see cref="VolatileRedisUnavailableException"/> and
+/// <b><see cref="ExecuteAsync{T}"/> is the only route to the database</b>:
+/// a degraded instance surfaces as <see cref="VolatileRedisUnavailableException"/> and
 /// no StackExchange.Redis type reaches the Api pipeline (CLAUDE.md §2.1). It wraps the WHOLE operation,
 /// because a store's follow-up command belongs to the same unit as its transaction.
 /// </para>
@@ -36,10 +36,20 @@ internal sealed class VolatileRedisConnection : IDisposable
     private readonly ConnectionMultiplexer _multiplexer;
 
     internal VolatileRedisConnection(string connectionString)
+        : this(ConfigurationOptions.Parse(connectionString))
     {
-        var options = ConfigurationOptions.Parse(connectionString);
-        options.AbortOnConnectFail = false;
-        _multiplexer = ConnectionMultiplexer.Connect(options);
+    }
+
+    /// <summary>
+    /// For a caller that already holds options. <see cref="ConfigurationOptions.ToString()"/> does not
+    /// round-trip: it drops a <c>configChannel</c> or <c>tieBreaker</c> set to the empty string, and
+    /// <see cref="ConfigurationOptions.Parse(string)"/> then restores their defaults.
+    /// </summary>
+    internal VolatileRedisConnection(ConfigurationOptions options)
+    {
+        var effective = options.Clone();
+        effective.AbortOnConnectFail = false;
+        _multiplexer = ConnectionMultiplexer.Connect(effective);
     }
 
     /// <summary>False while no endpoint is connected. Reads local state; never touches the network.</summary>

@@ -66,7 +66,7 @@ provider links in Identity's `AspNetUserLogins` are Postgres.** (CTO: the artefa
 semantics is expiry; `INCR`-before-compare, `DEL` returning 1 on success and `SET NX` on claim are atomic
 *because* of Redis; Redis is already the availability dependency of every authenticated request,
 so a Postgres challenge would widen the failure surface, not narrow it; and under Art. 5(1)(e)
-a self-expiring encrypted address is the data-minimising choice.) *(False as 1a delivered it; true from Amendment 2026-09-19 (2) on.)*
+a self-expiring encrypted address is the data-minimising choice *(false as 1a delivered it; true from Amendment 2026-09-19 (2) on)*.)
 
 **The port exposes the invariant, never the verbs** (architect, CLAUDE.md §2 axis 3):
 
@@ -616,7 +616,7 @@ and `RedisCooldownGate`'s remaining surfaces stay on the durable instance and ar
 **How code reaches it (dotnet-architect F1–F6).** `VolatileRedisConnection` is internal and owns a
 PRIVATE multiplexer that is never registered as `IConnectionMultiplexer`: an unkeyed second registration
 is last-wins and would move every session onto an instance that forgets them at a restart.
-`ExecuteAsync` is the only route to the database, so the fault translation cannot be forgotten.
+`ExecuteAsync` is the only route to the database.
 `AbortOnConnectFail = false` with an eager connect; a `Lazy<T>` would cache a first failed attempt for
 the life of the process. Its consumers are exactly the two stores and the readiness check
 (`VolatileRedisIsolationTests`), and which instance each key class lands on is pinned through the
@@ -635,8 +635,8 @@ the instance is what an operator looks at. `StoreUnavailableException` carries `
 instances are two failure domains, and one shared window would let either outage hide the other's first
 entry. The old event name had no consumer outside the log class and its tests.
 
-**Measured, R6 (2026-09-19).** At `noeviction` OOM the stores' `MULTI{INCR; EXPIRE NX}` is refused at
-queue time, `transaction.ExecuteAsync()` THROWS `EXECABORT` rather than returning `false`, both stores
+**Measured, R6 (2026-09-19).** At `noeviction` OOM
+`transaction.ExecuteAsync()` THROWS `EXECABORT` rather than returning `false`, both stores
 answer the translated fault, and no key is left without a TTL. The branch dotnet-architect bound for the
 other outcome (assert the bool) does not apply.
 

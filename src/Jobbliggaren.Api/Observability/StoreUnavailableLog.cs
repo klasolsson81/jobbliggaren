@@ -8,7 +8,7 @@ namespace Jobbliggaren.Api.Observability;
 /// infrastructure path — the Program.cs middleware that maps a
 /// <c>StoreUnavailableException</c> to 503. Auth runs outside the Mediator pipeline, so
 /// <c>LoggingBehavior</c> never sees a session-store failure; without this log a Redis outage
-/// produces ZERO signal, and the planned TD-77 5xx alarm has nothing to alarm on.
+/// produces ZERO signal, and the planned #1172 5xx alarm has nothing to alarm on.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -55,7 +55,7 @@ public sealed partial class StoreUnavailableLog(ILogger<StoreUnavailableLog> log
 
     // §5 / GDPR Art. 5(1)(c) data-minimisation: log ONLY the dedicated event-id, the store and the
     // inner Redis exception's TYPE (connection vs timeout vs server — the degradation class the
-    // TD-77 alarm keys on). The exception MESSAGE is deliberately NOT logged: StackExchange.Redis
+    // #1172 alarm keys on). The exception MESSAGE is deliberately NOT logged: StackExchange.Redis
     // embeds the operated key in the message (IncludeDetailInExceptions defaults true), and a
     // user-keyed op's key carries the raw userId Guid (a pseudonymous identifier), an
     // address-derived one a fingerprint of the address. The raw session token can never appear

@@ -12,18 +12,18 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <c>depends_on</c>), and reachable then gone. Every one of them has to end as the translated fault, because
 /// <c>Program.cs</c> renders only <see cref="StoreUnavailableException"/> as the uniform 503.
 /// </summary>
-public sealed class VolatileRedisConnectionTests : IAsyncLifetime
+public sealed class VolatileRedisConnectionTests : IAsyncDisposable
 {
     // A closed port on loopback: nothing listens on 1. The short timeouts keep the refusal inside a second.
     private const string NeverReachable = "127.0.0.1:1,connectTimeout=500,syncTimeout=500,asyncTimeout=500";
 
     private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
-    private string _connectionString = string.Empty;
 
-    public async ValueTask InitializeAsync()
+    // Started by the tests that need a live instance only: xUnit builds this class once per test.
+    private async Task<string> ReachableAsync()
     {
-        await _redis.StartAsync();
-        _connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000";
+        await _redis.StartAsync(Ct);
+        return $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000";
     }
 
     public async ValueTask DisposeAsync() => await _redis.DisposeAsync();
@@ -36,7 +36,7 @@ public sealed class VolatileRedisConnectionTests : IAsyncLifetime
     [Fact]
     public async Task A_reachable_instance_runs_the_operation_and_reports_healthy()
     {
-        using var connection = new VolatileRedisConnection(_connectionString);
+        using var connection = new VolatileRedisConnection(await ReachableAsync());
 
         (await connection.ExecuteAsync(db => db.PingAsync())).ShouldBeGreaterThan(TimeSpan.Zero);
         (await CheckAsync(connection)).Status.ShouldBe(HealthStatus.Healthy);
@@ -68,7 +68,7 @@ public sealed class VolatileRedisConnectionTests : IAsyncLifetime
     [Fact]
     public async Task An_instance_that_goes_away_reports_unhealthy_and_names_only_the_failure_type()
     {
-        using var connection = new VolatileRedisConnection(_connectionString);
+        using var connection = new VolatileRedisConnection(await ReachableAsync());
         (await CheckAsync(connection)).Status.ShouldBe(HealthStatus.Healthy);
 
         await _redis.StopAsync(Ct);

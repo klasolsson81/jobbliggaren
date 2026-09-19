@@ -2,7 +2,8 @@
 
 **Status:** Accepted for D1–D10 and the parts sequence · **D10's three questions answered by Klas on
 2026-09-18** (mail outage = total login stop accepted, no break-glass, 5b deletes before launch — verbatim
-under "Open — Klas decides") · **Date:** 2026-09-17 ·
+under "Open — Klas decides") · **Part 1a delivered in two PRs, #1755 and the #1735 feature PR — the form as
+delivered and the corrections it made are the amendment under D10** · **Date:** 2026-09-17 ·
 **Deciders:** Klas (the directive 2026-09-16; the four answers 2026-09-17: consent as a checkbox in
 its own step after the code, `/logga-in` as the single URL, provider buttons visible but inactive,
 the CV name optional with no confirm step), `senior-cto-advisor` (D8 Variant B, D1 Redis, D5 (ii),
@@ -62,7 +63,7 @@ D8 needs; and `IPasswordResetDispatcher.TryEnqueue`'s `bool` does not mean "queu
 
 **Redis, TTL ≤ 15 min, behind `ILoginChallengeStore`; the consent stamp on `job_seekers` and
 provider links in Identity's `AspNetUserLogins` are Postgres.** (CTO: the artefacts' whole
-semantics is expiry; `INCR`-before-compare, `GETDEL` on success and `SET NX` on claim are atomic
+semantics is expiry; `INCR`-before-compare, `DEL` returning 1 on success and `SET NX` on claim are atomic
 *because* of Redis; Redis is already the availability dependency of every authenticated request,
 so a Postgres challenge would widen the failure surface, not narrow it; and under Art. 5(1)(e)
 a self-expiring encrypted address is the data-minimising choice.)
@@ -70,19 +71,22 @@ a self-expiring encrypted address is the data-minimising choice.)
 **The port exposes the invariant, never the verbs** (architect, CLAUDE.md §2 axis 3):
 
 ```csharp
-public readonly record struct ChallengeId(string Value);          // ≥128 bit, Base64Url
+public readonly record struct ChallengeId;                        // SessionId's shape: 128 bit, Base64Url, Reveal()
 public enum ChallengeOutcome { Verified, Wrong, Burned, Missing } // expired == Missing
-public sealed record ChallengeVerdict(ChallengeOutcome Outcome, LoginChallenge? Record);
+public sealed record ChallengeVerdict { … }                       // factories only: Proof non-null iff Verified,
+                                                                  // AttemptsRemaining in 1..MaxAttempts-1 iff Wrong
 
-Task PutAsync(LoginChallenge c, TimeSpan ttl, CancellationToken ct);   // burns a live record for the same address
-Task<ChallengeVerdict> ConsumeAsync(ChallengeId id, string presentedCode, CancellationToken ct);
-Task<bool> TryClaimAsync(string subjectKey, TimeSpan ttl, CancellationToken ct);
+Task<IssuedCredentials> PutAsync(NewLoginChallenge challenge, CancellationToken ct);
+Task<ChallengeVerdict> ConsumeCodeAsync(ChallengeId id, LoginCode presented, CancellationToken ct);
+Task<LoginChallengeProof?> ConsumeLinkAsync(LoginLinkToken token, CancellationToken ct);
 ```
 
-`ConsumeAsync`'s contract, in its XML doc: the counter is incremented **before** the compare; the
-record is deleted atomically on a hit; `Record` is non-null **only** on `Verified`; a dummy compare
-is paid even when no record exists. Hashing and comparison live in the adapter. Collapsing
-`Wrong/Burned/Missing` into one answer is the handler's policy (see D3).
+`ConsumeCodeAsync`'s contract, in its XML doc: the counter is incremented **before** the compare, by a
+script that does nothing when the record is absent; the record is deleted on a hit and only a `DEL`
+that returns 1 yields the proof; `Proof` is non-null **only** on `Verified`; a dummy compare is paid
+even when no record exists; a record carrying no code answers like one whose code is wrong. Minting,
+hashing, protecting and comparing live in the adapter. How `Wrong/Burned/Missing` are presented is the
+handler's policy (see D3). `TryClaimAsync` is 1c's, with `complete`, its only caller.
 
 **`TryClaimAsync` is its own atomic `SET NX`** (`StringSet(..., When.NotExists)` on the registered
 `IConnectionMultiplexer`). It **never** reuses `ICooldownGate`: `RedisCooldownGate.cs:26-27` is
@@ -91,23 +95,27 @@ accounts on one address. `RedisCooldownGate` is not changed. The claim is not th
 uniqueness either: that is `RequireUniqueEmail` plus the index, so D3's registered-meanwhile arm
 handles the duplicate error even when the claim was won.
 
-**Record shape:** `{id, emailProtected, codeProtected, linkTokenHash, isNewAddress,
-registrationClosed, pendingDeletion, attempts, expiresAt}`.
+**Record shape:** a Redis hash of two fields — `p`, the DataProtector-protected payload `{email, code,
+linkTokenHash}` (the code and the hash null where the record carries none), and `a`, the attempt
+counter. No branch flag is stored: the mail is chosen when the record is written and the outcome is
+resolved at proof time (D3). Expiry is the key's TTL.
 **Threat model, chosen (security Major 2):** a Redis reader IS in scope. A 6-digit code has a
 10⁶ preimage, so an unsalted hash protects nothing against the same reader the address is
 encrypted against; therefore **the code is protected with the same DataProtector purpose as the
-address**, and only the 128-bit link token is hashed. `codeProtected` is a confidentiality control
-and is written as one.
-**Keys** follow the delivered cooldown form, versioned: `auth/challenge/v1/{id}`,
-`auth/grant/v1/{id}`, `auth/oauth-state/v1/{state}`, `budget/{scope}/v1/{hex}`. No new root
+address**, and only the 128-bit link token is hashed, its hash inside the same protected payload. The
+protected code is a confidentiality control and is written as one.
+**Keys** follow the delivered cooldown form, versioned: `auth/challenge/v1/{b64url(sha256(id))}` and
+its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{id}` (1c),
+`auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
 segment beside `session:`; a record-shape change costs a new segment, never a decode crash on live
 records.
-**TTL 15 min** for code and link (one expiry state). **3 attempts then burn.** Code and link share
-one record so consuming either burns both — but a wrong `linkTokenHash` never consumes the code's
-three attempts (128 bits needs no attempt budget, and a POSTing scanner must not burn the user's
-code), and for `isNewAddress` the `linkTokenHash` is **null**, so `/auth/link` cannot succeed by
-construction (magic link for existing accounts only — the defence is in the record, not in the
-mail's content).
+**TTL 15 min** for code and link (one expiry state). **3 attempts, then the code is burned** — a state of
+the code arm only: the record stays until its TTL and its link still signs in (Klas's (A),
+security-auditor Q-S1). Code and link share one record, so consuming either removes both — but a wrong
+link never consumes the code's three attempts (128 bits needs no attempt budget, and a POSTing scanner
+must not burn the user's code), and a record for a subject without an account carries **no link**, so
+`/auth/link` cannot succeed for one by construction (magic link for existing accounts only — the
+defence is in the record, not in the mail's content).
 **The cookie's address is an echo, never an input** (CTO bind 1; security Minor 4): `complete`
 uses the proven address from the record. The pin is a test that sends a cookie whose address
 differs from the record's and asserts the account is created on the **record's** address — the
@@ -120,8 +128,9 @@ the wrong one.
 code. A lost keyring degrades every live record to the uniform "expired" answer, which is the
 right failure. `AddApiDataProtection`'s doc sentence "three token kinds" becomes false in 1a and is
 corrected there.
-**The mint budget is a counter, not a cooldown:** a small port `IRateBudget.TryConsumeAsync(scope,
-subject, limit, window)` (Redis `INCR` + `EXPIRE`, atomic). **The address normaliser has ONE
+**The mint budget is a counter, not a cooldown:** a small port `IRateBudget.TryConsumeAsync(RateBudgetScope
+scope, string subject, ct)`, the scope carrying name, limit and window (Redis `INCR` + `EXPIRE NX` in one
+transaction, one key per window, so no key ever exists without a TTL). **The address normaliser has ONE
 home:** `RedisCooldownGate.Key`'s `Trim().Normalize().ToUpperInvariant()` is lifted to an internal
 shared function that the shipped gate delegates to, and every new hashing site calls it (security
 Major 3) — a copy that forgets `ToUpperInvariant` gives 2^k independent windows for one account
@@ -131,12 +140,13 @@ Major 3) — a copy that forgets `ToUpperInvariant` gives 2^k independent window
 
 ### D2 — The request path never reads the account
 
-`POST /auth/challenge {email}` = `CanDeliver` → **`IRateBudget` first, existence-independent**
-(security Major 1: an over-budget mint is a **no-op that leaves the live challenge untouched** and
-writes no record; consumed before any account lookup so it burns at the same rate for known and
-unknown addresses) → silent per-address cooldown (`CooldownScopes.LoginChallenge`) → mint
-`ChallengeId` → `ILoginChallengeDispatcher.Enqueue({challengeId, email, anonIp, ua})` → uniform
-202 `{challengeId}` for known, unknown, cooled and budget-exhausted alike.
+`POST /auth/challenge {email}` = `CanDeliver` → mint `ChallengeId` → **three `IRateBudget` scopes, each
+consulted only when the one before admitted, none reading the account** (so they burn at the same rate
+for known and unknown addresses): the silent per-address cooldown (a limit-1 scope over
+`AuthEmailCooldownOptions.LoginChallengeWindowSeconds`), then the mail budget (refused → no record, no
+mail), then the code budget (refused → the request goes on, and the mail carries no code — Klas's (A),
+2026-09-19) → `ILoginChallengeDispatcher.Enqueue({challengeId, email, codeBudget, anonIp, ua})` →
+uniform 202 `{challengeId}` for known, unknown, cooled and budget-exhausted alike.
 
 **The dispatcher is a second port and a second channel, and it returns `void`** (CTO bind 2,
 architect): `ILoginChallengeDispatcher { void Enqueue(LoginChallengeDispatch) }`, its own bounded
@@ -145,11 +155,12 @@ cannot silently drop logins now that mail is a hard dependency of login. `IPassw
 is untouched; the DRY lives in Infrastructure as an `internal abstract BoundedDispatchChannel<T>`.
 No endpoint branches on an enqueue result — there is none.
 
-**The consumer always writes a record** (otherwise "burned" vs "never existed" is an oracle),
-decides `isNewAddress`, `registrationClosed` (`isNewAddress && !RegistrationsOpen`) and
-`pendingDeletion`, and sends ONE mail: existing → code + link; new → code only + *"Du skapar ett
-nytt konto"*; closed → *"vi öppnar snart"* (no code); pending deletion → the restore path. Redis
-down → uniform 503 (`Program.cs:304`, the shipped pattern).
+**The consumer always writes a record** (otherwise "burned" vs "never existed" is an oracle), before it
+sends, classifies the address (`LoginSubjectResolver`: no account, active, pending deletion, profile
+missing) and sends ONE mail: an active account within its code budget → code + link; past it → link
+only; no account or a missing profile → the closed-registration notice, no credential, in 1a — the
+new-account code arm is 1c's (#1737); pending deletion → the restore path, no credential. Redis down →
+uniform 503 through `StoreUnavailableException` (`Program.cs`, the shipped pattern).
 
 **The consumer registers in the Api composition only** (ADR 0023): inside `AddIdentityAndSessions`,
 never `AddCoreIdentityForWorker`. Two structural reasons, both measured: it needs
@@ -157,7 +168,8 @@ never `AddCoreIdentityForWorker`. Two structural reasons, both measured: it need
 existing guard catches a mis-registration** — `WorkerLayerTests` scans the Worker assembly, the
 consumer lives in Infrastructure, and the Worker runs `ValidateOnBuild = false`
 (`Worker/Program.cs:50`). 1a adds the test pair from `AuthOptionsValidatorTests.cs:220-241` for the
-new port: positive on `AddIdentityAndSessions`, negative on `AddCoreIdentityForWorker`. The
+new port and its hosted service: positive on `AddIdentityAndSessions`, negative on
+`AddCoreIdentityForWorker`. The
 residual — a hand-written line in `Worker/Program.cs` — is caught by nothing but a reader.
 
 `challengeId` + the submitted email live in a 15-min `__Host-jobbliggaren_login` httpOnly
@@ -170,9 +182,14 @@ token and never reads this cookie.
 `wrong` / `expired` / `burned` happened** (design B1, option (a)): the holder minted the challenge
 themselves, a record was always written, so the distinction carries no account-existence
 information — that branch stays hidden until the inbox is proven. `Missing` is presented as
-`expired` (the holder's challenge existed; only expiry removes it). A dummy constant-time compare
-is paid on every path. Success → existing: `Persistent` session; new: `{outcome:"consentRequired",
-grantToken}`; `registrationClosed` / `pendingDeletion` as outcomes without a session.
+`expired`, and expiry is not its only cause: a successful consume on either arm, a newer challenge the
+code budget admitted, a cooled or over-budget request whose id never had a record, a dropped enqueue,
+a verify that outruns the consumer, and a lost keyring all answer the same way. A dummy constant-time
+compare is paid on every path. **Success is resolved at proof time, by one function the code and the
+link share:** an active account → `{outcome:"signedIn", sessionId}`, a `Persistent` session; pending
+deletion → `{outcome:"pendingDeletion", permanentDeletionDate}`; no account or a missing profile →
+`{outcome:"registrationClosed"}`, both without a session (1a). 1c adds `{outcome:"consentRequired",
+grantToken}` for a new address while registration is open.
 `pendingDeletion` never restores the account through login — the 30-day clock is untouched, and
 restoration is via support (`HardDeleteAccountsJob.cs:28-33`).
 
@@ -194,8 +211,10 @@ expires with it if the user abandons the consent step. Holding `sub` + address b
 Art. 6(1)(b) second limb (steps at the data subject's request prior to a contract) and holds only
 while nothing is written durably.
 
-`POST /auth/link {token}` consumes the link. Audit rows as today's login writes them;
-`login_challenge_issued` only for known accounts, off the request path.
+`POST /auth/link {token}` consumes the link and ends in the same outcome function. A session is
+audited as today's login audits one, with the method (`Code`/`Link`) added to `login_succeeded`;
+`login_challenge_issued` only for an address with an account, off the request path; a first proof of
+an unconfirmed inbox also writes an `audit_log` row (D10).
 
 **The challenge path never calls `IsLockedOutAsync` / `AccessFailedAsync`** — its anti-automation
 is the 3-attempt burn plus the mint budget, never Identity's lockout. And **1c closes two holes the
@@ -456,19 +475,107 @@ and registered by `AddDevOnlyTestingSupport`** — the `IsDevelopment()`-only pa
 `MapDevResetMyDataEndpoint`'s configuration-gated one (security Blocker 1: `DevTools:EnableResetMyData`
 is on on the box since 2026-08-29; the route hands out a live login credential for an arbitrary
 address, unauthenticated, so the wrong gate is a total auth bypass). No flag may widen it.
-`ProductionStartupSmokeTests` gets a pair for the route in **both** polarities of
-`DevTools:EnableResetMyData`, the form `confirm-email` already has. The capturing decorator calls
+`ProductionStartupSmokeTests` covers the route in **both** polarities of
+`DevTools:EnableResetMyData`: an explicit 404 with the flag absent, and the universally quantified
+route-table test with it on. The capturing decorator calls
 **`ConsoleEmailSender.IsReservedRecipient`** (the same member, never a copy) and captures nothing
 for a non-reserved recipient (404), size- and TTL-bounded, holding the **code**, never the body
 (#1208's gate is not reopened one layer up). The code is minted with `RandomNumberGenerator` and
 rejection sampling — never `Random`, never `% 1_000_000`.
 
 **Mail is a hard dependency of login.** The delivered boot refusal (outside Development/Test when the
-registered sender cannot deliver) **drops its `RegistrationsOpen` condition** (security Major 12):
-after 1a mail is needed for login, not only registration. The rule keeps asking the sender's
-**capability** (`CanDeliver`), never the `Email:Provider` key. New fail-fast keys
-(`Auth:LoginChallengeDispatch:Capacity`, the budget windows) follow CLAUDE.md §11's dev-boot
-contract. Both existing accounts have `EmailConfirmed=true` and log in by code with no data change.
+registered sender cannot deliver) **drops both its `RegistrationsOpen` and its
+`RequireEmailConfirmation` conjuncts** (security Major 12): after 1a mail is needed for login, not only
+registration. The rule keeps asking the sender's **capability** (`CanDeliver`), never the
+`Email:Provider` key. The budget parameters are constants in `LoginChallengePolicy`, never
+configuration; `Auth:LoginChallengeDispatch:Capacity` and
+`AuthEmailCooldown:LoginChallengeWindowSeconds` are range-validated options with code defaults, so
+neither is a key a fresh dev boot needs and CLAUDE.md §11's contract is not triggered. Both existing
+accounts have `EmailConfirmed=true` and log in by code with no data change. An account whose address
+is unconfirmed is confirmed by its first passwordless proof, and in the same Identity write its
+password is removed and its security stamp rotated; its earlier sessions are revoked before the new
+one exists, and a `User.InboxProvenByLogin` `audit_log` row is written (security-auditor Q21/Q-S3).
+
+#### Amendment 2026-09-19 (#1735, part 1a) — the form as delivered, and the corrections above
+
+*Decided before code by `dotnet-architect` (`docs/reviews/2026-09-19-1735-form-architect.md`),
+`security-auditor` (`…-form-security.md` and the scoped `…-form-security-qs.md`) and
+`senior-cto-advisor` (`…-form-cto.md`), and by Klas on security's escalation.* The sentences in D1, D2,
+D3, D10, "Attempt budget", "Page form", "Processing register", "Consequences" and "Implementation status"
+that the form contradicted were corrected in place today; this block records why.
+
+**Klas's answer on the budget drain, and the reorder it rests on.** `security-auditor` (Q18) found that
+D2's budget, in any gate order, lets anyone who knows an address spend its code budget and — with no
+break-glass — keep the owner out for most of a day, every day. Klas, 2026-09-19 (#1735, comment
+5737130338): **(A), build the protection in 1a.** Past the code budget an existing account's mail
+carries a link and no code; a record is written for every admitted request, known or unknown, and a
+record with no code answers Wrong, then Burned, exactly as a wrong code does; the gates run cooldown →
+mail budget → code budget, each only when the one before admitted; and a budget key never exists without
+a TTL. The link is a 128-bit bearer credential with no attempt budget, so the owner always holds a link
+under ten minutes old or can request one. security's condition (iii) stays a named Minor: once
+registration opens, a new address's registration can still be drained, with no account or data at
+stake.
+
+**Lapse trigger 7 fired and was re-run before first use.** The budget branch changed behaviour: over
+the code budget is no longer a no-op, and the counter now counts admitted mints only. security's re-run:
+still at most 10 code-bearing mints and so 30 guesses per address per 24 h, **0.003 %/day and
+1.089 %/year — identical**; trigger 5's three quantities are unchanged. The resting copy's premise, that
+the consumer always sends a mail, still holds.
+
+**Outcomes at proof time; the 1a/1c line (CTO Q1).** The mail is chosen at issue time and the outcome at
+proof time, by one function the code and the link share, so an account deleted or a kill-switch thrown
+inside the 15 minutes is honoured. 1a never mints a code for a subject without an account, whatever
+`RegistrationsOpen` says; `ProfileMissing` groups with `NoAccount`, as the domain already treats it.
+1c adds the open-registration arm in one piece.
+
+**"Missing is shown as expired" (CTO Q2(a)).** D3's *"only expiry removes it"* was false and is replaced
+by the list of causes. The hint *"Har du redan begärt en kod nyss kan det vara den som gäller"* and
+Page-form state iv are deleted: both were false in every case they were written for. Two Minors from
+`security-auditor` are accepted as named residuals: an **address-activity signal** (a no-record
+"expired" tells a prober the address was submitted within the cooldown or is over budget), and a
+**conditional existence signal** (a prober holding a challenge for an existing account sees "expired"
+early if the owner clicks the link in the mail — it needs the owner's click, and the mail alerts them).
+
+**Constants and options (CTO Q3).** The budget is policy: `LoginChallengePolicy` holds code length,
+attempts, TTL and both windows as constants, pinned to this ADR's literals with trigger 5 in the failure
+message, because a value an env var can move would lapse the acceptance with no PR. Capacity and the
+cooldown window are `[Range]` options with code defaults; neither is a key a fresh boot needs, so
+CLAUDE.md §11 is not triggered, and D10's sentence saying it was is corrected above.
+
+**Faults (CTO Q5, architect R12).** Redis faults become `LoginChallengeStoreUnavailableException`, a
+`StoreUnavailableException` that carries the inner exception's type name only — never the exception,
+whose message can hold a key and so an address fingerprint — and the Api answers one fixed 503 body. The
+reach is the three new routes; the cooldown moved onto `IRateBudget` so its faults are translated too. A
+payload that cannot be unprotected or read (a lost keyring) is `Missing`, or no proof on the link path,
+logged with its exception type.
+
+**The address index (security Q-S1, Q-S2).** The index swap is keyed on the request path's code-budget
+decision, never on whether the record carries a code: keyed on the code, whether an earlier challenge was
+burned would tell a prober whether the address has an account. Records minted past the code budget are
+not indexed, so a link-only record never burns the live code challenge. **Named residual (Minor):** up
+to 8 records can be live for one address inside 15 minutes, at most one of them code-bearing — more
+single-use links exposed to scanners and forwarding, still under the reset path's rate.
+
+**The first inbox proof (security Q21/Q-S3).** For an account with `EmailConfirmed=false`, the first
+proof sets the flag, removes the password and rotates the stamp in one Identity write; a write that did
+not persist throws and nothing follows it; earlier sessions are revoked before the new one is created;
+and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
+that write, and only the two proof handlers can reach the grant — pinned by reflection, so it can never
+become a bare force-confirm (ADR 0127). **Residual (Minor):** a squatter's password on an account its
+owner already confirmed survives a code login until 5b. Nobody can be in that position while
+registration stays closed. **If the #734 flip happens before 5b, this becomes a Major at the flip.**
+
+**Majors 11 and 12 under "no break-glass".** Major 12 is delivered here: the boot refusal asks
+`CanDeliver` alone outside Development/Test, and the five Production test hosts register a delivering
+fake so a developer's `Local.json` can neither refuse their boot nor make them send. Major 11 stays in
+1c as D3 binds it. `security-auditor` confirms both dispositions in her review of this PR.
+
+**The dev seam.** Captured by a decorator over the composed sender, for reserved recipients only, the
+code only, once, for at most the challenge's lifetime, bounded in size; composed by one internal
+extension whose one production caller runs under `IsDevelopment()`. Every integration host replaces the
+sender, so the production wiring is pinned on the unswapped composition in both environments. The
+dev-seam types are named `Dev*`/`IDev*`, and `release-checklist.md` §2.7's teardown grep finds them by
+that name.
 
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
@@ -550,10 +657,10 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Parameter | Value | Where enforced |
 |---|---|---|
 | Code length | 6 digits, CSPRNG with rejection sampling | adapter |
-| Attempts per challenge | 3, counter incremented before compare, then burn | `ConsumeAsync` |
+| Attempts per challenge | 3, counter incremented before compare, then burn (the code arm; the link lives to the TTL) | `ConsumeCodeAsync` |
 | Challenge TTL | 15 min, code and link, one expiry state | Redis TTL |
-| Live challenges per address | 1 — a new mint burns the previous (only after the budget admits it) | `PutAsync` |
-| Mint budget per address | 3 / 10 min and 10 / 24 h, silent, consumed before any lookup | `IRateBudget` |
+| Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
+| Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
 | OAuth state | ≤ 10 min, cookie mandatory, Redis record `GETDEL` | 6a |
@@ -603,12 +710,11 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   `ResendConfirmationButton`'s form exactly (disabled 60 s, countdown outside the live region,
   message in `role="status"`). "Byt e-postadress" is a link to `/logga-in`, last. Resting copy:
   *"Vi har skickat ett mejl till {email}. Följ instruktionerna i mejlet. Innehåller det en sexsiffrig
-  kod skriver du in den här. Koden gäller i 15 minuter."* with the hint *"Har du redan begärt en kod
-  nyss kan det vara den som gäller. Kontrollera skräpposten om du inte ser mejlet inom några
+  kod skriver du in den här. Koden gäller i 15 minuter."* with the hint *"Kontrollera skräpposten om du inte ser mejlet inom några
   minuter."* — the authority is the mail, so the copy is true for the closed, pending-deletion and
   budget-exhausted branches too. A warning before the last attempt: *"Ett försök kvar. Sedan behöver
   du begära en ny kod."*
-- **The seven states**, channel discipline as `RegisterForm` delivers it — user-correctable →
+- **The states**, channel discipline as `RegisterForm` delivers it — user-correctable →
   `role="alert"` + `aria-invalid` + focus to the field; not the user's fault but a way forward here →
   `role="status"` panel with `h2`, `tabIndex=-1`, focus moved; no way forward here → the form is
   **replaced** by the panel:
@@ -618,8 +724,7 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   | wrong code | alert under the field | "Koden stämmer inte. Kontrollera siffrorna och försök igen." | field stays |
   | expired | status, replaces the field | "Koden har gått ut. Den gäller i 15 minuter." | "Skicka ny kod" becomes primary |
   | burned | status, replaces the field | "Du har skrivit fel kod tre gånger. Av säkerhetsskäl behöver du en ny kod." | "Skicka ny kod" primary |
-  | used on another device | status, never alert, never danger colour | "Inloggningen är redan klar i ett annat fönster. Vill du logga in även här behöver du en ny kod." | "Skicka ny kod" |
-  | registration closed | status, replaces the form, never danger colour | "Registreringen är inte öppen ännu. Vi hör av oss till din adress när den öppnar." | link "Till startsidan" |
+  | registration closed | status, replaces the form, never danger colour | "Registreringen är inte öppen ännu." | link "Till startsidan" |
   | pending deletion | status, replaces the form | "Ditt konto raderas permanent {14 apr 2026}. Fram till dess kan du få det återställt genom att mejla kontakt@jobbliggaren.se." | mail link; no "Ångra" button that does not exist |
   | resting / sent | base render, focus h1 | the resting copy above | field + "Skicka ny kod" + "Byt e-postadress" |
 
@@ -634,10 +739,12 @@ form that moves it into a short-lived cookie was not chosen);
   `Cache-Control: no-store` on GET **and** POST; `referrer: "no-referrer"` **measured** against the
   global `strict-origin-when-cross-origin` rule (a route rule that does not win is a rule that does
   not exist); expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
-  inloggningssidan."* Why a login token in a URL is accepted where #706's change-email token was
+  inloggningssidan."* The link route answers the same outcome union as the code step (D3). Why a
+  login token in a URL is accepted where #706's change-email token was
   not: 15 min against 24 h, single use, one record that burns code and link together, the Caddy
   edge scrub, `no-referrer`, `no-store`. **The edge-scrub pin is extended in 1a**
-  (`CaddyfileTokenScrubbingPinTests`: the new template and `/logga-in/lank` enter `RenderedLinks()`
+  (`CaddyfileTokenScrubbingPinTests`: both link-bearing login templates and `/logga-in/lank` enter
+  `RenderedLinks()`
   and the `TokenLink` regex; the parameter is spelled exactly `token`, the filter is case-sensitive;
   5a adds a `ShouldNotBeEmpty` so the derived set can never pass vacuously).
 - **"Mina sidor"** (design M6, part 3b): the trigger is a `.jp-icon-btn` like `NotificationsBell`
@@ -653,9 +760,12 @@ form that moves it into a short-lived cookie was not chosen);
 ## Processing register and DoD 8
 
 In the same PR as 1a, `docs/runbooks/gdpr-processing-register.md` "Behandling: Användarkonto och
-autentisering" gets a new `Datafält` bullet — *Inloggningsutmaning (Redis, `auth/challenge/v1/*`,
-`auth/grant/v1/*`, `auth/oauth-state/v1/*`): DataProtector-protected email and code, `linkTokenHash`,
-branch flags; TTL 15 / 10 min, self-expiring, no reaper* — and its own `Retention` row; the
+autentisering" gets a new `Datafält` bullet — *Inloggningsutmaning (Redis: `auth/challenge/v1/*` and
+the address index `auth/challenge-by-address/v1/*`, TTL 15 min; the budget keys
+`budget/login-challenge-{mails,codes,cooldown}/v1/*`, TTL their windows): the DataProtector-protected
+address, code and link hash; the keys are SHA-256 fingerprints of the address, pseudonymised personal
+data (Art. 4(5)); self-expiring, no reaper* — and its own `Retention` row. Each part records only the
+keys it creates: the grant keys go in with 1c, the OAuth-state keys with 6a. The
 `Sessioner` bullet's "payload carries only non-PII" gains *"this holds for the session record, not the
 challenge record"*; a line records that the challenge record is practically unreachable for
 Art. 15/17 because it expires within the response time. **Copy follows data, never precedes it:**
@@ -674,7 +784,7 @@ columns; the CV stops requiring a name the product never needed.
 
 **Negative, accepted.** Mail becomes a hard dependency of login — accepted by Klas on 2026-09-18
 (above). Three OAuth adapters are written and tested by hand (≈ 3 × 150 lines + contract tests)
-instead of configured. Two mails and two code entries for an email change. Seventeen PRs instead of
+instead of configured. Two mails and two code entries for an email change. Eighteen PRs instead of
 fifteen. A new PII key class in Redis for ≤ 15 min, with the keyring as its confidentiality bound.
 The attempt budget is a measured acceptance with seven lapse triggers, not a permanent property.
 
@@ -704,9 +814,11 @@ Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from 
 comment; 5a/5b are one issue, #1743, until it is split):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
-(`Persistence`) → **1a** #1735 (Klas's three D10 answers written into this ADR 2026-09-18 as the first commit of its PR)
-challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the boot-gate change,
-the edge-scrub pin, the register → **1c** #1737 `complete`,
+(`Persistence`) → **1a** #1735 in two PRs: **1a-prep** #1755 (merged 2026-09-19; Klas's three D10 answers,
+the normaliser's one home, `BoundedDispatchChannel/Service<T>`, `StoreUnavailableException`; no behaviour
+change) and **1a** challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the
+boot-gate change, the edge-scrub pin, the register → **1c** #1737 the open-registration arm (the
+new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
 **4a** #1741 display name nullable, `Resume.FullName` optional → **4b** #1742 (opens only after 4a

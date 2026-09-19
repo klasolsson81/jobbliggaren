@@ -814,7 +814,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
            **upprepa dem inte här** (ETT HEM PER TAL). code-reviewer Minor 3, 2026-08-09.
            ⚠ **DET ANDRA SKÄLET ÄR BYTT 2026-08-12 (#183) — läs inte den gamla formuleringen.**
            Fram till dess var skäl 2 *"ingen HTML-del"*. Mejlen bär numera en HTML-del, så det skälet
-           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla åtta
+           är **struket**. Ersättningen är **ingen fjärresurs i HTML-delen**, pinnad över alla
            mallarna i `EmailHtmlNoRemoteResourceTests`. **Den exakta förbjudna mängden är detektorns
            egna arrayer i `RemoteResourceDetector`, inte den här raden** — en regel med tre prosa-hem
            är tre hem att revidera. Den här raden räknade tidigare upp mängden utan den kvalifikation

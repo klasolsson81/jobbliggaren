@@ -1768,6 +1768,11 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
+        // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
+        // and the code budget). Api-only: it runs in the request path and needs the IConnectionMultiplexer
+        // registered above, which the Worker composition does not have.
+        services.AddSingleton<IRateBudget, RedisRateBudget>();
+
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer
         // MINTS a reset token, which needs the token providers only this composition registers. The

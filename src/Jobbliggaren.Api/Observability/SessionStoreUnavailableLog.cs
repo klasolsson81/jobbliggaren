@@ -35,7 +35,13 @@ public sealed partial class SessionStoreUnavailableLog(ILogger<SessionStoreUnava
     /// exception (connection / timeout / server); only its TYPE is logged — the message is dropped
     /// for data-minimisation (see <see cref="LogUnavailable"/>).
     /// </summary>
-    public void Emit(Exception inner)
+    public void Emit(Exception inner) => Emit(inner.GetType().Name);
+
+    /// <summary>
+    /// Logs the outage once per throttle window, given the failure's type name. The form a store thrown
+    /// from inside the Mediator pipeline uses, since it carries no inner exception (StoreUnavailableException).
+    /// </summary>
+    public void Emit(string innerType)
     {
         var now = Stopwatch.GetTimestamp();
         var last = Interlocked.Read(ref _lastEmitTimestamp);
@@ -45,7 +51,7 @@ public sealed partial class SessionStoreUnavailableLog(ILogger<SessionStoreUnava
         // Race-tolerant coarse valve: if two threads pass the gate at once, both may log once —
         // acceptable, because the only outcome we must never allow is MISSING the first log.
         Interlocked.Exchange(ref _lastEmitTimestamp, now);
-        LogUnavailable(inner.GetType().Name);
+        LogUnavailable(innerType);
     }
 
     // §5 / GDPR Art. 5(1)(c) data-minimisation: log ONLY the dedicated event-id + the inner Redis

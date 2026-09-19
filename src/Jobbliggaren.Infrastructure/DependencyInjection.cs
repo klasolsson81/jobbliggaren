@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -11,6 +12,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
@@ -1575,16 +1577,18 @@ public static class DependencyInjection
     ///
     /// <para>
     /// <b>Api only.</b> <c>AddCoreIdentityForWorker</c> deliberately registers no
-    /// <c>IDataProtectionProvider</c>, and the only consumer is <c>PasswordResetTokenProvider</c>'s
-    /// constructor. Sharing a keyring with the Worker would hand it cryptographic reach over tokens
-    /// it never mints or validates, and re-open the cross-process coupling the 2026-07-10 ruling
-    /// rejected. This codebase has no antiforgery, so the keyring's blast radius is the three
-    /// token KINDS those providers mint - activation, password reset, change email - and
-    /// nothing else. (Two <c>DataProtectorTokenProvider</c>s, not three: of the four
-    /// <c>AddDefaultTokenProviders</c> registers only Default is DataProtector-based, the other
-    /// three being TOTP, plus the named password-reset provider.) Regenerate with
-    /// <c>git grep -in antiforgery -- src/</c> and read the result as a property, not a count — a
-    /// comment naming it will match.
+    /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token providers (two
+    /// <c>DataProtectorTokenProvider</c>s: of the four <c>AddDefaultTokenProviders</c> registers only Default
+    /// is DataProtector-based, the other three being TOTP, plus the named password-reset provider) and the
+    /// login challenge store (#1735, purpose <c>RedisLoginChallengeStore.ProtectorPurpose</c>). Sharing a
+    /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
+    /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
+    /// no antiforgery, so the keyring's blast radius is the three token KINDS those providers mint -
+    /// activation, password reset, change email - plus every live login challenge's address and code
+    /// (ADR 0142 D1), and nothing else. The keys are persisted unprotected on the file system (no
+    /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
+    /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,
+    /// not a count — a comment naming it will match.
     /// </para>
     /// </summary>
     public static IServiceCollection AddApiDataProtection(
@@ -1772,6 +1776,10 @@ public static class DependencyInjection
         // and the code budget). Api-only: it runs in the request path and needs the IConnectionMultiplexer
         // registered above, which the Worker composition does not have.
         services.AddSingleton<IRateBudget, RedisRateBudget>();
+
+        // #1735 (ADR 0142 D1) — the login challenge store. Api-only for the same reason, and one more: it
+        // protects the address and the code with the Api's Data-Protection keyring (AddApiDataProtection).
+        services.AddSingleton<ILoginChallengeStore, RedisLoginChallengeStore>();
 
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer

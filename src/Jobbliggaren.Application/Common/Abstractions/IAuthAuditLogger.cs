@@ -2,7 +2,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 
 public interface IAuthAuditLogger
 {
-    void LoginSucceeded(Guid userId, string sessionIdPrefix);
+    /// <summary>A session was granted; <paramref name="method"/> records how it was earned (#1735).</summary>
+    void LoginSucceeded(Guid userId, string sessionIdPrefix, Auth.LoginMethod method);
     void LoginFailed(string emailHash);
 
     /// <summary>
@@ -50,4 +51,16 @@ public interface IAuthAuditLogger
     /// </para>
     /// </summary>
     void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent);
+
+    /// <summary>
+    /// #1735 — a login-challenge mail was sent for a known account (ADR 0142 D3). Written from the dispatch
+    /// consumer, so the client context is carried in, the same way as <see cref="PasswordResetRequested"/>.
+    /// <see cref="Auth.LoginChallenges.LoginChallengeKind.LinkOnly"/> is the operational signal of the
+    /// third-party budget drain Klas's option (A) answers.
+    /// </summary>
+    void LoginChallengeIssued(
+        Guid userId,
+        Auth.LoginChallenges.LoginChallengeKind challengeKind,
+        string? ipAddress,
+        string? userAgent);
 }

@@ -49,8 +49,7 @@ public interface IEmailSender
     /// <para>
     /// <b>This exists because <c>NullEmailSender</c> was an LSP violation without it (#1087).</b> It
     /// is registered as a valid <see cref="IEmailSender"/> in every non-Development/Test environment
-    /// and is the live default today (<c>Email:Provider</c> is unset in every committed
-    /// <c>appsettings*.json</c>). Dropping a notification is correct — a missed convenience. Dropping
+    /// where <c>Email:Provider</c> is unset, as it is in every committed <c>appsettings*.json</c>. Dropping a notification is correct — a missed convenience. Dropping
     /// an ownership-confirmation link is not: <c>ChangeEmailCommandHandler</c> minted a token, mailed
     /// it into the void, returned <c>Result.Success</c> and had a <c>User.EmailChangeRequested</c>
     /// audit row stamped, while the address is only ever swapped when the link is opened. The user
@@ -241,5 +240,23 @@ public interface IEmailSender
     /// </summary>
     Task SendPasswordChangedNoticeAsync(
         string toEmail,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends the login-challenge mail (#1735, ADR 0142 D2): exactly one per admitted request, in the variant
+    /// <paramref name="content"/> names — a code and a link, a link only, closed registration, or pending
+    /// deletion. It is sent by the out-of-band consumer, never on the request path, and to the address as
+    /// submitted: for an address with no account there is no stored spelling to prefer.
+    /// <para>
+    /// <b>Delivery-dependent, and since #1735 the only login path that works without a password.</b>
+    /// <c>RequestLoginChallengeCommandHandler</c> consults <see cref="CanDeliver"/> as its first statement and
+    /// refuses with a 503 before reading anything, so the 503/202 split carries no account information.
+    /// Anti-email-bomb is the request path's per-address cooldown and mail budget (<c>IRateBudget</c>,
+    /// <c>LoginChallengePolicy</c>), not this port.
+    /// </para>
+    /// </summary>
+    Task SendLoginChallengeAsync(
+        string toEmail,
+        LoginChallengeEmail content,
         CancellationToken cancellationToken);
 }

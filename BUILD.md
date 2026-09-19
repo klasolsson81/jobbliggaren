@@ -141,7 +141,7 @@
 | Cache | Redis 8.6 (Docker Compose) | Redis co-tenant container på CAX31 |
 | Object storage | lokal disk / ej aktiverat | TBD — roll/behov ej fastställt |
 | AI inferens | Ingen — produkten har ingen AI/LLM (ADR 0071) | Ingen (deterministiska motorer på BE/VPS) |
-| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
+| Email | `ConsoleEmailSender` (dev/test) / `NullEmailSender` (default annars; Api:n vägrar boota på den sedan #1735, Worker:n kör på den) | Scaleway Transactional Email `fr-par` — **aktiverad 2026-08-16 utan att §2.5-grinden passerades**, armen skickar skarpt (§13.4, [#183](https://github.com/klasolsson81/jobbliggaren/issues/183)) |
 | Secrets | `appsettings.Local.json` (gitignored) | Self-managed på VPS (systemd-credentials / sops+age, [#196](https://github.com/klasolsson81/jobbliggaren/issues/196)) |
 | Encryption keys | `LocalDataKeyProvider` AES-256-GCM (ADR 0066) | Self-managed master-nyckelmodell + rotation (ADR 0049 `Amendment 2026-08-09`, `master-key-ops.md`; [#198](https://github.com/klasolsson81/jobbliggaren/issues/198) stängd 2026-09-06) |
 | Frontend | `pnpm dev` (localhost:3000) | Next.js `next start` co-tenant container på CAX31 (bakom Caddy) |
@@ -1386,9 +1386,9 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   defaulten som ett driftläge.)* **Statusen på grinden själv står i `release-checklist.md` §2.5
   punkt 1 och är oförändrat KVAR** — den här raden säger vad som körs, aldrig om det fick köras.
   Gäller **all** utgående e-post, inte bara
-  notiser: `EmailTemplates` har åtta sorter varav sex är kontolivscykel (bekräfta e-post,
+  notiser: `EmailTemplates` har nio sorter varav sju är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
-  ändrat-lösenord-avisering). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
+  ändrat-lösenord-avisering, inloggningsutmaning i fyra varianter). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
   inte en ärvd:** avtalsparten är fransk, behandlingen sker i Frankrike, och den *krok* som
   gjorde SES-posten till en Kap. V-fråga — en EU-avtalspart under en **amerikansk** koncernmoder
   som kan nå uppgifterna (Schrems II / EDPB Rec. 01/2020) — saknas i en kedja som är fransk hela

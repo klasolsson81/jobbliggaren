@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -53,10 +55,37 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger();
 
-        sut.LoginSucceeded(Guid.NewGuid(), "abc123…");
+        sut.LoginSucceeded(Guid.NewGuid(), "abc123…", LoginMethod.Password);
 
         recorder.Latest.EventId.Id.ShouldBe(1001);
         recorder.Latest.Level.ShouldBe(LogLevel.Information);
+    }
+
+    [Fact]
+    public void LoginSucceeded_RecordsHowTheSessionWasEarned()
+    {
+        var (sut, recorder) = CreateLogger();
+
+        sut.LoginSucceeded(Guid.NewGuid(), "abc123…", LoginMethod.Link);
+
+        recorder.Latest.Message.ShouldContain("Method=Link");
+    }
+
+    [Fact]
+    public void LoginChallengeIssued_EmitsEventId1011_WithTheKindAndTheCarriedContext()
+    {
+        // Carried rather than read from an HttpContext: the caller is the dispatch consumer.
+        var (sut, recorder) = CreateLogger(ip: null, userAgent: null);
+        var userId = Guid.NewGuid();
+
+        sut.LoginChallengeIssued(userId, LoginChallengeKind.LinkOnly, "203.0.113.0", "probe/1.0");
+
+        recorder.Latest.EventId.Id.ShouldBe(1011);
+        recorder.Latest.Level.ShouldBe(LogLevel.Information);
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("ChallengeKind=LinkOnly");
+        recorder.Latest.Message.ShouldContain("Ip=203.0.113.0");
+        recorder.Latest.Message.ShouldContain("UserAgent=probe/1.0");
     }
 
     [Fact]
@@ -65,7 +94,7 @@ public class AuthAuditLoggerTests
         var (sut, recorder) = CreateLogger();
         var userId = Guid.NewGuid();
 
-        sut.LoginSucceeded(userId, "abc123…");
+        sut.LoginSucceeded(userId, "abc123…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain(userId.ToString());
     }
@@ -163,7 +192,7 @@ public class AuthAuditLoggerTests
         // så även CloudWatch-loggen följer GDPR Art. 5(1)(c) data minimisation.
         var (sut, recorder) = CreateLogger(ip: "10.0.0.123");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("10.0.0.0");
         recorder.Latest.Message.ShouldNotContain("10.0.0.123");
@@ -185,7 +214,7 @@ public class AuthAuditLoggerTests
     {
         var (sut, recorder) = CreateLogger(ip: null);
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("Ip=unknown");
     }
@@ -197,7 +226,7 @@ public class AuthAuditLoggerTests
         // som RequestContextProvider, så app-loggen aldrig bär unik IPv6-adress.
         var (sut, recorder) = CreateLogger(ip: "2001:db8:1234:5678:90ab:cdef:1234:5678");
 
-        sut.LoginSucceeded(Guid.NewGuid(), "prefix…");
+        sut.LoginSucceeded(Guid.NewGuid(), "prefix…", LoginMethod.Password);
 
         recorder.Latest.Message.ShouldContain("2001:db8:1234::");
         recorder.Latest.Message.ShouldNotContain("90ab");

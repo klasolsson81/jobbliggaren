@@ -1,16 +1,22 @@
+using System.Diagnostics;
+using System.Globalization;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.ChangePassword;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.Login;
 using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
+using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.RequestPasswordReset;
 using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 using Jobbliggaren.Application.Auth.Commands.ResetPassword;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
+using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
@@ -279,6 +285,44 @@ public static partial class AuthEndpoints
                 : Results.Accepted();
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
+        // Login challenge — REQUEST step (#1735, ADR 0142 D2). PUBLIC and uniform: every well-formed address
+        // answers 202 with a challenge id, whether it has an account, was just used, or is over its budget;
+        // the only other answers are a format 400 and the 503s (a sender that cannot deliver, a store that is
+        // unreachable), none of which depends on the address. The request path reads no account.
+        group.MapPost("/challenge", async (
+            LoginChallengeRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new RequestLoginChallengeCommand(body.Email), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Accepted(uri: (string?)null, value: new { challengeId = result.Value.Reveal() });
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Login challenge — the two PROOF steps (#1735, ADR 0142 D3). A code presented against the challenge
+        // id, or a link's token; either one, once, ends in the same outcome, resolved at proof time. Failures
+        // go to the central kind-mapper: a wrong code is 400, a burned or expired one and any unusable link
+        // 410. Neither route reads a password or touches lockout. A signed-in outcome is always a
+        // persistent session (D4), so the body carries no persistent flag.
+        group.MapPost("/challenge/verify", async (
+            LoginChallengeVerifyRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new VerifyLoginChallengeCommand(body.ChallengeId, body.Code), ct);
+            return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        group.MapPost("/link", async (
+            LoginLinkRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new ConsumeLoginLinkCommand(body.Token), ct);
+            return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
         // Password reset — APPLY step (#1171). PUBLIC: the link is opened from the account's own inbox,
         // logged out by definition, so the opaque single-use token IS the authorization. Every TOKEN
         // rejection is a uniform 400; a PASSWORD rejection names its rule, which is safe because Identity
@@ -380,6 +424,33 @@ public static partial class AuthEndpoints
     /// </summary>
     public sealed record ResendConfirmationRequest(string? Email);
 
+    /// <summary>POST /auth/challenge body (#1735). A pure transport DTO; the address is never logged.</summary>
+    public sealed record LoginChallengeRequest(string? Email);
+
+    /// <summary>POST /auth/challenge/verify body (#1735). The code is a credential and is never logged.</summary>
+    public sealed record LoginChallengeVerifyRequest(string? ChallengeId, string? Code);
+
+    /// <summary>POST /auth/link body (#1735). The token is a credential and is never logged.</summary>
+    public sealed record LoginLinkRequest(string? Token);
+
+    // Every outcome is a 200 carrying `outcome`, so 1c can add its own values without changing the shape.
+    private static IResult LoginOutcomeResult(LoginOutcome outcome) => outcome switch
+    {
+        LoginOutcome.SignedIn signedIn => Results.Ok(new
+        {
+            outcome = LoginOutcome.SignedIn.WireName,
+            sessionId = signedIn.SessionId,
+        }),
+        LoginOutcome.PendingDeletion pending => Results.Ok(new
+        {
+            outcome = LoginOutcome.PendingDeletion.WireName,
+            permanentDeletionDate = pending.PermanentDeletionEarliest.ToString(
+                "yyyy-MM-dd", CultureInfo.InvariantCulture),
+        }),
+        LoginOutcome.RegistrationClosed => Results.Ok(new { outcome = LoginOutcome.RegistrationClosed.WireName }),
+        _ => throw new UnreachableException($"Unmapped login outcome {outcome.GetType().Name}."),
+    };
+
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an
     // endpoint-local concern rather than a new ErrorKind (senior-cto-advisor 2026-06-26, #239
@@ -441,15 +512,17 @@ public static partial class AuthEndpoints
         // No Retry-After, for the reason written on the arm above: the date is unknown and a wrong
         // one is worse than none.
         //
-        // TWO producers since #1171, and the second is PUBLIC — the earlier note that this was
-        // reachable only from the authenticated /auth/change-email no longer holds, so the reason it
-        // discloses nothing about any address is different for each:
+        // Public producers since #1171 — the earlier note that this was reachable only from the
+        // authenticated /auth/change-email no longer holds, so the reason it discloses nothing about any
+        // address is different for each:
         //   · POST /auth/change-email — authenticated and re-authenticated, so the caller already
         //     owns the account and learns nothing new.
         //   · POST /auth/forgot-password — unauthenticated, and safe instead by ORDER: the handler's
         //     capability check is its first statement and reads no input, so this 503 is decided
         //     before the submitted address is looked at and cannot vary with it. Move that check
         //     after the account lookup and this arm becomes an enumeration oracle.
+        //   · POST /auth/challenge (#1735) — unauthenticated, and safe by the same ORDER: its handler
+        //     checks capability first, before it reads the address.
         AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
             detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
             title: AuthErrorCodes.EmailDeliveryUnavailable,

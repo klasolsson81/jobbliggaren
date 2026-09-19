@@ -19,15 +19,21 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// Recording (not a pure no-op) so tests can positively assert a side-effect ("a confirmation email
 /// was queued to X") without touching the network. Append-only + thread-safe; tests assert by the
 /// unique per-test recipient, so the singleton's collection-shared lifetime needs no reset. Records
-/// only the kind + recipient — never any body content (secret/PII hygiene, even in a test fake).
+/// the kind + recipient, and never a rendered body (secret/PII hygiene, even in a test fake). The one
+/// addition is the login challenge's typed content (#1735): its link token is stored only as a hash, so
+/// the mail's arguments are the only source a link test has (security-auditor Q15, 2026-09-18).
 /// </para>
 /// </summary>
 internal sealed class RecordingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<RecordedEmail> _sent = new();
+    private readonly ConcurrentQueue<RecordedLoginChallenge> _loginChallenges = new();
 
     /// <summary>Snapshot of every email queued through this fake since host start.</summary>
     public IReadOnlyList<RecordedEmail> Sent => [.. _sent];
+
+    /// <summary>Snapshot of every login-challenge mail's typed content since host start.</summary>
+    public IReadOnlyList<RecordedLoginChallenge> LoginChallenges => [.. _loginChallenges];
 
     private volatile bool _canDeliver = true;
 
@@ -190,6 +196,17 @@ internal sealed class RecordingEmailSender : IEmailSender
         _sent.Enqueue(new RecordedEmail(RecordedEmailKind.PasswordChangedNotice, toEmail));
         return Task.CompletedTask;
     }
+
+    public Task SendLoginChallengeAsync(
+        string toEmail,
+        LoginChallengeEmail content,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfFailing("login-challenge");
+        _loginChallenges.Enqueue(new RecordedLoginChallenge(toEmail, content));
+        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.LoginChallenge, toEmail));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Which <see cref="IEmailSender"/> method recorded the send.</summary>
@@ -203,7 +220,11 @@ internal enum RecordedEmailKind
     AccountExistsNotice,
     PasswordReset,
     PasswordChangedNotice,
+    LoginChallenge,
 }
 
 /// <summary>A single email queued through <see cref="RecordingEmailSender"/> (kind + recipient only).</summary>
 internal sealed record RecordedEmail(RecordedEmailKind Kind, string ToEmail);
+
+/// <summary>A login-challenge mail's recipient and typed content, recorded for the link and code tests.</summary>
+internal sealed record RecordedLoginChallenge(string ToEmail, LoginChallengeEmail Content);

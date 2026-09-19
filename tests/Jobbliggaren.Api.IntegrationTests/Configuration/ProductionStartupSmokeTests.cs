@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
+using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -37,6 +40,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
         builder.ConfigureServices(services =>
         {
+            // #1735 (security-auditor Major 12) — outside Development/Test the Api refuses to boot on a sender
+            // that cannot deliver, and this host would otherwise compose NullEmailSender, or a real provider from
+            // a developer's Local.json. A delivering in-process fake, registered last, keeps the boot on the path
+            // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
             services.AddDbContext<AppDbContext>(options =>
@@ -147,8 +157,9 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     //   * /api/v1/dev/reset-my-data is unmapped outside Development UNLESS
     //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
     //     owner-scoped, authenticated, and refused a second time inside the handler.
+    //   * /api/v1/dev/login-code (#1735) is mapped by the same method as confirm-email.
     //
-    // A 404 (not 401/405) proves the route does not exist; if either gate regressed, these
+    // A 404 (not 401/405) proves the route does not exist; if a gate regressed, these
     // turn red before deploy.
 
     [Fact]
@@ -158,6 +169,21 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
 
         var response = await _client.PostAsJsonAsync(
             "/api/v1/dev/confirm-email",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_login_code_is_unmapped_in_Production_env()
+    {
+        // #1735 — the login-code seam sits beside confirm-email and shares its ENVIRONMENT gate. The flag-on
+        // polarity is the universally quantified route-table test below, which admits reset-my-data alone.
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/login-code",
             new { email = "x@e2e.jobbliggaren.test" },
             ct);
 
@@ -198,8 +224,8 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     [Fact]
     public void Only_reset_my_data_is_mapped_under_api_v1_dev_in_Production_env_when_the_flag_is_on()
     {
-        // The three route tests above are ENUMERATED — they each name a route. That is fine for
-        // the two routes that exist and blind to a third: a new endpoint added to
+        // The route tests above are ENUMERATED — they each name a route. That is fine for
+        // the routes that exist and blind to a new one: a new endpoint added to
         // MapDevResetMyDataEndpoint, or a new method called under the same flag, would reach
         // Production with the flag on and nothing would go red. This assertion is universally
         // quantified over the route table instead, so it fails on arrival rather than on
@@ -223,7 +249,7 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     {
         // THE load-bearing test of this whole change. The reset flag must never be one || away
         // from re-arming the unauthenticated confirm-email seam in a deployed environment. That
-        // is why the two routes are mapped by two different extension methods rather than one
+        // is why the routes are mapped by two different extension methods rather than one
         // call behind one condition — and this is the measurement that keeps it true.
         var ct = TestContext.Current.CancellationToken;
         using var host = _factory.WithWebHostBuilder(
@@ -256,5 +282,17 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         using var scope = _factory.Services.CreateScope();
 
         scope.ServiceProvider.GetService<IDevEmailConfirmer>().ShouldBeNull();
+    }
+
+    // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture
+    // is in the container. The capturing sender is not asserted here: this host replaces IEmailSender, so
+    // DevLoginCodeCaptureCompositionTests measures that half on the unswapped composition.
+    [Fact]
+    public void The_login_code_capture_is_not_registered_in_Production_env()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        scope.ServiceProvider.GetService<IDevLoginCodeReader>().ShouldBeNull();
+        scope.ServiceProvider.GetService<DevLoginCodeCapture>().ShouldBeNull();
     }
 }

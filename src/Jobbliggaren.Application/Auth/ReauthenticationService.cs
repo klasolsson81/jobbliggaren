@@ -74,8 +74,8 @@ public sealed class ReauthenticationService(
         // its password, and was handed a FRESH session by the /change-password re-issue — renewing the
         // capability without ever crossing the login guard (security-auditor M-1).
         //
-        // The predicate is deliberately byte-for-byte the same rule as LoginCommandHandler's: two
-        // grants, one sentence — "a row with no JobSeeker is granted nothing". Read them together.
+        // The predicate is deliberately the same rule as LoginCommandHandler's and LoginSubjectResolver's:
+        // three gates, one sentence — "a row with no JobSeeker is granted nothing". Read them together.
         var profile = await db.JobSeekers
             .IgnoreQueryFilters()
             .Where(js => js.UserId == userId)

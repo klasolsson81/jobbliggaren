@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
 using Shouldly;
@@ -13,7 +14,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <b>The mechanism this exists for is case-sensitive and silent.</b> Caddy's <c>query</c> log
 /// filter matches parameter keys exactly: measured 2026-08-29 on caddy 2.11.4, a request carrying
 /// <c>?TOKEN=...</c> passed a filter configured to delete <c>token</c> and was logged verbatim. So
-/// the scrubbing in <c>deploy/caddy/Caddyfile</c> holds only while the three link generators keep
+/// the scrubbing in <c>deploy/caddy/Caddyfile</c> holds only while the link generators keep
 /// spelling their parameters the way that file spells them, and nothing in either file can see the
 /// other.
 /// </para>
@@ -67,7 +68,7 @@ public class CaddyfileTokenScrubbingPinTests
 
     /// <summary>
     /// Parameters allowed to reach a log post unfiltered. Deliberately EMPTY: every parameter the
-    /// three links render is filtered at the edge. A future parameter goes here only with a written
+    /// links render is filtered at the edge. A future parameter goes here only with a written
     /// reason, and adding one is the decision this array exists to make visible.
     /// </summary>
     private static readonly string[] KeptParameters = [];
@@ -149,14 +150,14 @@ public class CaddyfileTokenScrubbingPinTests
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix"];
 
     private static readonly Regex TokenLink = new(
-        @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord)\?\S+",
+        @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord|logga-in/lank)\?\S+",
         RegexOptions.Compiled);
 
     /// <summary>A line opening a <c>log</c> directive, at any indentation.</summary>
     private static readonly Regex LogDirective = new(@"^log\b", RegexOptions.Compiled);
 
     /// <summary>
-    /// The three token-bearing links, as the real generators render them into the plain-text part.
+    /// The token-bearing links, as the real generators render them into the plain-text part.
     /// </summary>
     private static List<string> RenderedLinks()
     {
@@ -172,6 +173,13 @@ public class CaddyfileTokenScrubbingPinTests
             EmailTemplates.PasswordReset(
                 BaseUrl,
                 new PasswordResetEmail(Guid.NewGuid(), Base64UrlToken)).PlainTextBody,
+            EmailTemplates.LoginChallenge(
+                BaseUrl,
+                new LoginChallengeEmail.CodeAndLink(
+                    LoginCode.FromRaw("042917"), LoginLinkToken.FromRaw(Base64UrlToken))).PlainTextBody,
+            EmailTemplates.LoginChallenge(
+                BaseUrl,
+                new LoginChallengeEmail.LinkOnly(LoginLinkToken.FromRaw(Base64UrlToken))).PlainTextBody,
         };
 
         return bodies
@@ -278,13 +286,13 @@ public class CaddyfileTokenScrubbingPinTests
     }
 
     [Fact]
-    public void TheOracle_ReadsAllThreeLinks_AndANonEmptyFilterInsideGlobalOptions()
+    public void TheOracle_ReadsEveryLink_AndANonEmptyFilterInsideGlobalOptions()
     {
         // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, and
         // /bekrafta-epost alone renders the whole union {uid, email, token} — so counting NAMES
-        // cannot tell three matched links from one. Count the links.
+        // cannot tell several matched links from one. Count the links.
         RenderedLinks().Count.ShouldBe(
-            3,
+            5,
             "a token-bearing link stopped matching TokenLink, so the pin silently reads fewer "
             + "generators than it claims.");
 

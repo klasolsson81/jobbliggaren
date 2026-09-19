@@ -57,9 +57,11 @@ public sealed class LoginCommandHandler(
         // premise "Register skapar båda atomiskt" — false: registration is deliberately non-atomic
         // across two boundaries (ADR 0024 D6, AccountHardDeleter.cs:19-28).
         //
-        // The guard sits here because login is the CAPABILITY seam: the only UNAUTHENTICATED place a
-        // profile-less row can be granted anything. The other two ISessionStore.CreateAsync call sites
-        // are AuthEndpoints' post-password-change re-issue, which is .RequireAuthorization(), and
+        // The guard sits here because login is a CAPABILITY seam: an UNAUTHENTICATED place a profile-less
+        // row could be granted a session. The passwordless grant (#1735) is the other, and it holds the
+        // same rule by type: PasswordlessSessionGrant takes only a LoginSubject.Active, which
+        // LoginSubjectResolver builds from the same predicate. The remaining ISessionStore.CreateAsync call
+        // sites are AuthEndpoints' post-password-change re-issue, which is .RequireAuthorization(), and
         // RegisterCommandHandler's legacy instant-login branch, which is unreachable in production by
         // TWO separate checks depending on configuration: AuthOptionsValidator refuses to boot
         // RegistrationsOpen without RequireEmailConfirmation, and with RegistrationsOpen=false (the
@@ -97,7 +99,7 @@ public sealed class LoginCommandHandler(
         var lifetime = command.RememberMe ? SessionLifetime.Persistent : SessionLifetime.Session;
         var session = await sessionStore.CreateAsync(userId, lifetime, cancellationToken);
 
-        auditLogger.LoginSucceeded(userId, session.Id.ToString());
+        auditLogger.LoginSucceeded(userId, session.Id.ToString(), LoginMethod.Password);
 
         return Result.Success(new SessionDto(session.Id.Reveal()));
     }

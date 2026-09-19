@@ -330,6 +330,10 @@ if [[ "${1:-}" == "--check" ]]; then
   # crash-loop sentence false for the host-only set.
   expiring=0
 
+  # A FOURTH FLAG, for the same reason as the second: a provider that cannot deliver stops api ALONE
+  # (#1735). The `missing` summary names api AND worker, and the worker has no delivery rule.
+  api_refuses=0
+
   # A THIRD FLAG, AND THE THIRD SUMMARY BELOW IS WHY IT IS NOT `missing` (#1319, #1320). A posture
   # fault means every secret is present and readable, the stack is serving, and mail is fine —
   # what has drifted is the at-rest protection AROUND those secrets. Routing it into `missing`
@@ -504,6 +508,16 @@ if [[ "${1:-}" == "--check" ]]; then
     missing=1
   fi
 
+  # compose runs api with ASPNETCORE_ENVIRONMENT=Production, where an unset or Console provider is
+  # NullEmailSender and AuthOptionsValidator refuses to boot on a sender that cannot deliver.
+  if [[ "$env_provider" == "console" ]]; then
+    log "UNDELIVERABLE: EMAIL_PROVIDER is unset or Console in ${ENV_FILE}. In Production that is"
+    log "         NullEmailSender, which cannot deliver, and api refuses to START on it"
+    log "         (AuthOptionsValidator, #1735). Set EMAIL_PROVIDER=Scaleway with its"
+    log "         credentials, per deploy/.env.example."
+    api_refuses=1
+  fi
+
   if scaleway_credentials_required; then
     for key in "${SCALEWAY_SECRET_KEYS[@]}"; do
       if ! has_usable_content "${SECRETS_DIR}/${key}"; then
@@ -609,6 +623,10 @@ if [[ "${1:-}" == "--check" ]]; then
     log "  sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh"
   fi
 
+  if [[ $api_refuses -ne 0 && $missing -eq 0 ]]; then
+    log "The provider line above stops api alone: api will crash-loop by design while worker serves."
+  fi
+
   # ITS OWN SENTENCE, AND THE DISTINCTION IS THE POINT: in this state the stack is HEALTHY. An
   # operator who reads the crash-loop summary above and then finds api serving would conclude the
   # alarm is wrong and learn to discount it — which is how a real one gets ignored later.
@@ -641,7 +659,7 @@ if [[ "${1:-}" == "--check" ]]; then
     log "prevent. It exits non-zero because systemctl --failed is this box's only fault surface."
   fi
 
-  if [[ $missing -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
+  if [[ $missing -ne 0 || $api_refuses -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
     exit 1
   fi
   log "all secrets present in ${SECRETS_DIR}"

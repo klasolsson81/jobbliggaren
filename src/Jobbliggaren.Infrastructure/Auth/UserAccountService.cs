@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Text;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
@@ -15,7 +16,7 @@ public sealed partial class UserAccountService(
     ILoginTimingEqualizer loginTimingEqualizer,
     IOptions<AuthOptions> authOptions,
     ILogger<UserAccountService> logger)
-    : IUserAccountService
+    : IUserAccountService, ILoginAccountLookup
 {
     public async Task<Result<Guid>> CreateUserAsync(
         string email, string password, CancellationToken ct)
@@ -188,6 +189,14 @@ public sealed partial class UserAccountService(
         return user is not null;
     }
 
+    // ILoginAccountLookup — one consumer, LoginSubjectResolver (#1735). A separate port rather than an
+    // IUserAccountService member, so this service still offers no bare existence check to its callers.
+    async Task<Guid?> ILoginAccountLookup.FindUserIdAsync(string email, CancellationToken ct)
+    {
+        var user = await userManager.FindByEmailAsync(email);
+        return user?.Id;
+    }
+
     public async Task<Result<string>> GenerateChangeEmailTokenAsync(
         Guid userId, string newEmail, CancellationToken ct)
     {
@@ -314,9 +323,7 @@ public sealed partial class UserAccountService(
             return null;
 
         // An account exists at this address AND is still unconfirmed. A confirmed OR non-existent address
-        // both yield null (indistinguishable). Accounts are hard-deleted (no soft-delete row lingers —
-        // DeleteUserAsync), so no deleted-state gate is needed. Mirrors FindByEmailAsync in
-        // ValidateCredentialsAsync.
+        // both yield null (indistinguishable). Mirrors FindByEmailAsync in ValidateCredentialsAsync.
         var user = await userManager.FindByEmailAsync(email);
         if (user is not { EmailConfirmed: false, Email: { } accountEmail })
             return null;

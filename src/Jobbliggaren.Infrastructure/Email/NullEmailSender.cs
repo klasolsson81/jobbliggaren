@@ -13,10 +13,11 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// real-recipient environment. A real
 /// transactional provider exists alongside it: ScalewayEmailSender behind Email:Provider=Scaleway
 /// (Scaleway Transactional Email, fr-par, #183). This sender is what an UNSET Email:Provider
-/// resolves to outside Development/Test, which is the live default today.
+/// resolves to outside Development/Test. Since #1735 the Api refuses to boot with it
+/// (<c>AuthOptionsValidator</c>); the Worker still runs on it.
 ///
 /// Suppression is logged WITHOUT any recipient/token, and the level is split by consequence:
-/// <b>Warning</b> for the four account-lifecycle kinds, <b>Debug</b> for the two notification
+/// <b>Warning</b> for every account-lifecycle kind, <b>Debug</b> for the two notification
 /// kinds. security-auditor's minimum named three (<c>email-confirmation</c>,
 /// <c>email-changed-notification</c>, <c>account-exists-notice</c>);
 /// <c>email-change-confirmation</c> is raised with them for a different reason, stated because it
@@ -56,23 +57,21 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <c>Auth:RequireEmailConfirmation</c> is on — the account is created, login is blocked by the
 /// <c>EmailConfirmed</c> gate, and the activation link exists nowhere, i.e. a permanently
 /// unreachable account. <b>CLOSED at composition time (senior-cto-advisor D1, 2026-08-09):</b>
-/// <c>AuthOptionsValidator</c> now refuses to boot outside Development/Test when registrations are
-/// open and the registered sender answers <see cref="CanDeliver"/> false — which is this class.
+/// <c>AuthOptionsValidator</c> now refuses to boot outside Development/Test when the registered sender
+/// answers <see cref="CanDeliver"/> false — which is this class — and since #1735 whatever the flags say.
 /// The handler is unchanged and needs no <see cref="CanDeliver"/> branch of its own: the
 /// configuration that would strand a registrant no longer starts, so <b>for this producer</b> the
 /// state is unreachable rather than handled. What the guard does NOT cover, stated so the scope is
-/// not read wider than it is: (1) it keys on <c>RegistrationsOpen</c>, so a host with registrations
-/// CLOSED boots clean with this sender; (2) an account registered earlier under a delivering
-/// provider and still unconfirmed keeps the silent resend path in the next bullet; (3) the allowlist
+/// not read wider than it is: (1) the allowlist
 /// exempts Development and <b>Test</b>, and a reachable <c>ASPNETCORE_ENVIRONMENT=Test</c> host
 /// strands registrants exactly as before — <c>release-checklist.md</c> §2.6 point 5.5 counts such a
-/// host as a production start and gates it legally, which the technical guard does not; (4) the
+/// host as a production start and gates it legally, which the technical guard does not; (2) the
 /// guard reads a CAPABILITY, not a delivery probe, so a sender answering
 /// <see cref="CanDeliver"/> <see langword="true"/> that is nonetheless rejected downstream produces
 /// the same stranded account — <c>ScalewayEmailSender</c> answers <see langword="true"/>
 /// unconditionally, and the domain publishes DMARC <c>p=reject</c> without <c>rua=</c> (measured
 /// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s Scaleway arm), so a From address outside
-/// the verified identity fails silently. Case 4 is owned by <c>release-checklist.md</c> §2.5 and
+/// the verified identity fails silently. Case 2 is owned by <c>release-checklist.md</c> §2.5 and
 /// <c>registration-gate.md</c>, never by this gate.</item>
 /// <item><c>ResendEmailConfirmationCommandHandler</c> — same stranding, and it must keep returning
 /// a uniform 202 for anti-enumeration reasons, so it cannot signal the failure to the caller at
@@ -85,9 +84,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// the only mint site (<c>ChangeEmailCommandHandler</c>) is now behind <see cref="CanDeliver"/>, so
 /// while this sender is registered no token can exist and the event the control detects cannot
 /// occur. Control and guarded flow go dark together, and both return when the provider is set —
-/// no checklist item, nothing to remember. Residual, stated so it is not rediscovered: a token
-/// minted under a capable sender and confirmed after an operator swaps to this one, bounded by the
-/// 24h token lifespan, with C6 logout-everywhere as the previous owner's crude remaining signal.</item>
+/// no checklist item, nothing to remember.</item>
 /// <item><c>RequestPasswordResetCommandHandler</c> (#1171) — the password changes only when the
 /// emailed link is opened, so a dropped send leaves someone who has already lost access with no way
 /// back in. It consults <see cref="CanDeliver"/> and refuses (503), like change-email. <b>The check
@@ -98,10 +95,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <item><c>ResetPasswordCommand</c>'s password-changed notice (#1171) — the same OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control as the old-address notice above, and closed by the same
 /// argument rather than by a new gate: no reset token can be minted while this sender is registered,
-/// so the event the control reports cannot occur. Control and guarded flow go dark together. It
-/// carries the narrower residual too — a token minted under a capable sender and redeemed after an
-/// operator swaps to this one — bounded by the reset lifespan, which is
-/// <c>PasswordResetTokenProviderOptions.LifespanMinutes</c> rather than the 24h above.</item>
+/// so the event the control reports cannot occur. Control and guarded flow go dark together.</item>
 /// </list>
 /// </para>
 /// <para>
@@ -188,6 +182,15 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedConsequential("password-changed-notice");
+        return Task.CompletedTask;
+    }
+
+    public Task SendLoginChallengeAsync(
+        string toEmail,
+        LoginChallengeEmail content,
+        CancellationToken cancellationToken)
+    {
+        LogSuppressedConsequential("login-challenge");
         return Task.CompletedTask;
     }
 

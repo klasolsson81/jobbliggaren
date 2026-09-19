@@ -184,8 +184,7 @@ public class ForgotPasswordTests(ApiFactory factory)
     {
         // #1087's gate applied to a flow whose success is DEFINED by delivery: the password changes only
         // when the emailed link is opened, so a dropped send leaves someone who has already lost access
-        // with "check your inbox" and no link. NullEmailSender is the live default outside
-        // Development/Test, so this is the ordinary configuration, not an edge case.
+        // with "check your inbox" and no link.
         var ct = TestContext.Current.CancellationToken;
         var email = $"fp-nodeliver-{Guid.NewGuid()}@example.se";
         await CreateAccountAsync(email, ct);

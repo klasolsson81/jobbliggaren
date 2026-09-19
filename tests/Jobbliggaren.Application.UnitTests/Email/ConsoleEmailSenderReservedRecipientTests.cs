@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Email;
@@ -101,6 +102,14 @@ public class ConsoleEmailSenderReservedRecipientTests
         new(nameof(IEmailSender.SendPasswordChangedNoticeAsync), "password-changed-notice",
             (s, to) => s.SendPasswordChangedNoticeAsync(to, CancellationToken.None),
             CarriesProbe: false),
+
+        new(nameof(IEmailSender.SendLoginChallengeAsync), "login-challenge",
+            (s, to) => s.SendLoginChallengeAsync(
+                to,
+                new LoginChallengeEmail.CodeAndLink(
+                    LoginCode.FromRaw(BodyProbe), LoginLinkToken.FromRaw("link-token")),
+                CancellationToken.None),
+            CarriesProbe: true),
     ];
 
     public static TheoryData<string> AllKinds()
@@ -177,7 +186,7 @@ public class ConsoleEmailSenderReservedRecipientTests
     }
 
     // ---------------------------------------------------------------------------------------
-    // 2. Growth of the surface. A ninth IEmailSender method added outside the gate must fail a
+    // 2. Growth of the surface. A new IEmailSender method added outside the gate must fail a
     //    test rather than pass silently: a guard that closes today's members does not close
     //    tomorrow's.
     // ---------------------------------------------------------------------------------------
@@ -186,7 +195,7 @@ public class ConsoleEmailSenderReservedRecipientTests
     public void EveryEmailSenderMethod_HasACaseInThisFile()
     {
         // !IsSpecialName drops the CanDeliver getter without depending on a Send* naming
-        // convention a ninth method need not follow.
+        // convention a new method need not follow.
         var declared = typeof(IEmailSender).GetMethods()
             .Where(m => !m.IsSpecialName)
             .Select(m => m.Name)

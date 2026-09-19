@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -11,10 +13,10 @@ public sealed partial class AuthAuditLogger(
     IIpAnonymizer ipAnonymizer)
     : IAuthAuditLogger
 {
-    public void LoginSucceeded(Guid userId, string sessionIdPrefix)
+    public void LoginSucceeded(Guid userId, string sessionIdPrefix, LoginMethod method)
     {
         var (resolvedIp, resolvedAgent) = ExtractRequestContext();
-        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, resolvedIp, resolvedAgent);
+        LogLoginSucceeded(logger, "login_succeeded", userId, sessionIdPrefix, method, resolvedIp, resolvedAgent);
     }
 
     public void LoginFailed(string emailHash)
@@ -55,6 +57,20 @@ public sealed partial class AuthAuditLogger(
             userAgent ?? string.Empty);
     }
 
+    public void LoginChallengeIssued(
+        Guid userId, LoginChallengeKind challengeKind, string? ipAddress, string? userAgent)
+    {
+        // Carried, not extracted, for the same reason as PasswordResetRequested: the caller is the
+        // dispatch consumer, with no HttpContext.
+        LogLoginChallengeIssued(
+            logger,
+            "login_challenge_issued",
+            userId,
+            challengeKind,
+            ipAddress ?? IIpAnonymizer.UnknownLabel,
+            userAgent ?? string.Empty);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -73,9 +89,10 @@ public sealed partial class AuthAuditLogger(
     }
 
     [LoggerMessage(1001, LogLevel.Information,
-        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Ip={Ip} UserAgent={UserAgent}")]
+        "AuditEvent={AuditEvent} UserId={UserId} SessionIdPrefix={SessionIdPrefix} Method={Method} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogLoginSucceeded(
-        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, string ip, string userAgent);
+        ILogger logger, string auditEvent, Guid userId, string sessionIdPrefix, LoginMethod method, string ip,
+        string userAgent);
 
     [LoggerMessage(1002, LogLevel.Warning,
         "AuditEvent={AuditEvent} EmailHash={EmailHash} Ip={Ip} UserAgent={UserAgent}")]
@@ -103,4 +120,10 @@ public sealed partial class AuthAuditLogger(
         "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogPasswordResetRequested(
         ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+
+    // #1735. UserId and the mail kind only — never the address, the code or the link.
+    [LoggerMessage(1011, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} ChallengeKind={ChallengeKind} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogLoginChallengeIssued(
+        ILogger logger, string auditEvent, Guid userId, LoginChallengeKind challengeKind, string ip, string userAgent);
 }

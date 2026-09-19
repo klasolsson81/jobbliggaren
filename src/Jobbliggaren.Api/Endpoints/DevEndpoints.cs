@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Application.Dev.Commands.ConfirmEmail;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
+using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
 using Mediator;
 
 namespace Jobbliggaren.Api.Endpoints;
@@ -10,11 +11,11 @@ namespace Jobbliggaren.Api.Endpoints;
 /// (<c>docs/runbooks/release-checklist.md</c>). These exist solely so onboarding flows can be
 /// re-tested.
 ///
-/// <para><b>The two routes are mapped by two different methods, and that is the point.</b> They
+/// <para><b>The routes are mapped by two different methods, and that is the point.</b> The methods
 /// have different change-reasons — one is gated on the ENVIRONMENT and can never be reachable
 /// outside Development, the other on CONFIGURATION so it can be turned on for a deployed test box.
 /// Kept in one call behind one condition, the unauthenticated <c>confirm-email</c> seam would sit
-/// one <c>||</c> away from being re-armed in Production by an edit aimed at the other route.</para>
+/// one <c>||</c> away from being re-armed in Production by an edit aimed at <c>reset-my-data</c>.</para>
 /// </summary>
 public static class DevEndpoints
 {
@@ -52,6 +53,22 @@ public static class DevEndpoints
                 ? Results.NoContent()
                 : Results.NotFound();
         });
+
+        // DEV-ONLY — the login code the last challenge mail to a RESERVED address carried (#1735, ADR 0142
+        // D10), taken once, so a flow can sign in without a mailbox. The code alone signs nothing in: it is
+        // verified against the challenge id its requester holds. The same two gates as confirm-email: this
+        // map, and IDevLoginCodeReader registered only in Development. REMOVE BEFORE LAUNCH.
+        group.MapPost("/login-code", async (
+            DevLoginCodeRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body?.Email))
+                return Results.BadRequest();
+
+            var code = await mediator.Send(new DevTakeLoginCodeCommand(body.Email), ct);
+            return code is null ? Results.NotFound() : Results.Ok(new { code });
+        });
     }
 
     /// <summary>
@@ -83,4 +100,7 @@ public static class DevEndpoints
 
     /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/confirm-email</c> (#796).</summary>
     public sealed record ConfirmEmailDevRequest(string? Email);
+
+    /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/login-code</c> (#1735).</summary>
+    public sealed record DevLoginCodeRequest(string? Email);
 }

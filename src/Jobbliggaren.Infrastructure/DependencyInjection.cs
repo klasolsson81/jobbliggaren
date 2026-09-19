@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -11,6 +12,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
@@ -102,10 +104,41 @@ public static class DependencyInjection
         // environments, this dead handler would turn a deployed boot into a startup crash
         // — remove the whole dev-seam before then (REMOVE BEFORE LAUNCH).
         if (environment.IsDevelopment())
+        {
             services.AddScoped<
                 Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,
                 Auth.DevEmailConfirmer>();
+            services.AddDevLoginCodeCapture();
+        }
 
+        return services;
+    }
+
+    /// <summary>
+    /// DEV-ONLY — REMOVE BEFORE LAUNCH (Klas). Wraps the last-registered <see cref="IEmailSender"/> in
+    /// <see cref="Auth.DevLoginCodeCapturingEmailSender"/> and registers the capture it feeds as
+    /// <see cref="Jobbliggaren.Application.Dev.Abstractions.IDevLoginCodeReader"/> (#1735). Its one production
+    /// caller is <see cref="AddDevOnlyTestingSupport"/>, under <c>IsDevelopment()</c> and no flag (security-auditor
+    /// Q15 condition 1). Internal so no host can call it; the integration host calls it again after it swaps
+    /// the sender, since that swap removes the wrapper.
+    /// </summary>
+    internal static IServiceCollection AddDevLoginCodeCapture(this IServiceCollection services)
+    {
+        var sender = services.LastOrDefault(d => d.ServiceType == typeof(IEmailSender))
+            ?? throw new InvalidOperationException("The login-code capture wraps an IEmailSender; none is registered.");
+
+        services.TryAddSingleton<Auth.DevLoginCodeCapture>();
+        services.TryAddSingleton<Jobbliggaren.Application.Dev.Abstractions.IDevLoginCodeReader>(
+            sp => sp.GetRequiredService<Auth.DevLoginCodeCapture>());
+        services.Remove(sender);
+        services.Add(new ServiceDescriptor(
+            typeof(IEmailSender),
+            sp => new Auth.DevLoginCodeCapturingEmailSender(
+                (IEmailSender)(sender.ImplementationInstance
+                    ?? sender.ImplementationFactory?.Invoke(sp)
+                    ?? ActivatorUtilities.CreateInstance(sp, sender.ImplementationType!)),
+                sp.GetRequiredService<Auth.DevLoginCodeCapture>()),
+            sender.Lifetime));
         return services;
     }
 
@@ -1575,16 +1608,18 @@ public static class DependencyInjection
     ///
     /// <para>
     /// <b>Api only.</b> <c>AddCoreIdentityForWorker</c> deliberately registers no
-    /// <c>IDataProtectionProvider</c>, and the only consumer is <c>PasswordResetTokenProvider</c>'s
-    /// constructor. Sharing a keyring with the Worker would hand it cryptographic reach over tokens
-    /// it never mints or validates, and re-open the cross-process coupling the 2026-07-10 ruling
-    /// rejected. This codebase has no antiforgery, so the keyring's blast radius is the three
-    /// token KINDS those providers mint - activation, password reset, change email - and
-    /// nothing else. (Two <c>DataProtectorTokenProvider</c>s, not three: of the four
-    /// <c>AddDefaultTokenProviders</c> registers only Default is DataProtector-based, the other
-    /// three being TOTP, plus the named password-reset provider.) Regenerate with
-    /// <c>git grep -in antiforgery -- src/</c> and read the result as a property, not a count — a
-    /// comment naming it will match.
+    /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token providers (two
+    /// <c>DataProtectorTokenProvider</c>s: of the four <c>AddDefaultTokenProviders</c> registers only Default
+    /// is DataProtector-based, the other three being TOTP, plus the named password-reset provider) and the
+    /// login challenge store (#1735, purpose <c>RedisLoginChallengeStore.ProtectorPurpose</c>). Sharing a
+    /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
+    /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
+    /// no antiforgery, so the keyring's blast radius is the three token KINDS those providers mint -
+    /// activation, password reset, change email - plus every live login challenge's address and code
+    /// (ADR 0142 D1), and nothing else. The keys are persisted unprotected on the file system (no
+    /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
+    /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,
+    /// not a count — a comment naming it will match.
     /// </para>
     /// </summary>
     public static IServiceCollection AddApiDataProtection(
@@ -1768,6 +1803,15 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
+        // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
+        // and the code budget). Api-only: it runs in the request path and needs the IConnectionMultiplexer
+        // registered above, which the Worker composition does not have.
+        services.AddSingleton<IRateBudget, RedisRateBudget>();
+
+        // #1735 (ADR 0142 D1) — the login challenge store. Api-only for the same reason, and one more: it
+        // protects the address and the code with the Api's Data-Protection keyring (AddApiDataProtection).
+        services.AddSingleton<ILoginChallengeStore, RedisLoginChallengeStore>();
+
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer
         // MINTS a reset token, which needs the token providers only this composition registers. The
@@ -1781,6 +1825,26 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordResetDispatcher>(
             sp => sp.GetRequiredService<PasswordResetDispatchChannel>());
         services.AddHostedService<PasswordResetDispatchService>();
+
+        // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
+        // drop event, so a forgot-password flood cannot drop logins. Api-EXCLUSIVE: the consumer's store
+        // protects with this composition's Data-Protection keyring and runs on its Redis multiplexer.
+        // LoginChallengeCompositionTests pins the pair (here yes, AddCoreIdentityForWorker no); a hand-written
+        // line in Worker/Program.cs is caught by nothing but a reader.
+        services.AddOptions<LoginChallengeDispatchOptions>()
+            .Bind(configuration.GetSection(LoginChallengeDispatchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<LoginChallengeDispatchChannel>();
+        services.AddSingleton<ILoginChallengeDispatcher>(
+            sp => sp.GetRequiredService<LoginChallengeDispatchChannel>());
+        services.AddHostedService<LoginChallengeDispatchService>();
+        services.AddScoped<ILoginAccountLookup, UserAccountService>();
+        services.AddScoped<LoginSubjectResolver>();
+        services.AddScoped<LoginChallengeIssuer>();
+        services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
+        services.AddScoped<PasswordlessSessionGrant>();
+        services.AddScoped<LoginProofOutcome>();
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

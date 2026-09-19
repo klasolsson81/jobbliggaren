@@ -50,4 +50,16 @@ public interface IAuthAuditLogger
     /// </para>
     /// </summary>
     void PasswordResetRequested(Guid userId, string? ipAddress, string? userAgent);
+
+    /// <summary>
+    /// #1735 — a login-challenge mail was sent for a known account (ADR 0142 D3). Written from the dispatch
+    /// consumer, so the client context is carried in, the same way as <see cref="PasswordResetRequested"/>.
+    /// <see cref="Auth.LoginChallenges.LoginChallengeKind.LinkOnly"/> is the operational signal of the
+    /// third-party budget drain Klas's option (A) answers.
+    /// </summary>
+    void LoginChallengeIssued(
+        Guid userId,
+        Auth.LoginChallenges.LoginChallengeKind challengeKind,
+        string? ipAddress,
+        string? userAgent);
 }

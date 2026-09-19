@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Microsoft.AspNetCore.Http;
@@ -55,6 +56,20 @@ public sealed partial class AuthAuditLogger(
             userAgent ?? string.Empty);
     }
 
+    public void LoginChallengeIssued(
+        Guid userId, LoginChallengeKind challengeKind, string? ipAddress, string? userAgent)
+    {
+        // Carried, not extracted, for the same reason as PasswordResetRequested: the caller is the
+        // dispatch consumer, with no HttpContext.
+        LogLoginChallengeIssued(
+            logger,
+            "login_challenge_issued",
+            userId,
+            challengeKind,
+            ipAddress ?? IIpAnonymizer.UnknownLabel,
+            userAgent ?? string.Empty);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -103,4 +118,10 @@ public sealed partial class AuthAuditLogger(
         "AuditEvent={AuditEvent} UserId={UserId} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogPasswordResetRequested(
         ILogger logger, string auditEvent, Guid userId, string ip, string userAgent);
+
+    // #1735. UserId and the mail kind only — never the address, the code or the link.
+    [LoggerMessage(1011, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} ChallengeKind={ChallengeKind} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogLoginChallengeIssued(
+        ILogger logger, string auditEvent, Guid userId, LoginChallengeKind challengeKind, string ip, string userAgent);
 }

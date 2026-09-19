@@ -60,9 +60,12 @@ internal abstract class BoundedDispatchService<T>(
             // every later item silently, rather than logging one item's failure and continuing.
             await HandleAsync(item, scope.ServiceProvider, CancellationToken.None);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            // Ordinary failure containment, NOT anti-enumeration — the caller was answered long ago.
+            // No cancellation filter: every call here runs on CancellationToken.None, so an
+            // OperationCanceledException can only be a timeout inside a dependency, never a requested stop,
+            // and letting it through would end the drain for the life of the process (security-auditor,
+            // PR #1755). Ordinary failure containment, NOT anti-enumeration — the caller was answered long ago.
             // Type name only, never the exception object: database and Data-Protection exceptions can
             // carry the address or connection detail in their message.
             OnDispatchFailed(ex.GetType().Name);

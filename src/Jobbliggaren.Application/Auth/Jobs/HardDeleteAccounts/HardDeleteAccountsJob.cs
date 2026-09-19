@@ -28,9 +28,10 @@ public sealed partial class HardDeleteAccountsJob(
     /// 30-dagars restore-fönster per ADR 0024 D5. Användaren har 30 dagar
     /// från soft-delete att kontakta support för återställning innan kontot
     /// hard-deletas permanent. Hardcoded i Fas 1 — flippas till IOptions
-    /// om policy förändras.
+    /// om policy förändras. Public since #1735: the login challenge's pending-deletion mail names the
+    /// earliest deletion date from the same number.
     /// </summary>
-    private const int RestoreWindowDays = 30;
+    public const int RestoreWindowDays = 30;
 
     private const int ProgressLogEvery = 25;
 

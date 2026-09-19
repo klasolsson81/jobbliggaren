@@ -1795,6 +1795,23 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<PasswordResetDispatchChannel>());
         services.AddHostedService<PasswordResetDispatchService>();
 
+        // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
+        // drop event, so a forgot-password flood cannot drop logins. Api-EXCLUSIVE: the consumer's store
+        // protects with this composition's Data-Protection keyring and runs on its Redis multiplexer.
+        // LoginChallengeCompositionTests pins the pair (here yes, AddCoreIdentityForWorker no); a hand-written
+        // line in Worker/Program.cs is caught by nothing but a reader.
+        services.AddOptions<LoginChallengeDispatchOptions>()
+            .Bind(configuration.GetSection(LoginChallengeDispatchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<LoginChallengeDispatchChannel>();
+        services.AddSingleton<ILoginChallengeDispatcher>(
+            sp => sp.GetRequiredService<LoginChallengeDispatchChannel>());
+        services.AddHostedService<LoginChallengeDispatchService>();
+        services.AddScoped<ILoginAccountLookup, UserAccountService>();
+        services.AddScoped<LoginSubjectResolver>();
+        services.AddScoped<LoginChallengeIssuer>();
+
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.
         // Senior-cto-advisor-beslut 2026-05-11 (B1 — IaC over manual psql-script).

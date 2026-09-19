@@ -5,12 +5,15 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -312,6 +315,60 @@ public class LoginChallengeProofTests(ApiFactory factory)
         body.RootElement.GetProperty("permanentDeletionDate").GetString().ShouldBe(
             deletedAt!.Value.AddDays(30).UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         body.RootElement.TryGetProperty("sessionId", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task An_address_that_left_its_account_after_the_mail_went_out_gets_registration_closed()
+    {
+        // The address moves through the production change-email path — its token, confirmed at
+        // /confirm-email-change — inside the challenge's lifetime, so the proven address has no account.
+        var email = NewAddress("moved-away");
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var minted = await MintAsync(email);
+        var userId = await UserIdOf(email);
+        var newEmail = NewAddress("moved-to");
+        string token;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            token = (await scope.ServiceProvider.GetRequiredService<IUserAccountService>()
+                .GenerateChangeEmailTokenAsync(userId, newEmail, Ct)).Value;
+        }
+
+        (await _client.PostAsJsonAsync(
+                "/api/v1/auth/confirm-email-change", new { uid = userId, email = newEmail, token }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        var response = await VerifyAsync(minted.ChallengeId, minted.Code);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        body.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome"]);
+        body.RootElement.GetProperty("outcome").GetString().ShouldBe("registrationClosed");
+    }
+
+    [Fact]
+    public async Task A_link_request_without_a_token_of_the_minted_shape_is_a_400()
+    {
+        (await _client.PostAsJsonAsync("/api/v1/auth/link", new { }, Ct)).StatusCode
+            .ShouldBe(HttpStatusCode.BadRequest);
+        (await LinkAsync(new string('A', 129))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/auth/challenge")]
+    [InlineData("/api/v1/auth/challenge/verify")]
+    [InlineData("/api/v1/auth/link")]
+    public void Every_login_challenge_route_carries_the_auth_write_rate_limit(string route)
+    {
+        _ = _factory.CreateClient();
+
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText == route)
+            .ShouldHaveSingleItem();
+
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .ShouldBe(RateLimitingExtensions.AuthWritePolicy);
     }
 
     [Fact]

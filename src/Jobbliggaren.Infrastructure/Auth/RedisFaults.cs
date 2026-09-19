@@ -28,16 +28,4 @@ internal static class RedisFaults
             throw new LoginChallengeStoreUnavailableException(ex.GetType().Name);
         }
     }
-
-    internal static async Task GuardAsync(Func<Task> operation)
-    {
-        try
-        {
-            await operation();
-        }
-        catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
-        {
-            throw new LoginChallengeStoreUnavailableException(ex.GetType().Name);
-        }
-    }
 }

@@ -160,6 +160,18 @@ seed_all_secrets() {
   done
 }
 
+# THE DELIVERING BASELINE (#1735). api refuses to boot on a provider that cannot deliver, so a case
+# whose subject is anything else starts from a box configured to send, or the provider refusal
+# answers first and the case measures it instead of its own subject.
+seed_delivering_box() {
+  seed_all_secrets
+  local k
+  for k in "${EXPECTED_SCALEWAY_FILES[@]}"; do printf '%s' "seeded-value-for-$k" > "$SECRETS/$k"; done
+  write_env "SITE_HOST=jobbliggaren.se" "EMAIL_PROVIDER=Scaleway" "EMAIL_SCALEWAY_SECRET_KEY_FILE=/x" \
+    "EMAIL_SCALEWAY_PROJECT_ID_FILE=/y" "EMAIL_SCALEWAY_REGION=fr-par" \
+    "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '+400 days' +%F)"
+}
+
 # Builds a copy of the SUT with SECRETS_DIR redirected at the fixture, and PROVES the redirect
 # landed. Without that proof a change to the declaration's spelling would leave the copy pointing
 # at the real /run path, and every case would measure the host instead of the fixture — passing
@@ -303,8 +315,8 @@ echo "jobbliggaren-inject-secrets.sh --check"
 
 echo "-- the positive case"
 if [ "$MODE_ENFORCED" = "yes" ]; then
-  seed_all_secrets
-  expect_check 0 "all five secrets present is a pass"
+  seed_delivering_box
+  expect_check 0 "every secret present on a box configured to send is a pass"
 else
   skipped=$((skipped + 1))
   echo "  SKIP positive case: --check asserts directory mode 0710 and this filesystem does not"
@@ -371,7 +383,7 @@ echo "-- THE WHOLE POINT OF THE SPLIT: --check is silent about the host-only set
 # Mode-gated because --check asserts the directory mode, which a chmod-less filesystem cannot
 # reproduce; the --check-host half needs no such gate and is asserted above regardless.
 if [ "$MODE_ENFORCED" = "yes" ]; then
-  seed_all_secrets
+  seed_delivering_box
   rm -f "$HOST_SECRETS/Backup__RcloneConfigBase64"
   expect_check 0 "--check passes with the host-only credential absent"
   expect_check_host 1 "--check-host fails in the very same state"
@@ -559,14 +571,19 @@ expect_expiry 1 "INVALID: EMAIL_SCALEWAY_KEY_EXPIRES_AT" no \
 # would light up for a key it does not use.
 seed_all_secrets
 write_env "EMAIL_PROVIDER=Console" "EMAIL_SCALEWAY_KEY_EXPIRES_AT=$(date -u -d '-1 day' +%F)"
-expect_expiry 0 "all secrets present" no \
-  "an expired date is inert while the provider is Console"
+expect_expiry 1 "UNDELIVERABLE: EMAIL_PROVIDER" yes \
+  "under Console the provider refusal answers (#1735)"
+if grep -qF "EXPIRED:" "$TMPROOT/out"; then
+  fail=$((fail + 1)); echo "  FAIL an expired date was read while the provider is Console" >&2
 else
-  skipped=$((skipped + 7))
+  pass=$((pass + 1)); echo "  ok   and the key date stays inert while the provider is Console"
+fi
+else
+  skipped=$((skipped + 8))
   echo "  SKIP expiry cases: this filesystem does not honour chmod, so the mode branch sets the"
   echo "       blocking counter in every case — the exit-0 cases can never reach 0, and the"
   echo "       exit-1 cases reach it through the wrong branch carrying the summary these pins"
-  echo "       assert ABSENT. Seven cases. They RUN in CI."
+  echo "       assert ABSENT. Eight cases. They RUN in CI."
 fi
 
 echo "-- a missing host-only DIRECTORY is the post-reboot state"
@@ -1033,8 +1050,7 @@ assert_output_lacks() {
 # both independence assertions at once. Measured on Git Bash before the gate moved out: 4 of these
 # went red for the platform rather than for the SUT, which is a rig reporting a defect it caused.
 if [ "$MODE_ENFORCED" = "yes" ]; then
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   SUT_SECRETS_DIR_OWNER="$NOT_FIXTURE_OWNER"
   expect_check 1 "a secrets directory owned by anyone but root refuses"
   assert_output_has "WRONG OWNER: $SECRETS" "and the line names the directory"
@@ -1068,8 +1084,7 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # Every permanent plaintext credential the stack has rests on this file's posture, and until
   # #1320 it was prescribed in four places and read by none of them.
 
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   SUT_ENV_FILE_OWNER="$NOT_FIXTURE_OWNER"
   expect_check 1 "an .env owned by anyone but root refuses"
   assert_output_has "WRONG OWNER: $ENV_FIXTURE" "and the line names the file"
@@ -1082,8 +1097,7 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # 0644 — the mode a fresh file gets under the default umask, which is exactly how this drifts
   # in the field: an operator recreates the file and never runs the chmod the four prescriptions
   # ask for.
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   chmod 0644 "$ENV_FIXTURE"
   expect_check 1 "a world-readable .env refuses"
   assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the line names the file and its mode"
@@ -1092,8 +1106,7 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # 0640 — the GROUP bit alone. A mask that only covered `other` would call this healthy, and a
   # group-readable credentials file is the shape a "let the deploy group read it" convenience
   # takes. This case is what makes the mask 0077 rather than 0007.
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   chmod 0640 "$ENV_FIXTURE"
   expect_check 1 "a group-readable .env refuses too"
   assert_output_has "WRONG MODE: $ENV_FIXTURE" "and the group bit alone is enough to refuse"
@@ -1102,13 +1115,11 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # not "the mode is 600" — jobbliggaren-reconcile.sh wrote that precedent for the files' 0400.
   # An `== 600` implementation passes every case above and fails this one; without it the
   # difference between a property and an opinion about permissions is unmeasured.
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   chmod 0400 "$ENV_FIXTURE"
   expect_check 0 "a stricter-than-prescribed .env (0400) is a pass, not a deviation"
 
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   chmod 0600 "$ENV_FIXTURE"
   expect_check 0 "the prescribed 0600 with a root-owned directory is a clean posture"
 
@@ -1117,8 +1128,7 @@ if [ "$MODE_ENFORCED" = "yes" ]; then
   # `stat` does not, so a link-measuring arm refuses, publishes a chmod, and that chmod changes a
   # target which was already correct — an alarm nobody can clear, which rows 30/32b of
   # vps-deploy-stack.md call worse than no gate at all.
-  seed_all_secrets
-  write_env "SITE_HOST=jobbliggaren.se"
+  seed_delivering_box
   mv "$ENV_FIXTURE" "$TMPROOT/env-target"
   chmod 0600 "$TMPROOT/env-target"
   if ln -s "$TMPROOT/env-target" "$ENV_FIXTURE" 2>/dev/null && [ -L "$ENV_FIXTURE" ]; then

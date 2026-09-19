@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -24,11 +25,14 @@ public sealed class LoginChallengeIssuerTests
     private readonly ILoginChallengeStore _store = Substitute.For<ILoginChallengeStore>();
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
     private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
+    private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public LoginChallengeIssuerTests()
     {
+        _budget.TryConsumeAsync(Arg.Any<RateBudgetScope>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(true);
         _store.PutAsync(Arg.Any<NewLoginChallenge>(), Arg.Any<CancellationToken>())
             .Returns(ci => ci.Arg<NewLoginChallenge>().Credentials switch
             {
@@ -38,7 +42,8 @@ public sealed class LoginChallengeIssuerTests
             });
     }
 
-    private async Task<LoginChallengeIssuer> IssuerAsync(string subject, Guid userId)
+    private async Task<LoginChallengeIssuer> IssuerAsync(
+        string subject, Guid userId, CapturingLogger<LoginChallengeIssuer>? logger = null)
     {
         var lookup = Substitute.For<ILoginAccountLookup>();
         lookup.FindUserIdAsync(Email, Arg.Any<CancellationToken>())
@@ -57,7 +62,8 @@ public sealed class LoginChallengeIssuerTests
         }
 
         return new LoginChallengeIssuer(
-            new LoginSubjectResolver(lookup, db), _store, _sender, _audit, NullLogger<LoginChallengeIssuer>.Instance);
+            new LoginSubjectResolver(lookup, db), _store, _budget, _sender, _audit,
+            (ILogger<LoginChallengeIssuer>?)logger ?? NullLogger<LoginChallengeIssuer>.Instance);
     }
 
     private static LoginChallengeDispatch Dispatch(CodeBudgetState budget = CodeBudgetState.Admitted) =>
@@ -160,13 +166,82 @@ public sealed class LoginChallengeIssuerTests
     }
 
     [Fact]
-    public void The_issuer_takes_no_budget_and_no_session_store()
+    public async Task A_failed_send_logs_its_own_event_with_the_kind_and_type_and_never_the_address()
     {
-        // The budgets are the request path's; the consumer decides nothing about them and grants nothing.
-        var parameters = typeof(LoginChallengeIssuer).GetConstructors().Single().GetParameters()
-            .Select(p => p.ParameterType).ToList();
+        // EmailDeliveryException is what ScalewayEmailSender throws when the provider refuses the send or
+        // cannot be reached; it carries the underlying type name.
+        var logger = new CapturingLogger<LoginChallengeIssuer>();
+        var issuer = await IssuerAsync("active", Guid.NewGuid(), logger);
+        _sender.SendLoginChallengeAsync(Arg.Any<string>(), Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new EmailDeliveryException("login-challenge", nameof(HttpRequestException)));
 
-        parameters.ShouldNotContain(typeof(IRateBudget));
-        parameters.ShouldNotContain(typeof(ISessionStore));
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        var (level, eventId, message) = logger.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1014);
+        message.ShouldContain(nameof(LoginChallengeKind.CodeAndLink));
+        message.ShouldContain(nameof(HttpRequestException));
+        message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task Past_the_global_cap_an_address_without_an_account_gets_its_record_and_no_mail()
+    {
+        var logger = new CapturingLogger<LoginChallengeIssuer>();
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), logger);
+        _budget.TryConsumeAsync(
+                LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
+                Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        await _store.Received(1).PutAsync(Arg.Any<NewLoginChallenge>(), Arg.Any<CancellationToken>());
+        await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);
+        var (level, eventId, message) = logger.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1015);
+        message.ShouldNotContain("@");
+    }
+
+    [Theory]
+    [InlineData("active")]
+    [InlineData("pending-deletion")]
+    public async Task An_account_holders_mail_is_never_counted_against_the_global_cap(string subject)
+    {
+        // A cap that counted account holders would itself be the attacker-chosen login stop it exists to
+        // prevent: a flood of made-up addresses would spend it and silence every real login.
+        var issuer = await IssuerAsync(subject, Guid.NewGuid());
+        _budget.TryConsumeAsync(Arg.Any<RateBudgetScope>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        await _sender.Received(1).SendLoginChallengeAsync(Email, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
+        await _budget.DidNotReceiveWithAnyArgs().TryConsumeAsync(default!, default!, Ct);
+    }
+
+    [Fact]
+    public async Task Within_the_global_cap_an_address_without_an_account_counts_once_and_gets_its_mail()
+    {
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid());
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        await _budget.Received(1).TryConsumeAsync(
+            LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
+            Arg.Any<CancellationToken>());
+        await _sender.Received(1).SendLoginChallengeAsync(
+            Email, new LoginChallengeEmail.RegistrationClosed(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void The_issuer_takes_no_session_store()
+    {
+        // The consumer grants nothing.
+        typeof(LoginChallengeIssuer).GetConstructors().Single().GetParameters()
+            .Select(p => p.ParameterType)
+            .ShouldNotContain(typeof(ISessionStore));
     }
 }

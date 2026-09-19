@@ -70,6 +70,12 @@ public class DevLoginCodeEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_blank_address_is_a_400()
+    {
+        (await TakeCodeAsync(" ")).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task An_address_without_an_account_has_no_code_to_take()
     {
         var email = $"dev-code-{Guid.NewGuid():N}@example.com";

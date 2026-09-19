@@ -1,5 +1,4 @@
 using Jobbliggaren.Application.Auth.Dtos;
-using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;

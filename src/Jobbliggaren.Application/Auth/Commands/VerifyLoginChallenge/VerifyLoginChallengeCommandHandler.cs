@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -30,7 +31,9 @@ public sealed class VerifyLoginChallengeCommandHandler(ILoginChallengeStore stor
                 AuthErrorCodes.LoginCodeWrong, AuthErrorCodes.LoginCodeWrongMessage),
             ChallengeOutcome.Burned => DomainError.Gone(
                 AuthErrorCodes.LoginCodeBurned, AuthErrorCodes.LoginCodeBurnedMessage),
-            _ => DomainError.Gone(AuthErrorCodes.LoginCodeExpired, AuthErrorCodes.LoginCodeExpiredMessage),
+            ChallengeOutcome.Missing => DomainError.Gone(
+                AuthErrorCodes.LoginCodeExpired, AuthErrorCodes.LoginCodeExpiredMessage),
+            var other => throw new UnreachableException($"Unmapped challenge outcome {other}."),
         });
     }
 }

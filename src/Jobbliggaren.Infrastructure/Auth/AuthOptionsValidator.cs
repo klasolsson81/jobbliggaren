@@ -13,9 +13,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// <item><c>RegistrationsOpen</c> WITHOUT <c>RequireEmailConfirmation</c> — legacy instant-login: an
 /// account minted with no proof the registrant owns the address, and the acknowledged-deferred
 /// 200-vs-400 duplicate-enumeration oracle live on a public IP.</item>
-/// <item>a registered <see cref="IEmailSender"/> that cannot deliver, whatever either flag says. Every
-/// login is a mailed code or link and there is no break-glass (ADR 0142 D10), so such a host answers
-/// every login request with the uniform 202 and sends nothing: nobody can log in, and nothing says so.
+/// <item>a registered <see cref="IEmailSender"/> that cannot deliver, whatever either flag says.
 /// The rule was added 2026-08-09 as senior-cto-advisor's D1, the composition-time boot refusal
 /// <c>NullEmailSender</c>'s own contract names as its owner, and then required both flags on, because it
 /// guarded only registration's activation link; security-auditor Major 12 (#1735) dropped both.</item>
@@ -26,8 +24,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// </para>
 /// <para>
 /// Rule 1 fires in ONE direction only: an absent <c>Auth</c> section binds both flags to <c>false</c>
-/// and cannot trip it. Rule 2 has no flag to leave closed, by design: a deployed host that cannot
-/// deliver mail is a host nobody can log in to.
+/// and cannot trip it. Rule 2 has no flag to leave closed, by design.
 /// </para>
 /// <para>
 /// The exemption is an ALLOWLIST (Development, Test), never <c>!IsProduction()</c> — a denylist would
@@ -46,8 +43,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// <b>Why the dependency resolves here and why the Worker is untouched.</b> This validator is
 /// registered in <c>AddIdentityAndSessions</c>, which every HOST composition reaches together with
 /// <c>AddEmailSender</c>, so wherever this type resolves, an <see cref="IEmailSender"/>
-/// does. (One test calls that module alone, to pin the registration; it never resolves the
-/// validator.) Where the pairing ever stops holding it fails LOUD, on an unresolvable constructor
+/// does. Where the pairing ever stops holding it fails LOUD, on an unresolvable constructor
 /// argument at boot, never on a silently open gate. <c>ProductionStartupSmokeTests</c> boots a real
 /// Production host, so the construction is pinned rather than argued. Re-measure the composition with:
 /// <c>grep -rn "AddIdentityAndSessions" --include=*.cs src/ tests/</c>.
@@ -86,9 +82,7 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
             return ValidateOptionsResult.Fail(
                 "Utanför Development/Test krävs en Email:Provider som faktiskt levererar (aktuell miljö: "
                 + $"{environment.EnvironmentName}; registrerad avsändare: "
-                + $"{emailSender.GetType().Name}). All inloggning sker med en kod eller länk per e-post "
-                + "och det finns ingen reservväg, så utan leverans kan ingen logga in, och begäran "
-                + "besvaras ändå med ett enhetligt 202. Sätt Email__Provider=Scaleway med "
+                + $"{emailSender.GetType().Name}). Sätt Email__Provider=Scaleway med "
                 + "Email__Scaleway-nycklarna enligt deploy/.env.example (GDPR-grinden: "
                 + "release-checklist.md §2.5).");
         }

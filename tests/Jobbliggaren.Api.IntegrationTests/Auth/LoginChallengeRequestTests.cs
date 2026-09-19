@@ -130,13 +130,14 @@ public class LoginChallengeRequestTests(ApiFactory factory)
         using var knownBody = JsonDocument.Parse(await (await RequestAsync(known)).Content.ReadAsStringAsync(Ct));
         using var unknownBody = JsonDocument.Parse(await (await RequestAsync(unknown)).Content.ReadAsStringAsync(Ct));
 
-        (await AwaitMailAsync(known)).ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
+        var knownMail = (await AwaitMailAsync(known)).ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
         (await AwaitMailAsync(unknown)).ShouldBeOfType<LoginChallengeEmail.RegistrationClosed>();
 
         // A record exists for both, so a wrong code answers Wrong for both: "never existed" and "burned" can
         // never be told apart by whether the address has an account.
         var store = _factory.Services.GetRequiredService<ILoginChallengeStore>();
-        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(knownBody)), LoginCode.FromRaw("000000"), Ct))
+        var wrongForKnown = LoginCode.FromRaw(knownMail.Code.Reveal() == "000000" ? "111111" : "000000");
+        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(knownBody)), wrongForKnown, Ct))
             .Outcome.ShouldBe(ChallengeOutcome.Wrong);
         (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(unknownBody)), LoginCode.FromRaw("000000"), Ct))
             .Outcome.ShouldBe(ChallengeOutcome.Wrong);

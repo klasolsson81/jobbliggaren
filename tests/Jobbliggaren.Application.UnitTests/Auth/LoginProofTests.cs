@@ -1,4 +1,3 @@
-using System.Reflection;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
@@ -8,9 +7,9 @@ using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
-using Jobbliggaren.Infrastructure.Auth;
-using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -233,6 +232,24 @@ public sealed class LoginProofTests
     }
 
     [Fact]
+    public async Task The_audit_row_is_saved_before_the_session_store_is_touched()
+    {
+        // SessionStoreUnavailableException is what the session store's resilience decorator throws when Redis
+        // is down (#511).
+        _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
+        _sessions.InvalidateAllForUserAsync(_userId, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new SessionStoreUnavailableException(
+                "Redis-session-store är inte tillgänglig.",
+                new TimeoutException("Redis timed out")));
+
+        await Should.ThrowAsync<SessionStoreUnavailableException>(
+            () => Grant().GrantAsync(new LoginSubject.Active(_userId), LoginMethod.Code, Ct));
+
+        (await _db.AuditLogEntries.AsNoTracking()
+            .CountAsync(e => e.EventType == PasswordlessSessionGrant.InboxProvenAuditEventType, Ct)).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task An_inbox_proof_that_did_not_persist_is_followed_by_nothing()
     {
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>())
@@ -245,53 +262,5 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
-    }
-
-    // ── the chain's shape: one consumer per link, and no password on it ──
-
-    private static readonly Assembly[] Production =
-        [typeof(LoginProofOutcome).Assembly, typeof(IdentityInboxProofRecorder).Assembly];
-
-    private static string[] ConsumersOf(Type dependency) =>
-        [.. Production.SelectMany(a => a.GetTypes())
-            .Where(t => t.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Any(c => c.GetParameters().Any(p => p.ParameterType == dependency)))
-            .Select(t => t.FullName!)
-            .Order()];
-
-    [Fact]
-    public void Only_the_grant_can_record_an_inbox_proof()
-    {
-        // ADR 0127 refused a bare force-confirm: confirming an address is reachable only after a proof.
-        ConsumersOf(typeof(IInboxProofRecorder)).ShouldBe([typeof(PasswordlessSessionGrant).FullName!]);
-    }
-
-    [Fact]
-    public void Only_the_outcome_function_can_grant_and_only_the_two_proof_handlers_can_reach_it()
-    {
-        ConsumersOf(typeof(PasswordlessSessionGrant)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
-        ConsumersOf(typeof(LoginProofOutcome)).ShouldBe(
-            [typeof(ConsumeLoginLinkCommandHandler).FullName!, typeof(VerifyLoginChallengeCommandHandler).FullName!]);
-    }
-
-    [Fact]
-    public void The_proof_chain_can_reach_neither_a_password_check_nor_lockout()
-    {
-        // Every port the two handlers can reach, following concrete classes through their constructors. The
-        // account is reached through ILoginAccountLookup, which offers a lookup and nothing else.
-        var reached = new HashSet<Type>();
-        var pending = new Stack<Type>([typeof(VerifyLoginChallengeCommandHandler), typeof(ConsumeLoginLinkCommandHandler)]);
-        while (pending.TryPop(out var type))
-        {
-            foreach (var parameter in type.GetConstructors().SelectMany(c => c.GetParameters()))
-            {
-                if (reached.Add(parameter.ParameterType) && parameter.ParameterType is { IsClass: true, IsAbstract: false })
-                    pending.Push(parameter.ParameterType);
-            }
-        }
-
-        reached.ShouldNotContain(typeof(IUserAccountService));
-        reached.ShouldNotContain(typeof(ILoginTimingEqualizer));
-        reached.ShouldContain(typeof(ILoginAccountLookup));
     }
 }

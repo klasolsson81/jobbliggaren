@@ -30,6 +30,15 @@ public sealed class LoginChallengePolicyTests
     }
 
     [Fact]
+    public void Mails_to_addresses_without_an_account_are_twenty_per_twenty_four_hours_all_together()
+    {
+        LoginChallengePolicy.UnknownAddressMailBudget.Limit.ShouldBe(20, LapseTrigger5);
+        LoginChallengePolicy.UnknownAddressMailBudget.Window.ShouldBe(TimeSpan.FromHours(24), LapseTrigger5);
+        LoginChallengePolicy.UnknownAddressMailBudget.Name.ShouldNotBeOneOf(
+            LoginChallengePolicy.MailBudget.Name, LoginChallengePolicy.CodeBudget.Name);
+    }
+
+    [Fact]
     public void The_code_budget_is_ten_per_twenty_four_hours()
     {
         LoginChallengePolicy.CodeBudget.Limit.ShouldBe(10, LapseTrigger5);

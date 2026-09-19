@@ -157,7 +157,7 @@ No endpoint branches on an enqueue result — there is none.
 
 **The consumer always writes a record** (otherwise "burned" vs "never existed" is an oracle), before it
 sends, classifies the address (`LoginSubjectResolver`: no account, active, pending deletion, profile
-missing) and sends ONE mail: an active account within its code budget → code + link; past it → link
+missing) and sends at most ONE mail: an active account within its code budget → code + link; past it → link
 only; no account or a missing profile → the closed-registration notice, no credential, in 1a — the
 new-account code arm is 1c's (#1737); pending deletion → the restore path, no credential. Redis down →
 uniform 503 through `StoreUnavailableException` (`Program.cs`, the shipped pattern).
@@ -519,8 +519,11 @@ stake.
 **Lapse trigger 7 fired and was re-run before first use.** The budget branch changed behaviour: over
 the code budget is no longer a no-op, and the counter now counts admitted mints only. security's re-run:
 still at most 10 code-bearing mints and so 30 guesses per address per 24 h, **0.003 %/day and
-1.089 %/year — identical**; trigger 5's three quantities are unchanged. The resting copy's premise, that
-the consumer always sends a mail, still holds.
+1.089 %/year — identical**; trigger 5's three quantities are unchanged. Trigger 7 fired a second time on
+PR #1756 (security-auditor Major 2): mails to addresses without an account are capped globally at 20 per
+24 h (`LoginChallengePolicy.UnknownAddressMailBudget`, pinned by `LoginChallengePolicyTests` and
+`LoginChallengeIssuerTests`), and above the cap such an address gets its record and no mail, so the
+resting copy's premise does not hold for it. Part 2 (#1738) re-binds that copy with design-reviewer.
 
 **Outcomes at proof time; the 1a/1c line (CTO Q1).** The mail is chosen at issue time and the outcome at
 proof time, by one function the code and the link share, so an account deleted or a kill-switch thrown
@@ -560,8 +563,7 @@ single-use links exposed to scanners and forwarding, still under the reset path'
 proof sets the flag, removes the password and rotates the stamp in one Identity write; a write that did
 not persist throws and nothing follows it; earlier sessions are revoked before the new one is created;
 and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
-that write, and only the two proof handlers can reach the grant — pinned by reflection, so it can never
-become a bare force-confirm (ADR 0127). **Residual (Minor):** a squatter's password on an account its
+that write, and only the two proof handlers can reach the grant — pinned by reflection. **Residual (Minor):** a squatter's password on an account its
 owner already confirmed survives a code login until 5b. Nobody can be in that position while
 registration stays closed. **If the #734 flip happens before 5b, this becomes a Major at the flip.**
 
@@ -661,6 +663,7 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Challenge TTL | 15 min, code and link, one expiry state | Redis TTL |
 | Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
+| Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
 | OAuth state | ≤ 10 min, cookie mandatory, Redis record `GETDEL` | 6a |
@@ -711,8 +714,7 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   message in `role="status"`). "Byt e-postadress" is a link to `/logga-in`, last. Resting copy:
   *"Vi har skickat ett mejl till {email}. Följ instruktionerna i mejlet. Innehåller det en sexsiffrig
   kod skriver du in den här. Koden gäller i 15 minuter."* with the hint *"Kontrollera skräpposten om du inte ser mejlet inom några
-  minuter."* — the authority is the mail, so the copy is true for the closed, pending-deletion and
-  budget-exhausted branches too. A warning before the last attempt: *"Ett försök kvar. Sedan behöver
+  minuter."* A warning before the last attempt: *"Ett försök kvar. Sedan behöver
   du begära en ny kod."*
 - **The states**, channel discipline as `RegisterForm` delivers it — user-correctable →
   `role="alert"` + `aria-invalid` + focus to the field; not the user's fault but a way forward here →

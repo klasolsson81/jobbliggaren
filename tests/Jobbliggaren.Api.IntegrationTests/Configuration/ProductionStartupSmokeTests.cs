@@ -157,8 +157,9 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     //   * /api/v1/dev/reset-my-data is unmapped outside Development UNLESS
     //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
     //     owner-scoped, authenticated, and refused a second time inside the handler.
+    //   * /api/v1/dev/login-code (#1735) is mapped by the same method as confirm-email.
     //
-    // A 404 (not 401/405) proves the route does not exist; if either gate regressed, these
+    // A 404 (not 401/405) proves the route does not exist; if a gate regressed, these
     // turn red before deploy.
 
     [Fact]
@@ -223,8 +224,8 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     [Fact]
     public void Only_reset_my_data_is_mapped_under_api_v1_dev_in_Production_env_when_the_flag_is_on()
     {
-        // The three route tests above are ENUMERATED — they each name a route. That is fine for
-        // the two routes that exist and blind to a third: a new endpoint added to
+        // The route tests above are ENUMERATED — they each name a route. That is fine for
+        // the routes that exist and blind to a new one: a new endpoint added to
         // MapDevResetMyDataEndpoint, or a new method called under the same flag, would reach
         // Production with the flag on and nothing would go red. This assertion is universally
         // quantified over the route table instead, so it fails on arrival rather than on
@@ -248,7 +249,7 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     {
         // THE load-bearing test of this whole change. The reset flag must never be one || away
         // from re-arming the unauthenticated confirm-email seam in a deployed environment. That
-        // is why the two routes are mapped by two different extension methods rather than one
+        // is why the routes are mapped by two different extension methods rather than one
         // call behind one condition — and this is the measurement that keeps it true.
         var ct = TestContext.Current.CancellationToken;
         using var host = _factory.WithWebHostBuilder(

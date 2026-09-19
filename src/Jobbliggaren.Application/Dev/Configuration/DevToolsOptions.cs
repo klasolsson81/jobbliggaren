@@ -32,7 +32,7 @@ public sealed class DevToolsOptions
     /// <b>What this flag deliberately does NOT reach:</b> the rest of the <c>/api/v1/dev/*</c>
     /// group. <c>POST /api/v1/dev/confirm-email</c> is an UNAUTHENTICATED seam that force-confirms
     /// an address, and it stays gated on <c>IsDevelopment()</c> unconditionally — which is why the
-    /// two routes are mapped by two different extension methods rather than one call behind one
+    /// routes are mapped by two different extension methods rather than one call behind one
     /// condition. Turning this flag on must never be one <c>||</c> away from re-arming an auth
     /// bypass, and <c>ProductionStartupSmokeTests</c> measures that in both flag polarities.
     /// </para>

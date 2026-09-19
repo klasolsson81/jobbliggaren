@@ -41,6 +41,9 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     // one fixed-time compare of the same length.
     private static readonly byte[] DummyCode = Encoding.ASCII.GetBytes(new string('0', LoginChallengePolicy.CodeLength));
     private static readonly byte[] DummyLinkHash = new byte[SHA256.HashSizeInBytes];
+    private static readonly int CodeSpace = (int)Math.Pow(10, LoginChallengePolicy.CodeLength);
+    private static readonly string FullestCode = new('0', LoginChallengePolicy.CodeLength);
+    private static readonly string FullestLinkHash = new('<', Convert.ToBase64String(DummyLinkHash).Length);
 
     private readonly IConnectionMultiplexer _redis;
     private readonly IDataProtector _protector;
@@ -71,7 +74,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 challenge.Email,
                 code?.Reveal(),
                 secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)));
-            var protectedPayload = _protector.Protect(JsonSerializer.SerializeToUtf8Bytes(payload));
+            var protectedPayload = _protector.Protect(Padded(payload));
 
             var segment = RecordSegment(challenge.Id);
             var recordKey = RecordKey(segment);
@@ -187,7 +190,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     // RandomNumberGenerator.GetInt32 draws uniformly over the range (the runtime rejects biased samples), so
     // no `% 1_000_000` skew exists to correct for (ADR 0142 D10).
     private static LoginCode MintCode() =>
-        LoginCode.FromRaw(RandomNumberGenerator.GetInt32(0, 1_000_000)
+        LoginCode.FromRaw(RandomNumberGenerator.GetInt32(0, CodeSpace)
             .ToString("D" + LoginChallengePolicy.CodeLength, CultureInfo.InvariantCulture));
 
     private void PayDummyCompare(byte[] presented)
@@ -202,7 +205,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
         _ = CryptographicOperations.FixedTimeEquals(secretHash, DummyLinkHash);
     }
 
-    // A payload that cannot be opened — a rotated or lost keyring, or a malformed body — reads as a missing
+    // A payload that cannot be opened — a lost keyring, or a malformed body — reads as a missing
     // record, which is the answer D1 names for a lost keyring ("degrades to expired").
     private ChallengePayload? Open(byte[]? protectedPayload)
     {
@@ -237,6 +240,20 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     }
 
     private static byte[] IdBytes(ChallengeId id) => Base64Url.DecodeFromChars(id.Reveal());
+
+    // Padded with trailing JSON whitespace to the length the address's fullest record would serialise to,
+    // so the protected length of `p` is the same whichever credentials the record carries. The longest
+    // link hash is one whose every character the default encoder escapes.
+    private static byte[] Padded(ChallengePayload payload)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(payload);
+        var ceiling = JsonSerializer.SerializeToUtf8Bytes(
+            payload with { Code = FullestCode, LinkHash = FullestLinkHash }).Length;
+        var padded = new byte[ceiling];
+        json.CopyTo(padded, 0);
+        padded.AsSpan(json.Length).Fill((byte)' ');
+        return padded;
+    }
 
     // The id is hashed before it becomes a key, so a Redis dump shows no live challenge id (parity
     // RedisSessionStore's session keys).

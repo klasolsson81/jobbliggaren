@@ -41,12 +41,24 @@ public sealed class RequestLoginChallengeCommandHandlerTests
         _budget.TryConsumeAsync(LoginChallengePolicy.CodeBudget, Email, Arg.Any<CancellationToken>()).Returns(codes);
     }
 
-    private RequestLoginChallengeCommandHandler Sut() => new(
+    private RequestLoginChallengeCommandHandler Sut(int cooldownSeconds = 60) => new(
         _sender,
         _budget,
-        Options.Create(new AuthEmailCooldownOptions { LoginChallengeWindowSeconds = 60 }),
+        Options.Create(new AuthEmailCooldownOptions { LoginChallengeWindowSeconds = cooldownSeconds }),
         _dispatcher,
         _context);
+
+    [Fact]
+    public async Task The_cooldown_is_one_call_per_configured_window()
+    {
+        await Sut(cooldownSeconds: 90).Handle(new RequestLoginChallengeCommand(Email), Ct);
+
+        await _budget.Received(1).TryConsumeAsync(
+            Arg.Is<RateBudgetScope>(s => s.Name == "login-challenge-cooldown" && s.Limit == 1
+                && s.Window == TimeSpan.FromSeconds(90)),
+            Email,
+            Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task A_sender_that_cannot_deliver_refuses_first_and_spends_no_budget()

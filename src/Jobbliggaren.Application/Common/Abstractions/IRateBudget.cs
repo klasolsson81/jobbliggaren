@@ -35,8 +35,8 @@ public sealed record RateBudgetScope
 public interface IRateBudget
 {
     /// <summary>
-    /// Counts one call for <paramref name="subject"/> (an email address or a user id; the implementation
-    /// normalises and hashes it, never writing the raw value) and returns whether the count is within
+    /// Counts one call for <paramref name="subject"/> (the implementation normalises and hashes it, never
+    /// writing the raw value) and returns whether the count is within
     /// <see cref="RateBudgetScope.Limit"/> for the current window.
     /// </summary>
     Task<bool> TryConsumeAsync(RateBudgetScope scope, string subject, CancellationToken ct);

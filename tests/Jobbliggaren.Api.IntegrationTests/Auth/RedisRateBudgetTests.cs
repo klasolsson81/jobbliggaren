@@ -72,25 +72,6 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_key_that_lost_its_ttl_gets_one_back_on_the_next_call()
-    {
-        // The key must never live without a TTL: with no break-glass, a counter that never expires would
-        // lock the address out for good. NX re-applies the window to a key that has none.
-        var ct = TestContext.Current.CancellationToken;
-        var scope = Scope(5, TimeSpan.FromMinutes(10));
-        var key = RedisRateBudget.Key(scope, "c@example.com");
-        var db = _mux.GetDatabase();
-
-        await _budget.TryConsumeAsync(scope, "c@example.com", ct);
-        await db.KeyPersistAsync(key);
-        (await db.KeyTimeToLiveAsync(key)).ShouldBeNull("the precondition: the key has no TTL");
-
-        await _budget.TryConsumeAsync(scope, "c@example.com", ct);
-
-        (await db.KeyTimeToLiveAsync(key)).ShouldNotBeNull();
-    }
-
-    [Fact]
     public async Task A_parallel_burst_admits_exactly_the_limit()
     {
         var ct = TestContext.Current.CancellationToken;

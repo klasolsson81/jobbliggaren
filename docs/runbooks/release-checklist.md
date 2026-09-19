@@ -2452,6 +2452,8 @@ overksamt inom en omstart; en halvriven kodbas är inte.
      `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevLoginCodeEndpointTests.cs`,
      `tests/Jobbliggaren.Api.IntegrationTests/Configuration/DevLoginCodeCaptureCompositionTests.cs`,
      `tests/Jobbliggaren.Application.UnitTests/Auth/DevLoginCodeCaptureTests.cs`
+   - `tests/Jobbliggaren.Api.IntegrationTests/Email/EmailSenderRecordingTests.cs` asserterar på
+     `DevLoginCodeCapturingEmailSender` — återställ den till `RecordingEmailSender` i samma PR
    - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
      i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
      strykning, och det är därför avstängningen i steg 1 kommer först.

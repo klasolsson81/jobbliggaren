@@ -1,3 +1,5 @@
+using System.Buffers.Text;
+using System.Globalization;
 using System.Text;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth;
@@ -164,7 +166,7 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
         var (id, issued) = await PutAsync("link-only@example.com", ChallengeCredentials.LinkOnly, replaces: false);
 
         issued.Code.ShouldBeNull();
-        var one = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("123456"), Ct);
+        var one = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("000000"), Ct);
         var two = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("123456"), Ct);
         var three = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("123456"), Ct);
         var link = await _store.ConsumeLinkAsync(issued.Link!.Value, Ct);
@@ -181,7 +183,7 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
         var (id, issued) = await PutAsync("closed@example.com", ChallengeCredentials.None);
 
         issued.ShouldBe(new IssuedCredentials(null, null));
-        var one = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("123456"), Ct);
+        var one = await _store.ConsumeCodeAsync(id, LoginCode.FromRaw("000000"), Ct);
         (one.Outcome, one.AttemptsRemaining).ShouldBe((ChallengeOutcome.Wrong, 2));
     }
 
@@ -252,6 +254,76 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
             .Select(_ => _store.ConsumeCodeAsync(id, issued.Code!.Value, Ct)));
 
         verdicts.Count(v => v.IsVerified).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_parallel_burst_of_the_right_link_proves_exactly_once()
+    {
+        var (_, issued) = await PutAsync("burst-link@example.com");
+
+        var proofs = await Task.WhenAll(Enumerable.Range(0, 20)
+            .Select(_ => _store.ConsumeLinkAsync(issued.Link!.Value, Ct)));
+
+        proofs.Count(p => p is not null).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_right_code_racing_the_right_link_proves_exactly_once()
+    {
+        for (var round = 0; round < 10; round++)
+        {
+            var (id, issued) = await PutAsync($"race-{round}@example.com");
+
+            var code = Task.Run(() => _store.ConsumeCodeAsync(id, issued.Code!.Value, Ct), Ct);
+            var link = Task.Run(() => _store.ConsumeLinkAsync(issued.Link!.Value, Ct), Ct);
+            var (codeVerdict, linkProof) = (await code, await link);
+
+            ((codeVerdict.IsVerified ? 1 : 0) + (linkProof is null ? 0 : 1)).ShouldBe(1);
+        }
+    }
+
+    [Fact]
+    public async Task A_minted_link_token_is_the_challenge_id_and_a_128_bit_secret()
+    {
+        // The requester holds the id, so the secret is the whole of what a forger must guess: 128 bits is
+        // why the link needs no attempt budget (ADR 0142 D1).
+        var (id, issued) = await PutAsync("secret-width@example.com");
+
+        var token = Base64Url.DecodeFromChars(issued.Link!.Value.Reveal());
+
+        token.Length.ShouldBe(32);
+        token[..16].ShouldBe(Base64Url.DecodeFromChars(id.Reveal()));
+    }
+
+    [Fact]
+    public async Task Minted_codes_span_the_full_six_digit_space()
+    {
+        // The guess arithmetic rests on 10^6 codes. A narrower draw zero-pads to six digits and would pass
+        // the shape check; 64 draws all below 100000 happen with probability 10^-64 from the full space.
+        var codes = new List<int>();
+        for (var i = 0; i < 64; i++)
+            codes.Add(int.Parse(
+                (await PutAsync($"space-{i}@example.com")).Issued.Code!.Value.Reveal(), CultureInfo.InvariantCulture));
+
+        codes.Max().ShouldBeGreaterThanOrEqualTo(100_000);
+    }
+
+    [Fact]
+    public async Task Every_record_for_one_address_protects_to_one_length()
+    {
+        // A Redis reader who knows the address can find its records; their length must not say which
+        // credentials they carry, and so whether the address has an account.
+        const string email = "one-length@example.com";
+        var db = _mux.GetDatabase();
+        var lengths = new List<long>();
+        foreach (var credentials in new[] { ChallengeCredentials.CodeAndLink, ChallengeCredentials.LinkOnly, ChallengeCredentials.None })
+        {
+            var (id, _) = await PutAsync(email, credentials, replaces: false);
+            lengths.Add(((byte[])(await db.HashGetAsync(
+                RedisLoginChallengeStore.RecordKey(RedisLoginChallengeStore.RecordSegment(id)), "p"))!).Length);
+        }
+
+        lengths.Distinct().ShouldHaveSingleItem();
     }
 
     [Fact]

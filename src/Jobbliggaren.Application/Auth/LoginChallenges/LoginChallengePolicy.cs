@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// rather than configuration on purpose: the budget is a measured acceptance with lapse triggers, and
 /// trigger 5 fires on ANY change to the code length, the attempt count or the mint budget. A value an
 /// environment variable could move would let the acceptance lapse with no PR, no panel and no measurement
-/// (senior-cto-advisor and security-auditor, 2026-09-19). Every consumer reads these; none types them twice.
+/// (senior-cto-advisor and security-auditor, 2026-09-19).
 /// </summary>
 public static class LoginChallengePolicy
 {
@@ -30,6 +30,18 @@ public static class LoginChallengePolicy
     /// </summary>
     public static readonly RateBudgetScope CodeBudget =
         new("login-challenge-codes", limit: 10, window: TimeSpan.FromHours(24));
+
+    /// <summary>
+    /// Mails to addresses without an account, all of them together, per 24 hours. Made-up addresses bounce,
+    /// and a sender domain with a high bounce rate is blocked by the provider — with no break-glass, a stop
+    /// on every login (security-auditor, PR #1756). Past it the record is still written and no mail is
+    /// sent. An account holder's mail is never counted here.
+    /// </summary>
+    public static readonly RateBudgetScope UnknownAddressMailBudget =
+        new("login-challenge-unknown-address-mails", limit: 20, window: TimeSpan.FromHours(24));
+
+    /// <summary>The one subject <see cref="UnknownAddressMailBudget"/> counts against.</summary>
+    public const string UnknownAddressMailSubject = "every-address-without-an-account";
 
     /// <summary>
     /// The silent per-address cooldown: one mint per window. The window is configuration

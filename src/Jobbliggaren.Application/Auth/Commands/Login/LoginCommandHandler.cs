@@ -1,6 +1,5 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Dtos;
-using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;

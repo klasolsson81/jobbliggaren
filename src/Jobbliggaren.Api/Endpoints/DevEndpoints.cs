@@ -11,11 +11,11 @@ namespace Jobbliggaren.Api.Endpoints;
 /// (<c>docs/runbooks/release-checklist.md</c>). These exist solely so onboarding flows can be
 /// re-tested.
 ///
-/// <para><b>The two routes are mapped by two different methods, and that is the point.</b> They
+/// <para><b>The routes are mapped by two different methods, and that is the point.</b> The methods
 /// have different change-reasons — one is gated on the ENVIRONMENT and can never be reachable
 /// outside Development, the other on CONFIGURATION so it can be turned on for a deployed test box.
 /// Kept in one call behind one condition, the unauthenticated <c>confirm-email</c> seam would sit
-/// one <c>||</c> away from being re-armed in Production by an edit aimed at the other route.</para>
+/// one <c>||</c> away from being re-armed in Production by an edit aimed at <c>reset-my-data</c>.</para>
 /// </summary>
 public static class DevEndpoints
 {

@@ -23,8 +23,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 /// <item>open WITHOUT email confirmation — legacy instant-login (an account bound to an address the
 /// registrant may not own) plus the acknowledged-deferred duplicate-enumeration oracle, on a public
 /// IP;</item>
-/// <item>a sender that cannot deliver, whatever the flags say — login is a mailed code or link with no
-/// break-glass, so nobody could log in and every request would still answer 202.</item>
+/// <item>a sender that cannot deliver, whatever the flags say.</item>
 /// </list>
 /// Prerequisites are owned by <c>docs/runbooks/registration-gate.md</c>.
 /// <para>
@@ -109,9 +108,7 @@ public class AuthOptionsValidatorTests
     public void A_sender_that_cannot_deliver_refuses_to_boot_whatever_the_flags_say(
         string environmentName, bool open, bool confirm)
     {
-        // Login is a mailed code or link with no break-glass (#1735), so a host that cannot deliver locks
-        // every account out. (false, false) is the committed default composition: Email:Provider unset,
-        // registration closed.
+        // (false, false) is the committed default composition: Email:Provider unset, registration closed.
         var result = ValidatorFor(environmentName, NonDeliveringSender())
             .Validate(null, Options(open, confirm));
 

@@ -108,15 +108,36 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Theory]
-    [MemberData(nameof(Variants))]
-    public void Every_variant_states_the_lifespan_from_the_policy_or_carries_no_credential(string variant)
+    [InlineData("code-and-link")]
+    [InlineData("link-only")]
+    public void Every_credential_bearing_variant_states_the_lifespan_from_the_policy(string variant)
     {
-        var rendered = RenderVariant(variant);
-        var minutes = $"{(int)LoginChallengePolicy.ChallengeTtl.TotalMinutes} minuter";
-
-        if (variant is "code-and-link" or "link-only")
-            rendered.PlainTextBody.ShouldContain(minutes);
+        RenderVariant(variant).PlainTextBody
+            .ShouldContain($"{(int)LoginChallengePolicy.ChallengeTtl.TotalMinutes} minuter");
     }
+
+    [Fact]
+    public void Every_variant_of_the_closed_hierarchy_has_a_template()
+    {
+        // The dispatcher ends in an UnreachableException, so a variant added without a case would compile and
+        // fail only in the consumer, as a mail that is never sent.
+        var variants = typeof(LoginChallengeEmail).GetNestedTypes()
+            .Where(type => type.IsSubclassOf(typeof(LoginChallengeEmail)))
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal);
+
+        OneOfEach.Keys.Order(StringComparer.Ordinal).ShouldBe(variants);
+        foreach (var content in OneOfEach.Values)
+            Should.NotThrow(() => Render(content));
+    }
+
+    private static readonly Dictionary<string, LoginChallengeEmail> OneOfEach = new()
+    {
+        [nameof(LoginChallengeEmail.CodeAndLink)] = new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), Link),
+        [nameof(LoginChallengeEmail.LinkOnly)] = new LoginChallengeEmail.LinkOnly(Link),
+        [nameof(LoginChallengeEmail.RegistrationClosed)] = new LoginChallengeEmail.RegistrationClosed(),
+        [nameof(LoginChallengeEmail.PendingDeletion)] = new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)),
+    };
 
     [Theory]
     [MemberData(nameof(Variants))]

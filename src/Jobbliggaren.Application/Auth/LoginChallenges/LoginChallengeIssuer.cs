@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Microsoft.Extensions.Logging;
@@ -13,6 +15,7 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 public sealed partial class LoginChallengeIssuer(
     LoginSubjectResolver subjects,
     ILoginChallengeStore store,
+    IRateBudget budget,
     IEmailSender emailSender,
     IAuthAuditLogger audit,
     ILogger<LoginChallengeIssuer> logger)
@@ -33,6 +36,15 @@ public sealed partial class LoginChallengeIssuer(
                 LoginChallengePlan.CredentialsFor(kind),
                 ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted),
             ct);
+
+        if (!await AdmitsMailAsync(subject, ct))
+        {
+            LogUnknownAddressMailCapped(
+                logger,
+                LoginChallengePolicy.UnknownAddressMailBudget.Limit,
+                LoginChallengePolicy.UnknownAddressMailBudget.Window);
+            return;
+        }
 
         try
         {
@@ -66,6 +78,14 @@ public sealed partial class LoginChallengeIssuer(
     private static T Required<T>(T? value) where T : struct =>
         value ?? throw new InvalidOperationException("The store did not mint a credential the plan asked for.");
 
+    private Task<bool> AdmitsMailAsync(LoginSubject subject, CancellationToken ct) => subject switch
+    {
+        LoginSubject.NoAccount or LoginSubject.ProfileMissing => budget.TryConsumeAsync(
+            LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject, ct),
+        LoginSubject.Active or LoginSubject.PendingDeletion => Task.FromResult(true),
+        var other => throw new UnreachableException($"Unclassified login subject {other.GetType().Name}."),
+    };
+
     private static Guid? UserIdOf(LoginSubject subject) => subject switch
     {
         LoginSubject.Active active => active.UserId,
@@ -78,4 +98,9 @@ public sealed partial class LoginChallengeIssuer(
         "Login challenge mail not sent ({ChallengeKind}, {ErrorType}) — the requester already received the "
         + "uniform 202 and cannot be told")]
     private static partial void LogSendFailed(ILogger logger, LoginChallengeKind challengeKind, string errorType);
+
+    [LoggerMessage(1015, LogLevel.Warning,
+        "Login challenge mail to an address without an account not sent: the global cap ({Limit} per "
+        + "{Window}) is spent; the record is written")]
+    private static partial void LogUnknownAddressMailCapped(ILogger logger, int limit, TimeSpan window);
 }

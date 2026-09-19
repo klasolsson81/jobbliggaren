@@ -1170,16 +1170,16 @@ done
 
 # `exit 0` above is satisfied vacuously by a project with no ports or a deleted ports block.
 # The floor makes the pin cross the threshold of the property it pins: the project publishes
-# six ports today — including the two behind the `test` profile, which compose's model carries
+# seven ports today — including the two behind the `test` profile, which compose's model carries
 # WITHOUT `--profile`, so their bindings are checked rather than merely asserted — and a
-# restructure that hides them fails here instead of going green. Six is also the number the
+# restructure that hides them fails here instead of going green. Seven is also the number the
 # project resolves to, not just the number written in `docker-compose.yml`: measured
-# 2026-08-05, the repo root has no override and no shadowing file, so the two are equal today
+# 2026-09-19, the repo root has no override and no shadowing file, so the two are equal today
 # and this fixture is what makes a future divergence visible.
-run real_repo_project_floor 0 --expect-min 6 "$REPO_ROOT"
+run real_repo_project_floor 0 --expect-min 7 "$REPO_ROOT"
 
 run floor_can_fail 1 --expect-min 99 "$REPO_ROOT"
-run floor_accepts_equals_form 0 --expect-min=6 "$REPO_ROOT"
+run floor_accepts_equals_form 0 --expect-min=7 "$REPO_ROOT"
 
 # ONE INVOCATION PER PROJECT: two arguments are two projects and must not be merged into one.
 # (Merging WITHIN a project is now wanted — section 7 — but across projects it would answer a

@@ -77,9 +77,11 @@ git check-ignore -v .env
 docker compose up -d
 ```
 
-Tre containrar startar (namn/portar per `docker-compose.yml`):
+Fyra containrar startar (namn/portar per `docker-compose.yml`):
 - `jobbliggaren-postgres-dev` på `5435` (db: `jobbliggaren`, user: `jobbliggaren`)
 - `jobbliggaren-redis-dev` på `6379`
+- `jobbliggaren-redis-volatile-dev` på `6381` — en Redis utan persistens (ingen AOF, ingen RDB, ingen
+  volym, `/data` på tmpfs), byggd för inloggningsutmaningens nycklar (ADR 0142 D1)
 - `jobbliggaren-seq` på `5341` (UI + API) och `5342` (ingestion)
 
 ### 2.3 Verifiera
@@ -94,6 +96,10 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
 
 # Redis
 docker exec jobbliggaren-redis-dev redis-cli ping
+# → PONG
+
+# Redis utan persistens
+docker exec jobbliggaren-redis-volatile-dev redis-cli ping
 # → PONG
 
 # Seq UI
@@ -202,7 +208,7 @@ Om `docker compose up` säger `Bind for 127.0.0.1:5435 failed: port is already a
 falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel redan
 innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
-Samma procedur för 5433 (test-postgres), 6379/6380 (redis), 5341/5342 (seq).
+Samma procedur för 5433 (test-postgres), 6379/6380/6381 (redis), 5341/5342 (seq).
 
 ### 6.2 Docker Desktop inte igång
 
@@ -364,6 +370,7 @@ Alla tre startas av CC som bakgrundsprocesser.
 | FE (Next dev) | 3000 | `pnpm dev` |
 | Postgres dev | 5435 | db/user `jobbliggaren`, container `jobbliggaren-postgres-dev` |
 | Redis dev | 6379 | container `jobbliggaren-redis-dev` |
+| Redis dev, utan persistens | 6381 | container `jobbliggaren-redis-volatile-dev` |
 
 ### Start / omstart (Git Bash, från repo-roten)
 

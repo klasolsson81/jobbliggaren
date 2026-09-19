@@ -45,4 +45,13 @@ public sealed class AuthEmailCooldownOptions
     /// </summary>
     [Range(1, 3600)]
     public int PasswordResetWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Per-TARGET silent window on the login-challenge request (#1735): one mint per address per window.
+    /// Default 60, the same as the resend and reset windows. Configuration rather than a
+    /// <c>LoginChallengePolicy</c> constant because it does not enter the guess arithmetic: the mail and
+    /// code budgets cap mints whatever the window is (senior-cto-advisor Q3, accepted by security-auditor).
+    /// </summary>
+    [Range(1, 3600)]
+    public int LoginChallengeWindowSeconds { get; set; } = 60;
 }

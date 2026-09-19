@@ -1,7 +1,10 @@
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -35,6 +38,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// confirmation was queued to X") without the network, and locks out the real provider.
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
+
+    private readonly LoginChallengeFaults _loginChallengeFaults = new();
+
+    /// <summary>#1735 — puts the login challenge's Redis stores out of reach for a scope (the 503 rows).</summary>
+    internal LoginChallengeFaults LoginChallengeFaults => _loginChallengeFaults;
 
     // #204 / TD-83 PR2 — last-wins IBackgroundJobController override so the host never composes the
     // real HangfireBackgroundJobController. Held as a field so audit/outcome tests can read recorded
@@ -183,6 +191,16 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // RemoveAll first so nothing resolves the real adapter via GetServices<IBackgroundJobController>().
             services.RemoveAll<IBackgroundJobController>();
             services.AddSingleton<IBackgroundJobController>(_backgroundJobs);
+
+            // #1735 — the login challenge's stores stay the real Redis adapters, wrapped so a test can put
+            // them out of reach in place (LoginChallengeFaults). A dedicated host would be the fourth
+            // WebApplicationFactory, past EF's ManyServiceProvidersCreatedWarning ceiling.
+            services.RemoveAll<IRateBudget>();
+            services.AddSingleton<IRateBudget>(sp => new FaultableRateBudget(
+                ActivatorUtilities.CreateInstance<RedisRateBudget>(sp), _loginChallengeFaults));
+            services.RemoveAll<ILoginChallengeStore>();
+            services.AddSingleton<ILoginChallengeStore>(sp => new FaultableLoginChallengeStore(
+                ActivatorUtilities.CreateInstance<RedisLoginChallengeStore>(sp), _loginChallengeFaults));
 
             // #616 — replace the real HIBP typed client (AddBreachedPasswordCheck) with the stub.
             // Every register/change-password test funnels through PwnedPasswordValidator inside

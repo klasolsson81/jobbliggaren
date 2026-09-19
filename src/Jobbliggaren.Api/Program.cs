@@ -218,10 +218,10 @@ builder.Services.AddHsts(o =>
     o.Preload = hstsConfig.Preload;
 });
 
-// #512: throttled Error log for the session-store-unavailable 503 path (below). Singleton so
-// the throttle window is shared across all requests of the host — a Redis outage fans out to
-// every authenticated request, so one log per window is enough for the TD-77 alarm.
-builder.Services.AddSingleton<SessionStoreUnavailableLog>();
+// #512: throttled Error log for the store-unavailable 503 path (below). Singleton so the
+// throttle windows are shared across all requests of the host — a Redis outage fans out to
+// every request on that store, so one log per window and store is enough for the TD-77 alarm.
+builder.Services.AddSingleton<StoreUnavailableLog>();
 
 var app = builder.Build();
 
@@ -310,8 +310,8 @@ app.Use(async (ctx, next) =>
         // runs outside the Mediator pipeline, so this line is the only signal LoggingBehavior leaves it.
         // Throttled, dedicated event-id. §5/data-minimisation: only the failure's TYPE is logged, never a
         // message, which can embed the operated Redis key (a userId, or an address fingerprint) — see
-        // SessionStoreUnavailableLog. Every subtype answers the same body.
-        ctx.RequestServices.GetRequiredService<SessionStoreUnavailableLog>().Emit(ex.InnerType);
+        // StoreUnavailableLog. Every subtype answers the same body.
+        ctx.RequestServices.GetRequiredService<StoreUnavailableLog>().Emit(ex.Store, ex.InnerType);
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = StoreUnavailableException.ClientMessage });
     }

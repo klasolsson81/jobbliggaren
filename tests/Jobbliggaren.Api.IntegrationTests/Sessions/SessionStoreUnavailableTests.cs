@@ -20,7 +20,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Sessions;
 /// Verifierar hela 503-vägen end-to-end: en inre <see cref="RedisTimeoutException"/> (degraderad
 /// Redis) översätts av <see cref="SessionStoreResilienceDecorator"/> (#511) till
 /// <c>SessionStoreUnavailableException</c> → 503 (inte 401 eller 500), och 503-vägen loggar en
-/// dedikerad <c>session_store_unavailable</c>-Error via <c>SessionStoreUnavailableLog</c> (#512).
+/// dedikerad <c>store_unavailable</c>-Error med <c>store=session</c> via <c>StoreUnavailableLog</c> (#512).
 /// Säkerhetskrav: infrastrukturincident ska inte se ut som autentiseringsfel (ADR 0017 Turn 4).
 /// </summary>
 [Collection("Api")]
@@ -69,7 +69,7 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task GET_me_when_session_store_unavailable_logs_session_store_unavailable_error()
+    public async Task GET_me_when_the_session_store_is_down_logs_a_store_unavailable_error_naming_the_session_store()
     {
         var ct = TestContext.Current.CancellationToken;
 
@@ -91,7 +91,8 @@ public class SessionStoreUnavailableTests(ApiFactory factory)
         unavailableLogs.ShouldNotBeEmpty();
         var record = unavailableLogs[0];
         record.Level.ShouldBe(LogLevel.Error);
-        record.Message.ShouldContain("event_name=session_store_unavailable");
+        record.Message.ShouldContain("event_name=store_unavailable");
+        record.Message.ShouldContain($"store={SessionStoreUnavailableException.StoreName} ");
         // §5/data-minimisation: the log must not leak the bearer token / session-id, nor the inner
         // Redis exception message (it can embed the operated key). The broken inner threw
         // "Timeout performing GET (5000ms)" — its text must not appear in the log.

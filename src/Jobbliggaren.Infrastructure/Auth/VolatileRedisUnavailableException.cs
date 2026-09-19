@@ -8,4 +8,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// Redis failure's type name and never the Redis exception itself.
 /// </summary>
 public sealed class VolatileRedisUnavailableException(string innerType)
-    : StoreUnavailableException("Volatile Redis (login challenge store and rate budgets) unavailable.", innerType);
+    : StoreUnavailableException(
+        StoreName, "Volatile Redis (login challenge store and rate budgets) unavailable.", innerType)
+{
+    public const string StoreName = "volatile-redis";
+}

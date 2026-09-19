@@ -1,4 +1,8 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Infrastructure.Auth;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
 
@@ -54,6 +58,20 @@ public sealed class HealthCheckEndpointsTests
         response.StatusCode.ShouldBe(System.Net.HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync(ct);
         body.ShouldBe("Healthy");
+    }
+
+    [Fact]
+    public void ApiReady_VolatileRedisCheck_IsRegisteredUnderTheReadyTag()
+    {
+        // #1735 — /api/ready answering 200 above cannot tell a registered check from a missing one: with
+        // the registration gone, the remaining checks still pass. The name and the tag come from the
+        // constants Program.cs registers with, so a rename fails here instead of passing both halves.
+        var registration = _factory.Services
+            .GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations
+            .SingleOrDefault(r => r.Name == VolatileRedisHealthCheckExtensions.HealthCheckName);
+
+        registration.ShouldNotBeNull();
+        registration.Tags.ShouldContain(VolatileRedisHealthCheckExtensions.ReadyTag);
     }
 
     [Fact]

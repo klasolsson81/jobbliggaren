@@ -15,8 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <summary>
 /// #1737 (ADR 0142 D3, security Major 11) — what the password surface answers an account that has no
 /// password. Such an account is what <see cref="AuthTestHelpers.RegisterAndGetSessionIdAsync"/> creates
-/// (<c>UserManager.CreateAsync(user)</c>, no password), the shape 1a's first inbox proof and 1c's
-/// <c>complete</c> both leave behind.
+/// (<c>UserManager.CreateAsync(user)</c>, no password).
 /// </summary>
 [Collection("Api")]
 public class PasswordlessAccountPasswordSurfaceTests(ApiFactory factory)
@@ -113,10 +112,8 @@ public class PasswordlessAccountPasswordSurfaceTests(ApiFactory factory)
 
     /// <summary>
     /// UNREACHABLE STATE, declared: a VALID reset token for an account with no password. No path in
-    /// <c>src/</c> produces it — every password removal (<c>UserManager.RemovePasswordAsync</c> in 1a's first
-    /// inbox proof) rotates the security stamp, which kills outstanding tokens. The token is therefore minted
-    /// by hand through <c>UserManager</c>, and the test asserts only that the read side degrades safely if a
-    /// future removal path forgets the rotation.
+    /// <c>src/</c> produces it. The token is therefore minted by hand through <c>UserManager</c>, and the
+    /// test asserts only that the read side degrades safely.
     /// </summary>
     [Fact]
     public async Task A_valid_reset_token_cannot_give_a_passwordless_account_a_password()

@@ -182,8 +182,6 @@ public class UserAccountServiceTests
         result.IsSuccess.ShouldBeTrue();
     }
 
-    // ADR 0142 D3 (security Major 11) — an account with no password. Two production actors leave one: 1a's
-    // first inbox proof (IdentityInboxProofRecorder removes the password) and 1c's CreatePasswordlessUserAsync.
     [Fact]
     public async Task ValidateCredentialsAsync_ShouldPayEqualizerAndNeverTouchLockout_WhenAccountHasNoPassword()
     {
@@ -202,7 +200,7 @@ public class UserAccountServiceTests
     }
 
     [Fact]
-    public async Task ValidateCredentialsAsync_ShouldAnswerAPasswordlessAccountExactlyLikeAnUnknownAddress()
+    public async Task ValidateCredentialsAsync_ShouldAnswerExactlyLikeAnUnknownAddress_WhenAccountHasNoPassword()
     {
         var ct = TestContext.Current.CancellationToken;
         var passwordless = new ApplicationUser { Email = "nopass@example.com", UserName = "nopass@example.com", PasswordHash = null };

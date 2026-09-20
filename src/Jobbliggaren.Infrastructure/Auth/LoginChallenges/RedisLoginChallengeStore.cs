@@ -72,7 +72,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 : null;
 
             var payload = new ChallengePayload(
-                challenge.Email,
+                challenge.Recipient,
                 code?.Reveal(),
                 secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)));
             var protectedPayload = _protector.Protect(Padded(payload));
@@ -89,7 +89,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 [new HashEntry(PayloadField, protectedPayload), new HashEntry(AttemptsField, 0)]);
             var expire = transaction.KeyExpireAsync(recordKey, LoginChallengePolicy.ChallengeTtl);
             var displaced = challenge.ReplacesLiveChallenge
-                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Email), segment, LoginChallengePolicy.ChallengeTtl)
+                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Recipient), segment, LoginChallengePolicy.ChallengeTtl)
                 : null;
             await transaction.ExecuteAsync();
             await write;

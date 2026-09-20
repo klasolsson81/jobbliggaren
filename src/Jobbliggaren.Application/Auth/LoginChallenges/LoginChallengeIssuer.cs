@@ -25,6 +25,11 @@ public sealed partial class LoginChallengeIssuer(
         var subject = await subjects.ResolveAsync(dispatch.Email, ct);
         var kind = LoginChallengePlan.Decide(subject, dispatch.CodeBudget);
 
+        // The account's OWN address, never the submitted spelling (the TryPreparePasswordResetAsync rule):
+        // Identity's lookup folds case, and with it a few non-ASCII letters, so the typed spelling can be
+        // another inbox than the account's.
+        var recipient = subject is LoginSubject.KnownAccount known ? known.AccountEmail : dispatch.Email;
+
         // A record for every admitted request, written BEFORE the mail: a code that arrives before its record
         // would read as expired (security-auditor, Q2 binding). The record replaces the address's live
         // challenge only when the request path's code budget admitted the mint, which it decided without
@@ -32,7 +37,7 @@ public sealed partial class LoginChallengeIssuer(
         var issued = await store.PutAsync(
             new NewLoginChallenge(
                 dispatch.ChallengeId,
-                dispatch.Email,
+                recipient,
                 LoginChallengePlan.CredentialsFor(kind),
                 ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted),
             ct);
@@ -48,7 +53,7 @@ public sealed partial class LoginChallengeIssuer(
 
         try
         {
-            await emailSender.SendLoginChallengeAsync(dispatch.Email, Content(kind, subject, issued), ct);
+            await emailSender.SendLoginChallengeAsync(recipient, Content(kind, subject, issued), ct);
         }
         catch (EmailDeliveryException ex)
         {

@@ -41,7 +41,7 @@ public sealed class LoginChallengeDispatchServiceTests
     private async Task DrainAsync(params LoginChallengeDispatch[] items)
     {
         var lookup = Substitute.For<ILoginAccountLookup>();
-        lookup.FindUserIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((Guid?)null);
+        lookup.FindAccountAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
 
         var services = new ServiceCollection();
         services.AddScoped(_ => new LoginSubjectResolver(lookup, TestAppDbContextFactory.Create()));
@@ -77,9 +77,9 @@ public sealed class LoginChallengeDispatchServiceTests
     [Fact]
     public async Task A_store_outage_on_one_item_is_logged_by_type_and_the_next_item_is_still_issued()
     {
-        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "first@example.com"), Arg.Any<CancellationToken>())
+        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Recipient == "first@example.com"), Arg.Any<CancellationToken>())
             .ThrowsAsync(new VolatileRedisUnavailableException("RedisConnectionException"));
-        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "second@example.com"), Arg.Any<CancellationToken>())
+        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Recipient == "second@example.com"), Arg.Any<CancellationToken>())
             .Returns(new IssuedCredentials(null, null));
 
         await DrainAsync(Item("first@example.com"), Item("second@example.com"));
@@ -99,9 +99,9 @@ public sealed class LoginChallengeDispatchServiceTests
         // Declared unreachable: every call in the drain runs on CancellationToken.None, and no dependency in
         // src/ throws an OperationCanceledException on it (the Scaleway sender turns its timeouts into
         // EmailDeliveryException). What this pins is only that the drain survives it if that ever changes.
-        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "first@example.com"), Arg.Any<CancellationToken>())
+        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Recipient == "first@example.com"), Arg.Any<CancellationToken>())
             .ThrowsAsync(new OperationCanceledException());
-        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "second@example.com"), Arg.Any<CancellationToken>())
+        _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Recipient == "second@example.com"), Arg.Any<CancellationToken>())
             .Returns(new IssuedCredentials(null, null));
 
         await DrainAsync(Item("first@example.com"), Item("second@example.com"));

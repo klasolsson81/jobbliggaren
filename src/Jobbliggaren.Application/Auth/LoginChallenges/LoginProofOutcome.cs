@@ -10,8 +10,18 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// </summary>
 public sealed class LoginProofOutcome(LoginSubjectResolver subjects, PasswordlessSessionGrant grant)
 {
-    public async Task<LoginOutcome> ResolveAsync(LoginChallengeProof proof, LoginMethod method, CancellationToken ct) =>
-        await subjects.ResolveAsync(proof.ProvenEmail, ct) switch
+    public async Task<LoginOutcome> ResolveAsync(LoginChallengeProof proof, LoginMethod method, CancellationToken ct)
+    {
+        var subject = await subjects.ResolveAsync(proof.ProvenEmail, ct);
+
+        // The proven inbox must be the account's own address, spelling for spelling.
+        if (subject is LoginSubject.KnownAccount known
+            && !string.Equals(known.AccountEmail.Trim(), proof.ProvenEmail.Trim(), StringComparison.Ordinal))
+        {
+            return NotThisAccountsAddress();
+        }
+
+        return subject switch
         {
             LoginSubject.Active active =>
                 new LoginOutcome.SignedIn((await grant.GrantAsync(active, method, ct)).SessionId),
@@ -20,4 +30,7 @@ public sealed class LoginProofOutcome(LoginSubjectResolver subjects, Passwordles
             LoginSubject.NoAccount or LoginSubject.ProfileMissing => new LoginOutcome.RegistrationClosed(),
             var other => throw new UnreachableException($"Unclassified login subject {other.GetType().Name}."),
         };
+    }
+
+    private static LoginOutcome.RegistrationClosed NotThisAccountsAddress() => new();
 }

@@ -43,11 +43,11 @@ public sealed class LoginChallengeIssuerTests
     }
 
     private async Task<LoginChallengeIssuer> IssuerAsync(
-        string subject, Guid userId, CapturingLogger<LoginChallengeIssuer>? logger = null)
+        string subject, Guid userId, CapturingLogger<LoginChallengeIssuer>? logger = null, string typed = Email)
     {
         var lookup = Substitute.For<ILoginAccountLookup>();
-        lookup.FindUserIdAsync(Email, Arg.Any<CancellationToken>())
-            .Returns(subject == "no-account" ? null : userId);
+        lookup.FindAccountAsync(typed, Arg.Any<CancellationToken>())
+            .Returns(subject == "no-account" ? null : new LoginAccount(userId, Email));
 
         var db = TestAppDbContextFactory.Create();
         if (subject is "active" or "pending-deletion")
@@ -66,8 +66,9 @@ public sealed class LoginChallengeIssuerTests
             (ILogger<LoginChallengeIssuer>?)logger ?? NullLogger<LoginChallengeIssuer>.Instance);
     }
 
-    private static LoginChallengeDispatch Dispatch(CodeBudgetState budget = CodeBudgetState.Admitted) =>
-        new(ChallengeId.Generate(), Email, budget, "203.0.113.0", "probe/1.0");
+    private static LoginChallengeDispatch Dispatch(
+        CodeBudgetState budget = CodeBudgetState.Admitted, string typed = Email) =>
+        new(ChallengeId.Generate(), typed, budget, "203.0.113.0", "probe/1.0");
 
     [Fact]
     public async Task An_active_account_within_budget_gets_the_code_and_the_link_after_its_record_is_written()
@@ -81,13 +82,49 @@ public sealed class LoginChallengeIssuerTests
         Received.InOrder(() =>
         {
             _store.PutAsync(
-                Arg.Is<NewLoginChallenge>(c => c.Id == dispatch.ChallengeId && c.Email == Email
+                Arg.Is<NewLoginChallenge>(c => c.Id == dispatch.ChallengeId && c.Recipient == Email
                     && c.Credentials == ChallengeCredentials.CodeAndLink && c.ReplacesLiveChallenge),
                 Arg.Any<CancellationToken>());
             _sender.SendLoginChallengeAsync(
                 Email, new LoginChallengeEmail.CodeAndLink(Code, Link), Arg.Any<CancellationToken>());
         });
         _audit.Received(1).LoginChallengeIssued(userId, LoginChallengeKind.CodeAndLink, "203.0.113.0", "probe/1.0");
+    }
+
+    // Identity's lookup normaliser upper-cases: another letter case finds the account, and so does U+017F (ſ),
+    // which upper-cases to S. LoginAccount carries what UserAccountService.FindAccountAsync answers for both:
+    // the row's own spelling.
+    [Theory]
+    [InlineData("active", "Person@Example.com")]
+    [InlineData("active", "perſon@example.com")]
+    [InlineData("pending-deletion", "perſon@example.com")]
+    public async Task An_accounts_challenge_is_recorded_for_and_mailed_to_the_accounts_own_spelling(
+        string subject, string typed)
+    {
+        var issuer = await IssuerAsync(subject, Guid.NewGuid(), typed: typed);
+
+        await issuer.IssueAsync(Dispatch(typed: typed), Ct);
+
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Recipient == Email), Arg.Any<CancellationToken>());
+        await _sender.Received(1).SendLoginChallengeAsync(
+            Email, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
+        await _sender.DidNotReceive().SendLoginChallengeAsync(
+            typed, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_address_without_an_account_is_recorded_and_mailed_as_typed()
+    {
+        const string typed = "Nobody@Example.com";
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), typed: typed);
+
+        await issuer.IssueAsync(Dispatch(typed: typed), Ct);
+
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Recipient == typed), Arg.Any<CancellationToken>());
+        await _sender.Received(1).SendLoginChallengeAsync(
+            typed, new LoginChallengeEmail.RegistrationClosed(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

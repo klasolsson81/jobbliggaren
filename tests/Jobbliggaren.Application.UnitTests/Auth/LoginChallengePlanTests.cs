@@ -25,10 +25,10 @@ public sealed class LoginChallengePlanTests
 
     private static LoginSubject Subject(string name) => name switch
     {
-        "active" => new LoginSubject.Active(UserId),
-        "pending-deletion" => new LoginSubject.PendingDeletion(UserId, DateTimeOffset.UnixEpoch),
+        "active" => new LoginSubject.Active(UserId, "person@example.com"),
+        "pending-deletion" => new LoginSubject.PendingDeletion(UserId, "person@example.com", DateTimeOffset.UnixEpoch),
         "no-account" => new LoginSubject.NoAccount(),
-        "profile-missing" => new LoginSubject.ProfileMissing(UserId),
+        "profile-missing" => new LoginSubject.ProfileMissing(UserId, "person@example.com"),
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 

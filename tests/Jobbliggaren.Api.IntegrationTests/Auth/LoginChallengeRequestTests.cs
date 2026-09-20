@@ -145,6 +145,22 @@ public class LoginChallengeRequestTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Another_spelling_of_an_accounts_address_is_mailed_to_the_accounts_own_spelling()
+    {
+        // U+017F (ſ) upper-cases to S, so Identity's lookup finds the account stored under the plain s. ONE
+        // request: the two spellings share a fingerprint, and so a cooldown.
+        var id = Guid.NewGuid().ToString("N");
+        var stored = $"lc-s-{id}@example.se";
+        var folded = $"lc-ſ-{id}@example.se";
+        await CreateAccountAsync(stored);
+
+        (await RequestAsync(folded)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        (await AwaitMailAsync(stored)).ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
+        MailsTo(folded).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_cooled_repeat_sends_nothing_more()
     {
         var email = NewAddress("cooled-mail");

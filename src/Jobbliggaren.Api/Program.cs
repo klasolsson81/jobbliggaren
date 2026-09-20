@@ -170,8 +170,8 @@ builder.Services.AddScoped<
 //              Bara liveness, för container-level orchestration (även om Fargate
 //              ignorerar Docker HEALTHCHECK så ALB är auktoritativ).
 //
-// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING.
-//               Returnerar 503 under cold-start tills BÅDE Postgres + Redis svarar.
+// `/api/ready`: predicate c => c.Tags.Contains("ready") → DbContext + Redis-PING på BÅDA Redis-instanserna.
+//               Returnerar 503 under cold-start tills Postgres och båda Redis-instanserna svarar.
 //               ALB target-group pekar på denna (BUILD.md §15.4, modules/alb/variables.tf
 //               health_check_path default "/api/ready") → tasks får INGEN trafik förrän
 //               DB-pool + Redis-multiplexer är initierade.
@@ -184,9 +184,13 @@ builder.Services.AddScoped<
 // AddDbContextCheck<AppDbContext> är Microsoft-paket (inte Xabaril) — pingar
 // via `Database.CanConnectAsync()`. RedisHealthCheck är custom (Api/HealthChecks/)
 // — undviker third-party-dep, semantiken är två linjer (IsConnected + PingAsync).
+//
+// #1735 — a third readiness check: the non-persisted Redis the login challenge's stores run on. It is
+// registered through Infrastructure because the connection type is internal there (VolatileRedisHealthCheck).
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres", tags: ["ready"])
-    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"]);
+    .AddCheck<RedisHealthCheck>("redis", tags: ["ready"])
+    .AddVolatileRedisCheck();
 
 // HSTS-config bindas vid service-registrering så ASP.NET Cores AddHsts läser
 // rätt värden. UseHsts() i pipelinen nedan gate:as på Environment + HttpsEnabled
@@ -214,10 +218,10 @@ builder.Services.AddHsts(o =>
     o.Preload = hstsConfig.Preload;
 });
 
-// #512: throttled Error log for the session-store-unavailable 503 path (below). Singleton so
-// the throttle window is shared across all requests of the host — a Redis outage fans out to
-// every authenticated request, so one log per window is enough for the TD-77 alarm.
-builder.Services.AddSingleton<SessionStoreUnavailableLog>();
+// #512: throttled Error log for the store-unavailable 503 path (below). Singleton so the
+// throttle windows are shared across all requests of the host — a Redis outage fans out to
+// every request on that store, so one log per window and store is enough for the #1172 alarm.
+builder.Services.AddSingleton<StoreUnavailableLog>();
 
 var app = builder.Build();
 
@@ -306,8 +310,8 @@ app.Use(async (ctx, next) =>
         // runs outside the Mediator pipeline, so this line is the only signal LoggingBehavior leaves it.
         // Throttled, dedicated event-id. §5/data-minimisation: only the failure's TYPE is logged, never a
         // message, which can embed the operated Redis key (a userId, or an address fingerprint) — see
-        // SessionStoreUnavailableLog. Every subtype answers the same body.
-        ctx.RequestServices.GetRequiredService<SessionStoreUnavailableLog>().Emit(ex.InnerType);
+        // StoreUnavailableLog. Every subtype answers the same body.
+        ctx.RequestServices.GetRequiredService<StoreUnavailableLog>().Emit(ex.Store, ex.InnerType);
         ctx.Response.StatusCode = 503;
         await ctx.Response.WriteAsJsonAsync(new { error = StoreUnavailableException.ClientMessage });
     }
@@ -426,16 +430,16 @@ app.UseRateLimiter();
 //             orchestration kan peka hit (även om Fargate ignorerar Docker
 //             HEALTHCHECK).
 //
-// /api/ready: strict readiness. DbContext-check + Redis-PING via "ready"-tag.
+// /api/ready: strict readiness. DbContext-check + PING mot båda Redis-instanserna via "ready"-tag.
 //             ALB target-group pekar hit (modules/alb/variables.tf
 //             health_check_path default "/api/ready"). Returnerar 503 tills
-//             BÅDE Postgres + Redis svarar.
+//             Postgres och båda Redis-instanserna svarar.
 //
 // Response: default HealthCheckResponseWriter skriver "Healthy" / "Unhealthy"
 // som text. ALB kollar bara HTTP-status; manuella smoke-tests får text-body.
 //
 // #483 Low — both endpoints carry the anonymous, IP-partitioned HealthCheckPolicy: /api/ready
-// runs a Postgres CanConnect + Redis PING per hit (an amplification vector for an unauth flood),
+// runs a Postgres CanConnect + a PING on each Redis instance per hit (an amplification vector for an unauth flood),
 // and /api/live, though cheap, is still an anonymous surface. The limit is generous so legitimate
 // ALB/orchestrator probes are never throttled (see RateLimitingOptions.HealthCheck).
 app.MapHealthChecks("/api/live", new HealthCheckOptions

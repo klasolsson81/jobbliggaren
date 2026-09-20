@@ -13,7 +13,8 @@ using StackExchange.Redis;
 namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 
 /// <summary>
-/// Redis-backed <see cref="ILoginChallengeStore"/> (ADR 0142 D1). A challenge is one hash with two fields:
+/// Redis-backed <see cref="ILoginChallengeStore"/> (ADR 0142 D1), on the volatile instance. A challenge is
+/// one hash with two fields:
 /// <c>p</c>, the DataProtector-protected payload (address, code, link-secret hash), and <c>a</c>, the code
 /// arm's attempt counter. A Redis reader is in scope (D1's threat model), so nothing that tells whether the
 /// address has an account — no subject flag, no bare link hash — sits outside the protected payload.
@@ -22,7 +23,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 {
     internal const string ProtectorPurpose = "Jobbliggaren.Auth.LoginChallenge.v1";
 
-    // IConnectionMultiplexer bypasses IDistributedCache's InstanceName (parity RedisSessionStore.KeyPrefix).
+    // A raw multiplexer bypasses IDistributedCache's InstanceName (parity RedisSessionStore.KeyPrefix).
     private const string KeyPrefix = "jobbliggaren:";
     private const string PayloadField = "p";
     private const string AttemptsField = "a";
@@ -45,13 +46,13 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     private static readonly string FullestCode = new('0', LoginChallengePolicy.CodeLength);
     private static readonly string FullestLinkHash = new('<', Convert.ToBase64String(DummyLinkHash).Length);
 
-    private readonly IConnectionMultiplexer _redis;
+    private readonly VolatileRedisConnection _redis;
     private readonly IDataProtector _protector;
     private readonly ILogger<RedisLoginChallengeStore> _logger;
     private readonly byte[] _dummyPayload;
 
     public RedisLoginChallengeStore(
-        IConnectionMultiplexer redis,
+        VolatileRedisConnection redis,
         IDataProtectionProvider dataProtection,
         ILogger<RedisLoginChallengeStore> logger)
     {
@@ -63,7 +64,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     }
 
     public Task<IssuedCredentials> PutAsync(NewLoginChallenge challenge, CancellationToken ct) =>
-        RedisFaults.GuardAsync(async () =>
+        _redis.ExecuteAsync(async db =>
         {
             LoginCode? code = challenge.Credentials == ChallengeCredentials.CodeAndLink ? MintCode() : null;
             var secret = challenge.Credentials is ChallengeCredentials.LinkOnly or ChallengeCredentials.CodeAndLink
@@ -78,7 +79,6 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
             var segment = RecordSegment(challenge.Id);
             var recordKey = RecordKey(segment);
-            var db = _redis.GetDatabase();
 
             // The record and its TTL travel together; so does the index swap, whose GET returns the record it
             // displaced. Only the last swap for an address survives any interleaving, and each Put deletes
@@ -109,11 +109,10 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
         });
 
     public Task<ChallengeVerdict> ConsumeCodeAsync(ChallengeId id, LoginCode presented, CancellationToken ct) =>
-        RedisFaults.GuardAsync(async () =>
+        _redis.ExecuteAsync(async db =>
         {
             var presentedBytes = Encoding.ASCII.GetBytes(presented.Reveal());
             var recordKey = RecordKey(RecordSegment(id));
-            var db = _redis.GetDatabase();
 
             var result = await db.ScriptEvaluateAsync(ConsumeCodeScript, [recordKey]);
             if (result.IsNull)
@@ -156,7 +155,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
         });
 
     public Task<LoginChallengeProof?> ConsumeLinkAsync(LoginLinkToken token, CancellationToken ct) =>
-        RedisFaults.GuardAsync(async () =>
+        _redis.ExecuteAsync(async db =>
         {
             var decoded = DecodeLinkToken(token.Reveal());
             if (decoded is null)
@@ -164,7 +163,6 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 
             var (id, secretHash) = decoded.Value;
             var recordKey = RecordKey(RecordSegment(id));
-            var db = _redis.GetDatabase();
 
             // Read-only: the link arm never reads or writes the attempt counter, so a scanner posting links
             // cannot burn the owner's code.

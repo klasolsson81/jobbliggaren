@@ -19,6 +19,16 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    private static async Task UntilConnectedAsync(VolatileRedisConnection connection)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (!connection.IsConnected)
+        {
+            DateTime.UtcNow.ShouldBeLessThan(deadline, "the adapter's own connection never came back");
+            await Task.Delay(50, Ct);
+        }
+    }
+
     [Fact]
     public async Task CompanyCache_ApiIdentity_CachesTheRealProvidersPublicResult()
     {
@@ -70,13 +80,13 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
     {
         await using var isolated = new RedisBoundaryFixture();
         await isolated.InitializeAsync();
-        var store = new RedisLoginChallengeStore(isolated.Challenge, new EphemeralDataProtectionProvider(),
+        var store = new RedisLoginChallengeStore(isolated.ChallengeAdapter, new EphemeralDataProtectionProvider(),
             NullLogger<RedisLoginChallengeStore>.Instance);
         var id = ChallengeId.Generate();
         var email = Guid.NewGuid() + "@example.com";
         var credentials = await store.PutAsync(new NewLoginChallenge(id, email, ChallengeCredentials.CodeAndLink, true), Ct);
         await isolated.Volatile.PauseAsync(Ct);
-        var error = await Should.ThrowAsync<LoginChallengeStoreUnavailableException>(() =>
+        var error = await Should.ThrowAsync<VolatileRedisUnavailableException>(() =>
             store.ConsumeCodeAsync(ChallengeId.Generate(), credentials.Code!.Value, Ct));
         error.InnerException.ShouldBeNull();
         error.ToString().ShouldNotContain(email);
@@ -90,6 +100,8 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
         await isolated.VolatileAdmin.GetDatabase().ExecuteAsync("CLIENT", "KILL", "USER", RedisBoundaryFixture.ApiVolatile);
         await restored.Task.WaitAsync(TimeSpan.FromSeconds(15), Ct);
         await isolated.Challenge.GetDatabase().PingAsync();
+        // CLIENT KILL USER dropped the adapter's own connection too; it reconnects on its own schedule.
+        await UntilConnectedAsync(isolated.ChallengeAdapter);
         (await store.ConsumeCodeAsync(id, credentials.Code!.Value, Ct)).IsVerified.ShouldBeTrue();
         var fresh = ChallengeId.Generate();
         var issued = await store.PutAsync(new NewLoginChallenge(fresh, email, ChallengeCredentials.CodeAndLink, true), Ct);
@@ -99,7 +111,7 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
     [Fact]
     public async Task ChallengeAdapter_LostProtectionKey_LogsOnlyFailureType()
     {
-        var original = new RedisLoginChallengeStore(fixture.Challenge, new EphemeralDataProtectionProvider(),
+        var original = new RedisLoginChallengeStore(fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(),
             NullLogger<RedisLoginChallengeStore>.Instance);
         var id = ChallengeId.Generate();
         var email = Guid.NewGuid() + "@example.com";
@@ -107,7 +119,7 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
 
         // Key-ring loss is a real recovery case; the reader must degrade safely without logging the payload.
         var logger = new RecordingLogger<RedisLoginChallengeStore>();
-        var recovered = new RedisLoginChallengeStore(fixture.Challenge, new EphemeralDataProtectionProvider(), logger);
+        var recovered = new RedisLoginChallengeStore(fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), logger);
         (await recovered.ConsumeCodeAsync(id, credentials.Code!.Value, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
         logger.Records.ShouldNotBeEmpty();
         foreach (var record in logger.Records)
@@ -127,9 +139,9 @@ public sealed class RedisBoundaryFailureTests(RedisBoundaryFixture fixture) : IC
         await isolated.InitializeAsync();
         await isolated.VolatileAdmin.GetDatabase().ExecuteAsync("ACL", "SETUSER", RedisBoundaryFixture.ApiVolatile, "clearselectors");
         await isolated.Challenge.GetDatabase().PingAsync();
-        var store = new RedisLoginChallengeStore(isolated.Challenge, new EphemeralDataProtectionProvider(),
+        var store = new RedisLoginChallengeStore(isolated.ChallengeAdapter, new EphemeralDataProtectionProvider(),
             NullLogger<RedisLoginChallengeStore>.Instance);
-        await Should.ThrowAsync<LoginChallengeStoreUnavailableException>(() =>
+        await Should.ThrowAsync<VolatileRedisUnavailableException>(() =>
             store.PutAsync(new NewLoginChallenge(ChallengeId.Generate(), "synthetic@example.com", ChallengeCredentials.CodeAndLink, true), Ct));
     }
 }

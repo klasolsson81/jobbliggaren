@@ -72,6 +72,10 @@ jobs:
     env:
       ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=jobbliggaren;Username=postgres;Password=postgres"
       ConnectionStrings__Redis: "localhost:6379"
+      # #1735 - the SAME service container behind both keys. `services:` cannot set a command, so a
+      # non-persisted second instance is not expressible here. This job asserts nothing about which
+      # instance a key lands on; VolatileRedisPlacementTests does, on two containers.
+      ConnectionStrings__VolatileRedis: "localhost:6379"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://localhost:5049"
       Auth__RequireEmailConfirmation: "true" # launch-representative (confirmed-login seam covers loginAs)

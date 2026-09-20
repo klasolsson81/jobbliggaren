@@ -660,7 +660,7 @@ public sealed class RateLimitingOptions
     /// #483 Low — anonymous health endpoints GET /api/live + GET /api/ready — partitioned per IP,
     /// FixedWindow. Own policy (least common mechanism, Saltzer/Schroeder): an anonymous, unauth
     /// DoS surface must not share a protection budget with LandingPublicRead. /api/ready runs a
-    /// Postgres CanConnect + Redis PING per hit, so an unthrottled flood is an amplification vector;
+    /// Postgres CanConnect + two Redis PINGs per hit, so an unthrottled flood is an amplification vector;
     /// /api/live is predicate-free (cheap) but still an anonymous surface. The two SHARE this one
     /// policy (one budget per IP across both).
     /// <para>

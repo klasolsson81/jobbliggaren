@@ -116,7 +116,7 @@ internal sealed partial class RecruiterErasureMatchQuery : IRecruiterErasureMatc
     /// an Art. 17 answer rather than corrupting one.
     /// </para>
     /// <para>
-    /// <b>Not throttled, deliberately.</b> <c>SessionStoreUnavailableLog</c> throttles because a
+    /// <b>Not throttled, deliberately.</b> <c>StoreUnavailableLog</c> throttles because a
     /// Redis outage makes EVERY request take its path; this one runs a handful of times per year, so
     /// there is nothing to flood and a throttle could swallow the only run that ever warns.
     /// </para>

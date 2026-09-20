@@ -91,13 +91,8 @@ public sealed partial class LoginChallengeIssuer(
         var other => throw new UnreachableException($"Unclassified login subject {other.GetType().Name}."),
     };
 
-    private static Guid? UserIdOf(LoginSubject subject) => subject switch
-    {
-        LoginSubject.Active active => active.UserId,
-        LoginSubject.PendingDeletion pending => pending.UserId,
-        LoginSubject.ProfileMissing orphan => orphan.UserId,
-        _ => null,
-    };
+    private static Guid? UserIdOf(LoginSubject subject) =>
+        subject is LoginSubject.KnownAccount known ? known.UserId : null;
 
     [LoggerMessage(1014, LogLevel.Warning,
         "Login challenge mail not sent ({ChallengeKind}, {ErrorType}) — the requester already received the "

@@ -35,7 +35,15 @@ public abstract record LoginSubject
     /// An address an Identity row holds. <see cref="AccountEmail"/> is the row's own spelling, never the
     /// submitted one.
     /// </summary>
-    public abstract record KnownAccount(Guid UserId, string AccountEmail) : LoginSubject;
+    public abstract record KnownAccount : LoginSubject
+    {
+        private protected KnownAccount(Guid userId, string accountEmail) =>
+            (UserId, AccountEmail) = (userId, accountEmail);
+
+        public Guid UserId { get; init; }
+
+        public string AccountEmail { get; init; }
+    }
 
     /// <summary>An account with a live profile: the one kind that may be given a session.</summary>
     public sealed record Active(Guid UserId, string AccountEmail) : KnownAccount(UserId, AccountEmail);

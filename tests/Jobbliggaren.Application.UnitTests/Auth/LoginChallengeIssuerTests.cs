@@ -95,15 +95,17 @@ public sealed class LoginChallengeIssuerTests
     // which upper-cases to S. LoginAccount carries what UserAccountService.FindAccountAsync answers for both:
     // the row's own spelling.
     [Theory]
-    [InlineData("active", "Person@Example.com")]
-    [InlineData("active", "perſon@example.com")]
-    [InlineData("pending-deletion", "perſon@example.com")]
+    [InlineData("active", "Person@Example.com", CodeBudgetState.Admitted)]
+    [InlineData("active", "perſon@example.com", CodeBudgetState.Admitted)]
+    [InlineData("active", "perſon@example.com", CodeBudgetState.Exhausted)]
+    [InlineData("pending-deletion", "perſon@example.com", CodeBudgetState.Admitted)]
+    [InlineData("profile-missing", "perſon@example.com", CodeBudgetState.Admitted)]
     public async Task An_accounts_challenge_is_recorded_for_and_mailed_to_the_accounts_own_spelling(
-        string subject, string typed)
+        string subject, string typed, CodeBudgetState budget)
     {
         var issuer = await IssuerAsync(subject, Guid.NewGuid(), typed: typed);
 
-        await issuer.IssueAsync(Dispatch(typed: typed), Ct);
+        await issuer.IssueAsync(Dispatch(budget, typed), Ct);
 
         await _store.Received(1).PutAsync(
             Arg.Is<NewLoginChallenge>(c => c.Recipient == Email), Arg.Any<CancellationToken>());

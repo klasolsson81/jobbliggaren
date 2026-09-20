@@ -204,9 +204,9 @@ public sealed class LoginProofTests
 
     // ── the proven address must be the account's own ──
 
-    // UNREACHABLE through the current issuer: it writes a credential only for an address an account holds, and
-    // then under the account's own spelling (LoginChallengeIssuerTests pins that). These assert only that the
-    // outcome refuses if a record ever proves another spelling. Identity's lookup normaliser upper-cases, and
+    // UNREACHABLE through the current issuer: it writes a credential only for an active account, and then under
+    // the account's own spelling (LoginChallengeIssuerTests pins that). These assert only how the outcome
+    // refuses if a record ever proves another spelling. Identity's lookup normaliser upper-cases, and
     // U+017F (ſ) upper-cases to S, so both another letter case and the long-s spelling find the account.
     private const string FoldedEmail = "perſon@example.com";
 
@@ -250,6 +250,11 @@ public sealed class LoginProofTests
 
         result.Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        var (level, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.Link));
+        message.ShouldNotContain("@");
     }
 
     [Fact]

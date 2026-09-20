@@ -705,17 +705,15 @@ and signs in as before.
 **R2.** `LoginProofOutcome` refuses, before its table and on all three account-bearing arms, a proof whose
 address is not ordinally the resolved account's own: `registrationClosed`, no session, no
 deletion date, and a Warning (event 1016) carrying the user id and the method, never an address. It is the
-one place in the chain that applies no normalisation. Through the 1a issuer the mismatch cannot be
-produced, since a record for an address without an account carries no credential; 1c makes it producible,
-and there the arm answers `accountUnavailable`.
+one place in the chain that applies no normalisation.
 
 **Unchanged:** the by-address index and every budget key (both spellings share one `SubjectFingerprint`),
 the audit line and the two issuer log lines (none carries an address), and the dev capture.
 
 **Lapse triggers, read for this change and confirmed by security-auditor 2026-09-21: none fires.**
 1: `RegistrationsOpen` is untouched. 2, 3: no account is added. 4: no IdP. 5: code length, attempts and
-mint budget are unchanged, and the guard runs after the consume. 6: not 5b. 7: the consumer still always
-sends a mail; only its recipient changes, and the budget branch is untouched. The processing register
+mint budget are unchanged, and the guard runs after the consume. 6: not 5b. 7: only the mail's recipient
+changes, and the budget branch is untouched. The processing register
 needs no edit: its sentence that an address with an Identity row belongs to recipient class (1), the
 address on the account, was false for a folded spelling and is true after R1.
 

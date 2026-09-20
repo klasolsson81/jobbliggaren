@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -35,6 +36,7 @@ public sealed class LoginProofTests
     private readonly ISessionStore _sessions = Substitute.For<ISessionStore>();
     private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
+    private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -69,7 +71,7 @@ public sealed class LoginProofTests
             _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request);
     }
 
-    private LoginProofOutcome Outcome() => new(new LoginSubjectResolver(_lookup, _db), Grant());
+    private LoginProofOutcome Outcome() => new(new LoginSubjectResolver(_lookup, _db), Grant(), _outcomeLog);
 
     private VerifyLoginChallengeCommandHandler Verify() => new(_store, Outcome());
 
@@ -157,6 +159,7 @@ public sealed class LoginProofTests
         result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
         await _sessions.Received(1).CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
         _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+        _outcomeLog.Records.ShouldBeEmpty();
     }
 
     [Fact]
@@ -227,6 +230,12 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
         _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+        var (level, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1016);
+        message.ShouldContain(_userId.ToString());
+        message.ShouldContain(nameof(LoginMethod.Code));
+        message.ShouldNotContain("@");
     }
 
     [Fact]

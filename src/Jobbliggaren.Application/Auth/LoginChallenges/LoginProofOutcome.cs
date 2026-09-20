@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Microsoft.Extensions.Logging;
 
 namespace Jobbliggaren.Application.Auth.LoginChallenges;
 
@@ -8,7 +9,8 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// resolves the proven address at proof time, not at issue time, so an account deleted or a kill-switch
 /// thrown inside the challenge's 15 minutes is honoured.
 /// </summary>
-public sealed class LoginProofOutcome(LoginSubjectResolver subjects, PasswordlessSessionGrant grant)
+public sealed partial class LoginProofOutcome(
+    LoginSubjectResolver subjects, PasswordlessSessionGrant grant, ILogger<LoginProofOutcome> logger)
 {
     public async Task<LoginOutcome> ResolveAsync(LoginChallengeProof proof, LoginMethod method, CancellationToken ct)
     {
@@ -18,6 +20,7 @@ public sealed class LoginProofOutcome(LoginSubjectResolver subjects, Passwordles
         if (subject is LoginSubject.KnownAccount known
             && !string.Equals(known.AccountEmail.Trim(), proof.ProvenEmail.Trim(), StringComparison.Ordinal))
         {
+            LogProvenAddressNotTheAccountsOwn(logger, known.UserId, method);
             return NotThisAccountsAddress();
         }
 
@@ -33,4 +36,9 @@ public sealed class LoginProofOutcome(LoginSubjectResolver subjects, Passwordles
     }
 
     private static LoginOutcome.RegistrationClosed NotThisAccountsAddress() => new();
+
+    [LoggerMessage(1016, LogLevel.Warning,
+        "Login proof refused: the proven address is another spelling than the account's own ({UserId}, "
+        + "{LoginMethod})")]
+    private static partial void LogProvenAddressNotTheAccountsOwn(ILogger logger, Guid userId, LoginMethod loginMethod);
 }

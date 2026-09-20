@@ -18,7 +18,7 @@ public sealed partial class LoginProofOutcome(
 
         // The proven inbox must be the account's own address, spelling for spelling.
         if (subject is LoginSubject.KnownAccount known
-            && !string.Equals(known.AccountEmail.Trim(), proof.ProvenEmail.Trim(), StringComparison.Ordinal))
+            && !string.Equals(known.AccountEmail, proof.ProvenEmail, StringComparison.Ordinal))
         {
             LogProvenAddressNotTheAccountsOwn(logger, known.UserId, method);
             return NotThisAccountsAddress();

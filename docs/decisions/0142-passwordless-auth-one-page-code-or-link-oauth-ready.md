@@ -703,7 +703,7 @@ address with the id, the three account-bearing `LoginSubject` variants carry it 
 and signs in as before.
 
 **R2.** `LoginProofOutcome` refuses, before its table and on all three account-bearing arms, a proof whose
-address is not ordinally, after `Trim()`, the resolved account's own: `registrationClosed`, no session, no
+address is not ordinally the resolved account's own: `registrationClosed`, no session, no
 deletion date, and a Warning (event 1016) carrying the user id and the method, never an address. It is the
 one place in the chain that applies no normalisation. Through the 1a issuer the mismatch cannot be
 produced, since a record for an address without an account carries no credential; 1c makes it producible,

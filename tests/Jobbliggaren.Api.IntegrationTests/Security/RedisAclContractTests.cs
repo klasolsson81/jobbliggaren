@@ -27,7 +27,7 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         new(RedisBoundaryFixture.Cache(fixture.Api), fixture.Api, clock, Options.Create(new SessionStoreOptions()));
 
     private RedisLoginChallengeStore Challenges() =>
-        new(fixture.Challenge, new EphemeralDataProtectionProvider(), NullLogger<RedisLoginChallengeStore>.Instance);
+        new(fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), NullLogger<RedisLoginChallengeStore>.Instance);
 
     [Fact]
     public async Task SessionStore_ApiIdentity_CreatesSlidesRotatesAndRevokes()
@@ -163,7 +163,7 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     [Fact]
     public async Task Budgets_ApiVolatileIdentity_EnforcesEveryProductionScopeAndTtl()
     {
-        var budget = new RedisRateBudget(fixture.Challenge);
+        var budget = new RedisRateBudget(fixture.ChallengeAdapter);
         var scopes = new[] { LoginChallengePolicy.Cooldown(TimeSpan.FromSeconds(60)),
             LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget };
         foreach (var scope in scopes)
@@ -231,7 +231,7 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         hiddenKey.Message.ShouldContain("ACL failure in script");
         var budgetScope = LoginChallengePolicy.Cooldown(TimeSpan.FromSeconds(60));
         var subject = Guid.NewGuid() + "@example.com";
-        (await new RedisRateBudget(fixture.Challenge).TryConsumeAsync(budgetScope, subject, Ct)).ShouldBeTrue();
+        (await new RedisRateBudget(fixture.ChallengeAdapter).TryConsumeAsync(budgetScope, subject, Ct)).ShouldBeTrue();
         var allowedKey = RedisRateBudget.Key(budgetScope, subject);
         var transaction = db.CreateTransaction();
         var allowed = transaction.StringIncrementAsync(allowedKey);

@@ -1675,6 +1675,18 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Redis saknas i konfiguration.");
 
+        // #1735 — no fallback to ConnectionStrings:Redis, in any environment: the refusal is what keeps the
+        // login challenge's keys off the persisted instance, not rollout discipline. IsNullOrWhiteSpace
+        // rather than `??`: compose renders an unset variable as "", which `??` lets through.
+        var volatileRedisConnectionString = configuration.GetConnectionString(VolatileRedisConnectionStringName);
+        if (string.IsNullOrWhiteSpace(volatileRedisConnectionString))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{VolatileRedisConnectionStringName} is missing. The login challenge store "
+                + "and the rate budgets run on the non-persisted Redis instance and have no fallback "
+                + "(docs/runbooks/local-dev-setup.md; deploy/docker-compose.yml `redis-volatile`).");
+        }
+
         services.AddApiDataProtection(configuration);
 
         services.AddDbContext<AppIdentityDbContext>(options =>
@@ -1813,9 +1825,13 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
+        // #1735 (ADR 0142 D1) — the connection to the non-persisted Redis instance. A concrete type, never
+        // a second IConnectionMultiplexer: see VolatileRedisConnection. The container disposes it.
+        services.AddSingleton(_ => new VolatileRedisConnection(volatileRedisConnectionString));
+
         // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
-        // and the code budget). Api-only: it runs in the request path and needs the IConnectionMultiplexer
-        // registered above, which the Worker composition does not have.
+        // and the code budget). Api-only: it runs in the request path and on the volatile connection above,
+        // which the Worker composition does not have.
         services.AddSingleton<IRateBudget, RedisRateBudget>();
 
         // #1735 (ADR 0142 D1) — the login challenge store. Api-only for the same reason, and one more: it
@@ -1838,7 +1854,7 @@ public static class DependencyInjection
 
         // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
         // drop event, so a forgot-password flood cannot drop logins. Api-EXCLUSIVE: the consumer's store
-        // protects with this composition's Data-Protection keyring and runs on its Redis multiplexer.
+        // protects with this composition's Data-Protection keyring and runs on its volatile Redis connection.
         // LoginChallengeCompositionTests pins the pair (here yes, AddCoreIdentityForWorker no); a hand-written
         // line in Worker/Program.cs is caught by nothing but a reader.
         services.AddOptions<LoginChallengeDispatchOptions>()

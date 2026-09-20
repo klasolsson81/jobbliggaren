@@ -66,7 +66,7 @@ provider links in Identity's `AspNetUserLogins` are Postgres.** (CTO: the artefa
 semantics is expiry; `INCR`-before-compare, `DEL` returning 1 on success and `SET NX` on claim are atomic
 *because* of Redis; Redis is already the availability dependency of every authenticated request,
 so a Postgres challenge would widen the failure surface, not narrow it; and under Art. 5(1)(e)
-a self-expiring encrypted address is the data-minimising choice.)
+a self-expiring encrypted address is the data-minimising choice *(false as 1a delivered it; true from Amendment 2026-09-19 (2) on)*.)
 
 **The port exposes the invariant, never the verbs** (architect, CLAUDE.md §2 axis 3):
 
@@ -89,7 +89,7 @@ hashing, protecting and comparing live in the adapter. How `Wrong/Burned/Missing
 handler's policy (see D3). `TryClaimAsync` is 1c's, with `complete`, its only caller.
 
 **`TryClaimAsync` is its own atomic `SET NX`** (`StringSet(..., When.NotExists)` on the registered
-`IConnectionMultiplexer`). It **never** reuses `ICooldownGate`: `RedisCooldownGate.cs:26-27` is
+`IConnectionMultiplexer` *— from Amendment 2026-09-19 (2) on: `VolatileRedisConnection`*). It **never** reuses `ICooldownGate`: `RedisCooldownGate.cs:26-27` is
 read-then-write and says so — a race there costs one extra mail; at `complete` it would cost two
 accounts on one address. `RedisCooldownGate` is not changed. The claim is not the home of
 uniqueness either: that is `RequireUniqueEmail` plus the index, so D3's registered-meanwhile arm
@@ -545,7 +545,7 @@ message, because a value an env var can move would lapse the acceptance with no 
 cooldown window are `[Range]` options with code defaults; neither is a key a fresh boot needs, so
 CLAUDE.md §11 is not triggered, and D10's sentence saying it was is corrected above.
 
-**Faults (CTO Q5, architect R12).** Redis faults become `LoginChallengeStoreUnavailableException`, a
+**Faults (CTO Q5, architect R12).** Redis faults become `LoginChallengeStoreUnavailableException` *(superseded by `VolatileRedisUnavailableException`, Amendment 2026-09-19 (2))*, a
 `StoreUnavailableException` that carries the inner exception's type name only — never the exception,
 whose message can hold a key and so an address fingerprint — and the Api answers one fixed 503 body. The
 reach is the three new routes; the cooldown moved onto `IRateBudget` so its faults are translated too. A
@@ -578,6 +578,103 @@ extension whose one production caller runs under `IsDevelopment()`. Every integr
 sender, so the production wiring is pinned on the unswapped composition in both environments. The
 dev-seam types are named `Dev*`/`IDev*`, and `release-checklist.md` §2.7's teardown grep finds them by
 that name.
+
+#### Amendment 2026-09-19 (2) (#1735, part 1a-store) — the challenge's keys move to a Redis that cannot persist
+
+**What was wrong as 1a delivered it (security-auditor, Major 1 on #1756).** D1 placed the challenge
+record, the address index and the budget keys on "Redis", and 1a composed them on the registered
+`IConnectionMultiplexer`: the durable instance, which runs an append-only file. There an expired key
+stays in the file until the next rewrite, so the TTL was not the key's whole lifetime. The
+closed-registration mail tells its recipient how long the address is kept ("Därefter finns den inte kvar
+hos oss") and the processing register said the same; both were false against the file. No recipient has
+been sent that sentence: the registration gate is closed and the route has no caller before #1738
+(security-auditor, 2026-09-19).
+
+**Decision.** The keys move; the sentence is not rewritten. A second Redis instance, `redis-volatile`
+(`redis-volatile-dev` in the root compose), holds them, and nothing it holds can reach a disk:
+
+- `--save ""` and `--appendonly no` write nothing by themselves, but both are runtime-mutable. Measured
+  on 8.6.5 and 8.10.1, 2026-09-19: any client on the network can `CONFIG SET appendonly yes`. So the
+  MOUNT carries the guarantee: `CONFIG SET dir` is a protected config, `/data` is therefore Redis's only
+  write path, and it is a sized tmpfs under a read-only root. There is no `volumes:` key, and the image
+  declares no volume.
+- In the deploy stack `mem_limit >= 2 x maxmemory + the tmpfs size`, with `memswap_limit = mem_limit`.
+  The dataset cannot reach a disk through swap, and a flood meets Redis's own `noeviction` refusal before
+  the cgroup's SIGKILL.
+
+The form is pinned by `DeployComposeVolatileRedisTests`. What the form DOES is measured by
+`VolatileRedisPersistenceProbeTests` and `VolatileRedisOutOfMemoryTests`, on a container built from the
+compose file's own fields.
+
+**The class on the volatile instance: auth keys whose whole lifetime is their TTL.** Today that is the
+challenge record and the address index (15 minutes) and the rate budgets (their windows, at most
+24 hours). D1's `TryClaimAsync` (1c) and the OAuth state (6a) join them when they land: where D1 says "the
+registered `IConnectionMultiplexer`", it means `VolatileRedisConnection` from this amendment on. Sessions
+and `RedisCooldownGate`'s remaining surfaces stay on the durable instance and are not changed here
+(#1757).
+
+**How code reaches it (dotnet-architect F1–F6).** `VolatileRedisConnection` is internal and owns a
+PRIVATE multiplexer that is never registered as `IConnectionMultiplexer`: an unkeyed second registration
+is last-wins and would move every session onto an instance that forgets them at a restart.
+`ExecuteAsync` is the only route to the database.
+`AbortOnConnectFail = false` with an eager connect; a `Lazy<T>` would cache a first failed attempt for
+the life of the process. Its consumers are exactly the two stores and the readiness check
+(`VolatileRedisIsolationTests`), and which instance each key class lands on is pinned through the
+production entry point (`VolatileRedisPlacementTests`). The connection string is
+`ConnectionStrings:VolatileRedis`, not `RedisVolatile`: `ConnectionStrings__Redis` would be a strict
+prefix of that, and the compose pins scan lines. The Api refuses to boot without the key in every
+environment. The refusal enforces where the keys live, not rollout discipline, and an exemption for an
+environment no host runs would be a way round it. The Worker composes neither store and needs no key.
+`/api/ready` gains the check `redis-volatile`.
+
+**Faults.** The first 2026-09-19 amendment's "Redis faults become
+`LoginChallengeStoreUnavailableException`" is superseded. The type is
+`VolatileRedisUnavailableException`, named for the instance: a rate budget is not a challenge store, and
+the instance is what an operator looks at. `StoreUnavailableException` carries `Store`, and the 503 log is
+`StoreUnavailableLog`, `event_name=store_unavailable store=… inner_type=…`, throttled per store. Two
+instances are two failure domains, and one shared window would let either outage hide the other's first
+entry. The old event name had no consumer outside the log class and its tests.
+
+**Measured, R6 (2026-09-19).** At `noeviction` OOM
+`transaction.ExecuteAsync()` THROWS `EXECABORT` rather than returning `false`, both stores
+answer the translated fault, and no key is left without a TTL. The branch dotnet-architect bound for the
+other outcome (assert the bool) does not apply.
+
+**Two corrections above.** D1's ground "under Art. 5(1)(e) a self-expiring encrypted address is the
+data-minimising choice" and the rejected-Postgres ground "PII moved from volatile to durable" were both
+false as 1a delivered them, for the reason in the first paragraph. They hold from this PR on, for the
+class named above and for no other key.
+
+**Security-auditor's position on lapse trigger 5, VERBATIM from her pre-code form round (F9, 2026-09-19):**
+
+> **Lapse trigger 5 and the volatile store (security-auditor, pre-code form round, 2026-09-19).**
+> Moving the challenge, index and budget keys to a non-persisted Redis instance does **not** fire trigger 5: code length, attempt count and the mint budgets are unchanged as parameters, so the arithmetic above — 30 guesses per address per 24 h, 0.003 %/day, 1.089 %/year — is re-affirmed unchanged. What changes is the **premise under the 24-hour window**, and it is written here rather than left to be rediscovered.
+> A restart of `redis-volatile` resets every budget counter — cooldown, mail budget, code budget and the global unknown-address cap — because the instance holds no AOF and no RDB. The 24-hour window is therefore an **uptime window**, and the arithmetic reads "per uptime window", not "per day", for as long as a restart can be caused by anyone but the operator. Three causes, measured on `redis:8.6-alpine` = 8.6.5 on 2026-09-19:
+> 1. **Operator-caused** — a deploy, an image-pin move, a host reboot. Not attacker-timed, infrequent, and accepted: the reset returns budget the operator did not spend.
+> 2. **cgroup OOM-kill, attacker-caused through the API** — a flood that pushes the container past `mem_limit` is SIGKILL plus `restart: unless-stopped` plus a fresh counter set: the attacker-chosen budget reset that `noeviction` exists to exclude. **This cause is removed by sizing, and the sizing is a condition of the acceptance, not a tuning choice:** `mem_limit ≥ 2 × maxmemory` with the tmpfs size counted inside it, and `memswap_limit = mem_limit`. Delivered as `maxmemory 64mb` · `tmpfs /data:size=16m` · `mem_limit 160m` · `memswap_limit 160m`. Sized this way the instance meets the flood at the Redis level — measured: `INCR` is refused at queue time with `OOM command not allowed`, `EXEC` answers `EXECABORT`, the transaction is discarded whole, no key is created, and a pre-existing budget key keeps its value and its TTL — so the counters survive the flood that was meant to clear them.
+> 3. **A client on the internal bridge** — measured: an unauthenticated peer on the same Docker network answers `ACL WHOAMI` = `default`, lists `budget/*`, and `SHUTDOWN NOSAVE` restarts the container with no memory pressure at all, after which `DBSIZE` = 0. **Sizing does not close this cause and nothing in this PR does.** It is parity with the durable `redis`, which has held every session on the same terms since ADR 0122, and it belongs to #1759 (Redis identities, ACLs, command allowlists), which waits for this PR. Until #1759 lands, the budget guarantee — and the retention guarantee this store exists to make true — hold **against the internet, not against a compromised container on the stack network**. Recorded here because "the TTL is the whole lifetime" is otherwise read as unconditional.
+>
+> **Trigger 5 gains one operative clause:** it fires if a restart of `redis-volatile` becomes reachable by anything other than the operator — a `mem_limit` that no longer satisfies the relation above, or a bridge that gains a member outside the stack's own services. Both are measurable at the compose file; neither is a judgement call.
+> **Not a new trigger, and deliberately not grafted onto trigger 5:** a flood that fills the instance to `maxmemory` refuses login writes (503) until the keys expire, at most 24 h, with sessions untouched. That is an availability loss under Art. 32(1)(b), not a change to the guess arithmetic. It is re-measured when `POST /auth/challenge` becomes reachable without basic_auth, together with the Scaleway bounce reading.
+
+**A third residual the text above does not carry (security-auditor, review of #1773).** A client on the
+bridge can `CONFIG SET appendonly yes` against the tmpfs. The file then lands in the RAM-backed `/data`,
+and an expired key's payload stays there for the container's lifetime: never on a disk, and gone at a
+restart. `VolatileRedisPersistenceProbeTests` measures exactly this. It is an incident surface against a
+compromised container (Art. 33), not a false transparency statement, and like cause 3 it belongs to
+#1759.
+
+**Bound on #1759 (security-auditor F15, condition 2).** `redis-volatile` is to require AUTH and deny the
+`api` identity the command classes that reset or persist its state — at least `CONFIG`,
+`BGSAVE`/`SAVE`/`BGREWRITEAOF`, `SHUTDOWN`, `DEBUG`, `FLUSHALL`/`FLUSHDB`, `KEYS` — and #1759 says how
+`aof_enabled:0` stays verifiable once those ACLs land. Once the connection string carries a credential,
+the compose pin asserts its host:port part, never the whole string.
+
+**Rollout (senior-cto-advisor, option (b)).** `release-images.yml` builds hourly on a schedule and the
+box applies hourly, so a merged PR reaches the box with no dispatch, and `web` waits on a healthy api: an
+api that refuses boot is the whole site down. The session can order what reaches the box, not time it.
+The compose ships first (#1773). The PR that makes the key required is not armed until
+`jobbliggaren-redis-volatile` is measured healthy on the box, after Klas's GO for the `git pull` there.
 
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
@@ -678,7 +775,9 @@ new measurement recorded in an amendment here:
 2. The first registered account that is not Klas's (ADR 0132's trigger, shared, never inherited).
 3. The account count passes ~90.
 4. An IdP goes live (6a): the premise "mail is the only way in" falls.
-5. Code length, attempt count or mint budget changes in either direction.
+5. Code length, attempt count or mint budget changes in either direction. Since Amendment
+   2026-09-19 (2) it also fires if a restart of `redis-volatile` becomes reachable by anything other
+   than the operator.
 6. 5b lands (no password fallback remains).
 7. D2's "the consumer always sends a mail" premise falls or the budget branch changes behaviour —
    the code-step resting copy (below) is written on that premise (design B2).
@@ -800,7 +899,7 @@ The attempt budget is a measured acceptance with seven lapse triggers, not a per
   would have nothing to implement.
 - **D1 — a Postgres table for challenge/grant.** Rejected on four grounds: login would need both
   stores up; a reaper, an `expires_at` index and a retention rule for 15-minute data; three atomic
-  primitives traded for a hand-built transaction protocol; PII moved from volatile to durable.
+  primitives traded for a hand-built transaction protocol; PII moved from volatile to durable *(false as 1a delivered it; true from Amendment 2026-09-19 (2) on)*.
 - **D5 (i) — one code to the new address + notice to the old.** Rejected: a stolen 180-day session
   repoints the recovery vector; detection sold as prevention. **(iii) — re-auth code + today's
   confirmation link.** Rejected on DRY: two inbox-proof mechanisms, #706 moved rather than closed.
@@ -816,10 +915,11 @@ Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from 
 comment; 5a/5b are one issue, #1743, until it is split):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
-(`Persistence`) → **1a** #1735 in two PRs: **1a-prep** #1755 (merged 2026-09-19; Klas's three D10 answers,
+(`Persistence`) → **1a** #1735 in four PRs: **1a-prep** #1755 (merged 2026-09-19; Klas's three D10 answers,
 the normaliser's one home, `BoundedDispatchChannel/Service<T>`, `StoreUnavailableException`; no behaviour
 change) and **1a** challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the
-boot-gate change, the edge-scrub pin, the register → **1c** #1737 the open-registration arm (the
+boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1773 the
+`redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737 the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →

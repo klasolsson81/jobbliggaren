@@ -313,7 +313,7 @@ public static partial class RateLimitingExtensions
 
             // Partition: IP. #483 Low — anonymous health endpoints /api/live + /api/ready. Own
             // policy (least common mechanism, Saltzer/Schroeder): an anonymous DoS surface — and
-            // /api/ready amplifies each hit into a Postgres CanConnect + Redis PING — must not share
+            // /api/ready amplifies each hit into a Postgres CanConnect + two Redis PINGs — must not share
             // a budget with LandingPublicRead. FixedWindow mirrors LandingPublicRead (anonymous
             // public read); generous limit so ALB/orchestrator probes are never throttled while a
             // flood is capped (see RateLimitingOptions.HealthCheck). Behind ALB requires

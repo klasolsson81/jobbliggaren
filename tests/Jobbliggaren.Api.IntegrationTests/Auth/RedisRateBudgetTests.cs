@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
@@ -13,8 +14,13 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// </summary>
 public sealed class RedisRateBudgetTests : IAsyncLifetime
 {
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    // The deploy stack's own `redis-volatile`, so the contract is measured on the configuration the box runs.
+    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+
+    // The test's OWN reader, beside the connection the adapter is given: production reaches this instance
+    // only through VolatileRedisConnection, and the assertions below read keys and TTLs directly.
     private ConnectionMultiplexer _mux = null!;
+    private VolatileRedisConnection _connection = null!;
     private RedisRateBudget _budget = null!;
 
     public async ValueTask InitializeAsync()
@@ -22,11 +28,13 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
         await _redis.StartAsync();
         var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
-        _budget = new RedisRateBudget(_mux);
+        _connection = new VolatileRedisConnection(connectionString);
+        _budget = new RedisRateBudget(_connection);
     }
 
     public async ValueTask DisposeAsync()
     {
+        _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
         await _redis.DisposeAsync();
@@ -128,7 +136,7 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         await _redis.StopAsync(ct);
 
-        var ex = await Should.ThrowAsync<LoginChallengeStoreUnavailableException>(
+        var ex = await Should.ThrowAsync<VolatileRedisUnavailableException>(
             () => _budget.TryConsumeAsync(Scope(1, TimeSpan.FromMinutes(1)), "g@example.com", ct));
 
         ex.ShouldBeAssignableTo<StoreUnavailableException>();

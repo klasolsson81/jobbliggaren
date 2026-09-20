@@ -202,6 +202,7 @@ public class AuthOptionsValidatorTests
                     // tests, so the only difference between them is which method is called.
                     ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
                     ["ConnectionStrings:Redis"] = "localhost:6379",
+                    [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RegistrationsOpen)}"] = "true",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RequireEmailConfirmation)}"] = "true",
                 })

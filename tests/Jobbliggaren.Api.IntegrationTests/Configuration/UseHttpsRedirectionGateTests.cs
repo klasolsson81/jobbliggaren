@@ -145,6 +145,9 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", "127.0.0.1/32");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        // One container behind both keys: this host asserts nothing about which instance a key lands on.
+        // VolatileRedisPlacementTests does, on ApiFactory's two containers.
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _redisCs);
         // ADR 0066 (#802): master-nyckeln (Local-only, krävs i ALLA miljöer, även
         // Production-gate) sätts systemiskt av TestSecrets-module-init före boot.
         Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", HttpsEnabled ? "true" : "false");
@@ -170,6 +173,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
         Environment.SetEnvironmentVariable("ReverseProxy__HttpsEnabled", null);
         Environment.SetEnvironmentVariable("Hsts__MaxAgeDays", null);
         Environment.SetEnvironmentVariable("Hsts__IncludeSubDomains", null);

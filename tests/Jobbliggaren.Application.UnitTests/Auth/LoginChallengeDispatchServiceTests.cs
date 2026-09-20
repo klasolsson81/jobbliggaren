@@ -16,8 +16,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// <summary>
 /// The login consumer's drain survives a failed item. With no break-glass, a consumer that died on one bad
 /// item would stop every later login for the life of the process. The failure is the adapter's own: on a
-/// Redis outage <c>RedisFaults.GuardAsync</c> turns the fault into
-/// <see cref="LoginChallengeStoreUnavailableException"/>, which RedisLoginChallengeStoreTests measures
+/// Redis outage <c>VolatileRedisConnection.ExecuteAsync</c> turns the fault into
+/// <see cref="VolatileRedisUnavailableException"/>, which RedisLoginChallengeStoreTests measures
 /// against a stopped container.
 /// </summary>
 public sealed class LoginChallengeDispatchServiceTests
@@ -78,7 +78,7 @@ public sealed class LoginChallengeDispatchServiceTests
     public async Task A_store_outage_on_one_item_is_logged_by_type_and_the_next_item_is_still_issued()
     {
         _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "first@example.com"), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new LoginChallengeStoreUnavailableException("RedisConnectionException"));
+            .ThrowsAsync(new VolatileRedisUnavailableException("RedisConnectionException"));
         _store.PutAsync(Arg.Is<NewLoginChallenge>(c => c.Email == "second@example.com"), Arg.Any<CancellationToken>())
             .Returns(new IssuedCredentials(null, null));
 
@@ -89,7 +89,7 @@ public sealed class LoginChallengeDispatchServiceTests
         var (level, eventId, message) = _logger.Records.ShouldHaveSingleItem();
         level.ShouldBe(LogLevel.Warning);
         eventId.ShouldBe(1010);
-        message.ShouldContain(nameof(LoginChallengeStoreUnavailableException));
+        message.ShouldContain(nameof(VolatileRedisUnavailableException));
         message.ShouldNotContain("@");
     }
 

@@ -3,6 +3,7 @@ using System.Text;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
+using Jobbliggaren.Infrastructure.Auth;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -25,6 +26,11 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
     internal ConnectionMultiplexer Api { get; private set; } = null!;
     internal ConnectionMultiplexer Worker { get; private set; } = null!;
     internal ConnectionMultiplexer Challenge { get; private set; } = null!;
+
+    // #1735 — the stores reach the volatile instance only through VolatileRedisConnection, which owns a
+    // private multiplexer. It is handed the options Challenge connects with, so an adapter under test runs
+    // as the same `api-volatile` ACL identity; the holder itself turns AbortOnConnectFail off.
+    internal VolatileRedisConnection ChallengeAdapter { get; private set; } = null!;
     internal ConnectionMultiplexer PersistentAdmin { get; private set; } = null!;
     internal ConnectionMultiplexer VolatileAdmin { get; private set; } = null!;
 
@@ -46,10 +52,12 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
         Api = await ConnectAsync(Persistent, ApiPersistent);
         Worker = await ConnectAsync(Persistent, WorkerPersistent);
         Challenge = await ConnectAsync(Volatile, ApiVolatile);
+        ChallengeAdapter = new VolatileRedisConnection(OptionsFor(Volatile, ApiVolatile));
     }
 
     public async ValueTask DisposeAsync()
     {
+        ChallengeAdapter?.Dispose();
         foreach (var connection in _connections)
             connection.Dispose();
         await Volatile.DisposeAsync();

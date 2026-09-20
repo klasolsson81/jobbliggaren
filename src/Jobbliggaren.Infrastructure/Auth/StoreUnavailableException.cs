@@ -10,9 +10,10 @@ public abstract class StoreUnavailableException : Exception
     /// <summary>The 503 body's text for every subtype. The subtype's own message never reaches a client.</summary>
     public const string ClientMessage = "Tjänsten är inte tillgänglig just nu. Försök igen om en stund.";
 
-    protected StoreUnavailableException(string message, Exception innerException)
+    protected StoreUnavailableException(string store, string message, Exception innerException)
         : base(message, innerException)
     {
+        Store = store;
         InnerType = innerException.GetType().Name;
     }
 
@@ -22,11 +23,18 @@ public abstract class StoreUnavailableException : Exception
     /// key is a pseudonymised address fingerprint. Such a subtype carries the degradation class as a type
     /// name and no inner exception at all.
     /// </summary>
-    protected StoreUnavailableException(string message, string innerType)
+    protected StoreUnavailableException(string store, string message, string innerType)
         : base(message)
     {
+        Store = store;
         InnerType = innerType;
     }
+
+    /// <summary>
+    /// Which store failed — the subtype's <c>StoreName</c>. The two are separate Redis instances, so this is
+    /// the container an operator looks at, and the key the 503 log throttles on.
+    /// </summary>
+    public string Store { get; }
 
     /// <summary>The type name of the failure underneath (connection, timeout, server) — the alarm's key.</summary>
     public string InnerType { get; }

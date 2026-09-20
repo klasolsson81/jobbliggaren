@@ -96,8 +96,8 @@ uniqueness either: that is `RequireUniqueEmail` plus the index, so D3's register
 handles the duplicate error even when the claim was won.
 
 **Record shape:** a Redis hash of two fields — `p`, the DataProtector-protected payload `{email, code,
-linkTokenHash}` (the code and the hash null where the record carries none), and `a`, the attempt
-counter. No branch flag is stored: the mail is chosen when the record is written and the outcome is
+linkTokenHash}` (`email` is the address the challenge is addressed to, D2; the code and the hash null where
+the record carries none), and `a`, the attempt counter. No branch flag is stored: the mail is chosen when the record is written and the outcome is
 resolved at proof time (D3). Expiry is the key's TTL.
 **Threat model, chosen (security Major 2):** a Redis reader IS in scope. A 6-digit code has a
 10⁶ preimage, so an unsalted hash protects nothing against the same reader the address is
@@ -157,7 +157,9 @@ No endpoint branches on an enqueue result — there is none.
 
 **The consumer always writes a record** (otherwise "burned" vs "never existed" is an oracle), before it
 sends, classifies the address (`LoginSubjectResolver`: no account, active, pending deletion, profile
-missing) and sends at most ONE mail: an active account within its code budget → code + link; past it → link
+missing) and sends at most ONE mail. **The record and the mail are addressed to the account's OWN stored
+spelling when a row holds the submitted address, and to the submitted spelling otherwise** (Amendment
+2026-09-21). An active account within its code budget → code + link; past it → link
 only; no account or a missing profile → the closed-registration notice, no credential, in 1a — the
 new-account code arm is 1c's (#1737); pending deletion → the restore path, no credential. Redis down →
 uniform 503 through `StoreUnavailableException` (`Program.cs`, the shipped pattern).
@@ -186,9 +188,11 @@ information — that branch stays hidden until the inbox is proven. `Missing` is
 code budget admitted, a cooled or over-budget request whose id never had a record, a dropped enqueue,
 a verify that outruns the consumer, and a lost keyring all answer the same way. A dummy constant-time
 compare is paid on every path. **Success is resolved at proof time, by one function the code and the
-link share:** an active account → `{outcome:"signedIn", sessionId}`, a `Persistent` session; pending
-deletion → `{outcome:"pendingDeletion", permanentDeletionDate}`; no account or a missing profile →
-`{outcome:"registrationClosed"}`, both without a session (1a). 1c adds `{outcome:"consentRequired",
+link share:** an active account whose own stored address is the proven one → `{outcome:"signedIn",
+sessionId}`, a `Persistent` session; pending deletion → `{outcome:"pendingDeletion",
+permanentDeletionDate}`; no account or a missing profile → `{outcome:"registrationClosed"}`, both without a
+session (1a). A proof whose address is another spelling than the resolved account's own is answered
+`registrationClosed` on every arm (Amendment 2026-09-21). 1c adds `{outcome:"consentRequired",
 grantToken}` for a new address while registration is open.
 `pendingDeletion` never restores the account through login — the 30-day clock is untouched, and
 restoration is via support (`HardDeleteAccountsJob.cs:28-33`).
@@ -679,6 +683,52 @@ api that refuses boot is the whole site down. The session can order what reaches
 The compose ships first (#1773). The PR that makes the key required is not armed until
 `jobbliggaren-redis-volatile` is measured healthy on the box, after Klas's GO for the `git pull` there.
 
+#### Amendment 2026-09-21 (#1737) — the challenge follows the account's own address
+
+**What was wrong as 1a delivered it (security-auditor, Blocker BA-1, 2026-09-20).** D2 said the consumer
+classifies the address and sends at most one mail. It never said to which address, and 1a mailed the
+submitted spelling. `LoginSubjectResolver` finds the account through Identity's lookup normaliser, which
+applies NFC and upper-cases, and that lands four non-ASCII BMP code points on printable ASCII — U+017F on
+`S`, U+212A on `K`, U+037E on `;`, U+1FEF on a backtick (a sweep of
+`UpperInvariantLookupNormalizer.NormalizeEmail` in the shipping runtime, 2026-09-21). A challenge requested as
+`ſam@…` therefore resolved `sam@…`'s account and carried its code and link to the other inbox, and the proof
+resolved the record's typed spelling to the same account: a `Persistent` session for whoever receives mail
+for the colliding spelling on the account's own mail domain. It did not depend on `RegistrationsOpen`.
+
+**R1.** The consumer addresses the challenge, the record and the mail both, to the account's own stored
+spelling when a row holds the submitted address, and to the submitted spelling otherwise: the rule
+`TryPreparePasswordResetAsync` already applies. `ILoginAccountLookup.FindAccountAsync` returns the stored
+address with the id, the three account-bearing `LoginSubject` variants carry it under `KnownAccount`, and
+`NewLoginChallenge.Email` is `Recipient`. A login typed in another letter case so proves the stored spelling
+and signs in as before.
+
+**R2.** `LoginProofOutcome` refuses, before its table and on all three account-bearing arms, a proof whose
+address is not ordinally, after `Trim()`, the resolved account's own: `registrationClosed`, no session, no
+deletion date, and a Warning (event 1016) carrying the user id and the method, never an address. It is the
+one place in the chain that applies no normalisation. Through the 1a issuer the mismatch cannot be
+produced, since a record for an address without an account carries no credential; 1c makes it producible,
+and there the arm answers `accountUnavailable`.
+
+**Unchanged:** the by-address index and every budget key (both spellings share one `SubjectFingerprint`),
+the audit line and the two issuer log lines (none carries an address), and the dev capture.
+
+**Lapse triggers, read for this change and confirmed by security-auditor 2026-09-21: none fires.**
+1: `RegistrationsOpen` is untouched. 2, 3: no account is added. 4: no IdP. 5: code length, attempts and
+mint budget are unchanged, and the guard runs after the consume. 6: not 5b. 7: the consumer still always
+sends a mail; only its recipient changes, and the budget branch is untouched. The processing register
+needs no edit: its sentence that an address with an Identity row belongs to recipient class (1), the
+address on the account, was false for a folded spelling and is true after R1.
+
+**What this change does not close (security-auditor MA-1, Major; its ground corrected 2026-09-21).**
+`AllowedUserNameCharacters` validates the user name, never the address. She measured that Identity's
+`SetEmailAsync` admits an address with leading whitespace, and `ConfirmChangeEmailAsync` is the delivered
+writer that reaches it; Identity keeps such a row apart from the unpadded one, while
+`SubjectFingerprint.Hex`, which trims, gives both one key. The storable-address predicate closes it (R3: no
+control character, no `Cf` format character, no surrogate, no whitespace) at every writer of a stored
+address: `CreateUserAsync`, `ConfirmChangeEmailAsync`, and 1c's `CreatePasswordlessUserAsync`. It ships with
+the user-name charset change in the PR after this one. Klas, 2026-09-20: this repair in its own PR first
+("(b) Egen PR först"), and `björn@…` and `o'brien@…` shall be registrable ("Ja").
+
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)
@@ -922,7 +972,7 @@ comment; 5a/5b are one issue, #1743, until it is split):
 the normaliser's one home, `BoundedDispatchChannel/Service<T>`, `StoreUnavailableException`; no behaviour
 change) and **1a** challenge/verify/link, store, both dispatchers, mail, dev seam, `IRateBudget`, the
 boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1773 the
-`redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737 the open-registration arm (the
+`redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →

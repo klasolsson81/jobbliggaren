@@ -217,13 +217,16 @@ audited as today's login audits one, with the method (`Code`/`Link`) added to `l
 an unconfirmed inbox also writes an `audit_log` row (D10).
 
 **The challenge path never calls `IsLockedOutAsync` / `AccessFailedAsync`** — its anti-automation
-is the 3-attempt burn plus the mint budget, never Identity's lockout. And **1c closes two holes the
-password surface leaves open until 5a** (architect, security Major 11): `ValidateCredentialsAsync`
-returns `InvalidCredentials` on a null `PasswordHash` **before** `IsLockedOutAsync`/
-`CheckPasswordAsync` (today `UserAccountService.cs:133` counts the failure and anyone who knows the
-address can lock a passwordless account for 15 min); and `TryPreparePasswordResetAsync` returns
-`null` for a null-hash user (today it would give a passwordless account a password, making
-"passwordless" a starting state rather than an invariant). Byte-identical responses; no new oracle.
+is the 3-attempt burn plus the mint budget, never Identity's lockout. And **1c closes three holes the
+password surface leaves open until 5a** (architect, security Major 11; the third bound by
+`security-auditor` in 1c's pre-code form round, 2026-09-20): `ValidateCredentialsAsync` returns
+`InvalidCredentials` on a null `PasswordHash` **before** `IsLockedOutAsync`/`CheckPasswordAsync`, paying
+the timing equalizer (before 1c the failure was counted, and anyone who knew the address could lock a
+passwordless account for 15 min); `TryPreparePasswordResetAsync` returns `null` for a null-hash user
+(before 1c it would have given a passwordless account a password, making "passwordless" a starting
+state rather than an invariant); and `ResetPasswordAsync` refuses a null-hash user with the uniform
+token failure, so the invariant does not rest on every password-removal path rotating the security
+stamp. Byte-identical responses; no new oracle.
 
 ### D4 — Sessions persistent by default
 

@@ -115,6 +115,16 @@ public sealed partial class UserAccountService(
                 DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
         }
 
+        // ADR 0142 D3 (security Major 11): an account with no password answers like an address with no
+        // account, before lockout is read or a failure is counted, so knowing the address is not enough to
+        // keep the account locked. The equalizer is paid for the unknown arm's reason: no hash check runs here.
+        if (user.PasswordHash is null)
+        {
+            loginTimingEqualizer.Equalize(password);
+            return Result.Failure<UserCredentials>(
+                DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
+        }
+
         // #503 (OWASP A07, senior-cto-advisor G1): honor Identity's lockout BEFORE the
         // hash check. A locked account is rejected without burning a password comparison
         // and without incrementing further. A distinct internal code (AccountLocked) lets
@@ -361,8 +371,10 @@ public sealed partial class UserAccountService(
         // This half writes nothing. It is reached from an unauthenticated endpoint taking an arbitrary
         // address, so confirming here would let anyone confirm anyone; the EmailConfirmed write belongs
         // after token verification and lives in ResetPasswordAsync (#1303).
+        //
+        // Nor is a token minted for an account with no password (ADR 0142 D3): a reset would give it one.
         var user = await userManager.FindByEmailAsync(email);
-        if (user is not { Email: { } accountEmail })
+        if (user is not { Email: { } accountEmail, PasswordHash: not null })
             return null;
 
         // Same Base64Url shape as the two sibling mints so the emailed link survives the query round-trip
@@ -384,8 +396,11 @@ public sealed partial class UserAccountService(
         // Uniform failure for every TOKEN rejection (unknown user, malformed, wrong, expired) — a PUBLIC
         // endpoint must not distinguish them, or it becomes an existence oracle. Parity with
         // ConfirmEmailAsync above.
+        //
+        // An account with no password is refused the same way (ADR 0142 D3): a token minted while it still
+        // had one must not hand a password back.
         var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
+        if (user is not { PasswordHash: not null })
             return InvalidPasswordResetTokenFailure();
 
         string token;

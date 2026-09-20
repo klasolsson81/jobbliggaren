@@ -8,7 +8,12 @@ namespace Jobbliggaren.Domain.JobSeekers;
 public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 {
     public Guid UserId { get; private set; }
-    public string DisplayName { get; private set; } = null!;
+
+    /// <summary>
+    /// The holder's name as they gave it, or <c>null</c> when they have not given one: a passwordless account
+    /// is created before anyone has typed a name (ADR 0142 D7). Never blank.
+    /// </summary>
+    public string? DisplayName { get; private set; }
     public Preferences Preferences { get; private set; } = null!;
 
     /// <summary>
@@ -77,7 +82,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     private JobSeeker(
         JobSeekerId id,
         Guid userId,
-        string displayName,
+        string? displayName,
         Preferences preferences,
         TermsAcceptance termsAcceptance,
         DateTimeOffset createdAt) : base(id)
@@ -159,11 +164,17 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
                 "JobSeeker.TermsAcceptanceRequired",
                 "Ett konto kan inte skapas utan godkända användarvillkor."));
 
-        var nameResult = ValidateDisplayName(displayName);
-        if (nameResult.IsFailure)
-            return Result.Failure<JobSeeker>(nameResult.Error);
+        // An absent name is admitted; a name that is given meets every rule of ValidateDisplayName.
+        string? validatedName = null;
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            var nameResult = ValidateDisplayName(displayName);
+            if (nameResult.IsFailure)
+                return Result.Failure<JobSeeker>(nameResult.Error);
 
-        var validatedName = nameResult.Value;
+            validatedName = nameResult.Value;
+        }
+
         var now = clock.UtcNow;
         var id = JobSeekerId.New();
         var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), acceptance, now);

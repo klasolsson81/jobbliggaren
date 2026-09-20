@@ -5,5 +5,5 @@ namespace Jobbliggaren.Domain.JobSeekers.Events;
 public sealed record JobSeekerRegisteredDomainEvent(
     JobSeekerId JobSeekerId,
     Guid UserId,
-    string DisplayName,
+    string? DisplayName,
     DateTimeOffset OccurredAt) : IDomainEvent;

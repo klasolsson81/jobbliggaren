@@ -113,7 +113,7 @@ public sealed class GetParsedResumeQueryHandler(
         // silent gap would become a loud lie.
         var label = ResumeLabelResolver.Resolve(nameOverride: null, clock);
         var blockReason = AutoPromoteGate
-            .Evaluate(resume, owner.DisplayName, label, jobSeekerId, clock)
+            .Evaluate(resume, owner.DisplayName ?? string.Empty, label, jobSeekerId, clock)
             .BlockReason;
 
         return resume.ToDetailDto(blockReason);

@@ -114,7 +114,9 @@ public sealed partial class AutoPromoteParsedResumeCommandHandler(
         //
         // Person name: ALWAYS the account holder's display name. Never the form field, and
         // never the parsed contact name (5a CTO-bind R5, preserved).
-        var personName = owner.DisplayName;
+        // An account may have no name yet (ADR 0142 D7). The canonical CV requires one until #1741, and
+        // an empty name is refused by the gate's buildability tier as IncompleteContent.
+        var personName = owner.DisplayName ?? string.Empty;
 
         // Label: the form field when the user typed one, else a generated non-PII default. The
         // file name is deliberately NOT a candidate — ADR 0096 D-B refused it on Resume, and a

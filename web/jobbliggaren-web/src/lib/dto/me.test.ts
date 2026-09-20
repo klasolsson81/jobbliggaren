@@ -73,6 +73,20 @@ describe("jobSeekerProfileSchema", () => {
     expect(jobSeekerProfileSchema.safeParse(valid).success).toBe(true);
   });
 
+  it("accepts a profile with no display name", () => {
+    // ADR 0142 D7: a passwordless account has no name until its holder gives one. A refused parse
+    // here fails the whole /me read, and with it every authenticated page.
+    const result = jobSeekerProfileSchema.safeParse({ ...valid, displayName: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.displayName).toBeNull();
+  });
+
+  it("still rejects a profile whose display name is missing altogether", () => {
+    const withoutName: Partial<typeof valid> = { ...valid };
+    delete withoutName.displayName;
+    expect(jobSeekerProfileSchema.safeParse(withoutName).success).toBe(false);
+  });
+
   it("accepts a stated experienceYears integer", () => {
     expect(
       jobSeekerProfileSchema.safeParse({ ...valid, experienceYears: 5 }).success

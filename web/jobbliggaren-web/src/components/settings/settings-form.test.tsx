@@ -55,6 +55,22 @@ const baseProfile: JobSeekerProfileDto = {
   preferredOccupationExperience: [],
 };
 
+describe("SettingsForm — a profile with no display name (ADR 0142 D7)", () => {
+  it("renders the name field empty and editable", () => {
+    render(
+      <SettingsForm
+        initialProfile={{ ...baseProfile, displayName: null }}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+    const name = screen.getByRole("textbox", { name: /namn/i });
+    expect(name).toHaveValue("");
+    expect(name).toBeEnabled();
+  });
+});
+
 describe("SettingsForm — F6 Prompt 2 smoke", () => {
   it("renderar alla kort i rätt ordning (Matchning efter Personuppgifter)", () => {
     render(

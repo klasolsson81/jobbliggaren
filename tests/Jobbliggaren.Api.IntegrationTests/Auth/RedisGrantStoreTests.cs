@@ -131,13 +131,44 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         (await _store.RedeemAsync(control, Bearer, Ct)).ShouldBe(new GrantSubject.LoginComplete("control@example.com"));
     }
 
-    private async Task WriteByHandAsync(GrantToken token, int purpose, string email)
+    private Task WriteByHandAsync(GrantToken token, int purpose, string email) =>
+        WriteByHandAsync(token, subPurpose: "1", new { p = purpose, e = email });
+
+    private async Task WriteByHandAsync(GrantToken token, string subPurpose, object record)
     {
         var payload = _keyring
             .CreateProtector(RedisGrantStore.ProtectorPurpose)
-            .CreateProtector("1")
-            .Protect(JsonSerializer.SerializeToUtf8Bytes(new { p = purpose, e = email }));
+            .CreateProtector(subPurpose)
+            .Protect(JsonSerializer.SerializeToUtf8Bytes(record));
         await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
+    }
+
+    /// <summary>
+    /// UNREACHABLE STATES, declared: a record of a caller-asserted purpose that lacks the field its binding is
+    /// made of, or carries the empty user id. No path in <c>src/</c> writes one (the adapter serialises the whole
+    /// subject), so each is written by hand under its purpose's own protector, and the test asserts only that
+    /// the read side degrades to "no grant" even for a caller asserting exactly that degenerate binding.
+    /// </summary>
+    [Fact]
+    public async Task A_caller_asserted_record_without_its_binding_redeems_to_nothing()
+    {
+        var userId = Guid.NewGuid();
+        var withoutUser = GrantToken.Generate();
+        var withTheEmptyUser = GrantToken.Generate();
+        var withoutAddress = GrantToken.Generate();
+        var control = GrantToken.Generate();
+        await WriteByHandAsync(withoutUser, subPurpose: "2", new { p = 2 });
+        await WriteByHandAsync(withTheEmptyUser, subPurpose: "2", new { p = 2, u = Guid.Empty });
+        await WriteByHandAsync(withoutAddress, subPurpose: "3", new { p = 3, u = userId });
+        await WriteByHandAsync(control, subPurpose: "3", new { p = 3, u = userId, e = "ny@example.se" });
+
+        var emptyUser = GrantAssertion.Of(new GrantSubject.Reauthentication(Guid.Empty));
+        (await _store.RedeemAsync(withoutUser, emptyUser, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(withTheEmptyUser, emptyUser, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(
+            withoutAddress, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, string.Empty)), Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(control, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "ny@example.se")), Ct))
+            .ShouldBe(new GrantSubject.ChangeEmail(userId, "ny@example.se"));
     }
 
     // ── #1739: the two caller-asserted purposes (ADR 0142 D5) ──────────────────────────────────────────────

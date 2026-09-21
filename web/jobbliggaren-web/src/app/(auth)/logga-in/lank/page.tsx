@@ -39,7 +39,7 @@ function single(value: string | string[] | undefined): string {
 export default async function LoggaInLankPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages");
   const token = linkTokenInputSchema.safeParse(single((await searchParams).token));
-  const alreadyLoggedIn = (await getSessionId()) !== undefined;
+  const alreadyLoggedIn = (await getSessionId()) !== null;
 
   return (
     <div className="flex flex-col gap-8">

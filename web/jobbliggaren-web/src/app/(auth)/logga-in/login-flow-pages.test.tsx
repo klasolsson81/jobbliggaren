@@ -62,7 +62,9 @@ const redirectOf = async (page: () => Promise<unknown>): Promise<string> => {
 
 beforeEach(() => {
   mocks.readLoginFlow.mockReset().mockResolvedValue(null);
-  mocks.getSessionId.mockReset().mockResolvedValue(undefined);
+  // `null`, never `undefined`: that is what the real `getSessionId` answers with no cookie. A
+  // stub returning `undefined` once hid a page that treated every visitor as logged in.
+  mocks.getSessionId.mockReset().mockResolvedValue(null);
   mocks.redirect.mockClear();
 });
 

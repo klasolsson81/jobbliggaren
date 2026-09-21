@@ -62,4 +62,20 @@ public static class LoginChallengePolicy
     /// </summary>
     public static RateBudgetScope Cooldown(TimeSpan window) =>
         new("login-challenge-cooldown", limit: 1, window: window);
+
+    /// <summary>
+    /// Re-authentication codes per USER per 24 hours (ADR 0142 D5). Keyed by the user id and not by the address,
+    /// so only a holder of the account's session can spend it. It cannot fall back to a link as
+    /// <see cref="CodeBudget"/> does: a link yields a session, never a re-authentication, so past this budget the
+    /// request is refused. It enters the guess arithmetic exactly as <see cref="CodeBudget"/> does.
+    /// </summary>
+    public static readonly RateBudgetScope ReauthCodeBudget =
+        new("reauth-codes", limit: 10, window: TimeSpan.FromHours(24));
+
+    /// <summary>
+    /// The per-USER cooldown on a re-authentication request: one mint per window. The window is configuration,
+    /// as <see cref="Cooldown"/>'s is, and for the same reason.
+    /// </summary>
+    public static RateBudgetScope ReauthCooldown(TimeSpan window) =>
+        new("reauth-cooldown", limit: 1, window: window);
 }

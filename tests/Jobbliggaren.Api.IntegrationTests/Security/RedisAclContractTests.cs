@@ -164,11 +164,41 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task BoundChallenges_ApiVolatileIdentity_ReplaceConsumeAndAdmitOnlyTheirOwnCommands()
+    {
+        var store = Challenges();
+        var owner = new ChallengeBinding(ChallengePurpose.Reauthentication, Guid.NewGuid());
+        var email = Guid.NewGuid() + "@example.com";
+        var old = ChallengeId.Generate();
+        var oldCode = await store.PutBoundAsync(new NewBoundChallenge(old, email, owner), Ct);
+        var current = ChallengeId.Generate();
+        var code = await store.PutBoundAsync(new NewBoundChallenge(current, email, owner), Ct);
+
+        (await store.ConsumeBoundCodeAsync(old, oldCode, owner, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
+        var wrong = LoginCode.FromRaw(code.Reveal() == "000000" ? "111111" : "000000");
+        (await store.ConsumeBoundCodeAsync(current, wrong, owner, Ct)).Outcome.ShouldBe(ChallengeOutcome.Wrong);
+        (await store.ConsumeBoundCodeAsync(current, code, owner, Ct)).IsVerified.ShouldBeTrue();
+
+        var live = ChallengeId.Generate();
+        await store.PutBoundAsync(new NewBoundChallenge(live, email, owner), Ct);
+        var recordKey = RedisLoginChallengeStore.BoundRecordKey(RedisLoginChallengeStore.RecordSegment(live));
+        var indexKey = RedisLoginChallengeStore.BoundIndexKey(owner);
+        var db = fixture.Challenge.GetDatabase();
+        await DeniedAsync(() => db.HashGetAllAsync(recordKey));
+        await DeniedAsync(() => db.StringGetAsync(indexKey));
+        await DeniedAsync(() => db.KeyDeleteAsync(indexKey));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(recordKey)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Budgets_ApiVolatileIdentity_EnforcesEveryProductionScopeAndTtl()
     {
         var budget = new RedisRateBudget(fixture.ChallengeAdapter);
         var scopes = new[] { LoginChallengePolicy.Cooldown(TimeSpan.FromSeconds(60)),
-            LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget };
+            LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget,
+            LoginChallengePolicy.ReauthCooldown(TimeSpan.FromSeconds(60)), LoginChallengePolicy.ReauthCodeBudget,
+            ChangeEmailPolicy.UserCooldown(TimeSpan.FromSeconds(60)), ChangeEmailPolicy.TargetCooldown(TimeSpan.FromSeconds(60)),
+            ChangeEmailPolicy.DailyTargetBudget };
         foreach (var scope in scopes)
         {
             var subject = scope == LoginChallengePolicy.UnknownAddressMailBudget

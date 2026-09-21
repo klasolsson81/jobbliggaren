@@ -5,7 +5,8 @@ namespace Jobbliggaren.Infrastructure.Auth;
 /// <summary>
 /// The connection to the NON-PERSISTED Redis instance (<c>redis-volatile</c>, ADR 0142 D1): the home of the
 /// auth keys whose TTL has to be their whole lifetime — the login challenge's records and address index
-/// (15 minutes) and the rate budgets (at most 24 hours). The closed-registration mail states those lifetimes
+/// (15 minutes), a grant (10 minutes), a registration claim (one minute) and the rate budgets (at most
+/// 24 hours). The closed-registration mail states those lifetimes
 /// to the recipient, and on the durable instance an expired key stays in the AOF until the next rewrite.
 ///
 /// <para>

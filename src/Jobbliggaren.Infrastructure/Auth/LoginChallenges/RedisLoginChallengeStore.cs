@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -66,10 +67,16 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     public Task<IssuedCredentials> PutAsync(NewLoginChallenge challenge, CancellationToken ct) =>
         _redis.ExecuteAsync(async db =>
         {
-            LoginCode? code = challenge.Credentials == ChallengeCredentials.CodeAndLink ? MintCode() : null;
-            var secret = challenge.Credentials is ChallengeCredentials.LinkOnly or ChallengeCredentials.CodeAndLink
-                ? RandomNumberGenerator.GetBytes(LinkSecretLength)
-                : null;
+            var (mintsCode, mintsLink) = challenge.Credentials switch
+            {
+                ChallengeCredentials.None => (false, false),
+                ChallengeCredentials.CodeOnly => (true, false),
+                ChallengeCredentials.LinkOnly => (false, true),
+                ChallengeCredentials.CodeAndLink => (true, true),
+                var other => throw new UnreachableException($"Unmapped challenge credentials {other}."),
+            };
+            LoginCode? code = mintsCode ? MintCode() : null;
+            var secret = mintsLink ? RandomNumberGenerator.GetBytes(LinkSecretLength) : null;
 
             var payload = new ChallengePayload(
                 challenge.Recipient,

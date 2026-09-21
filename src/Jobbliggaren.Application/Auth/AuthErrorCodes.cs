@@ -300,4 +300,13 @@ public static class AuthErrorCodes
 
     public const string EmailNotStorableMessage =
         "E-postadressen innehåller tecken som inte kan användas. Kontrollera adressen och försök igen.";
+
+    /// <summary>
+    /// A grant that cannot be redeemed, for any reason: unknown, expired, already used, or a registration
+    /// claim another request holds. One answer. Gone → 410.
+    /// </summary>
+    public const string LoginGrantUnusable = "Auth.LoginGrantUnusable";
+
+    public const string LoginGrantUnusableMessage =
+        "Det gick inte att slutföra registreringen. Begär en ny kod på inloggningssidan.";
 }

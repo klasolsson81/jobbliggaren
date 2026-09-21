@@ -3,6 +3,7 @@ using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jobbliggaren.Application.Auth.LoginChallenges;
 
@@ -18,12 +19,22 @@ public sealed partial class LoginChallengeIssuer(
     IRateBudget budget,
     IEmailSender emailSender,
     IAuthAuditLogger audit,
+    IOptions<AuthOptions> authOptions,
     ILogger<LoginChallengeIssuer> logger)
 {
     public async Task IssueAsync(LoginChallengeDispatch dispatch, CancellationToken ct)
     {
         var subject = await subjects.ResolveAsync(dispatch.Email, ct);
-        var kind = LoginChallengePlan.Decide(subject, dispatch.CodeBudget);
+
+        // Read here and not carried on the dispatch: the request path needs no policy, and the queue could
+        // hold a stale value for as long as the drain takes.
+        var registration = authOptions.Value.RegistrationsOpen ? RegistrationState.Open : RegistrationState.Closed;
+        var kind = LoginChallengePlan.Decide(subject, dispatch.CodeBudget, registration);
+
+        // The cap on mails to addresses without an account is consulted BEFORE the record is written, and a
+        // capped record carries no credential: a code nobody is mailed would still take three guesses, so
+        // the cap would stop bounding them (security-auditor, 2026-09-20).
+        var admitsMail = await AdmitsMailAsync(subject, ct);
 
         // The account's OWN address, never the submitted spelling (the TryPreparePasswordResetAsync rule):
         // Identity's lookup folds case, and with it a few non-ASCII letters, so the typed spelling can be
@@ -38,11 +49,11 @@ public sealed partial class LoginChallengeIssuer(
             new NewLoginChallenge(
                 dispatch.ChallengeId,
                 recipient,
-                LoginChallengePlan.CredentialsFor(kind),
+                admitsMail ? LoginChallengePlan.CredentialsFor(kind) : ChallengeCredentials.None,
                 ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted),
             ct);
 
-        if (!await AdmitsMailAsync(subject, ct))
+        if (!admitsMail)
         {
             LogUnknownAddressMailCapped(
                 logger,
@@ -77,6 +88,8 @@ public sealed partial class LoginChallengeIssuer(
             (LoginChallengeKind.PendingDeletion, LoginSubject.PendingDeletion pending) =>
                 new LoginChallengeEmail.PendingDeletion(AccountRestoreWindow.PermanentDeletionEarliest(pending.DeletedAt)),
             (LoginChallengeKind.RegistrationClosed, _) => new LoginChallengeEmail.RegistrationClosed(),
+            (LoginChallengeKind.NewAccountCode, _) => new LoginChallengeEmail.NewAccountCode(Required(issued.Code)),
+            (LoginChallengeKind.NewAccountCodeLimitReached, _) => new LoginChallengeEmail.NewAccountCodeLimitReached(),
             _ => throw new InvalidOperationException($"No mail content for {kind}."),
         };
 

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
@@ -5,6 +6,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -38,12 +40,18 @@ public sealed class LoginChallengeIssuerTests
             {
                 ChallengeCredentials.CodeAndLink => new IssuedCredentials(Code, Link),
                 ChallengeCredentials.LinkOnly => new IssuedCredentials(null, Link),
+                ChallengeCredentials.CodeOnly => new IssuedCredentials(Code, null),
                 _ => new IssuedCredentials(null, null),
             });
     }
 
+    // Registration is closed unless a test opens it, as it is wherever the flag is unset (ADR 0083).
     private async Task<LoginChallengeIssuer> IssuerAsync(
-        string subject, Guid userId, CapturingLogger<LoginChallengeIssuer>? logger = null, string typed = Email)
+        string subject,
+        Guid userId,
+        CapturingLogger<LoginChallengeIssuer>? logger = null,
+        bool registrationsOpen = false,
+        string typed = Email)
     {
         var lookup = Substitute.For<ILoginAccountLookup>();
         lookup.FindAccountAsync(typed, Arg.Any<CancellationToken>())
@@ -63,6 +71,7 @@ public sealed class LoginChallengeIssuerTests
 
         return new LoginChallengeIssuer(
             new LoginSubjectResolver(lookup, db), _store, _budget, _sender, _audit,
+            Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen }),
             (ILogger<LoginChallengeIssuer>?)logger ?? NullLogger<LoginChallengeIssuer>.Instance);
     }
 
@@ -275,6 +284,74 @@ public sealed class LoginChallengeIssuerTests
             Arg.Any<CancellationToken>());
         await _sender.Received(1).SendLoginChallengeAsync(
             Email, new LoginChallengeEmail.RegistrationClosed(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("no-account")]
+    [InlineData("profile-missing")]
+    public async Task With_registration_open_an_address_without_an_account_gets_a_code_only_record_and_its_code(
+        string subject)
+    {
+        var issuer = await IssuerAsync(subject, Guid.NewGuid(), registrationsOpen: true);
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Credentials == ChallengeCredentials.CodeOnly && c.ReplacesLiveChallenge),
+            Arg.Any<CancellationToken>());
+        await _sender.Received(1).SendLoginChallengeAsync(
+            Email, new LoginChallengeEmail.NewAccountCode(Code), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task With_registration_open_and_the_code_budget_spent_it_gets_the_limit_mail_and_no_credential()
+    {
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), registrationsOpen: true);
+
+        await issuer.IssueAsync(Dispatch(CodeBudgetState.Exhausted), Ct);
+
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Credentials == ChallengeCredentials.None && !c.ReplacesLiveChallenge),
+            Arg.Any<CancellationToken>());
+        await _sender.Received(1).SendLoginChallengeAsync(
+            Email, new LoginChallengeEmail.NewAccountCodeLimitReached(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("no-account")]
+    [InlineData("profile-missing")]
+    public async Task Past_the_global_cap_with_registration_open_the_record_carries_no_code(string subject)
+    {
+        // A code nobody is mailed would still take three guesses, silently, for every address anyone names.
+        var issuer = await IssuerAsync(subject, Guid.NewGuid(), registrationsOpen: true);
+        _budget.TryConsumeAsync(
+                LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
+                Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        // The index decision stays the request path's: a capped record still replaces the live challenge.
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Credentials == ChallengeCredentials.None && c.ReplacesLiveChallenge),
+            Arg.Any<CancellationToken>());
+        await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);
+    }
+
+    [Fact]
+    public async Task The_global_cap_is_consulted_before_the_record_is_written()
+    {
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), registrationsOpen: true);
+
+        await issuer.IssueAsync(Dispatch(), Ct);
+
+        Received.InOrder(() =>
+        {
+            _budget.TryConsumeAsync(
+                LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
+                Arg.Any<CancellationToken>());
+            _store.PutAsync(Arg.Any<NewLoginChallenge>(), Arg.Any<CancellationToken>());
+        });
     }
 
     [Fact]

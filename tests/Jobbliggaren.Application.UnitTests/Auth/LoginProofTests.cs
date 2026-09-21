@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -11,6 +12,7 @@ using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -35,8 +37,11 @@ public sealed class LoginProofTests
     private readonly IInboxProofRecorder _inbox = Substitute.For<IInboxProofRecorder>();
     private readonly ISessionStore _sessions = Substitute.For<ISessionStore>();
     private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
+    private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
+
+    private static readonly GrantToken IssuedGrant = GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw");
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -47,6 +52,7 @@ public sealed class LoginProofTests
         _sessions.CreateAsync(_userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(call => new Session(
                 SessionId.FromRaw("granted-session-id"), _userId, Now, Now.AddDays(30), call.Arg<SessionLifetime>()));
+        _grants.IssueAsync(Arg.Any<GrantSubject>(), Arg.Any<CancellationToken>()).Returns(IssuedGrant);
     }
 
     private async Task WithProfileAsync(bool softDeleted = false)
@@ -71,11 +77,16 @@ public sealed class LoginProofTests
             _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request);
     }
 
-    private LoginProofOutcome Outcome() => new(new LoginSubjectResolver(_lookup, _db), Grant(), _outcomeLog);
+    // Registration is closed unless a test opens it, as it is wherever the flag is unset (ADR 0083).
+    private LoginProofOutcome Outcome(bool registrationsOpen = false) => new(
+        new LoginSubjectResolver(_lookup, _db), Grant(), _grants,
+        Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen }), _outcomeLog);
 
-    private VerifyLoginChallengeCommandHandler Verify() => new(_store, Outcome());
+    private VerifyLoginChallengeCommandHandler Verify(bool registrationsOpen = false) =>
+        new(_store, Outcome(registrationsOpen));
 
-    private ConsumeLoginLinkCommandHandler Link() => new(_store, Outcome());
+    private ConsumeLoginLinkCommandHandler Link(bool registrationsOpen = false) =>
+        new(_store, Outcome(registrationsOpen));
 
     private void Verdict(ChallengeVerdict verdict) =>
         _store.ConsumeCodeAsync(Arg.Any<ChallengeId>(), Arg.Any<LoginCode>(), Arg.Any<CancellationToken>())
@@ -200,6 +211,69 @@ public sealed class LoginProofTests
 
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+
+        // Nothing reaches the grant store while registration is closed.
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+    }
+
+    // ── the open-registration arm (#1737) ──
+
+    [Fact]
+    public async Task With_registration_open_a_code_proven_new_address_gets_a_grant_for_that_address_and_no_session()
+    {
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        var outcome = (await Verify(registrationsOpen: true).Handle(VerifyCommand(), Ct)).Value;
+
+        outcome.ShouldBe(new LoginOutcome.ConsentRequired(IssuedGrant));
+        await _grants.Received(1).IssueAsync(new GrantSubject.LoginComplete(Email), Arg.Any<CancellationToken>());
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_link_never_leads_to_a_grant()
+    {
+        // A record for an address without an account carries no link (ADR 0142 D1), so a link proven for one
+        // means the account went away inside the challenge's lifetime.
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        _store.ConsumeLinkAsync(Arg.Any<LoginLinkToken>(), Arg.Any<CancellationToken>())
+            .Returns(new LoginChallengeProof(Email));
+
+        var outcome = (await Link(registrationsOpen: true).Handle(new ConsumeLoginLinkCommand("link-token"), Ct)).Value;
+
+        outcome.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_missing_profile_is_unavailable_on_both_arms_and_is_never_adopted()
+    {
+        // The lookup finds the Identity row and no profile was seeded: ProfileMissing (#1349).
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+        _store.ConsumeLinkAsync(Arg.Any<LoginLinkToken>(), Arg.Any<CancellationToken>())
+            .Returns(new LoginChallengeProof(Email));
+
+        (await Verify(registrationsOpen: true).Handle(VerifyCommand(), Ct)).Value
+            .ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        (await Link(registrationsOpen: true).Handle(new ConsumeLoginLinkCommand("link-token"), Ct)).Value
+            .ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task With_registration_open_an_existing_account_is_answered_as_before()
+    {
+        await WithProfileAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify(registrationsOpen: true).Handle(VerifyCommand(), Ct)).Value
+            .ShouldBeOfType<LoginOutcome.SignedIn>();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
     }
 
     // ── the proven address must be the account's own ──

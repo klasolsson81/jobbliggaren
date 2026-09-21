@@ -131,16 +131,17 @@ public class LoginChallengeRequestTests(ApiFactory factory)
         using var knownBody = JsonDocument.Parse(await (await RequestAsync(known)).Content.ReadAsStringAsync(Ct));
         using var unknownBody = JsonDocument.Parse(await (await RequestAsync(unknown)).Content.ReadAsStringAsync(Ct));
 
+        // This host has registration open (ApiFactory), so the unknown address is mailed the code that leads
+        // to an account (#1737); the closed host's mail is the next test.
         var knownMail = (await AwaitMailAsync(known)).ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
-        (await AwaitMailAsync(unknown)).ShouldBeOfType<LoginChallengeEmail.RegistrationClosed>();
+        var unknownMail = (await AwaitMailAsync(unknown)).ShouldBeOfType<LoginChallengeEmail.NewAccountCode>();
 
         // A record exists for both, so a wrong code answers Wrong for both: "never existed" and "burned" can
         // never be told apart by whether the address has an account.
         var store = _factory.Services.GetRequiredService<ILoginChallengeStore>();
-        var wrongForKnown = LoginCode.FromRaw(knownMail.Code.Reveal() == "000000" ? "111111" : "000000");
-        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(knownBody)), wrongForKnown, Ct))
+        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(knownBody)), WrongCodeFor(knownMail.Code), Ct))
             .Outcome.ShouldBe(ChallengeOutcome.Wrong);
-        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(unknownBody)), LoginCode.FromRaw("000000"), Ct))
+        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(unknownBody)), WrongCodeFor(unknownMail.Code), Ct))
             .Outcome.ShouldBe(ChallengeOutcome.Wrong);
     }
 
@@ -159,6 +160,39 @@ public class LoginChallengeRequestTests(ApiFactory factory)
         (await AwaitMailAsync(stored)).ShouldBeOfType<LoginChallengeEmail.CodeAndLink>();
         MailsTo(folded).ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task With_registration_closed_an_unknown_address_gets_the_closed_mail_and_a_record_with_no_code()
+    {
+        var closed = _factory.CreateRegistrationsClosedClient();
+        var unknown = NewAddress("closed-unknown");
+
+        var response = await closed.PostAsJsonAsync("/api/v1/auth/challenge", new { email = unknown }, Ct);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+
+        (await AwaitMailAsync(unknown)).ShouldBeOfType<LoginChallengeEmail.RegistrationClosed>();
+        MailsTo(unknown).Count.ShouldBe(1);
+
+        // No code was minted, so no six digits can verify. Read through the CLOSED host's own store: each host
+        // has its own keyring, and another host's store would answer Missing for a payload it cannot open.
+        var store = _factory.GetRegistrationsClosedHost().Services.GetRequiredService<ILoginChallengeStore>();
+        (await store.ConsumeCodeAsync(ChallengeId.FromRaw(ChallengeIdOf(body)), LoginCode.FromRaw("000000"), Ct))
+            .Outcome.ShouldBe(ChallengeOutcome.Wrong);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_new_address_past_its_code_budget_gets_the_limit_mail_and_no_code()
+    {
+        var unknown = NewAddress("limit");
+        await SpendAsync(LoginChallengePolicy.CodeBudget, unknown, 10);
+
+        (await RequestAsync(unknown)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
+
+        (await AwaitMailAsync(unknown)).ShouldBeOfType<LoginChallengeEmail.NewAccountCodeLimitReached>();
+    }
+
+    private static LoginCode WrongCodeFor(LoginCode code) =>
+        LoginCode.FromRaw(code.Reveal() == "000000" ? "111111" : "000000");
 
     [Fact]
     public async Task A_cooled_repeat_sends_nothing_more()

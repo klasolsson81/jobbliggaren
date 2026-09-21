@@ -180,6 +180,12 @@ public class CaddyfileTokenScrubbingPinTests
             EmailTemplates.LoginChallenge(
                 BaseUrl,
                 new LoginChallengeEmail.LinkOnly(LoginLinkToken.FromRaw(Base64UrlToken))).PlainTextBody,
+
+            // #1737 — the two mails to a new address render NO link (ADR 0142 D1), so they add nothing to
+            // the count below. They are read here so that a link added to either one moves that count.
+            EmailTemplates.LoginChallenge(
+                BaseUrl, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody,
+            EmailTemplates.LoginChallenge(BaseUrl, new LoginChallengeEmail.NewAccountCodeLimitReached()).PlainTextBody,
         };
 
         return bodies

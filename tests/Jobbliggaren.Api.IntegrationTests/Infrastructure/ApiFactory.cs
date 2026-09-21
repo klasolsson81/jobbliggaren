@@ -1,10 +1,12 @@
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -218,6 +220,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<ILoginChallengeStore>();
             services.AddSingleton<ILoginChallengeStore>(sp => new FaultableLoginChallengeStore(
                 ActivatorUtilities.CreateInstance<RedisLoginChallengeStore>(sp), _loginChallengeFaults));
+            services.RemoveAll<IGrantStore>();
+            services.AddSingleton<IGrantStore>(sp => new FaultableGrantStore(
+                ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults));
 
             // #616 — replace the real HIBP typed client (AddBreachedPasswordCheck) with the stub.
             // Every register/change-password test funnels through PwnedPasswordValidator inside

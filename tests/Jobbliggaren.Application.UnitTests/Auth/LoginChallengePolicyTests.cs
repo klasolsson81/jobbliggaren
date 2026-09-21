@@ -23,6 +23,15 @@ public sealed class LoginChallengePolicyTests
     }
 
     [Fact]
+    public void A_grant_lives_ten_minutes_and_a_registration_claim_one()
+    {
+        // The grant's lifetime is a number the new-account mail states to its recipient (ADR 0142 "Attempt
+        // budget": Grant TTL 10 min). Neither is one of trigger 5's quantities.
+        LoginChallengePolicy.GrantTtl.ShouldBe(TimeSpan.FromMinutes(10));
+        LoginChallengePolicy.RegistrationClaimTtl.ShouldBe(TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
     public void The_mail_budget_is_three_per_ten_minutes()
     {
         LoginChallengePolicy.MailBudget.Limit.ShouldBe(3, LapseTrigger5);

@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Text;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
@@ -16,7 +17,7 @@ public sealed partial class UserAccountService(
     ILoginTimingEqualizer loginTimingEqualizer,
     IOptions<AuthOptions> authOptions,
     ILogger<UserAccountService> logger)
-    : IUserAccountService, ILoginAccountLookup
+    : IUserAccountService, ILoginAccountLookup, IPasswordlessAccountCreator
 {
     public async Task<Result<Guid>> CreateUserAsync(
         string email, string password, CancellationToken ct)
@@ -30,7 +31,35 @@ public sealed partial class UserAccountService(
             Email = email,
         };
 
-        var result = await userManager.CreateAsync(user, password);
+        return CreatedOrFailure(await userManager.CreateAsync(user, password), user);
+    }
+
+    /// <summary>
+    /// #1737 (ADR 0142 D10) — a confirmed user with no password: <c>CreateAsync(user)</c> runs no password
+    /// validator. The user name IS the address, as above, and that is what keeps the address unique: the
+    /// unique index is on the normalised user name, while <c>RequireUniqueEmail</c> is a validator that reads
+    /// before it writes. <c>CreatedAt</c> is left to the database, as above, so the orphan sweep's grace
+    /// window reads one clock for both kinds of account.
+    /// </summary>
+    public async Task<Result<Guid>> CreatePasswordlessUserAsync(string email, CancellationToken ct)
+    {
+        if (!StorableAddress.IsStorable(email))
+            return Result.Failure<Guid>(EmailNotStorableFailure());
+
+        var user = new ApplicationUser
+        {
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+        };
+
+        return CreatedOrFailure(await userManager.CreateAsync(user), user);
+    }
+
+    Task IPasswordlessAccountCreator.DeleteAsync(Guid userId, CancellationToken ct) => DeleteUserAsync(userId, ct);
+
+    private static Result<Guid> CreatedOrFailure(IdentityResult result, ApplicationUser user)
+    {
         if (!result.Succeeded)
         {
             var error = result.Errors.First();

@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Common.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -76,9 +79,31 @@ public class DevLoginCodeEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_address_without_an_account_has_no_code_to_take()
+    public async Task A_new_address_takes_its_new_account_code_and_that_code_asks_for_consent()
     {
+        // #1737 — this host has registration open, so an address without an account is mailed a code.
         var email = $"dev-code-{Guid.NewGuid():N}@example.com";
+        var challengeId = await RequestChallengeAsync(email);
+
+        var taken = await TakeCodeAsync(email);
+        taken.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var code = (await taken.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString();
+
+        var verified = await _client.PostAsJsonAsync("/api/v1/auth/challenge/verify", new { challengeId, code }, Ct);
+        verified.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await verified.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("outcome").GetString()
+            .ShouldBe("consentRequired");
+    }
+
+    [Fact]
+    public async Task A_new_address_past_its_code_budget_has_no_code_to_take()
+    {
+        // The production actor that spends a budget, called as the request path calls it.
+        var email = $"dev-code-{Guid.NewGuid():N}@example.com";
+        var budget = _factory.Services.GetRequiredService<IRateBudget>();
+        for (var i = 0; i < LoginChallengePolicy.CodeBudget.Limit; i++)
+            await budget.TryConsumeAsync(LoginChallengePolicy.CodeBudget, email, Ct);
+
         await RequestChallengeAsync(email);
 
         (await TakeCodeAsync(email)).StatusCode.ShouldBe(HttpStatusCode.NotFound);

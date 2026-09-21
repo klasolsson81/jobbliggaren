@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
@@ -66,8 +67,20 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
     {
         await inner.SendLoginChallengeAsync(toEmail, content, cancellationToken);
 
-        if (content is LoginChallengeEmail.CodeAndLink withCode)
-            capture.Capture(toEmail, withCode.Code);
+        // Exhaustive, so a variant added later is decided here and not skipped by a pattern that never matched.
+        LoginCode? code = content switch
+        {
+            LoginChallengeEmail.CodeAndLink withLink => withLink.Code,
+            LoginChallengeEmail.NewAccountCode newAccount => newAccount.Code,
+            LoginChallengeEmail.LinkOnly
+                or LoginChallengeEmail.RegistrationClosed
+                or LoginChallengeEmail.PendingDeletion
+                or LoginChallengeEmail.NewAccountCodeLimitReached => null,
+            _ => throw new UnreachableException($"Unmapped login challenge mail {content.GetType().Name}."),
+        };
+
+        if (code is { } held)
+            capture.Capture(toEmail, held);
     }
 
     public Task SendMatchNotificationEmailAsync(

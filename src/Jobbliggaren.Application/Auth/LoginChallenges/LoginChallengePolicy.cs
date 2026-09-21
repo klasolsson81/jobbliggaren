@@ -20,6 +20,18 @@ public static class LoginChallengePolicy
     /// <summary>How long a challenge (code and link) lives. One expiry state for both arms.</summary>
     public static readonly TimeSpan ChallengeTtl = TimeSpan.FromMinutes(15);
 
+    /// <summary>
+    /// How long a grant lives between a proven address and the accepted terms (ADR 0142 D3). The new-account
+    /// mail states this number to its recipient.
+    /// </summary>
+    public static readonly TimeSpan GrantTtl = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// How long the per-address registration claim lives: the window between winning it and both writes having
+    /// committed. Not one of lapse trigger 5's quantities; it enters no guess arithmetic.
+    /// </summary>
+    public static readonly TimeSpan RegistrationClaimTtl = TimeSpan.FromMinutes(1);
+
     /// <summary>Mails of any kind per address per 10 minutes. A refusal sends nothing and writes nothing.</summary>
     public static readonly RateBudgetScope MailBudget =
         new("login-challenge-mails", limit: 3, window: TimeSpan.FromMinutes(10));

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Shouldly;
@@ -28,6 +30,8 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
 {
     private const string ChallengeRecordPrefix = "jobbliggaren:auth/challenge/v1/";
     private const string BudgetPrefix = "jobbliggaren:budget/";
+    private const string GrantPrefix = "jobbliggaren:auth/grant/v1/";
+    private const string RegistrationClaimPrefix = "jobbliggaren:auth/registration-claim/v1/";
     private const string SessionPrefix = "jobbliggaren:session:";
 
     private readonly ApiFactory _factory = factory;
@@ -84,5 +88,41 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
         // absences above.
         durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
         volatileKeys.ShouldNotContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_new_addresss_grant_and_its_registration_claim_are_written_to_the_volatile_instance_only()
+    {
+        // #1737 — the grant holds the proven address for its lifetime and the claim key is a fingerprint of
+        // it, so both belong where an expired key is gone: the same sentence, in the new-account mail.
+        var email = $"placement-new-{Guid.NewGuid():N}@example.se";
+        var requested = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email }, Ct);
+        var challengeId = (await requested.Content.ReadFromJsonAsync<JsonElement>(Ct))
+            .GetProperty("challengeId").GetString();
+        await AwaitMailAsync(email);
+        var mail = _factory.Emails.LoginChallenges.Single(m => m.ToEmail == email).Content
+            .ShouldBeOfType<LoginChallengeEmail.NewAccountCode>();
+
+        var verified = await _client.PostAsJsonAsync(
+            "/api/v1/auth/challenge/verify", new { challengeId, code = mail.Code.Reveal() }, Ct);
+        var grantToken = (await verified.Content.ReadFromJsonAsync<JsonElement>(Ct))
+            .GetProperty("grantToken").GetString();
+
+        (await KeysAsync(_factory.VolatileRedisConnectionString))
+            .ShouldContain(k => k.StartsWith(GrantPrefix, StringComparison.Ordinal));
+
+        (await _client.PostAsJsonAsync(
+                "/api/v1/auth/challenge/complete", new { grantToken, acceptTerms = true }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var volatileKeys = await KeysAsync(_factory.VolatileRedisConnectionString);
+        var durableKeys = await KeysAsync(_factory.DurableRedisConnectionString);
+
+        volatileKeys.ShouldContain(RegistrationClaimPrefix + SubjectFingerprint.Hex(email));
+        durableKeys.ShouldNotContain(k => k.Contains("auth/grant", StringComparison.Ordinal));
+        durableKeys.ShouldNotContain(k => k.Contains("auth/registration-claim", StringComparison.Ordinal));
+
+        // The control: the session this completion opened is on the durable instance, so the scan sees keys.
+        durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
     }
 }

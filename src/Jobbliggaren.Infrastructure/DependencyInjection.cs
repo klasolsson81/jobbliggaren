@@ -1,8 +1,10 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -12,7 +14,9 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Registration;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
@@ -1840,6 +1844,12 @@ public static class DependencyInjection
         // protects the address and the code with the Api's Data-Protection keyring (AddApiDataProtection).
         services.AddSingleton<ILoginChallengeStore, RedisLoginChallengeStore>();
 
+        // #1737 (ADR 0142 D1/D3) — the grant a proven new address redeems at `complete`, and the per-address
+        // claim taken before an account is created. On the volatile connection, Api-only like the two above;
+        // the grant store protects its payload with the Api's keyring too.
+        services.AddSingleton<IGrantStore, RedisGrantStore>();
+        services.AddSingleton<IRegistrationClaim, RedisRegistrationClaim>();
+
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer
         // MINTS a reset token, which needs the token providers only this composition registers. The
@@ -1868,6 +1878,7 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<LoginChallengeDispatchChannel>());
         services.AddHostedService<LoginChallengeDispatchService>();
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
+        services.AddScoped<IPasswordlessAccountCreator, UserAccountService>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();

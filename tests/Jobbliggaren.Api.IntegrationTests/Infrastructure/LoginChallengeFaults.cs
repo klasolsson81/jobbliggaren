@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
@@ -62,5 +63,20 @@ internal sealed class FaultableLoginChallengeStore(ILoginChallengeStore inner, L
     {
         faults.ThrowIfUnavailable();
         return inner.ConsumeLinkAsync(token, ct);
+    }
+}
+
+internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFaults faults) : IGrantStore
+{
+    public Task<GrantToken> IssueAsync(GrantSubject subject, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.IssueAsync(subject, ct);
+    }
+
+    public Task<GrantSubject?> RedeemAsync(GrantToken token, GrantAssertion expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.RedeemAsync(token, expected, ct);
     }
 }

@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { test, expect, type Page } from "@playwright/test";
 import {
   ensureConfirmedAccount,
@@ -30,6 +32,23 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 
 const uniqueRunId = (): number => Date.now() + Math.floor(Math.random() * 1_000_000);
 
+/**
+ * A page on ANOTHER site carrying a link, as webmail does. `127.0.0.1` is not the same site as the
+ * app's `localhost`, so a click on the link is a cross-site navigation.
+ */
+async function serveMailWithLink(href: string): Promise<{ url: string; close: () => Promise<void> }> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end(`<a href="${href}">Logga in via mejlet</a>`);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}/`,
+    close: () => new Promise<void>((resolve) => void server.close(() => resolve())),
+  };
+}
+
 async function submitAddress(page: Page, email: string, path = "/logga-in"): Promise<void> {
   await page.goto(path);
   await page.getByLabel("E-postadress").fill(email);
@@ -47,6 +66,7 @@ test.describe("/logga-in — an address that has an account", () => {
   test("logs in in two steps, with a session that lasts, and the typed address leaves the device", async ({
     page,
     context,
+    baseURL,
   }) => {
     const runId = uniqueRunId();
     await ensureConfirmedTestUser(BACKEND_URL, runId);
@@ -80,6 +100,28 @@ test.describe("/logga-in — an address that has an account", () => {
     await expect(page.getByRole("button", { name: "Fortsätt och logga in" })).toBeVisible();
     await page.getByRole("link", { name: "Stanna kvar som inloggad" }).click();
     await page.waitForURL("**/oversikt");
+
+    // The same link CLICKED ON ANOTHER SITE. The Strict session cookie is not sent with that
+    // navigation, so the GET cannot see the session and renders the one-button arm. The press is
+    // same-site: it must ask, consume nothing and leave the session as it was.
+    const mail = await serveMailWithLink(`${baseURL}/logga-in/lank?token=not-a-live-token`);
+    try {
+      await page.goto(mail.url);
+      await page.getByRole("link", { name: "Logga in via mejlet" }).click();
+      await expect(
+        page.getByRole("heading", { level: 1, name: "Logga in på Jobbliggaren" })
+      ).toBeVisible();
+
+      await page.getByRole("button", { name: "Logga in", exact: true }).click();
+
+      await expect(page.getByRole("heading", { level: 1, name: "Du är redan inloggad" })).toBeFocused();
+      await expect(page.getByRole("button", { name: "Fortsätt och logga in" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Stanna kvar som inloggad" })).toBeVisible();
+      const after = (await context.cookies()).find((c) => c.name === "__Host-jobbliggaren_session");
+      expect(after?.value).toBe(session!.value);
+    } finally {
+      await mail.close();
+    }
   });
 
   test("honours next, and answers a wrong code on the field without losing the step", async ({

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
+using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Shouldly;
 
@@ -11,11 +12,12 @@ namespace Jobbliggaren.Architecture.Tests;
 /// #1738 — joins the numbers the login pages MIRROR from the backend to the backend's own.
 ///
 /// <para>
-/// <b>The contract.</b> The web client cannot read a C# constant, so it re-types five: how long the
-/// code and consent cookies live, how long "Skicka ny kod" stays closed, how many digits a code has,
-/// and how long a link token may be. No test compared the two sides. The drift is not cosmetic: a
-/// longer server cooldown than the client's lets a resend through that answers with a record-less
-/// challenge id, and a longer code makes the client refuse every code before it is sent.
+/// <b>The contract.</b> The web client cannot read a C# constant, so it re-types the numbers it
+/// shares with the backend. Six are joined here: how long the code and consent cookies live, how
+/// long "Skicka ny kod" stays closed, how many digits a code has, and how long an address and a
+/// link token may be. No test compared the two sides. The drift is not cosmetic: a longer server
+/// cooldown than the client's lets a resend through that answers with a record-less challenge id,
+/// and a longer code makes the client refuse every code before it is sent.
 /// </para>
 ///
 /// <para>
@@ -26,7 +28,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <para>
 /// <b>On the premise (AGENTS.md §5 <c>Tests:</c>).</b> The client's numbers are read out of the
 /// shipped source files, and the backend's out of the real constants, the options type and the real
-/// validator. The cooldown joins the options' DEFAULT: a value set in configuration is not visible
+/// validators. The cooldown joins the options' DEFAULT: a value set in configuration is not visible
 /// from here.
 /// </para>
 /// </summary>
@@ -68,6 +70,20 @@ public class LoginFlowMirrorWireContractTests
             .ShouldBeTrue($"the client sends a token of {bound} characters. " + Hint(SchemaModule));
         validator.Validate(new ConsumeLoginLinkCommand(new string('x', bound + 1))).IsValid
             .ShouldBeFalse($"the client refuses a token of {bound + 1} characters. " + Hint(SchemaModule));
+    }
+
+    [Fact]
+    public void TheAddressBoundIsTheValidatorsOwn()
+    {
+        const string domain = "@e2e.jobbliggaren.test";
+        var bound = Capture(SchemaModule, @"\bemailInputSchema\b[^;]*?\.max\((\d+)\)");
+        var validator = new RequestLoginChallengeCommandValidator();
+        string AddressOf(int length) => new string('a', length - domain.Length) + domain;
+
+        validator.Validate(new RequestLoginChallengeCommand(AddressOf(bound))).IsValid
+            .ShouldBeTrue($"the client sends an address of {bound} characters. " + Hint(SchemaModule));
+        validator.Validate(new RequestLoginChallengeCommand(AddressOf(bound + 1))).IsValid
+            .ShouldBeFalse($"the client refuses an address of {bound + 1} characters. " + Hint(SchemaModule));
     }
 
     private static string Hint(string module) =>

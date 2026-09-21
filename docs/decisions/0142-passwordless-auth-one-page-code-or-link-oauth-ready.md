@@ -841,7 +841,7 @@ address with the id, the three account-bearing `LoginSubject` variants carry it 
 and signs in as before.
 
 **R2.** `LoginProofOutcome` refuses, before its table and on all three account-bearing arms, a proof whose
-address is not ordinally the resolved account's own: `registrationClosed`, no session, no
+address is not ordinally the resolved account's own: no session, no
 deletion date, and a Warning (event 1016) carrying the user id and the method, never an address. It is the
 one place in the chain that applies no normalisation.
 
@@ -1056,6 +1056,7 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   | expired | status, replaces the field | "Koden har gått ut. Den gäller i 15 minuter." | "Skicka ny kod" becomes primary |
   | burned | status, replaces the field | "Du har skrivit fel kod tre gånger. Av säkerhetsskäl behöver du en ny kod." | "Skicka ny kod" primary |
   | registration closed | status, replaces the form, never danger colour | "Registreringen är inte öppen ännu." | link "Till startsidan" |
+  | account unavailable | status, replaces the form, never danger colour | "Vi kan inte logga in på den här adressen just nu. Försök igen senare, eller kontakta oss på kontakt@jobbliggaren.se." | mail link |
   | pending deletion | status, replaces the form | "Ditt konto raderas permanent {14 apr 2026}. Fram till dess kan du få det återställt genom att mejla kontakt@jobbliggaren.se." | mail link; no "Ångra" button that does not exist |
   | resting / sent | base render, focus h1 | the resting copy above | field + "Skicka ny kod" + "Byt e-postadress" |
 

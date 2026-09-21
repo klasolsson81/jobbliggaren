@@ -278,10 +278,11 @@ public sealed class LoginProofTests
 
     // ── the proven address must be the account's own ──
 
-    // UNREACHABLE through the current issuer: it writes a credential only for an active account, and then under
-    // the account's own spelling (LoginChallengeIssuerTests pins that). These assert only how the outcome
-    // refuses if a record ever proves another spelling. Identity's lookup normaliser upper-cases, and
-    // U+017F (ſ) upper-cases to S, so both another letter case and the long-s spelling find the account.
+    // UNREACHABLE while registration is closed, and for a LINK in either state: the issuer then writes a
+    // credential only for an active account, under the account's own spelling (LoginChallengeIssuerTests pins
+    // that). Those tests assert only how the outcome refuses if a record ever proves another spelling.
+    // Identity's lookup normaliser upper-cases, and U+017F (ſ) upper-cases to S, so both another letter case
+    // and the long-s spelling find the account.
     private const string FoldedEmail = "perſon@example.com";
 
     private void TheFoldedSpellingFindsTheAccount() => TheSpellingFindsTheAccount(FoldedEmail);
@@ -329,6 +330,39 @@ public sealed class LoginProofTests
         eventId.ShouldBe(1016);
         message.ShouldContain(nameof(LoginMethod.Link));
         message.ShouldNotContain("@");
+    }
+
+    // REACHABLE while registration is open: a record for an address without an account carries a code under
+    // the TYPED spelling (LoginChallengeIssuer), and an account registered inside the challenge's lifetime under
+    // a spelling the normaliser folds onto the same key is what the proof then resolves to.
+    [Fact]
+    public async Task With_registration_open_a_code_proving_another_spelling_is_unavailable_and_gets_no_grant()
+    {
+        await WithProfileAsync();
+        TheFoldedSpellingFindsTheAccount();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(FoldedEmail)));
+
+        var result = await Verify(registrationsOpen: true).Handle(VerifyCommand(), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1016);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_link_proving_another_spelling_gives_no_session_and_no_grant()
+    {
+        await WithProfileAsync();
+        TheFoldedSpellingFindsTheAccount();
+        _store.ConsumeLinkAsync(Arg.Any<LoginLinkToken>(), Arg.Any<CancellationToken>())
+            .Returns(new LoginChallengeProof(FoldedEmail));
+
+        var result = await Link(registrationsOpen: true).Handle(new ConsumeLoginLinkCommand("token"), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
     }
 
     [Fact]

@@ -52,7 +52,8 @@ public sealed partial class LoginProofOutcome(
             // delete, and the two cannot be told apart here. The orphan sweep collects it.
             (LoginSubject.ProfileMissing, _, RegistrationState.Open) => new LoginOutcome.AccountUnavailable(),
 
-            var other => throw new UnreachableException($"Unclassified login outcome input {other}."),
+            var other => throw new UnreachableException(
+                $"Unclassified login outcome input {other.subject.GetType().Name}, {other.method}, {other.registration}."),
         };
     }
 

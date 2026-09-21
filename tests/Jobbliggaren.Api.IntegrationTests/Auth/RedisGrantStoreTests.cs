@@ -124,13 +124,21 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
     public async Task A_record_with_a_purpose_this_build_does_not_define_redeems_to_nothing()
     {
         var token = GrantToken.Generate();
+        var control = GrantToken.Generate();
+        await WriteByHandAsync(token, purpose: 99, "future@example.com");
+        await WriteByHandAsync(control, purpose: 1, "control@example.com");
+
+        (await _store.RedeemAsync(token, Bearer, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(control, Bearer, Ct)).ShouldBe(new GrantSubject.LoginComplete("control@example.com"));
+    }
+
+    private async Task WriteByHandAsync(GrantToken token, int purpose, string email)
+    {
         var payload = _keyring
             .CreateProtector(RedisGrantStore.ProtectorPurpose)
             .CreateProtector("1")
-            .Protect(JsonSerializer.SerializeToUtf8Bytes(new { p = 99, e = "future@example.com" }));
+            .Protect(JsonSerializer.SerializeToUtf8Bytes(new { p = purpose, e = email }));
         await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
-
-        (await _store.RedeemAsync(token, Bearer, Ct)).ShouldBeNull();
     }
 
     [Fact]

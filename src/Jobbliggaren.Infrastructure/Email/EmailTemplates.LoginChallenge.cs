@@ -212,8 +212,7 @@ internal static partial class EmailTemplates
 
     /// <summary>
     /// An address with no account while registration is open, within its code budget: the code that leads to
-    /// an account, and no link (ADR 0142 D1). Recipient class (3) by construction — it is sent only when the
-    /// resolver found no account — so it carries the Art. 14 notice unconditionally.
+    /// an account, and no link (ADR 0142 D1).
     /// <para>
     /// <b>The retention paragraph is conditional, and its two halves stay together.</b> After the code is
     /// used, a grant holds the address for <see cref="LoginChallengePolicy.GrantTtl"/> more, and a recipient
@@ -302,8 +301,7 @@ internal static partial class EmailTemplates
     }
 
     /// <summary>
-    /// An address with no account while registration is open, past its code budget: no credential. Recipient
-    /// class (3) by construction, like <see cref="LoginNewAccountCode"/>. Its processing is the closed
+    /// An address with no account while registration is open, past its code budget: no credential. Its processing is the closed
     /// mail's — one message and the budget keys — so it shares that mail's legal-basis paragraph, and
     /// "Därefter finns den inte kvar hos oss" is true here: without a code there is no verify, so no grant,
     /// no claim and no account. It names no account, because the recipient has none.

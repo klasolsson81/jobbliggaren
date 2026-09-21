@@ -203,6 +203,10 @@ public class LoginChallengeCompleteTests(ApiFactory factory)
         (await CompleteAsync(grantToken)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
     [Fact]
+    public async Task A_grant_token_longer_than_any_minted_one_is_a_validation_failure() =>
+        (await CompleteAsync(new string('A', 65))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+    [Fact]
     public async Task An_unreachable_redis_answers_the_uniform_503()
     {
         using var _ = _factory.LoginChallengeFaults.Unavailable();

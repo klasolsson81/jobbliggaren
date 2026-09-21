@@ -98,7 +98,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     {
         var text = RenderVariant(variant).PlainTextBody;
 
-        // Recipient class (3) by construction: the source, both legal bases, the processor, the controller,
+        // The source, both legal bases, the processor, the controller,
         // the rights with the contact address, and the authority.
         text.ShouldContain("Adressen har angetts på vår inloggningssida");
         text.ShouldContain("artikel 6.1 b");

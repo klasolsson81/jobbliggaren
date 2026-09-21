@@ -435,8 +435,8 @@ public class LoginChallengeProofTests(ApiFactory factory)
             .Where(e => e.RoutePattern.RawText == route)
             .ShouldHaveSingleItem();
 
-        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
-            .ShouldBe(RateLimitingExtensions.AuthWritePolicy);
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>().ShouldNotBeNull()
+            .PolicyName.ShouldBe(RateLimitingExtensions.AuthWritePolicy);
     }
 
     [Fact]

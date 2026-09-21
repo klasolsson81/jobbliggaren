@@ -25,9 +25,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
         }
 
         /// <summary>
-        /// Not EF's scaffold, which backfills every NULL with <c>''</c> before re-adding NOT NULL: an invented
-        /// name would compose into the CV header. This refuses while a row without a name exists, and
-        /// otherwise re-imposes the constraint.
+        /// Not EF's scaffold, which backfills every NULL with <c>''</c> before re-adding NOT NULL. This refuses
+        /// while a row without a name exists, and otherwise re-imposes the constraint.
         /// </summary>
         protected override void Down(MigrationBuilder migrationBuilder)
         {

@@ -65,6 +65,7 @@ public class JobSeekerTests
 
     [Theory]
     [InlineData(null)]
+    [InlineData("")]
     [InlineData("   ")]
     public void ValidateDisplayName_StillRefusesAnAbsentName(string? absent)
     {
@@ -311,7 +312,7 @@ public class JobSeekerTests
         var result = JobSeeker.Register(ValidUserId, exactly200, TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.DisplayName!.Length.ShouldBe(200);
+        result.Value.DisplayName.ShouldNotBeNull().Length.ShouldBe(200);
     }
 
     [Theory]

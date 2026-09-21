@@ -379,7 +379,9 @@ while a given name still runs `ValidateDisplayName` inside the aggregate, makes 
 `JobSeekerProfileDto`'s name nullable, and makes the FE profile read tolerate `null`. `ValidateDisplayName`
 still refuses an absent name, so the password path and `UpdateDisplayName` are unchanged. Everything in the
 paragraph above stays 4a's. Until 4a, an account without a name cannot promote an imported CV: the gate
-answers `IncompleteContent`. That makes 4a a #734 launch condition.
+answers `IncompleteContent`, and the only copy the user is shown for it tells her to complete the entries
+in the file and upload it again, while the file is clean and the fix is under Inställningar. 4a closes
+that; it is a #734 launch condition, written into #734's table (row 7, 2026-09-21) and into #1741.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 

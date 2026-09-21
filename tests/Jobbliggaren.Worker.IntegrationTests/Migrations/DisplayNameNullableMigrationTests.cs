@@ -17,8 +17,8 @@ namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 ///
 /// <para>
 /// The <c>Down</c> is the half worth a journey. EF's scaffold for this reversal backfills every NULL
-/// with <c>''</c> and leaves a column default behind — an invented name that composes into the CV
-/// header — so this one refuses instead. The journey therefore rolls back WHILE a nameless row
+/// with <c>''</c> and leaves a column default behind, so this one refuses instead. The journey
+/// therefore rolls back WHILE a nameless row
 /// exists (must raise, and leave the schema and the row exactly as they were), removes that row the
 /// way an operator would, and rolls back again (must succeed, with no default, and the surviving
 /// name unchanged). The column is read out of <c>information_schema</c> at each stop rather than

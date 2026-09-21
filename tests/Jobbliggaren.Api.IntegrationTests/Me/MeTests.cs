@@ -74,4 +74,23 @@ public class MeTests(ApiFactory factory)
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("displayName").GetString().ShouldBe("Me User");
     }
+
+    [Fact]
+    public async Task GET_me_profile_for_an_account_with_no_display_name_returns_the_key_with_null()
+    {
+        // JobSeeker.Register admits an absent name (ADR 0142 D7); the bootstrap calls it with none.
+        var ct = TestContext.Current.CancellationToken;
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, displayName: null, ct: ct);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+
+        var response = await _client.GetAsync("/api/v1/me/profile", ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        // The KEY, not only the value: the web schema declares displayName required and nullable, so a
+        // serializer that drops nulls would fail the whole /me read.
+        json.TryGetProperty("displayName", out var name).ShouldBeTrue();
+        name.ValueKind.ShouldBe(JsonValueKind.Null);
+    }
 }

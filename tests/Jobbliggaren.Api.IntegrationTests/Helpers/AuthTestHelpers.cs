@@ -25,7 +25,7 @@ public static class AuthTestHelpers
     public static async Task<string> RegisterAndGetSessionIdAsync(
         WebApplicationFactory<Program> factory,
         string? email = null,
-        string displayName = "Test User",
+        string? displayName = "Test User",
         CancellationToken ct = default)
     {
         email ??= $"test-{Guid.NewGuid()}@example.se";
@@ -53,7 +53,7 @@ public static class AuthTestHelpers
         WebApplicationFactory<Program> factory,
         string? email = null,
         string password = DefaultTestPassword,
-        string displayName = "Test User",
+        string? displayName = "Test User",
         CancellationToken ct = default)
     {
         email ??= $"test-{Guid.NewGuid()}@example.se";
@@ -73,7 +73,7 @@ public static class AuthTestHelpers
     private static async Task<string> RegisterJobSeekerAndCreateSessionAsync(
         IServiceProvider services,
         Guid userId,
-        string displayName,
+        string? displayName,
         SessionLifetime lifetime,
         CancellationToken ct)
     {

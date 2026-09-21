@@ -290,4 +290,14 @@ public static class AuthErrorCodes
 
     public const string LoginLinkUnusableMessage =
         "Länken går inte att använda. Begär en ny kod på inloggningssidan.";
+
+    /// <summary>
+    /// The submitted address carries a character no account's stored address may hold: a control, format,
+    /// surrogate or whitespace character. A property of the submitted spelling alone, so it says nothing about
+    /// any account. Validation → 400.
+    /// </summary>
+    public const string EmailNotStorable = "Auth.EmailNotStorable";
+
+    public const string EmailNotStorableMessage =
+        "E-postadressen innehåller tecken som inte kan användas. Kontrollera adressen och försök igen.";
 }

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  LOGIN_LINK_REFERRER_POLICY,
+  LOGIN_LINK_ROUTE,
+  LOGIN_LINK_ROUTE_HEADERS,
   PERMISSIONS_POLICY,
   STRICT_TRANSPORT_SECURITY,
   buildContentSecurityPolicy,
@@ -167,5 +170,35 @@ describe("PERMISSIONS_POLICY", () => {
 
   it("avoids deprecated tokens that log console warnings", () => {
     expect(PERMISSIONS_POLICY).not.toContain("interest-cohort");
+  });
+});
+
+// The one route with headers of its own (#1738). What these CANNOT show is that the route entry
+// wins over the global one in a served response; `tests/e2e/security-headers.spec.ts` measures that.
+describe("the login link route's headers", () => {
+  it("names the route the mail's link lands on", () => {
+    expect(LOGIN_LINK_ROUTE).toBe("/logga-in/lank");
+  });
+
+  it("forbids caching and keeps the referrer inside the origin", () => {
+    expect(LOGIN_LINK_ROUTE_HEADERS).toEqual([
+      { key: "Cache-Control", value: "no-store" },
+      { key: "Referrer-Policy", value: "same-origin" },
+    ]);
+  });
+
+  it("is never a policy that lets the token-bearing URL cross the origin", () => {
+    // `same-origin` and `no-referrer` both hold that. `no-referrer` is refused for another
+    // reason, recorded at the constant: it breaks the no-JS POST this page must support.
+    expect(["same-origin"]).toContain(LOGIN_LINK_REFERRER_POLICY);
+  });
+
+  it("overrides ONLY the referrer policy of the global set, and adds no second CSP", () => {
+    const globalKeys = buildSecurityHeaders(false).map((header) => header.key);
+    const shared = LOGIN_LINK_ROUTE_HEADERS.map((header) => header.key).filter((key) =>
+      globalKeys.includes(key)
+    );
+
+    expect(shared).toEqual(["Referrer-Policy"]);
   });
 });

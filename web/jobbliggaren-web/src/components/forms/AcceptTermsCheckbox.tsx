@@ -1,7 +1,23 @@
-import { useId, type ComponentProps } from "react";
+import { useId, type ComponentProps, type ReactNode } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
+
+/** A `t.rich` tag renderer for a policy link that opens in a new tab. */
+function policyLink(href: string) {
+  return function renderPolicyLink(chunks: ReactNode) {
+    return (
+      <Link
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="py-1.5 text-brand-600 underline underline-offset-2 hover:text-brand-700"
+      >
+        {chunks}
+      </Link>
+    );
+  };
+}
 
 // Required terms + privacy acceptance for the register form (#1479).
 //
@@ -32,13 +48,20 @@ import { useTranslations } from "next-intl";
 // cannot drop `required` or reach any other input attribute, and the spread
 // still goes FIRST so the attributes below also win at runtime. A caller-supplied
 // `aria-describedby` (the error) is prepended by the hint, not replaced by it.
+//
+// `copy` picks which acceptance is being asked for. `register` is the form this
+// was built for. `consent` is the login flow's consent step (ADR 0142 D6), where
+// the box accepts the TERMS and nothing else: the privacy policy is an Art. 13
+// notice the user is pointed to, never something they accept, so it sits in a
+// sibling sentence under the box and outside the checkbox's own name.
 export function AcceptTermsCheckbox({
   "aria-describedby": describedBy,
+  copy = "register",
   ...props
 }: Pick<
   ComponentProps<"input">,
   "ref" | "aria-invalid" | "aria-describedby" | "defaultChecked"
->) {
+> & { copy?: "register" | "consent" }) {
   const t = useTranslations("pages");
   const hintId = useId();
   return (
@@ -61,34 +84,29 @@ export function AcceptTermsCheckbox({
           />
         </span>
         <span>
-          {t.rich("auth.register.termsLabel", {
-            terms: (chunks) => (
-              <Link
-                href="/villkor"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1.5 text-brand-600 underline underline-offset-2 hover:text-brand-700"
-              >
-                {chunks}
-              </Link>
-            ),
-            privacy: (chunks) => (
-              <Link
-                href="/integritet"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1.5 text-brand-600 underline underline-offset-2 hover:text-brand-700"
-              >
-                {chunks}
-              </Link>
-            ),
-          })}
+          {copy === "consent"
+            ? t.rich("auth.passwordless.consent.termsLabel", {
+                terms: policyLink("/villkor"),
+              })
+            : t.rich("auth.register.termsLabel", {
+                terms: policyLink("/villkor"),
+                privacy: policyLink("/integritet"),
+              })}
         </span>
       </label>
+      {copy === "consent" && (
+        <p className="text-body-sm text-text-primary">
+          {t.rich("auth.passwordless.consent.privacySibling", {
+            privacy: policyLink("/integritet"),
+          })}
+        </p>
+      )}
       {/* text-text-primary (not -secondary) to match the sibling field hints in the same
           form and honour the high-contrast, no-muted-text copy rule. */}
       <p id={hintId} className="text-body-sm text-text-primary">
-        {t("auth.register.termsHint")}
+        {copy === "consent"
+          ? t("auth.passwordless.consent.termsHint")
+          : t("auth.register.termsHint")}
       </p>
     </div>
   );

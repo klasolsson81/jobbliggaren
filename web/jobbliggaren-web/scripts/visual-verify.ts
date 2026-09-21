@@ -58,7 +58,7 @@ interface PageTarget {
 const PUBLIC_PAGES: PageTarget[] = [
   { path: "/", name: "landing" },
   { path: "/logga-in", name: "logga-in" },
-  { path: "/registrera", name: "registrera" },
+  { path: "/logga-in/lank", name: "logga-in-lank" },
 ];
 
 const VIEWPORTS = [

@@ -218,7 +218,7 @@ describe("GuestOversiktPage — notisernas CTA (#1572)", () => {
     const ctas = [...container.querySelectorAll<HTMLAnchorElement>(".jp-notice__cta")];
     expect(ctas).toHaveLength(4);
 
-    const toRegister = ctas.filter((a) => a.getAttribute("href") === "/registrera");
+    const toRegister = ctas.filter((a) => a.getAttribute("href") === "/logga-in");
     expect(toRegister).toHaveLength(1);
 
     // Och den enda är företagsnotisens, inte vilken som helst.

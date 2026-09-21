@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { readProblemTitle } from "@/lib/http/problem";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 import {
   updateFollowedCompanyNotificationConsent,
   updateNotificationConsent,
@@ -341,7 +342,7 @@ export async function changePasswordAction(
       return {
         success: false,
         error:
-          title === "Auth.PwnedPassword"
+          title === AUTH_ERROR_CODES.PwnedPassword
             ? ts("account.errors.passwordBreached")
             : ts("account.errors.invalidInput"),
       };
@@ -427,7 +428,7 @@ export async function changeEmailAction(
       return {
         success: false,
         error:
-          title === "Auth.ChangeEmailCooldown"
+          title === AUTH_ERROR_CODES.ChangeEmailCooldown
             ? ts("account.errors.changeEmailCooldown")
             : ts("account.errors.emailTaken"),
       };
@@ -448,7 +449,7 @@ export async function changeEmailAction(
       // the arm's correctness — a 503 from the limiter carries no title either, so it would
       // fall through here rather than claim email is off.
       const title = await readProblemTitle(res);
-      if (title === "Auth.EmailDeliveryUnavailable") {
+      if (title === AUTH_ERROR_CODES.EmailDeliveryUnavailable) {
         // `refused`, not a plain error: the sender cannot deliver until an operator sets a real
         // Email:Provider, so the card replaces its trigger with a status panel instead of
         // re-offering a submit that cannot succeed. Same exact-whitelist discipline as the 409

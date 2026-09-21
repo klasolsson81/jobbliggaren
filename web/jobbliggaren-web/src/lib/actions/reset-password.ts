@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemBody } from "@/lib/http/problem";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 
 /**
  * The result of {@link resetPasswordAction}. A flag bag rather than a discriminated union, matching
@@ -78,7 +79,7 @@ export async function resetPasswordAction(
       // is ever emitted on this route.
       const body = await readProblemBody(res);
 
-      if (body?.title === "Auth.PwnedPassword") {
+      if (body?.title === AUTH_ERROR_CODES.PwnedPassword) {
         return { error: t("auth.actions.passwordBreached") };
       }
 

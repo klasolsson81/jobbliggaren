@@ -14,6 +14,7 @@ import {
 import { parseResponse } from "@/lib/dto/_helpers";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 
 export type AuthActionState = {
   error?: string;
@@ -180,7 +181,7 @@ export async function registerAction(
         // #616 — a breached password can never be caught client-side, so the machine code
         // must map to localized copy here (NIST "provide the reason"). Exact-whitelist
         // comparison only; ProblemDetails text is never rendered.
-        if (errorBody.title === "Auth.PwnedPassword") {
+        if (errorBody.title === AUTH_ERROR_CODES.PwnedPassword) {
           // Names the password input: this refusal is about that one field and is fixed by
           // changing it, the same wiring `reset-password` gives the identical refusal.
           return {
@@ -244,7 +245,7 @@ export async function registerAction(
       } catch {
         // A 503 with an unparseable body is not ours — fall through.
       }
-      if (title === "Auth.RegistrationsClosed") {
+      if (title === AUTH_ERROR_CODES.RegistrationsClosed) {
         // Returned as its own state, not as `error`: RegisterForm renders it in a role="status"
         // panel in place of the form, mirroring the 202 check-inbox branch. The error channel is
         // red, assertive and keeps the submit button live, which would invite a retry that cannot

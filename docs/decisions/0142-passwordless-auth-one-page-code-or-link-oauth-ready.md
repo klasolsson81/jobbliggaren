@@ -179,9 +179,10 @@ new port and its hosted service: positive on `AddIdentityAndSessions`, negative 
 `AddCoreIdentityForWorker`. The
 residual — a hand-written line in `Worker/Program.cs` — is caught by nothing but a reader.
 
-`challengeId` + the submitted email live in a 15-min `__Host-jobbliggaren_login` httpOnly
-`SameSite=Strict` cookie set by the Server Action, never in a URL. The link path carries its own
-token and never reads this cookie.
+The flow's position lives in `__Host-jobbliggaren_login`, an httpOnly `SameSite=Strict` cookie set
+only by Server Actions and never in a URL: in its code phase the `challengeId` and the address as
+typed, for at most 15 minutes (Amendment 2026-09-21 (3) has the phases). The link path carries its
+own token and never reads this cookie.
 
 ### D3 — Verify, then branch after proof
 
@@ -437,9 +438,9 @@ alone (login CSRF: an attacker completes their own IdP flow and feeds the victim
 The cookie binds the *browser* to the flow; the Redis record (`GETDEL`) is the lookup key for the
 PKCE verifier, provider and `next` — two roles, not double storage.
 
-**Provider marks:** monochrome `currentColor` in `--jp-ink-1` while the buttons are inactive
-(no brand requirement is triggered by a button that logs nobody in). Whether the official coloured
-marks get a scoped DESIGN.md §3 exception in 6a is Klas's (see "Open — Klas decides").
+**Provider marks:** none while the buttons are inactive (Amendment 2026-09-21 (3)). Marks, and
+whether the official coloured ones get a scoped DESIGN.md §3 exception, are 6a's and Klas's (see
+"Open — Klas decides").
 
 **Privacy policy and Chapter V, in the same PR as the first live provider** (security Major 10):
 the IdPs enter "Mottagare" as **independent controllers, not processors** (Art. 13(1)(e) with source);
@@ -1030,7 +1031,9 @@ new measurement recorded in an amendment here:
    is one of its quantities: it is what bounds code-bearing records for new addresses.
 6. 5b lands (no password fallback remains).
 7. D2's "the consumer always sends a mail" premise falls or the budget branch changes behaviour —
-   the code-step resting copy (below) is written on that premise (design B2).
+   the code-step resting copy (below) was written on that premise (design B2). It fell three times
+   (#1756, #1779, #1783), and part 2 re-bound the copy so that it rests on no such premise
+   (Amendment 2026-09-21 (3)).
 
 The rejected TOTP provider (`DependencyInjection.cs:1658-1676`) was rejected as **stateless**; the
 challenge path never goes through Identity's `opts.Tokens` providers, and re-enabling the "Email"
@@ -1038,16 +1041,19 @@ provider would reintroduce exactly the property that was rejected.
 
 ## Page form
 
-Bound by `design-reviewer`; part 2 renders every state below in both themes before a design verdict
-(AGENTS.md §8 point 4).
+Bound by `design-reviewer`, and re-bound by her in part 2's form round (Amendment 2026-09-21 (3));
+part 2 renders every state below before a design verdict (AGENTS.md §8 point 4), in light only
+while `DARK_MODE_ENABLED` is `false`.
 
 - **Routes stay in `(auth)`:** SiteHeader/SiteFooter, centred `max-w-sm`, h1 in flow, no
   `jp-pagehero`, no hero gradient. Own `h1` per route: `/logga-in` "Logga in eller skapa konto" ·
   `/logga-in/kod` "Ange koden" · `/logga-in/villkor` "Skapa ditt konto" · `/logga-in/lank` "Logga in
-  på Jobbliggaren". `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
+  på Jobbliggaren", or "Du är redan inloggad" on the arm shown when the browser already holds a
+  session. `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`.
 - **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list
-  (now):** h1 → email field + hints (incl. the Art. 13 line) → **Fortsätt** (the only
+  (now):** h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress. Du behöver
+  inget lösenord."*) → email field + hints (incl. the Art. 13 line) → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no
   "Eller" divider. **At least one provider live (6a):** provider buttons → divider "Eller fortsätt
   med e-post" → field → Fortsätt.
@@ -1055,46 +1061,64 @@ Bound by `design-reviewer`; part 2 renders every state below in both themes befo
   view, never three solid fills, never a provider's brand colour as fill. Inactive =
   `aria-disabled="true"` + **kept in the tab order** + no-op click + "Kommer snart" as the visible
   text — never `disabled` (the explanation would leave the a11y tree); never `opacity` as the
-  dimming (contrast ≥ 4.5:1 in both themes); `type="button"`.
+  dimming (contrast ≥ 4.5:1 in both themes); `type="button"`. No provider mark while inactive: the
+  row is the text "Fortsätt med {provider}" with a trailing "Kommer snart", its accessible name
+  computed from that content, in the order Google, LinkedIn, GitHub.
 - **Code step** (design M3/M4): ONE `<input>` with a visible label "Sexsiffrig kod",
   `autocomplete="one-time-code"`, `inputmode="numeric"`, `maxLength=6`, `pattern="[0-9]*"`,
   `aria-describedby`, no placeholder; six boxes are forbidden. "Skicka ny kod" reuses
-  `ResendConfirmationButton`'s form exactly (disabled 60 s, countdown outside the live region,
-  message in `role="status"`). "Byt e-postadress" is a link to `/logga-in`, last. Resting copy:
-  *"Vi har skickat ett mejl till {email}. Följ instruktionerna i mejlet. Innehåller det en sexsiffrig
-  kod skriver du in den här. Koden gäller i 15 minuter."* with the hint *"Kontrollera skräpposten om du inte ser mejlet inom några
-  minuter."* A warning before the last attempt: *"Ett försök kvar. Sedan behöver
-  du begära en ny kod."*
+  `ResendConfirmationButton`'s form (disabled 60 s, countdown outside the live region, message in
+  `role="status"`) and **starts in that cooldown**, with a static line beside it, *"En ny kod
+  ersätter den förra. Skriv in koden från det senaste mejlet."* "Byt e-postadress" is a submit
+  styled as a text link, last: a GET cannot clear the typed address from the device. The primary
+  is "Bekräfta koden". **The page never states what the system did, only what the user should do.**
+  Resting copy: *"Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer
+  du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller
+  i 15 minuter."* with the hint *"Kommer inget mejl inom några minuter kan du skicka en ny kod,
+  eller byta e-postadress."* The typed address is its own statement below the field group, *"Du
+  angav {email}."*, never inside a sentence about a mail. A warning before the last attempt: *"Ett
+  försök kvar. Sedan behöver du begära en ny kod."*
 - **The states**, channel discipline as `RegisterForm` delivers it — user-correctable →
   `role="alert"` + `aria-invalid` + focus to the field; not the user's fault but a way forward here →
-  `role="status"` panel with `h2`, `tabIndex=-1`, focus moved; no way forward here → the form is
-  **replaced** by the panel:
+  `role="status"` panel, `tabIndex=-1`, focus moved; no way forward here → the form is
+  **replaced** by the panel. A panel that replaces the FORM carries an `h2`, and the `h2` is the
+  panel's first sentence; one that replaces only the FIELD carries none, since the step's `h1`
+  still describes the page:
 
   | State | Channel | Copy | Action |
   |---|---|---|---|
   | wrong code | alert under the field | "Koden stämmer inte. Kontrollera siffrorna och försök igen." | field stays |
-  | expired | status, replaces the field | "Koden har gått ut. Den gäller i 15 minuter." | "Skicka ny kod" becomes primary |
-  | burned | status, replaces the field | "Du har skrivit fel kod tre gånger. Av säkerhetsskäl behöver du en ny kod." | "Skicka ny kod" primary |
+  | expired | status, replaces the field | "Koden går inte att använda längre. Skicka en ny kod och försök igen." | "Skicka ny kod" becomes primary |
+  | burned | status, replaces the field | "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod." | "Skicka ny kod" primary |
   | registration closed | status, replaces the form, never danger colour | "Registreringen är inte öppen ännu." | link "Till startsidan" |
   | account unavailable | status, replaces the form, never danger colour | "Vi kan inte logga in på den här adressen just nu. Försök igen senare, eller kontakta oss på kontakt@jobbliggaren.se." | mail link |
   | pending deletion | status, replaces the form | "Ditt konto raderas permanent {14 apr 2026}. Fram till dess kan du få det återställt genom att mejla kontakt@jobbliggaren.se." | mail link; no "Ångra" button that does not exist |
   | resting / sent | base render, focus h1 | the resting copy above | field + "Skicka ny kod" + "Byt e-postadress" |
+  | throttled (429) or unavailable (503) | status in the form's own message slot, focus to the message, never danger colour | "För många försök. Vänta en stund och försök igen." · "Det går inte att logga in just nu. Försök igen om några minuter." | the form stays |
+  | back on `/logga-in` with a notice | status panel with `h2` above the form, focus moved | "Registreringen slutfördes inte" (an unusable grant) · "Inloggningen gick ut" (a code submitted after the flow ran out) | the form, which is the remedy |
 
 - **Consent step:** checkbox label *"Jag godkänner <terms>användarvillkoren</terms>."* — full stop;
   the privacy policy in a sibling sentence under the box (*"Vi behandlar dina uppgifter enligt
   integritetspolicyn."*), never inside the acceptance. "Skapa konto" the only primary. The D4
-  disclosure directly above it.
+  disclosure directly above it. The step shows no address: under the `h1`, *"Kontot skapas på den
+  e-postadress du nyss bekräftade med koden."*, and last a link out, *"Börja om med en annan
+  e-postadress"*.
 - **Link landing** (design M5): `<form action={consumeLinkAction}>` with the token in a hidden
   input and a submit button — works with JS off; no `useEffect` consumption (scanners GET); this is
 the simpler form, so **a live token stays in the browser history for up to 15 min** (the 303-hop
 form that moves it into a short-lived cookie was not chosen);
-  `Cache-Control: no-store` on GET **and** POST; `referrer: "no-referrer"` **measured** against the
-  global `strict-origin-when-cross-origin` rule (a route rule that does not win is a rule that does
-  not exist); expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
+  `Cache-Control: no-store` on GET **and** POST; `Referrer-Policy: same-origin`, as a route header
+  and as page metadata from one constant, **measured** to win over the global
+  `strict-origin-when-cross-origin` rule (a route rule that does not win is a rule that does not
+  exist). It is `same-origin` and not the other token pages' `no-referrer` because the two binds
+  in this bullet contradict each other otherwise (Amendment 2026-09-21 (3)). When the browser
+  already holds a session the page says what continuing does and asks for a choice between two
+  controls, naming no address. At rest: *"Du har öppnat en inloggningslänk från ditt mejl. Länken
+  gäller en gång och i 15 minuter."* and the button "Logga in"; expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
   inloggningssidan."* The link route answers the same outcome union as the code step (D3). Why a
   login token in a URL is accepted where #706's change-email token was
   not: 15 min against 24 h, single use, one record that burns code and link together, the Caddy
-  edge scrub, `no-referrer`, `no-store`. **The edge-scrub pin is extended in 1a**
+  edge scrub, a referrer policy that never crosses the origin, `no-store`. **The edge-scrub pin is extended in 1a**
   (`CaddyfileTokenScrubbingPinTests`: both link-bearing login templates and `/logga-in/lank` enter
   `RenderedLinks()`
   and the `TokenLink` regex; the parameter is spelled exactly `token`, the filter is case-sensitive;
@@ -1105,9 +1129,91 @@ form that moves it into a short-lived cookie was not chosen);
   `.jp-avatar` removed after a measured consumer count; the popup follows the bell's
   `aria-haspopup="dialog"` pattern; drawer and menu re-pointed to `/mina-sidor` with one label.
 - **Copy:** every string in `messages/sv/` **and** `messages/en/` in the same PR (ADR 0137); retired
-  keys deleted in 5a, not orphaned; no em-dash, no literal `...`; `landing.auth.free`/`fine`
-  (`registrera/page.tsx:42-43`) either move under `/logga-in`'s primary or are dropped with the
-  reason named in part 2's PR body. ≤ 768 px: primary and provider buttons `size="lg"`.
+  keys deleted in 5a, not orphaned; no em-dash, no literal `...`; English says "log in"
+  throughout, the register the catalogue already had. `landing.auth.free`/`fine` are not on
+  `/logga-in`: the zone above its primary belongs to the D4 disclosure on the steps that create a
+  session, and `fine` moved to the landing account card beside `free`. ≤ 768 px: primary and
+  provider buttons `size="lg"`.
+
+#### Amendment 2026-09-21 (3) (#1738, part 2) — the page form as delivered, and the corrections above
+
+*Decided before code in one form round: `design-reviewer` (five hand-backs), `security-auditor`,
+`senior-cto-advisor` (`docs/reviews/2026-09-21-1738-form-{design,security,cto}.md`).* The sentences in D2,
+D8, "Attempt budget" trigger 7 and this section that the round contradicted were corrected in place; this
+block records why.
+
+**The copy no longer claims a send.** Three delivered facts falsified *"Vi har skickat ett mejl till
+{email}"*: the mail goes to the account's own stored spelling (#1779), and showing the real recipient would
+disclose it; two branches write a challenge and send nothing (over the global cap; an Identity row without
+a profile); and a request inside the cooldown or past the mail budget sends nothing new. The uniform 202
+means the page cannot know which happened, so the resting copy and the resend receipt instruct and never
+report. "Expired" names no cause for the same reason: the backend answers `Auth.LoginCodeExpired` for a
+challenge that ran out, was used, was replaced or never had a record. "Burned" names the link, because
+the burn is the code arm's alone and the record's link still logs in.
+
+**The flow's position lives in the cookie, as a closed union of four phases** (`senior-cto-advisor`):
+`code` (challenge id, the address as typed, `next`, the mint time, and `dead` once the backend has
+answered 410), `consent` (the grant and `next`, no address), `outcome` (a terminal result, no address) and
+`notice`. Two measured reasons. In Next 16.3.3 a Server Action that sets or deletes a cookie makes the
+handler re-render the current route in the same response (`request-cookies.js`, `action-handler.js`), so a
+panel held in action state is lost to a page that redirects on a missing cookie. And the grant must
+survive the move from `/logga-in/kod` to `/logga-in/villkor` without entering a URL (D3). The rule that
+makes the re-render harmless is pinned per action: a return that writes the cookie ends in `redirect()`,
+and a state return never touches it; `resendCode` is the one exception. What must NOT survive a reload
+(a wrong code, the last-attempt warning, a transport failure) stays in action state. The cookie is
+unsigned: only its holder can forge it, no branch reads it as proof, every arm is a strict object so one
+phase's field cannot reach another phase's reader, and `next` is re-validated when it is read
+(`security-auditor`). It is deleted in the same action that sets the session cookie, on the code path and
+on the link path.
+
+**The same address again while its code is live mints nothing.** Inside the server's cooldown a second
+request is answered with a challenge id that has no record, and storing it would make the code already
+mailed unverifiable. The rule is keyed on the cookie's own liveness, so the frontend mirrors no window for
+it. The comparison is exact after `trim()`: the backend's fold (`SubjectFingerprint`, NFC then
+upper-invariant) is C# in Infrastructure and unreachable from the web app, and a second fold in a second
+language could over-match across exactly the territory of #1779. Another spelling simply mints, and a test
+pins that the fold is absent on purpose. "Skicka ny kod" does mirror one number, the 60 seconds this
+section already bound, against the default of `AuthEmailCooldownOptions.LoginChallengeWindowSeconds`; if
+that default is raised, `RESEND_COOLDOWN_SECONDS` is raised with it.
+
+**`same-origin` on the link landing, because this section's own two binds contradicted each other.** It
+bound `referrer: "no-referrer"` and a form that works with JavaScript off. Measured 2026-09-21 against the
+production build, JavaScript off, the policy rewritten in flight: as served the form POST carries `Origin:
+http://localhost:3000` and the action runs; under `no-referrer` it carries `Origin: null`, Next answers 500
+and the action does not run (a no-JS form POST is a navigate-mode request, and Next refuses a Server Action
+whose `Origin` is not the host's). The other token pages post through `fetch()` and are unaffected.
+`same-origin` still strips the referrer on every cross-origin request; the edge drops the whole
+request-header map from its log (`CaddyfileTokenScrubbingPinTests`), and Next's production stdout carried
+neither the path nor the token of a GET and a POST (measured the same day, `next start`).
+`token-link-metadata.test.ts` names this page as its one exception.
+
+**A link opened while a session exists asks first** (`security-auditor`, Major M-2). Without it the press
+silently replaced the session with one for the address the link proves, so a link minted for someone
+else's address and mailed to a logged-in user was a login CSRF one press long. Put to Klas Olsson
+2026-09-21, her question verbatim, whether the guard is (a) two buttons or (b) one warning sentence above
+the existing button: **"(a) Två knappar"**. The arm is the route's base render in that case, names no
+address, and on continue leaves the earlier session alive on the server: revoking it would let any link
+sign another account out everywhere. Cancel goes to `/oversikt`.
+
+**No provider mark while inactive** (`design-reviewer`). lucide ships no brand icons, so a monochrome mark
+would have meant hand-drawing three third parties' trademarks onto controls that log nobody in.
+
+**The forms are `noValidate`, with `required` kept**, as ruled for the settings name field in #1782. For
+the address field it is also a correctness fix. #1781 made `björn@…` registrable in the backend only: the
+HTML email production is ASCII-only in the local part, so native validation refuses the address before any
+submit. jsdom runs the same validation, and the test that types `björn@` and reaches the action fails with
+`noValidate` removed. The input schema checks length only; what an address is stays the backend's.
+
+**Light only.** `DARK_MODE_ENABLED` is `false`, so no user can reach a dark surface and a forced-dark
+render would grade one that does not exist. Part 2 adds no colour literal. The day the flag is set, these
+four routes are rendered in dark and graded before that change merges.
+
+**The policies.** The privacy policy says that an address entered on the login page is processed and that
+an account can be created from it, which bound the first caller of `POST /auth/challenge`
+(`security-auditor`, her text verbatim), so `privacy.updated` and
+`TermsAcceptance.CurrentPrivacyPolicyVersion` moved together; `CurrentTermsVersion` did not. The cookie
+policy lists `__Host-jobbliggaren_login`, the first cookie here that holds a personal datum, and lost
+three statements this part made false.
 
 ## Processing register and DoD 8
 

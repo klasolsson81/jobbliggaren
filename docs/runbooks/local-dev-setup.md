@@ -385,6 +385,14 @@ Alla tre startas av CC som bakgrundsprocesser.
    en ANNAN miljö lokalt måste du exportera `ConnectionStrings__VolatileRedis="localhost:6381"`
    själv; felet heter `ConnectionStrings:VolatileRedis is missing`. Worker:n läser aldrig nyckeln.
    Containern måste dessutom vara uppe — se §6.1b för hur det ser ut när den inte är det.
+7. **Inloggningens budgetar är konstanter och TYSTA (#1738).** En inloggning är en mejlad kod, och
+   `LoginChallengePolicy` går inte att konfigurera bort: samma adress igen inom 60 sekunder, eller en
+   fjärde gång på tio minuter, får ett `challengeId` UTAN post och inget mejl, och en NY adress drar
+   på ett globalt tak om 20 mejl per dygn till adresser utan konto. Allt svarar 202. Symptomet lokalt
+   är att `POST /api/v1/dev/login-code` svarar 404 tills Playwright-hjälparen ger upp (den namnger
+   orsakerna). Budgetnycklarna ligger på `redis-volatile`, som inte persisterar, så
+   `docker compose restart redis-volatile` nollställer dem. Därför loggar e2e-specarna in EN gång
+   per fil (`tests/e2e/helpers/session.ts`), och bara ett test skapar konto genom flödet.
 
 ### Portar (matchar `docker-compose.yml`)
 

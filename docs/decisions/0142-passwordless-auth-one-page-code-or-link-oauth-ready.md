@@ -86,14 +86,18 @@ script that does nothing when the record is absent; the record is deleted on a h
 that returns 1 yields the proof; `Proof` is non-null **only** on `Verified`; a dummy compare is paid
 even when no record exists; a record carrying no code answers like one whose code is wrong. Minting,
 hashing, protecting and comparing live in the adapter. How `Wrong/Burned/Missing` are presented is the
-handler's policy (see D3). `TryClaimAsync` is 1c's, with `complete`, its only caller.
+handler's policy (see D3). `TryClaimAsync` is 1c's, with `complete`, its only caller, and it is a port of its
+own, `IRegistrationClaim`, never a member of `ILoginChallengeStore` (Amendment 2026-09-20).
 
 **`TryClaimAsync` is its own atomic `SET NX`** (`StringSet(..., When.NotExists)` on the registered
 `IConnectionMultiplexer` *— from Amendment 2026-09-19 (2) on: `VolatileRedisConnection`*). It **never** reuses `ICooldownGate`: `RedisCooldownGate.cs:26-27` is
 read-then-write and says so — a race there costs one extra mail; at `complete` it would cost two
 accounts on one address. `RedisCooldownGate` is not changed. The claim is not the home of
-uniqueness either: that is `RequireUniqueEmail` plus the index, so D3's registered-meanwhile arm
-handles the duplicate error even when the claim was won.
+uniqueness either: that is the UNIQUE index on the normalised USER NAME, which holds the address only
+because both creation paths set `UserName = email`. `RequireUniqueEmail` is a validator that reads before it
+writes, and the index on the normalised address is not unique (measured on the box 2026-09-20: `EmailIndex`
+non-unique, `UserNameIndex` unique). So D3's registered-meanwhile arm handles the duplicate error even when
+the claim was won.
 
 **Record shape:** a Redis hash of two fields — `p`, the DataProtector-protected payload `{email, code,
 linkTokenHash}` (`email` is the address the challenge is addressed to, D2; the code and the hash null where
@@ -105,8 +109,8 @@ encrypted against; therefore **the code is protected with the same DataProtector
 address**, and only the 128-bit link token is hashed, its hash inside the same protected payload. The
 protected code is a confidentiality control and is written as one.
 **Keys** follow the delivered cooldown form, versioned: `auth/challenge/v1/{b64url(sha256(id))}` and
-its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{id}` (1c),
-`auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
+its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{b64url(sha256(token))}` and
+`auth/registration-claim/v1/{hex}` (1c), `auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
 segment beside `session:`; a record-shape change costs a new segment, never a decode crash on live
 records.
 **TTL 15 min** for code and link (one expiry state). **3 attempts, then the code is burned** — a state of
@@ -191,24 +195,32 @@ compare is paid on every path. **Success is resolved at proof time, by one funct
 link share:** an active account whose own stored address is the proven one → `{outcome:"signedIn",
 sessionId}`, a `Persistent` session; pending deletion → `{outcome:"pendingDeletion",
 permanentDeletionDate}`; no account or a missing profile → `{outcome:"registrationClosed"}`, both without a
-session (1a). A proof whose address is another spelling than the resolved account's own is answered
-`registrationClosed` on every arm (Amendment 2026-09-21). 1c adds `{outcome:"consentRequired",
-grantToken}` for a new address while registration is open.
+session (1a). A proof whose address is another spelling than the resolved account's own is answered like an
+address that can neither log in nor register: `registrationClosed` while registration is closed
+(Amendment 2026-09-21), `accountUnavailable` while it is open. 1c adds, while registration is open:
+`{outcome:"consentRequired", grantToken}` for an address without an account proven by its CODE, and
+`{outcome:"accountUnavailable"}` for a missing profile on either arm and for an address without an account
+proven by a LINK (the table is in Amendment 2026-09-20).
 `pendingDeletion` never restores the account through login — the 30-day clock is untouched, and
 restoration is via support (`HardDeleteAccountsJob.cs:28-33`).
 
 **Grants are ONE port with `purpose` as an enum, the bindings asserted inside `Redeem`**
-(architect): `GrantPurpose { LoginComplete, Reauthentication, ChangeEmail }`;
-`IssueAsync(purpose, subjectKey, payloadProtected, ttl)`; `RedeemAsync(id, expectedPurpose,
-expectedSubjectKey)` does `GETDEL` and returns `null` for unknown, expired, wrong purpose and wrong
-subject alike, so no handler compares and none can forget. `subjectKey` is the proven address for
-`LoginComplete`, `userId` for `Reauthentication`, `(userId, newEmail)` for `ChangeEmail`. TTL
+(architect). `IssueAsync(GrantSubject subject)` returns a minted `GrantToken` (the adapter mints, protects and
+fixes the TTL, as `PutAsync` does); `RedeemAsync(token, GrantAssertion expected)` does `GETDEL` and returns
+`null` for unknown, expired, unreadable, wrong purpose and wrong binding alike, so no handler compares and none
+can forget. A purpose whose whole job is to CARRY its binding — `LoginComplete`, whose proven address the caller
+of `complete` does not hold (D1's "the record's address wins over the cookie's") — is redeemed with
+`GrantAssertion.Bearer(purpose)`, which refuses any purpose not declared bearer-bound; every other purpose is
+redeemed with `GrantAssertion.Of(binding)` and asserted by record equality. `GrantPurpose` ships in 1c with its
+one member, `LoginComplete = 1`; `Reauthentication(userId)` and `ChangeEmail(userId, newEmail)` are 3a's. TTL
 10 min, single use.
 
-`POST /auth/challenge/complete {grantToken, acceptTerms}` → `TryClaimAsync` → re-check existence
-(registered meanwhile → log into the existing account; the duplicate error from
-`RequireUniqueEmail` is handled even when the claim was won) → `CreatePasswordlessUserAsync` →
-`JobSeeker.Register(userId, displayName, TermsAcceptance, clock)` → `Persistent` session.
+`POST /auth/challenge/complete {grantToken, acceptTerms}` → the kill-switch, before any Redis call → redeem
+the grant → `TryClaimAsync`, AFTER the redeem (a loser still holding a live grant could retry into the winner's
+account) → re-check existence through `LoginSubjectResolver` (registered meanwhile → the outcome function
+answers for that account; the duplicate error is handled even when the claim was won) →
+`CreatePasswordlessUserAsync` → `JobSeeker.Register(userId, displayName, TermsAcceptance, clock)` → one explicit
+save of the profile and the `User.AccountCreated` audit row → the outcome function, so a `Persistent` session.
 **No `AspNetUsers` or `job_seekers` row is written before the acceptance exists — on the code path
 and on the OAuth path** (security Major 6): an external identity waits in the grant record and
 expires with it if the user abandons the consent step. Holding `sub` + address before acceptance is
@@ -488,8 +500,10 @@ goes when the last literal goes, not in 0.5.
 
 `CreatePasswordlessUserAsync(string email, ct)` → `Result<Guid>` with the same duplicate collapse
 as `CreateUserAsync`; `userManager.CreateAsync(user)` (no password overload) with
-`EmailConfirmed = true` set before the call; no password validators run, so `PwnedPasswordValidator`
-is deliberately not engaged.
+`EmailConfirmed = true` and `UserName = email` set before the call; no password validators run, so
+`PwnedPasswordValidator` is deliberately not engaged. Its home is the narrow port
+`IPasswordlessAccountCreator`, with the compensating delete beside it, never `IUserAccountService`: `complete`
+is part of the proof chain, which must not reach the password surface (Amendment 2026-09-20).
 
 **The dev seam is `POST /api/v1/dev/login-code {email}`, mapped in `MapDevEnvironmentOnlyEndpoints`
 and registered by `AddDevOnlyTestingSupport`** — the `IsDevelopment()`-only pattern, **never**
@@ -639,8 +653,8 @@ PRIVATE multiplexer that is never registered as `IConnectionMultiplexer`: an unk
 is last-wins and would move every session onto an instance that forgets them at a restart.
 `ExecuteAsync` is the only route to the database.
 `AbortOnConnectFail = false` with an eager connect; a `Lazy<T>` would cache a first failed attempt for
-the life of the process. Its consumers are exactly the two stores and the readiness check
-(`VolatileRedisIsolationTests`), and which instance each key class lands on is pinned through the
+the life of the process. Its consumers are exactly the two stores and the readiness check *(from Amendment
+2026-09-20 on: those two, the grant store and the registration claim)* (`VolatileRedisIsolationTests`), and which instance each key class lands on is pinned through the
 production entry point (`VolatileRedisPlacementTests`). The connection string is
 `ConnectionStrings:VolatileRedis`, not `RedisVolatile`: `ConnectionStrings__Redis` would be a strict
 prefix of that, and the compose pins scan lines. The Api refuses to boot without the key in every
@@ -696,6 +710,116 @@ box applies hourly, so a merged PR reaches the box with no dispatch, and `web` w
 api that refuses boot is the whole site down. The session can order what reaches the box, not time it.
 The compose ships first (#1773). The PR that makes the key required is not armed until
 `jobbliggaren-redis-volatile` is measured healthy on the box, after Klas's GO for the `git pull` there.
+
+#### Amendment 2026-09-20 (#1737, part 1c) — the open-registration arm as delivered, and the corrections above
+
+*Decided before code by `dotnet-architect` (`docs/reviews/2026-09-20-1737-form-architect.md`), `security-auditor`
+(`…-form-security.md`) and `senior-cto-advisor` (`…-form-cto.md`, with one scoped ruling `…-cto-username.md`).* The
+sentences in D1, D3, D10, Amendment 2026-09-19 (2), "Attempt budget" and "Implementation status" that the form
+contradicted were corrected in place; this block records why.
+
+**Three PRs (CTO), and two more the work found.** The password-surface gates (#1777) repair a surface 1a delivered
+and share no type with the arm. The display name becoming optional (#1782) is a schema relaxation on a shipped
+invariant and is reviewed alone. The arm is the third. Between them came two repairs to delivered code, each in its
+own PR and each with its own amendment below: the challenge follows the account's own address (#1779), and what may
+be stored as an address (#1781). A no-caller prep PR for the grant store and the claim was rejected for the third
+time in this epic: a primitive with no caller ships its semantics untested.
+
+**What D3 could not be built as.** `IssueAsync(purpose, subjectKey, payloadProtected, ttl)` asked the caller to
+protect the payload, and Application has no DataProtection package; it asked the caller to type the lifetime a
+second time; and `RedeemAsync(…, expectedSubjectKey)` asked `complete` for an address it must not supply, since D1
+binds that the record's address wins over the cookie's. The port is `IGrantStore` with a closed `GrantSubject` and
+a `GrantAssertion` whose `Bearer(purpose)` factory refuses every purpose not declared bearer-bound, so 3a's two
+purposes stay caller-asserted by record equality. Each purpose protects under its own sub-purpose of
+`Jobbliggaren.Auth.Grant.v1`, so a payload issued for one cannot be opened as another's. `security-auditor`'s
+condition that no handler compares is met by `RedeemAsync` answering `null` for every refusal.
+
+**The grant key is a hash of the token (security-auditor, Major against D1's literal `{id}`).** The token is the
+whole bearer: `complete` takes nothing else. With the literal form, whoever can list the keyspace reads live tokens
+out of the key names, past every DataProtector. Measured on the box 2026-09-20: `redis-volatile` runs
+`user default on nopass ~* &* +@all` with no `aclfile`; the ACL template is test-only until #1759's second PR. For
+the challenge record the hashed key is defence in depth; for the grant it is the only thing between a key listing
+and a session.
+
+**The claim** is its own port, `IRegistrationClaim`: on `ILoginChallengeStore` the proof-chain walk would hand it to
+the verify and link handlers. Key `auth/registration-claim/v1/{hex}`, the constant value `1`, 60 seconds, never
+released, and taken AFTER the grant is redeemed. The loser answers exactly like a replayed grant, so nothing says an
+address is being registered. A restart of `redis-volatile` drops live claims with everything else; two completions
+straddling one can both win, and Identity's unique user name is what then refuses the second.
+
+**Outcomes, total and explicit (CTO).** `LoginProofOutcome` takes the method and the kill-switch:
+
+| Subject | Method | Registration | Outcome |
+|---|---|---|---|
+| `Active` | any | any | `signedIn` |
+| `PendingDeletion` | any | any | `pendingDeletion` |
+| `NoAccount` / `ProfileMissing` | any | closed | `registrationClosed`, as 1a |
+| `NoAccount` | `Code` | open | `consentRequired` + grant |
+| `NoAccount` | `Link` | open | `accountUnavailable` |
+| `ProfileMissing` | any | open | `accountUnavailable` |
+
+A proof whose address is another spelling than the account it resolves to (Amendment 2026-09-21) is answered before
+this table, by the same switch: `registrationClosed` while registration is closed, `accountUnavailable` while it is
+open. Open, that tells whoever holds the colliding inbox that the address folds onto an account
+(`security-auditor`, Minor, accepted: `consentRequired` there would be the squat of #1780).
+
+A link proves an address without an account only when the account went away inside the challenge's lifetime, and no
+new account rises from a bearer that has sat in a browser's history. `ProfileMissing` is never adopted and never
+replaced: the row is an in-flight sibling registration or the residue of a failed hard delete, and the two cannot be
+told apart at the proof. `registrationClosed` would have been the smaller diff and a false statement while
+registration is open. **The bind "`ProfileMissing` groups with `NoAccount` in the plan" stands: it is about the
+mail, and the outcome was always proof-time.** The cost is an accepted residual: an orphan is mailed a
+`NewAccountCode` and then answered `accountUnavailable`, for as long as the orphan sweep leaves the row — between
+1 h (`AccountHardDeleter.OrphanGraceWindow`) and about 25 h (the job runs daily at 04:00 UTC), measured 2026-09-20.
+
+**The cap is consulted before the record is written (security-auditor, Major).** In 1a the order was harmless,
+because a record for an address without an account never carried a credential. In 1c it would mint a live,
+account-creating code above the global cap: no mail, no signal to anyone, three guesses per record, for every
+address anyone names. For `NoAccount` and `ProfileMissing` the issuer now asks `UnknownAddressMailBudget` first, and
+a refused record carries `ChallengeCredentials.None`. `ReplacesLiveChallenge` still follows the request path's
+code-budget decision alone, so a capped record displaces the address's live challenge exactly as a
+closed-registration record did in 1a: the index decision must not read the account.
+
+**Lapse trigger 7 fired and was re-run before first use (security-auditor).** Per new address: at most 10
+code-bearing mints and so 30 guesses per 24 h, **0.003 %/day and 1.089 %/year — identical to 1a's.** What is not
+identical is the stake. A guessed code on a new address now yields a grant, an account and a `Persistent` session
+that no first-proof revocation removes, because an account created here is born confirmed; and the attacker
+chooses the denominator, since any address will do. The cap-before-record order is what bounds it again: at most
+20 code-bearing records per 24 h for all new addresses together, so 60 guesses per day against the whole surface,
+and an attack that spends the cap stops every registration, which is visible. **`UnknownAddressMailBudget` is
+therefore one of trigger 5's quantities from this amendment on.** `RegistrationClaimTtl` and `GrantTtl` are not.
+
+**The two mails reach recipient class (3) whenever the resolver found no account**, and the row's own stored
+address when it found an Identity row without a profile (the orphan above), exactly as the closed-registration mail
+does. Both carry the whole Art. 14 notice in every send, shared with the closed-registration mail through one block
+each. The
+retention paragraph of `NewAccountCode` is conditional, in `security-auditor`'s wording: the address is kept
+protected for the challenge's lifetime, for the grant's lifetime more if the code is used, a fingerprint for the
+code budget's window, and as the account's address if the account is created. The closed mail's "Därefter finns
+den inte kvar hos oss" is false there and true in `NewAccountCodeLimitReached`, which carries no code and so leads
+to no grant, no claim and no account. Every duration in the copy is derived from the constant that enforces it.
+
+**`complete`.** The kill-switch is the first statement and precedes every Redis call, so a closed host reaches
+neither new key family; that is what makes 1c deployable before #1759's ACL is live on the box. One `audit_log`
+row, `User.AccountCreated`, written on the create arm only and committed with the profile in one explicit save: the
+outcome function reads the profile back from the database, and the unit-of-work behavior saves after the handler.
+No terms row: the three `job_seekers` columns are the Art. 5(2) record (D6), and the creation row already
+timestamps the acceptance. The acceptance is refused in the validation behavior, so a request without it leaves
+the grant usable.
+
+**The address the account is created under is the PROVEN one**, out of the grant, and it passes
+`StorableAddress.IsStorable` in `CreatePasswordlessUserAsync` like every other writer of a stored address
+(Amendment 2026-09-21 (2)); `StoredAddressWriterGuardTests` fails without it.
+
+**What 1c hands to the `RegistrationsOpen` flip (#734), after Klas's answers of 2026-09-20.** Conditions, all in
+#734's table: 3a (#1739) first, since a passwordless account can neither delete itself nor change its address until
+re-authentication stops asking for a password ("(a) 3a före #734"); 4a (#1741) first (D7); the accepted residual of
+#1780 is read first. One more follows from this block: the cap on mails to addresses without an account is
+registration's ceiling, 20 new addresses per 24 h for the whole service, and twenty made-up addresses stop every
+registration for a day. **Not conditions, by his word:** a session list or an "account created" mail against a guessed
+code on a new address ("för hårt säkerhetstänk"), and Redis AUTH with the ACL live on the box ("Nej inga onödiga
+blockers.").
+
 
 #### Amendment 2026-09-21 (#1737) — the challenge follows the account's own address
 
@@ -864,14 +988,15 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Challenge TTL | 15 min, code and link, one expiry state | Redis TTL |
 | Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
-| Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer |
+| Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
 | OAuth state | ≤ 10 min, cookie mandatory, Redis record `GETDEL` | 6a |
 
 Success probability per targeted address (security-auditor's arithmetic): 30 guesses/day →
 1 − (1 − 10⁻⁶)³⁰ ≈ **0.003 %/day**; **1.089 %/year** under sustained attack; at ≈ 92 accounts
-that is one expected takeover per year if every account is attacked continuously. This is
+that is one expected takeover per year if every account is attacked continuously *(the existing-account arm
+only: for a new address the attacker chooses the denominator, Amendment 2026-09-20)*. This is
 accepted for the product as it is today and **lapses on any of these triggers**, each requiring a
 new measurement recorded in an amendment here:
 
@@ -881,7 +1006,8 @@ new measurement recorded in an amendment here:
 4. An IdP goes live (6a): the premise "mail is the only way in" falls.
 5. Code length, attempt count or mint budget changes in either direction. Since Amendment
    2026-09-19 (2) it also fires if a restart of `redis-volatile` becomes reachable by anything other
-   than the operator.
+   than the operator. Since Amendment 2026-09-20 the global cap on mails to addresses without an account
+   is one of its quantities: it is what bounds code-bearing records for new addresses.
 6. 5b lands (no password fallback remains).
 7. D2's "the consumer always sends a mail" premise falls or the budget branch changes behaviour —
    the code-step resting copy (below) is written on that premise (design B2).
@@ -1025,7 +1151,7 @@ change) and **1a** challenge/verify/link, store, both dispatchers, mail, dev sea
 boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1773 the
 `redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
-the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
+the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
 **4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`

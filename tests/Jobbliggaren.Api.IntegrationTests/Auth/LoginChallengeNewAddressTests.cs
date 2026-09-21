@@ -140,8 +140,7 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
         using var accepted = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
         var challengeId = accepted.RootElement.GetProperty("challengeId").GetString()!;
 
-        // The consumer has run once the record exists: a missing record answers 410, a record without a code
-        // answers a wrong code. Only then is the absence of a mail a reading.
+        // A missing record answers 410, a record without a code answers a wrong code.
         var deadline = DateTime.UtcNow.AddSeconds(30);
         HttpStatusCode answer;
         do
@@ -154,6 +153,14 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
         while (answer == HttpStatusCode.Gone);
 
         answer.ShouldBe(HttpStatusCode.BadRequest);
+
+        // The record is written before the send, so it does not say the item is done. The drain is serial
+        // (BoundedDispatchService): a later item's mail arrives only after this item has returned. An account
+        // holder's mail spends nothing of the cap on mails to addresses without an account.
+        var sentinel = NewAddress("after-orphan");
+        await Helpers.AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, sentinel, ct: Ct);
+        await MintAsync(sentinel);
+
         MailsTo(email).ShouldBeEmpty();
     }
 

@@ -2010,6 +2010,12 @@ public static class DependencyInjection
         return services;
     }
 
+    // The user name IS the address here, so Identity's default ASCII user-name charset refused addresses both
+    // email validators admit (o'brien@, björn@). What may be stored is StorableAddress's question, asked at the
+    // writers in UserAccountService. One rule for both compositions: they validate the same rows.
+    private static void TheUserNameIsTheAddress(UserOptions user) =>
+        user.AllowedUserNameCharacters = string.Empty;
+
     /// <summary>
     /// HTTP-fri Identity-modul för Worker. Registrerar
     /// <see cref="AppIdentityDbContext"/>, AspNet IdentityCore (UserManager +
@@ -2024,12 +2030,6 @@ public static class DependencyInjection
     /// inklusive HTTP. Att anropa båda i samma DI-container ger duplicerade
     /// registreringar.
     /// </summary>
-    // The user name IS the address here, so Identity's default ASCII user-name charset refused addresses both
-    // email validators admit (o'brien@, björn@). What may be stored is StorableAddress's question, asked at the
-    // writers in UserAccountService. One rule for both compositions: they validate the same rows.
-    private static void TheUserNameIsTheAddress(UserOptions user) =>
-        user.AllowedUserNameCharacters = string.Empty;
-
     public static IServiceCollection AddCoreIdentityForWorker(
         this IServiceCollection services,
         IConfiguration configuration)

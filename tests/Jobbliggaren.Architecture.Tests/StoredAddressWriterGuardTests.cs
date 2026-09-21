@@ -7,8 +7,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <summary>
 /// #1737 — Identity's user-name charset is off (the user name IS the address), so nothing in the framework refuses
 /// a control, whitespace, surrogate or format character any more: <c>StorableAddress.IsStorable</c> does, and only
-/// where it is called. A source sweep, because no type can carry the rule: <c>UserManager</c> takes a string. It
-/// reads call sites by name, so a writer that reaches Identity through another receiver name is outside it.
+/// where it is called. A source sweep, because no type can carry the rule: <c>UserManager</c> takes a string.
 /// </summary>
 public partial class StoredAddressWriterGuardTests
 {
@@ -16,8 +15,9 @@ public partial class StoredAddressWriterGuardTests
     private const string TheGuard = "StorableAddress.IsStorable(";
 
     // The UserManager members that store an address: three are its alone by name; CreateAsync is shared with other
-    // types (roles, sessions), so it counts only on a receiver named for a user.
-    [GeneratedRegex(@"\.(SetEmailAsync|ChangeEmailAsync|SetUserNameAsync)\(|\b\w*[Uu]ser\w*\.CreateAsync\(")]
+    // types (roles, sessions), so it counts only on a receiver named for a user. And a direct assignment of Email
+    // or UserName, which UpdateAsync then stores.
+    [GeneratedRegex(@"\.(SetEmailAsync|ChangeEmailAsync|SetUserNameAsync)\(|\b\w*[Uu]ser\w*\.CreateAsync\(|\.(Email|UserName) *=[^=]")]
     private static partial Regex AddressWritingCall();
 
     // A member declaration at class level, the repo's four-space indent.

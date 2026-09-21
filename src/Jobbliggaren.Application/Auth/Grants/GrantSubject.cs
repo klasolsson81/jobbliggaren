@@ -8,6 +8,8 @@ namespace Jobbliggaren.Application.Auth.Grants;
 public enum GrantPurpose
 {
     LoginComplete = 1,
+    Reauthentication = 2,
+    ChangeEmail = 3,
 }
 
 /// <summary>What a grant binds and carries (ADR 0142 D3). A closed set, one variant per purpose.</summary>
@@ -25,6 +27,24 @@ public abstract record GrantSubject
     public sealed record LoginComplete(string ProvenEmail) : GrantSubject
     {
         public override GrantPurpose Purpose => GrantPurpose.LoginComplete;
+    }
+
+    /// <summary>
+    /// A signed-in user proved the account's own inbox again (ADR 0142 D5). It carries no address: the caller
+    /// asserts its own user id, and a grant issued to another user is refused.
+    /// </summary>
+    public sealed record Reauthentication(Guid UserId) : GrantSubject
+    {
+        public override GrantPurpose Purpose => GrantPurpose.Reauthentication;
+    }
+
+    /// <summary>
+    /// A signed-in user proved the inbox of the address the account is moving to (ADR 0142 D5). The caller
+    /// asserts both halves, so the grant cannot be replayed against another address than the proven one.
+    /// </summary>
+    public sealed record ChangeEmail(Guid UserId, string NewEmail) : GrantSubject
+    {
+        public override GrantPurpose Purpose => GrantPurpose.ChangeEmail;
     }
 }
 

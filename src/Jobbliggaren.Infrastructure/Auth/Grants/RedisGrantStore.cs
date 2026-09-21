@@ -72,6 +72,11 @@ internal sealed partial class RedisGrantStore : IGrantStore
             {
                 GrantPurpose.LoginComplete when !string.IsNullOrEmpty(payload.Email) =>
                     new GrantSubject.LoginComplete(payload.Email),
+                GrantPurpose.Reauthentication when payload.UserId is { } userId && userId != Guid.Empty =>
+                    new GrantSubject.Reauthentication(userId),
+                GrantPurpose.ChangeEmail when payload.UserId is { } userId && userId != Guid.Empty
+                                              && !string.IsNullOrEmpty(payload.Email) =>
+                    new GrantSubject.ChangeEmail(userId, payload.Email),
                 _ => null,
             };
 
@@ -105,7 +110,12 @@ internal sealed partial class RedisGrantStore : IGrantStore
 
     private static GrantPayload ToPayload(GrantSubject subject) => subject switch
     {
-        GrantSubject.LoginComplete complete => new GrantPayload((int)GrantPurpose.LoginComplete, complete.ProvenEmail),
+        GrantSubject.LoginComplete complete =>
+            new GrantPayload((int)GrantPurpose.LoginComplete, complete.ProvenEmail, UserId: null),
+        GrantSubject.Reauthentication reauthentication =>
+            new GrantPayload((int)GrantPurpose.Reauthentication, Email: null, reauthentication.UserId),
+        GrantSubject.ChangeEmail changeEmail =>
+            new GrantPayload((int)GrantPurpose.ChangeEmail, changeEmail.NewEmail, changeEmail.UserId),
         _ => throw new InvalidOperationException($"No grant payload for {subject.GetType().Name}."),
     };
 
@@ -117,5 +127,6 @@ internal sealed partial class RedisGrantStore : IGrantStore
 
     internal sealed record GrantPayload(
         [property: JsonPropertyName("p")] int Purpose,
-        [property: JsonPropertyName("e")] string? Email);
+        [property: JsonPropertyName("e")] string? Email,
+        [property: JsonPropertyName("u")] Guid? UserId);
 }

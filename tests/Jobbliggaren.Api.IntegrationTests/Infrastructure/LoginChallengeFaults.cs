@@ -64,6 +64,19 @@ internal sealed class FaultableLoginChallengeStore(ILoginChallengeStore inner, L
         faults.ThrowIfUnavailable();
         return inner.ConsumeLinkAsync(token, ct);
     }
+
+    public Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.PutBoundAsync(challenge, ct);
+    }
+
+    public Task<ChallengeVerdict> ConsumeBoundCodeAsync(
+        ChallengeId id, LoginCode presented, ChallengeBinding expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.ConsumeBoundCodeAsync(id, presented, expected, ct);
+    }
 }
 
 internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFaults faults) : IGrantStore

@@ -92,6 +92,12 @@ public sealed record ChallengeVerdict
 /// <summary>
 /// The login challenge's store (ADR 0142 D1). It exposes the invariants, never the verbs: minting, hashing,
 /// protecting and comparing all live in the adapter, so no caller can assemble a non-atomic read-then-write.
+/// <para>
+/// Since #1739 it holds two kinds of challenge: the login challenge, addressed to whatever was typed, and the
+/// BOUND challenge, which belongs to a signed-in user and a purpose (ADR 0142 D5). They share the code arm's
+/// mechanics and nothing else: their own key families, their own payloads, their own members here. A third kind
+/// is the signal to split this port.
+/// </para>
 /// </summary>
 public interface ILoginChallengeStore
 {
@@ -116,4 +122,26 @@ public interface ILoginChallengeStore
     /// malformed, unknown, expired, used, or a record without a link — is <see langword="null"/>.
     /// </summary>
     Task<LoginChallengeProof?> ConsumeLinkAsync(LoginLinkToken token, CancellationToken ct);
+
+    /// <summary>
+    /// Writes a challenge BOUND to a signed-in user and a purpose, and returns its code. It lives
+    /// <see cref="LoginChallengePolicy.ChallengeTtl"/> and never carries a link. It always burns the previous
+    /// bound challenge of the same user and purpose: one live record each, so the attempts a code absorbs cannot
+    /// be multiplied by minting again.
+    /// </summary>
+    Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct);
+
+    /// <summary>
+    /// Presents a code for a bound challenge. The store asserts <paramref name="expected"/>: another purpose or
+    /// another user is answered <see cref="ChallengeVerdict.Missing"/>, never Wrong, because Wrong carries the
+    /// owner's remaining attempts. The counter is incremented before anything is compared, so such a presentation
+    /// spends an attempt all the same. Otherwise the code arm is <see cref="ConsumeCodeAsync"/>'s.
+    /// <para>
+    /// The proof is the login challenge's type. What keeps a bound proof from becoming a session is that a caller
+    /// of this member cannot also reach <c>LoginProofOutcome</c> without joining the exact consumer list
+    /// <c>LoginProofChainTests</c> pins.
+    /// </para>
+    /// </summary>
+    Task<ChallengeVerdict> ConsumeBoundCodeAsync(
+        ChallengeId id, LoginCode presented, ChallengeBinding expected, CancellationToken ct);
 }

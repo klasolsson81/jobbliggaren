@@ -727,6 +727,7 @@
         "submit": "Confirm the code",
         "submitting": "Confirming the code…",
         "wrongCode": "The code is not correct. Check the digits and try again.",
+        "malformedCode": "The code is six digits. Check the digits and try again.",
         "lastAttempt": "One attempt left. After that you need to request a new code.",
         "expired": "That code can no longer be used. Send a new code and try again.",
         "burned": "You have entered the wrong code three times, so the code can no longer be used. If the email contains a login link you can use that instead, otherwise send a new code.",

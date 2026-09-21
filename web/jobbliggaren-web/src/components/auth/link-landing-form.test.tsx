@@ -38,6 +38,16 @@ describe("LinkLandingForm", () => {
 
     await waitFor(() => expect(consumeLinkMock).toHaveBeenCalledTimes(1));
     expect(consumeLinkMock.mock.lastCall![1].get("token")).toBe("link-token");
+    // The one-button arm never says "replace the session": that is the action's to ask about.
+    expect(consumeLinkMock.mock.lastCall![1].has("replaceSession")).toBe(false);
+  });
+
+  it("names the arm in the h1", () => {
+    const { rerender } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Logga in på Jobbliggaren" })).toBeInTheDocument();
+
+    rerender(<LinkLandingForm token="link-token" alreadyLoggedIn={true} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Du är redan inloggad" })).toBeInTheDocument();
   });
 
   describe("when this browser already holds a session", () => {
@@ -58,7 +68,7 @@ describe("LinkLandingForm", () => {
       expect(stay).toHaveAttribute("data-variant", "outline");
     });
 
-    it("consumes only on the continue press", async () => {
+    it("consumes only on the continue press, which carries the confirmation", async () => {
       const user = userEvent.setup();
       render(<LinkLandingForm token="link-token" alreadyLoggedIn={true} />);
       expect(consumeLinkMock).not.toHaveBeenCalled();
@@ -66,11 +76,65 @@ describe("LinkLandingForm", () => {
       await user.click(screen.getByRole("button", { name: "Fortsätt och logga in" }));
 
       await waitFor(() => expect(consumeLinkMock).toHaveBeenCalledTimes(1));
+      expect(consumeLinkMock.mock.lastCall![1].get("replaceSession")).toBe("on");
+    });
+  });
+
+  // A click in webmail is cross-site, so the GET never saw the session: the ACTION answers
+  // `confirm`, and the question is asked then.
+  describe("when the action finds a session the GET could not see", () => {
+    it("switches to the two-control arm, h1 included, and moves focus to the h1", async () => {
+      consumeLinkMock.mockResolvedValueOnce({ kind: "confirm" });
+      const user = userEvent.setup();
+      render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
+
+      await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+      const heading = await screen.findByRole("heading", { level: 1, name: "Du är redan inloggad" });
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(
+        screen.getByText(/En inloggning är redan aktiv i den här webbläsaren\. Fortsätter du ersätts den/)
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Stanna kvar som inloggad" })).toHaveAttribute(
+        "href",
+        "/oversikt"
+      );
+      expect(screen.queryByRole("button", { name: "Logga in" })).not.toBeInTheDocument();
+    });
+
+    it("sends the confirmation with the second press, and the token again", async () => {
+      consumeLinkMock.mockResolvedValueOnce({ kind: "confirm" });
+      const user = userEvent.setup();
+      render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
+      await user.click(screen.getByRole("button", { name: "Logga in" }));
+
+      await user.click(await screen.findByRole("button", { name: "Fortsätt och logga in" }));
+
+      await waitFor(() => expect(consumeLinkMock).toHaveBeenCalledTimes(2));
+      const posted = consumeLinkMock.mock.lastCall![1];
+      expect(posted.get("replaceSession")).toBe("on");
+      expect(posted.get("token")).toBe("link-token");
+    });
+
+    it("stays in that arm when the confirmed press hits a retryable error", async () => {
+      consumeLinkMock.mockResolvedValueOnce({ kind: "confirm" }).mockResolvedValueOnce({
+        kind: "error",
+        error: "Det går inte att logga in just nu. Försök igen om några minuter.",
+        confirmed: true,
+      });
+      const user = userEvent.setup();
+      render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
+      await user.click(screen.getByRole("button", { name: "Logga in" }));
+      await user.click(await screen.findByRole("button", { name: "Fortsätt och logga in" }));
+
+      expect(await screen.findByRole("status")).toHaveTextContent("Det går inte att logga in just nu.");
+      expect(screen.getByRole("button", { name: "Fortsätt och logga in" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Du är redan inloggad" })).toBeInTheDocument();
     });
   });
 
   it("says the one sentence for a dead link and does NOT render the token again", async () => {
-    consumeLinkMock.mockResolvedValue({ kind: "unusable" });
+    consumeLinkMock.mockResolvedValue({ kind: "unusable", confirmed: false });
     const user = userEvent.setup();
     const { container } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
 
@@ -90,6 +154,7 @@ describe("LinkLandingForm", () => {
     consumeLinkMock.mockResolvedValue({
       kind: "outcome",
       result: { outcome: "accountUnavailable" },
+      confirmed: false,
     });
     const user = userEvent.setup();
     render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
@@ -109,6 +174,7 @@ describe("LinkLandingForm", () => {
     consumeLinkMock.mockResolvedValue({
       kind: "error",
       error: "Det går inte att logga in just nu. Försök igen om några minuter.",
+      confirmed: false,
     });
     const user = userEvent.setup();
     render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);

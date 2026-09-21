@@ -727,6 +727,7 @@
         "submit": "Bekräfta koden",
         "submitting": "Bekräftar koden…",
         "wrongCode": "Koden stämmer inte. Kontrollera siffrorna och försök igen.",
+        "malformedCode": "Koden är sex siffror. Kontrollera siffrorna och försök igen.",
         "lastAttempt": "Ett försök kvar. Sedan behöver du begära en ny kod.",
         "expired": "Koden går inte att använda längre. Skicka en ny kod och försök igen.",
         "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod.",

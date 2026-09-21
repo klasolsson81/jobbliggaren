@@ -15,10 +15,6 @@ export const AUTH_ERROR_CODES = {
   ChangeEmailCooldown: "Auth.ChangeEmailCooldown",
   RegistrationsClosed: "Auth.RegistrationsClosed",
   EmailDeliveryUnavailable: "Auth.EmailDeliveryUnavailable",
-  LoginCodeWrong: "Auth.LoginCodeWrong",
   LoginCodeWrongLastAttempt: "Auth.LoginCodeWrongLastAttempt",
   LoginCodeBurned: "Auth.LoginCodeBurned",
-  LoginCodeExpired: "Auth.LoginCodeExpired",
-  LoginLinkUnusable: "Auth.LoginLinkUnusable",
-  LoginGrantUnusable: "Auth.LoginGrantUnusable",
 } as const;

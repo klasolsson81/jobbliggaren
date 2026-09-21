@@ -7,6 +7,8 @@ import type { LoginFlowOutcome } from "@/lib/auth/login-flow";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { formatDate } from "@/lib/i18n/format";
 
+// Client because it takes focus when it mounts (`useFocusOnMount`).
+//
 // A login that ended somewhere other than a session: the account is being deleted, registration
 // is closed, or this address can neither log in nor register right now. It REPLACES the form, so
 // the page's h1 no longer describes what is on screen and the panel carries its own h2, which is

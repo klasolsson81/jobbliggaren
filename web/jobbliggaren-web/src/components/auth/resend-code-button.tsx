@@ -3,9 +3,12 @@
 import { useActionState, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { CODE_INPUT_ID } from "@/components/auth/code-form";
 import type { ResendState } from "@/lib/auth/challenge-action-state";
 import { resendCode } from "@/lib/auth/challenge-actions";
 
+// Client because it holds the action's state (`useActionState`) and counts the cooldown down.
+//
 // "Skicka ny kod". The form of `ResendConfirmationButton` (disabled while cooling, the countdown
 // OUTSIDE the live region so a screen reader is not read a number every second, the message in
 // `role="status"`), with two differences that both come from what a resend costs here.
@@ -52,6 +55,12 @@ export function ResendCodeButton({
     return () => clearInterval(id);
   }, [cooldown]);
 
+  // The button stays disabled for the whole cooldown, so focus cannot return to it. The field is
+  // the user's next act, on both arms: a resend after a dead code brings it back.
+  useEffect(() => {
+    if (state?.status === "sent") document.getElementById(CODE_INPUT_ID)?.focus();
+  }, [state]);
+
   const isCoolingDown = cooldown > 0;
   const message =
     state?.status === "sent"
@@ -65,7 +74,7 @@ export function ResendCodeButton({
       <div>
         <Button
           type="submit"
-          variant={primary ? "default" : "outline"}
+          variant={primary && !isCoolingDown ? "default" : "outline"}
           disabled={isPending || isCoolingDown}
           className="max-md:h-11"
         >
@@ -75,21 +84,20 @@ export function ResendCodeButton({
         </Button>
       </div>
 
-      <p className="text-body-sm text-text-primary">
-        {t("auth.passwordless.code.resend.consequence")}
-      </p>
-
-      {/* A throttle or an outage on a resend is a status here too: never danger colour, and no
-          focus move, since the region sits directly under the button that was pressed. */}
-      <div role="status" aria-live="polite">
-        {message && <p className="text-body-sm text-text-primary">{message}</p>}
-      </div>
-
       {isCoolingDown && (
         <p className="text-body-sm text-text-primary">
           {t("auth.passwordless.code.resend.cooldownHint", { seconds: cooldown })}
         </p>
       )}
+
+      {/* A throttle or an outage on a resend is a status here too: never danger colour. */}
+      <div role="status" aria-live="polite">
+        {message && <p className="text-body-sm text-text-primary">{message}</p>}
+      </div>
+
+      <p className="text-body-sm text-text-primary">
+        {t("auth.passwordless.code.resend.consequence")}
+      </p>
     </form>
   );
 }

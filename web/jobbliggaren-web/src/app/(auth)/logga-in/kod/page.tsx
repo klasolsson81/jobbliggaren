@@ -72,7 +72,7 @@ export default async function LoggaInKodPage() {
           initialCooldownSeconds={resendCooldownRemaining(flow, nowEpochSeconds())}
           primary={flow.dead !== undefined}
         />
-        <ChangeEmailButton />
+        <ChangeEmailButton label={t("auth.passwordless.code.changeEmail")} />
       </div>
     </div>
   );

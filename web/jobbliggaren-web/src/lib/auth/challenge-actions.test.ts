@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     throw new Error(`REDIRECT:${path}`);
   }),
   setSessionCookie: vi.fn(),
+  getSessionId: vi.fn(),
   readLoginFlow: vi.fn(),
   writeLoginFlow: vi.fn(),
   clearLoginFlow: vi.fn(),
@@ -16,7 +17,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
-vi.mock("@/lib/auth/session", () => ({ setSessionCookie: mocks.setSessionCookie }));
+vi.mock("@/lib/auth/session", () => ({
+  setSessionCookie: mocks.setSessionCookie,
+  getSessionId: mocks.getSessionId,
+}));
 vi.mock("@/lib/env", () => ({ env: { BACKEND_URL: "http://backend.test" } }));
 vi.mock("@/lib/http/forwarded-headers", () => ({
   forwardedHeaders: async () => ({ "x-forwarded-for": "203.0.113.7" }),
@@ -78,6 +82,8 @@ const sentBody = (): unknown => JSON.parse(mocks.fetch.mock.lastCall?.[1]?.body 
 beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockClear();
   mocks.readLoginFlow.mockResolvedValue(null);
+  // `getSessionId` answers `string | null`: null is "no session cookie in this browser".
+  mocks.getSessionId.mockResolvedValue(null);
   mocks.fetch.mockReset();
   vi.stubGlobal("fetch", mocks.fetch);
 });
@@ -115,6 +121,16 @@ describe("requestCode", () => {
     await run(() => requestCode(null, form({ email: "anna@example.com", next: "//evil.example" })));
 
     expect(mocks.writeLoginFlow).toHaveBeenCalledWith(expect.objectContaining({ next: "/oversikt" }));
+  });
+
+  it("stores no next at all when it is too long for the cookie: a longer one reads back as no cookie", async () => {
+    mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
+
+    await run(() =>
+      requestCode(null, form({ email: "anna@example.com", next: `/${"a".repeat(600)}` }))
+    );
+
+    expect(mocks.writeLoginFlow).toHaveBeenCalledWith(expect.objectContaining({ next: "" }));
   });
 
   it("sends an address outside ASCII to the backend unchanged: what an address is, is not decided here", async () => {
@@ -292,7 +308,7 @@ describe("verifyCode", () => {
     async (code) => {
       const result = await run(() => verifyCode(null, form({ code })));
 
-      expect(result.state).toEqual({ error: `${K}.code.wrongCode`, channel: "field" });
+      expect(result.state).toEqual({ error: `${K}.code.malformedCode`, channel: "field" });
       expect(mocks.fetch).not.toHaveBeenCalled();
     }
   );
@@ -397,6 +413,25 @@ describe("changeEmail", () => {
     expect(mocks.clearLoginFlow).toHaveBeenCalledTimes(1);
     expect(result.redirectedTo).toBe("/logga-in");
   });
+
+  it("then mints for the SAME address: the cookie the same-address rule reads is gone", async () => {
+    // The browser's cookie as these two actions see it: one slot, emptied by the clear.
+    let cookie: LoginFlow | null = liveCode;
+    mocks.readLoginFlow.mockImplementation(async () => cookie);
+    mocks.clearLoginFlow.mockImplementationOnce(async () => {
+      cookie = null;
+    });
+    mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
+
+    await run(() => changeEmail());
+    await run(() => requestCode(null, form({ email: liveCode.email })));
+
+    expect(mocks.clearLoginFlow).toHaveBeenCalledTimes(1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(mocks.writeLoginFlow).toHaveBeenCalledWith(
+      expect.objectContaining({ challengeId: "challenge-2", email: liveCode.email })
+    );
+  });
 });
 
 describe("completeRegistration", () => {
@@ -414,6 +449,15 @@ describe("completeRegistration", () => {
     expect(mocks.setSessionCookie).toHaveBeenCalledExactlyOnceWith("session-2", true);
     expect(mocks.clearLoginFlow).toHaveBeenCalledTimes(1);
     expect(result.redirectedTo).toBe("/cv");
+  });
+
+  it("re-validates next when it is READ: the cookie is unsigned and editable", async () => {
+    mocks.readLoginFlow.mockResolvedValue({ ...consent, next: "//evil.example" });
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "signedIn", sessionId: "session-2" }));
+
+    const result = await run(() => completeRegistration(null, form({ acceptTerms: "on" })));
+
+    expect(result.redirectedTo).toBe("/oversikt");
   });
 
   it("refuses an unticked box before the fetch, so no account is asked for without the acceptance", async () => {
@@ -518,7 +562,7 @@ describe("consumeLink", () => {
 
     const result = await run(() => consumeLink(null, form({ token: "link-token" })));
 
-    expect(result.state).toEqual({ kind: "unusable" });
+    expect(result.state).toEqual({ kind: "unusable", confirmed: false });
     expect(mocks.setSessionCookie).not.toHaveBeenCalled();
     expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
   });
@@ -526,7 +570,7 @@ describe("consumeLink", () => {
   it.each(["", "   ", "x".repeat(129)])("never sends the token %j", async (token) => {
     const result = await run(() => consumeLink(null, form({ token })));
 
-    expect(result.state).toEqual({ kind: "unusable" });
+    expect(result.state).toEqual({ kind: "unusable", confirmed: false });
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
@@ -536,7 +580,7 @@ describe("consumeLink", () => {
 
     const result = await run(() => consumeLink(null, form({ token: "link-token" })));
 
-    expect(result.state).toEqual({ kind: "outcome", result: body });
+    expect(result.state).toEqual({ kind: "outcome", result: body, confirmed: false });
     expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
     expect(mocks.clearLoginFlow).not.toHaveBeenCalled();
   });
@@ -550,7 +594,72 @@ describe("consumeLink", () => {
 
     const result = await run(() => consumeLink(null, form({ token: "link-token" })));
 
-    expect(result.state).toEqual({ kind: "error", error });
+    expect(result.state).toEqual({ kind: "error", error, confirmed: false });
+  });
+
+  // The gate lives in the action because the GET cannot see the session on a click in webmail:
+  // that navigation is cross-site and the Strict session cookie is not sent with it.
+  describe("with a session already in this browser", () => {
+    beforeEach(() => mocks.getSessionId.mockResolvedValue("session-1"));
+
+    it("asks before replacing it, and consumes nothing", async () => {
+      const result = await run(() => consumeLink(null, form({ token: "link-token" })));
+
+      expect(result.state).toEqual({ kind: "confirm" });
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(mocks.setSessionCookie).not.toHaveBeenCalled();
+      expect(mocks.clearLoginFlow).not.toHaveBeenCalled();
+      expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
+    });
+
+    it.each(["true", "1", "ON", " "])("does not take %j for the confirmation", async (value) => {
+      const result = await run(() =>
+        consumeLink(null, form({ token: "link-token", replaceSession: value }))
+      );
+
+      expect(result.state).toEqual({ kind: "confirm" });
+      expect(mocks.fetch).not.toHaveBeenCalled();
+    });
+
+    it("consumes the link once the press carries the confirmation", async () => {
+      mocks.fetch.mockResolvedValue(json(200, { outcome: "signedIn", sessionId: "session-3" }));
+
+      const result = await run(() =>
+        consumeLink(null, form({ token: "link-token", replaceSession: "on" }))
+      );
+
+      expect(sentBody()).toEqual({ token: "link-token" });
+      expect(mocks.setSessionCookie).toHaveBeenCalledExactlyOnceWith("session-3", true);
+      expect(result.redirectedTo).toBe("/oversikt");
+    });
+
+    it.each<[string, Response, object]>([
+      ["a throttle", json(429, {}), { kind: "error", error: `${K}.errors.tooManyAttempts`, confirmed: true }],
+      ["a dead link", problem(410, "Auth.LoginLinkUnusable"), { kind: "unusable", confirmed: true }],
+    ])("answers %s in the arm the confirmed press came from", async (_label, response, state) => {
+      mocks.fetch.mockResolvedValue(response);
+
+      const result = await run(() =>
+        consumeLink(null, form({ token: "link-token", replaceSession: "on" }))
+      );
+
+      expect(result.state).toEqual(state);
+    });
+
+    it("still answers a token it cannot send as unusable, without asking", async () => {
+      const result = await run(() => consumeLink(null, form({ token: "" })));
+
+      expect(result.state).toEqual({ kind: "unusable", confirmed: false });
+    });
+  });
+
+  it("consumes without asking when this browser holds no session", async () => {
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "signedIn", sessionId: "session-3" }));
+
+    const result = await run(() => consumeLink(null, form({ token: "link-token" })));
+
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(result.redirectedTo).toBe("/oversikt");
   });
 });
 

@@ -6,10 +6,12 @@ import { ConsentForm } from "./consent-form";
 
 const completeRegistrationMock =
   vi.fn<(prev: ConsentStepState, formData: FormData) => Promise<ConsentStepState>>();
+const changeEmailMock = vi.fn<() => Promise<void>>();
 
 vi.mock("@/lib/auth/challenge-actions", () => ({
   completeRegistration: (prev: ConsentStepState, formData: FormData) =>
     completeRegistrationMock(prev, formData),
+  changeEmail: () => changeEmailMock(),
 }));
 
 // The checkbox's accessible name. The privacy policy is NOT in it: the box accepts the terms, and
@@ -20,6 +22,8 @@ describe("ConsentForm", () => {
   beforeEach(() => {
     completeRegistrationMock.mockReset();
     completeRegistrationMock.mockResolvedValue(null);
+    changeEmailMock.mockReset();
+    changeEmailMock.mockResolvedValue(undefined);
   });
 
   it("asks for the terms alone, unticked, with the privacy policy in a sibling sentence", () => {
@@ -44,7 +48,7 @@ describe("ConsentForm", () => {
     expect(container.textContent).not.toMatch(/@/);
   });
 
-  it("puts the persistence disclosure directly above the one primary, and offers a way out", () => {
+  it("puts the persistence disclosure directly above the one primary", () => {
     const { container } = render(<ConsentForm />);
 
     const primary = screen.getByRole("button", { name: "Skapa konto" });
@@ -52,9 +56,42 @@ describe("ConsentForm", () => {
     expect(primary.previousElementSibling).toHaveTextContent(
       /Du förblir inloggad på den här enheten i upp till 180 dagar/
     );
-    expect(
-      screen.getByRole("link", { name: "Börja om med en annan e-postadress" })
-    ).toHaveAttribute("href", "/logga-in");
+  });
+
+  it("walks away through the action that clears the grant: a link would leave it on the device", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ConsentForm />);
+
+    expect(screen.queryByRole("link", { name: "Börja om med en annan e-postadress" })).toBeNull();
+    const exit = screen.getByRole("button", { name: "Börja om med en annan e-postadress" });
+    // A form of its own, never nested in the consent form.
+    expect(container.querySelectorAll("form form")).toHaveLength(0);
+
+    await user.click(exit);
+
+    await waitFor(() => expect(changeEmailMock).toHaveBeenCalledTimes(1));
+    expect(completeRegistrationMock).not.toHaveBeenCalled();
+  });
+
+  it("answers an outage as a status, and never marks the checkbox as wrong", async () => {
+    completeRegistrationMock.mockResolvedValue({
+      error: "Tjänsten svarar inte just nu. Försök igen om en stund.",
+      channel: "status",
+    });
+    const user = userEvent.setup();
+    render(<ConsentForm />);
+    const box = screen.getByRole("checkbox", { name: TERMS });
+    const describedByAtRest = box.getAttribute("aria-describedby");
+
+    await user.click(box);
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const message = await screen.findByText("Tjänsten svarar inte just nu. Försök igen om en stund.");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(box).not.toHaveAttribute("aria-invalid");
+    // The status paragraph carries no id, so an id added here would point at nothing.
+    expect(box.getAttribute("aria-describedby")).toBe(describedByAtRest);
+    await waitFor(() => expect(message).toHaveFocus());
   });
 
   it("posts the acceptance and no grant: the grant comes from the cookie, server-side", async () => {

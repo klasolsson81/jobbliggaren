@@ -1,14 +1,16 @@
 "use client";
 
 import { useActionState, useEffect, useId, useRef } from "react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { ChangeEmailButton } from "@/components/auth/change-email-button";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
 import { AcceptTermsCheckbox } from "@/components/forms/AcceptTermsCheckbox";
 import { Button } from "@/components/ui/button";
 import type { ConsentStepState } from "@/lib/auth/challenge-action-state";
 import { completeRegistration } from "@/lib/auth/challenge-actions";
 
+// Client because it holds the action's state (`useActionState`) and moves focus when it arrives.
+//
 // Step three, for a new address only: one decision, accept the terms or not.
 //
 // The step shows NO address. The account is created on the address the grant proved, whatever this
@@ -17,8 +19,8 @@ import { completeRegistration } from "@/lib/auth/challenge-actions";
 // code was just confirmed for.
 //
 // The exit is part of the form. Until the acceptance nothing durable has been written, so walking
-// away is the right thing for someone who sees the address was wrong, and without the link the
-// only ways out are accepting or closing the tab.
+// away is the right thing for someone who sees the address was wrong, and without it the only
+// ways out are accepting or closing the tab.
 export function ConsentForm() {
   const t = useTranslations("pages");
   const [state, formAction, isPending] = useActionState<ConsentStepState, FormData>(
@@ -65,11 +67,7 @@ export function ConsentForm() {
         </Button>
       </form>
 
-      <p className="text-body-sm text-text-primary">
-        <Link href="/logga-in" className="text-brand-700 underline underline-offset-2">
-          {t("auth.passwordless.consent.startOver")}
-        </Link>
-      </p>
+      <ChangeEmailButton label={t("auth.passwordless.consent.startOver")} />
     </div>
   );
 }

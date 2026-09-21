@@ -38,8 +38,11 @@ export type ConsentStepState = {
   channel: MessageChannel;
 } | null;
 
+/** `confirmed`: the press came from the two-control arm, so its answer is shown in that arm. */
 export type LinkStepState =
-  | { kind: "outcome"; result: LoginFlowOutcome }
-  | { kind: "unusable" }
-  | { kind: "error"; error: string }
+  | { kind: "outcome"; result: LoginFlowOutcome; confirmed: boolean }
+  | { kind: "unusable"; confirmed: boolean }
+  | { kind: "error"; error: string; confirmed: boolean }
+  /** This browser holds a session and the press did not say to replace it. Nothing was consumed. */
+  | { kind: "confirm" }
   | null;

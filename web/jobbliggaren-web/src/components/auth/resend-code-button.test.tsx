@@ -101,6 +101,68 @@ describe("ResendCodeButton", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("moves focus to the code field after a resend: the button itself stays disabled", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <input id="code" aria-label="Sexsiffrig kod" />
+        <ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={0} primary={false} />
+      </>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Skicka ny kod" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Sexsiffrig kod")).toHaveFocus());
+  });
+
+  it("leaves focus alone when the resend failed", async () => {
+    resendCodeMock.mockResolvedValue({ status: "error", error: "Tjänsten svarar inte just nu." });
+    const user = userEvent.setup();
+    render(
+      <>
+        <input id="code" aria-label="Sexsiffrig kod" />
+        <ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={0} primary={false} />
+      </>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Skicka ny kod" }));
+
+    await screen.findByText("Tjänsten svarar inte just nu.");
+    expect(screen.getByLabelText("Sexsiffrig kod")).not.toHaveFocus();
+  });
+
+  it("gives the reason the button is disabled before what a press costs", () => {
+    render(<ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={60} primary={false} />);
+
+    const countdown = screen.getByText("Du kan skicka en ny kod om 60 sekunder.");
+    const consequence = screen.getByText(
+      "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet."
+    );
+    expect(
+      countdown.compareDocumentPosition(consequence) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("renders nothing for a press the server refused as still cooling", async () => {
+    resendCodeMock.mockResolvedValue({ status: "cooling" });
+    const user = userEvent.setup();
+    render(<ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={0} primary={false} />);
+
+    await user.click(screen.getByRole("button", { name: "Skicka ny kod" }));
+
+    await waitFor(() => expect(resendCodeMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Skicka ny kod" })).toBeEnabled());
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("is never the solid primary while it cannot be pressed", () => {
+    render(<ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={60} primary={true} />);
+
+    const button = screen.getByRole("button", { name: "Skicka ny kod" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("data-variant", "outline");
+  });
+
   it("is the primary once the code is dead, and an outline button beside a live field", () => {
     const { rerender } = render(
       <ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={0} primary={true} />

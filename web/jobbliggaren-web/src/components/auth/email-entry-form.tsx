@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import type { EmailStepState } from "@/lib/auth/challenge-action-state";
 import { requestCode } from "@/lib/auth/challenge-actions";
 
+// Client because it holds the action's state (`useActionState`) and moves focus when it arrives.
+//
 // Step one of the login flow: one address, for an existing account and a new one alike.
 //
 // `noValidate` with `required` kept, the form design-reviewer ruled for the settings name field

@@ -15,6 +15,7 @@ import {
   codeInputSchema,
   emailInputSchema,
   linkTokenInputSchema,
+  replaceSessionInputSchema,
 } from "@/lib/auth/challenge-schemas";
 import { cookieSafeNext, resendCooldownRemaining } from "@/lib/auth/login-flow";
 import {
@@ -24,7 +25,7 @@ import {
   writeLoginFlow,
 } from "@/lib/auth/login-flow-cookie";
 import { DEFAULT_REDIRECT_PATH, safeRedirectPath } from "@/lib/auth/safe-redirect";
-import { setSessionCookie } from "@/lib/auth/session";
+import { getSessionId, setSessionCookie } from "@/lib/auth/session";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { loginChallengeResponseSchema, loginOutcomeSchema } from "@/lib/dto/login-challenge";
 import { env } from "@/lib/env";
@@ -77,12 +78,11 @@ export async function requestCode(
   }
   const email = parsed.data;
 
-  // The same address again while its code is still live mints nothing. Inside the server's
-  // cooldown a second request answers with a challenge id that has NO record, and storing that id
-  // would make the code already mailed unverifiable. The comparison is deliberately exact: the
-  // backend's fold (NFC, upper-invariant) is authoritative and is not mirrored here, so a
-  // different spelling of the same address simply mints. "Skicka ny kod" is the one way to ask
-  // for a fresh code, and nothing is written here, so re-submitting cannot extend the cookie.
+  // Inside the server's cooldown a second request answers with a challenge id that has NO record,
+  // and storing that id would make the code already mailed unverifiable. The comparison is
+  // deliberately exact: the backend's fold (NFC, upper-invariant) is authoritative and is not
+  // mirrored here, so a different spelling of the same address simply mints. Nothing is written
+  // here, so re-submitting cannot extend the cookie.
   const flow = await readLoginFlow();
   if (flow?.phase === "code" && !flow.dead && flow.email === email) {
     redirect(CODE_STEP);
@@ -158,7 +158,7 @@ export async function verifyCode(
 
   const parsed = codeInputSchema.safeParse(formString(formData, "code"));
   if (!parsed.success) {
-    return { error: t("auth.passwordless.code.wrongCode"), channel: "field" };
+    return { error: t("auth.passwordless.code.malformedCode"), channel: "field" };
   }
 
   let res: Response;
@@ -358,33 +358,43 @@ export async function consumeLink(
   formData: FormData
 ): Promise<LinkStepState> {
   const t = await getTranslations("pages");
+  const confirmed = replaceSessionInputSchema.safeParse(
+    formString(formData, "replaceSession")
+  ).success;
   const parsed = linkTokenInputSchema.safeParse(formString(formData, "token"));
   if (!parsed.success) {
-    return { kind: "unusable" };
+    return { kind: "unusable", confirmed };
+  }
+
+  // Decided here and not on the GET: a link clicked in webmail is a cross-site navigation, and the
+  // Strict session cookie is not sent with it, so the page cannot see the session a press would
+  // replace. This POST is same-site and carries it.
+  if (!confirmed && (await getSessionId()) !== null) {
+    return { kind: "confirm" };
   }
 
   let res: Response;
   try {
     res = await post("/link", { token: parsed.data });
   } catch {
-    return { kind: "error", error: t("auth.passwordless.errors.unavailable") };
+    return { kind: "error", error: t("auth.passwordless.errors.unavailable"), confirmed };
   }
 
   if (res.status === 410 || res.status === 400) {
-    return { kind: "unusable" };
+    return { kind: "unusable", confirmed };
   }
   if (res.status === 429) {
-    return { kind: "error", error: t("auth.passwordless.errors.tooManyAttempts") };
+    return { kind: "error", error: t("auth.passwordless.errors.tooManyAttempts"), confirmed };
   }
   if (!res.ok) {
-    return { kind: "error", error: t("auth.passwordless.errors.unavailable") };
+    return { kind: "error", error: t("auth.passwordless.errors.unavailable"), confirmed };
   }
 
   let outcome;
   try {
     outcome = await parseResponse(res, loginOutcomeSchema, "POST /api/v1/auth/link");
   } catch {
-    return { kind: "error", error: t("auth.passwordless.errors.unavailable") };
+    return { kind: "error", error: t("auth.passwordless.errors.unavailable"), confirmed };
   }
 
   if (outcome.outcome === "signedIn") {
@@ -396,7 +406,7 @@ export async function consumeLink(
     redirect(DEFAULT_REDIRECT_PATH);
   }
   if (outcome.outcome === "consentRequired") {
-    return { kind: "unusable" };
+    return { kind: "unusable", confirmed };
   }
-  return { kind: "outcome", result: outcome };
+  return { kind: "outcome", result: outcome, confirmed };
 }

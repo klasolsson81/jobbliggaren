@@ -32,9 +32,10 @@ function single(value: string | string[] | undefined): string {
  * parameter, and never the flow cookie: the click comes from a mail client, cross-site, and a
  * Strict cookie is not sent with it. The GET consumes nothing and reads no record.
  *
- * A session cookie already in this browser switches the page to the arm that says what continuing
- * does and asks for a choice (`LinkLandingForm`). Its presence is all that is read: a stale cookie
- * only shows the question once more than needed.
+ * A session cookie seen here opens the page on the arm that says what continuing does and asks for
+ * a choice. It is an early signal only: the same Strict rule withholds the session cookie on a
+ * click in webmail, so `consumeLink` is what decides, and `LinkLandingForm` renders the h1 because
+ * the arm can change after a press. A stale cookie only shows the question once more than needed.
  */
 export default async function LoggaInLankPage({ searchParams }: PageProps) {
   const t = await getTranslations("pages");
@@ -43,15 +44,13 @@ export default async function LoggaInLankPage({ searchParams }: PageProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-h1 font-bold text-heading-1">
-        {alreadyLoggedIn && token.success
-          ? t("auth.passwordless.link.alreadyLoggedIn.title")
-          : t("auth.passwordless.link.title")}
-      </h1>
       {token.success ? (
         <LinkLandingForm token={token.data} alreadyLoggedIn={alreadyLoggedIn} />
       ) : (
-        <UnusableLink />
+        <>
+          <h1 className="text-h1 font-bold text-heading-1">{t("auth.passwordless.link.title")}</h1>
+          <UnusableLink />
+        </>
       )}
     </div>
   );

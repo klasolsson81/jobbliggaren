@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 
+// Client because it takes focus when it mounts (`useFocusOnMount`).
+//
 // The h1 of a login step reached by a route change, focused once when it mounts.
 //
 // Not the input (design-reviewer, #1738): everything that makes the step completable sits ABOVE

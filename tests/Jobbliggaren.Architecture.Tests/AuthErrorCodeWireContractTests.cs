@@ -67,7 +67,7 @@ public class AuthErrorCodeWireContractTests
         // special case above should go, or the join has two answers for one name.
         foreach (var name in ComposedCodes.Keys)
         {
-            ConstantNamed(name).ShouldBeNull(
+            FieldNamed(name).ShouldBeNull(
                 $"AuthErrorCodes.{name} now exists. Drop '{name}' from {nameof(ComposedCodes)} so the "
                 + "join reads the constant.");
         }
@@ -78,24 +78,25 @@ public class AuthErrorCodeWireContractTests
         if (ComposedCodes.TryGetValue(name, out var composed))
             return composed;
 
-        var constant = ConstantNamed(name);
-        constant.ShouldNotBeNull(
+        var field = FieldNamed(name);
+        field.ShouldNotBeNull(
             $"the web client compares a code named '{name}' ({FrontendModuleRelativePath}), and "
-            + $"{nameof(AuthErrorCodes)} has no public constant of that name. It was renamed or "
+            + $"{nameof(AuthErrorCodes)} has no public string field of that name. It was renamed or "
             + "removed; change both sides in the same PR.");
-        return (string)constant!.GetRawConstantValue()!;
+        return (string)field!.GetValue(null)!;
     }
 
-    private static FieldInfo? ConstantNamed(string name)
+    /// <summary>A <c>const</c> or a <c>static readonly</c>: either one is an answer for the name.</summary>
+    private static FieldInfo? FieldNamed(string name)
     {
         var field = typeof(AuthErrorCodes).GetField(name, BindingFlags.Public | BindingFlags.Static);
-        return field is { IsLiteral: true } && field.FieldType == typeof(string) ? field : null;
+        return field?.FieldType == typeof(string) ? field : null;
     }
 
     /// <summary>
     /// Read as source text, for the reason <see cref="SuggestionKindWireContractTests"/> gives.
-    /// Finding nothing THROWS: an empty list would make the loop above pass over zero codes the
-    /// moment the object is renamed or reshaped.
+    /// A member the harvest cannot read THROWS: a skipped member is a code the loop above never
+    /// compares, and an empty list is that for every one of them.
     /// </summary>
     private static (string Name, string Literal)[] ReadFrontendCodes()
     {
@@ -104,27 +105,33 @@ public class AuthErrorCodeWireContractTests
                 FindRepoRoot(),
                 FrontendModuleRelativePath.Replace('/', Path.DirectorySeparatorChar)));
 
-        var body = Regex.Match(source, $@"\b{FrontendObjectName}\s*=\s*\{{([^}}]*)\}}").Groups[1];
+        // Both comment forms go first, so neither a commented-out object nor a commented-out member
+        // can be read as the live one.
+        var withoutComments = Regex.Replace(
+            source, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        withoutComments = Regex.Replace(withoutComments, @"//[^\n]*", string.Empty);
+
+        var body = Regex
+            .Match(withoutComments, $@"\b{FrontendObjectName}\s*=\s*\{{([^}}]*)\}}")
+            .Groups[1];
 
         if (!body.Success)
             throw new InvalidOperationException(
                 $"Could not read {FrontendObjectName} out of {FrontendModuleRelativePath}. It was "
                 + "renamed or reshaped - re-make this join deliberately, do not delete it.");
 
-        // Both comment forms go before the pairs are harvested, so a commented-out member cannot be
-        // read as a live one.
-        var withoutComments = Regex.Replace(
-            body.Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-        withoutComments = Regex.Replace(withoutComments, @"//[^\n]*", string.Empty);
-
-        var codes = Regex.Matches(withoutComments, @"(\w+)\s*:\s*""([^""]+)""")
+        var codes = Regex.Matches(body.Value, @"(\w+)\s*:\s*""([^""]+)""")
             .Select(m => (m.Groups[1].Value, m.Groups[2].Value))
             .ToArray();
 
-        if (codes.Length == 0)
+        // One colon per member, whatever its quoting: a quoted key, a single-quoted or template
+        // value, or a brace that cut the body short each leave a colon the harvest did not pair.
+        var members = body.Value.Count(c => c == ':');
+        if (codes.Length == 0 || codes.Length != members)
             throw new InvalidOperationException(
-                $"{FrontendObjectName} was found in {FrontendModuleRelativePath} but yielded no "
-                + "codes. The object's shape changed - re-make this join deliberately.");
+                $"{FrontendObjectName} in {FrontendModuleRelativePath} has {members} member(s) and "
+                + $"the harvest read {codes.Length}. Write every member as a bare key and a "
+                + "double-quoted value, or re-make this join deliberately.");
 
         return codes;
     }

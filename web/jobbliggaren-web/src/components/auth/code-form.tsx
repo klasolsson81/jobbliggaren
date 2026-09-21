@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import type { CodeStepState } from "@/lib/auth/challenge-action-state";
 import { verifyCode } from "@/lib/auth/challenge-actions";
 
+/** The field's id: "Skicka ny kod" sends focus here after a resend. */
+export const CODE_INPUT_ID = "code";
+
+// Client because it holds the action's state (`useActionState`) and moves focus when it arrives.
+//
 // Step two: the six-digit code. ONE input, never six boxes: a single `one-time-code` field is what
 // the platform's autofill fills, and what a screen reader reads as one thing (ADR 0142, design M3).
 //
@@ -38,12 +43,12 @@ export function CodeForm() {
   return (
     <form action={formAction} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="code" className="text-label font-medium text-text-primary">
+        <label htmlFor={CODE_INPUT_ID} className="text-label font-medium text-text-primary">
           {t("auth.passwordless.code.codeLabel")}
         </label>
         <Input
           ref={inputRef}
-          id="code"
+          id={CODE_INPUT_ID}
           name="code"
           type="text"
           inputMode="numeric"

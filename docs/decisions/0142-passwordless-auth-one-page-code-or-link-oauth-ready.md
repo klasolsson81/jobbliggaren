@@ -1101,8 +1101,8 @@ while `DARK_MODE_ENABLED` is `false`.
   the privacy policy in a sibling sentence under the box (*"Vi behandlar dina uppgifter enligt
   integritetspolicyn."*), never inside the acceptance. "Skapa konto" the only primary. The D4
   disclosure directly above it. The step shows no address: under the `h1`, *"Kontot skapas på den
-  e-postadress du nyss bekräftade med koden."*, and last a link out, *"Börja om med en annan
-  e-postadress"*.
+  e-postadress du nyss bekräftade med koden."*, and last the same submit out, *"Börja om med en
+  annan e-postadress"*.
 - **Link landing** (design M5): `<form action={consumeLinkAction}>` with the token in a hidden
   input and a submit button — works with JS off; no `useEffect` consumption (scanners GET); this is
 the simpler form, so **a live token stays in the browser history for up to 15 min** (the 303-hop
@@ -1138,7 +1138,7 @@ form that moves it into a short-lived cookie was not chosen);
 #### Amendment 2026-09-21 (3) (#1738, part 2) — the page form as delivered, and the corrections above
 
 *Decided before code in one form round: `design-reviewer` (five hand-backs), `security-auditor`,
-`senior-cto-advisor` (`docs/reviews/2026-09-21-1738-form-{design,security,cto}.md`).* The sentences in D2,
+`senior-cto-advisor`.* The sentences in D2,
 D8, "Attempt budget" trigger 7 and this section that the round contradicted were corrected in place; this
 block records why.
 
@@ -1166,7 +1166,7 @@ phase's field cannot reach another phase's reader, and `next` is re-validated wh
 (`security-auditor`). It is deleted in the same action that sets the session cookie, on the code path and
 on the link path.
 
-**The same address again while its code is live mints nothing.** Inside the server's cooldown a second
+Inside the server's cooldown a second
 request is answered with a challenge id that has no record, and storing it would make the code already
 mailed unverifiable. The rule is keyed on the cookie's own liveness, so the frontend mirrors no window for
 it. The comparison is exact after `trim()`: the backend's fold (`SubjectFingerprint`, NFC then
@@ -1191,9 +1191,9 @@ neither the path nor the token of a GET and a POST (measured the same day, `next
 silently replaced the session with one for the address the link proves, so a link minted for someone
 else's address and mailed to a logged-in user was a login CSRF one press long. Put to Klas Olsson
 2026-09-21, her question verbatim, whether the guard is (a) two buttons or (b) one warning sentence above
-the existing button: **"(a) Två knappar"**. The arm is the route's base render in that case, names no
-address, and on continue leaves the earlier session alive on the server: revoking it would let any link
-sign another account out everywhere. Cancel goes to `/oversikt`.
+the existing button: **"(a) Två knappar"**. The arm names no address, and on continue leaves the earlier
+session alive on the server: revoking it would let any link sign another account out everywhere. Cancel
+goes to `/oversikt`.
 
 **No provider mark while inactive** (`design-reviewer`). lucide ships no brand icons, so a monochrome mark
 would have meant hand-drawing three third parties' trademarks onto controls that log nobody in.

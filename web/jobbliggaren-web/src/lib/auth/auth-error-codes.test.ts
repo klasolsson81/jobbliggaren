@@ -59,6 +59,16 @@ describe("AUTH_ERROR_CODES", () => {
     expect(found?.length).toBe(Object.keys(AUTH_ERROR_CODES).length);
   });
 
+  it("writes every member in the one form the C# join harvests: a bare key, a double-quoted value", () => {
+    const source = withoutComments(readFileSync(join(SRC, MODULE), "utf8"));
+    const harvested = [...source.matchAll(/(\w+)\s*:\s*"(Auth\.[A-Za-z]+)"/g)].map((match) => [
+      match[1],
+      match[2],
+    ]);
+
+    expect(harvested).toEqual(Object.entries(AUTH_ERROR_CODES));
+  });
+
   it("names each key after the code it carries", () => {
     for (const [key, value] of Object.entries(AUTH_ERROR_CODES)) {
       expect(value).toBe(`Auth.${key}`);

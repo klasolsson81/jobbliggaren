@@ -22,3 +22,6 @@ export const linkTokenInputSchema = z.string().trim().min(1).max(128);
 
 /** A checked native checkbox posts "on"; an unchecked one posts nothing. */
 export const acceptTermsInputSchema = z.literal("on");
+
+/** Posted by the link landing's two-control arm only: the press that may replace a session. */
+export const replaceSessionInputSchema = z.literal("on");

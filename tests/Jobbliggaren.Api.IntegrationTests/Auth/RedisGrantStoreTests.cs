@@ -116,9 +116,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
 
     /// <summary>
     /// UNREACHABLE STATE, declared: a record whose purpose number this build does not define. No path in
-    /// <c>src/</c> writes one — <see cref="GrantPurpose"/> has one member and the adapter serialises only
-    /// that — so the record is written by hand, under the key and the protector the adapter uses, and the
-    /// test asserts only that the read side degrades to "no grant".
+    /// <c>src/</c> writes one, so the record is written by hand, under the key and the protector the adapter
+    /// uses, and the test asserts only that the read side degrades to "no grant".
     /// </summary>
     [Fact]
     public async Task A_record_with_a_purpose_this_build_does_not_define_redeems_to_nothing()
@@ -139,6 +138,114 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
             .CreateProtector("1")
             .Protect(JsonSerializer.SerializeToUtf8Bytes(new { p = purpose, e = email }));
         await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
+    }
+
+    // ── #1739: the two caller-asserted purposes (ADR 0142 D5) ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_reauthentication_grant_is_redeemed_by_the_user_it_was_issued_to()
+    {
+        var subject = new GrantSubject.Reauthentication(Guid.NewGuid());
+        var token = await _store.IssueAsync(subject, Ct);
+
+        (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
+        (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_change_email_grant_is_redeemed_for_the_user_and_the_address_it_was_issued_for()
+    {
+        var subject = new GrantSubject.ChangeEmail(Guid.NewGuid(), "ny@example.se");
+        var token = await _store.IssueAsync(subject, Ct);
+
+        (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
+    }
+
+    [Fact]
+    public async Task A_grant_issued_to_one_user_is_refused_for_another_and_is_spent_by_the_attempt()
+    {
+        var owner = new GrantSubject.Reauthentication(Guid.NewGuid());
+        var token = await _store.IssueAsync(owner, Ct);
+
+        var asAnother = await _store.RedeemAsync(
+            token, GrantAssertion.Of(new GrantSubject.Reauthentication(Guid.NewGuid())), Ct);
+        var asTheOwnerAfterwards = await _store.RedeemAsync(token, GrantAssertion.Of(owner), Ct);
+
+        asAnother.ShouldBeNull();
+
+        // GETDEL runs before the compare, so the refused attempt took the grant with it.
+        asTheOwnerAfterwards.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_grant_issued_for_one_purpose_is_refused_for_every_other()
+    {
+        var userId = Guid.NewGuid();
+        var reauthentication = await _store.IssueAsync(new GrantSubject.Reauthentication(userId), Ct);
+        var changeEmail = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "ny@example.se"), Ct);
+        var loginComplete = await _store.IssueAsync(new GrantSubject.LoginComplete("ny@example.se"), Ct);
+
+        (await _store.RedeemAsync(
+            reauthentication, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "ny@example.se")), Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(
+            changeEmail, GrantAssertion.Of(new GrantSubject.Reauthentication(userId)), Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(
+            loginComplete, GrantAssertion.Of(new GrantSubject.Reauthentication(userId)), Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_bearer_redemption_cannot_open_a_caller_asserted_grant()
+    {
+        var token = await _store.IssueAsync(new GrantSubject.Reauthentication(Guid.NewGuid()), Ct);
+
+        (await _store.RedeemAsync(token, Bearer, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_change_email_grant_is_refused_for_another_address_and_for_another_user()
+    {
+        var userId = Guid.NewGuid();
+        var forAnotherAddress = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "visad@example.se"), Ct);
+        var forAnotherUser = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, "visad@example.se"), Ct);
+
+        (await _store.RedeemAsync(
+            forAnotherAddress, GrantAssertion.Of(new GrantSubject.ChangeEmail(userId, "annan@example.se")), Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(
+            forAnotherUser, GrantAssertion.Of(new GrantSubject.ChangeEmail(Guid.NewGuid(), "visad@example.se")), Ct)).ShouldBeNull();
+    }
+
+    public static TheoryData<GrantSubject> OneSubjectPerPurpose() =>
+    [
+        new GrantSubject.LoginComplete("ttl@example.se"),
+        new GrantSubject.Reauthentication(Guid.NewGuid()),
+        new GrantSubject.ChangeEmail(Guid.NewGuid(), "ttl@example.se"),
+    ];
+
+    [Theory]
+    [MemberData(nameof(OneSubjectPerPurpose))]
+    public async Task Every_purpose_lives_the_same_ten_minutes(GrantSubject subject)
+    {
+        var token = await _store.IssueAsync(subject, Ct);
+
+        var ttl = await _mux.GetDatabase().KeyTimeToLiveAsync(RedisGrantStore.Key(token));
+
+        ttl.ShouldNotBeNull().ShouldBeLessThanOrEqualTo(TimeSpan.FromMinutes(10));
+        ttl.Value.ShouldBeGreaterThan(TimeSpan.FromMinutes(9));
+    }
+
+    [Fact]
+    public async Task Redis_holds_neither_the_user_id_nor_the_new_address()
+    {
+        var userId = Guid.NewGuid();
+        const string newEmail = "reader-ny@example.se";
+        var token = await _store.IssueAsync(new GrantSubject.ChangeEmail(userId, newEmail), Ct);
+
+        var stored = Encoding.Latin1.GetString(
+            (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!);
+
+        stored.ShouldNotContain(newEmail);
+        stored.ShouldNotContain(userId.ToString("D"));
+        stored.ShouldNotContain(userId.ToString("N"));
     }
 
     [Fact]

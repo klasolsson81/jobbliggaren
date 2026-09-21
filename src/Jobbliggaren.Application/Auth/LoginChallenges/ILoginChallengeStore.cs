@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// <summary>Which credentials a challenge record carries. Chosen by the plan, minted by the store.</summary>
 public enum ChallengeCredentials
 {
-    /// <summary>Neither: the mail carries no credential (closed registration, pending deletion).</summary>
+    /// <summary>Neither: the mail carries no credential, or no mail is sent at all.</summary>
     None,
 
     /// <summary>A link only: an existing account whose code budget is spent (Klas, 2026-09-19, (A)).</summary>
@@ -13,6 +13,12 @@ public enum ChallengeCredentials
 
     /// <summary>A code and a link: an existing account within its code budget.</summary>
     CodeAndLink,
+
+    /// <summary>
+    /// A code and no link: an address with no account while registration is open. A magic link is for an
+    /// existing account only, and that defence sits in the record (ADR 0142 D1).
+    /// </summary>
+    CodeOnly,
 }
 
 /// <summary>

@@ -154,6 +154,9 @@ public class EmailHtmlNoRemoteResourceTests
         ("LoginRegistrationClosed", EmailTemplates.LoginRegistrationClosed()),
         ("LoginPendingDeletion", EmailTemplates.LoginPendingDeletion(
             new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)))),
+        ("LoginNewAccountCode", EmailTemplates.LoginNewAccountCode(
+            new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")))),
+        ("LoginNewAccountCodeLimitReached", EmailTemplates.LoginNewAccountCodeLimitReached()),
     ];
 
     private static readonly LoginLinkToken SampleLink =

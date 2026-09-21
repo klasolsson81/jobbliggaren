@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -48,6 +49,7 @@ public sealed class LoginChallengeDispatchServiceTests
         services.AddScoped(sp => new LoginChallengeIssuer(
             sp.GetRequiredService<LoginSubjectResolver>(), _store, AdmittingBudget(), _sender,
             Substitute.For<IAuthAuditLogger>(),
+            Options.Create(new AuthOptions()),
             NullLogger<LoginChallengeIssuer>.Instance));
         await using var provider = services.BuildServiceProvider();
 

@@ -21,6 +21,8 @@ internal static partial class EmailTemplates
         LoginChallengeEmail.LinkOnly linkOnly => LoginLinkOnly(baseUrl, linkOnly),
         LoginChallengeEmail.RegistrationClosed => LoginRegistrationClosed(),
         LoginChallengeEmail.PendingDeletion pendingDeletion => LoginPendingDeletion(pendingDeletion),
+        LoginChallengeEmail.NewAccountCode newAccountCode => LoginNewAccountCode(newAccountCode),
+        LoginChallengeEmail.NewAccountCodeLimitReached => LoginNewAccountCodeLimitReached(),
         _ => throw new UnreachableException("A LoginChallengeEmail variant has no template."),
     };
 
@@ -130,6 +132,7 @@ internal static partial class EmailTemplates
     internal static EmailContent LoginRegistrationClosed()
     {
         var minutes = ChallengeMinutes();
+        var window = CodeBudgetWindow().Duration;
 
         return new EmailContent(
             Subject: "Inloggning på Jobbliggaren",
@@ -140,29 +143,13 @@ internal static partial class EmailTemplates
 
                 Om det inte var du behöver du inte göra något.
 
-                Adressen har angetts på vår inloggningssida, av dig eller av någon annan.
-                Den används bara för att skicka det här meddelandet och för att begränsa
-                hur många meddelanden som kan skickas till den. Om du själv angav adressen
-                är grunden att vi vidtar en åtgärd som du har begärt (artikel 6.1 b). Om
-                någon annan angav den är grunden berättigat intresse (artikel 6.1 f): den
-                som äger en adress ska få veta att den har använts hos oss.
+                {NoCredentialBasisPlain}
 
                 Vi sparar adressen skyddad i högst {minutes} minuter, och ett avtryck av den
-                i högst ett dygn för att kunna begränsa antalet meddelanden. Därefter finns
-                den inte kvar hos oss. E-posten levereras av Scaleway SAS i Frankrike, som
-                behandlar meddelandet för att kunna leverera det. I
-                personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen
-                sker inom EU.
+                i högst {window} för att kunna begränsa antalet meddelanden. Därefter finns
+                den inte kvar hos oss. {ProcessorPlain}
 
-                Personuppgiftsansvarig är Klas Olsson, privatperson, som driver
-                Jobbliggaren.
-
-                Du har rätt att invända mot behandlingen och att begära information,
-                rättelse, radering eller begränsning. Skriv till oss:
-                {ContactAddress}
-
-                Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål
-                till Integritetsskyddsmyndigheten, imy.se.
+                {ControllerRightsAndComplaintPlain}
 
                 Vänliga hälsningar,
                 Jobbliggaren
@@ -175,30 +162,12 @@ internal static partial class EmailTemplates
                         + "Jobbliggaren. Det finns inget konto för adressen, och det går inte att skapa "
                         + "nya konton ännu. Vi öppnar snart.")
                     + EmailHtml.P("Om det inte var du behöver du inte göra något.")
-                    + EmailHtml.P(
-                        "Adressen har angetts på vår inloggningssida, av dig eller av någon annan. Den "
-                        + "används bara för att skicka det här meddelandet och för att begränsa hur många "
-                        + "meddelanden som kan skickas till den. Om du själv angav adressen är grunden att "
-                        + "vi vidtar en åtgärd som du har begärt (artikel 6.1 b). Om någon annan angav den "
-                        + "är grunden berättigat intresse (artikel 6.1 f): den som äger en adress ska få "
-                        + "veta att den har använts hos oss.")
+                    + EmailHtml.P(NoCredentialBasisHtml)
                     + EmailHtml.P(
                         $"Vi sparar adressen skyddad i högst {minutes} minuter, och ett avtryck av den i "
-                        + "högst ett dygn för att kunna begränsa antalet meddelanden. Därefter finns den "
-                        + "inte kvar hos oss. E-posten levereras av Scaleway SAS i Frankrike, som "
-                        + "behandlar meddelandet för att kunna leverera det. I "
-                        + "personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen "
-                        + "sker inom EU.")
-                    + EmailHtml.P(
-                        "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren.")
-                    + EmailHtml.LinkParagraph(
-                        "Du har rätt att invända mot behandlingen och att begära information, rättelse, "
-                        + "radering eller begränsning. Skriv till oss:",
-                        $"mailto:{ContactAddress}",
-                        ContactAddress)
-                    + EmailHtml.P(
-                        "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål till "
-                        + "Integritetsskyddsmyndigheten, imy.se.")
+                        + $"högst {window} för att kunna begränsa antalet meddelanden. Därefter finns den "
+                        + $"inte kvar hos oss. {ProcessorHtml}")
+                    + ControllerRightsAndComplaintHtml()
                     + EmailHtml.SignOff()));
     }
 
@@ -241,9 +210,224 @@ internal static partial class EmailTemplates
                     + EmailHtml.SignOff()));
     }
 
+    /// <summary>
+    /// An address with no account while registration is open, within its code budget: the code that leads to
+    /// an account, and no link (ADR 0142 D1).
+    /// <para>
+    /// <b>The retention paragraph is conditional, and its two halves stay together.</b> After the code is
+    /// used, a grant holds the address for <see cref="LoginChallengePolicy.GrantTtl"/> more, and a recipient
+    /// who goes on to create the account keeps the address on it — so the closed mail's "Därefter finns den
+    /// inte kvar hos oss" would be false here. The legal-basis paragraph's "Koden finns bara i det här
+    /// meddelandet" holds because this record carries a code and no link. Wording by security-auditor,
+    /// pre-code form round 2026-09-20.
+    /// </para>
+    /// </summary>
+    internal static EmailContent LoginNewAccountCode(LoginChallengeEmail.NewAccountCode content)
+    {
+        var code = content.Code.Reveal();
+        var minutes = ChallengeMinutes();
+        var grantMinutes = (int)LoginChallengePolicy.GrantTtl.TotalMinutes;
+        var window = CodeBudgetWindow().Duration;
+
+        return new EmailContent(
+            Subject: "Din kod för att skapa konto på Jobbliggaren",
+            PlainTextBody: $"""
+                Någon har angett den här adressen för att logga in eller skapa ett konto
+                på Jobbliggaren. Det finns inget konto för adressen ännu. Med koden nedan
+                kan du skapa ett.
+
+                Din kod är:
+                {code}
+
+                Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och
+                kan bara användas en gång. Sedan får du godkänna användarvillkoren, och
+                först då skapas kontot.
+
+                Adressen har angetts på vår inloggningssida, av dig eller av någon annan.
+                Den används för att skicka det här meddelandet, för att begränsa hur många
+                meddelanden som kan skickas till den, och för att skapa kontot om du väljer
+                att göra det. Om du själv angav adressen är grunden att vi vidtar åtgärder
+                på din begäran innan ett avtal ingås (artikel 6.1 b). Om någon annan angav
+                den är grunden berättigat intresse (artikel 6.1 f): den som äger en adress
+                ska få veta att den har använts hos oss. Koden finns bara i det här
+                meddelandet, så ingen annan kan skapa ett konto med adressen. Angav du inte
+                adressen själv behöver du inte göra något.
+
+                Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller.
+                Använder du koden sparas den i högst {grantMinutes} minuter till, medan du hinner
+                godkänna villkoren. Ett avtryck av adressen sparas i högst {window} för att
+                begränsa hur många meddelanden som kan skickas till den. Skapar du kontot
+                blir adressen kontots adress och sparas så länge kontot finns. Skapar du
+                inget konto finns adressen inte kvar hos oss efter tiderna ovan.
+                {ProcessorPlain}
+
+                {ControllerRightsAndComplaintPlain}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Din kod för att skapa konto på Jobbliggaren",
+                preheader: $"Koden gäller i {minutes} minuter.",
+                body: EmailHtml.P(
+                        "Någon har angett den här adressen för att logga in eller skapa ett konto på "
+                        + "Jobbliggaren. Det finns inget konto för adressen ännu. Med koden nedan kan du "
+                        + "skapa ett.")
+                    + EmailHtml.P("Din kod är:")
+                    + EmailHtml.P(code)
+                    + EmailHtml.P(
+                        $"Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och "
+                        + "kan bara användas en gång. Sedan får du godkänna användarvillkoren, och först då "
+                        + "skapas kontot.")
+                    + EmailHtml.P(
+                        "Adressen har angetts på vår inloggningssida, av dig eller av någon annan. Den "
+                        + "används för att skicka det här meddelandet, för att begränsa hur många "
+                        + "meddelanden som kan skickas till den, och för att skapa kontot om du väljer att "
+                        + "göra det. Om du själv angav adressen är grunden att vi vidtar åtgärder på din "
+                        + "begäran innan ett avtal ingås (artikel 6.1 b). Om någon annan angav den är "
+                        + "grunden berättigat intresse (artikel 6.1 f): den som äger en adress ska få veta "
+                        + "att den har använts hos oss. Koden finns bara i det här meddelandet, så ingen "
+                        + "annan kan skapa ett konto med adressen. Angav du inte adressen själv behöver du "
+                        + "inte göra något.")
+                    + EmailHtml.P(
+                        $"Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller. "
+                        + $"Använder du koden sparas den i högst {grantMinutes} minuter till, medan du "
+                        + $"hinner godkänna villkoren. Ett avtryck av adressen sparas i högst {window} för "
+                        + "att begränsa hur många meddelanden som kan skickas till den. Skapar du kontot "
+                        + "blir adressen kontots adress och sparas så länge kontot finns. Skapar du inget "
+                        + $"konto finns adressen inte kvar hos oss efter tiderna ovan. {ProcessorHtml}")
+                    + ControllerRightsAndComplaintHtml()
+                    + EmailHtml.SignOff()));
+    }
+
+    /// <summary>
+    /// An address with no account while registration is open, past its code budget: no credential. Its processing is the closed
+    /// mail's — one message and the budget keys — so it shares that mail's legal-basis paragraph, and
+    /// "Därefter finns den inte kvar hos oss" is true here: without a code there is no verify, so no grant,
+    /// no claim and no account. It names no account, because the recipient has none.
+    /// </summary>
+    internal static EmailContent LoginNewAccountCodeLimitReached()
+    {
+        var minutes = ChallengeMinutes();
+        var (window, recentWindow) = CodeBudgetWindow();
+
+        return new EmailContent(
+            Subject: "Inloggning på Jobbliggaren",
+            PlainTextBody: $"""
+                Någon har angett den här adressen för att logga in eller skapa ett konto
+                på Jobbliggaren. Det finns inget konto för adressen.
+
+                Mejlet innehåller ingen kod, eftersom fler koder har begärts för den här
+                adressen {recentWindow} än vi skickar. Försök igen om {window}.
+
+                Om det inte var du behöver du inte göra något.
+
+                {NoCredentialBasisPlain}
+
+                Vi sparar adressen skyddad i högst {minutes} minuter, och ett avtryck av den
+                i högst {window} för att begränsa hur många meddelanden som kan skickas till
+                den. Därefter finns den inte kvar hos oss. Det här meddelandet innehåller
+                ingen kod, så inget konto kan skapas med det.
+                {ProcessorPlain}
+
+                {ControllerRightsAndComplaintPlain}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Inloggning på Jobbliggaren",
+                preheader: "Mejlet innehåller ingen kod.",
+                body: EmailHtml.P(
+                        "Någon har angett den här adressen för att logga in eller skapa ett konto på "
+                        + "Jobbliggaren. Det finns inget konto för adressen.")
+                    + EmailHtml.P(
+                        "Mejlet innehåller ingen kod, eftersom fler koder har begärts för den här "
+                        + $"adressen {recentWindow} än vi skickar. Försök igen om {window}.")
+                    + EmailHtml.P("Om det inte var du behöver du inte göra något.")
+                    + EmailHtml.P(NoCredentialBasisHtml)
+                    + EmailHtml.P(
+                        $"Vi sparar adressen skyddad i högst {minutes} minuter, och ett avtryck av den i "
+                        + $"högst {window} för att begränsa hur många meddelanden som kan skickas till den. "
+                        + "Därefter finns den inte kvar hos oss. Det här meddelandet innehåller ingen kod, "
+                        + $"så inget konto kan skapas med det. {ProcessorHtml}")
+                    + ControllerRightsAndComplaintHtml()
+                    + EmailHtml.SignOff()));
+    }
+
+    // The Art. 14 blocks every mail to an address without an account carries (recipient class (3)). One home
+    // each, so the three mails cannot drift apart. The plain forms keep the hard wraps of the bodies they
+    // are interpolated into.
+
+    // The legal basis of a mail that carries no credential: one message and the keys that cap messages.
+    private const string NoCredentialBasisPlain = """
+        Adressen har angetts på vår inloggningssida, av dig eller av någon annan.
+        Den används bara för att skicka det här meddelandet och för att begränsa
+        hur många meddelanden som kan skickas till den. Om du själv angav adressen
+        är grunden att vi vidtar en åtgärd som du har begärt (artikel 6.1 b). Om
+        någon annan angav den är grunden berättigat intresse (artikel 6.1 f): den
+        som äger en adress ska få veta att den har använts hos oss.
+        """;
+
+    private const string NoCredentialBasisHtml =
+        "Adressen har angetts på vår inloggningssida, av dig eller av någon annan. Den "
+        + "används bara för att skicka det här meddelandet och för att begränsa hur många "
+        + "meddelanden som kan skickas till den. Om du själv angav adressen är grunden att "
+        + "vi vidtar en åtgärd som du har begärt (artikel 6.1 b). Om någon annan angav den "
+        + "är grunden berättigat intresse (artikel 6.1 f): den som äger en adress ska få "
+        + "veta att den har använts hos oss.";
+
+    // Says what the provider does and where, and nothing about how long it keeps the message, which ADR 0133
+    // records as unmeasured.
+    private const string ProcessorPlain = """
+        E-posten levereras av Scaleway SAS i Frankrike, som
+        behandlar meddelandet för att kunna leverera det. I
+        personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen
+        sker inom EU.
+        """;
+
+    private const string ProcessorHtml =
+        "E-posten levereras av Scaleway SAS i Frankrike, som "
+        + "behandlar meddelandet för att kunna leverera det. I "
+        + "personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen "
+        + "sker inom EU.";
+
+    private static readonly string ControllerRightsAndComplaintPlain = $"""
+        Personuppgiftsansvarig är Klas Olsson, privatperson, som driver
+        Jobbliggaren.
+
+        Du har rätt att invända mot behandlingen och att begära information,
+        rättelse, radering eller begränsning. Skriv till oss:
+        {ContactAddress}
+
+        Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål
+        till Integritetsskyddsmyndigheten, imy.se.
+        """;
+
+    private static Markup ControllerRightsAndComplaintHtml() =>
+        EmailHtml.P("Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren.")
+        + EmailHtml.LinkParagraph(
+            "Du har rätt att invända mot behandlingen och att begära information, rättelse, "
+            + "radering eller begränsning. Skriv till oss:",
+            $"mailto:{ContactAddress}",
+            ContactAddress)
+        + EmailHtml.P(
+            "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål till "
+            + "Integritetsskyddsmyndigheten, imy.se.");
+
     // The token is Base64Url (only [A-Za-z0-9_-]), so it survives the query round-trip unescaped.
     private static string LoginLink(string baseUrl, LoginLinkToken token) =>
         $"{baseUrl.TrimEnd('/')}{LoginLinkRoute}?token={token.Reveal()}";
 
     private static int ChallengeMinutes() => (int)LoginChallengePolicy.ChallengeTtl.TotalMinutes;
+
+    // The longest-lived fingerprint is the code budget's, so its window is the retention the mails state:
+    // as a length ("högst ett dygn") and as the period just passed ("det senaste dygnet").
+    private static (string Duration, string JustPassed) CodeBudgetWindow()
+    {
+        var hours = (int)LoginChallengePolicy.CodeBudget.Window.TotalHours;
+        return hours == 24
+            ? ("ett dygn", "det senaste dygnet")
+            : ($"{hours} timmar", $"de senaste {hours} timmarna");
+    }
 }

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -13,9 +14,10 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <summary>
 /// #1735 — each link of the passwordless chain has one consumer: the first-proof write
 /// (<see cref="IInboxProofRecorder"/>) is reachable only from <see cref="PasswordlessSessionGrant"/>, the grant
-/// only from <see cref="LoginProofOutcome"/>, and that only from the two proof handlers; the account lookup is
-/// reachable only from <see cref="LoginSubjectResolver"/>, and that only from the consumer and the outcome
-/// function, never from a request path (ADR 0142 D2). The scan covers every assembly that composes services,
+/// only from <see cref="LoginProofOutcome"/>, and that only from the two proof handlers and <c>complete</c>
+/// (#1737); the account lookup is reachable only from <see cref="LoginSubjectResolver"/>, and that only from
+/// the consumer, the outcome function and <c>complete</c>, never from the request path that mints a
+/// challenge (ADR 0142 D2). The scan covers every assembly that composes services,
 /// the Api's included, and every constructor and method parameter of every type, compiler-generated ones
 /// included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
 /// a parameter; the source scan covers the write's port by name.
@@ -49,11 +51,15 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Only_the_outcome_function_can_grant_and_only_the_two_proof_handlers_can_reach_it()
+    public void Only_the_outcome_function_can_grant_and_only_the_proof_handlers_and_complete_can_reach_it()
     {
         ConsumersOf(typeof(PasswordlessSessionGrant)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
         ConsumersOf(typeof(LoginProofOutcome)).ShouldBe(
-            [typeof(ConsumeLoginLinkCommandHandler).FullName!, typeof(VerifyLoginChallengeCommandHandler).FullName!]);
+        [
+            typeof(CompleteLoginChallengeCommandHandler).FullName!,
+            typeof(ConsumeLoginLinkCommandHandler).FullName!,
+            typeof(VerifyLoginChallengeCommandHandler).FullName!,
+        ]);
     }
 
     [Fact]
@@ -61,16 +67,26 @@ public sealed class LoginProofChainTests
     {
         ConsumersOf(typeof(ILoginAccountLookup)).ShouldBe([typeof(LoginSubjectResolver).FullName!]);
         ConsumersOf(typeof(LoginSubjectResolver)).ShouldBe(
-            [typeof(LoginChallengeIssuer).FullName!, typeof(LoginProofOutcome).FullName!]);
+        [
+            typeof(CompleteLoginChallengeCommandHandler).FullName!,
+            typeof(LoginChallengeIssuer).FullName!,
+            typeof(LoginProofOutcome).FullName!,
+        ]);
     }
 
     [Fact]
     public void The_proof_chain_can_reach_neither_a_password_check_nor_lockout()
     {
-        // Every port the two handlers can reach, following concrete classes through their constructors. The
-        // account is reached through ILoginAccountLookup, which offers a lookup and nothing else.
+        // Every port the three handlers can reach, following concrete classes through their constructors. The
+        // account is reached through ILoginAccountLookup, which offers a lookup and nothing else, and created
+        // through IPasswordlessAccountCreator, which offers no password check.
         var reached = new HashSet<Type>();
-        var pending = new Stack<Type>([typeof(VerifyLoginChallengeCommandHandler), typeof(ConsumeLoginLinkCommandHandler)]);
+        var pending = new Stack<Type>(
+        [
+            typeof(VerifyLoginChallengeCommandHandler),
+            typeof(ConsumeLoginLinkCommandHandler),
+            typeof(CompleteLoginChallengeCommandHandler),
+        ]);
         while (pending.TryPop(out var type))
         {
             foreach (var parameter in type.GetConstructors().SelectMany(c => c.GetParameters()))

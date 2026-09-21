@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
 /// DEV-ONLY — the login-code capture (#1735, security-auditor Q15): reserved recipients only, the code only,
-/// once, for at most the challenge's lifetime, and every mail forwarded unchanged. The mails are the four
+/// once, for at most the challenge's lifetime, and every mail forwarded unchanged. The mails are the
 /// <see cref="LoginChallengeEmail"/> variants the issuer sends; the clock is the only time source.
 /// </summary>
 public sealed class DevLoginCodeCaptureTests
@@ -60,6 +60,20 @@ public sealed class DevLoginCodeCaptureTests
     }
 
     [Fact]
+    public async Task A_new_account_code_is_held_for_a_reserved_recipient_and_for_no_other()
+    {
+        // #1737 — this code leads to an account, so the gate is the same member and never a copy (ADR 0142 D10).
+        var mail = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("271828"));
+
+        await _sender.SendLoginChallengeAsync(Reserved, mail, Ct);
+        await _sender.SendLoginChallengeAsync("person@example.se", mail, Ct);
+
+        await _inner.Received(1).SendLoginChallengeAsync(Reserved, mail, Ct);
+        _capture.TakeCode(Reserved).ShouldBe("271828");
+        _capture.TakeCode("person@example.se").ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Mails_without_a_code_are_forwarded_and_hold_nothing()
     {
         LoginChallengeEmail[] mails =
@@ -67,6 +81,7 @@ public sealed class DevLoginCodeCaptureTests
             new LoginChallengeEmail.LinkOnly(LoginLinkToken.FromRaw("link-token-value")),
             new LoginChallengeEmail.RegistrationClosed(),
             new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)),
+            new LoginChallengeEmail.NewAccountCodeLimitReached(),
         ];
 
         foreach (var mail in mails)

@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -73,6 +74,22 @@ public class StorableAddressPortTests(ApiFactory factory)
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
         result.Error.Message.ShouldBe(AuthErrorCodes.EmailNotStorableMessage);
+        (await RowsTaggedAsync(tag)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task The_passwordless_creator_refuses_an_unstorable_address_and_leaves_no_row()
+    {
+        // The address reaching it is the PROVEN one out of the grant, and the login challenge's request path
+        // asks no such question: this is the only place it is asked before a passwordless account exists.
+        var tag = Tag();
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var creator = scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>();
+        var result = await creator.CreatePasswordlessUserAsync($" pad-{tag}@example.se", Ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
         (await RowsTaggedAsync(tag)).ShouldBe(0);
     }
 

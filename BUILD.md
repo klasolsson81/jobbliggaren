@@ -1388,7 +1388,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   Gäller **all** utgående e-post, inte bara
   notiser: `EmailTemplates` har nio sorter varav sju är kontolivscykel (bekräfta e-post,
   byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
-  ändrat-lösenord-avisering, inloggningsutmaning i fyra varianter). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
+  ändrat-lösenord-avisering, inloggningsutmaning i sex varianter). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
   inte en ärvd:** avtalsparten är fransk, behandlingen sker i Frankrike, och den *krok* som
   gjorde SES-posten till en Kap. V-fråga — en EU-avtalspart under en **amerikansk** koncernmoder
   som kan nå uppgifterna (Schrems II / EDPB Rec. 01/2020) — saknas i en kedja som är fransk hela

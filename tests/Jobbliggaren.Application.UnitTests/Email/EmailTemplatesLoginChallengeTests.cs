@@ -6,9 +6,9 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
-/// #1735 — the login-challenge mail's variants (ADR 0142 D2). What each one carries is the point: a code
-/// and a link for an account within its budget, a link only past it, and no credential at all for closed
-/// registration or pending deletion.
+/// #1735, #1737 — the login-challenge mail's variants (ADR 0142 D2). What each one carries is the point: a
+/// code and a link for an account within its budget, a link only past it, a code and no link for a new
+/// address while registration is open, and no credential at all for the rest.
 /// </summary>
 public sealed class EmailTemplatesLoginChallengeTests
 {
@@ -21,7 +21,8 @@ public sealed class EmailTemplatesLoginChallengeTests
         EmailTemplates.LoginChallenge(BaseUrl, content);
 
     public static TheoryData<string> Variants() =>
-        ["code-and-link", "link-only", "registration-closed", "pending-deletion"];
+        ["code-and-link", "link-only", "registration-closed", "pending-deletion", "new-account-code",
+            "new-account-code-limit-reached"];
 
     private static EmailTemplates.EmailContent RenderVariant(string variant) => variant switch
     {
@@ -29,6 +30,8 @@ public sealed class EmailTemplatesLoginChallengeTests
         "link-only" => Render(new LoginChallengeEmail.LinkOnly(Link)),
         "registration-closed" => Render(new LoginChallengeEmail.RegistrationClosed()),
         "pending-deletion" => Render(new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19))),
+        "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))),
+        "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
@@ -59,6 +62,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     [Theory]
     [InlineData("registration-closed")]
     [InlineData("pending-deletion")]
+    [InlineData("new-account-code-limit-reached")]
     public void The_variants_without_a_credential_carry_no_link_and_no_code(string variant)
     {
         var rendered = RenderVariant(variant);
@@ -66,6 +70,97 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldNotContain("inloggningskod är");
+        rendered.PlainTextBody.ShouldNotMatch("[0-9]{6}");
+        rendered.HtmlBody.ShouldNotMatch("[0-9]{6}");
+    }
+
+    [Fact]
+    public void NewAccountCode_carries_the_code_once_and_no_link()
+    {
+        var rendered = Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")));
+
+        // A magic link is for an existing account only (ADR 0142 D1), and "Koden finns bara i det här
+        // meddelandet" is true only while that holds.
+        rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
+        rendered.PlainTextBody.ShouldNotContain("token=");
+        rendered.HtmlBody.ShouldNotContain("token=");
+
+        // Once in each body, so never in the preheader, which an inbox and a lock screen preview.
+        rendered.Subject.ShouldNotContain("042917");
+        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
+        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
+    }
+
+    [Theory]
+    [InlineData("new-account-code")]
+    [InlineData("new-account-code-limit-reached")]
+    public void A_mail_to_a_new_address_carries_the_whole_art_14_notice_and_names_no_account(string variant)
+    {
+        var text = RenderVariant(variant).PlainTextBody;
+
+        // The source, both legal bases, the processor, the controller,
+        // the rights with the contact address, and the authority.
+        text.ShouldContain("Adressen har angetts på vår inloggningssida");
+        text.ShouldContain("artikel 6.1 b");
+        text.ShouldContain("artikel 6.1 f");
+        text.ShouldContain("Scaleway SAS");
+        text.ShouldContain("Personuppgiftsansvarig är Klas Olsson");
+        text.ShouldContain("rätt att invända");
+        text.ShouldContain(EmailTemplates.ContactAddress);
+        text.ShouldContain("imy.se");
+
+        text.ShouldNotContain("hör av oss");
+        text.ShouldNotContain("sparar den inte");
+        text.ShouldNotContain("ditt konto");
+    }
+
+    [Fact]
+    public void NewAccountCode_states_a_retention_that_depends_on_whether_the_account_is_created()
+    {
+        var text = Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody);
+
+        text.ShouldContain("högst 15 minuter medan koden gäller");
+        text.ShouldContain("högst 10 minuter till");
+        text.ShouldContain("högst ett dygn");
+        text.ShouldContain("Skapar du kontot blir adressen kontots adress och sparas så länge kontot finns.");
+        text.ShouldContain("Skapar du inget konto finns adressen inte kvar hos oss efter tiderna ovan.");
+
+        // The closed mail's unconditional sentence is false for a recipient who goes on to create the account.
+        text.ShouldNotContain("Därefter finns den inte kvar hos oss");
+
+        LoginChallengePolicy.GrantTtl.ShouldBe(TimeSpan.FromMinutes(10), "the copy's 'högst 10 minuter till'");
+    }
+
+    [Fact]
+    public void NewAccountCodeLimitReached_says_why_there_is_no_code_and_keeps_the_unconditional_retention()
+    {
+        var text = Unwrapped(Render(new LoginChallengeEmail.NewAccountCodeLimitReached()).PlainTextBody);
+
+        text.ShouldContain("Mejlet innehåller ingen kod");
+        text.ShouldContain("Försök igen om ett dygn.");
+        text.ShouldContain("högst 15 minuter");
+        text.ShouldContain("högst ett dygn");
+
+        // True here and false in NewAccountCode: without a code there is no grant and no account.
+        text.ShouldContain(
+            "Därefter finns den inte kvar hos oss. Det här meddelandet innehåller ingen kod, så inget konto kan "
+            + "skapas med det.");
+    }
+
+    [Fact]
+    public void The_two_mails_without_a_credential_for_an_unknown_address_share_one_legal_basis_paragraph()
+    {
+        var closed = Unwrapped(Render(new LoginChallengeEmail.RegistrationClosed()).PlainTextBody);
+        var limit = Unwrapped(Render(new LoginChallengeEmail.NewAccountCodeLimitReached()).PlainTextBody);
+        const string basis = "Den används bara för att skicka det här meddelandet och för att begränsa hur många "
+            + "meddelanden som kan skickas till den.";
+
+        closed.ShouldContain(basis);
+        limit.ShouldContain(basis);
+
+        // The code-bearing mail's purpose is wider, so it must not claim "bara".
+        Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody)
+            .ShouldNotContain(basis);
     }
 
     [Fact]
@@ -110,6 +205,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     [Theory]
     [InlineData("code-and-link")]
     [InlineData("link-only")]
+    [InlineData("new-account-code")]
     public void Every_credential_bearing_variant_states_the_lifespan_from_the_policy(string variant)
     {
         RenderVariant(variant).PlainTextBody
@@ -137,7 +233,13 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.LinkOnly)] = new LoginChallengeEmail.LinkOnly(Link),
         [nameof(LoginChallengeEmail.RegistrationClosed)] = new LoginChallengeEmail.RegistrationClosed(),
         [nameof(LoginChallengeEmail.PendingDeletion)] = new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)),
+        [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")),
+        [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
     };
+
+    // The plain body is hard-wrapped; a sentence is asserted on its words, not on where a line breaks.
+    private static string Unwrapped(string body) =>
+        string.Join(' ', body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     [Theory]
     [MemberData(nameof(Variants))]

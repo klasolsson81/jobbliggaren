@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -335,16 +336,15 @@ public class LoginChallengeProofTests(ApiFactory factory)
         body.RootElement.TryGetProperty("sessionId", out _).ShouldBeFalse();
     }
 
-    [Fact]
-    public async Task An_address_that_left_its_account_after_the_mail_went_out_gets_registration_closed()
+    // The address moves through the production change-email path — its token, confirmed at
+    // /confirm-email-change — inside the challenge's lifetime, so the proven address has no account.
+    private async Task<Minted> MintThenMoveTheAccountAwayAsync(string label)
     {
-        // The address moves through the production change-email path — its token, confirmed at
-        // /confirm-email-change — inside the challenge's lifetime, so the proven address has no account.
-        var email = NewAddress("moved-away");
+        var email = NewAddress(label);
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
         var minted = await MintAsync(email);
         var userId = await UserIdOf(email);
-        var newEmail = NewAddress("moved-to");
+        var newEmail = NewAddress(label + "-to");
         string token;
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
@@ -355,13 +355,62 @@ public class LoginChallengeProofTests(ApiFactory factory)
         (await _client.PostAsJsonAsync(
                 "/api/v1/auth/confirm-email-change", new { uid = userId, email = newEmail, token }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        return minted;
+    }
 
-        var response = await VerifyAsync(minted.ChallengeId, minted.Code);
-
+    private static async Task<JsonElement> OkBodyOf(HttpResponseMessage response)
+    {
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
-        body.RootElement.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome"]);
-        body.RootElement.GetProperty("outcome").GetString().ShouldBe("registrationClosed");
+        return await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+    }
+
+    [Fact]
+    public async Task An_address_that_left_its_account_gets_registration_closed_while_registration_is_closed()
+    {
+        var minted = await MintThenMoveTheAccountAwayAsync("moved-closed");
+
+        // This host has registration open. The flag moves only with a restart, which hands every reader of
+        // IOptions<AuthOptions> one new value; setting that one instance is the same state. The collection runs
+        // serially and the finally restores it.
+        var flags = _factory.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
+        JsonElement body;
+        try
+        {
+            flags.RegistrationsOpen = false;
+            body = await OkBodyOf(await VerifyAsync(minted.ChallengeId, minted.Code));
+        }
+        finally
+        {
+            flags.RegistrationsOpen = true;
+        }
+
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome"]);
+        body.GetProperty("outcome").GetString().ShouldBe("registrationClosed");
+    }
+
+    [Fact]
+    public async Task An_address_that_left_its_account_is_asked_for_consent_when_its_code_is_proven()
+    {
+        // #1737 — the code proves the inbox, the address has no account, and registration is open here.
+        var minted = await MintThenMoveTheAccountAwayAsync("moved-code");
+
+        var body = await OkBodyOf(await VerifyAsync(minted.ChallengeId, minted.Code));
+
+        body.GetProperty("outcome").GetString().ShouldBe("consentRequired");
+        body.EnumerateObject().Select(p => p.Name).Order().ShouldBe(["grantToken", "outcome"]);
+    }
+
+    [Fact]
+    public async Task An_address_that_left_its_account_is_unavailable_when_its_link_is_proven()
+    {
+        // #1737 — the one way a LINK is proven for an address without an account. No new account rises from
+        // a bearer that has sat in a browser's history (security-auditor, 2026-09-20).
+        var minted = await MintThenMoveTheAccountAwayAsync("moved-link");
+
+        var body = await OkBodyOf(await LinkAsync(minted.Link));
+
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome"]);
+        body.GetProperty("outcome").GetString().ShouldBe("accountUnavailable");
     }
 
     [Fact]
@@ -375,6 +424,7 @@ public class LoginChallengeProofTests(ApiFactory factory)
     [Theory]
     [InlineData("/api/v1/auth/challenge")]
     [InlineData("/api/v1/auth/challenge/verify")]
+    [InlineData("/api/v1/auth/challenge/complete")]
     [InlineData("/api/v1/auth/link")]
     public void Every_login_challenge_route_carries_the_auth_write_rate_limit(string route)
     {
@@ -385,8 +435,8 @@ public class LoginChallengeProofTests(ApiFactory factory)
             .Where(e => e.RoutePattern.RawText == route)
             .ShouldHaveSingleItem();
 
-        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
-            .ShouldBe(RateLimitingExtensions.AuthWritePolicy);
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>().ShouldNotBeNull()
+            .PolicyName.ShouldBe(RateLimitingExtensions.AuthWritePolicy);
     }
 
     [Fact]

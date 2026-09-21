@@ -33,4 +33,13 @@ public abstract record LoginChallengeEmail
     /// the contact address; login never restores it).
     /// </summary>
     public sealed record PendingDeletion(DateOnly PermanentDeletionEarliest) : LoginChallengeEmail;
+
+    /// <summary>
+    /// An address with no account while registration is open, within the code budget: the code that leads
+    /// to an account. No link — a magic link is for an existing account only (ADR 0142 D1).
+    /// </summary>
+    public sealed record NewAccountCode(LoginCode Code) : LoginChallengeEmail;
+
+    /// <summary>An address with no account while registration is open, past the code budget: no credential.</summary>
+    public sealed record NewAccountCodeLimitReached : LoginChallengeEmail;
 }

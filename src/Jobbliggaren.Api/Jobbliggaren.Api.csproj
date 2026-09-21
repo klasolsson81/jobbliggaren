@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Jobbliggaren.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Jobbliggaren.Application\Jobbliggaren.Application.csproj" />
     <ProjectReference Include="..\Jobbliggaren.Infrastructure\Jobbliggaren.Infrastructure.csproj" />
     <ProjectReference Include="..\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />

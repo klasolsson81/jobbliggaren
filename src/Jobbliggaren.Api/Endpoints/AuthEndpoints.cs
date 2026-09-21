@@ -4,6 +4,7 @@ using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 using Jobbliggaren.Application.Auth.Commands.ChangePassword;
+using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.Login;
@@ -323,6 +324,20 @@ public static partial class AuthEndpoints
             return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
+        // Login challenge — the COMPLETE step (#1737, ADR 0142 D3). A proven new address accepts the terms and
+        // gets its account. PUBLIC: the grant from `consentRequired` is the authorization, and the body
+        // carries no address, so nothing here can vary with one. It answers the same outcome union as the
+        // two proof steps; a grant that cannot be used, for any reason, is one 410.
+        group.MapPost("/challenge/complete", async (
+            LoginChallengeCompleteRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new CompleteLoginChallengeCommand(body.GrantToken, body.AcceptTerms), ct);
+            return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
         // Password reset — APPLY step (#1171). PUBLIC: the link is opened from the account's own inbox,
         // logged out by definition, so the opaque single-use token IS the authorization. Every TOKEN
         // rejection is a uniform 400; a PASSWORD rejection names its rule, which is safe because Identity
@@ -433,8 +448,15 @@ public static partial class AuthEndpoints
     /// <summary>POST /auth/link body (#1735). The token is a credential and is never logged.</summary>
     public sealed record LoginLinkRequest(string? Token);
 
-    // Every outcome is a 200 carrying `outcome`, so 1c can add its own values without changing the shape.
-    private static IResult LoginOutcomeResult(LoginOutcome outcome) => outcome switch
+    /// <summary>
+    /// POST /auth/challenge/complete body (#1737). The grant token is a credential and is never logged. An
+    /// omitted <c>acceptTerms</c> binds false and is refused.
+    /// </summary>
+    public sealed record LoginChallengeCompleteRequest(string? GrantToken, bool AcceptTerms);
+
+    // Every outcome is a 200 carrying `outcome`. Internal so a test can hand it every variant: the default
+    // arm below would otherwise turn a variant added without its arm into a 500 found at runtime.
+    internal static IResult LoginOutcomeResult(LoginOutcome outcome) => outcome switch
     {
         LoginOutcome.SignedIn signedIn => Results.Ok(new
         {
@@ -448,6 +470,12 @@ public static partial class AuthEndpoints
                 "yyyy-MM-dd", CultureInfo.InvariantCulture),
         }),
         LoginOutcome.RegistrationClosed => Results.Ok(new { outcome = LoginOutcome.RegistrationClosed.WireName }),
+        LoginOutcome.ConsentRequired consent => Results.Ok(new
+        {
+            outcome = LoginOutcome.ConsentRequired.WireName,
+            grantToken = consent.Grant.Reveal(),
+        }),
+        LoginOutcome.AccountUnavailable => Results.Ok(new { outcome = LoginOutcome.AccountUnavailable.WireName }),
         _ => throw new UnreachableException($"Unmapped login outcome {outcome.GetType().Name}."),
     };
 
@@ -495,8 +523,8 @@ public static partial class AuthEndpoints
         // falls through to the central mapper.
         //
         // No Retry-After: the opening date is unknown, and a wrong Retry-After is worse than none
-        // (clients and caches honour it). Only POST /auth/register can return this — the health
-        // endpoints are untouched, so uptime monitoring is unaffected.
+        // (clients and caches honour it). POST /auth/register and POST /auth/challenge/complete return
+        // this — the health endpoints are untouched, so uptime monitoring is unaffected.
         AuthErrorCodes.RegistrationsClosed => Results.Problem(
             detail: AuthErrorCodes.RegistrationsClosedMessage,
             title: AuthErrorCodes.RegistrationsClosed,

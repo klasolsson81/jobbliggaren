@@ -110,7 +110,8 @@ address**, and only the 128-bit link token is hashed, its hash inside the same p
 protected code is a confidentiality control and is written as one.
 **Keys** follow the delivered cooldown form, versioned: `auth/challenge/v1/{b64url(sha256(id))}` and
 its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{b64url(sha256(token))}` and
-`auth/registration-claim/v1/{hex}` (1c), `auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
+`auth/registration-claim/v1/{hex}` (1c), `auth/challenge-bound/v1/{b64url(sha256(id))}` and its index
+`auth/challenge-by-user/v1/{purpose}/{hex}` (3a), `auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
 segment beside `session:`; a record-shape change costs a new segment, never a decode crash on live
 records.
 **TTL 15 min** for code and link (one expiry state). **3 attempts, then the code is burned** — a state of
@@ -213,8 +214,8 @@ fixes the TTL, as `PutAsync` does); `RedeemAsync(token, GrantAssertion expected)
 can forget. A purpose whose whole job is to CARRY its binding — `LoginComplete`, whose proven address the caller
 of `complete` does not hold (D1's "the record's address wins over the cookie's") — is redeemed with
 `GrantAssertion.Bearer(purpose)`, which refuses any purpose not declared bearer-bound; every other purpose is
-redeemed with `GrantAssertion.Of(binding)` and asserted by record equality. `GrantPurpose` ships in 1c with its
-one member, `LoginComplete = 1`; `Reauthentication(userId)` and `ChangeEmail(userId, newEmail)` are 3a's. TTL
+redeemed with `GrantAssertion.Of(binding)` and asserted by record equality. `GrantPurpose` shipped in 1c with its
+one member, `LoginComplete = 1`; 3a added `Reauthentication(userId) = 2` and `ChangeEmail(userId, newEmail) = 3`. TTL
 10 min, single use.
 
 `POST /auth/challenge/complete {grantToken, acceptTerms}` → the kill-switch, before any Redis call → redeem
@@ -302,6 +303,70 @@ soft-delete gate (#1349) stays verbatim; the `EmailNotConfirmed` normalisation s
 not rewritten. `DeleteAccountCommand` follows. "Så få klick som möjligt" is the directive about the
 login funnel; changing the recovery vector is rare and its failure is permanent — two inboxes is two
 sends, which is arithmetic.
+
+#### Amendment 2026-09-21 (4) (#1739, part 3a) — the form as decided, and the substrate as delivered
+
+*Decided before code by `dotnet-architect`, `security-auditor` and `senior-cto-advisor`
+(`docs/reviews/2026-09-21-1739-form-{architect,security,cto}.md`, local review files).* The sentences in D1, D3,
+"Attempt budget" and "Implementation status" that the round contradicted were corrected in place; this block records
+why. What PRs 3 and 4 deliver is written into this ADR when they deliver it.
+
+**Four PRs, the order binding (CTO).** 1. The address-swap write order, alone and first, as a repair to delivered
+code (#1790, below). 2. The substrate: purpose-bound challenges, the two grant purposes, the budget scopes. It is
+inert when deployed, because nothing consumes it. 3. Re-authentication becomes a grant; from its deploy until 3b's,
+the delivered frontend's delete-account, change-password and change-email will answer 400, because it still sends a
+password. The box holds two accounts, both the controller's own, and registration is closed (measured 2026-09-21),
+so no data subject meets that window; it is declared here and is not an accepted risk. 4. Change-email proves both
+inboxes with codes and retires the mailed link. `POST /auth/verify` is to be retired in PR 3 (D9's migration rule
+already named 3a for it). `IReauthenticatingRequest` has THREE implementers, not the two D5 names: `ChangePasswordCommand`
+is the third, the tripwire's name pattern forces the marker on it, and it is to carry the grant beside the current
+password until 5a removes the surface.
+
+**The address swap takes the unique index first (#1790).** The unique index is on the normalised user name; the
+e-mail index is not unique, `RequireUniqueEmail` reads before it writes, and login resolves an account by its
+e-mail. `ConfirmChangeEmailAsync` wrote the address first and the user name last, and only logged a failed second
+write, so two swaps racing to one address could both take it (`security-auditor`, Blocker against this part's form;
+the race predates 3a). The user name is now written first and its refusal is fatal, and the mailed token is verified
+explicitly before any write, because the user-name write rotates the security stamp. Measured: a real race reaches
+the index and arrives as a `DbUpdateException`, never as `DuplicateUserName`.
+
+**A bound challenge carries the user id, in a key family of its own** (`dotnet-architect`; `security-auditor`
+concurred and withdrew her own "a protector sub-purpose suffices"). With no user id in the record, the holder of a
+hijacked session for a victim could present the challenge id and code of the attacker's OWN re-authentication,
+proven in the attacker's own inbox, and be granted the victim's. So the record changes shape, and D1's rule applies:
+a record-shape change costs a new segment. `auth/challenge/v1/` keeps its exact form, so a rollback cannot read a
+bound record as a login record. The payload has no link field, so a bound challenge cannot carry one; each purpose
+protects under its own sub-purpose; and the STORE compares the record's user id with the caller's. Another purpose
+and another user are both answered `Missing`, never `Wrong`, because `Wrong` carries the owner's remaining attempts;
+the attempt is spent either way, since the counter is incremented before anything is compared and the user id sits
+inside the protected payload. The index is keyed on the user and the purpose, never on the address, so an anonymous
+`POST /auth/challenge` for an account's address cannot burn its owner's re-authentication, nor the reverse. The port
+gained two members beside the login challenge's three, whose signatures are unchanged; a third kind of challenge is
+the signal to split the port.
+
+**The budgets are a hybrid (security-auditor).** Under "same store, same budget" anyone who knows an address could
+spend its ten daily login codes anonymously; past that budget the mail carries a link only (Klas's (A)), and a link
+yields a session, never a re-authentication. The owner's account deletion (Art. 17) and address change (Art. 16)
+would be blockable for a day by a stranger. So the cooldown and the code budget of a re-authentication are keyed by
+the USER id, which only a holder of the session can spend, and the mail budget stays shared, because it protects an
+inbox and must not be bypassable by a session. Change-email's two cooldowns move onto `IRateBudget` in PR 4 (their
+scopes are declared with the substrate), and a per-user daily cap on new target addresses (5 / 24 h) bounds the
+bounce surface the 60-second cooldown alone would leave at one made-up address a minute. `VolatileAclBudgetScopeParityTests` fails when the scopes the application declares and
+the families in `deploy/redis/volatile.acl.template` differ.
+
+**Lapse trigger 5 fires, and was re-run before first use.** `reauth-codes` is a new mint budget. Per account: at most
+10 re-authentication codes per 24 h, 3 attempts each, 10⁻⁶ per attempt, so **0.003 %/day and 1.089 %/year**, the
+login arm's own figures (`security-auditor`'s arithmetic, 2026-09-21). What differs is the attacker's position: the
+guess is only available to someone who ALREADY holds a live session on the account, so the code is a second factor
+on a sensitive operation and not a way in. The figure is arithmetic for an account under sustained attack from
+inside its own session, not an observation.
+
+**The acceptance line of #1739 that asked for "audit rows as today (`reauth_succeeded` / `_failed`)" rested on a
+false premise:** no such event existed anywhere, and a failed re-authentication deliberately writes nothing, since
+the behavior sits before the unit of work and the audit stage. PR 3 is to add two ops-log lines, written from the
+service and never from the behavior, carrying the user id and the purpose and never an address, a code or a token
+(`security-auditor`). `audit_log` rows were ruled out: a failure row contradicts the behavior's placement, and a
+success row duplicates the operation's own.
 
 ### D6 — The consent record: a contract stamp, not Art. 7 consent
 
@@ -1010,6 +1075,8 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
 | Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
+| Re-authentication mint budget (3a; the scopes are declared, the request path that consults them is PR 3's) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h, with the account's own address's shared mail budget (3 / 10 min) between them; past `reauth-codes` the request is to be REFUSED, since a link cannot re-authenticate | `IRateBudget` |
+| Live bound challenges | 1 per user and purpose: every mint burns the previous | `PutBoundAsync` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
 | OAuth state | ≤ 10 min, cookie mandatory, Redis record `GETDEL` | 6a |
@@ -1279,7 +1346,7 @@ boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1
 `redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
-true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
+true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate, re-authentication as a grant, change-email with two codes → **3b** #1740 Mina sidor →
 **4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

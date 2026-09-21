@@ -9,6 +9,7 @@ using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -95,46 +96,52 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task SetUserNameAsync_to_the_name_the_user_already_holds_succeeds()
+    public async Task SetUserNameAsync_succeeds_again_on_the_name_a_half_failed_swap_left()
     {
-        // The retry after a swap whose second write failed: the user name is already the new address, and the
-        // validator must not count the user's own row as the duplicate.
+        // The retry after a swap whose second write failed. The first call below is that swap's first write, so the
+        // row a fresh request then loads holds the new user name and the old address.
         var ct = TestContext.Current.CancellationToken;
-        var email = Address("self");
-        var userId = await CreateAccountAsync(email, ct);
+        var oldEmail = Address("retry");
+        var newEmail = Address("retry-new");
+        var userId = await CreateAccountAsync(oldEmail, ct);
 
-        using var scope = _factory.Services.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = (await userManager.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
+        using (var first = _factory.Services.CreateScope())
+        {
+            var userManager = first.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = (await userManager.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
+            (await userManager.SetUserNameAsync(user, newEmail)).Succeeded.ShouldBeTrue();
+        }
 
-        (await userManager.SetUserNameAsync(user, email)).Succeeded.ShouldBeTrue();
+        using var retry = _factory.Services.CreateScope();
+        var retryManager = retry.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var halfMoved = (await retryManager.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
+        halfMoved.UserName.ShouldBe(newEmail);
+        halfMoved.Email.ShouldBe(oldEmail);
+
+        (await retryManager.SetUserNameAsync(halfMoved, newEmail)).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task The_unique_index_is_on_the_user_name_and_its_refusal_is_recognised()
+    public async Task The_user_name_index_refuses_a_second_row_on_one_name_and_the_refusal_is_recognised()
     {
-        // The state the race's loser meets: the validator's read found nothing, and the write hits the index.
-        // No path in src/ writes a second row on one user name; the row is added by hand to show that the INDEX
-        // refuses it and that the refusal is the exception the swap treats as "the address is taken".
+        // What the race's loser meets: the validator's read found no one on the name, and the write hits the
+        // index. The write here has the loser's shape, an UPDATE of an existing row's normalised user name, and
+        // goes through the Identity context so that no validator reads first.
         var ct = TestContext.Current.CancellationToken;
-        var email = Address("index");
-        await CreateAccountAsync(email, ct);
+        var held = Address("index-held");
+        await CreateAccountAsync(held, ct);
+        var otherId = await CreateAccountAsync(Address("index-other"), ct);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
-        var normalizer = scope.ServiceProvider.GetRequiredService<ILookupNormalizer>();
-        db.Users.Add(new ApplicationUser
-        {
-            UserName = email,
-            NormalizedUserName = normalizer.NormalizeName(email),
-            Email = Address("index-other"),
-            SecurityStamp = Guid.NewGuid().ToString(),
-        });
+        var other = await db.Users.SingleAsync(u => u.Id == otherId, ct);
+        other.NormalizedUserName = scope.ServiceProvider.GetRequiredService<ILookupNormalizer>().NormalizeName(held);
 
         var refused = await Should.ThrowAsync<DbUpdateException>(() => db.SaveChangesAsync(ct));
 
         scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>()
             .IsUniqueConstraintViolation(refused).ShouldBeTrue();
+        refused.InnerException.ShouldBeOfType<PostgresException>().ConstraintName.ShouldBe("UserNameIndex");
     }
 
     [Fact]
@@ -178,22 +185,26 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Swaps_racing_to_one_address_leave_one_row_on_it_and_no_row_half_moved()
+    public async Task Swaps_racing_to_one_address_end_with_one_winner_and_one_row_on_it()
     {
         // Pairs confirm at the same instant. Whichever way each pair interleaves — the validator's read refusing
         // the second, or the index refusing its write — exactly one wins, the other is answered 400 and not 500,
-        // and no row ends with its user name and its address apart.
+        // and the address ends on the winner's row alone.
         var ct = TestContext.Current.CancellationToken;
         const int pairs = 6;
 
-        var races = new List<(Guid First, Guid Second, string Contested, string FirstToken, string SecondToken)>();
+        var races = new List<Race>();
         for (var i = 0; i < pairs; i++)
         {
             var contested = Address($"race{i}");
-            var first = await CreateAccountAsync(Address($"race{i}-a"), ct);
-            var second = await CreateAccountAsync(Address($"race{i}-b"), ct);
-            races.Add((first, second, contested,
-                await MailedTokenAsync(first, contested), await MailedTokenAsync(second, contested)));
+            var firstOld = Address($"race{i}-a");
+            var secondOld = Address($"race{i}-b");
+            var first = await CreateAccountAsync(firstOld, ct);
+            var second = await CreateAccountAsync(secondOld, ct);
+            races.Add(new Race(
+                first, firstOld, await MailedTokenAsync(first, contested),
+                second, secondOld, await MailedTokenAsync(second, contested),
+                contested));
         }
 
         var outcomes = await Task.WhenAll(races.Select(async race =>
@@ -210,11 +221,21 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
         foreach (var race in races)
         {
             (await RowsOnAddressAsync(race.Contested)).ShouldBe(1);
-            foreach (var userId in new[] { race.First, race.Second })
-            {
-                var user = await ReadAsync(userId);
-                user.UserName.ShouldBe(user.Email);
-            }
+
+            var first = await ReadAsync(race.First);
+            var second = await ReadAsync(race.Second);
+            var (winner, loser, loserOld) = first.Email == race.Contested
+                ? (first, second, race.SecondOld)
+                : (second, first, race.FirstOld);
+
+            winner.Email.ShouldBe(race.Contested);
+            winner.UserName.ShouldBe(race.Contested);
+            loser.Email.ShouldBe(loserOld);
         }
     }
+
+    private sealed record Race(
+        Guid First, string FirstOld, string FirstToken,
+        Guid Second, string SecondOld, string SecondToken,
+        string Contested);
 }

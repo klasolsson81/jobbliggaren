@@ -30,8 +30,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <item>A garbage token → uniform 400 and the email is unchanged</item>
 /// <item>A non-existent uid → the SAME uniform 400 as a bad token (oracle parity: no account-existence
 /// oracle on a public endpoint)</item>
-/// <item>TOCTOU — a second account owns the new address at confirm time → uniform 400 (ChangeEmailAsync
-/// re-runs RequireUniqueEmail, the authoritative backstop)</item>
+/// <item>TOCTOU — a second account owns the new address at confirm time → uniform 400</item>
 /// </list>
 /// Runs against the ApiFactory's recording IEmailSender + real Testcontainers Postgres/Redis, so the
 /// C6 InvalidateAll path is exercised end-to-end.
@@ -229,8 +228,7 @@ public class ConfirmEmailChangeTests(ApiFactory factory)
 
         var response = await ConfirmAsync(userIdA, takenEmail, token, ct);
 
-        // ChangeEmailAsync re-runs RequireUniqueEmail — the authoritative uniqueness backstop — and the
-        // rejection is the SAME uniform 400 (no oracle that the address is taken vs the token is bad).
+        // The rejection is the SAME uniform 400 (no oracle that the address is taken vs the token is bad).
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("title").GetString().ShouldBe("Auth.InvalidEmailChangeToken");

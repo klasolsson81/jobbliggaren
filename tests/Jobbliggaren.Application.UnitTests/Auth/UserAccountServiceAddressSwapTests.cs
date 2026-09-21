@@ -25,6 +25,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// </summary>
 public class UserAccountServiceAddressSwapTests
 {
+    private const string OldEmail = "gammal@example.se";
     private const string NewEmail = "ny@example.se";
     private const string MailedToken = "the-mailed-token";
     private const string FreshToken = "the-token-minted-after-the-user-name-write";
@@ -36,13 +37,13 @@ public class UserAccountServiceAddressSwapTests
         Substitute.For<UserManager<ApplicationUser>>(
             Substitute.For<IUserStore<ApplicationUser>>(),
             null!, null!, null!, null!, null!, null!, null!, null!);
-    private readonly IDbExceptionInspector _dbExceptions = Substitute.For<IDbExceptionInspector>();
+    private readonly IDbExceptionInspector _dbExceptionInspector = Substitute.For<IDbExceptionInspector>();
     private readonly RecordingLogger<UserAccountService> _logger = new();
     private readonly ApplicationUser _user = new()
     {
         Id = Guid.NewGuid(),
-        Email = "gammal@example.se",
-        UserName = "gammal@example.se",
+        Email = OldEmail,
+        UserName = OldEmail,
     };
     private readonly UserAccountService _sut;
 
@@ -53,7 +54,7 @@ public class UserAccountServiceAddressSwapTests
             Substitute.For<ILoginTimingEqualizer>(),
             Options.Create(new AuthOptions()),
             _logger,
-            _dbExceptions);
+            _dbExceptionInspector);
 
         _userManager.FindByIdAsync(_user.Id.ToString()).Returns(_user);
         _userManager.VerifyUserTokenAsync(_user, Arg.Any<string>(), Arg.Any<string>(), MailedToken).Returns(true);
@@ -66,7 +67,7 @@ public class UserAccountServiceAddressSwapTests
         _sut.ConfirmChangeEmailAsync(_user.Id, NewEmail, UrlSafeMailedToken, TestContext.Current.CancellationToken);
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_TakesTheUserNameBeforeItWritesTheAddress()
+    public async Task ConfirmChangeEmailAsync_ShouldWriteTheUserNameBeforeTheAddress_WhenTheMailedTokenVerifies()
     {
         var result = await ConfirmAsync();
 
@@ -81,7 +82,7 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_VerifiesTheMailedTokenForThisAddress()
+    public async Task ConfirmChangeEmailAsync_ShouldVerifyTheMailedTokenForTheSubmittedAddress_WhenConfirming()
     {
         await ConfirmAsync();
 
@@ -94,7 +95,7 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_WritesNothing_WhenTheMailedTokenDoesNotVerify()
+    public async Task ConfirmChangeEmailAsync_ShouldWriteNothing_WhenTheMailedTokenDoesNotVerify()
     {
         _userManager.VerifyUserTokenAsync(_user, Arg.Any<string>(), Arg.Any<string>(), MailedToken).Returns(false);
 
@@ -109,17 +110,18 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_NeverPassesTheMailedTokenToTheAddressWrite()
+    public async Task ConfirmChangeEmailAsync_ShouldGiveTheAddressWriteAFreshToken_WhenTheMailedTokenVerifies()
     {
         await ConfirmAsync();
 
         // The user-name write rotates the security stamp, so the mailed token is dead by then. It authorises;
         // the token minted after that write is only the argument ChangeEmailAsync requires.
+        await _userManager.Received(1).ChangeEmailAsync(_user, NewEmail, FreshToken);
         await _userManager.DidNotReceive().ChangeEmailAsync(_user, NewEmail, MailedToken);
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_RefusesAndLeavesTheAddress_WhenTheUserNameIsTaken()
+    public async Task ConfirmChangeEmailAsync_ShouldRefuseBeforeTheAddressWrite_WhenTheUserNameIsTaken()
     {
         // What UserValidator answers when another row already holds the name, in IdentityErrorDescriber's own words.
         _userManager.SetUserNameAsync(_user, NewEmail)
@@ -134,14 +136,14 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_RefusesAndLeavesTheAddress_WhenTheUniqueIndexRefusesTheUserName()
+    public async Task ConfirmChangeEmailAsync_ShouldRefuseBeforeTheAddressWrite_WhenTheUniqueIndexRefusesTheUserName()
     {
         // The race itself: both swaps passed the validator's read, and the index refused this one's write. The
         // EF store lets that surface as a DbUpdateException; AddressSwapWriteOrderTests pins that the index
-        // produces it and that the inspector recognises it.
+        // refuses such a write and that the inspector recognises the refusal.
         var refused = new DbUpdateException("unique violation");
         _userManager.SetUserNameAsync(_user, NewEmail).ThrowsAsync(refused);
-        _dbExceptions.IsUniqueConstraintViolation(refused).Returns(true);
+        _dbExceptionInspector.IsUniqueConstraintViolation(refused).Returns(true);
 
         var result = await ConfirmAsync();
 
@@ -152,11 +154,11 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_LetsAnyOtherSaveFailureThrough()
+    public async Task ConfirmChangeEmailAsync_ShouldLetTheExceptionThrough_WhenTheSaveFailureIsNotAUniqueViolation()
     {
         var other = new DbUpdateException("not a unique violation");
         _userManager.SetUserNameAsync(_user, NewEmail).ThrowsAsync(other);
-        _dbExceptions.IsUniqueConstraintViolation(other).Returns(false);
+        _dbExceptionInspector.IsUniqueConstraintViolation(other).Returns(false);
 
         var thrown = await Should.ThrowAsync<DbUpdateException>(ConfirmAsync);
 
@@ -164,7 +166,7 @@ public class UserAccountServiceAddressSwapTests
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_RefusesAndSaysSo_WhenTheAddressWriteFailsAfterTheUserNameWrite()
+    public async Task ConfirmChangeEmailAsync_ShouldRefuseLogAndLeaveTheUserNameWritten_WhenTheAddressWriteFails()
     {
         _userManager.ChangeEmailAsync(_user, NewEmail, FreshToken)
             .Returns(IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure()));
@@ -173,15 +175,22 @@ public class UserAccountServiceAddressSwapTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.InvalidEmailChangeToken");
+
+        // The user name is written once, to the new address, and never written back: releasing it would hand the
+        // contested name to the other swap while this row's change stands refused.
+        await _userManager.Received(1).SetUserNameAsync(Arg.Any<ApplicationUser>(), Arg.Any<string>());
+        await _userManager.Received(1).SetUserNameAsync(_user, NewEmail);
+
         var entry = _logger.Records.ShouldHaveSingleItem();
         entry.Level.ShouldBe(LogLevel.Warning);
         entry.EventId.Id.ShouldBe(4001);
         entry.Message.ShouldContain(_user.Id.ToString());
         entry.Message.ShouldNotContain(NewEmail);
+        entry.Message.ShouldNotContain(OldEmail);
     }
 
     [Fact]
-    public async Task ConfirmChangeEmailAsync_LogsNothing_WhenTheSwapSucceeds()
+    public async Task ConfirmChangeEmailAsync_ShouldLogNothing_WhenTheSwapSucceeds()
     {
         await ConfirmAsync();
 

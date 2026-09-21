@@ -18,7 +18,7 @@ public sealed partial class UserAccountService(
     ILoginTimingEqualizer loginTimingEqualizer,
     IOptions<AuthOptions> authOptions,
     ILogger<UserAccountService> logger,
-    IDbExceptionInspector dbExceptions)
+    IDbExceptionInspector dbExceptionInspector)
     : IUserAccountService, ILoginAccountLookup, IPasswordlessAccountCreator
 {
     public async Task<Result<Guid>> CreateUserAsync(
@@ -312,7 +312,7 @@ public sealed partial class UserAccountService(
         {
             userNameResult = await userManager.SetUserNameAsync(user, newEmail);
         }
-        catch (DbUpdateException ex) when (dbExceptions.IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
             // Both swaps passed the validator's read; the index refused this one's write.
             return InvalidTokenFailure();
@@ -523,11 +523,10 @@ public sealed partial class UserAccountService(
         {
             user.EmailConfirmed = true;
             var confirmResult = await userManager.UpdateAsync(user);
-            // Log and continue, matching the notice-send arm in ResetPasswordCommandHandler and the
-            // UserName-sync arm in ConfirmChangeEmailAsync above: the password is already changed and the
-            // token already spent, so throwing would skip the session teardown and the User.PasswordReset
-            // audit row, and answer 500 to a user whose retry then reports "invalid link". Codes, never
-            // Descriptions — four of the five reachable ones interpolate the address.
+            // Log and continue, matching the notice-send arm in ResetPasswordCommandHandler: the password is
+            // already changed and the token already spent, so throwing would skip the session teardown and the
+            // User.PasswordReset audit row, and answer 500 to a user whose retry then reports "invalid link".
+            // Codes, never Descriptions — four of the five reachable ones interpolate the address.
             if (!confirmResult.Succeeded)
                 LogEmailConfirmedPersistFailed(
                     userId, string.Join("; ", confirmResult.Errors.Select(e => e.Code)));

@@ -821,6 +821,25 @@ registration for a day. **Not conditions, by his word:** a session list or an "a
 code on a new address ("för hårt säkerhetstänk"), and Redis AUTH with the ACL live on the box ("Nej inga onödiga
 blockers.").
 
+**Accepted risk (CLAUDE.md §9.6 (3)): an account created on a guessed code.** Granted by Klas Olsson 2026-09-21
+("Ja, skriv in acceptansen"); signed by `security-auditor` 2026-09-21, in her scoped re-check of PR #1783 against
+this text. The finding stands as she graded it, a Major (form round, M-C): a guessed code on an address without an
+account yields an account and a `Persistent` session that no first-proof revocation removes, since an account
+created here is born confirmed, and whoever later registers on that address logs in to the same account and is
+told nothing. The acceptance withdraws the remedy only: neither discharge she named is built. It does not make the
+risk measured. The 1.089 %/year above is arithmetic for an address under sustained attack, not an observation, and
+whether anyone would attempt it is not known.
+
+The bound: the only data subject whose position is affected is the controller himself, or none at all. Measured:
+`Auth__RegistrationsOpen=false` on the box, and `complete`'s first statement is that switch
+(`LoginChallengeCompleteTests.With_registration_closed_even_a_live_grant_creates_nothing`), so no account can be
+created by this arm; `AspNetUsers` / `job_seekers` = 2 / 2, both the controller's own (`security-auditor`,
+read-only, 2026-09-20 11:30Z; the driving session, read-only, 2026-09-21 06:52–06:55Z — her own reading that day
+was refused by the tool, so the later figure is the session's).
+
+**It lapses the day `Auth__RegistrationsOpen` is set to `true`, or the first account that is not Klas Olsson's is
+created.** Home: #734's condition table. Reader: Klas Olsson. Nothing detects the lapse automatically.
+
 
 #### Amendment 2026-09-21 (#1737) — the challenge follows the account's own address
 

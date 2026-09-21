@@ -154,6 +154,17 @@ public class StorableAddressPortTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_write_refuses_an_unstorable_address_the_same_for_an_unknown_user_id()
+    {
+        // The confirm endpoint is public. Judged after the account read, the refusal would answer differently
+        // for a user id that exists and one that does not.
+        var result = await WithAccountsAsync((accounts, _) =>
+            accounts.ConfirmChangeEmailAsync(Guid.NewGuid(), " nobody@example.se", "dG9rZW4", Ct));
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
+    }
+
+    [Fact]
     public async Task A_change_to_a_non_ascii_address_takes_the_user_name_with_it()
     {
         var tag = Tag();

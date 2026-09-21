@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Text;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -35,7 +36,8 @@ public class UserAccountServiceResendTests
     private UserAccountService CreateSut(bool requireEmailConfirmation = true) =>
         new(_userManager, Substitute.For<ILoginTimingEqualizer>(),
             Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation }),
-            Substitute.For<ILogger<UserAccountService>>());
+            Substitute.For<ILogger<UserAccountService>>(),
+            Substitute.For<IDbExceptionInspector>());
 
     [Fact]
     public async Task TryPrepare_FlagOff_ReturnsNull_WithoutAnyLookup()

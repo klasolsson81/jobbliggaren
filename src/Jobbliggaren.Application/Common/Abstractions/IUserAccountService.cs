@@ -88,8 +88,8 @@ public interface IUserAccountService
     /// Applies a pending email change (#679): verifies the URL-safe token against the user + NEW
     /// address, sets Email/NormalizedEmail (+ EmailConfirmed) and keeps UserName in lockstep with the
     /// email (registration couples them), rotating the security stamp so the token is single-use.
-    /// Returns ONE uniform failure for every rejection (user-not-found, bad/expired/malformed token,
-    /// address-taken) so the PUBLIC confirm endpoint reveals no account-existence or enumeration oracle.
+    /// Returns ONE uniform failure for every rejection, so the PUBLIC confirm endpoint reveals no
+    /// account-existence or enumeration oracle.
     /// </summary>
     Task<Result> ConfirmChangeEmailAsync(Guid userId, string newEmail, string urlSafeToken, CancellationToken ct);
 

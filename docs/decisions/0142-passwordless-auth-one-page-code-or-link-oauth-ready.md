@@ -359,7 +359,9 @@ with the walk-up shared through `tests/Shared/ContentLegalMessages.cs`; it reads
 **The signature conflict with the issue bodies is resolved for this ADR.** #1736's body and #1741's
 body wrote `Register` without `displayName`; both were filed before this ADR was ratified. The ADR
 governs and the bodies were corrected on 2026-09-17: `DisplayName` stays required and validated until
-4a, which also owns the fate of the parameter and of the event's non-nullable `DisplayName`.
+4a, which also owns the fate of the parameter and of the event's non-nullable `DisplayName`. *(From #1737's
+second PR on, 2026-09-21: the EXPAND half moved into 1c — see D7. `Register` admits an absent name and the
+event's name is nullable; a name that is given is validated as before.)*
 
 ### D7 — The account has no name and the CV stops requiring one
 
@@ -368,6 +370,18 @@ B3's canonical arm stops grading a name the system never stores; the `Personnumm
 arm becomes unreachable; the parsed contact name is still never used (the 2026-07-16 bind stands).
 Nullable-first (4a), drop (4b). The avatar becomes a neutral account icon labelled "Mina sidor"
 (form in "Page form").
+
+**The expand half ships with 1c, not 4a** (`senior-cto-advisor`, 2026-09-20; Klas the same day: "Ja – egen
+liten PR 2"). `complete` carries no name and `JobSeeker.Register` refused a blank one, while 4a was sequenced
+after 1c, so the epic's own order could not be built. 1c's second PR therefore makes
+`job_seekers.display_name` nullable (migration `DisplayNameNullable`), lets `Register` store an absent name
+while a given name still runs `ValidateDisplayName` inside the aggregate, makes the event's and
+`JobSeekerProfileDto`'s name nullable, and makes the FE profile read tolerate `null`. `ValidateDisplayName`
+still refuses an absent name, so the password path and `UpdateDisplayName` are unchanged. Everything in the
+paragraph above stays 4a's. Until 4a, an account without a name cannot promote an imported CV: the gate
+answers `IncompleteContent`, and the only copy the user is shown for it tells her to complete the entries
+in the file and upload it again, while the file is clean and the fix is under Inställningar. 4a closes
+that; it is a #734 launch condition, written into #734's table (row 7, 2026-09-21) and into #1741.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
@@ -1013,7 +1027,7 @@ boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the two `UserAccountService` gates → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants → **3b** #1740 Mina sidor →
-**4a** #1741 display name nullable, `Resume.FullName` optional → **4b** #1742 (opens only after 4a
+**4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
 `dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
@@ -1021,8 +1035,8 @@ nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
-**Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 4a → 4b → 5b. `Persistence` context:
-1b, 4a, 4b. `Identity` context: 6d (two `DropColumn` + `DropIndex
+**Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4a → 4b → 5b. `Persistence` context:
+1b, 1c-expand (`DisplayNameNullable`), 4a, 4b. `Identity` context: 6d (two `DropColumn` + `DropIndex
 ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 

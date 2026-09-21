@@ -47,10 +47,30 @@ public class JobSeekerTests
         result.Error.Code.ShouldBe("JobSeeker.UserIdRequired");
     }
 
-    [Fact]
-    public void Register_WithBlankDisplayName_Fails()
+    // ADR 0142 D7, the expand half (#1737): a passwordless account is created before anyone has typed a
+    // name, so the aggregate admits an absent one. A name that IS given still meets every rule.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Register_WithoutADisplayName_CreatesASeekerWithNoName(string? absent)
     {
-        var result = JobSeeker.Register(ValidUserId, "   ", TermsAcceptance.AcceptCurrent(Clock), Clock);
+        var result = JobSeeker.Register(ValidUserId, absent, TermsAcceptance.AcceptCurrent(Clock), Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.DisplayName.ShouldBeNull();
+        result.Value.DomainEvents.Single().ShouldBeOfType<JobSeekerRegisteredDomainEvent>()
+            .DisplayName.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateDisplayName_StillRefusesAnAbsentName(string? absent)
+    {
+        // RegisterCommandHandler and UpdateDisplayName both require a name and both go through here.
+        var result = JobSeeker.ValidateDisplayName(absent);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.DisplayNameRequired");
@@ -292,7 +312,7 @@ public class JobSeekerTests
         var result = JobSeeker.Register(ValidUserId, exactly200, TermsAcceptance.AcceptCurrent(Clock), Clock);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value.DisplayName.Length.ShouldBe(200);
+        result.Value.DisplayName.ShouldNotBeNull().Length.ShouldBe(200);
     }
 
     [Theory]

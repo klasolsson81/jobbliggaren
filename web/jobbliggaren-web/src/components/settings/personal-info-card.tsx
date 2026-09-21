@@ -47,7 +47,8 @@ export function PersonalInfoCard({
   return (
     <section className="jp-card">
       <h2 className="jp-card__title">{t("personalInfo.title")}</h2>
-      <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      {/* noValidate: the browser's own bubble would pre-empt the inline alert and aria-invalid below. */}
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="settings-name">{t("personalInfo.nameLabel")}</Label>
           <Input
@@ -63,6 +64,11 @@ export function PersonalInfoCard({
             aria-invalid={nameInvalid ? true : undefined}
             aria-describedby={nameInvalid ? errorId : undefined}
           />
+          {error && nameInvalid && (
+            <p id={errorId} role="alert" className="text-body-sm text-danger-600">
+              {error}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="settings-email">{t("personalInfo.emailLabel")}</Label>
@@ -80,7 +86,7 @@ export function PersonalInfoCard({
             {t("personalInfo.emailHint")}
           </p>
         </div>
-        {error && (
+        {error && !nameInvalid && (
           <p id={errorId} role="alert" className="text-body-sm text-danger-600">
             {error}
           </p>

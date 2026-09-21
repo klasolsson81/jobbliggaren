@@ -89,7 +89,7 @@ export function SettingsForm({
   const ts = useTranslations("settings");
   const schema = useMemo(() => makeUpdateMyProfileSchema(t), [t]);
   const router = useRouter();
-  const [displayName, setDisplayName] = useState(initialProfile.displayName);
+  const [displayName, setDisplayName] = useState(initialProfile.displayName ?? "");
   const [language, setLanguage] = useState<LanguageValue>(
     initialProfile.language === "en" ? "en" : "sv",
   );
@@ -178,7 +178,7 @@ export function SettingsForm({
     e.preventDefault();
     void applyChange(
       { displayName },
-      () => setDisplayName(initialProfile.displayName),
+      () => setDisplayName(initialProfile.displayName ?? ""),
       setNameOutcome,
     );
   }

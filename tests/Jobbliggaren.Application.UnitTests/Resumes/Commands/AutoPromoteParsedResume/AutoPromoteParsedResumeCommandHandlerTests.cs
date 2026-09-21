@@ -122,7 +122,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
         PersonnummerScanOutcome? pnr = null,
-        string displayName = AccountName,
+        string? displayName = AccountName,
         string sourceFileName = "anna-cv.pdf")
     {
         // Registered with a placeholder, then the column is written directly. Since #1117
@@ -509,6 +509,20 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             db, _userId,
             content: CleanParsedContent(
                 experience: [new ParsedExperience("Backend-utvecklare", null, "2019–2022", "raw")]));
+
+        var result = await CreateSut(db).Handle(
+            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
+    }
+
+    /// <summary>An owner with no display name (ADR 0142 D7: <c>JobSeeker.Register</c> admits an absent
+    /// one) cannot be promoted until #1741 makes the CV's name optional: pending, never a fault.</summary>
+    [Fact]
+    public async Task Handle_OwnerWithNoDisplayName_LeftPendingIncompleteContent()
+    {
+        var db = TestAppDbContextFactory.Create();
+        var (parsed, _) = await SeedOwnedAsync(db, _userId, displayName: null);
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);

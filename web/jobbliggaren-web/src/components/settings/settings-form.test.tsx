@@ -55,6 +55,49 @@ const baseProfile: JobSeekerProfileDto = {
   preferredOccupationExperience: [],
 };
 
+describe("SettingsForm — a profile with no display name (ADR 0142 D7)", () => {
+  it("renders the name field empty and editable", () => {
+    render(
+      <SettingsForm
+        initialProfile={{ ...baseProfile, displayName: null }}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+    const name = screen.getByRole("textbox", { name: /namn/i });
+    expect(name).toHaveValue("");
+    expect(name).toBeEnabled();
+  });
+
+  it("answers an empty save with the app's own message on the field, and sends nothing", async () => {
+    // The field is required, and the browser's own bubble must not pre-empt the inline alert:
+    // aria-invalid and the error text are what a screen reader gets (DESIGN.md §9).
+    updateMyProfileActionMock.mockClear();
+    render(
+      <SettingsForm
+        initialProfile={{ ...baseProfile, displayName: null }}
+        userEmail="klas@example.se"
+        taxonomy={null}
+        initialSkillGroups={[]}
+      />,
+    );
+    const name = screen.getByRole("textbox", { name: /namn/i });
+    const card = name.closest("form");
+    expect(card).not.toBeNull();
+
+    await userEvent.click(within(card as HTMLElement).getByRole("button", { name: "Spara ändringar" }));
+
+    const alert = await within(card as HTMLElement).findByRole("alert");
+    expect(alert).toHaveTextContent("Visningsnamn krävs.");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toBeRequired();
+    // The message sits with the field it names, not below the email block.
+    expect(name.parentElement).toContainElement(alert);
+    expect(updateMyProfileActionMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("SettingsForm — F6 Prompt 2 smoke", () => {
   it("renderar alla kort i rätt ordning (Matchning efter Personuppgifter)", () => {
     render(

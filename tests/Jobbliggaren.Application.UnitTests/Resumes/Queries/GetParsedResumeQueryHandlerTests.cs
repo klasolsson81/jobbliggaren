@@ -187,7 +187,7 @@ public class GetParsedResumeQueryHandlerTests
 
     private async Task<ParsedResume> SeedHydratedAsync(
         Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content,
-        string displayName = "Test User")
+        string? displayName = "Test User")
     {
         // Registered with a placeholder, then the column is written directly. Since #1117
         // JobSeeker.Register refuses a personnummer-shaped display name (pinned in
@@ -246,6 +246,22 @@ public class GetParsedResumeQueryHandlerTests
             experience: [new ParsedExperience("Backend-utvecklare", null, "2021-2024", "raw")]);
         var db = CreateHydratedDb(content);
         var parsed = await SeedHydratedAsync(db, content);
+
+        var result = await CreateSut(db).Handle(
+            new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
+
+        result.ShouldNotBeNull();
+        result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.IncompleteContent));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReportIncompleteContent_WhenTheOwnerHasNoDisplayName()
+    {
+        // JobSeeker.Register admits an absent name (ADR 0142 D7), and the canonical CV still requires one
+        // until #1741: the artefact stays reviewable and says why it cannot be promoted.
+        var content = CleanContent();
+        var db = CreateHydratedDb(content);
+        var parsed = await SeedHydratedAsync(db, content, displayName: null);
 
         var result = await CreateSut(db).Handle(
             new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);

@@ -1712,10 +1712,7 @@ public static class DependencyInjection
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
 
-                // The user name IS the address here, so Identity's default ASCII user-name charset refused
-                // addresses both email validators admit (o'brien@, björn@). What may be stored is
-                // StorableAddress's question, asked at the writers in UserAccountService.
-                opts.User.AllowedUserNameCharacters = string.Empty;
+                TheUserNameIsTheAddress(opts.User);
 
                 // #679 (CTO-bind #1): route the change-email confirmation token through the
                 // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
@@ -2027,6 +2024,12 @@ public static class DependencyInjection
     /// inklusive HTTP. Att anropa båda i samma DI-container ger duplicerade
     /// registreringar.
     /// </summary>
+    // The user name IS the address here, so Identity's default ASCII user-name charset refused addresses both
+    // email validators admit (o'brien@, björn@). What may be stored is StorableAddress's question, asked at the
+    // writers in UserAccountService. One rule for both compositions: they validate the same rows.
+    private static void TheUserNameIsTheAddress(UserOptions user) =>
+        user.AllowedUserNameCharacters = string.Empty;
+
     public static IServiceCollection AddCoreIdentityForWorker(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -2050,7 +2053,7 @@ public static class DependencyInjection
         // (password-reset, email-confirm) kräver IDataProtectionProvider
         // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
         // DeleteAsync vilka inte använder token-providers.
-        services.AddIdentityCore<ApplicationUser>()
+        services.AddIdentityCore<ApplicationUser>(opts => TheUserNameIsTheAddress(opts.User))
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();
 

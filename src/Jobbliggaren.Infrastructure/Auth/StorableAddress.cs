@@ -3,10 +3,9 @@ using System.Globalization;
 namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
-/// Whether an address may become an account's STORED address. A predicate over character classes, not a charset:
-/// it says nothing about which letters an address may hold and everything about characters that break an identity
-/// derived from the address (<see cref="SubjectFingerprint"/> trims, Identity's lookup does not) or that cannot be
-/// stored or shown faithfully (security-auditor MA-1, 2026-09-21).
+/// Whether an address may become an account's STORED address. A predicate over four character classes, not a
+/// charset: control, whitespace, surrogate and format characters are refused, and nothing else is judged
+/// (<see cref="SubjectFingerprint"/> trims, Identity's lookup does not; security-auditor MA-1, 2026-09-21).
 /// </summary>
 internal static class StorableAddress
 {

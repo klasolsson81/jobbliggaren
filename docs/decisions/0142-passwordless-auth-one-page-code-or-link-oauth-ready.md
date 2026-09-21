@@ -739,19 +739,28 @@ second list of letters that drifts from the validators.
 **R3, and it closes MA-1.** That charset never validated the address, only the user name. What may be stored
 is one predicate, `StorableAddress.IsStorable`, beside `SubjectFingerprint`: no control character, no `Cf`
 format character, no surrogate, no whitespace. A predicate over character classes, not a charset, so it bans
-every astral character (deliberate) and no visible letter. It is asked at every writer of a stored address:
-`CreateUserAsync`, `GenerateChangeEmailTokenAsync` (the request) and `ConfirmChangeEmailAsync` (the write,
-for a token minted before this change); 1c's `CreatePasswordlessUserAsync` joins them. Never on the request
-path of the login challenge, which stores nothing, and never in the two validators. The refusal is
-`Auth.EmailNotStorable`, in Swedish. At the public confirm endpoint it is judged before any account is read:
-it is a property of the submitted spelling alone, so unlike that endpoint's uniform rejections it cannot vary
-with the user id.
+every astral character (deliberate). It is asked at every writer of a stored address (`CreateUserAsync`,
+`ConfirmChangeEmailAsync`; 1c's `CreatePasswordlessUserAsync` joins them) and, to refuse before a dead token
+is minted, at `GenerateChangeEmailTokenAsync`. Never on the request path of the login challenge, which stores
+nothing, and never in the two validators. The refusal is `Auth.EmailNotStorable`, in Swedish. In the writer
+behind the public confirm endpoint it is judged before the account is read: it is a property of the
+submitted spelling alone, so unlike that endpoint's uniform rejections it cannot vary with the user id.
+`StoredAddressWriterGuardTests` sweeps the source: no address reaches Identity outside `UserAccountService`,
+and every write there follows the check in its own method.
 
-**Accepted residual (security-auditor, Minor; #1780).** The four folding code points are visible characters and
-so storable. Whoever registers `ſam@…` first holds `sam@…` out: Identity's unique normalised user name refuses
-the plain spelling, whose holder can then neither register nor log in. No session and no data cross (R1, R2).
-The squat must precede the victim's account and needs mail delivery on the victim's own domain.
-`StorableAddressPortTests` measures it through real Identity.
+**Accepted residual (security-auditor, Minor; #1780).** Identity's normaliser lands more than one spelling on
+one account key, and the spellings are made of visible characters, so they are storable: the four folding
+code points, and a decomposed (NFD) spelling of an accented address (test-writer, 2026-09-21). Whoever
+registers `ſam@…` first holds `sam@…` out: Identity's unique normalised user name refuses the other
+spelling, whose holder can then neither register nor log in. No session and no data cross (R1, R2). The
+squat must precede the victim's account and needs mail delivery on the victim's own domain.
+`StorableAddressPortTests` measures both mechanisms through real Identity. **It is inert while registration
+is closed and becomes reachable at lapse trigger 1:** the `RegistrationsOpen` flip reads this paragraph and
+#1780, which is public, before it is made.
+
+**Lapse triggers, read for this change by security-auditor 2026-09-21: none fires.** 1: `RegistrationsOpen`
+is untouched. 2, 3: no account is added. 4: no IdP. 5: code length, attempts and mint budget are unchanged.
+6: not 5b. 7: the login challenge's request path and its budget branch are untouched.
 
 **Identity's English description pass-through** (`CreateUserAsync`'s non-duplicate arm): its two measured
 triggers, an address with an embedded CR LF (`a\r\nb@…`) and one with a trailing LF, are refused earlier by

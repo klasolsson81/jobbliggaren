@@ -237,15 +237,15 @@ public sealed partial class UserAccountService(
     public async Task<Result> ConfirmChangeEmailAsync(
         Guid userId, string newEmail, string urlSafeToken, CancellationToken ct)
     {
-        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token,
-        // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
-        // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
-        // 401). Callers surface DomainError.Validation -> 400.
-        // Judged before any account is read: a property of the submitted spelling alone, so unlike the
+        // Judged before the account is read: a property of the submitted spelling alone, so unlike the
         // uniform rejections below it cannot vary with the user id.
         if (!StorableAddress.IsStorable(newEmail))
             return Result.Failure(EmailNotStorableFailure());
 
+        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token,
+        // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
+        // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
+        // 401). Callers surface DomainError.Validation -> 400.
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return InvalidTokenFailure();

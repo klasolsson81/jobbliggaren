@@ -29,7 +29,12 @@ public sealed class StorableAddressTests
     [InlineData("sam@example.se\n", "trailing LF")]
     [InlineData("a\u202Eb@example.se", "right-to-left override (Cf)")]
     [InlineData("a\u200Bb@example.se", "zero width space (Cf)")]
+    [InlineData("a\u3000b@example.se", "ideographic space (Zs)")]
+    [InlineData("a\u2028b@example.se", "line separator (Zl)")]
+    [InlineData("a\u00ADb@example.se", "soft hyphen (Cf)")]
+    [InlineData("a\uFEFFb@example.se", "byte order mark (Cf)")]
     [InlineData("a\uD83D\uDE00b@example.se", "an astral character (a surrogate pair)")]
-    public void An_address_carrying_an_invisible_or_unpaired_class_is_not_storable(string address, string because) =>
+    public void An_address_carrying_a_control_whitespace_surrogate_or_format_character_is_not_storable(
+        string address, string because) =>
         StorableAddress.IsStorable(address).ShouldBeFalse(because);
 }

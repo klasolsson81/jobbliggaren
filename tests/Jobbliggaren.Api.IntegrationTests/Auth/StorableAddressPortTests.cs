@@ -37,7 +37,7 @@ public class StorableAddressPortTests(ApiFactory factory)
     }
 
     private Task<int> RowsTaggedAsync(string tag) =>
-        WithAccountsAsync((_, users) => users.Users.CountAsync(u => u.Email!.Contains(tag), Ct));
+        WithAccountsAsync((_, users) => users.Users.CountAsync(u => u.Email != null && u.Email.Contains(tag), Ct));
 
     [Theory]
     [InlineData("o'brien-{0}@example.se")]
@@ -65,9 +65,10 @@ public class StorableAddressPortTests(ApiFactory factory)
     public async Task An_unstorable_address_is_refused_in_swedish_and_leaves_no_row(string pattern)
     {
         var tag = Tag();
+        var email = pattern.Replace("{0}", tag);
+        email.ShouldContain(tag, customMessage: "the no-row reading below is only as strong as this substitution");
 
-        var result = await WithAccountsAsync((accounts, _) =>
-            accounts.CreateUserAsync(pattern.Replace("{0}", tag), Password, Ct));
+        var result = await WithAccountsAsync((accounts, _) => accounts.CreateUserAsync(email, Password, Ct));
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
@@ -93,18 +94,21 @@ public class StorableAddressPortTests(ApiFactory factory)
         (await RowsTaggedAsync(tag)).ShouldBe(1);
     }
 
-    [Fact]
-    public async Task A_folded_spelling_registered_first_holds_the_plain_spelling_out()
+    // The residual security-auditor accepted (ADR 0142, Amendment 2026-09-21 (2)): both spellings are made of
+    // visible characters, so both are storable, and Identity's unique normalised user name then refuses the
+    // second. No session and no data cross; the second spelling's holder can neither register nor log in.
+    [Theory]
+    [InlineData("\u017Fquat-{0}@example.se", "squat-{0}@example.se")]
+    [InlineData("bjo\u0308rn-{0}@example.se", "bj\u00F6rn-{0}@example.se")]
+    public async Task A_spelling_Identity_folds_onto_another_holds_it_out_when_registered_first(
+        string first, string second)
     {
-        // The residual security-auditor accepted (ADR 0142, Amendment 2026-09-21 (2)): U+017F is a visible
-        // letter, so it is storable, and Identity's unique normalised user name then refuses the plain spelling.
-        // No session and no data cross; the plain spelling's holder can neither register nor log in.
         var tag = Tag();
 
         var plain = await WithAccountsAsync(async (accounts, _) =>
         {
-            (await accounts.CreateUserAsync($"\u017Fquat-{tag}@example.se", Password, Ct)).IsSuccess.ShouldBeTrue();
-            return await accounts.CreateUserAsync($"squat-{tag}@example.se", Password, Ct);
+            (await accounts.CreateUserAsync(first.Replace("{0}", tag), Password, Ct)).IsSuccess.ShouldBeTrue();
+            return await accounts.CreateUserAsync(second.Replace("{0}", tag), Password, Ct);
         });
 
         plain.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
@@ -128,7 +132,7 @@ public class StorableAddressPortTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_change_to_an_unstorable_address_is_refused_at_the_write_even_with_a_valid_token()
+    public async Task A_change_to_an_unstorable_address_is_refused_at_the_write()
     {
         // A token minted before the request-time refusal existed is still valid for its lifetime, so the writer
         // refuses too. The token is minted by Identity itself, as GenerateChangeEmailTokenAsync did then.

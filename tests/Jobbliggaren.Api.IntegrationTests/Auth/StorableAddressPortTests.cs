@@ -94,6 +94,24 @@ public class StorableAddressPortTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_folded_spelling_registered_first_holds_the_plain_spelling_out()
+    {
+        // The residual security-auditor accepted (ADR 0142, Amendment 2026-09-21 (2)): U+017F is a visible
+        // letter, so it is storable, and Identity's unique normalised user name then refuses the plain spelling.
+        // No session and no data cross; the plain spelling's holder can neither register nor log in.
+        var tag = Tag();
+
+        var plain = await WithAccountsAsync(async (accounts, _) =>
+        {
+            (await accounts.CreateUserAsync($"\u017Fquat-{tag}@example.se", Password, Ct)).IsSuccess.ShouldBeTrue();
+            return await accounts.CreateUserAsync($"squat-{tag}@example.se", Password, Ct);
+        });
+
+        plain.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
+        (await RowsTaggedAsync(tag)).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task A_change_to_an_unstorable_address_is_refused_when_the_token_is_requested()
     {
         var tag = Tag();

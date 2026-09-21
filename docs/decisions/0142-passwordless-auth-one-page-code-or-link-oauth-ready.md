@@ -727,6 +727,36 @@ address: `CreateUserAsync`, `ConfirmChangeEmailAsync`, and 1c's `CreatePasswordl
 the user-name charset change in the PR after this one. Klas, 2026-09-20: this repair in its own PR first
 ("(b) Egen PR först"), and `björn@…` and `o'brien@…` shall be registrable ("Ja").
 
+#### Amendment 2026-09-21 (2) (#1737) — what may be stored as an address
+
+**The user-name charset is empty.** The user name here IS the address (`UserName = email`), and Identity's
+default `AllowedUserNameCharacters` is ASCII, so `CreateUserAsync` refused addresses both email validators
+admit (`o'brien@…`, `björn@…`) with Identity's English `InvalidUserName` text, and `ConfirmChangeEmailAsync`'s
+user-name sync failed for them and was swallowed, leaving the old address in `UserName`. Klas, 2026-09-20:
+such addresses shall be registrable. `senior-cto-advisor` ruled the charset off in its own PR rather than a
+second list of letters that drifts from the validators.
+
+**R3, and it closes MA-1.** That charset never validated the address, only the user name. What may be stored
+is one predicate, `StorableAddress.IsStorable`, beside `SubjectFingerprint`: no control character, no `Cf`
+format character, no surrogate, no whitespace. A predicate over character classes, not a charset, so it bans
+every astral character (deliberate) and no visible letter. It is asked at every writer of a stored address:
+`CreateUserAsync`, `GenerateChangeEmailTokenAsync` (the request) and `ConfirmChangeEmailAsync` (the write,
+for a token minted before this change); 1c's `CreatePasswordlessUserAsync` joins them. Never on the request
+path of the login challenge, which stores nothing, and never in the two validators. The refusal is
+`Auth.EmailNotStorable`, in Swedish. At the public confirm endpoint it is judged before any account is read:
+it is a property of the submitted spelling alone, so unlike that endpoint's uniform rejections it cannot vary
+with the user id.
+
+**Accepted residual (security-auditor, Minor; #1780).** The four folding code points are visible characters and
+so storable. Whoever registers `ſam@…` first holds `sam@…` out: Identity's unique normalised user name refuses
+the plain spelling, whose holder can then neither register nor log in. No session and no data cross (R1, R2).
+The squat must precede the victim's account and needs mail delivery on the victim's own domain.
+`StorableAddressPortTests` measures it through real Identity.
+
+**Identity's English description pass-through** (`CreateUserAsync`'s non-duplicate arm): its two measured
+triggers, an address with an embedded CR LF (`a\r\nb@…`) and one with a trailing LF, are refused earlier by
+the predicate. No reachable trigger measured after R3; not verified unreachable.
+
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)

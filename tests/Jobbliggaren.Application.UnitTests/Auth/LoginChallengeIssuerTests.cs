@@ -108,7 +108,6 @@ public sealed class LoginChallengeIssuerTests
     [InlineData("active", "perſon@example.com", CodeBudgetState.Admitted)]
     [InlineData("active", "perſon@example.com", CodeBudgetState.Exhausted)]
     [InlineData("pending-deletion", "perſon@example.com", CodeBudgetState.Admitted)]
-    [InlineData("profile-missing", "perſon@example.com", CodeBudgetState.Admitted)]
     public async Task An_accounts_challenge_is_recorded_for_and_mailed_to_the_accounts_own_spelling(
         string subject, string typed, CodeBudgetState budget)
     {
@@ -173,15 +172,34 @@ public sealed class LoginChallengeIssuerTests
         _audit.DidNotReceiveWithAnyArgs().LoginChallengeIssued(default, default, default, default);
     }
 
-    [Fact]
-    public async Task An_account_without_a_profile_gets_the_closed_mail()
+    [Theory]
+    [InlineData(false, CodeBudgetState.Admitted)]
+    [InlineData(false, CodeBudgetState.Exhausted)]
+    [InlineData(true, CodeBudgetState.Admitted)]
+    [InlineData(true, CodeBudgetState.Exhausted)]
+    public async Task An_account_without_a_profile_gets_its_record_under_its_own_spelling_and_no_mail(
+        bool registrationsOpen, CodeBudgetState budget)
     {
-        var issuer = await IssuerAsync("profile-missing", Guid.NewGuid());
+        const string typed = "perſon@example.com";
+        var userId = Guid.NewGuid();
+        var logger = new CapturingLogger<LoginChallengeIssuer>();
+        var issuer = await IssuerAsync("profile-missing", userId, logger, registrationsOpen, typed);
 
-        await issuer.IssueAsync(Dispatch(), Ct);
+        await issuer.IssueAsync(Dispatch(budget, typed), Ct);
 
-        await _sender.Received(1).SendLoginChallengeAsync(
-            Email, new LoginChallengeEmail.RegistrationClosed(), Arg.Any<CancellationToken>());
+        await _store.Received(1).PutAsync(Arg.Any<NewLoginChallenge>(), Arg.Any<CancellationToken>());
+        await _store.Received(1).PutAsync(
+            Arg.Is<NewLoginChallenge>(c => c.Recipient == Email && c.Credentials == ChallengeCredentials.None
+                && c.ReplacesLiveChallenge == (budget == CodeBudgetState.Admitted)),
+            Arg.Any<CancellationToken>());
+        await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);
+        await _budget.DidNotReceiveWithAnyArgs().TryConsumeAsync(default!, default!, Ct);
+        _audit.DidNotReceiveWithAnyArgs().LoginChallengeIssued(default, default, default, default);
+        var (level, eventId, message) = logger.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1018);
+        message.ShouldContain(userId.ToString());
+        message.ShouldNotContain("@");
     }
 
     [Fact]
@@ -233,13 +251,11 @@ public sealed class LoginChallengeIssuerTests
         message.ShouldNotContain("@");
     }
 
-    [Theory]
-    [InlineData("no-account")]
-    [InlineData("profile-missing")]
-    public async Task Past_the_global_cap_an_address_without_an_account_gets_its_record_and_no_mail(string subject)
+    [Fact]
+    public async Task Past_the_global_cap_an_address_without_an_account_gets_its_record_and_no_mail()
     {
         var logger = new CapturingLogger<LoginChallengeIssuer>();
-        var issuer = await IssuerAsync(subject, Guid.NewGuid(), logger);
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), logger);
         _budget.TryConsumeAsync(
                 LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
                 Arg.Any<CancellationToken>())
@@ -286,13 +302,10 @@ public sealed class LoginChallengeIssuerTests
             Email, new LoginChallengeEmail.RegistrationClosed(), Arg.Any<CancellationToken>());
     }
 
-    [Theory]
-    [InlineData("no-account")]
-    [InlineData("profile-missing")]
-    public async Task With_registration_open_an_address_without_an_account_gets_a_code_only_record_and_its_code(
-        string subject)
+    [Fact]
+    public async Task With_registration_open_an_address_without_an_account_gets_a_code_only_record_and_its_code()
     {
-        var issuer = await IssuerAsync(subject, Guid.NewGuid(), registrationsOpen: true);
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), registrationsOpen: true);
 
         await issuer.IssueAsync(Dispatch(), Ct);
 
@@ -317,13 +330,11 @@ public sealed class LoginChallengeIssuerTests
             Email, new LoginChallengeEmail.NewAccountCodeLimitReached(), Arg.Any<CancellationToken>());
     }
 
-    [Theory]
-    [InlineData("no-account")]
-    [InlineData("profile-missing")]
-    public async Task Past_the_global_cap_with_registration_open_the_record_carries_no_code(string subject)
+    [Fact]
+    public async Task Past_the_global_cap_with_registration_open_the_record_carries_no_code()
     {
         // A code nobody is mailed would still take three guesses, silently, for every address anyone names.
-        var issuer = await IssuerAsync(subject, Guid.NewGuid(), registrationsOpen: true);
+        var issuer = await IssuerAsync("no-account", Guid.NewGuid(), registrationsOpen: true);
         _budget.TryConsumeAsync(
                 LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject,
                 Arg.Any<CancellationToken>())

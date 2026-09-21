@@ -34,7 +34,7 @@ public sealed partial class LoginChallengeIssuer(
         // The cap on mails to addresses without an account is consulted BEFORE the record is written, and a
         // capped record carries no credential: a code nobody is mailed would still take three guesses, so
         // the cap would stop bounding them (security-auditor, 2026-09-20).
-        var admitsMail = await AdmitsMailAsync(subject, ct);
+        var capAdmits = await CapAdmitsAsync(subject, ct);
 
         // The account's OWN address, never the submitted spelling (the TryPreparePasswordResetAsync rule):
         // Identity's lookup folds case, and with it a few non-ASCII letters, so the typed spelling can be
@@ -49,11 +49,17 @@ public sealed partial class LoginChallengeIssuer(
             new NewLoginChallenge(
                 dispatch.ChallengeId,
                 recipient,
-                admitsMail ? LoginChallengePlan.CredentialsFor(kind) : ChallengeCredentials.None,
+                capAdmits ? LoginChallengePlan.CredentialsFor(kind) : ChallengeCredentials.None,
                 ReplacesLiveChallenge: dispatch.CodeBudget == CodeBudgetState.Admitted),
             ct);
 
-        if (!admitsMail)
+        if (kind == LoginChallengeKind.RecordOnly)
+        {
+            LogRecordOnly(logger, UserIdOf(subject));
+            return;
+        }
+
+        if (!capAdmits)
         {
             LogUnknownAddressMailCapped(
                 logger,
@@ -96,11 +102,11 @@ public sealed partial class LoginChallengeIssuer(
     private static T Required<T>(T? value) where T : struct =>
         value ?? throw new InvalidOperationException("The store did not mint a credential the plan asked for.");
 
-    private Task<bool> AdmitsMailAsync(LoginSubject subject, CancellationToken ct) => subject switch
+    private Task<bool> CapAdmitsAsync(LoginSubject subject, CancellationToken ct) => subject switch
     {
-        LoginSubject.NoAccount or LoginSubject.ProfileMissing => budget.TryConsumeAsync(
+        LoginSubject.NoAccount => budget.TryConsumeAsync(
             LoginChallengePolicy.UnknownAddressMailBudget, LoginChallengePolicy.UnknownAddressMailSubject, ct),
-        LoginSubject.Active or LoginSubject.PendingDeletion => Task.FromResult(true),
+        LoginSubject.KnownAccount => Task.FromResult(true),
         var other => throw new UnreachableException($"Unclassified login subject {other.GetType().Name}."),
     };
 
@@ -116,4 +122,9 @@ public sealed partial class LoginChallengeIssuer(
         "Login challenge mail to an address without an account not sent: the global cap ({Limit} per "
         + "{Window}) is spent; the record is written")]
     private static partial void LogUnknownAddressMailCapped(ILogger logger, int limit, TimeSpan window);
+
+    [LoggerMessage(1018, LogLevel.Warning,
+        "Login challenge not mailed: the address has an Identity row without a profile ({UserId}); the "
+        + "record is written without a credential")]
+    private static partial void LogRecordOnly(ILogger logger, Guid? userId);
 }

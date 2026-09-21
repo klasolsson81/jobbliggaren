@@ -52,7 +52,7 @@ public abstract record LoginSubject
     public sealed record PendingDeletion(Guid UserId, string AccountEmail, DateTimeOffset DeletedAt)
         : KnownAccount(UserId, AccountEmail);
 
-    /// <summary>An Identity row with no profile (#1349): treated like no account.</summary>
+    /// <summary>An Identity row with no profile (#1349).</summary>
     public sealed record ProfileMissing(Guid UserId, string AccountEmail) : KnownAccount(UserId, AccountEmail);
 }
 

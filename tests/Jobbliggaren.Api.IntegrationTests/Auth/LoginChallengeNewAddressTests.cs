@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -122,11 +123,10 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_identity_row_without_a_profile_is_mailed_a_code_and_then_told_it_is_unavailable()
+    public async Task An_identity_row_without_a_profile_gets_its_record_and_is_mailed_nothing()
     {
         // The orphan the registration path leaves when the Identity user committed and the profile did not
-        // (#1349; OrphanedIdentityActivationTests enumerates its producers). The plan groups it with an
-        // address that has no account, so it is mailed a code; the proof never adopts it.
+        // (#1349; OrphanedIdentityActivationTests enumerates its producers).
         var email = NewAddress("orphan");
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
@@ -135,9 +135,44 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
             created.IsSuccess.ShouldBeTrue();
         }
 
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email }, Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        using var accepted = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
+        var challengeId = accepted.RootElement.GetProperty("challengeId").GetString()!;
+
+        // The consumer has run once the record exists: a missing record answers 410, a record without a code
+        // answers a wrong code. Only then is the absence of a mail a reading.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        HttpStatusCode answer;
+        do
+        {
+            DateTime.UtcNow.ShouldBeLessThan(deadline, "the dispatch consumer never wrote the record");
+            await Task.Delay(25, Ct);
+            answer = (await _client.PostAsJsonAsync(
+                "/api/v1/auth/challenge/verify", new { challengeId, code = "000000" }, Ct)).StatusCode;
+        }
+        while (answer == HttpStatusCode.Gone);
+
+        answer.ShouldBe(HttpStatusCode.BadRequest);
+        MailsTo(email).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_row_that_appears_without_a_profile_after_the_code_was_mailed_is_told_it_is_unavailable()
+    {
+        var email = NewAddress("late-orphan");
         var before = await KeysAsync(_factory.VolatileRedisConnectionString, GrantKeys);
         var (challengeId, mail) = await MintAsync(email);
         var code = mail.ShouldBeOfType<LoginChallengeEmail.NewAccountCode>().Code.Reveal();
+
+        // A sibling complete whose Identity write committed and whose profile save did not
+        // (CompleteLoginChallengeCommandHandler.CreateAccountAsync): the creator's half alone.
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
+                .CreatePasswordlessUserAsync(email, Ct);
+            created.IsSuccess.ShouldBeTrue();
+        }
 
         var body = await VerifiedAsync(challengeId, code);
 

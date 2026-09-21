@@ -5,8 +5,8 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
 /// The plan as one table (senior-cto-advisor, 2026-09-19 and 2026-09-20): every subject crossed with both
-/// code-budget states and both registration states. The registration state moves only the two subjects that
-/// have no usable account.
+/// code-budget states and both registration states. The registration state moves only the address without an
+/// account.
 /// </summary>
 public sealed class LoginChallengePlanTests
 {
@@ -26,10 +26,10 @@ public sealed class LoginChallengePlanTests
         { "no-account", CodeBudgetState.Exhausted, RegistrationState.Closed, LoginChallengeKind.RegistrationClosed },
         { "no-account", CodeBudgetState.Admitted, RegistrationState.Open, LoginChallengeKind.NewAccountCode },
         { "no-account", CodeBudgetState.Exhausted, RegistrationState.Open, LoginChallengeKind.NewAccountCodeLimitReached },
-        { "profile-missing", CodeBudgetState.Admitted, RegistrationState.Closed, LoginChallengeKind.RegistrationClosed },
-        { "profile-missing", CodeBudgetState.Exhausted, RegistrationState.Closed, LoginChallengeKind.RegistrationClosed },
-        { "profile-missing", CodeBudgetState.Admitted, RegistrationState.Open, LoginChallengeKind.NewAccountCode },
-        { "profile-missing", CodeBudgetState.Exhausted, RegistrationState.Open, LoginChallengeKind.NewAccountCodeLimitReached },
+        { "profile-missing", CodeBudgetState.Admitted, RegistrationState.Closed, LoginChallengeKind.RecordOnly },
+        { "profile-missing", CodeBudgetState.Exhausted, RegistrationState.Closed, LoginChallengeKind.RecordOnly },
+        { "profile-missing", CodeBudgetState.Admitted, RegistrationState.Open, LoginChallengeKind.RecordOnly },
+        { "profile-missing", CodeBudgetState.Exhausted, RegistrationState.Open, LoginChallengeKind.RecordOnly },
     };
 
     private static LoginSubject Subject(string name) => name switch
@@ -56,6 +56,7 @@ public sealed class LoginChallengePlanTests
     [InlineData(LoginChallengeKind.NewAccountCodeLimitReached, ChallengeCredentials.None)]
     [InlineData(LoginChallengeKind.PendingDeletion, ChallengeCredentials.None)]
     [InlineData(LoginChallengeKind.RegistrationClosed, ChallengeCredentials.None)]
+    [InlineData(LoginChallengeKind.RecordOnly, ChallengeCredentials.None)]
     public void Each_kind_is_minted_the_credentials_its_mail_carries(
         LoginChallengeKind kind, ChallengeCredentials expected)
     {

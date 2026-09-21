@@ -164,8 +164,9 @@ sends, classifies the address (`LoginSubjectResolver`: no account, active, pendi
 missing) and sends at most ONE mail. **The record and the mail are addressed to the account's OWN stored
 spelling when a row holds the submitted address, and to the submitted spelling otherwise** (Amendment
 2026-09-21). An active account within its code budget → code + link; past it → link
-only; no account or a missing profile → the closed-registration notice, no credential, in 1a — the
-new-account code arm is 1c's (#1737); pending deletion → the restore path, no credential. Redis down →
+only; no account → the closed-registration notice, no credential, in 1a — the
+new-account code arm is 1c's (#1737); a missing profile → its record and no mail (Amendment 2026-09-20);
+pending deletion → the restore path, no credential. Redis down →
 uniform 503 through `StoreUnavailableException` (`Program.cs`, the shipped pattern).
 
 **The consumer registers in the Api composition only** (ADR 0023): inside `AddIdentityAndSessions`,
@@ -563,7 +564,7 @@ resting copy's premise does not hold for it. Part 2 (#1738) re-binds that copy w
 **Outcomes at proof time; the 1a/1c line (CTO Q1).** The mail is chosen at issue time and the outcome at
 proof time, by one function the code and the link share, so an account deleted or a kill-switch thrown
 inside the 15 minutes is honoured. 1a never mints a code for a subject without an account, whatever
-`RegistrationsOpen` says; `ProfileMissing` groups with `NoAccount`, as the domain already treats it.
+`RegistrationsOpen` says.
 1c adds the open-registration arm in one piece.
 
 **"Missing is shown as expired" (CTO Q2(a)).** D3's *"only expiry removes it"* was false and is replaced
@@ -715,8 +716,8 @@ The compose ships first (#1773). The PR that makes the key required is not armed
 
 *Decided before code by `dotnet-architect` (`docs/reviews/2026-09-20-1737-form-architect.md`), `security-auditor`
 (`…-form-security.md`) and `senior-cto-advisor` (`…-form-cto.md`, with one scoped ruling `…-cto-username.md`).* The
-sentences in D1, D3, D10, Amendment 2026-09-19 (2), "Attempt budget" and "Implementation status" that the form
-contradicted were corrected in place; this block records why.
+sentences in D1, D2, D3, D10, Amendment 2026-09-19, Amendment 2026-09-19 (2), "Attempt budget" and
+"Implementation status" that the form or its review contradicted were corrected in place; this block records why.
 
 **Three PRs (CTO), and two more the work found.** The password-surface gates (#1777) repair a surface 1a delivered
 and share no type with the arm. The display name becoming optional (#1782) is a schema relaxation on a shipped
@@ -767,15 +768,14 @@ A link proves an address without an account only when the account went away insi
 new account rises from a bearer that has sat in a browser's history. `ProfileMissing` is never adopted and never
 replaced: the row is an in-flight sibling registration or the residue of a failed hard delete, and the two cannot be
 told apart at the proof. `registrationClosed` would have been the smaller diff and a false statement while
-registration is open. **The bind "`ProfileMissing` groups with `NoAccount` in the plan" stands: it is about the
-mail, and the outcome was always proof-time.** The cost is an accepted residual: an orphan is mailed a
-`NewAccountCode` and then answered `accountUnavailable`, for as long as the orphan sweep leaves the row — between
+registration is open. An Identity row without a profile is written its record and mailed nothing, in either
+registration state (`security-auditor`, PR #1783, M-2), for as long as the orphan sweep leaves the row — between
 1 h (`AccountHardDeleter.OrphanGraceWindow`) and about 25 h (the job runs daily at 04:00 UTC), measured 2026-09-20.
 
 **The cap is consulted before the record is written (security-auditor, Major).** In 1a the order was harmless,
 because a record for an address without an account never carried a credential. In 1c it would mint a live,
 account-creating code above the global cap: no mail, no signal to anyone, three guesses per record, for every
-address anyone names. For `NoAccount` and `ProfileMissing` the issuer now asks `UnknownAddressMailBudget` first, and
+address anyone names. For `NoAccount` the issuer now asks `UnknownAddressMailBudget` first, and
 a refused record carries `ChallengeCredentials.None`. `ReplacesLiveChallenge` still follows the request path's
 code-budget decision alone, so a capped record displaces the address's live challenge exactly as a
 closed-registration record did in 1a: the index decision must not read the account.
@@ -788,11 +788,12 @@ chooses the denominator, since any address will do. The cap-before-record order 
 20 code-bearing records per 24 h for all new addresses together, so 60 guesses per day against the whole surface,
 and an attack that spends the cap stops every registration, which is visible. **`UnknownAddressMailBudget` is
 therefore one of trigger 5's quantities from this amendment on.** `RegistrationClaimTtl` and `GrantTtl` are not.
+Trigger 7 fires once more with the record-only arm above: for an Identity row without a profile the consumer sends
+no mail. That record carries no credential, so the arithmetic does not move, and the resting copy #1738 re-binds
+has to hold for it as for a capped record.
 
-**The two mails reach recipient class (3) whenever the resolver found no account**, and the row's own stored
-address when it found an Identity row without a profile (the orphan above), exactly as the closed-registration mail
-does. Both carry the whole Art. 14 notice in every send, shared with the closed-registration mail through one block
-each. The
+**The two mails reach recipient class (3) whenever the resolver found no account.** Both carry the whole Art. 14
+notice in every send, shared with the closed-registration mail through one block each. The
 retention paragraph of `NewAccountCode` is conditional, in `security-auditor`'s wording: the address is kept
 protected for the challenge's lifetime, for the grant's lifetime more if the code is used, a fingerprint for the
 code budget's window, and as the account's address if the account is created. The closed mail's "Därefter finns

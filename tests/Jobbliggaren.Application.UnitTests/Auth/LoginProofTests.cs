@@ -10,6 +10,7 @@ using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -35,12 +36,13 @@ public sealed class LoginProofTests
     private readonly ISessionStore _sessions = Substitute.For<ISessionStore>();
     private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
+    private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public LoginProofTests()
     {
-        _lookup.FindUserIdAsync(Email, Arg.Any<CancellationToken>()).Returns(_userId);
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns(new LoginAccount(_userId, Email));
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.AlreadyConfirmed);
         _sessions.CreateAsync(_userId, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
             .Returns(call => new Session(
@@ -69,7 +71,7 @@ public sealed class LoginProofTests
             _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request);
     }
 
-    private LoginProofOutcome Outcome() => new(new LoginSubjectResolver(_lookup, _db), Grant());
+    private LoginProofOutcome Outcome() => new(new LoginSubjectResolver(_lookup, _db), Grant(), _outcomeLog);
 
     private VerifyLoginChallengeCommandHandler Verify() => new(_store, Outcome());
 
@@ -127,7 +129,7 @@ public sealed class LoginProofTests
             await Verify().Handle(VerifyCommand(), Ct);
         }
 
-        await _lookup.DidNotReceiveWithAnyArgs().FindUserIdAsync(default!, Ct);
+        await _lookup.DidNotReceiveWithAnyArgs().FindAccountAsync(default!, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
     }
 
@@ -141,7 +143,7 @@ public sealed class LoginProofTests
 
         result.Error.Code.ShouldBe(AuthErrorCodes.LoginLinkUnusable);
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
-        await _lookup.DidNotReceiveWithAnyArgs().FindUserIdAsync(default!, Ct);
+        await _lookup.DidNotReceiveWithAnyArgs().FindAccountAsync(default!, Ct);
     }
 
     // ── the outcome, resolved at proof time ──
@@ -157,6 +159,7 @@ public sealed class LoginProofTests
         result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
         await _sessions.Received(1).CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
         _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+        _outcomeLog.Records.ShouldBeEmpty();
     }
 
     [Fact]
@@ -192,11 +195,78 @@ public sealed class LoginProofTests
         Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
         (await Verify().Handle(VerifyCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
 
-        _lookup.FindUserIdAsync(Email, Arg.Any<CancellationToken>()).Returns((Guid?)null);
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
         (await Verify().Handle(VerifyCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
 
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+    }
+
+    // ── the proven address must be the account's own ──
+
+    // UNREACHABLE through the current issuer: it writes a credential only for an active account, and then under
+    // the account's own spelling (LoginChallengeIssuerTests pins that). These assert only how the outcome
+    // refuses if a record ever proves another spelling. Identity's lookup normaliser upper-cases, and
+    // U+017F (ſ) upper-cases to S, so both another letter case and the long-s spelling find the account.
+    private const string FoldedEmail = "perſon@example.com";
+
+    private void TheFoldedSpellingFindsTheAccount() => TheSpellingFindsTheAccount(FoldedEmail);
+
+    private void TheSpellingFindsTheAccount(string spelling) =>
+        _lookup.FindAccountAsync(spelling, Arg.Any<CancellationToken>()).Returns(new LoginAccount(_userId, Email));
+
+    [Theory]
+    [InlineData(FoldedEmail)]
+    [InlineData("Person@Example.com")]
+    public async Task A_code_proving_another_spelling_of_an_accounts_address_gives_no_session(string proven)
+    {
+        await WithProfileAsync();
+        TheSpellingFindsTheAccount(proven);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(proven)));
+
+        var result = await Verify().Handle(VerifyCommand(), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+        var (level, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1016);
+        message.ShouldContain(_userId.ToString());
+        message.ShouldContain(nameof(LoginMethod.Code));
+        message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task A_link_proving_another_spelling_of_an_accounts_address_gives_no_session()
+    {
+        await WithProfileAsync();
+        TheFoldedSpellingFindsTheAccount();
+        _store.ConsumeLinkAsync(Arg.Any<LoginLinkToken>(), Arg.Any<CancellationToken>())
+            .Returns(new LoginChallengeProof(FoldedEmail));
+
+        var result = await Link().Handle(new ConsumeLoginLinkCommand("token"), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        var (level, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Warning);
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.Link));
+        message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task Another_spelling_of_an_address_pending_deletion_is_not_told_the_deletion_date()
+    {
+        await WithProfileAsync(softDeleted: true);
+        TheFoldedSpellingFindsTheAccount();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(FoldedEmail)));
+
+        var result = await Verify().Handle(VerifyCommand(), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.RegistrationClosed>();
     }
 
     // ── the grant ──
@@ -204,7 +274,7 @@ public sealed class LoginProofTests
     [Fact]
     public async Task A_confirmed_inbox_writes_no_audit_row_and_revokes_nothing()
     {
-        await Grant().GrantAsync(new LoginSubject.Active(_userId), LoginMethod.Code, Ct);
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct);
 
         _db.AuditLogEntries.Local.ShouldBeEmpty();
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
@@ -216,7 +286,7 @@ public sealed class LoginProofTests
     {
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
 
-        await Grant().GrantAsync(new LoginSubject.Active(_userId), LoginMethod.Link, Ct);
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Link, Ct);
 
         var row = _db.AuditLogEntries.Local.ShouldHaveSingleItem();
         row.EventType.ShouldBe(PasswordlessSessionGrant.InboxProvenAuditEventType);
@@ -243,7 +313,7 @@ public sealed class LoginProofTests
                 new TimeoutException("Redis timed out")));
 
         await Should.ThrowAsync<SessionStoreUnavailableException>(
-            () => Grant().GrantAsync(new LoginSubject.Active(_userId), LoginMethod.Code, Ct));
+            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct));
 
         (await _db.AuditLogEntries.AsNoTracking()
             .CountAsync(e => e.EventType == PasswordlessSessionGrant.InboxProvenAuditEventType, Ct)).ShouldBe(1);
@@ -256,7 +326,7 @@ public sealed class LoginProofTests
             .ThrowsAsync(new InvalidOperationException("ConcurrencyFailure"));
 
         await Should.ThrowAsync<InvalidOperationException>(
-            () => Grant().GrantAsync(new LoginSubject.Active(_userId), LoginMethod.Code, Ct));
+            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct));
 
         _db.AuditLogEntries.Local.ShouldBeEmpty();
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);

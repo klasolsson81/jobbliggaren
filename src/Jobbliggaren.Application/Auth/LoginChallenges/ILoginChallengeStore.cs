@@ -19,11 +19,13 @@ public enum ChallengeCredentials
 /// A challenge to write. <see cref="ReplacesLiveChallenge"/> is true when the request's code budget admitted
 /// the mint: only then does the new record burn the address's previous one. It is decided on the request
 /// path, which knows nothing of the account, so whether an earlier challenge was burned can never tell a
-/// prober whether the address has one (security-auditor Q-S1, 2026-09-19).
+/// prober whether the address has one (security-auditor Q-S1, 2026-09-19). <see cref="Recipient"/> is the
+/// address the challenge is addressed to — the account's own spelling when a row holds the address, the
+/// submitted one otherwise — and so the address a proof of this record proves.
 /// </summary>
 public sealed record NewLoginChallenge(
     ChallengeId Id,
-    string Email,
+    string Recipient,
     ChallengeCredentials Credentials,
     bool ReplacesLiveChallenge);
 

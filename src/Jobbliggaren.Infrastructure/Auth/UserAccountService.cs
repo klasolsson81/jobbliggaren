@@ -201,10 +201,12 @@ public sealed partial class UserAccountService(
 
     // ILoginAccountLookup — one consumer, LoginSubjectResolver (#1735). A separate port rather than an
     // IUserAccountService member, so this service still offers no bare existence check to its callers.
-    async Task<Guid?> ILoginAccountLookup.FindUserIdAsync(string email, CancellationToken ct)
+    // A row with no stored address cannot be mailed and answers like no account, as in
+    // TryPreparePasswordResetAsync.
+    async Task<LoginAccount?> ILoginAccountLookup.FindAccountAsync(string email, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(email);
-        return user?.Id;
+        return user is { Email: { } accountEmail } ? new LoginAccount(user.Id, accountEmail) : null;
     }
 
     public async Task<Result<string>> GenerateChangeEmailTokenAsync(

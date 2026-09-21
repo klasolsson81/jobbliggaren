@@ -72,7 +72,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 : null;
 
             var payload = new ChallengePayload(
-                challenge.Email,
+                challenge.Recipient,
                 code?.Reveal(),
                 secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)));
             var protectedPayload = _protector.Protect(Padded(payload));
@@ -89,7 +89,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 [new HashEntry(PayloadField, protectedPayload), new HashEntry(AttemptsField, 0)]);
             var expire = transaction.KeyExpireAsync(recordKey, LoginChallengePolicy.ChallengeTtl);
             var displaced = challenge.ReplacesLiveChallenge
-                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Email), segment, LoginChallengePolicy.ChallengeTtl)
+                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Recipient), segment, LoginChallengePolicy.ChallengeTtl)
                 : null;
             await transaction.ExecuteAsync();
             await write;
@@ -145,7 +145,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 // Single use: of two concurrent hits, or a hit racing the link or a newer mint, exactly one
                 // delete returns true.
                 return await db.KeyDeleteAsync(recordKey)
-                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Email))
+                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient))
                     : ChallengeVerdict.Missing;
             }
 
@@ -182,7 +182,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             if (!matched)
                 return null;
 
-            return await db.KeyDeleteAsync(recordKey) ? new LoginChallengeProof(payload.Email) : null;
+            return await db.KeyDeleteAsync(recordKey) ? new LoginChallengeProof(payload.Recipient) : null;
         });
 
     // RandomNumberGenerator.GetInt32 draws uniformly over the range (the runtime rejects biased samples), so
@@ -268,7 +268,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     private static partial void LogPayloadUnreadable(ILogger logger, string errorType);
 
     internal sealed record ChallengePayload(
-        [property: JsonPropertyName("e")] string Email,
+        [property: JsonPropertyName("e")] string Recipient,
         [property: JsonPropertyName("c")] string? Code,
         [property: JsonPropertyName("l")] string? LinkHash);
 }

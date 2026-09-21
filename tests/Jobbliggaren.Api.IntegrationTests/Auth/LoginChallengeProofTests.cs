@@ -48,10 +48,11 @@ public class LoginChallengeProofTests(ApiFactory factory)
         };
     }
 
-    private async Task<Minted> MintAsync(string email)
+    /// <summary>Requests a challenge as <paramref name="typedAs"/> and reads the mail <paramref name="email"/> got.</summary>
+    private async Task<Minted> MintAsync(string email, string? typedAs = null)
     {
         var before = MailsTo(email).Count;
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email }, Ct);
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email = typedAs ?? email }, Ct);
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct));
 
@@ -135,6 +136,23 @@ public class LoginChallengeProofTests(ApiFactory factory)
         session.ShouldNotBeNull();
         session.Lifetime.ShouldBe(SessionLifetime.Persistent);
         (await ProbeAsync(sessionId)).ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Theory]
+    [InlineData("upper-case")]
+    [InlineData("long-s")]
+    public async Task A_login_typed_in_another_spelling_of_the_accounts_address_signs_its_owner_in(string spelling)
+    {
+        // The mail goes to the account's own spelling, and so does the record the code proves.
+        var email = NewAddress("case");
+        var typed = spelling == "upper-case" ? email.ToUpperInvariant() : email.Replace("-case-", "-caſe-");
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+
+        var minted = await MintAsync(email, typedAs: typed);
+
+        var sessionId = await SignedInSessionOf(await VerifyAsync(minted.ChallengeId, minted.Code));
+        (await ProbeAsync(sessionId)).ShouldBe(HttpStatusCode.OK);
+        MailsTo(typed).ShouldBeEmpty();
     }
 
     [Fact]

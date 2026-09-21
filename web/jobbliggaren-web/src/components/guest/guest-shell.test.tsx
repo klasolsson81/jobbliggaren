@@ -56,7 +56,7 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
     ).not.toHaveAttribute("aria-current");
   });
 
-  it("shows the log-in and create-account CTAs in the header", () => {
+  it("shows ONE log-in control in the header, since /logga-in is both doors", () => {
     render(
       <GuestShell>
         <p />
@@ -67,10 +67,7 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
       "href",
       "/logga-in",
     );
-    expect(screen.getByRole("link", { name: "Skapa konto" })).toHaveAttribute(
-      "href",
-      "/registrera",
-    );
+    expect(screen.queryByRole("link", { name: "Skapa konto" })).toBeNull();
   });
 
   it("carries the language control, because guests cannot reach Inställningar", () => {

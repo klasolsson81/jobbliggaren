@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-09-17",
+    "updated": "Senast uppdaterad: 2026-09-21",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -26,7 +26,8 @@
         "paragraphs": [
           "För att du ska kunna skapa ett konto och använda Jobbliggaren behandlar vi uppgifterna nedan. Den rättsliga grunden är att behandlingen är nödvändig för att vi ska kunna leverera tjänsten till dig (artikel 6.1 b, fullgörande av avtal). Utan dessa uppgifter kan vi inte tillhandahålla ett konto.",
           "Ditt cv, dina personliga brev, dina anteckningar och dina uppföljningar är känsligare uppgifter och skyddas med kryptering, se avsnittet om säkerhet längre ner.",
-          "En cv-fil du laddar upp kan innehålla uppgifter om andra personer, till exempel referenser. Sådana uppgifter behandlas bara som en del av ditt eget dokument, till exempel när filens text läses ut för din egen cv-granskning. De används aldrig för något annat ändamål, visas aldrig för någon annan och används aldrig för att kontakta någon. Filen lagras krypterad och bara för din egen användning."
+          "En cv-fil du laddar upp kan innehålla uppgifter om andra personer, till exempel referenser. Sådana uppgifter behandlas bara som en del av ditt eget dokument, till exempel när filens text läses ut för din egen cv-granskning. De används aldrig för något annat ändamål, visas aldrig för någon annan och används aldrig för att kontakta någon. Filen lagras krypterad och bara för din egen användning.",
+          "När du anger din e-postadress på inloggningssidan behandlar vi adressen för att skicka en inloggningskod eller en inloggningslänk dit. Är registreringen öppen och saknar adressen ett konto kan du skapa ett konto i samma steg, genom att godkänna användarvillkoren, och adressen blir då ditt kontos adress. Den rättsliga grunden är att behandlingen är nödvändig för att ingå eller fullgöra avtalet med dig (artikel 6.1 b). Adressen sparas skyddad i högst 25 minuter; skapas ett konto sparas den därefter som kontots adress enligt punkterna ovan. Ett avtryck av adressen, som vi inte kan räkna tillbaka till adressen, sparas i högst ett dygn för att begränsa hur många mejl som kan begäras till en och samma adress. Sidan svarar likadant oavsett om adressen har ett konto eller inte, eftersom ett svar som skilde på adresser hade avslöjat vilka adresser som finns hos oss, och vid hög belastning kan vi behöva avstå från att skicka mejlet till en adress som saknar konto."
         ],
         "list": [
           "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext), visningsnamn och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Dessutom tidpunkten då du godkände användarvillkoren och vilka versioner av villkoren och integritetspolicyn som gällde då. Används för att skapa och säkra ditt konto, identifiera dig i tjänsten och kunna visa att villkoren har godkänts.",
@@ -47,7 +48,8 @@
           "Säkerhetsmeddelanden om konton. Vi skickar ett meddelande när något säkerhetsrelevant händer med ett konto: när adressen ändras går ett meddelande till den tidigare adressen, när lösenordet har återställts skickar vi en bekräftelse, och om någon försöker registrera ett konto på en adress som redan finns hos oss får du som äger adressen veta det. Ett av meddelandena kan nå dig även om du inte har något konto hos oss: anger någon din adress för ett adressbyte skickar vi en bekräftelselänk dit. Vårt berättigade intresse är att du ska kunna upptäcka och agera på en ändring du inte gjort själv, och att en adress inte ska kunna kopplas till ett konto utan att den som äger adressen bekräftar det. Meddelandena går till den adress som skyddas, och därför skickas de som e-post i stället för att visas i tjänsten.",
           "Hämtning av jobbannonser från JobTech. Vi hämtar och bearbetar öppna data om lediga jobb från Arbetsförmedlingens JobTech. Vårt berättigade intresse är att kunna erbjuda en fungerande jobbtjänst. De annonser vi hämtar är offentliga data och är inte dina personuppgifter. Innehåller en annons uppgifter om en kontaktperson hos arbetsgivaren behandlar vi dem enligt avsnittet Kontaktuppgifter i jobbannonser nedan.",
           "Markering av nytt sedan ditt förra besök. Vi håller reda på vad som är nytt för dig sedan du senast var inloggad, så att du snabbt ser vad som tillkommit. Vårt berättigade intresse är att ge dig en användbar och överskådlig tjänst.",
-          "Företagsuppslag mot SCB:s företagsregister (planerat). När du söker på ett organisationsnummer under Företag skickas numret du skriver in till Statistiska centralbyrån (SCB) för att hämta företagets namn. Vårt berättigade intresse är att du ska kunna hitta och bevaka arbetsgivare, även sådana som saknar annonser hos oss. Nummer som kan vara personnummer (enskild firma) slås aldrig upp och skickas aldrig. Detta är planerat och ännu inte i drift."
+          "Företagsuppslag mot SCB:s företagsregister (planerat). När du söker på ett organisationsnummer under Företag skickas numret du skriver in till Statistiska centralbyrån (SCB) för att hämta företagets namn. Vårt berättigade intresse är att du ska kunna hitta och bevaka arbetsgivare, även sådana som saknar annonser hos oss. Nummer som kan vara personnummer (enskild firma) slås aldrig upp och skickas aldrig. Detta är planerat och ännu inte i drift.",
+          "Inloggningsmejl till en adress utan konto. Anger någon en e-postadress på inloggningssidan och adressen inte har något konto hos oss, skickar vi ändå ett mejl dit, med samma innehåll som till alla andra i samma läge. Mejlet innehåller inga uppgifter om någon annan. Vårt berättigade intresse är att en adress inte ska kunna kopplas till ett konto utan att den som äger adressen bekräftar det, och att svaret på sidan ska vara detsamma för alla adresser. Vid hög belastning skickar vi inget mejl alls i det här fallet."
         ]
       },
       {
@@ -313,7 +315,7 @@
       "description": "Vilka kakor (cookies) Jobbliggaren använder och varför. Endast nödvändiga och funktionella kakor, ingen spårning och ingen samtyckesbanner."
     },
     "title": "Cookiepolicy",
-    "updated": "Senast uppdaterad: 2026-07-05",
+    "updated": "Senast uppdaterad: 2026-09-21",
     "intro": "Den här cookiepolicyn beskriver vilka kakor (cookies) och liknande lagringstekniker Jobbliggaren använder, varför de används och hur du kontrollerar dem. Policyn är informativ. Jobbliggaren använder inga spårnings-, analys- eller marknadsföringskakor, och därför visas ingen samtyckesbanner.",
     "sections": [
       {
@@ -326,11 +328,12 @@
       {
         "heading": "Nödvändiga cookies",
         "paragraphs": [
-          "Nödvändiga cookies krävs för att grundläggande funktioner ska fungera, framför allt inloggning. Utan dem kan du inte logga in eller använda ditt konto. Dessa kakor sätts inte för besökare som inte loggar in.",
-          "När du loggar in kan du välja Håll mig inloggad. Lämnar du rutan otickad sätts en sessionskaka som försvinner när du stänger webbläsaren, vilket är det säkra standardvalet på delade datorer. Tickar du i rutan sätts en permanent kaka så att du förblir inloggad på den här enheten i upp till 180 dagar. Av säkerhetsskäl byts sessions-id:t automatiskt ut med jämna mellanrum, utan att du loggas ut. Du kan när som helst logga ut med Logga ut, som finns på varje inloggad sida, vilket tar bort kakan direkt."
+          "Nödvändiga cookies krävs för att grundläggande funktioner ska fungera, framför allt inloggning. Utan dem kan du inte logga in eller använda ditt konto. En av dem sätts redan när du anger din e-postadress på inloggningssidan, alltså innan du är inloggad; i övrigt sätts de här kakorna inte för besökare som inte loggar in.",
+          "När du loggar in håller vi dig kvar inloggad på den här enheten. Använder du inte tjänsten på 30 dagar loggas du ut, och det är den gräns som gäller i praktiken. Även om du använder tjänsten hela tiden loggas du ut senast efter 180 dagar. Det finns inget val att göra vid inloggningen och ingen ruta att ticka i: så här fungerar det alltid. Av säkerhetsskäl byts sessions-id:t automatiskt ut med jämna mellanrum, utan att du loggas ut. Du kan när som helst logga ut med Logga ut, som finns på varje inloggad sida, vilket tar bort kakan direkt. På en delad dator är Logga ut det du ska använda när du är klar, eftersom kakan annars ligger kvar på enheten."
         ],
         "list": [
-          "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict. Om du valt Håll mig inloggad varar den i upp till 180 dagar, annars försvinner den när du stänger webbläsaren.",
+          "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict och varar i upp till 180 dagar, medan du loggas ut efter 30 dagar utan att ha använt tjänsten.",
+          "__Host-jobbliggaren_login: håller ihop inloggningen medan den pågår. Sätts när du anger din e-postadress på inloggningssidan och innehåller den adress du skrev, så att du ser vilken adress du angav och kan begära en ny kod. Sätts med HttpOnly, Secure och SameSite=Strict, kan inte läsas av sidans skript, och varar i högst 15 minuter. Den byts mot en kortlivad kaka utan adress när du går vidare, och den tas bort när du loggar in.",
           "__Host-jobbliggaren_refresh_after: en teknisk hjälpkaka utan personuppgifter som styr hur ofta din inloggning förnyas i bakgrunden. Innehåller endast en tidsstämpel.",
           "Skydd mot förfalskade förfrågningar (CSRF): Jobbliggaren skyddar dig mot så kallade cross-site request forgery-attacker. Skyddet bygger på hur sessionskakan är inställd (SameSite=Strict) tillsammans med kontroll på serversidan av varifrån förfrågan kommer. Det krävs ingen särskild, separat skyddskaka."
         ]

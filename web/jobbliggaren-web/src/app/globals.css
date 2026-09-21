@@ -4599,16 +4599,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Gratis- och datarader under ett registreringsformulär ───
    Kvar av det flikade auth-kortet, som förlorade sin enda konsument
-   med <AuthCard/> i #1480. /registrera renderar båda raderna;
-   landningens kontokort bara gratisraden. */
-.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
+   med <AuthCard/> i #1480. Landningens kontokort renderar båda raderna
+   sedan registreringssidan gick i #1738. */
+.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; text-align: center; }
 /* Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
 
 /* ── Kontokortet i landningens hero (riktning 2b, #1480) ─────
    Ljust kort på den mörka plattan. Ersatte det inbäddade
    registreringsformuläret: kortet säljer kontot och länkar till
-   /registrera i stället för att kräva ifyllnad direkt.
+   /logga-in i stället för att kräva ifyllnad direkt.
    Radierna, färgerna och skuggan är befintliga tokens — inga nya. */
 .jp-land-account {
   background: var(--jp-surface); border: 1px solid var(--jp-border);

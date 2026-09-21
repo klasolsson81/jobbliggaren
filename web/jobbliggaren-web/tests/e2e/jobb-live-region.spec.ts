@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import { expect } from "@playwright/test";
+import { loggedInTest } from "./helpers/session";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
+const test = loggedInTest(RUN_ID);
 
 /**
  * #1505 — `/jobb`'s load-cycle live region, measured where unit tests cannot reach.
@@ -34,15 +34,7 @@ const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 const RESULTS_SECTION = "section[aria-labelledby='jobb-results-title']";
 const LOAD_REGION = `${RESULTS_SECTION} p[aria-live='polite'].sr-only[aria-atomic='true']`;
 
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
-
 test.describe("/jobb — the load cycle announces through a region that precedes it", () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAs(page, RUN_ID);
-  });
-
   test("the results section owns exactly one region, and the hero regions stay outside it", async ({
     page,
   }) => {

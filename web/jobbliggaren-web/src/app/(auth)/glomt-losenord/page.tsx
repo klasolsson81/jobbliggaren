@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 // (app)/ directory), so the proxy never redirects it to /logga-in.
 //
 // No metadata.robots override, unlike /aterstall-losenord: this URL carries no token and nothing
-// secret. It is an ordinary public page, in the same class as /logga-in and /registrera.
+// secret. It is an ordinary public page, in the same class as /logga-in.
 
 export default function GlomtLosenordPage() {
   const t = useTranslations("pages");

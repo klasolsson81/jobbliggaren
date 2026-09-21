@@ -12,6 +12,10 @@ export const SESSION_COOKIE_NAME = "__Host-jobbliggaren_session";
 // seconds after which the next /auth/refresh is due). Carries no credential.
 export const REFRESH_AFTER_COOKIE_NAME = "__Host-jobbliggaren_refresh_after";
 
+// The login flow's position while a login is in progress (`login-flow.ts`). In its code phase it
+// carries the address as typed, so it is the one cookie here that holds a personal datum.
+export const LOGIN_FLOW_COOKIE_NAME = "__Host-jobbliggaren_login";
+
 // Persistent ("Håll mig inloggad" ticked) cookie Max-Age = the 180d absolute cap. The
 // server is the SSOT for expiry (30d sliding + 180d cap from CreatedAt); this is just the
 // finite ceiling so the cookie survives browser restarts (never an infinite cookie).

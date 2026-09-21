@@ -1,7 +1,11 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { buildSecurityHeaders } from "./src/lib/security/security-headers";
+import {
+  buildSecurityHeaders,
+  LOGIN_LINK_ROUTE,
+  LOGIN_LINK_ROUTE_HEADERS,
+} from "./src/lib/security/security-headers";
 
 // next-intl without i18n routing: the plugin wires the request config at
 // `src/i18n/request.ts` (locale resolved from the `NEXT_LOCALE` cookie). See ADR 0078.
@@ -65,6 +69,13 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: buildSecurityHeaders(isDev).map((h) => ({ ...h })),
       },
+      // AFTER the global block on purpose: for a key two entries both set, the later entry is
+      // the one served, and this route overrides `Referrer-Policy`. Measured, not assumed, in
+      // `tests/e2e/security-headers.spec.ts`.
+      {
+        source: LOGIN_LINK_ROUTE,
+        headers: LOGIN_LINK_ROUTE_HEADERS.map((h) => ({ ...h })),
+      },
     ];
   },
 
@@ -72,8 +83,16 @@ const nextConfig: NextConfig = {
   // Status 308 (permanent + method-preserving) så bokmärken och externa
   // länkar mot gamla routen pekas korrekt utan att tappa POST/PUT-metod.
   // Next.js `permanent: true` ⇔ HTTP 308.
+  //
+  // `/registrera` → `/logga-in` (ADR 0142): one page logs in and creates an account, so the old
+  // URL survives only as this shim for bookmarks and old mail. Nothing in `src/` points at it.
   async redirects() {
     return [
+      {
+        source: "/registrera",
+        destination: "/logga-in",
+        permanent: true,
+      },
       {
         source: "/mig",
         destination: "/installningar",

@@ -128,3 +128,32 @@ export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
         ]),
   ];
 }
+
+/**
+ * `/logga-in/lank` carries a single-use login token in its query string (ADR 0142 "Page form").
+ *
+ * `no-store` on the GET and on the POST: a login URL must never be served out of a cache.
+ *
+ * `same-origin`, and NOT the `no-referrer` the other token pages use, for a reason that is this
+ * page's alone: its form must work without JavaScript, and a no-JS form POST is a navigate-mode
+ * request. Under `no-referrer` the Fetch standard serializes that request's `Origin` as `null`,
+ * and Next refuses a Server Action whose `Origin` does not match the host (`action-handler.js`,
+ * "Invalid Server Actions request"). The other token pages post through `fetch()`, which is
+ * unaffected. `same-origin` still strips the referrer on every cross-origin request, and the CSP
+ * admits no cross-origin subresource to begin with; the edge drops the whole request-header map
+ * from its log (`CaddyfileTokenScrubbingPinTests`), so a same-origin `Referer` is not persisted
+ * there either (security-auditor, #1738 M-1).
+ *
+ * One home for the value: the route entry in `next.config.ts` and the page's metadata both read
+ * it, because a meta tag alone can stream after subresources have already been requested. That
+ * the route entry WINS over the global `/(.*)` block is measured in
+ * `tests/e2e/security-headers.spec.ts`: a route rule that does not win is a rule that does not
+ * exist.
+ */
+export const LOGIN_LINK_ROUTE = "/logga-in/lank";
+export const LOGIN_LINK_REFERRER_POLICY = "same-origin";
+
+export const LOGIN_LINK_ROUTE_HEADERS: readonly HttpHeader[] = [
+  { key: "Cache-Control", value: "no-store" },
+  { key: "Referrer-Policy", value: LOGIN_LINK_REFERRER_POLICY },
+];

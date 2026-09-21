@@ -13,28 +13,8 @@ import {
 } from "@/lib/dto/auth";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
-
-// F6 P5 Punkt 4 svans-PR3 (2026-05-24, Klas-feedback "kom direkt till jobb"):
-// /jobb och rot / hoppar över next-param och defaultar till /oversikt.
-// Skäl: proxy-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
-// vilket bevarade /jobb som login-target trots Klas-intent "/oversikt är start-
-// sidan". Andra deep links (/ansokningar/abc-123, /cv/xyz) respekteras fortfarande
-// — användare som faktiskt klickat en deep link ska komma dit, men "passiv"
-// landning på jobb-listan ska gå till /oversikt.
-const HOME_REDIRECT_PATHS = new Set<string>(["/", "/jobb"]);
-
-function safeRedirectPath(raw: string | null): string {
-  if (
-    raw &&
-    raw.startsWith("/") &&
-    !raw.startsWith("//") &&
-    !raw.startsWith("/\\") &&
-    !HOME_REDIRECT_PATHS.has(raw)
-  ) {
-    return raw;
-  }
-  return "/oversikt";
-}
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 
 export type AuthActionState = {
   error?: string;
@@ -201,7 +181,7 @@ export async function registerAction(
         // #616 — a breached password can never be caught client-side, so the machine code
         // must map to localized copy here (NIST "provide the reason"). Exact-whitelist
         // comparison only; ProblemDetails text is never rendered.
-        if (errorBody.title === "Auth.PwnedPassword") {
+        if (errorBody.title === AUTH_ERROR_CODES.PwnedPassword) {
           // Names the password input: this refusal is about that one field and is fixed by
           // changing it, the same wiring `reset-password` gives the identical refusal.
           return {
@@ -265,7 +245,7 @@ export async function registerAction(
       } catch {
         // A 503 with an unparseable body is not ours — fall through.
       }
-      if (title === "Auth.RegistrationsClosed") {
+      if (title === AUTH_ERROR_CODES.RegistrationsClosed) {
         // Returned as its own state, not as `error`: RegisterForm renders it in a role="status"
         // panel in place of the form, mirroring the 202 check-inbox branch. The error channel is
         // red, assertive and keeps the submit button live, which would invite a retry that cannot

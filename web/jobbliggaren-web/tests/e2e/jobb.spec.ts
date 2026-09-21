@@ -1,8 +1,8 @@
-import { test, expect, errors } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import { test as anonymousTest, expect, errors } from "@playwright/test";
+import { loggedInTest } from "./helpers/session";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
+const test = loggedInTest(RUN_ID);
 
 // Sökytan är hero-sökningen (JobbHeroSearch/JobbHeroFilters): ett namngivet
 // sökfält + "Sök", och Ort/Yrke/Filter-popovers. De tidigare selektorerna
@@ -16,22 +16,15 @@ const RUN_ID = Date.now();
 // "Visa lösenord" i auth-specarna.
 const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
-
-test.describe("/jobb — auth-gating", () => {
-  test("redirects to /logga-in when not signed in", async ({ page }) => {
+// The base `test`: a page of its own, outside the logged-in context the rest of the file shares.
+anonymousTest.describe("/jobb — auth-gating", () => {
+  anonymousTest("redirects to /logga-in when not signed in", async ({ page }) => {
     await page.goto("/jobb");
     await expect(page).toHaveURL(/\/logga-in/);
   });
 });
 
 test.describe("/jobb — auth-gated rendering", () => {
-  test.beforeEach(async ({ page }) => {
-    await loginAs(page, RUN_ID);
-  });
-
   test("visar Jobb-rubriken", async ({ page }) => {
     await page.goto("/jobb");
     await expect(

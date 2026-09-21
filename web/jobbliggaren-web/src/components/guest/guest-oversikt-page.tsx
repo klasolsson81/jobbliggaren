@@ -200,7 +200,7 @@ export function GuestOversiktPage() {
         b: bold,
       }),
       cta: t("oversikt.noticeCompaniesCta"),
-      href: "/registrera",
+      href: "/logga-in",
       time: t("oversikt.timeToday"),
     },
   ];

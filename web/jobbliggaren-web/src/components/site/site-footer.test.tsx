@@ -53,11 +53,13 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
 
   it("links live routes (no dead hrefs)", () => {
     render(<SiteFooter />);
-    // start.register is live per the CTO verdict (forward-compatible /registrera).
-    expect(screen.getByRole("link", { name: "Skapa konto" })).toHaveAttribute(
-      "href",
-      "/registrera",
-    );
+    // One entry for both doors: `/logga-in` logs in and creates an account (ADR 0142).
+    expect(
+      screen.getByRole("link", { name: "Logga in eller skapa konto" }),
+    ).toHaveAttribute("href", "/logga-in");
+    // The pair it replaced named one URL twice. Either label coming back is that defect.
+    expect(screen.queryByRole("link", { name: "Skapa konto" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Logga in" })).toBeNull();
     // about.self resolves to the public /om page (link, distinct from the
     // identically-named column heading).
     expect(screen.getByRole("link", { name: "Om Jobbliggaren" })).toHaveAttribute(

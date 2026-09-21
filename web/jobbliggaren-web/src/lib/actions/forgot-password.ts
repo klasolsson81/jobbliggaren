@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import type { RefusableActionResult } from "./_action-result";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemTitle } from "@/lib/http/problem";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 
 /**
  * `RefusableActionResult` plus the address the caller just submitted, echoed on the FAILURE arm so
@@ -79,7 +80,7 @@ export async function requestPasswordResetAction(
 
     if (res.status === 503) {
       const title = await readProblemTitle(res);
-      if (title === "Auth.EmailDeliveryUnavailable") {
+      if (title === AUTH_ERROR_CODES.EmailDeliveryUnavailable) {
         // `refused`: blocked by deployment configuration, so no retry with different input can
         // succeed until an operator sets a real Email:Provider. The form removes its own submit
         // affordance rather than leaving a live button on a request that cannot work.

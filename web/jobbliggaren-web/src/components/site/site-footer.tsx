@@ -38,8 +38,9 @@ import { BrandLogo } from "@/components/brand/brand-logo";
  * is kept as forward-compat scaffolding for any FUTURE not-yet-built footer
  * link (CTO verdict 2026-06-30: the route series is demonstrably recurring, so
  * keeping the OCP extension point beats re-introducing it per route).
- * start.register points at the live `/registrera` route (CTO verdict 2026-06-27):
- * a real route, forward-compatible once the open-registration flip lands.
+ * The "Kom igång" column carries ONE entry: `/logga-in` is both doors since
+ * ADR 0142, and two differently named links to one URL make the user choose
+ * between the same door twice (design-reviewer, #1738).
  */
 
 // Literal-union key types so next-intl keeps typed-message key-checking even
@@ -51,8 +52,7 @@ type FooterHeadKey =
   | "footer.colLegal";
 
 type FooterLinkKey =
-  | "footer.start.register"
-  | "footer.start.login"
+  | "footer.start.auth"
   | "footer.support.help"
   | "footer.support.howMatching"
   | "footer.support.cvReview"
@@ -85,10 +85,7 @@ const COLUMNS: readonly FooterColumn[] = [
   {
     key: "start",
     headKey: "footer.colStart",
-    links: [
-      { labelKey: "footer.start.register", href: "/registrera" },
-      { labelKey: "footer.start.login", href: "/logga-in" },
-    ],
+    links: [{ labelKey: "footer.start.auth", href: "/logga-in" }],
   },
   {
     key: "support",

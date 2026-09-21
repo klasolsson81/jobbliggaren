@@ -1,8 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import { expect, type Page } from "@playwright/test";
+import { loggedInTest } from "./helpers/session";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
+const test = loggedInTest(RUN_ID);
 
 /**
  * `/foretag/sok` live commit (#1125) — the two guarantees a real browser is the ONLY place to check.
@@ -32,10 +32,6 @@ const RUN_ID = Date.now();
  */
 
 const ORT_TRIGGER = "Välj ort eller län";
-
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
 
 /**
  * The applied kommun CODES — parsed, not read off the params.
@@ -112,7 +108,6 @@ test.describe("/foretag/sok — a filter commit applies", () => {
   test("removing the first of two chips re-renders the page, not just the URL", async ({
     page,
   }) => {
-    await loginAs(page, RUN_ID);
     await page.goto("/foretag/sok");
 
     const picked = await pickKommuner(page, 2);
@@ -149,7 +144,6 @@ test.describe("/foretag/sok — a second filter change is announced", () => {
   test("two picks in a row put two DIFFERENT sentences in the live region", async ({
     page,
   }) => {
-    await loginAs(page, RUN_ID);
     await page.goto("/foretag/sok");
 
     // Scoped to the FILTER region, which is what this spec is about. Since #1092 the surface also

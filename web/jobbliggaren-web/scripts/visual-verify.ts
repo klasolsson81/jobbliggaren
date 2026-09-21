@@ -58,7 +58,8 @@ interface PageTarget {
 const PUBLIC_PAGES: PageTarget[] = [
   { path: "/", name: "landing" },
   { path: "/logga-in", name: "logga-in" },
-  { path: "/registrera", name: "registrera" },
+  // A token, or the page can only render its dead-link arm.
+  { path: "/logga-in/lank?token=x", name: "logga-in-lank" },
 ];
 
 const VIEWPORTS = [

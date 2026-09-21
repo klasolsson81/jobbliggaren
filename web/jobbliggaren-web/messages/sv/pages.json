@@ -694,6 +694,112 @@
       "meta": {
         "title": "Välj nytt lösenord"
       }
+    },
+    "passwordless": {
+      "entry": {
+        "meta": {
+          "title": "Logga in eller skapa konto"
+        },
+        "title": "Logga in eller skapa konto",
+        "lede": "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord.",
+        "emailLabel": "E-postadress",
+        "emailHint": "Formatet är namn@domän.se",
+        "privacyHint": "Så behandlar vi din e-postadress: <privacy>integritetspolicyn</privacy>.",
+        "emailRequired": "Skriv in din e-postadress.",
+        "submit": "Fortsätt",
+        "submitting": "Skickar…",
+        "providersHeading": "Andra sätt att logga in",
+        "providers": {
+          "google": "Fortsätt med Google",
+          "linkedin": "Fortsätt med LinkedIn",
+          "github": "Fortsätt med GitHub",
+          "comingSoon": "Kommer snart"
+        }
+      },
+      "code": {
+        "meta": {
+          "title": "Ange koden"
+        },
+        "title": "Ange koden",
+        "resting": "Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller i 15 minuter.",
+        "codeLabel": "Sexsiffrig kod",
+        "codeHint": "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress.",
+        "submit": "Bekräfta koden",
+        "submitting": "Bekräftar koden…",
+        "wrongCode": "Koden stämmer inte. Kontrollera siffrorna och försök igen.",
+        "lastAttempt": "Ett försök kvar. Sedan behöver du begära en ny kod.",
+        "expired": "Koden går inte att använda längre. Skicka en ny kod och försök igen.",
+        "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod.",
+        "youEntered": "Du angav {email}.",
+        "resend": {
+          "button": "Skicka ny kod",
+          "sending": "Skickar…",
+          "consequence": "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet.",
+          "receipt": "Vi har tagit emot din begäran. Kontrollera inkorgen och skräpposten. Skriv in koden från det senaste mejlet.",
+          "cooldownHint": "Du kan skicka en ny kod om {seconds, plural, one {# sekund} other {# sekunder}}."
+        },
+        "changeEmail": "Byt e-postadress"
+      },
+      "consent": {
+        "meta": {
+          "title": "Skapa ditt konto"
+        },
+        "title": "Skapa ditt konto",
+        "identification": "Kontot skapas på den e-postadress du nyss bekräftade med koden.",
+        "termsLabel": "Jag godkänner <terms>användarvillkoren</terms>.",
+        "termsHint": "Länkarna öppnas i en ny flik.",
+        "privacySibling": "Vi behandlar dina uppgifter enligt <privacy>integritetspolicyn</privacy>.",
+        "termsRequired": "Du behöver godkänna användarvillkoren för att skapa kontot.",
+        "submit": "Skapa konto",
+        "submitting": "Skapar konto…",
+        "startOver": "Börja om med en annan e-postadress"
+      },
+      "link": {
+        "meta": {
+          "title": "Logga in på Jobbliggaren"
+        },
+        "title": "Logga in på Jobbliggaren",
+        "body": "Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.",
+        "submit": "Logga in",
+        "submitting": "Loggar in…",
+        "unusable": "Länken går inte att använda. Begär en ny kod på inloggningssidan.",
+        "toLogin": "Till inloggningssidan",
+        "alreadyLoggedIn": {
+          "title": "Du är redan inloggad",
+          "body": "En inloggning är redan aktiv i den här webbläsaren. Fortsätter du ersätts den av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
+          "continue": "Fortsätt och logga in",
+          "stay": "Stanna kvar som inloggad"
+        }
+      },
+      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Du kan logga ut när du vill, Logga ut finns på varje inloggad sida.",
+      "outcome": {
+        "registrationClosed": {
+          "title": "Registreringen är inte öppen ännu.",
+          "homeLink": "Till startsidan"
+        },
+        "accountUnavailable": {
+          "title": "Vi kan inte logga in på den här adressen just nu.",
+          "body": "Försök igen senare, eller kontakta oss på <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "pendingDeletion": {
+          "title": "Ditt konto raderas permanent {date}.",
+          "body": "Fram till dess kan du få det återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "notice": {
+        "grantUnusable": {
+          "title": "Registreringen slutfördes inte",
+          "body": "Det gick inte att slutföra registreringen. Skriv in din e-postadress nedan och börja om."
+        },
+        "codeExpired": {
+          "title": "Inloggningen gick ut",
+          "body": "En inloggning gäller i 15 minuter, och den tiden har gått. Skriv in din e-postadress nedan och börja om."
+        }
+      },
+      "errors": {
+        "unavailable": "Det går inte att logga in just nu. Försök igen om några minuter.",
+        "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
+      }
     }
   }
 }

@@ -74,8 +74,7 @@
     "colAbout": "Om Jobbliggaren",
     "colLegal": "Juridik",
     "start": {
-      "register": "Skapa konto",
-      "login": "Logga in"
+      "auth": "Logga in eller skapa konto"
     },
     "support": {
       "help": "Hjälpcenter",

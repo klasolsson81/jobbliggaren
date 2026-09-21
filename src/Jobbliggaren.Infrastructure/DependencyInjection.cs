@@ -1712,6 +1712,11 @@ public static class DependencyInjection
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
 
+                // The user name IS the address here, so Identity's default ASCII user-name charset refused
+                // addresses both email validators admit (o'brien@, björn@). What may be stored is
+                // StorableAddress's question, asked at the writers in UserAccountService.
+                opts.User.AllowedUserNameCharacters = string.Empty;
+
                 // #679 (CTO-bind #1): route the change-email confirmation token through the
                 // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
                 // Identity's default ChangeEmailTokenProvider is the "Email" provider — a 6-digit

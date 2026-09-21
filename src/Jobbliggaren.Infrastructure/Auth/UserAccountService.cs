@@ -21,6 +21,9 @@ public sealed partial class UserAccountService(
     public async Task<Result<Guid>> CreateUserAsync(
         string email, string password, CancellationToken ct)
     {
+        if (!StorableAddress.IsStorable(email))
+            return Result.Failure<Guid>(EmailNotStorableFailure());
+
         var user = new ApplicationUser
         {
             UserName = email,
@@ -217,6 +220,9 @@ public sealed partial class UserAccountService(
             return Result.Failure<string>(
                 DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
 
+        if (!StorableAddress.IsStorable(newEmail))
+            return Result.Failure<string>(EmailNotStorableFailure());
+
         // Opaque DataProtector token (CTO-bind #1) bound to (SecurityStamp, "ChangeEmail:{newEmail}").
         // Nothing is persisted; the pending new email lives inside the token. The email is NOT changed.
         var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
@@ -235,6 +241,11 @@ public sealed partial class UserAccountService(
         // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
         // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
         // 401). Callers surface DomainError.Validation -> 400.
+        // Judged before any account is read: a property of the submitted spelling alone, so unlike the
+        // uniform rejections below it cannot vary with the user id.
+        if (!StorableAddress.IsStorable(newEmail))
+            return Result.Failure(EmailNotStorableFailure());
+
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return InvalidTokenFailure();
@@ -356,6 +367,9 @@ public sealed partial class UserAccountService(
 
     private static bool IsDuplicateAccountError(string code) =>
         code == IdentityDuplicateUserNameCode || code == IdentityDuplicateEmailCode;
+
+    private static DomainError EmailNotStorableFailure() =>
+        DomainError.Validation(AuthErrorCodes.EmailNotStorable, AuthErrorCodes.EmailNotStorableMessage);
 
     private static Result InvalidTokenFailure() =>
         Result.Failure(DomainError.Validation(

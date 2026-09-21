@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.TestSupport;
@@ -45,7 +46,8 @@ public class UserAccountServiceTests
     private UserAccountService CreateSut(bool requireEmailConfirmation = false) =>
         new(_userManager, _equalizer,
             Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation }),
-            Substitute.For<ILogger<UserAccountService>>());
+            Substitute.For<ILogger<UserAccountService>>(),
+            Substitute.For<IDbExceptionInspector>());
 
     // A password account, as CreateUserAsync(email, password) leaves it: the hash is set. Its value is never
     // read here (CheckPasswordAsync is stubbed); its PRESENCE keeps a fixture off the passwordless gate, which
@@ -360,7 +362,8 @@ public class UserAccountServiceTests
         // recorder that keeps the state rather than snapshotting it reads back empty (#1237).
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
-            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger,
+            Substitute.For<IDbExceptionInspector>());
         var userId = Guid.NewGuid();
         var user = new ApplicationUser { Id = userId, Email = "gone@example.com" };
         _userManager.FindByIdAsync(userId.ToString()).Returns(user);
@@ -444,7 +447,8 @@ public class UserAccountServiceTests
         var ct = TestContext.Current.CancellationToken;
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
-            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger,
+            Substitute.For<IDbExceptionInspector>());
         var userId = Guid.NewGuid();
         _userManager.FindByIdAsync(userId.ToString()).Returns((ApplicationUser?)null);
 

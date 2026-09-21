@@ -7,6 +7,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -16,7 +17,8 @@ public sealed partial class UserAccountService(
     UserManager<ApplicationUser> userManager,
     ILoginTimingEqualizer loginTimingEqualizer,
     IOptions<AuthOptions> authOptions,
-    ILogger<UserAccountService> logger)
+    ILogger<UserAccountService> logger,
+    IDbExceptionInspector dbExceptions)
     : IUserAccountService, ILoginAccountLookup, IPasswordlessAccountCreator
 {
     public async Task<Result<Guid>> CreateUserAsync(
@@ -290,23 +292,45 @@ public sealed partial class UserAccountService(
             return InvalidTokenFailure();
         }
 
-        // ChangeEmailAsync verifies the token against (SecurityStamp, "ChangeEmail:{newEmail}"), sets
-        // Email + NormalizedEmail + EmailConfirmed=true, and rotates the security stamp (single-use:
-        // the token and any sibling pending token die). Re-runs the RequireUniqueEmail validator, so a
-        // taken address fails here — the TOCTOU backstop for the request-time pre-check.
-        var changeResult = await userManager.ChangeEmailAsync(user, newEmail, token);
-        if (!changeResult.Succeeded)
+        // The mailed token is this PUBLIC route's whole authorization, and it is verified HERE, before any
+        // write: the user-name write below rotates the security stamp, so by the time ChangeEmailAsync runs
+        // the mailed token is dead and could no longer be checked there.
+        var mailedTokenIsValid = await userManager.VerifyUserTokenAsync(
+            user,
+            userManager.Options.Tokens.ChangeEmailTokenProvider,
+            UserManager<ApplicationUser>.GetChangeEmailTokenPurpose(newEmail),
+            token);
+        if (!mailedTokenIsValid)
             return InvalidTokenFailure();
 
-        // Risk 1 (CTO-bind): ChangeEmailAsync updates Email/NormalizedEmail but NOT UserName.
-        // Registration sets UserName == email (CreateUserAsync) and login resolves via
-        // FindByEmailAsync, so keep UserName in lockstep to avoid stale PII (the old address lingering
-        // in UserName / NormalizedUserName) + a latent divergence. Can't-fail in practice (newEmail is
-        // now this user's unique email and every UserName mirrors a unique Email); if it ever lags we
-        // do NOT fail the completed change — the recovery vector already moved — we log and continue.
-        var userNameResult = await userManager.SetUserNameAsync(user, newEmail);
+        // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
+        // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
+        // an account by its e-mail, so two swaps that both wrote the address would leave one inbox opening
+        // either account. Taking the name first lets the index refuse the loser with nothing written.
+        IdentityResult userNameResult;
+        try
+        {
+            userNameResult = await userManager.SetUserNameAsync(user, newEmail);
+        }
+        catch (DbUpdateException ex) when (dbExceptions.IsUniqueConstraintViolation(ex))
+        {
+            // Both swaps passed the validator's read; the index refused this one's write.
+            return InvalidTokenFailure();
+        }
+
         if (!userNameResult.Succeeded)
-            LogUserNameSyncLagged(userId);
+            return InvalidTokenFailure();
+
+        // ChangeEmailAsync sets Email + NormalizedEmail + EmailConfirmed=true, re-runs RequireUniqueEmail and
+        // rotates the security stamp again, so the mailed token and any sibling pending token stay dead. Its
+        // token argument proves nothing here; the mailed one did.
+        var swapToken = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
+        var changeResult = await userManager.ChangeEmailAsync(user, newEmail, swapToken);
+        if (!changeResult.Succeeded)
+        {
+            LogAddressWriteFailedAfterUserName(userId);
+            return InvalidTokenFailure();
+        }
 
         return Result.Success();
     }
@@ -525,9 +549,9 @@ public sealed partial class UserAccountService(
             AuthErrorCodes.InvalidEmailConfirmationTokenMessage));
 
     [LoggerMessage(4001, LogLevel.Warning,
-        "[UserAccountService] Change-email: UserName sync lagged Email for user {UserId} " +
-        "(username kept stale, email change succeeded)")]
-    private partial void LogUserNameSyncLagged(Guid userId);
+        "[UserAccountService] Change-email: the address write failed after the user-name write for user " +
+        "{UserId} (user name moved, email kept; the change was refused)")]
+    private partial void LogAddressWriteFailedAfterUserName(Guid userId);
 
     [LoggerMessage(4006, LogLevel.Warning,
         "[UserAccountService] Password reset: persisting EmailConfirmed failed for user {UserId} " +

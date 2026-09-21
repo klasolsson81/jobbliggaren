@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Registration;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
@@ -29,7 +30,8 @@ public sealed class PasswordlessAccountCreatorTests
     // The concrete type (CA1859). DeleteAsync is an explicit implementation, so that test goes through the port.
     private UserAccountService Sut() => new(
         _userManager, Substitute.For<ILoginTimingEqualizer>(), Options.Create(new AuthOptions()),
-        Substitute.For<ILogger<UserAccountService>>());
+        Substitute.For<ILogger<UserAccountService>>(),
+        Substitute.For<IDbExceptionInspector>());
 
     [Fact]
     public async Task CreatePasswordlessUserAsync_ShouldCreateAConfirmedUserNamedByItsAddress_WithNoPassword()

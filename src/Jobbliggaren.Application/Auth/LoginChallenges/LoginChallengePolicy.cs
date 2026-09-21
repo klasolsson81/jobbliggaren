@@ -64,10 +64,9 @@ public static class LoginChallengePolicy
         new("login-challenge-cooldown", limit: 1, window: window);
 
     /// <summary>
-    /// Re-authentication codes per USER per 24 hours (ADR 0142 D5). Keyed by the user id and not by the address,
-    /// so only a holder of the account's session can spend it. It cannot fall back to a link as
+    /// Re-authentication codes per USER per 24 hours (ADR 0142 D5). It cannot fall back to a link as
     /// <see cref="CodeBudget"/> does: a link yields a session, never a re-authentication, so past this budget the
-    /// request is refused. It enters the guess arithmetic exactly as <see cref="CodeBudget"/> does.
+    /// request has to be refused. It enters the guess arithmetic exactly as <see cref="CodeBudget"/> does.
     /// </summary>
     public static readonly RateBudgetScope ReauthCodeBudget =
         new("reauth-codes", limit: 10, window: TimeSpan.FromHours(24));

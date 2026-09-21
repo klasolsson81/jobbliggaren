@@ -101,6 +101,19 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Two_wrong_codes_then_the_right_one_on_the_last_attempt_verifies()
+    {
+        var owner = Reauthentication(Guid.NewGuid());
+        var (id, code) = await PutBoundAsync("last@example.se", owner);
+        var wrong = WrongCodeFor(code);
+
+        (await _store.ConsumeBoundCodeAsync(id, wrong, owner, Ct)).AttemptsRemaining.ShouldBe(2);
+        (await _store.ConsumeBoundCodeAsync(id, wrong, owner, Ct)).AttemptsRemaining.ShouldBe(1);
+
+        (await _store.ConsumeBoundCodeAsync(id, code, owner, Ct)).IsVerified.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Another_user_with_the_right_code_is_answered_missing_and_the_owner_still_verifies()
     {
         var owner = Reauthentication(Guid.NewGuid());
@@ -145,6 +158,8 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
         var owner = ChangeEmail(Guid.NewGuid());
         var (id, code) = await PutBoundAsync("ny@example.se", owner);
 
+        Keys("jobbliggaren:auth/challenge/v1/*").ShouldBeEmpty();
+
         // A change-email code presented on the login arm must never become a login proof.
         (await _store.ConsumeCodeAsync(id, code, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
         (await _store.ConsumeBoundCodeAsync(id, code, owner, Ct)).IsVerified.ShouldBeTrue();
@@ -159,6 +174,8 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
         var issued = await _store.PutAsync(
             new NewLoginChallenge(id, "attacker@example.se", ChallengeCredentials.CodeAndLink, ReplacesLiveChallenge: true), Ct);
         var code = issued.Code!.Value;
+
+        Keys("jobbliggaren:auth/challenge-bound/*").ShouldBeEmpty();
 
         var asBound = await _store.ConsumeBoundCodeAsync(id, code, ChangeEmail(Guid.NewGuid()), Ct);
         var asLogin = await _store.ConsumeCodeAsync(id, code, Ct);
@@ -269,6 +286,11 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
         }
 
         lengths.Distinct().ShouldHaveSingleItem();
+
+        var (longerId, _) = await PutBoundAsync("en-markbart-langre-adress-an-den-forsta@example.se", Reauthentication(Guid.NewGuid()));
+        var longer = await db.HashStringLengthAsync(
+            RedisLoginChallengeStore.BoundRecordKey(RedisLoginChallengeStore.RecordSegment(longerId)), "p");
+        longer.ShouldBeGreaterThan(lengths[0]);
     }
 
     [Fact]
@@ -280,16 +302,5 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
         var afterKeyLoss = Store(new EphemeralDataProtectionProvider());
 
         (await afterKeyLoss.ConsumeBoundCodeAsync(id, code, owner, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
-    }
-
-    [Fact]
-    public async Task An_undefined_purpose_is_refused_and_nothing_is_written()
-    {
-        var undefined = new ChallengeBinding((ChallengePurpose)0, Guid.NewGuid());
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(
-            () => _store.PutBoundAsync(new NewBoundChallenge(ChallengeId.Generate(), "noll@example.se", undefined), Ct));
-
-        Keys("jobbliggaren:auth/challenge-b*").ShouldBeEmpty();
     }
 }

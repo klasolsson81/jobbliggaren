@@ -250,7 +250,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             var attempt = (long)parts[0];
 
             // Another purpose cannot open the payload, and another user is refused here: both before the
-            // attempt count is read, so whoever does not own the record learns nothing about it.
+            // attempt count is answered, so whoever does not own the record learns nothing about it.
             var payload = OpenBound((byte[]?)parts[1], expected.Purpose);
             if (payload is null || payload.UserId != expected.UserId)
             {
@@ -328,12 +328,9 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
         }
     }
 
-    // The purpose's NUMBER, as RedisGrantStore.ProtectorFor has it. An undefined value is refused: it would
-    // otherwise name a working protector of its own.
+    // The purpose's NUMBER, as RedisGrantStore.ProtectorFor has it. ChallengeBinding admits defined purposes only.
     private IDataProtector BoundProtectorFor(ChallengePurpose purpose) =>
-        Enum.IsDefined(purpose)
-            ? _protector.CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture))
-            : throw new ArgumentOutOfRangeException(nameof(purpose), purpose, "Not a bound challenge purpose.");
+        _protector.CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture));
 
     private static (ChallengeId Id, byte[] SecretHash)? DecodeLinkToken(string raw)
     {

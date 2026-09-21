@@ -328,10 +328,10 @@ e-mail. `ConfirmChangeEmailAsync` wrote the address first and the user name last
 write, so two swaps racing to one address could both take it (`security-auditor`, Blocker against this part's form;
 the race predates 3a). The user name is now written first and its refusal is fatal, and the mailed token is verified
 explicitly before any write, because the user-name write rotates the security stamp. Measured: a real race reaches
-the index and arrives as a `DbUpdateException`, never as `DuplicateUserName`.
+the index and arrives as a `DbUpdateException`.
 
-**A bound challenge carries the user id, in a key family of its own** (`dotnet-architect`; `security-auditor`
-concurred and withdrew her own "a protector sub-purpose suffices"). With no user id in the record, the holder of a
+**A bound challenge carries the user id, in a key family of its own** (`dotnet-architect`). With no user id in the
+record, the holder of a
 hijacked session for a victim could present the challenge id and code of the attacker's OWN re-authentication,
 proven in the attacker's own inbox, and be granted the victim's. So the record changes shape, and D1's rule applies:
 a record-shape change costs a new segment. `auth/challenge/v1/` keeps its exact form, so a rollback cannot read a

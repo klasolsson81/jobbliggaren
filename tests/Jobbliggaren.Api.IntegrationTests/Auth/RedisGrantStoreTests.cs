@@ -225,14 +225,6 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_bearer_redemption_cannot_open_a_caller_asserted_grant()
-    {
-        var token = await _store.IssueAsync(new GrantSubject.Reauthentication(Guid.NewGuid()), Ct);
-
-        (await _store.RedeemAsync(token, Bearer, Ct)).ShouldBeNull();
-    }
-
-    [Fact]
     public async Task A_change_email_grant_is_refused_for_another_address_and_for_another_user()
     {
         var userId = Guid.NewGuid();

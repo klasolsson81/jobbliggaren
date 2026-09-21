@@ -26,6 +26,23 @@ public class ChallengeBindingTests
         Enum.IsDefined(default(ChallengePurpose)).ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void Constructor_ShouldThrow_WhenThePurposeIsNotDefined(int purpose)
+    {
+        // An undefined number would otherwise name a working protector of its own.
+        Should.Throw<ArgumentOutOfRangeException>(() => new ChallengeBinding((ChallengePurpose)purpose, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenTheUserIdIsEmpty()
+    {
+        // The empty id is what an unset current user would assert.
+        Should.Throw<ArgumentException>(() => new ChallengeBinding(ChallengePurpose.Reauthentication, Guid.Empty));
+    }
+
     [Fact]
     public void ChallengeBinding_ShouldCompareByPurposeAndUser_WhenTwoBindingsAreCompared()
     {

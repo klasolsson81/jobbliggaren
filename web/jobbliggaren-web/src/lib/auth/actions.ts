@@ -13,28 +13,7 @@ import {
 } from "@/lib/dto/auth";
 import { parseResponse } from "@/lib/dto/_helpers";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
-
-// F6 P5 Punkt 4 svans-PR3 (2026-05-24, Klas-feedback "kom direkt till jobb"):
-// /jobb och rot / hoppar över next-param och defaultar till /oversikt.
-// Skäl: proxy-flödet redirektar unauth user från /jobb → /logga-in?next=/jobb,
-// vilket bevarade /jobb som login-target trots Klas-intent "/oversikt är start-
-// sidan". Andra deep links (/ansokningar/abc-123, /cv/xyz) respekteras fortfarande
-// — användare som faktiskt klickat en deep link ska komma dit, men "passiv"
-// landning på jobb-listan ska gå till /oversikt.
-const HOME_REDIRECT_PATHS = new Set<string>(["/", "/jobb"]);
-
-function safeRedirectPath(raw: string | null): string {
-  if (
-    raw &&
-    raw.startsWith("/") &&
-    !raw.startsWith("//") &&
-    !raw.startsWith("/\\") &&
-    !HOME_REDIRECT_PATHS.has(raw)
-  ) {
-    return raw;
-  }
-  return "/oversikt";
-}
+import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 
 export type AuthActionState = {
   error?: string;

@@ -22,9 +22,8 @@ export type ActionResult = ActionSuccess | ActionFailure;
 
 /**
  * `ActionResult` plus an opt-in refusal flag (#734 B-ii). A separate type rather than a
- * wider `ActionResult`, so the many actions and the two `ReAuthDialog` consumers that will
- * never set it do not have to advertise it; the widening is visible in the signature of
- * the one action that does.
+ * wider `ActionResult`, so the many actions that will never set it do not have to
+ * advertise it; the widening is visible in the signature of the one action that does.
  *
  * It is DERIVED from the same two shapes above rather than restated, because two
  * near-identical hand-written unions in one file drift the moment either is edited.
@@ -45,23 +44,3 @@ export type ActionResult = ActionSuccess | ActionFailure;
 export type RefusableActionResult =
   | ActionSuccess
   | (ActionFailure & { refused?: true });
-
-/**
- * `ActionResult` plus an opt-in name for the input a failure belongs to (#1117). Derived from
- * the same two shapes for the same reason `RefusableActionResult` is: two hand-written
- * near-identical unions in one file drift the moment either is edited.
- *
- * A form reads it to mark exactly one control `aria-invalid`, point `aria-describedby` at the
- * message, and move focus there. **Absent means "not a field error"** — a network fault, an
- * expired session, a rate limit — and must leave every input unmarked; that is the same
- * opt-in semantics `refused` carries above, and the same discrimination `ForgotPasswordForm`
- * already performs.
- *
- * Narrow on purpose. It names the fields an action can actually attribute a failure to, so a
- * typo cannot invent a control that does not exist, and widening it is a deliberate edit
- * rather than a silent one. A consumer that ignores the property renders an ordinary error,
- * so the fail-safe is today's behaviour.
- */
-export type FieldScopedActionResult =
-  | ActionSuccess
-  | (ActionFailure & { field?: "displayName" });

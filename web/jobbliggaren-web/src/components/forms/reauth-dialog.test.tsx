@@ -191,8 +191,8 @@ describe("ReAuthDialog", () => {
   // #734 B-ii — the refusal escape hatch. `open` is private uncontrolled state, so a
   // consumer cannot close this dialog from outside; a failure that must NOT re-offer
   // submit has to be handled here. Both counterfactuals below exist because the branch is
-  // double-gated (flag AND handler) — that gating is what keeps delete-account and
-  // change-password on exactly their old behaviour.
+  // double-gated (flag AND handler) — that gating is what keeps delete-account on exactly
+  // its old behaviour.
   it("closes and calls onRefused when the action refuses, instead of showing the error line", async () => {
     const onRefused = vi.fn();
     const onSuccess = vi.fn();

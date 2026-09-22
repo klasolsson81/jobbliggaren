@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsForm } from "./settings-form";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
@@ -55,51 +55,8 @@ const baseProfile: JobSeekerProfileDto = {
   preferredOccupationExperience: [],
 };
 
-describe("SettingsForm — a profile with no display name (ADR 0142 D7)", () => {
-  it("renders the name field empty and editable", () => {
-    render(
-      <SettingsForm
-        initialProfile={{ ...baseProfile, displayName: null }}
-        userEmail="klas@example.se"
-        taxonomy={null}
-        initialSkillGroups={[]}
-      />,
-    );
-    const name = screen.getByRole("textbox", { name: /namn/i });
-    expect(name).toHaveValue("");
-    expect(name).toBeEnabled();
-  });
-
-  it("answers an empty save with the app's own message on the field, and sends nothing", async () => {
-    // The field is required, and the browser's own bubble must not pre-empt the inline alert:
-    // aria-invalid and the error text are what a screen reader gets (DESIGN.md §9).
-    updateMyProfileActionMock.mockClear();
-    render(
-      <SettingsForm
-        initialProfile={{ ...baseProfile, displayName: null }}
-        userEmail="klas@example.se"
-        taxonomy={null}
-        initialSkillGroups={[]}
-      />,
-    );
-    const name = screen.getByRole("textbox", { name: /namn/i });
-    const card = name.closest("form");
-    expect(card).not.toBeNull();
-
-    await userEvent.click(within(card as HTMLElement).getByRole("button", { name: "Spara ändringar" }));
-
-    const alert = await within(card as HTMLElement).findByRole("alert");
-    expect(alert).toHaveTextContent("Visningsnamn krävs.");
-    expect(name).toHaveAttribute("aria-invalid", "true");
-    expect(name).toBeRequired();
-    // The message sits with the field it names, not below the email block.
-    expect(name.parentElement).toContainElement(alert);
-    expect(updateMyProfileActionMock).not.toHaveBeenCalled();
-  });
-});
-
 describe("SettingsForm — F6 Prompt 2 smoke", () => {
-  it("renderar alla kort i rätt ordning (Matchning efter Personuppgifter)", () => {
+  it("renderar alla kort i rätt ordning", () => {
     render(
       <SettingsForm
         initialProfile={baseProfile}
@@ -111,47 +68,23 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
-    // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen efter
-    // Personuppgifter. `taxonomy={null}` → kortet degraderar men behåller sin
-    // h2-rubrik.
+    // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen.
+    // `taxonomy={null}` → kortet degraderar men behåller sin h2-rubrik.
     // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
     // WeeklySummary) togs bort — de styrde ingen e-postväg.
     // Bevakning F4 (#803): "Notiser om företag du följer" ligger DIREKT efter
     // Matchningsnotiser. Adjacensen är funktionell, inte estetisk: de två delar
     // digest-kadens (ADR 0087 D2), vars kontroll bara finns i det förra kortet —
     // och DOM-ordningen håller även när gridden kollapsar till en kolumn.
-    // #678: the change-password card sits in the second column, before Sekretess
-    // och data (privacy/danger zone) and Logga ut.
-    // #679: the change-email card sits directly before change-password (identity
-    // credential before secret credential).
     expect(headings).toEqual([
-      "Personuppgifter",
       "Matchning",
       "Visning",
       "Matchningsnotiser",
       "Notiser om företag du följer",
       "Byt e-postadress",
-      "Byt lösenord",
       "Sekretess och data",
       "Logga ut",
     ]);
-  });
-
-  it("Personuppgifter-kortet visar Namn (write) + E-post (read-only)", () => {
-    render(
-      <SettingsForm
-        initialProfile={baseProfile}
-        userEmail="klas@example.se"
-        taxonomy={null}
-        initialSkillGroups={[]}
-      />,
-    );
-    const name = screen.getByLabelText("Namn") as HTMLInputElement;
-    expect(name.value).toBe("Klas Olsson");
-    expect(name.readOnly).toBe(false);
-    const email = screen.getByLabelText("E-postadress") as HTMLInputElement;
-    expect(email.value).toBe("klas@example.se");
-    expect(email.readOnly).toBe(true);
   });
 
   it("INNEHÅLLER INGET Telefon-fält (CTO Val 4B, no-mock-doktrin)", () => {
@@ -257,13 +190,9 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
   });
 });
 
-// #1117 — the payload became PARTIAL: a control sends only what it changed. The reason is not
-// tidiness. The display name now carries a server-side invariant re-evaluated on every write, so
-// a row written before that invariant landed would have its LANGUAGE change refused on the
-// strength of a name the user never touched. Pinned at the CALL SITE, because the schema alone
-// cannot see it: with both fields optional, a regression that re-adds the untouched field parses
-// perfectly and fails only against a real legacy row.
-describe("SettingsForm — partial payload and the field-scoped error seam (#1117)", () => {
+// The language segment is direct-apply: a change goes straight to the action, carrying the
+// language and nothing else.
+describe("SettingsForm — the language write", () => {
   beforeEach(() => {
     updateMyProfileActionMock.mockReset();
     updateMyProfileActionMock.mockResolvedValue({ success: true });
@@ -287,70 +216,14 @@ describe("SettingsForm — partial payload and the field-scoped error seam (#111
     await user.click(screen.getByRole("radio", { name: "English" }));
 
     await waitFor(() => expect(updateMyProfileActionMock).toHaveBeenCalledTimes(1));
-    // Exact, not toMatchObject: the whole point is that displayName is ABSENT.
     expect(updateMyProfileActionMock.mock.calls[0]![0]).toEqual({ language: "en" });
   });
-
-  it("sends ONLY the display name when the name is saved", async () => {
-    const user = userEvent.setup();
-    renderForm();
-
-    const nameInput = screen.getByLabelText("Namn");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Anna Andersson");
-    await user.click(screen.getByRole("button", { name: /Spara/ }));
-
-    await waitFor(() => expect(updateMyProfileActionMock).toHaveBeenCalledTimes(1));
-    expect(updateMyProfileActionMock.mock.calls[0]![0]).toEqual({
-      displayName: "Anna Andersson",
-    });
-  });
-
-  it("carries the action's field discriminator through to the input it names", async () => {
-    // The seam between the action result and the card. Both ends are pinned in isolation
-    // elsewhere; this is the wire between them, and replacing it with a constant null survives
-    // every one of those isolated tests.
-    updateMyProfileActionMock.mockResolvedValue({
-      success: false,
-      error: "Namnet far inte innehalla ett personnummer.",
-      field: "displayName",
-    });
-    const user = userEvent.setup();
-    renderForm();
-
-    const nameInput = screen.getByLabelText("Namn");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Anna 811218-9876");
-    await user.click(screen.getByRole("button", { name: /Spara/ }));
-
-    await waitFor(() => expect(nameInput).toHaveAttribute("aria-invalid", "true"));
-    const alert = screen.getByRole("alert");
-    expect(nameInput.getAttribute("aria-describedby")).toBe(alert.id);
-  });
-
-  it("leaves the input unmarked when the failure names no field", async () => {
-    updateMyProfileActionMock.mockResolvedValue({
-      success: false,
-      error: "Kunde inte na servern.",
-    });
-    const user = userEvent.setup();
-    renderForm();
-
-    const nameInput = screen.getByLabelText("Namn");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Anna Andersson");
-    await user.click(screen.getByRole("button", { name: /Spara/ }));
-
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(nameInput).not.toHaveAttribute("aria-invalid");
-  });
 });
-// #1391 — a direct-apply control reports its own OUTCOME where the user is looking.
-// `applyChange` is shared by the language segment and the name form, and it used to write ONE
-// error and ONE savedAt, both read by `PersonalInfoCard` alone. So a refused language change
-// reverted the segment silently while its message surfaced in another card in another grid
-// column, and a successful one left a receipt under a name form the user never touched.
-// Pinned on the CARD, not on the copy: the defect is which column the text lands in.
+
+// #1391 — a direct-apply control reports its own OUTCOME where the user is looking. The
+// language save's message used to render in the name card, in the other grid column, while
+// the segment reverted silently. Pinned on the CARD, not on the copy: the defect is which
+// card the text lands in.
 describe("SettingsForm — the direct-apply outcome lands on the control that started it (#1391)", () => {
   beforeEach(() => {
     updateMyProfileActionMock.mockReset();
@@ -381,13 +254,12 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     const user = userEvent.setup();
     renderForm();
     const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
-    const nameCard = cardOf(screen.getByLabelText("Namn"))!;
 
     await user.click(screen.getByRole("radio", { name: "English" }));
 
     const alert = await screen.findByRole("alert");
     expect(cardOf(alert)).toBe(cardOf(languageGroup));
-    expect(within(nameCard).queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
   it("associates the refusal with the language group", async () => {
@@ -443,67 +315,15 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     expect(document.activeElement).toHaveAttribute("aria-checked", "true");
   });
 
-  it("does not pull focus into the language card when a LATER save succeeds", async () => {
-    // `isPending` is one shared transition, so an effect keyed on it alone re-runs on every
-    // release. With a language error still standing, saving the NAME would then drag focus into
-    // the other card — the cross-card misplacement this change exists to close, in focus rather
-    // than in text.
-    updateMyProfileActionMock.mockResolvedValue({
-      success: false,
-      error: "Kunde inte na servern.",
-    });
-    const user = userEvent.setup();
-    renderForm();
-    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
-
-    await user.click(screen.getByRole("radio", { name: "English" }));
-    (document.activeElement as HTMLElement | null)?.blur();
-    await screen.findByRole("alert");
-    await waitFor(() =>
-      expect(languageGroup.contains(document.activeElement)).toBe(true),
-    );
-    (document.activeElement as HTMLElement | null)?.blur();
-
-    // Now save the name successfully, with the language error still on screen.
-    updateMyProfileActionMock.mockResolvedValue({ success: true });
-    const nameInput = screen.getByLabelText("Namn");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Anna Andersson");
-    const saveButton = screen.getByRole("button", { name: /Spara/ });
-    await user.click(saveButton);
-
-    await waitFor(() => expect(saveButton).not.toBeDisabled());
-    expect(languageGroup.contains(document.activeElement)).toBe(false);
-  });
-
   it("renders the receipt for a saved language in the card that owns the segment", async () => {
     const user = userEvent.setup();
     renderForm();
     const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
-    const nameCard = cardOf(screen.getByLabelText("Namn"))!;
 
     await user.click(screen.getByRole("radio", { name: "English" }));
 
     const receipt = await screen.findByText(/^Sparat \d{2}:\d{2}$/);
     expect(cardOf(receipt)).toBe(cardOf(languageGroup));
-    // The name card renders NO live region at all until the name itself is saved. Asserted on
-    // the role rather than on "Sparat." so a copy edit cannot make this pass vacuously.
-    expect(within(nameCard).queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("keeps the name form's own outcome in the name card", async () => {
-    const user = userEvent.setup();
-    renderForm();
-    const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
-    const nameInput = screen.getByLabelText("Namn");
-
-    await user.clear(nameInput);
-    await user.type(nameInput, "Anna Andersson");
-    await user.click(screen.getByRole("button", { name: /Spara/ }));
-
-    const receipt = await screen.findByText("Sparat.");
-    expect(cardOf(receipt)).toBe(cardOf(nameInput));
-    expect(cardOf(receipt)).not.toBe(cardOf(languageGroup));
   });
 });
 

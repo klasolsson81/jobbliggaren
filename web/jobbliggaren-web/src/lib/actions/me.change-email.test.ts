@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // #679 — changeEmailAction. Pins the branches the card test can't reach: the
 // status -> Swedish-error mapping (401/400/409/500/network), the client-side schema
-// gate, and the invariant that — unlike change-password — NO session cookie is ever
-// touched (the email is not changed at request time; a link is emailed). The
-// translator mock returns the key verbatim, so assertions check the resolved key.
+// gate, and the invariant that NO session cookie is ever touched (the email is not
+// changed at request time; a link is emailed). The translator mock returns the key
+// verbatim, so assertions check the resolved key.
 
 const { setSessionCookieMock, getSessionIdMock, authedFetchMock } = vi.hoisted(
   () => ({

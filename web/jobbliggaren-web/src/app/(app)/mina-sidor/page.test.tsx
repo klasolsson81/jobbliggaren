@@ -95,15 +95,9 @@ describe("MinaSidorPage", () => {
   });
 
   // The account cards read only the session's address, so no profile result may take them away:
-  // they are where the user changes the address, deletes the account and logs out.
+  // they are where the user changes the address, deletes the account and logs out. `error` is also
+  // what getMyProfile makes of the backend's 404, since it reads without `includeNotFound`.
   it.each([
-    [
-      // What GET /me/profile answers for an account with no profile row. Since part 2 no login
-      // opens a session for such an account (LoginProofOutcome), so only an older session meets it.
-      "notFound",
-      { kind: "notFound" } as const,
-      /din profil saknas/,
-    ],
     [
       "rateLimited",
       { kind: "rateLimited", retryAfterSeconds: 30 } as const,
@@ -121,14 +115,4 @@ describe("MinaSidorPage", () => {
       expect(screen.getByText(message)).toBeInTheDocument();
     },
   );
-
-  it("points a missing profile at kontakt@ with a mail link", async () => {
-    getMyProfile.mockResolvedValue({ kind: "notFound" });
-    await renderPage();
-
-    expect(screen.getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
-      "href",
-      "mailto:kontakt@jobbliggaren.se",
-    );
-  });
 });

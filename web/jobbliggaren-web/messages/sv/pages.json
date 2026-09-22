@@ -560,7 +560,6 @@
   "minaSidor": {
     "title": "Mina sidor",
     "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
-    "profileMissing": "Dina matchningsval, notiser och ditt språkval går inte att visa, eftersom din profil saknas. Mejla <mail>kontakt@jobbliggaren.se</mail> så hjälper vi dig.",
     "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
     "meta": {

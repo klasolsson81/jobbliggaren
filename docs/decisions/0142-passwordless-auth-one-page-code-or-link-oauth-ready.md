@@ -1404,9 +1404,12 @@ lede and no aside, the grid in `jp-container jp-page`, and `PageHeroSkeleton` wh
 is rebuilt is where the transitional container's allowance ends, as #515 did for `/foretag`. Column 1 is
 Matchning, Matchningsnotiser and Notiser om företag du följer; column 2 is Visning, Byt e-postadress,
 Sekretess och data and Logga ut. The three account cards read only the session's address and render on every
-profile branch, and the branch's sentence takes the place of the cards that read the profile. `notFound`
-keeps its branch: since part 2 no login opens a session for an account without a profile row
-(`LoginProofOutcome`), but an older session can still carry one, so the sentence points at kontakt@.
+profile branch, and the branch's sentence takes the place of the cards that read the profile. There is no
+branch for a missing profile: `getMyProfile` reads without `includeNotFound`, so the backend's 404 arrives as
+`error`, and the branch design gave copy for could never render (measured in the rendered round). It was
+deleted, per design's rule for an unreachable branch. For that 404 the error sentence advises a reload that
+cannot help. No account on the box lacks a profile (2 of 2, the reading above), and since part 2 no login
+opens a session for one (`LoginProofOutcome`).
 
 **The 308s are permanent.** The notification mails' Art. 7(3) withdrawal link was `/installningar` until
 this part, and no measurement can show that no inbox still holds one (`security-auditor` S5). So

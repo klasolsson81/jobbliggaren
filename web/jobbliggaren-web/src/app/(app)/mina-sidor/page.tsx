@@ -6,7 +6,6 @@ import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
 import { SettingsForm } from "@/components/settings/settings-form";
 import { AccountCards } from "@/components/settings/account-cards";
-import { mailLink } from "@/components/auth/mail-link";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -23,9 +22,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * Server-component shell: fetches the session + profile and lifts them into the `<SettingsForm />`
  * client island, which holds the direct-apply state.
  *
- * Every card but the account cards reads the profile, so a profile that is missing or cannot be read
- * takes their place with one sentence. The account cards read only the session's address and render
- * on every branch (design-reviewer Major 3, #1740).
+ * Every card but the account cards reads the profile, so a profile that cannot be read takes their
+ * place with one sentence. The account cards read only the session's address and render on every
+ * branch (design-reviewer Major 3, #1740). `getMyProfile` answers the backend's 404 as `error`, so a
+ * missing profile takes the same branch.
  */
 export default async function MinaSidorPage() {
   const user = await getServerSession();
@@ -82,13 +82,11 @@ export default async function MinaSidorPage() {
           <div className="jp-settings-grid">
             <div className="jp-settings-grid__col">
               <p className="text-body text-text-primary">
-                {profileResult.kind === "notFound"
-                  ? t.rich("minaSidor.profileMissing", { mail: mailLink })
-                  : profileResult.kind === "rateLimited"
-                    ? t("minaSidor.rateLimited", {
-                        seconds: profileResult.retryAfterSeconds,
-                      })
-                    : t("minaSidor.profileLoadError")}
+                {profileResult.kind === "rateLimited"
+                  ? t("minaSidor.rateLimited", {
+                      seconds: profileResult.retryAfterSeconds,
+                    })
+                  : t("minaSidor.profileLoadError")}
               </p>
             </div>
             <div className="jp-settings-grid__col">

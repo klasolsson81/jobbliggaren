@@ -623,7 +623,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     /// <para>Its OWN token since #1060 PR C (CTO-bind D2). The file is clean on this path, so
     /// reporting it as <c>PersonnummerPresent</c> drove copy telling the user to remove a number
     /// from a file that has none — a mis-reported verdict on the product's highest-priority PII
-    /// rule, and a loop with no exit (the fix is under Inställningar).</para>
+    /// rule, and a loop with no exit (the fix is not in the file).</para>
     /// </summary>
     [Fact]
     public async Task Handle_PnrInAccountDisplayName_LeftPendingPersonnummerInAccountName()

@@ -1095,7 +1095,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
       /brev                   -- cover letters
       /foretag                -- companies + contacts
       /kalender               -- upcoming events
-      /installningar
+      /mina-sidor
         /profil
         /integrationer        -- Gmail, Calendar
         /aviseringar
@@ -1166,7 +1166,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 (Klas-beslut 2026-08-22, nedskrivet 2026-08-28: *"Allt på sidan måste översättas just nu
 till både svenska och engelska. Appen riktar sig till Sverige och svenska arbetsmarknaden,
 men alla kanske inte förstår svenska."*). `en` är nåbar för varje inloggad användare —
-`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i footern och i `/installningar` —
+`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i footern och i `/mina-sidor` —
 så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hypotes.
 
 - **Svenska är standardspråket** (`defaultLocale`) och tonen sätts på svenska; engelskan är

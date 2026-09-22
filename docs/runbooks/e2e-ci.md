@@ -34,7 +34,7 @@ so the run distribution (flake rate, duration) can be observed first.
 `Auth__RequireEmailConfirmation`), with no per-request toggle:
 
 - The `loginAs` specs (`applications`/`cv`/`delete-account`/`jobb`) need a
-  **confirmed** user (they wait for `/mig`).
+  **confirmed** user (they wait for `/oversikt`).
 - `auth.spec.ts` (#791/#733) needs the flag **ON** and an **unconfirmed** user
   (register-202 panel + login-403 gate + resend).
 

@@ -7,13 +7,12 @@ public sealed class ConfirmEmailChangeCommandValidator : AbstractValidator<Confi
 {
     public ConfirmEmailChangeCommandValidator()
     {
-        // UserId.NotEmpty so a malformed request is a clean 400 and never reaches the post-success
-        // AuditLogEntry.Create empty-aggregateId throw (CTO note; ExtractAggregateId returns UserId).
-        RuleFor(c => c.UserId).NotEmpty();
+        // The grant token's bound is CompleteLoginChallengeCommandValidator's; no format rule, so no message
+        // describes what a real grant looks like.
+        RuleFor(c => c.ChangeEmailGrant).NotEmpty().MaximumLength(64);
 
-        // The new email + token are carried by the confirmation link. Well-formed / present so a
-        // malformed link is a clean 400 before UserManager runs.
+        // The address the grant is asserted for: well-formed and within the one email bound, so a malformed
+        // request is a clean 400 before anything is redeemed.
         RuleFor(c => c.NewEmail).NotEmpty().EmailAddress().MaximumLength(EmailAddressRules.MaximumLength);
-        RuleFor(c => c.Token).NotEmpty();
     }
 }

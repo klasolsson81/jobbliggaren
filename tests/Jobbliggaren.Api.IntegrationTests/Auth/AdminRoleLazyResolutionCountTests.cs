@@ -149,14 +149,11 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
             Guid userId, string urlSafeToken, string newPassword, CancellationToken ct)
             => inner.ResetPasswordAsync(userId, urlSafeToken, newPassword, ct);
 
-        public Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
-            => inner.IsEmailTakenAsync(email, ct);
+        public Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct)
+            => inner.CheckAddressIsFreeAsync(userId, newEmail, ct);
 
-        public Task<Result<string>> GenerateChangeEmailTokenAsync(Guid userId, string newEmail, CancellationToken ct)
-            => inner.GenerateChangeEmailTokenAsync(userId, newEmail, ct);
-
-        public Task<Result> ConfirmChangeEmailAsync(Guid userId, string newEmail, string urlSafeToken, CancellationToken ct)
-            => inner.ConfirmChangeEmailAsync(userId, newEmail, urlSafeToken, ct);
+        public Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
+            => inner.SwapConfirmedAddressAsync(userId, newEmail, ct);
 
         public Task<Result<string>> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken ct)
             => inner.GenerateEmailConfirmationTokenAsync(userId, ct);

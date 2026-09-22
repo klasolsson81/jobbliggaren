@@ -49,4 +49,13 @@ public abstract record LoginChallengeEmail
     /// recipient is the account holder, whose address the account already holds.
     /// </summary>
     public sealed record ReauthenticationCode(LoginCode Code) : LoginChallengeEmail;
+
+    /// <summary>
+    /// The code that proves a NEW address before a change-email completes (#1739, ADR 0142 D5), sent to that
+    /// address. A code and never a link. Recipient class (3): the address sits on no account, and whoever
+    /// typed it may not own it, so the mail carries the whole Art. 14 notice. <see cref="TargetWindow"/> is the
+    /// target cooldown's window, the one fingerprint of the address the request keeps; it is configuration, so
+    /// the handler carries it in from the options it ran on.
+    /// </summary>
+    public sealed record AddressChangeCode(LoginCode Code, TimeSpan TargetWindow) : LoginChallengeEmail;
 }

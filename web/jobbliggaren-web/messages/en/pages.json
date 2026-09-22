@@ -625,21 +625,6 @@
       "passwordResetFailed": "We could not send a reset link right now. Try again in a moment.",
       "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a reset link. Your password is unchanged. Try again later."
     },
-    "confirmEmailChange": {
-      "title": "Confirm your new email address",
-      "intro": "Click the button to complete the email address change. When you confirm, the address is changed and you are logged out on all devices for security reasons.",
-      "confirm": "Confirm new email address",
-      "pending": "Confirming…",
-      "successTitle": "The email address has been changed",
-      "successBody": "You have been logged out on all devices for security reasons. Log in again with your new email address and your usual password.",
-      "loginLink": "Log in",
-      "invalidTitle": "The link cannot be used",
-      "invalidBody": "The link is invalid or has expired. Log in and request a new email change under Settings.",
-      "networkError": "Could not reach the server. Try again in a moment.",
-      "meta": {
-        "title": "Confirm email address"
-      }
-    },
     "confirmAccount": {
       "title": "Confirm your email address",
       "intro": "The address is not confirmed until you click the button below.",

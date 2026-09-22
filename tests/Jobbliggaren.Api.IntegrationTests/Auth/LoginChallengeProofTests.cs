@@ -311,7 +311,7 @@ public class LoginChallengeProofTests(ApiFactory factory)
         var minted = await MintAsync(email);
 
         // The deletion re-authenticates with a grant minted through production (#1739): a second mail to
-        // the same address, inside the shared mail budget.
+        // the same address.
         var grant = await ReauthTestHelpers.MintGrantAsync(_factory, _client, session, email, Ct);
         using (var delete = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/delete"))
         {
@@ -339,25 +339,15 @@ public class LoginChallengeProofTests(ApiFactory factory)
         body.RootElement.TryGetProperty("sessionId", out _).ShouldBeFalse();
     }
 
-    // The address moves through the production change-email path — its token, confirmed at
-    // /confirm-email-change — inside the challenge's lifetime, so the proven address has no account.
+    // The address moves through the production change-email journey inside the challenge's lifetime, so the
+    // proven address has no account.
     private async Task<Minted> MintThenMoveTheAccountAwayAsync(string label)
     {
         var email = NewAddress(label);
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
         var minted = await MintAsync(email);
-        var userId = await UserIdOf(email);
-        var newEmail = NewAddress(label + "-to");
-        string token;
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            token = (await scope.ServiceProvider.GetRequiredService<IUserAccountService>()
-                .GenerateChangeEmailTokenAsync(userId, newEmail, Ct)).Value;
-        }
-
-        (await _client.PostAsJsonAsync(
-                "/api/v1/auth/confirm-email-change", new { uid = userId, email = newEmail, token }, Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await ReauthTestHelpers.MoveTheAddressAsync(_factory, _client, sessionId, email, NewAddress(label + "-to"), Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
         return minted;
     }
 

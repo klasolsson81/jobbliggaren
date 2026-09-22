@@ -110,14 +110,6 @@ public sealed partial class ScalewayEmailSender(
             "followed-company-notification",
             cancellationToken);
 
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail, EmailChangeConfirmationEmail content, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.EmailChangeConfirmation(_options.BaseUrl, content),
-            "email-change-confirmation",
-            cancellationToken);
-
     public Task SendEmailChangedNotificationAsync(
         string toEmail, CancellationToken cancellationToken) =>
         SendAsync(

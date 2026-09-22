@@ -92,8 +92,8 @@ public static class AuthErrorCodes
     /// <summary>
     /// #714 — uniform failure for EVERY rejection on the PUBLIC registration-confirm endpoint
     /// (<c>POST /auth/verify-email</c>): unknown user, malformed/bad/expired token. A public confirm
-    /// endpoint must not distinguish them or it becomes an account-existence oracle (parity with
-    /// <c>Auth.InvalidEmailChangeToken</c>, #679). Rendered as 400 via the central kind-mapper.
+    /// endpoint must not distinguish them or it becomes an account-existence oracle. Rendered as 400 via the
+    /// central kind-mapper.
     /// </summary>
     public const string InvalidEmailConfirmationToken = "Auth.InvalidEmailConfirmationToken";
 
@@ -122,11 +122,8 @@ public static class AuthErrorCodes
         "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
 
     /// <summary>
-    /// #1739 — a re-authentication code was requested inside the account's own cooldown, OR inside the shared
-    /// per-address mail budget (<c>LoginChallengePolicy.MailBudget</c>). ONE code for both on purpose: the mail
-    /// budget is shared with the public login challenge, so a refusal that told the two apart would tell a
-    /// hijacked session that a login mail was just requested for the address. The caller is signed in, so
-    /// the refusal is visible. Conflict → 409.
+    /// #1739 — a re-authentication code was requested inside the account's own cooldown. The caller is signed in,
+    /// so the refusal is visible. Conflict → 409.
     /// </summary>
     public const string ReauthCooldown = "Auth.ReauthCooldown";
 
@@ -143,6 +140,43 @@ public static class AuthErrorCodes
 
     public const string ReauthCodeBudgetExhaustedMessage =
         "Du har begärt så många koder som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// The address a change-email names is already some account's address or user name (#679; both since
+    /// #1739). Answered at the request step and, for a race the request step lost, at the swap. The route is
+    /// authenticated and re-authenticated, and the per-user budgets run first, so the refusal is visible.
+    /// Conflict → 409.
+    /// </summary>
+    public const string EmailTaken = "Auth.EmailTaken";
+
+    public const string EmailTakenMessage = "Den e-postadressen är upptagen.";
+
+    /// <summary>
+    /// #1739 — the user has asked to move to as many new addresses as a day admits
+    /// (<c>ChangeEmailPolicy.DailyTargetBudget</c>). Keyed by the user id, so only a holder of the session can
+    /// spend it. Conflict → 409.
+    /// </summary>
+    public const string ChangeEmailTargetBudgetExhausted = "Auth.ChangeEmailTargetBudgetExhausted";
+
+    public const string ChangeEmailTargetBudgetExhaustedMessage =
+        "Du har bett om att byta till så många nya adresser som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// #1739 — the change-email grant cannot be redeemed: unknown, expired, already used, or issued for another
+    /// user or address. One answer, the <see cref="LoginGrantUnusable"/> form. Gone → 410.
+    /// </summary>
+    public const string EmailChangeGrantUnusable = "Auth.EmailChangeGrantUnusable";
+
+    public const string EmailChangeGrantUnusableMessage =
+        "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";
+
+    /// <summary>
+    /// #1739 — the swap did not complete after the user name was taken: the address write, or a user-name write
+    /// that failed for any reason but a taken name. Conflict → 409.
+    /// </summary>
+    public const string EmailChangeIncomplete = "Auth.EmailChangeIncomplete";
+
+    public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
 
     /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;

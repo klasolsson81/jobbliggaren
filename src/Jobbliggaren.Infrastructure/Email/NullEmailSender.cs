@@ -19,10 +19,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// Suppression is logged WITHOUT any recipient/token, and the level is split by consequence:
 /// <b>Warning</b> for every account-lifecycle kind, <b>Debug</b> for the two notification
 /// kinds. security-auditor's minimum named three (<c>email-confirmation</c>,
-/// <c>email-changed-notification</c>, <c>account-exists-notice</c>);
-/// <c>email-change-confirmation</c> is raised with them for a different reason, stated because it
-/// is a deviation from her spec — it is now UNREACHABLE through this sender, since its only caller
-/// refuses first, so an occurrence means the gate was bypassed and is more alarming, not less.
+/// <c>email-changed-notification</c>, <c>account-exists-notice</c>).
 /// Until 2026-08-09 all six were Debug, which
 /// security-auditor measured as emitting <b>nowhere</b>: <c>Logging:LogLevel:Default</c> is
 /// <c>Information</c> in every committed <c>appsettings*.json</c> for both hosts, <c>deploy/</c>
@@ -134,15 +131,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         return Task.CompletedTask;
     }
 
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail,
-        EmailChangeConfirmationEmail content,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressedConsequential("email-change-confirmation");
-        return Task.CompletedTask;
-    }
-
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
         CancellationToken cancellationToken)
@@ -212,8 +200,7 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
     /// The message names the CONSEQUENCE, not the caller, and that is a correction rather than a
     /// style choice: an earlier draft ended "this send was required for the caller to complete",
     /// which both reviewers measured false for every kind that can actually emit this line — all
-    /// four callers return success anyway. It was true only of <c>email-change-confirmation</c>,
-    /// the one kind that cannot reach here. This is the string an on-call engineer reads at 03:00;
+    /// four callers return success anyway. This is the string an on-call engineer reads at 03:00;
     /// pointing it at a failed call that never failed sends them looking for the wrong thing.
     /// </remarks>
     [LoggerMessage(3007, LogLevel.Warning,

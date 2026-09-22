@@ -81,8 +81,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <c>MatchNotificationEmail(Direct, null, [item], 1)</c> is <c>BackgroundMatchingJob</c>
 /// line-for-line (including the grade label, which comes from
 /// <c>NotifiableMatchGrade.Top.ToSwedishLabel()</c> = "Toppmatch"); the digest/follow shapes are
-/// <c>DigestDispatchJob</c>'s; <c>EmailConfirmationEmail</c>/<c>EmailChangeConfirmationEmail</c> are
-/// <c>RegisterCommandHandler</c>'s and <c>ChangeEmailCommandHandler</c>'s, with a Base64Url token
+/// <c>DigestDispatchJob</c>'s; <c>EmailConfirmationEmail</c> is
+/// <c>RegisterCommandHandler</c>'s, with a Base64Url token
 /// (only <c>[A-Za-z0-9_-]</c>) because that is what
 /// <c>IUserAccountService.GenerateEmailConfirmationTokenAsync</c> returns.
 /// </para>
@@ -183,9 +183,6 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
     private static EmailConfirmationEmail SampleConfirmationContent() =>
         new(UserId, UrlSafeToken);
-
-    private static EmailChangeConfirmationEmail SampleChangeConfirmationContent() =>
-        new(UserId, "ny.adress@example.com", UrlSafeToken);
 
     private static PasswordResetEmail SamplePasswordResetContent() =>
         new(UserId, UrlSafeToken);
@@ -466,20 +463,6 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         TextSent().ShouldContain($"{_options.BaseUrl}/jobb");
         TextSent().ShouldContain($"{_options.BaseUrl}/installningar");
         LoggedSurface().ShouldContain("EmailKind=followed-company-notification");
-    }
-
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailChangeConfirmation_SelectsTheEmailChangeConfirmationTemplate()
-    {
-        var sut = CreateSut();
-
-        await sut.SendEmailChangeConfirmationAsync(
-            Recipient, SampleChangeConfirmationContent(), CancellationToken.None);
-
-        // One word apart from the registration confirmation's subject — ShouldBe, never ShouldContain.
-        SubjectSent().ShouldBe("Bekräfta din nya e-postadress");
-        TextSent().ShouldContain($"{_options.BaseUrl}/bekrafta-epost?uid={UserId:D}");
-        LoggedSurface().ShouldContain("EmailKind=email-change-confirmation");
     }
 
     [Fact]
@@ -983,22 +966,6 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         logged.ShouldNotContain(text);
         logged.ShouldNotContain(SecretKey);
         logged.ShouldNotContain(ProjectId);
-    }
-
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailChangeConfirmation_LeaksNeitherAddressToTheLog()
-    {
-        // The change-email path is the only one carrying TWO addresses: the recipient (the NEW
-        // address, in toEmail) and content.NewEmail. Both are PII and neither may be logged.
-        var content = SampleChangeConfirmationContent();
-        var sut = CreateSut();
-
-        await sut.SendEmailChangeConfirmationAsync(Recipient, content, CancellationToken.None);
-
-        var logged = LoggedSurface();
-        logged.ShouldNotContain(Recipient);
-        logged.ShouldNotContain(content.NewEmail);
-        logged.ShouldNotContain(content.UrlSafeToken);
     }
 
     // ---------------------------------------------------------------------------------------

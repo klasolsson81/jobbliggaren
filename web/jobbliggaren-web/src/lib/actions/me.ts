@@ -474,7 +474,6 @@ export async function changeEmailAction(
     return { success: false, error: ts("account.errors.network") };
   }
 
-  // No revalidatePath: nothing server-rendered on /installningar changes now — the
-  // address swaps only after the emailed link is confirmed (confirmEmailChangeAction).
+  // No revalidatePath: nothing server-rendered on /installningar changes now.
   return { success: true };
 }

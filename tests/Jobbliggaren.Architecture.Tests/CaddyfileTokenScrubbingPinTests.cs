@@ -74,6 +74,19 @@ public class CaddyfileTokenScrubbingPinTests
     private static readonly string[] KeptParameters = [];
 
     /// <summary>
+    /// Parameters no generator renders any more whose filter stays. A link a retired generator sent can be
+    /// opened from an old inbox years later, and the request line then carries the value. This is not a
+    /// clean-up list.
+    /// </summary>
+    private static readonly RetiredParameter[] RetiredParameters =
+    [
+        // No removal trigger: no measurement can show that no inbox still holds a /bekrafta-epost link.
+        new("email", Generator: "EmailTemplates.EmailChangeConfirmation", RetiredIn: "#1739 PR 4"),
+    ];
+
+    private sealed record RetiredParameter(string Name, string Generator, string RetiredIn);
+
+    /// <summary>
     /// Parameters the APP SURFACE renders that must not reach a stored log post either. Kept apart
     /// from <see cref="ScrubbedParameters"/> on purpose: that list is derived from the mail
     /// generators and every entry must be one they render, while nothing here is a mail parameter
@@ -150,7 +163,7 @@ public class CaddyfileTokenScrubbingPinTests
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix"];
 
     private static readonly Regex TokenLink = new(
-        @"https://\S+/(?:bekrafta-epost|bekrafta-konto|aterstall-losenord|logga-in/lank)\?\S+",
+        @"https://\S+/(?:bekrafta-konto|aterstall-losenord|logga-in/lank)\?\S+",
         RegexOptions.Compiled);
 
     /// <summary>A line opening a <c>log</c> directive, at any indentation.</summary>
@@ -163,10 +176,6 @@ public class CaddyfileTokenScrubbingPinTests
     {
         var bodies = new[]
         {
-            EmailTemplates.EmailChangeConfirmation(
-                BaseUrl,
-                new EmailChangeConfirmationEmail(
-                    Guid.NewGuid(), "ny.adress@example.se", Base64UrlToken)).PlainTextBody,
             EmailTemplates.EmailConfirmation(
                 BaseUrl,
                 new EmailConfirmationEmail(Guid.NewGuid(), Base64UrlToken)).PlainTextBody,
@@ -191,6 +200,10 @@ public class CaddyfileTokenScrubbingPinTests
             // re-authentication); read here for the same reason as the two above.
             EmailTemplates.LoginChallenge(
                 BaseUrl, new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))).PlainTextBody,
+            EmailTemplates.LoginChallenge(
+                BaseUrl,
+                new LoginChallengeEmail.AddressChangeCode(
+                    LoginCode.FromRaw("042917"), TimeSpan.FromSeconds(60))).PlainTextBody,
         };
 
         return bodies
@@ -245,10 +258,33 @@ public class CaddyfileTokenScrubbingPinTests
 
             // And the gate's name must be one something actually renders — otherwise the filter
             // protects a parameter that no longer exists while the real one flows past it.
+            if (RetiredParameters.Any(retired => retired.Name == name))
+                continue;
+
             rendered.ShouldContain(
                 name,
                 $"no token-bearing link renders '{name}' any more, so the Caddyfile's filter for "
                 + "it is dead. Re-derive the gate's list from the generators.");
+        }
+    }
+
+    [Fact]
+    public void TheCaddyfile_KeepsFilteringEveryRetiredParameter_AndNoGeneratorRendersOne()
+    {
+        var filtered = CaddyfileFilteredParameters();
+        var rendered = RenderedParameterNames();
+
+        RetiredParameters.ShouldNotBeEmpty();
+        foreach (var retired in RetiredParameters)
+        {
+            filtered.ShouldContain(
+                retired.Name,
+                $"deploy/caddy/Caddyfile no longer filters '{retired.Name}', which links sent by "
+                + $"{retired.Generator} (retired in {retired.RetiredIn}) still carry. ADR 0050 gate N-1.");
+            rendered.ShouldNotContain(
+                retired.Name,
+                $"a generator renders '{retired.Name}' again, so it is not retired. Remove it from "
+                + $"{nameof(RetiredParameters)}.");
         }
     }
 
@@ -299,11 +335,10 @@ public class CaddyfileTokenScrubbingPinTests
     [Fact]
     public void TheOracle_ReadsEveryLink_AndANonEmptyFilterInsideGlobalOptions()
     {
-        // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, and
-        // /bekrafta-epost alone renders the whole union {uid, email, token} — so counting NAMES
-        // cannot tell several matched links from one. Count the links.
+        // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, so
+        // counting NAMES cannot tell several matched links from one. Count the links.
         RenderedLinks().Count.ShouldBe(
-            5,
+            4,
             "a token-bearing link stopped matching TokenLink, so the pin silently reads fewer "
             + "generators than it claims.");
 

@@ -69,29 +69,24 @@ public interface IUserAccountService
     Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct);
 
     /// <summary>
-    /// True if some account already owns <paramref name="email"/> (RequireUniqueEmail). Used by the
-    /// change-email request step (#679) for a friendly "address is taken" (409) BEFORE issuing a
-    /// token; uniqueness is still enforced authoritatively at <see cref="ConfirmChangeEmailAsync"/>.
+    /// Whether a change-email may name <paramref name="newEmail"/> (#1739): a failure when the address carries a
+    /// character no stored address may hold (<c>Auth.EmailNotStorable</c>), or when some account holds it as its
+    /// address OR its user name (<c>Auth.EmailTaken</c>). The user name counts because a swap that failed after its
+    /// first write leaves a row whose user name is the new address and whose address is the old one, and that row
+    /// holds the address against everyone but <paramref name="userId"/>, whose retry completes the swap.
+    /// Authoritative uniqueness is still the swap's.
     /// </summary>
-    Task<bool> IsEmailTakenAsync(string email, CancellationToken ct);
+    Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct);
 
     /// <summary>
-    /// Generates a URL-safe change-email ownership-confirmation token bound to the user + the NEW
-    /// address (#679). Uses the opaque DataProtector provider (CTO-bind #1); the token encodes the
-    /// pending new email, nothing is persisted (the pending state lives in the emailed link), and the
-    /// email is NOT changed here. Base64Url-encoded so it survives a URL/query round-trip. Returns
-    /// NotFound if the user is gone.
+    /// Moves the account to <paramref name="newEmail"/>, whose inbox a change-email grant has proven (#1739, ADR 0142
+    /// D5). The user name is written first and its refusal is fatal, because the unique index is on the user name:
+    /// a taken name (the validator's refusal or the index's) is <c>Auth.EmailTaken</c>, any other refusal
+    /// <c>Auth.EmailChangeIncomplete</c>. The address write follows, and its failure is fatal as
+    /// <c>Auth.EmailChangeIncomplete</c>, leaving the user name moved and the address kept, a state no one else can
+    /// take and a retry completes. The security stamp rotates with each write.
     /// </summary>
-    Task<Result<string>> GenerateChangeEmailTokenAsync(Guid userId, string newEmail, CancellationToken ct);
-
-    /// <summary>
-    /// Applies a pending email change (#679): verifies the URL-safe token against the user + NEW
-    /// address, sets Email/NormalizedEmail (+ EmailConfirmed) and keeps UserName in lockstep with the
-    /// email (registration couples them), rotating the security stamp so the token is single-use.
-    /// Returns ONE uniform failure for every rejection, so the PUBLIC confirm endpoint reveals no
-    /// account-existence or enumeration oracle.
-    /// </summary>
-    Task<Result> ConfirmChangeEmailAsync(Guid userId, string newEmail, string urlSafeToken, CancellationToken ct);
+    Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct);
 
     /// <summary>
     /// Generates a URL-safe email-confirmation token for the user's CURRENT address (#714, registration
@@ -106,9 +101,9 @@ public interface IUserAccountService
     /// Confirms a registration email address (#714): verifies the URL-safe token and sets
     /// <c>EmailConfirmed=true</c>. Returns ONE uniform failure for every rejection (user-not-found,
     /// bad/expired/malformed token) so the PUBLIC confirm endpoint reveals no account-existence or
-    /// enumeration oracle. Idempotent within the token lifespan: a double-click both succeed (unlike
-    /// <see cref="ConfirmChangeEmailAsync"/>, the security stamp is NOT rotated — an activation link
-    /// need not be single-use, and idempotency is the safer click-through UX).
+    /// enumeration oracle. Idempotent within the token lifespan: a double-click both succeed (the security
+    /// stamp is NOT rotated — an activation link need not be single-use, and idempotency is the safer
+    /// click-through UX).
     /// </summary>
     Task<Result> ConfirmEmailAsync(Guid userId, string urlSafeToken, CancellationToken ct);
 
@@ -175,8 +170,8 @@ public interface IUserAccountService
     /// <para>
     /// <b>A successful reset also sets <c>EmailConfirmed</c> (#1303), regardless of
     /// <see cref="Auth.AuthOptions.RequireEmailConfirmation"/>.</b> The token reaching this point was
-    /// mailed to the address, which is the proof <see cref="ConfirmEmailAsync"/> and
-    /// <see cref="ConfirmChangeEmailAsync"/> already accept. Why the flag does not gate it, and why the
+    /// mailed to the address, which is the proof <see cref="ConfirmEmailAsync"/> already accepts. Why the flag
+    /// does not gate it, and why the
     /// extra persist is safe: ADR 0127 Amendment 2026-08-11.
     /// </para>
     /// </summary>

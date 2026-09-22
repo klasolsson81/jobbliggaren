@@ -1,7 +1,4 @@
-using System.Buffers.Text;
 using System.Net;
-using System.Net.Http.Json;
-using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -16,7 +13,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
 /// #1739 (PR 1) — what the address swap's write order RESTS on, measured against the real
-/// <see cref="UserManager{TUser}"/> and Postgres. <c>ConfirmChangeEmailAsync</c> takes the user name before it
+/// <see cref="UserManager{TUser}"/> and Postgres. <c>SwapConfirmedAddressAsync</c> takes the user name before it
 /// writes the address, because only the user-name index is unique. That order is pinned as wiring in
 /// <c>UserAccountServiceAddressSwapTests</c>; this class pins the framework behaviour each step assumes, and
 /// what the swap leaves behind for the one who came second.
@@ -29,13 +26,16 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
 
     private static string Address(string label) => $"swap-{label}-{Guid.NewGuid():N}@example.se";
 
-    private Task<HttpResponseMessage> ConfirmAsync(Guid uid, string email, string token, CancellationToken ct) =>
-        _client.PostAsJsonAsync("/api/v1/auth/confirm-email-change", new { uid, email, token }, ct);
+    private Task<HttpResponseMessage> ConfirmAsync(Account account, string email, string grant, CancellationToken ct) =>
+        ReauthTestHelpers.ConfirmAddressChangeAsync(_client, account.Session, grant, email, ct);
 
-    private async Task<Guid> CreateAccountAsync(string email, CancellationToken ct)
+    private async Task<Guid> CreateAccountAsync(string email, CancellationToken ct) =>
+        (await CreateSignedInAccountAsync(email, ct)).Id;
+
+    private async Task<Account> CreateSignedInAccountAsync(string email, CancellationToken ct)
     {
-        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
-        return (await ReadAsync(email))!.Id;
+        var session = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
+        return new Account((await ReadAsync(email))!.Id, email, session);
     }
 
     private async Task<ApplicationUser?> ReadAsync(string email)
@@ -52,15 +52,15 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
         return user.ShouldNotBeNull();
     }
 
-    // The token as the mailed link carries it: Identity's change-email token, Base64Url-encoded, the transform
-    // of UserAccountService.GenerateChangeEmailTokenAsync.
-    private async Task<string> MailedTokenAsync(Guid userId, string newEmail)
+    // Two accounts asking for one address inside the target cooldown's window is what the clock separates in
+    // production, so the second request lets that cooldown lapse first (the helper names the actor).
+    private async Task<string> GrantAsync(Account account, string newEmail, CancellationToken ct, bool afterAnother = false)
     {
-        using var scope = _factory.Services.CreateScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = (await userManager.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
-        return Base64Url.EncodeToString(
-            Encoding.UTF8.GetBytes(await userManager.GenerateChangeEmailTokenAsync(user, newEmail)));
+        if (afterAnother)
+            await ReauthTestHelpers.LetTheTargetCooldownLapseAsync(_factory, newEmail);
+
+        return await ReauthTestHelpers.MintChangeEmailGrantAsync(
+            _factory, _client, account.Session, account.Email, newEmail, ct);
     }
 
     private async Task<int> RowsOnAddressAsync(string email)
@@ -89,8 +89,7 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
 
         (await userManager.SetUserNameAsync(user, newEmail)).Succeeded.ShouldBeTrue();
 
-        // Why the mailed token is verified BEFORE the user-name write, and why the address write gets a token
-        // minted after it.
+        // Why the address write gets a token minted after it.
         user.SecurityStamp.ShouldNotBe(stampBefore);
         (await userManager.VerifyUserTokenAsync(user, provider, purpose, mintedBefore)).ShouldBeFalse();
     }
@@ -151,44 +150,27 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
         var firstOld = Address("first");
         var secondOld = Address("second");
         var contested = Address("contested");
-        var first = await CreateAccountAsync(firstOld, ct);
-        var second = await CreateAccountAsync(secondOld, ct);
+        var first = await CreateSignedInAccountAsync(firstOld, ct);
+        var second = await CreateSignedInAccountAsync(secondOld, ct);
 
-        // Both hold a live mailed token for the SAME address before either confirms.
-        var firstToken = await MailedTokenAsync(first, contested);
-        var secondToken = await MailedTokenAsync(second, contested);
+        // Both hold a live grant for the SAME address before either confirms.
+        var firstGrant = await GrantAsync(first, contested, ct);
+        var secondGrant = await GrantAsync(second, contested, ct, afterAnother: true);
 
-        (await ConfirmAsync(first, contested, firstToken, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await ConfirmAsync(second, contested, secondToken, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ConfirmAsync(first, contested, firstGrant, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await ConfirmAsync(second, contested, secondGrant, ct)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        var loser = await ReadAsync(second);
+        var loser = await ReadAsync(second.Id);
         loser.Email.ShouldBe(secondOld);
         loser.UserName.ShouldBe(secondOld);
         (await RowsOnAddressAsync(contested)).ShouldBe(1);
     }
 
     [Fact]
-    public async Task A_mailed_token_cannot_be_used_twice()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var oldEmail = Address("once");
-        var newEmail = Address("once-new");
-        var userId = await CreateAccountAsync(oldEmail, ct);
-        var token = await MailedTokenAsync(userId, newEmail);
-
-        (await ConfirmAsync(userId, newEmail, token, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await ConfirmAsync(userId, newEmail, token, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-
-        var user = await ReadAsync(userId);
-        user.Email.ShouldBe(newEmail);
-        user.UserName.ShouldBe(newEmail);
-    }
-
-    [Fact]
     public async Task Swaps_racing_to_one_address_end_with_one_winner_and_one_row_on_it()
     {
         // Pairs confirm at the same instant. Whichever way each pair interleaves — the validator's read refusing
-        // the second, or the index refusing its write — exactly one wins, the other is answered 400 and not 500,
+        // the second, or the index refusing its write — exactly one wins, the other is answered 409 and not 500,
         // and the address ends on the winner's row alone.
         var ct = TestContext.Current.CancellationToken;
         const int pairs = 6;
@@ -199,34 +181,34 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
             var contested = Address($"race{i}");
             var firstOld = Address($"race{i}-a");
             var secondOld = Address($"race{i}-b");
-            var first = await CreateAccountAsync(firstOld, ct);
-            var second = await CreateAccountAsync(secondOld, ct);
+            var first = await CreateSignedInAccountAsync(firstOld, ct);
+            var second = await CreateSignedInAccountAsync(secondOld, ct);
             races.Add(new Race(
-                first, firstOld, await MailedTokenAsync(first, contested),
-                second, secondOld, await MailedTokenAsync(second, contested),
+                first, await GrantAsync(first, contested, ct),
+                second, await GrantAsync(second, contested, ct, afterAnother: true),
                 contested));
         }
 
         var outcomes = await Task.WhenAll(races.Select(async race =>
         {
             var responses = await Task.WhenAll(
-                ConfirmAsync(race.First, race.Contested, race.FirstToken, ct),
-                ConfirmAsync(race.Second, race.Contested, race.SecondToken, ct));
+                ConfirmAsync(race.First, race.Contested, race.FirstGrant, ct),
+                ConfirmAsync(race.Second, race.Contested, race.SecondGrant, ct));
             return responses.Select(r => r.StatusCode).OrderBy(s => (int)s).ToArray();
         }));
 
         foreach (var statuses in outcomes)
-            statuses.ShouldBe([HttpStatusCode.NoContent, HttpStatusCode.BadRequest]);
+            statuses.ShouldBe([HttpStatusCode.OK, HttpStatusCode.Conflict]);
 
         foreach (var race in races)
         {
             (await RowsOnAddressAsync(race.Contested)).ShouldBe(1);
 
-            var first = await ReadAsync(race.First);
-            var second = await ReadAsync(race.Second);
+            var first = await ReadAsync(race.First.Id);
+            var second = await ReadAsync(race.Second.Id);
             var (winner, loser, loserOld) = first.Email == race.Contested
-                ? (first, second, race.SecondOld)
-                : (second, first, race.FirstOld);
+                ? (first, second, race.Second.Email)
+                : (second, first, race.First.Email);
 
             winner.Email.ShouldBe(race.Contested);
             winner.UserName.ShouldBe(race.Contested);
@@ -234,8 +216,7 @@ public class AddressSwapWriteOrderTests(ApiFactory factory)
         }
     }
 
-    private sealed record Race(
-        Guid First, string FirstOld, string FirstToken,
-        Guid Second, string SecondOld, string SecondToken,
-        string Contested);
+    private sealed record Account(Guid Id, string Email, string Session);
+
+    private sealed record Race(Account First, string FirstGrant, Account Second, string SecondGrant, string Contested);
 }

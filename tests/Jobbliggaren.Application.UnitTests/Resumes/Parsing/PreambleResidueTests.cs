@@ -1082,7 +1082,7 @@ public class PreambleResidueTests
     }
 
     [Fact]
-    public void Segment_HeadinglessParagraphOfTenDigitsDilutedPastTheCap_CarriesAPrefixTheScanPasses()
+    public void Segment_HeadinglessParagraphOfTenDigitsDilutedPastTheCap_CarriesTheLongestPrefixTheScanPasses()
     {
         // Ten digits of a personnummer spread by characters the scan strips, the eleventh past the
         // cap: the whole text is an eleven-digit run to the scan, while the head alone would be the
@@ -1099,6 +1099,7 @@ public class PreambleResidueTests
         preamble.ShouldNotBeEmpty();
         cv.ShouldStartWith(preamble);
         ScanCount(preamble).ShouldBe(0);
+        ScanCount(cv[..(preamble.Length + 1)]).ShouldBe(1);
     }
 
     private void AssertTheHardCutMintsNothing(int proseLength, string run)

@@ -13,12 +13,13 @@ using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.Register;
 using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.RequestPasswordReset;
+using Jobbliggaren.Application.Auth.Commands.RequestReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 using Jobbliggaren.Application.Auth.Commands.ResetPassword;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
-using Jobbliggaren.Application.Auth.Queries.VerifyCredentials;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -83,28 +84,45 @@ public static partial class AuthEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthLoosePolicy);
 
-        // Re-autentisering före destruktiv operation (TD-28 / OWASP ASVS V6.2.5).
-        // Validerar lösenord för aktuell session-användare utan att skapa eller
-        // ändra sessioner. Klienten skickar endast { password } — email tas från
-        // claim. Rate-limit AuthWrite (20/min per IP) — samma riskprofil som login.
-        group.MapPost("/verify", async (
-            VerifyCredentialsQuery query, IMediator mediator, CancellationToken ct) =>
+        // Re-authentication — REQUEST step (#1739, ADR 0142 D5). AUTHENTICATED: the code goes to the account's
+        // own address, resolved from the session, and the body carries nothing. Every refusal is visible,
+        // because the caller is the account holder: 503 when the sender cannot deliver, 409 inside the
+        // cooldown or the shared mail budget (one code for both, on purpose), 409 past the day's codes. The
+        // challenge id is the requester's alone; it appears in no log line and no URL.
+        group.MapPost("/reauth", async (IMediator mediator, CancellationToken ct) =>
         {
-            var result = await mediator.Send(query, ct);
-            return result.IsSuccess
-                ? Results.NoContent()
-                : ToErrorResult(result.Error);
+            var result = await mediator.Send(new RequestReauthenticationChallengeCommand(), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Accepted(uri: (string?)null, value: new { challengeId = result.Value.Reveal() });
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
-        // Self-service change-password + C6 (#678, epik #481). The CURRENT password is the re-auth
-        // credential: ReauthenticationBehavior verifies it server-side BEFORE the handler (a hijacked
-        // long-lived session can't change the password without it); a wrong current password throws
-        // ReauthenticationFailedException -> byte-identical 401 (Program.cs). A weak new password is
-        // a 400 (validator) before UserManager runs. On success the endpoint owns C6 (below) and
-        // returns the re-issued { sessionId, persistent } like /login (ADR 0018 — backend sets no
-        // cookies; the Next layer re-sets the __Host- cookie). AuthWrite rate-limit — same
-        // credential-risk profile as /login and /verify.
+        // Re-authentication — VERIFY step (#1739). AUTHENTICATED: the code is presented against the challenge
+        // id, and the store asserts that the challenge belongs to this user and this purpose. A verified code
+        // is a single-use grant the sensitive operation then carries as `reauthGrant`; never a session. The
+        // failures are the login code's: a wrong code 400, a burned or expired one 410.
+        group.MapPost("/reauth/verify", async (
+            ReauthenticationVerifyRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new VerifyReauthenticationChallengeCommand(body.ChallengeId, body.Code), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Ok(new { reauthGrant = result.Value.Reveal() });
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Self-service change-password + C6 (#678, epik #481). The re-auth credential is the grant from
+        // /reauth/verify (#1739): ReauthenticationBehavior redeems it server-side BEFORE the handler (a
+        // hijacked long-lived session cannot change the password on its own); a grant that cannot be
+        // redeemed throws ReauthenticationFailedException -> byte-identical 401 (Program.cs). The current
+        // password travels beside it because Identity requires it. A weak new password is a 400 (validator)
+        // before UserManager runs. On success the endpoint owns C6 (below) and returns the re-issued
+        // { sessionId, persistent } like /login (ADR 0018 — backend sets no cookies; the Next layer re-sets
+        // the __Host- cookie). AuthWrite rate-limit — same credential-risk profile as /login.
         group.MapPost("/change-password", async (
             ChangePasswordRequest body,
             IMediator mediator,
@@ -113,7 +131,7 @@ public static partial class AuthEndpoints
             CancellationToken ct) =>
         {
             var result = await mediator.Send(
-                new ChangePasswordCommand(body.CurrentPassword, body.NewPassword), ct);
+                new ChangePasswordCommand(body.ReauthGrant, body.CurrentPassword, body.NewPassword), ct);
             if (result.IsFailure)
                 return ToErrorResult(result.Error);
 
@@ -154,8 +172,8 @@ public static partial class AuthEndpoints
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // Self-service change-email — REQUEST step (#679, epik #481). Re-auth-gated like
-        // change-password: the CURRENT password is verified server-side by ReauthenticationBehavior
-        // (wrong -> byte-identical 401) BEFORE the handler. A taken address is a 409 (clear "adressen
+        // change-password: the grant from /reauth/verify is redeemed server-side by ReauthenticationBehavior
+        // (unusable -> byte-identical 401) BEFORE the handler. A taken address is a 409 (clear "adressen
         // är upptagen"), a malformed address a 400. On success the handler emails an ownership-
         // confirmation link to the NEW address and returns 202 Accepted — the email is NOT changed and
         // NO session is touched until the link is confirmed (see /confirm-email-change). AuthWrite
@@ -166,7 +184,7 @@ public static partial class AuthEndpoints
             CancellationToken ct) =>
         {
             var result = await mediator.Send(
-                new ChangeEmailCommand(body.CurrentPassword, body.NewEmail), ct);
+                new ChangeEmailCommand(body.ReauthGrant, body.NewEmail), ct);
             return result.IsFailure
                 ? ToErrorResult(result.Error)
                 : Results.Accepted();
@@ -386,18 +404,18 @@ public static partial class AuthEndpoints
     }
 
     /// <summary>
-    /// POST /auth/change-password body — the current password (server-side re-auth via
-    /// ReauthenticationBehavior) and the new password (strength-validated by
-    /// ChangePasswordCommandValidator). A pure transport DTO; neither value is logged.
+    /// POST /auth/change-password body — the re-auth grant (redeemed server-side by
+    /// ReauthenticationBehavior, #1739), the current password (Identity requires it) and the new password
+    /// (strength-validated by ChangePasswordCommandValidator). A pure transport DTO; no value is logged.
     /// </summary>
-    public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
+    public sealed record ChangePasswordRequest(string? ReauthGrant, string? CurrentPassword, string? NewPassword);
 
     /// <summary>
-    /// POST /auth/change-email body — the current password (server-side re-auth via
-    /// ReauthenticationBehavior) and the new email address (uniqueness pre-checked; ownership
-    /// confirmed via an emailed link before the swap). A pure transport DTO; neither value is logged.
+    /// POST /auth/change-email body — the re-auth grant (redeemed server-side by ReauthenticationBehavior,
+    /// #1739) and the new email address (uniqueness pre-checked; ownership confirmed via an emailed link
+    /// before the swap). A pure transport DTO; neither value is logged.
     /// </summary>
-    public sealed record ChangeEmailRequest(string? CurrentPassword, string? NewEmail);
+    public sealed record ChangeEmailRequest(string? ReauthGrant, string? NewEmail);
 
     /// <summary>
     /// POST /auth/forgot-password body — the address to send a reset link to. A pure transport DTO; the
@@ -444,6 +462,9 @@ public static partial class AuthEndpoints
 
     /// <summary>POST /auth/challenge/verify body (#1735). The code is a credential and is never logged.</summary>
     public sealed record LoginChallengeVerifyRequest(string? ChallengeId, string? Code);
+
+    /// <summary>POST /auth/reauth/verify body (#1739). The code is a credential and is never logged.</summary>
+    public sealed record ReauthenticationVerifyRequest(string? ChallengeId, string? Code);
 
     /// <summary>POST /auth/link body (#1735). The token is a credential and is never logged.</summary>
     public sealed record LoginLinkRequest(string? Token);

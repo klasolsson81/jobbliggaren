@@ -33,7 +33,7 @@ public class ChangePasswordCommandHandlerTests
         var handler = CreateHandler(AuthenticatedUser(userId), service);
 
         var result = await handler.Handle(
-            new ChangePasswordCommand(CurrentPassword, NewPassword), CancellationToken.None);
+            new ChangePasswordCommand("grant", CurrentPassword, NewPassword), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         // The audit aggregate id (User.PasswordChanged) AND the id the endpoint re-issues for.
@@ -50,7 +50,7 @@ public class ChangePasswordCommandHandlerTests
         var handler = CreateHandler(AuthenticatedUser(userId), service);
 
         var result = await handler.Handle(
-            new ChangePasswordCommand(CurrentPassword, NewPassword), CancellationToken.None);
+            new ChangePasswordCommand("grant", CurrentPassword, NewPassword), CancellationToken.None);
 
         // The port failure propagates. (That AuditBehavior skips failed commands is proven
         // generically by AuditBehaviorTests, not re-asserted here.)
@@ -67,7 +67,7 @@ public class ChangePasswordCommandHandlerTests
         var handler = CreateHandler(currentUser, service);
 
         var result = await handler.Handle(
-            new ChangePasswordCommand(CurrentPassword, NewPassword), CancellationToken.None);
+            new ChangePasswordCommand("grant", CurrentPassword, NewPassword), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Auth.NotAuthenticated");
@@ -86,7 +86,7 @@ public class ChangePasswordCommandHandlerTests
         var service = Substitute.For<IUserAccountService>();
         var handler = CreateHandler(AuthenticatedUser(userId), service);
 
-        var result = await handler.Handle(new ChangePasswordCommand(current, updated), CancellationToken.None);
+        var result = await handler.Handle(new ChangePasswordCommand("grant", current, updated), CancellationToken.None);
 
         result.IsFailure.ShouldBeTrue();
         await service.DidNotReceive().ChangePasswordAsync(

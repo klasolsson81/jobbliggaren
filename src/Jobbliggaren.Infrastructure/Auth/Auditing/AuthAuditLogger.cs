@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
@@ -71,6 +72,18 @@ public sealed partial class AuthAuditLogger(
             userAgent ?? string.Empty);
     }
 
+    public void ReauthenticationSucceeded(Guid userId, GrantPurpose purpose)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogReauthenticationSucceeded(logger, "reauthentication_succeeded", userId, purpose, resolvedIp, resolvedAgent);
+    }
+
+    public void ReauthenticationFailed(Guid userId, GrantPurpose purpose)
+    {
+        var (resolvedIp, resolvedAgent) = ExtractRequestContext();
+        LogReauthenticationFailed(logger, "reauthentication_failed", userId, purpose, resolvedIp, resolvedAgent);
+    }
+
     // App-loggens IP/UA går genom samma anonymiserings-port som audit-tabellen
     // (ADR 0024 D7). Defense-in-depth: även om CloudWatch-retention (30d) failar
     // ska app-loggen inte bära unika IP-fingerprints.
@@ -126,4 +139,15 @@ public sealed partial class AuthAuditLogger(
         "AuditEvent={AuditEvent} UserId={UserId} ChallengeKind={ChallengeKind} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogLoginChallengeIssued(
         ILogger logger, string auditEvent, Guid userId, LoginChallengeKind challengeKind, string ip, string userAgent);
+
+    // #1739. UserId and the purpose only — never the address, the code or the grant.
+    [LoggerMessage(1019, LogLevel.Information,
+        "AuditEvent={AuditEvent} UserId={UserId} Purpose={Purpose} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogReauthenticationSucceeded(
+        ILogger logger, string auditEvent, Guid userId, GrantPurpose purpose, string ip, string userAgent);
+
+    [LoggerMessage(1020, LogLevel.Warning,
+        "AuditEvent={AuditEvent} UserId={UserId} Purpose={Purpose} Ip={Ip} UserAgent={UserAgent}")]
+    private static partial void LogReauthenticationFailed(
+        ILogger logger, string auditEvent, Guid userId, GrantPurpose purpose, string ip, string userAgent);
 }

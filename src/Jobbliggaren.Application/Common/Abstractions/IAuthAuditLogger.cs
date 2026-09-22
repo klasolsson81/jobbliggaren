@@ -63,4 +63,19 @@ public interface IAuthAuditLogger
         Auth.LoginChallenges.LoginChallengeKind challengeKind,
         string? ipAddress,
         string? userAgent);
+
+    /// <summary>
+    /// #1739 — a re-authentication grant was redeemed for a sensitive operation (ADR 0142 D5). Written from
+    /// <c>ReauthenticationService</c>, never from the behavior. The user id and the purpose only: never an
+    /// address, a code or a token.
+    /// </summary>
+    void ReauthenticationSucceeded(Guid userId, Auth.Grants.GrantPurpose purpose);
+
+    /// <summary>
+    /// #1739 — a re-authentication was refused: no grant, a grant that could not be redeemed, or a soft-deleted
+    /// account. After 5b this is the only brake on a hijacked 180-day session, so a series of these on one
+    /// user id is the one signal that someone is inside — the same Art. 6(1)(f) weighing as
+    /// <see cref="LoginFailed"/>. The user id and the purpose only: never an address, a code or a token.
+    /// </summary>
+    void ReauthenticationFailed(Guid userId, Auth.Grants.GrantPurpose purpose);
 }

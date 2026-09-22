@@ -99,11 +99,12 @@ public static class MeEndpoints
         // Hard-delete + Identity-DELETE + audit-anonymisering sker av
         // HardDeleteAccountsJob efter 30-dagars restore-fönster (ADR 0024 D5+D6).
         //
-        // POST /me/delete (inte DELETE): operationen BÄR en credential (lösenordet) för
-        // server-side re-auth (C5, epik #481) — DELETE-body har odefinierad semantik (RFC 9110
-        // §9.3.5) och kan strippas av proxies. ReauthenticationBehavior verifierar lösenordet
-        // FÖRE handlern körs (en kapad long-lived session kan inte radera utan lösenordet); vid
-        // fel → byte-identisk 401. Lösenordet når aldrig handlern och loggas aldrig.
+        // POST /me/delete (inte DELETE): operationen BÄR en credential (re-auth-granten från
+        // /auth/reauth/verify, #1739) för server-side re-auth (C5, epik #481) — DELETE-body har
+        // odefinierad semantik (RFC 9110 §9.3.5) och kan strippas av proxies. ReauthenticationBehavior
+        // löser in granten FÖRE handlern körs (en kapad long-lived session kan inte radera utan koden
+        // som mejlats till kontots egen adress); vid fel → byte-identisk 401. Granten når aldrig
+        // handlern och loggas aldrig.
         group.MapPost("/delete", async (
             DeleteAccountRequest body,
             IMediator mediator,
@@ -111,7 +112,7 @@ public static class MeEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new DeleteAccountCommand(body.Password), ct);
+            var result = await mediator.Send(new DeleteAccountCommand(body.ReauthGrant), ct);
             if (result.IsFailure)
                 return result.Error.ToProblemResult();
 
@@ -144,9 +145,9 @@ public static class MeEndpoints
     }
 
     /// <summary>
-    /// POST /me/delete body — the current password for server-side re-authentication (C5, epik
-    /// #481). A pure transport DTO; the re-auth check runs in ReauthenticationBehavior before the
-    /// handler. Validated by DeleteAccountCommandValidator (NotEmpty) so an empty password is 400.
+    /// POST /me/delete body — the re-auth grant from /auth/reauth/verify (C5, epik #481; #1739). A pure
+    /// transport DTO; the grant is redeemed in ReauthenticationBehavior before the handler. Validated by
+    /// DeleteAccountCommandValidator (NotEmpty) so an empty grant is 400.
     /// </summary>
-    public sealed record DeleteAccountRequest(string? Password);
+    public sealed record DeleteAccountRequest(string? ReauthGrant);
 }

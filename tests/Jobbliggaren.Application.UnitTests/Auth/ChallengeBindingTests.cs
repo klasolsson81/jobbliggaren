@@ -55,4 +55,16 @@ public class ChallengeBindingTests
         new ChallengeBinding(ChallengePurpose.Reauthentication, userId)
             .ShouldNotBe(new ChallengeBinding(ChallengePurpose.Reauthentication, Guid.NewGuid()));
     }
+
+    [Fact]
+    public void ChallengeBinding_ShouldHaveNoSetter_OnEitherProperty()
+    {
+        // Get-only is the invariant, not a style choice (dotnet-architect, #1793): the type is a record, so the
+        // compiler's copy constructor bypasses the validating one, and that is harmless ONLY while neither
+        // property can be set afterwards. An `init` accessor would let `with { Purpose = (ChallengePurpose)9 }`
+        // compile and reach the store; the three refusal facts above would stay green, since they call the
+        // constructor.
+        foreach (var property in typeof(ChallengeBinding).GetProperties())
+            property.SetMethod.ShouldBeNull($"{property.Name} must be get-only");
+    }
 }

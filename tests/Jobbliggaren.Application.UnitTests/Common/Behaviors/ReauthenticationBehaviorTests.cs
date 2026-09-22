@@ -9,7 +9,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Common.Behaviors;
 
 // A re-auth-gated test message (marker). Non-marker coverage reuses TestCommand (TestMessages.cs).
-public sealed record ReauthenticatingTestCommand(string? Password)
+public sealed record ReauthenticatingTestCommand(string? ReauthGrant)
     : ICommand<string>, IReauthenticatingRequest;
 
 /// <summary>
@@ -41,30 +41,30 @@ public class ReauthenticationBehaviorTests
     public async Task Handle_WhenMarkerAndReauthSucceeds_InvokesNextAndFlowsResponse()
     {
         var ct = TestContext.Current.CancellationToken;
-        _service.VerifyCurrentUserPasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _service.VerifyCurrentUserGrantAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success());
         var behavior = new ReauthenticationBehavior<ReauthenticatingTestCommand, string>([_service]);
         var (next, wasCalled) = TrackingNext<ReauthenticatingTestCommand>();
 
-        var result = await behavior.Handle(new ReauthenticatingTestCommand("pwd"), next, ct);
+        var result = await behavior.Handle(new ReauthenticatingTestCommand("grant"), next, ct);
 
         result.ShouldBe("ok");
         wasCalled().ShouldBeTrue();
-        await _service.Received(1).VerifyCurrentUserPasswordAsync("pwd", Arg.Any<CancellationToken>());
+        await _service.Received(1).VerifyCurrentUserGrantAsync("grant", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Handle_WhenMarkerAndReauthFails_ThrowsAndDoesNotInvokeNext()
     {
         var ct = TestContext.Current.CancellationToken;
-        _service.VerifyCurrentUserPasswordAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _service.VerifyCurrentUserGrantAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure(
                 DomainError.Validation("Auth.InvalidCredentials", "E-post eller lösenord är felaktigt.")));
         var behavior = new ReauthenticationBehavior<ReauthenticatingTestCommand, string>([_service]);
         var (next, wasCalled) = TrackingNext<ReauthenticatingTestCommand>();
 
         await Should.ThrowAsync<ReauthenticationFailedException>(
-            () => behavior.Handle(new ReauthenticatingTestCommand("wrong"), next, ct).AsTask());
+            () => behavior.Handle(new ReauthenticatingTestCommand("unusable"), next, ct).AsTask());
 
         // Handler / UnitOfWork commit / audit row are all skipped on a failed re-auth.
         wasCalled().ShouldBeFalse();
@@ -81,7 +81,7 @@ public class ReauthenticationBehaviorTests
 
         result.ShouldBe("ok");
         wasCalled().ShouldBeTrue();
-        await _service.DidNotReceive().VerifyCurrentUserPasswordAsync(
+        await _service.DidNotReceive().VerifyCurrentUserGrantAsync(
             Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -96,7 +96,7 @@ public class ReauthenticationBehaviorTests
         var (next, wasCalled) = TrackingNext<ReauthenticatingTestCommand>();
 
         await Should.ThrowAsync<InvalidOperationException>(
-            () => behavior.Handle(new ReauthenticatingTestCommand("pwd"), next, ct).AsTask());
+            () => behavior.Handle(new ReauthenticatingTestCommand("grant"), next, ct).AsTask());
         wasCalled().ShouldBeFalse();
     }
 }

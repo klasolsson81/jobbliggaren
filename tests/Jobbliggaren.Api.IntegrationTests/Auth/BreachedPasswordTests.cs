@@ -78,7 +78,7 @@ public class BreachedPasswordTests(ApiFactory factory)
         _factory.BreachChecks.SetVerdict(breached, BreachCheckVerdict.Breached);
 
         var response = await ChangePasswordAsync(
-            sessionId, AuthTestHelpers.DefaultTestPassword, breached, ct);
+            sessionId, email, AuthTestHelpers.DefaultTestPassword, breached, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -101,7 +101,7 @@ public class BreachedPasswordTests(ApiFactory factory)
         _factory.BreachChecks.SetVerdict(newPassword, BreachCheckVerdict.Unavailable);
 
         var response = await ChangePasswordAsync(
-            sessionId, AuthTestHelpers.DefaultTestPassword, newPassword, ct);
+            sessionId, email, AuthTestHelpers.DefaultTestPassword, newPassword, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
@@ -111,12 +111,14 @@ public class BreachedPasswordTests(ApiFactory factory)
         login.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
+    // The re-auth grant is minted through production (#1739); the current password is Identity's requirement.
     private async Task<HttpResponseMessage> ChangePasswordAsync(
-        string sessionId, string current, string updated, CancellationToken ct)
+        string sessionId, string email, string current, string updated, CancellationToken ct)
     {
+        var grant = await ReauthTestHelpers.MintGrantAsync(_factory, _client, sessionId, email, ct);
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
         {
-            Content = JsonContent.Create(new { currentPassword = current, newPassword = updated }),
+            Content = JsonContent.Create(new { reauthGrant = grant, currentPassword = current, newPassword = updated }),
         };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return await _client.SendAsync(req, ct);

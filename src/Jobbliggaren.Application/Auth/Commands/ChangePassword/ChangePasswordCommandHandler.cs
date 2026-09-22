@@ -26,8 +26,8 @@ public sealed class ChangePasswordCommandHandler(
 
         var userId = currentUser.UserId.Value;
 
-        // The current password was already verified by ReauthenticationBehavior; UserManager
-        // re-verifies it atomically as part of the change and re-stamps the security stamp. Note the
+        // UserManager verifies the current password atomically as part of the change and re-stamps the
+        // security stamp (the re-authentication itself is the grant, redeemed before this handler). Note the
         // stamp rotation does NOT invalidate the Redis-backed sessions — the endpoint's C6 re-issue
         // is the only logout-everywhere mechanism. IdentityError -> DomainError mapping matches
         // CreateUserAsync (e.g. Auth.PasswordTooShort / Auth.PasswordMismatch).

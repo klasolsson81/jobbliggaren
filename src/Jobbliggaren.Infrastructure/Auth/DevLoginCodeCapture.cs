@@ -72,6 +72,7 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
         {
             LoginChallengeEmail.CodeAndLink withLink => withLink.Code,
             LoginChallengeEmail.NewAccountCode newAccount => newAccount.Code,
+            LoginChallengeEmail.ReauthenticationCode reauthentication => reauthentication.Code,
             LoginChallengeEmail.LinkOnly
                 or LoginChallengeEmail.RegistrationClosed
                 or LoginChallengeEmail.PendingDeletion

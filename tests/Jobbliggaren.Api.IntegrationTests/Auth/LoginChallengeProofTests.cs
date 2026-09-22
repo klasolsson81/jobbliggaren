@@ -307,13 +307,16 @@ public class LoginChallengeProofTests(ApiFactory factory)
     public async Task An_account_deleted_after_the_mail_went_out_gets_its_deletion_date_not_a_session()
     {
         var email = NewAddress("deleted-later");
-        var session = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var session = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
         var minted = await MintAsync(email);
 
+        // The deletion re-authenticates with a grant minted through production (#1739): a second mail to
+        // the same address, inside the shared mail budget.
+        var grant = await ReauthTestHelpers.MintGrantAsync(_factory, _client, session, email, Ct);
         using (var delete = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/delete"))
         {
             delete.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session);
-            delete.Content = JsonContent.Create(new { password = AuthTestHelpers.DefaultTestPassword });
+            delete.Content = JsonContent.Create(new { reauthGrant = grant });
             (await _client.SendAsync(delete, Ct)).IsSuccessStatusCode.ShouldBeTrue();
         }
 

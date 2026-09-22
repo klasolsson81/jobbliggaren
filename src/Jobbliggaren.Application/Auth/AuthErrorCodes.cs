@@ -116,6 +116,29 @@ public static class AuthErrorCodes
         "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
 
     /// <summary>
+    /// #1739 — a re-authentication code was requested inside the account's own cooldown, OR inside the shared
+    /// per-address mail budget (<c>LoginChallengePolicy.MailBudget</c>). ONE code for both on purpose: the mail
+    /// budget is shared with the public login challenge, so a refusal that told the two apart would tell a
+    /// hijacked session that a login mail was just requested for the address. The caller is signed in, so
+    /// the refusal is visible. Conflict → 409.
+    /// </summary>
+    public const string ReauthCooldown = "Auth.ReauthCooldown";
+
+    public const string ReauthCooldownMessage =
+        "Du begärde nyligen en kod. Vänta en liten stund innan du försöker igen.";
+
+    /// <summary>
+    /// #1739 — the account's re-authentication codes for the day are spent
+    /// (<c>LoginChallengePolicy.ReauthCodeBudget</c>). Terminal: unlike the login challenge there is no link to
+    /// fall back to, since a link yields a session and never a re-authentication, so the message says a day
+    /// and not a moment. Only a holder of the session can spend this budget. Conflict → 409.
+    /// </summary>
+    public const string ReauthCodeBudgetExhausted = "Auth.ReauthCodeBudgetExhausted";
+
+    public const string ReauthCodeBudgetExhaustedMessage =
+        "Du har begärt så många koder som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;
     /// ADR 0083 Amendment 2026-08-03). Rendered as an endpoint-local 503 by
     /// <c>AuthEndpoints.ToErrorResult</c>, not via the kind-union — see that arm for why.

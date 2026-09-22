@@ -50,7 +50,7 @@ internal sealed partial class RedisGrantStore : IGrantStore
             // exists without a TTL, as a write followed by an EXPIRE would allow.
             var written = await db.StringSetAsync(
                 Key(token),
-                ProtectorFor(subject.Purpose).Protect(JsonSerializer.SerializeToUtf8Bytes(ToPayload(subject))),
+                ProtectorFor(subject.Purpose).Protect(Padded(ToPayload(subject))),
                 LoginChallengePolicy.GrantTtl,
                 When.NotExists);
 
@@ -118,6 +118,24 @@ internal sealed partial class RedisGrantStore : IGrantStore
             new GrantPayload((int)GrantPurpose.ChangeEmail, changeEmail.NewEmail, changeEmail.UserId),
         _ => throw new InvalidOperationException($"No grant payload for {subject.GetType().Name}."),
     };
+
+    // Padded with trailing JSON whitespace to ONE ceiling for every purpose: the length a payload carrying the
+    // longest address a validator admits AND a user id would serialise to, with every address character escaped.
+    // The three purposes share one key family, so an unpadded value would tell a Redis reader which purpose a
+    // grant was issued for, and how long its address is (security-auditor, #1793).
+    private static byte[] Padded(GrantPayload payload)
+    {
+        var json = JsonSerializer.SerializeToUtf8Bytes(payload);
+        var padded = new byte[PayloadCeiling];
+        json.CopyTo(padded, 0);
+        padded.AsSpan(json.Length).Fill((byte)' ');
+        return padded;
+    }
+
+    // The longest address the request validators admit (MaximumLength(256)), as the characters the default
+    // encoder escapes to six bytes each. Computed once; a payload longer than it cannot arrive.
+    private static readonly int PayloadCeiling = JsonSerializer.SerializeToUtf8Bytes(
+        new GrantPayload((int)GrantPurpose.ChangeEmail, new string('"', 256), Guid.Empty)).Length;
 
     internal static string Key(GrantToken token) =>
         $"{KeyPrefix}auth/grant/v1/{Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(token.Reveal())))}";

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Jobbliggaren.Application.Common.Validation;
 
 namespace Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 
@@ -6,9 +7,8 @@ public sealed class DeleteAccountCommandValidator : AbstractValidator<DeleteAcco
 {
     public DeleteAccountCommandValidator()
     {
-        // Re-auth password required (parity with VerifyCredentialsQueryValidator). ValidationBehavior
-        // runs BEFORE ReauthenticationBehavior, so a missing password is a 400 (validation) before the
-        // re-auth check ever runs — empty vs wrong = 400 vs 401, revealing nothing about the account.
-        RuleFor(c => c.Password).NotEmpty();
+        // ValidationBehavior runs BEFORE ReauthenticationBehavior, so a missing grant is a 400 (validation)
+        // before the re-auth check ever runs — empty vs wrong = 400 vs 401, revealing nothing about the account.
+        RuleFor(c => c.ReauthGrant).ReauthGrant();
     }
 }

@@ -22,9 +22,9 @@ public sealed class ChangeEmailCommandHandler(
                 DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att byta e-postadress."));
 
         // The validator guarantees both are non-empty; re-assert so the handler is correct in isolation.
-        if (string.IsNullOrEmpty(command.CurrentPassword) || string.IsNullOrEmpty(command.NewEmail))
+        if (string.IsNullOrEmpty(command.ReauthGrant) || string.IsNullOrEmpty(command.NewEmail))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Nuvarande lösenord och ny e-postadress krävs."));
+                DomainError.Validation("Auth.InvalidInput", "Ny e-postadress krävs."));
 
         // #1087 — this flow's success is DEFINED by delivery: the address is swapped only when the
         // emailed link is opened (ConfirmEmailChangeCommandHandler), so a send that goes nowhere

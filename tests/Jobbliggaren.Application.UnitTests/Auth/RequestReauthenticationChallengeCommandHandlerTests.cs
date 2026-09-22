@@ -34,15 +34,14 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
         _accounts.GetEmailAsync(UserId, Arg.Any<CancellationToken>()).Returns(Email);
         _sender.CanDeliver.Returns(true);
         _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>()).Returns(Code);
-        Admit(cooldown: true, mails: true, codes: true);
+        Admit(cooldown: true, codes: true);
     }
 
-    private void Admit(bool cooldown, bool mails, bool codes)
+    private void Admit(bool cooldown, bool codes)
     {
         _budget.TryConsumeAsync(
                 Arg.Is<RateBudgetScope>(s => s.Name == "reauth-cooldown"), UserId.ToString(), Arg.Any<CancellationToken>())
             .Returns(cooldown);
-        _budget.TryConsumeAsync(LoginChallengePolicy.MailBudget, Email, Arg.Any<CancellationToken>()).Returns(mails);
         _budget.TryConsumeAsync(LoginChallengePolicy.ReauthCodeBudget, UserId.ToString(), Arg.Any<CancellationToken>())
             .Returns(codes);
     }
@@ -60,19 +59,16 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     [Fact]
     public async Task The_cooldown_and_the_code_budget_are_keyed_by_the_user_id_and_never_by_the_address()
     {
-        // The whole hybrid rests on this (ADR 0142 D5, security-auditor): keyed by the address, anyone who knows
-        // it could spend the owner's codes anonymously and block an Art. 17 deletion for a day. Only a holder
-        // of the session can spend a user-keyed budget. The mail budget alone is the address's, because it
-        // protects the inbox.
+        // Keyed by the address, anyone who knows it could spend the owner's codes anonymously and block an
+        // Art. 17 deletion for a day (ADR 0142 D5, security-auditor). Only a holder of the session can spend a
+        // user-keyed budget.
         await Sut().Handle(Command, Ct);
 
         await _budget.Received(1).TryConsumeAsync(
             Arg.Is<RateBudgetScope>(s => s.Name == "reauth-cooldown"), UserId.ToString(), Arg.Any<CancellationToken>());
         await _budget.Received(1).TryConsumeAsync(
             LoginChallengePolicy.ReauthCodeBudget, UserId.ToString(), Arg.Any<CancellationToken>());
-        await _budget.Received(1).TryConsumeAsync(LoginChallengePolicy.MailBudget, Email, Arg.Any<CancellationToken>());
-        await _budget.DidNotReceive().TryConsumeAsync(
-            Arg.Is<RateBudgetScope>(s => s.Name != "login-challenge-mails"), Email, Arg.Any<CancellationToken>());
+        await _budget.DidNotReceive().TryConsumeAsync(Arg.Any<RateBudgetScope>(), Email, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -102,7 +98,7 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     }
 
     [Fact]
-    public async Task An_admitted_request_passes_cooldown_mail_budget_and_code_budget_in_that_order_then_writes_and_sends()
+    public async Task An_admitted_request_passes_cooldown_and_code_budget_in_that_order_then_writes_and_sends()
     {
         var result = await Sut().Handle(Command, Ct);
 
@@ -111,7 +107,6 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
         {
             await _budget.TryConsumeAsync(
                 Arg.Is<RateBudgetScope>(s => s.Name == "reauth-cooldown"), UserId.ToString(), Arg.Any<CancellationToken>());
-            await _budget.TryConsumeAsync(LoginChallengePolicy.MailBudget, Email, Arg.Any<CancellationToken>());
             await _budget.TryConsumeAsync(LoginChallengePolicy.ReauthCodeBudget, UserId.ToString(), Arg.Any<CancellationToken>());
             await _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>());
             await _sender.SendLoginChallengeAsync(Email, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
@@ -144,43 +139,24 @@ public sealed class RequestReauthenticationChallengeCommandHandlerTests
     }
 
     [Fact]
-    public async Task A_cooled_request_is_refused_visibly_and_spends_no_mail_or_code_budget()
+    public async Task A_cooled_request_is_refused_visibly_and_spends_no_code_budget()
     {
-        Admit(cooldown: false, mails: true, codes: true);
+        Admit(cooldown: false, codes: true);
 
         var result = await Sut().Handle(Command, Ct);
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.ReauthCooldown);
         result.Error.Kind.ShouldBe(ErrorKind.Conflict);
-        await _budget.DidNotReceive().TryConsumeAsync(LoginChallengePolicy.MailBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _budget.DidNotReceive().TryConsumeAsync(LoginChallengePolicy.ReauthCodeBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().PutBoundAsync(default!, Ct);
         await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);
     }
 
     [Fact]
-    public async Task A_request_over_the_shared_mail_budget_is_refused_with_the_cooldowns_error_and_spends_no_code_budget()
-    {
-        // The SAME code pair as the cooldown, on purpose: the mail budget is shared with the public login
-        // challenge, so a refusal that told the two apart would tell a hijacked session that a login mail
-        // was just requested for the address (dotnet-architect, the form round).
-        Admit(cooldown: true, mails: false, codes: true);
-
-        var result = await Sut().Handle(Command, Ct);
-        Admit(cooldown: false, mails: true, codes: true);
-        var cooled = await Sut().Handle(Command, Ct);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.ShouldBe(cooled.Error);
-        await _budget.DidNotReceive().TryConsumeAsync(LoginChallengePolicy.ReauthCodeBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _store.DidNotReceiveWithAnyArgs().PutBoundAsync(default!, Ct);
-    }
-
-    [Fact]
     public async Task A_request_over_the_code_budget_is_refused_with_its_own_terminal_error_and_writes_nothing()
     {
-        Admit(cooldown: true, mails: true, codes: false);
+        Admit(cooldown: true, codes: false);
 
         var result = await Sut().Handle(Command, Ct);
 

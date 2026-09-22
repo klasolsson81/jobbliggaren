@@ -48,14 +48,10 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
             return Result.Failure<ChallengeId>(
                 DomainError.Validation(AuthErrorCodes.InvalidCredentials, AuthErrorCodes.InvalidCredentialsMessage));
 
-        // 2–4. The gates, cheapest first, each run only when the one before admitted the request. The two
-        // per-USER scopes are keyed by the user id: only a holder of the session can spend them, so a stranger
-        // who knows the address cannot block the owner's deletion or address change (ADR 0142 D5, the hybrid).
-        // The mail budget is shared with the public login challenge and keyed by the address, because it
-        // protects an inbox — and it answers with the SAME error as the cooldown on purpose: a refusal that
-        // told the two apart would tell a hijacked session that a login mail was just requested.
-        if (!await budget.TryConsumeAsync(_cooldown, userId.ToString(), cancellationToken)
-            || !await budget.TryConsumeAsync(LoginChallengePolicy.MailBudget, email, cancellationToken))
+        // 2–3. The gates, each run only when the one before admitted the request. Both are keyed by the user id:
+        // only a holder of the session can spend them, so a stranger who knows the address cannot block the
+        // owner's deletion or address change (ADR 0142 D5).
+        if (!await budget.TryConsumeAsync(_cooldown, userId.ToString(), cancellationToken))
         {
             return Result.Failure<ChallengeId>(
                 DomainError.Conflict(AuthErrorCodes.ReauthCooldown, AuthErrorCodes.ReauthCooldownMessage));
@@ -68,7 +64,7 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
                 AuthErrorCodes.ReauthCodeBudgetExhausted, AuthErrorCodes.ReauthCodeBudgetExhaustedMessage));
         }
 
-        // 5. The record BEFORE the mail (a code that arrives before its record would read as expired), then the
+        // 4. The record BEFORE the mail (a code that arrives before its record would read as expired), then the
         // mail, synchronously: the caller is signed in and the dialog needs a definite answer. A send that
         // throws propagates, as ChangeEmailCommandHandler's does.
         var challengeId = ChallengeId.Generate();

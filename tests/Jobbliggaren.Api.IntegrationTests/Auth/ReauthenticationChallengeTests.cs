@@ -238,10 +238,10 @@ public class ReauthenticationChallengeTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_request_over_the_shared_mail_budget_answers_the_cooldowns_error_not_its_own()
+    public async Task Anonymous_login_mails_to_the_address_leave_the_owners_reauthentication_admitted()
     {
-        // Three login mails spend the address's shared mail budget; the re-authentication then answers the SAME
-        // 409 as its own cooldown would, so a hijacked session cannot tell that login mails were just requested.
+        // Anyone who knows the address can spend its login mail budget; the re-authentication spends only budgets
+        // keyed by the user, so a stranger cannot hold the owner's deletion or address change off (ADR 0142 D5).
         var email = NewAddress("mailbudget");
         var session = await SignedInAsync(email);
         foreach (var _ in Enumerable.Range(0, 3))
@@ -251,10 +251,7 @@ public class ReauthenticationChallengeTests(ApiFactory factory)
             await LetTheLoginCooldownLapseAsync(email);
         }
 
-        var refused = await RequestAsync(session);
-
-        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await TitleOf(refused)).ShouldBe("Auth.ReauthCooldown");
+        (await RequestAsync(session)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
     [Fact]

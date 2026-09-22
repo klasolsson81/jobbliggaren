@@ -12,7 +12,7 @@ public static class ChangeEmailPolicy
     /// New addresses one USER may ask to move to per 24 hours. Every request mails an address nobody has proven,
     /// and a made-up one bounces; the per-request cooldown alone would still admit one such mail a minute.
     /// </summary>
-    public static readonly RateBudgetScope DailyTargetBudget =
+    public static readonly RateBudgetScope UserTargetsDailyBudget =
         new("change-email-targets-daily", limit: 5, window: TimeSpan.FromHours(24));
 
     /// <summary>
@@ -21,7 +21,7 @@ public static class ChangeEmailPolicy
     /// (security-auditor, PR 4's panel).
     /// </summary>
     public static readonly RateBudgetScope PerTargetDailyBudget =
-        new("change-email-target-daily", limit: 3, window: TimeSpan.FromHours(24));
+        new("change-email-per-target-daily", limit: 3, window: TimeSpan.FromHours(24));
 
     /// <summary>Per USER: one change-email request per window (<c>AuthEmailCooldownOptions.ChangeEmailWindowSeconds</c>).</summary>
     public static RateBudgetScope UserCooldown(TimeSpan window) =>

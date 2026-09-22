@@ -55,7 +55,7 @@ public sealed class ChangeEmailCommandHandler(
         if (!await budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(_window), userId.ToString(), cancellationToken))
             return Result.Failure<EmailChangeChallenge>(Cooldown());
 
-        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.DailyTargetBudget, userId.ToString(), cancellationToken))
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.UserTargetsDailyBudget, userId.ToString(), cancellationToken))
             return Result.Failure<EmailChangeChallenge>(DomainError.Conflict(
                 AuthErrorCodes.ChangeEmailTargetBudgetExhausted, AuthErrorCodes.ChangeEmailTargetBudgetExhaustedMessage));
 

@@ -48,7 +48,7 @@ public sealed class ChangeEmailCommandHandlerTests
     {
         _budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(Window), UserId.ToString(), Arg.Any<CancellationToken>())
             .Returns(user);
-        _budget.TryConsumeAsync(ChangeEmailPolicy.DailyTargetBudget, UserId.ToString(), Arg.Any<CancellationToken>())
+        _budget.TryConsumeAsync(ChangeEmailPolicy.UserTargetsDailyBudget, UserId.ToString(), Arg.Any<CancellationToken>())
             .Returns(daily);
         _budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(Window), NewEmail, Arg.Any<CancellationToken>())
             .Returns(target);
@@ -75,7 +75,7 @@ public sealed class ChangeEmailCommandHandlerTests
         Received.InOrder(async () =>
         {
             await _budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(Window), UserId.ToString(), Arg.Any<CancellationToken>());
-            await _budget.TryConsumeAsync(ChangeEmailPolicy.DailyTargetBudget, UserId.ToString(), Arg.Any<CancellationToken>());
+            await _budget.TryConsumeAsync(ChangeEmailPolicy.UserTargetsDailyBudget, UserId.ToString(), Arg.Any<CancellationToken>());
             await _budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(Window), NewEmail, Arg.Any<CancellationToken>());
             await _budget.TryConsumeAsync(ChangeEmailPolicy.PerTargetDailyBudget, NewEmail, Arg.Any<CancellationToken>());
             await _accounts.CheckAddressIsFreeAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
@@ -153,7 +153,7 @@ public sealed class ChangeEmailCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.ChangeEmailCooldown);
         result.Error.Kind.ShouldBe(ErrorKind.Conflict);
-        await _budget.DidNotReceive().TryConsumeAsync(ChangeEmailPolicy.DailyTargetBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _budget.DidNotReceive().TryConsumeAsync(ChangeEmailPolicy.UserTargetsDailyBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _budget.DidNotReceive().TryConsumeAsync(Arg.Any<RateBudgetScope>(), NewEmail, Arg.Any<CancellationToken>());
         await _accounts.DidNotReceiveWithAnyArgs().CheckAddressIsFreeAsync(default, default!, Ct);
         await _store.DidNotReceiveWithAnyArgs().PutBoundAsync(default!, Ct);

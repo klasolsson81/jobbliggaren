@@ -1138,7 +1138,7 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
 | Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
 | Re-authentication mint budget (3a) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h; past `reauth-codes` the request is REFUSED, since a link cannot re-authenticate | `IRateBudget` |
-| Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window and `change-email-target-daily` 3 / 24 h; each request also spends a re-authentication grant | `IRateBudget` |
+| Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window and `change-email-per-target-daily` 3 / 24 h; each request also spends a re-authentication grant | `IRateBudget` |
 | Live bound challenges | 1 per user and purpose: every mint burns the previous | `PutBoundAsync` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |

@@ -27,10 +27,12 @@ public class ResumeContentPersonnummerGuardTests
         new("Klas Olsson", "klas@example.se", "0701234567", "Stockholm");
 
     private static ExperienceDto CleanExperience() =>
-        new("Beta AB", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, "Byggde betaltjänster.");
+        new("Beta AB", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, "Byggde betaltjänster.",
+            RawPeriod: "2021 - nu");
 
     private static EducationDto CleanEducation() =>
-        new("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1));
+        new("KTH", "Civilingenjör", new DateOnly(2013, 9, 1), new DateOnly(2018, 6, 1),
+            RawPeriod: "2013 - 2018");
 
     // Fas 4b AppCopy superset (ADR 0095 D-E) clean free-text fixtures. The proficiency token
     // ("Native") is a closed vocabulary, not scanned free text, so it never carries a personnummer.
@@ -53,11 +55,10 @@ public class ResumeContentPersonnummerGuardTests
             Skills: [new SkillDto("C#", 8)],
             Summary: "Erfaren backend-utvecklare.");
 
-    // One entry per free-text field class CollectFreeText concatenates — 17 in total (11 original
-    // + the 6 Fas 4b AppCopy superset free-text fields, ADR 0095 D-E; SkillGroup.Members scanned
-    // directly per security-auditor 2026-07-05 so the guard is self-contained). If a field is ever
-    // dropped from CollectFreeText its entry here fails (the personnummer is no longer seen), so
-    // field-completeness is pinned rather than merely reviewed.
+    // One entry per free-text field class CollectFreeText concatenates (SkillGroup.Members is
+    // scanned directly per security-auditor 2026-07-05 so the guard is self-contained). If a field
+    // is ever dropped from CollectFreeText its entry here fails (the personnummer is no longer
+    // seen), so field-completeness is pinned rather than merely reviewed.
     public static IEnumerable<object[]> PersonnummerInEachFreeTextField()
     {
         yield return ["PersonalInfo.FullName",
@@ -80,11 +81,16 @@ public class ResumeContentPersonnummerGuardTests
             Clean() with { Educations = [CleanEducation() with { Institution = $"Skola {Pnr}" }] }];
         yield return ["Education.Degree",
             Clean() with { Educations = [CleanEducation() with { Degree = $"Examen {Pnr}" }] }];
+
+        // The verbatim period strings. Client-writable free text (bounded only by length) on the
+        // promote and master-content bodies, rendered into the PDF and the ATS text.
+        yield return ["Experience.RawPeriod",
+            Clean() with { Experiences = [CleanExperience() with { RawPeriod = $"2019 {Pnr}" }] }];
+        yield return ["Education.RawPeriod",
+            Clean() with { Educations = [CleanEducation() with { RawPeriod = $"2013 {Pnr}" }] }];
         yield return ["Skill.Name",
             Clean() with { Skills = [new SkillDto($"Kompetens {Pnr}", 3)] }];
 
-        // Fas 4b AppCopy superset free text (ADR 0095 D-E). A personnummer typed into any of
-        // these five must be flagged — dropping the corresponding CollectFreeText line fails here.
         yield return ["SpokenLanguage.Name",
             Clean() with { Languages = [CleanLanguage() with { Name = $"Svenska {Pnr}" }] }];
         yield return ["SkillGroup.Name",
@@ -130,6 +136,69 @@ public class ResumeContentPersonnummerGuardTests
         var result = ResumeContentPersonnummerGuard.Check(Clean());
 
         result.IsSuccess.ShouldBeTrue();
+    }
+
+    // Field-completeness over the WHOLE DTO graph, by reflection rather than by the list above: a
+    // personnummer planted in any one string slot must block. The table catches a field dropped
+    // from CollectFreeText; only this catches a field added to the DTO without a line there. The
+    // one exception is SpokenLanguageDto.Proficiency: an unknown value becomes NotStated
+    // (ResumeContentMapperTests.ToDomain_MapsUnknownProficiencyToken_ToNotStated), so no text from
+    // it is stored.
+    [Fact]
+    public void Check_BlocksAPersonnummerPlantedInAnyStringSlotOfTheContentGraph()
+    {
+        var slots = new List<string>();
+        var counter = 0;
+        var clean = (ResumeContentDto)BuildGraph(typeof(ResumeContentDto), "Content", ref counter, -1, slots)!;
+        ResumeContentPersonnummerGuard.Check(clean).IsSuccess.ShouldBeTrue();
+        slots.Count.ShouldBeGreaterThan(1);
+
+        var unblocked = new List<string>();
+        for (var i = 0; i < slots.Count; i++)
+        {
+            var planted = 0;
+            var content = (ResumeContentDto)BuildGraph(typeof(ResumeContentDto), "Content", ref planted, i, [])!;
+            if (ResumeContentPersonnummerGuard.Check(content).IsSuccess)
+                unblocked.Add(slots[i]);
+        }
+
+        unblocked.ShouldBe(["Content.Languages[0].Proficiency"]);
+    }
+
+    // Builds an instance of `type` through its widest constructor, one element per list, and plants
+    // a personnummer in the string slot whose index is `plant` (-1 plants none).
+    private static object? BuildGraph(Type type, string path, ref int slot, int plant, List<string> slots)
+    {
+        if (type == typeof(string))
+        {
+            slots.Add(path);
+            return slot++ == plant ? $"Fält {Pnr}" : "Ren text";
+        }
+
+        if (Nullable.GetUnderlyingType(type) is not null)
+            return null;
+
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
+        {
+            var elementType = type.GetGenericArguments()[0];
+            var list = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
+            list.Add(BuildGraph(elementType, path + "[0]", ref slot, plant, slots));
+            return list;
+        }
+
+        if (type.IsValueType)
+            return Activator.CreateInstance(type);
+
+        var ctor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
+        var parameters = ctor.GetParameters();
+        type.GetProperties()
+            .Where(p => p.CanWrite && !parameters.Any(q => string.Equals(q.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(p => $"{path}.{p.Name}")
+            .ShouldBeEmpty();
+        var args = new object?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+            args[i] = BuildGraph(parameters[i].ParameterType, $"{path}.{parameters[i].Name}", ref slot, plant, slots);
+        return ctor.Invoke(args);
     }
 
     // The 12-digit full-century form (YYYYMMDD[sep]XXXX) in each Fas 4b superset field. Same

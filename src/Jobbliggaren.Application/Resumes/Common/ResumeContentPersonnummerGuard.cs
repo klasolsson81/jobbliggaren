@@ -56,9 +56,9 @@ internal static class ResumeContentPersonnummerGuard
 
     /// <summary>
     /// Concatenates every user free-text field of the submitted content so the personnummer scan
-    /// sees the whole surface (DQ6 — name/contact, summary, experience company/role/description,
-    /// education institution/degree, skill names, the imported preamble (#1060), and the Fas 4b
-    /// superset free text: spoken-language
+    /// sees the whole surface (DQ6 — name/contact, summary, experience company/role/description/
+    /// period, education institution/degree/period, skill names, the imported preamble (#1060),
+    /// and the Fas 4b superset free text: spoken-language
     /// names, skill-group names + members, and dynamic-section headings/entry titles/lines —
     /// ADR 0095 D-E, mandatory: a personnummer typed into any of these must be flagged). Order is
     /// irrelevant — the scanner only flags. The superset collections (top-level AND nested) are
@@ -95,12 +95,14 @@ internal static class ResumeContentPersonnummerGuard
             sb.AppendLine(e.Company);
             sb.AppendLine(e.Role);
             sb.AppendLine(e.Description);
+            sb.AppendLine(e.RawPeriod);
         }
 
         foreach (var ed in content.Educations)
         {
             sb.AppendLine(ed.Institution);
             sb.AppendLine(ed.Degree);
+            sb.AppendLine(ed.RawPeriod);
         }
 
         foreach (var s in content.Skills)

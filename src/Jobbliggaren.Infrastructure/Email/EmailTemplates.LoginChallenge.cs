@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 
@@ -24,6 +25,7 @@ internal static partial class EmailTemplates
         LoginChallengeEmail.NewAccountCode newAccountCode => LoginNewAccountCode(newAccountCode),
         LoginChallengeEmail.NewAccountCodeLimitReached => LoginNewAccountCodeLimitReached(),
         LoginChallengeEmail.ReauthenticationCode reauthenticationCode => LoginReauthenticationCode(reauthenticationCode),
+        LoginChallengeEmail.AddressChangeCode addressChangeCode => LoginAddressChangeCode(addressChangeCode),
         _ => throw new UnreachableException("A LoginChallengeEmail variant has no template."),
     };
 
@@ -410,6 +412,97 @@ internal static partial class EmailTemplates
                     + EmailHtml.SignOff()));
     }
 
+    /// <summary>
+    /// The code that proves a NEW address before a change-email completes (#1739, ADR 0142 D5), to that address.
+    /// A code and never a link. Recipient class (3): the request step refuses an address any account holds, so
+    /// the recipient has no account, and whoever typed the address may not own it; the whole Art. 14 notice is
+    /// therefore unconditional, and Art. 14(2)(f) is answered with a category, since naming the account holder
+    /// would be a disclosure in the other direction. The retention paragraph is <c>security-auditor</c>'s text
+    /// (PR 4's pre-code round and panel, 2026-09-22), each duration read from what enforces it: the challenge's
+    /// TTL, the grant's TTL, and the longest fingerprint of the address, the per-address daily cap's.
+    /// </summary>
+    internal static EmailContent LoginAddressChangeCode(LoginChallengeEmail.AddressChangeCode content)
+    {
+        var code = content.Code.Reveal();
+        var minutes = ChallengeMinutes();
+        var grantMinutes = (int)LoginChallengePolicy.GrantTtl.TotalMinutes;
+        var targetDaily = Window(ChangeEmailPolicy.PerTargetDailyBudget.Window).Duration;
+
+        return new EmailContent(
+            Subject: "Bekräfta din nya e-postadress",
+            PlainTextBody: $"""
+                Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till
+                den här adressen.
+
+                Om det var du, bekräfta att adressen är din med koden nedan.
+
+                Din kod är:
+                {code}
+
+                Skriv in koden på sidan där du begärde bytet. Koden gäller i {minutes} minuter
+                och kan bara användas en gång. Mejlet innehåller ingen länk.
+
+                Adressen ändras inte förrän du har skrivit in koden. Om du inte har begärt
+                ändringen kan du bortse från det här meddelandet.
+
+                Adressen har vi fått från en användare som angav den för bytet. Vi berättar
+                inte vem det är, eftersom det skulle vara en uppgift om en annan person.
+                Adressen används för att skicka det här meddelandet, för att begränsa hur
+                många meddelanden som kan skickas till den, för att kontrollera att den som
+                äger adressen godkänner bytet, och som kontots nya adress om bytet slutförs.
+                Grunden är berättigat intresse (artikel 6.1 f): en adress ska inte kunna
+                kopplas till ett konto utan att den som äger den bekräftar det.
+
+                Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till
+                kontot. Koden slutar gälla efter {minutes} minuter.
+
+                Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller.
+                Använder du koden sparas den i högst {grantMinutes} minuter till, medan bytet
+                slutförs. Avtryck av adressen sparas i högst {targetDaily} för att begränsa
+                hur många meddelanden som kan skickas till den. Slutförs bytet blir adressen
+                kontots adress och sparas så länge kontot finns. Slutförs det inte finns
+                adressen inte kvar hos oss efter tiderna ovan.
+                {ProcessorPlain}
+
+                {ControllerRightsAndComplaintPlain}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Bekräfta din nya e-postadress",
+                preheader: $"Adressen ändras inte förrän du har skrivit in koden. Koden gäller i {minutes} minuter.",
+                body: EmailHtml.P(
+                        "Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till den här adressen.")
+                    + EmailHtml.P("Om det var du, bekräfta att adressen är din med koden nedan.")
+                    + EmailHtml.P("Din kod är:")
+                    + EmailHtml.P(code)
+                    + EmailHtml.P(
+                        $"Skriv in koden på sidan där du begärde bytet. Koden gäller i {minutes} minuter och kan "
+                        + "bara användas en gång. Mejlet innehåller ingen länk.")
+                    + EmailHtml.P(
+                        "Adressen ändras inte förrän du har skrivit in koden. Om du inte har begärt ändringen kan du "
+                        + "bortse från det här meddelandet.")
+                    + EmailHtml.P(
+                        "Adressen har vi fått från en användare som angav den för bytet. Vi berättar inte vem det "
+                        + "är, eftersom det skulle vara en uppgift om en annan person. Adressen används för att "
+                        + "skicka det här meddelandet, för att begränsa hur många meddelanden som kan skickas till "
+                        + "den, för att kontrollera att den som äger adressen godkänner bytet, och som kontots nya "
+                        + "adress om bytet slutförs. Grunden är berättigat intresse (artikel 6.1 f): en adress ska "
+                        + "inte kunna kopplas till ett konto utan att den som äger den bekräftar det.")
+                    + EmailHtml.P(
+                        "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot. Koden "
+                        + $"slutar gälla efter {minutes} minuter.")
+                    + EmailHtml.P(
+                        $"Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller. Använder du koden "
+                        + $"sparas den i högst {grantMinutes} minuter till, medan bytet slutförs. Avtryck av "
+                        + $"adressen sparas i högst {targetDaily} för att begränsa hur många meddelanden som kan "
+                        + "skickas till den. Slutförs bytet blir adressen kontots adress och sparas så länge kontot finns. "
+                        + $"Slutförs det inte finns adressen inte kvar hos oss efter tiderna ovan. {ProcessorHtml}")
+                    + ControllerRightsAndComplaintHtml()
+                    + EmailHtml.SignOff()));
+    }
+
     // The Art. 14 blocks every mail to an address without an account carries (recipient class (3)). One home
     // each, so the three mails cannot drift apart. The plain forms keep the hard wraps of the bodies they
     // are interpolated into.
@@ -478,9 +571,12 @@ internal static partial class EmailTemplates
 
     // The longest-lived fingerprint is the code budget's, so its window is the retention the mails state:
     // as a length ("högst ett dygn") and as the period just passed ("det senaste dygnet").
-    private static (string Duration, string JustPassed) CodeBudgetWindow()
+    private static (string Duration, string JustPassed) CodeBudgetWindow() =>
+        Window(LoginChallengePolicy.CodeBudget.Window);
+
+    private static (string Duration, string JustPassed) Window(TimeSpan window)
     {
-        var hours = (int)LoginChallengePolicy.CodeBudget.Window.TotalHours;
+        var hours = (int)window.TotalHours;
         return hours == 24
             ? ("ett dygn", "det senaste dygnet")
             : ($"{hours} timmar", $"de senaste {hours} timmarna");

@@ -13,7 +13,7 @@ public sealed class VerifyEmailCommandHandler(IUserAccountService userAccountSer
         // validator guarantees non-empty Uid/Token; re-assert so the handler is correct in isolation.
         if (command.Uid == Guid.Empty || string.IsNullOrEmpty(command.Token))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Ogiltig bekräftelselänk."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Ogiltig bekräftelselänk."));
 
         // Verify the token and set EmailConfirmed=true. ONE uniform failure for every rejection
         // (user-not-found / bad-or-expired / malformed token) so this public endpoint reveals no

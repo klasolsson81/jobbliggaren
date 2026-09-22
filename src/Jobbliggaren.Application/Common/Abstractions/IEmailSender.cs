@@ -35,9 +35,7 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// vidarebefordrar ett <see cref="Exception"/>-objekt till sänkan (antalet och dess grep bor i
 /// ADR 0124), och <c>Api/Program.cs</c> har ingen generisk <c>catch</c> som stoppar ett
 /// omatchat. Ett undantag ÄR
-/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen — och
-/// <c>ConfirmEmailChangeCommandHandler</c>:s lokala <i>"§5 parity with the sender boundary"</i>
-/// blir därmed den allmänna regeln i stället för en handlares egen disciplin.
+/// en osynlig del av en signatur, så kontraktet står här och inte bara i implementationen.
 /// </para>
 /// </summary>
 public interface IEmailSender
@@ -113,25 +111,6 @@ public interface IEmailSender
     Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail,
         FollowedCompanyNotificationEmail content,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Sends the change-email OWNERSHIP CONFIRMATION (#679) to the NEW address. <paramref name="content"/>
-    /// carries the recipient's own new address + an opaque, single-use, URL-safe token the template
-    /// builds the confirmation link from (<c>{BaseUrl}/bekrafta-epost?uid=&amp;email=&amp;token=</c>). The
-    /// address is NOT changed until the link is opened. This is the codebase's first
-    /// token-&gt;email-&gt;confirm path (registration is not email-confirmed).
-    /// <para>
-    /// Repeated sends are bounded by <c>ICooldownGate</c> on BOTH
-    /// <c>CooldownScopes.ChangeEmailUser</c> (per actor) and <c>CooldownScopes.ChangeEmailTarget</c>
-    /// (per new address) before the send (ADR 0103, <c>ChangeEmailCommandHandler</c>) — the VISIBLE
-    /// half of the asymmetry (409), since the surface is authenticated. Provider-independent by
-    /// construction.
-    /// </para>
-    /// </summary>
-    Task SendEmailChangeConfirmationAsync(
-        string toEmail,
-        EmailChangeConfirmationEmail content,
         CancellationToken cancellationToken);
 
     /// <summary>

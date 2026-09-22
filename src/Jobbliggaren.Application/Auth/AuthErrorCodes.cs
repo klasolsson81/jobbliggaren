@@ -21,6 +21,15 @@ public static class AuthErrorCodes
     public const string NotAuthenticated = "Auth.NotAuthenticated";
 
     /// <summary>
+    /// A handler's self-defending refusal of input its validator already refuses: ValidationBehavior ran before
+    /// it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string InvalidInput = "Auth.InvalidInput";
+
+    /// <summary>The account a user id names is gone. NotFound → 404.</summary>
+    public const string UserNotFound = "Auth.UserNotFound";
+
+    /// <summary>
     /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
     /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
     /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
@@ -92,8 +101,8 @@ public static class AuthErrorCodes
     /// <summary>
     /// #714 — uniform failure for EVERY rejection on the PUBLIC registration-confirm endpoint
     /// (<c>POST /auth/verify-email</c>): unknown user, malformed/bad/expired token. A public confirm
-    /// endpoint must not distinguish them or it becomes an account-existence oracle (parity with
-    /// <c>Auth.InvalidEmailChangeToken</c>, #679). Rendered as 400 via the central kind-mapper.
+    /// endpoint must not distinguish them or it becomes an account-existence oracle. Rendered as 400 via the
+    /// central kind-mapper.
     /// </summary>
     public const string InvalidEmailConfirmationToken = "Auth.InvalidEmailConfirmationToken";
 
@@ -105,28 +114,27 @@ public static class AuthErrorCodes
         "Bekräftelselänken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.";
 
     /// <summary>
-    /// #703 — the authenticated change-email request is inside its per-user or per-target anti-email-bomb
-    /// cooldown window. Rendered as a VISIBLE 409 via the central kind-mapper (unlike the unauthenticated
-    /// resend / account-exists silent no-op): the change-email surface already leaks existence via the
-    /// <c>Auth.EmailTaken</c> 409, so the anti-enum silence buys nothing here and a "wait a moment" is
-    /// better UX than a false "link sent". The per-user throttle is checked first (short-circuit) so a
-    /// blocked actor cannot also extend a victim's window.
+    /// #703 — the authenticated change-email request is refused by one of its anti-email-bomb budgets: the
+    /// per-user cooldown, the per-address cooldown, or the per-address daily cap (#1739). The three share this
+    /// code because the last two are shared between users, and a refusal that told them apart would say that
+    /// someone else asked for the address. Rendered as a VISIBLE 409 via the central kind-mapper (unlike the
+    /// unauthenticated resend / account-exists silent no-op): the change-email surface already leaks existence
+    /// via the <c>Auth.EmailTaken</c> 409, so the anti-enum silence buys nothing here. The per-user throttle is
+    /// checked first (short-circuit) so a blocked actor cannot also extend a victim's window.
     /// </summary>
     public const string ChangeEmailCooldown = "Auth.ChangeEmailCooldown";
 
     /// <summary>
-    /// The single user-facing detail for <see cref="ChangeEmailCooldown"/> (§10, civic tone; no address
-    /// echo, actionable — tells the user to wait).
+    /// The single user-facing detail for <see cref="ChangeEmailCooldown"/> (§10, civic tone; no address echo).
+    /// It holds for every producer: the caller may have asked nothing (the two budgets are shared between
+    /// users) and the wait is a minute or a day, so it names neither.
     /// </summary>
     public const string ChangeEmailCooldownMessage =
-        "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
+        "Det går inte att begära ett adressbyte just nu. Försök igen senare.";
 
     /// <summary>
-    /// #1739 — a re-authentication code was requested inside the account's own cooldown, OR inside the shared
-    /// per-address mail budget (<c>LoginChallengePolicy.MailBudget</c>). ONE code for both on purpose: the mail
-    /// budget is shared with the public login challenge, so a refusal that told the two apart would tell a
-    /// hijacked session that a login mail was just requested for the address. The caller is signed in, so
-    /// the refusal is visible. Conflict → 409.
+    /// #1739 — a re-authentication code was requested inside the account's own cooldown. The caller is signed in,
+    /// so the refusal is visible. Conflict → 409.
     /// </summary>
     public const string ReauthCooldown = "Auth.ReauthCooldown";
 
@@ -143,6 +151,43 @@ public static class AuthErrorCodes
 
     public const string ReauthCodeBudgetExhaustedMessage =
         "Du har begärt så många koder som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// The address a change-email names is already some account's address or user name (#679; both since
+    /// #1739). Answered at the request step and, for a race the request step lost, at the swap. The route is
+    /// authenticated and re-authenticated, and the per-user budgets run first, so the refusal is visible.
+    /// Conflict → 409.
+    /// </summary>
+    public const string EmailTaken = "Auth.EmailTaken";
+
+    public const string EmailTakenMessage = "Den e-postadressen är upptagen.";
+
+    /// <summary>
+    /// #1739 — the user has asked to move to as many new addresses as a day admits
+    /// (<c>ChangeEmailPolicy.UserTargetsDailyBudget</c>). Keyed by the user id, so only a holder of the session can
+    /// spend it. Conflict → 409.
+    /// </summary>
+    public const string ChangeEmailTargetBudgetExhausted = "Auth.ChangeEmailTargetBudgetExhausted";
+
+    public const string ChangeEmailTargetBudgetExhaustedMessage =
+        "Du har bett om att byta till så många nya adresser som går på ett dygn. Försök igen i morgon.";
+
+    /// <summary>
+    /// #1739 — the change-email grant cannot be redeemed: unknown, expired, already used, or issued for another
+    /// user or address. One answer, the <see cref="LoginGrantUnusable"/> form. Gone → 410.
+    /// </summary>
+    public const string EmailChangeGrantUnusable = "Auth.EmailChangeGrantUnusable";
+
+    public const string EmailChangeGrantUnusableMessage =
+        "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";
+
+    /// <summary>
+    /// #1739 — the swap did not complete: the address write, or a user-name write
+    /// that failed for any reason but a taken name. Conflict → 409.
+    /// </summary>
+    public const string EmailChangeIncomplete = "Auth.EmailChangeIncomplete";
+
+    public const string EmailChangeIncompleteMessage = "Bytet gick inte att slutföra. Försök igen om en stund.";
 
     /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;

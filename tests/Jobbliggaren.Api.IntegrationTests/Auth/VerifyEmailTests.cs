@@ -108,7 +108,7 @@ public class VerifyEmailTests(ApiFactory factory)
     public async Task POST_verify_email_writes_User_EmailConfirmed_audit_with_null_actor()
     {
         // #714 — VerifyEmailCommand is IAuditableCommand (EventType "User.EmailConfirmed", AggregateType
-        // "User", ExtractAggregateId → Uid). Parity with the #679 confirm-email-change audit test: a
+        // "User", ExtractAggregateId → Uid). A
         // successful confirm writes exactly one audit row, keyed by the TARGET user (AggregateId), and
         // because the confirmer is logged-out the audit ACTOR (UserId) is null. Querying by AggregateId
         // (not UserId) is the load-bearing difference from an authenticated command's audit.

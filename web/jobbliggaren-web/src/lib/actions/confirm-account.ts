@@ -9,8 +9,7 @@ import { forwardedHeaders } from "@/lib/http/forwarded-headers";
  * #714 — PUBLIC registration email-confirmation (the CONFIRM step of email-confirmation-first signup).
  * The activation link is opened from the account's own inbox and the visitor may be logged out, so
  * this action does NOT read the session (no `getSessionId`, no `authedFetch`). It POSTs the
- * `{ uid, token }` pair with a BARE `fetch` to `env.BACKEND_URL` and no Authorization header (mirrors
- * the #679 confirm-email-change action; there is no email here — the address is not changing).
+ * `{ uid, token }` pair with a BARE `fetch` to `env.BACKEND_URL` and no Authorization header.
  *
  * 204 -> EmailConfirmed is set server-side -> `{ success: true }`. Transient server failures (429 /
  * 5xx) and a transport throw map to the retryable network message; every other 4xx token-validity

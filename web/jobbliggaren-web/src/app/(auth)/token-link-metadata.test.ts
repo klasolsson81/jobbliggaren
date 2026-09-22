@@ -37,11 +37,10 @@ const tokenPages = Object.entries(pageImporters)
   .sort(([a], [b]) => a.localeCompare(b));
 
 describe("token-carrying (auth) pages — metadata invariants (#706)", () => {
-  it("discovery reaches at least the four known token routes (no vacuous pass)", () => {
+  it("discovery reaches at least the three known token routes (no vacuous pass)", () => {
     expect(tokenPages.map(([key]) => key)).toEqual(
       expect.arrayContaining([
         "./aterstall-losenord/page.tsx",
-        "./bekrafta-epost/page.tsx",
         "./bekrafta-konto/page.tsx",
         "./logga-in/lank/page.tsx",
       ]),

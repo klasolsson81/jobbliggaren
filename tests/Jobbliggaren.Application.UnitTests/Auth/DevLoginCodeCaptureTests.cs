@@ -89,6 +89,19 @@ public sealed class DevLoginCodeCaptureTests
     }
 
     [Fact]
+    public async Task An_address_change_code_is_held_for_a_reserved_recipient_and_for_no_other()
+    {
+        var mail = new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("141421"));
+
+        await _sender.SendLoginChallengeAsync(Reserved, mail, Ct);
+        await _sender.SendLoginChallengeAsync("person@example.se", mail, Ct);
+
+        await _inner.Received(1).SendLoginChallengeAsync(Reserved, mail, Ct);
+        _capture.TakeCode(Reserved).ShouldBe("141421");
+        _capture.TakeCode("person@example.se").ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Mails_without_a_code_are_forwarded_and_hold_nothing()
     {
         LoginChallengeEmail[] mails =

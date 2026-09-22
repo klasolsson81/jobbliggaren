@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
@@ -22,7 +24,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 
     public static TheoryData<string> Variants() =>
         ["code-and-link", "link-only", "registration-closed", "pending-deletion", "new-account-code",
-            "new-account-code-limit-reached", "reauthentication-code"];
+            "new-account-code-limit-reached", "reauthentication-code", "address-change-code"];
 
     private static EmailTemplates.EmailContent RenderVariant(string variant) => variant switch
     {
@@ -33,8 +35,13 @@ public sealed class EmailTemplatesLoginChallengeTests
         "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))),
         "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
         "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))),
+        "address-change-code" => Render(AddressChange()),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
+
+    private static LoginChallengeEmail.AddressChangeCode AddressChange() => new(LoginCode.FromRaw("042917"));
+
+    private static readonly Regex Tag = new("<[^>]*>", RegexOptions.CultureInvariant);
 
     [Fact]
     public void CodeAndLink_carries_the_code_and_the_login_link_with_the_token_as_its_only_parameter()
@@ -230,11 +237,94 @@ public sealed class EmailTemplatesLoginChallengeTests
         text.ShouldNotContain("alla enheter");
     }
 
+    [Fact]
+    public void AddressChangeCode_carries_the_code_once_and_no_link()
+    {
+        var rendered = Render(AddressChange());
+
+        rendered.Subject.ShouldBe("Bekräfta din nya e-postadress");
+        rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
+        rendered.PlainTextBody.ShouldNotContain("token=");
+        rendered.HtmlBody.ShouldNotContain("token=");
+        rendered.PlainTextBody.ShouldContain("Mejlet innehåller ingen länk.");
+
+        rendered.Subject.ShouldNotContain("042917");
+        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
+        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
+    }
+
+    [Fact]
+    public void AddressChangeCode_carries_the_whole_art_14_notice_word_for_word_in_both_parts()
+    {
+        // Recipient class (3), and the notice is not conditioned on anything: at send time nobody knows whether
+        // the recipient is the account holder or a stranger. Pinned whole in both parts, because the two are
+        // hand-maintained copies and drift is the failure mode; the rights paragraph is pinned up to its address
+        // tail, the one place the parts differ by design.
+        var rendered = Render(AddressChange());
+
+        const string sourceAndBasis =
+            "Adressen har vi fått från en användare som angav den för bytet. Vi berättar inte vem det är, "
+            + "eftersom det skulle vara en uppgift om en annan person. Adressen används för att skicka det här "
+            + "meddelandet, för att begränsa hur många meddelanden som kan skickas till den, för att kontrollera "
+            + "att den som äger adressen godkänner bytet, och som kontots nya adress om bytet slutförs. Grunden är "
+            + "berättigat intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto utan att den "
+            + "som äger den bekräftar det.";
+        const string ignoring =
+            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot. Koden slutar gälla "
+            + "efter 15 minuter.";
+        const string retentionAndProcessor =
+            "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller. Använder du koden sparas den i "
+            + "högst 10 minuter till, medan bytet slutförs. Avtryck av adressen sparas i högst ett dygn för "
+            + "att begränsa hur många meddelanden som kan skickas till den. Slutförs bytet blir adressen kontots "
+            + "adress och sparas så länge kontot finns. Slutförs det inte finns adressen inte kvar hos oss efter "
+            + "tiderna ovan. E-posten levereras av Scaleway SAS i Frankrike, som behandlar meddelandet för att "
+            + "kunna leverera det. I personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen "
+            + "sker inom EU.";
+
+        foreach (var part in new[] { Unwrapped(rendered.PlainTextBody), Unwrapped(Tag.Replace(rendered.HtmlBody, " ")) })
+        {
+            part.ShouldContain(sourceAndBasis);
+            part.ShouldContain(ignoring);
+            part.ShouldContain(retentionAndProcessor);
+            part.ShouldContain("Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren.");
+            part.ShouldContain(
+                "Du har rätt att invända mot behandlingen och att begära information, rättelse, radering eller "
+                + "begränsning. Skriv till oss:");
+            part.ShouldContain(
+                "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål till "
+                + "Integritetsskyddsmyndigheten, imy.se.");
+
+            // The address sits protected while the code and the grant live, so "vi sparar den inte" is false here.
+            part.ShouldNotContain("sparar den inte");
+            part.ShouldNotContain("ditt konto");
+            part.ShouldNotContain("!");
+            part.ShouldNotContain("—");
+        }
+
+        rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
+        rendered.HtmlBody.ShouldContain($"mailto:{EmailTemplates.ContactAddress}");
+
+        LoginChallengePolicy.ChallengeTtl.ShouldBe(TimeSpan.FromMinutes(15), "the copy's 'högst 15 minuter'");
+        LoginChallengePolicy.GrantTtl.ShouldBe(TimeSpan.FromMinutes(10), "the copy's 'högst 10 minuter till'");
+        ChangeEmailPolicy.PerTargetDailyBudget.Window.ShouldBe(TimeSpan.FromHours(24), "the copy's 'högst ett dygn'");
+    }
+
+    [Fact]
+    public void AddressChangeCode_is_handed_nothing_that_identifies_the_account()
+    {
+        // The category answer is only worth as much as the absence of an identity beside it.
+        typeof(LoginChallengeEmail.AddressChangeCode).GetProperties()
+            .Select(property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe([nameof(LoginChallengeEmail.AddressChangeCode.Code)]);
+    }
+
     [Theory]
     [InlineData("code-and-link")]
     [InlineData("link-only")]
     [InlineData("new-account-code")]
     [InlineData("reauthentication-code")]
+    [InlineData("address-change-code")]
     public void Every_credential_bearing_variant_states_the_lifespan_from_the_policy(string variant)
     {
         RenderVariant(variant).PlainTextBody
@@ -265,6 +355,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")),
         [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
         [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")),
+        [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(),
     };
 
     // The plain body is hard-wrapped; a sentence is asserted on its words, not on where a line breaks.

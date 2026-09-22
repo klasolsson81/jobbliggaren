@@ -292,8 +292,8 @@ to the old address as the detection channel. After D4 the session cookie is the 
 it lives 180 days; option (i) — one code to the new address — would let a stolen session repoint the
 recovery vector to the attacker's inbox, which is permanent takeover with detection sold as
 prevention. Option (iii) — re-auth plus today's DataProtector confirmation link — would keep two
-inbox-proof mechanisms and leave #706 open. Between PR 3's deploy and PR 4's the delivered state IS
-(iii), transiently: a grant re-authentication in front of the old mailed link. PR 4 removes it; the
+inbox-proof mechanisms and leave #706 open. Between PR 3's deploy and PR 4's the delivered state WAS
+(iii), transiently: a grant re-authentication in front of the old mailed link. PR 4 removed it; the
 rejection stands on DRY and is not reopened by the interval.
 
 Order: re-auth against the current address runs **first** and refuses before anything is minted.
@@ -349,13 +349,11 @@ inside the protected payload. The index is keyed on the user and the purpose, ne
 gained two members beside the login challenge's three, whose signatures are unchanged; a third kind of challenge is
 the signal to split the port.
 
-**The budgets are a hybrid (security-auditor).** Under "same store, same budget" anyone who knows an address could
+**The budgets (security-auditor).** Under "same store, same budget" anyone who knows an address could
 spend its ten daily login codes anonymously; past that budget the mail carries a link only (Klas's (A)), and a link
 yields a session, never a re-authentication. The owner's account deletion (Art. 17) and address change (Art. 16)
 would be blockable for a day by a stranger. So the cooldown and the code budget of a re-authentication are keyed by
-the USER id, which only a holder of the session can spend, and the mail budget stays shared, because it protects an
-inbox and must not be bypassable by a session. Change-email's two cooldowns move onto `IRateBudget` in PR 4 (their
-scopes are declared with the substrate), and a per-user daily cap on new target addresses (5 / 24 h) bounds the
+the USER id, which only a holder of the session can spend. A per-user daily cap on new target addresses (5 / 24 h) bounds the
 bounce surface the 60-second cooldown alone would leave at one made-up address a minute. `VolatileAclBudgetScopeParityTests` fails when the scopes the application declares and
 the families in `deploy/redis/volatile.acl.template` differ.
 
@@ -393,6 +391,40 @@ registration is closed; that reading was taken 2026-09-21 and re-taken at this P
 data subject meets the
 window, so it is a non-finding: no §9.6 (3) acceptance, no Klas grant, no signature. The three Playwright
 tests of the delete flow are `test.fixme` naming #1740.
+
+**Change-email proves both inboxes (PR 4).** Three authenticated routes. `POST /auth/change-email` redeems a
+re-authentication grant in the behavior, as before; the handler then runs, each gate spent only when the one before
+admitted: the sender's capability (503), the per-user cooldown (409), the per-user daily cap on new addresses,
+5 / 24 h (409, its own code), the per-address target cooldown and the per-address daily cap, 3 codes / 24 h, both shared
+between users (409 with the user cooldown's code, so the caller is not told that someone else asked for the
+address), the address storable (400) and free as an
+address or as a user name (409 `Auth.EmailTaken`), then a record bound to `(ChangeEmail, userId)` and addressed to the
+new address, and the `AddressChangeCode` mail, synchronously; the answer is 202 with the challenge id. The login arm's
+per-address mail budget is not consulted, because the public login arm spends it anonymously before any lookup
+(`security-auditor`). `POST /auth/change-email/verify` presents the code with that binding and answers a
+`ChangeEmail(userId, provenAddress)` grant, never a session. `POST /auth/change-email/confirm` redeems it with
+`GrantAssertion.Of(new ChangeEmail(userId, newEmail))`, moves the account through `SwapConfirmedAddressAsync` in
+#1790's order, verifying no token of its own, notifies the old address, and then, as `/change-password` does,
+invalidates every session and issues this device a fresh one with its lifetime. An address taken by then is 409
+`Auth.EmailTaken`; an unusable grant is 410. `AddressSwapCallerTests` pins the three files that name the swap.
+
+**The mailed link is retired, and the re-authentication request's mail-budget gate with it.** The public
+`POST /auth/confirm-email-change`, the `/bekrafta-epost` page, `SendEmailChangeConfirmationAsync` and its template are
+deleted, so the token in a query string that #706 tracked is no longer minted. `delete email` stays in the
+Caddyfile's query filter for good: a link sent before the retirement can still be opened from an old inbox, and no
+measurement can show that none is left (`security-auditor`). `CaddyfileTokenScrubbingPinTests` holds it as a retired
+parameter. The re-authentication request no longer consults the per-address mail budget either (`security-auditor`,
+a Minor against PR 3, routed into this PR by `senior-cto-advisor`): anyone who knows the address could spend it
+anonymously and hold the owner's re-authentication off. The two change-email `cd/` cooldowns left the persistent
+Redis and its ACL. The privacy policy said the new address gets a confirmation link; it now says a code, and
+`privacy.updated` and `TermsAcceptance.CurrentPrivacyPolicyVersion` moved together (`security-auditor`).
+
+**Lapse trigger 5 fired again, and was re-run (PR 4).** Two mint budgets changed. Re-authentication lost the
+per-address mail cap; `reauth-codes`, 10 / 24 h per user, was already the binding one, so the figures stand at
+0.003 %/day and 1.089 %/year. The change-email code is new, and a correct guess would attach an address whose owner
+never read the code to the guesser's account. Per new address, whoever asks, at most 3 codes per 24 h, 3 attempts
+each: 9 guesses a day, so 0.0009 %/day and 0.328 %/year however many accounts guess (`security-auditor`, PR 4's
+panel). Arithmetic, re-taken 2026-09-22, not an observation.
 
 ### D6 — The consent record: a contract stamp, not Art. 7 consent
 
@@ -1105,7 +1137,8 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
 | Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
-| Re-authentication mint budget (3a; the scopes are declared, the request path that consults them is PR 3's) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h, with the account's own address's shared mail budget (3 / 10 min) between them; past `reauth-codes` the request is to be REFUSED, since a link cannot re-authenticate | `IRateBudget` |
+| Re-authentication mint budget (3a) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h; past `reauth-codes` the request is REFUSED, since a link cannot re-authenticate | `IRateBudget` |
+| Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window and `change-email-per-target-daily` 3 / 24 h; each request also spends a re-authentication grant | `IRateBudget` |
 | Live bound challenges | 1 per user and purpose: every mint burns the previous | `PutBoundAsync` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
@@ -1376,7 +1409,7 @@ boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1
 `redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
-true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes → **3b** #1740 Mina sidor →
+true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes (PR 4; the mailed link and `/bekrafta-epost` retired) → **3b** #1740 Mina sidor →
 **4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

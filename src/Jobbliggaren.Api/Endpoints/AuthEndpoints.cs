@@ -17,6 +17,7 @@ using Jobbliggaren.Application.Auth.Commands.RequestReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.Commands.ResendEmailConfirmation;
 using Jobbliggaren.Application.Auth.Commands.ResetPassword;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmail;
+using Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -87,8 +88,8 @@ public static partial class AuthEndpoints
         // Re-authentication — REQUEST step (#1739, ADR 0142 D5). AUTHENTICATED: the code goes to the account's
         // own address, resolved from the session, and the body carries nothing. Every refusal is visible,
         // because the caller is the account holder: 503 when the sender cannot deliver, 409 inside the
-        // cooldown or the shared mail budget (one code for both, on purpose), 409 past the day's codes. The
-        // challenge id is the requester's alone; it appears in no log line and no URL.
+        // cooldown, 409 past the day's codes. The challenge id is the requester's alone; it appears in no log
+        // line and no URL.
         group.MapPost("/reauth", async (IMediator mediator, CancellationToken ct) =>
         {
             var result = await mediator.Send(new RequestReauthenticationChallengeCommand(), ct);
@@ -171,13 +172,12 @@ public static partial class AuthEndpoints
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
-        // Self-service change-email — REQUEST step (#679, epik #481). Re-auth-gated like
-        // change-password: the grant from /reauth/verify is redeemed server-side by ReauthenticationBehavior
-        // (unusable -> byte-identical 401) BEFORE the handler. A taken address is a 409 (clear "adressen
-        // är upptagen"), a malformed address a 400. On success the handler emails an ownership-
-        // confirmation link to the NEW address and returns 202 Accepted — the email is NOT changed and
-        // NO session is touched until the link is confirmed (see /confirm-email-change). AuthWrite
-        // rate-limit — same credential-risk profile as /login and /change-password.
+        // Self-service change-email — REQUEST step (#679, epik #481; two codes since #1739, ADR 0142 D5).
+        // Re-auth-gated like change-password: the grant from /reauth/verify is redeemed server-side by
+        // ReauthenticationBehavior (unusable -> byte-identical 401) BEFORE the handler. A taken address is a 409,
+        // a malformed one a 400. On success a code goes to the NEW address and the answer is 202 with the
+        // challenge id — the email is NOT changed and NO session is touched until the code is verified and the
+        // change confirmed. The challenge id is the requester's alone; it appears in no log line and no URL.
         group.MapPost("/change-email", async (
             ChangeEmailRequest body,
             IMediator mediator,
@@ -187,54 +187,72 @@ public static partial class AuthEndpoints
                 new ChangeEmailCommand(body.ReauthGrant, body.NewEmail), ct);
             return result.IsFailure
                 ? ToErrorResult(result.Error)
-                : Results.Accepted();
+                : Results.Accepted(uri: (string?)null, value: new { challengeId = result.Value.ChallengeId.Reveal() });
         }).RequireAuthorization()
           .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
-        // Self-service change-email — CONFIRM step (#679). PUBLIC (no RequireAuthorization): the link
-        // is opened from the NEW inbox, possibly logged-out or on a different device, so the opaque
-        // single-use token IS the authorization. Every rejection is a uniform 400 (no account/enum
-        // oracle). On success the email is swapped and the endpoint enacts C6 — logout-everywhere —
-        // because a recovery-vector change must invalidate all sessions (the Redis store is
-        // independent of Identity's SecurityStamp, so stamp rotation does not touch it). AuthWrite
-        // rate-limit (per-IP) against generic abuse of the public endpoint; the opaque token is not
-        // brute-forceable, so no per-uid limiter is needed (CTO-bind #3).
-        group.MapPost("/confirm-email-change", async (
-            ConfirmEmailChangeRequest body,
+        // Change-email — VERIFY step (#1739). AUTHENTICATED: the code mailed to the new address is presented
+        // against the challenge id, and the store asserts that the challenge belongs to this user and this
+        // purpose. A verified code is a single-use grant for this user and the proven address; never a session.
+        // The failures are the login code's: a wrong code 400, a burned or expired one 410.
+        group.MapPost("/change-email/verify", async (
+            EmailChangeVerifyRequest body,
             IMediator mediator,
-            ISessionStore sessions,
-            ILogger<ConfirmEmailChangeCommand> logger,
             CancellationToken ct) =>
         {
             var result = await mediator.Send(
-                new ConfirmEmailChangeCommand(body.Uid, body.Email, body.Token), ct);
+                new VerifyEmailChangeChallengeCommand(body.ChallengeId, body.Code), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Ok(new { changeEmailGrant = result.Value.Reveal() });
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // Change-email — CONFIRM step (#679; a grant since #1739). AUTHENTICATED: the grant is redeemed for this
+        // user and this address, and only then is the account moved. On success the endpoint owns C6 as
+        // /change-password does: every session is invalidated and THIS device is issued a fresh one, keeping its
+        // lifetime profile. The teardown is not caught: a failure there answers an error over a committed change,
+        // never a 200 claiming other devices were logged out. CancellationToken.None: the change is committed; a
+        // client disconnect must not leave the account half-rotated.
+        group.MapPost("/change-email/confirm", async (
+            EmailChangeConfirmRequest body,
+            IMediator mediator,
+            ISessionStore sessions,
+            ICurrentUser currentUser,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(
+                new ConfirmEmailChangeCommand(body.ChangeEmailGrant, body.NewEmail), ct);
             if (result.IsFailure)
                 return ToErrorResult(result.Error);
 
             var userId = result.Value;
 
-            // C6 — the email (an account-recovery vector) just changed: log out EVERY session so the
-            // account is re-authenticated with the new address. NO re-issue (the confirming client is
-            // not necessarily the user's session). CancellationToken.None: the change is committed; a
-            // disconnect must not leave sessions alive. Best-effort + logged as a security event — a
-            // Redis blip must not fail a completed change, but live-session residue must be detectable
-            // (CTO risk 3).
-            try
+            var lifetime = SessionLifetime.Session;
+            if (currentUser.SessionId is { } sessionId)
             {
-                await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                LogSessionInvalidationFailed(logger, ex, userId);
+                var current = await sessions.GetAsync(sessionId, CancellationToken.None);
+                if (current is not null)
+                    lifetime = current.Lifetime;
             }
 
-            return Results.NoContent();
-        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+            // Invalidate-BEFORE-create, as /change-password: CreateAsync SADDs into the user index that
+            // InvalidateAllForUserAsync snapshots-then-deletes.
+            await sessions.InvalidateAllForUserAsync(userId, CancellationToken.None);
+            var reissued = await sessions.CreateAsync(userId, lifetime, CancellationToken.None);
+
+            return Results.Ok(new
+            {
+                sessionId = reissued.Id.Reveal(),
+                persistent = lifetime == SessionLifetime.Persistent,
+            });
+        }).RequireAuthorization()
+          .RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // Registration email-confirmation — CONFIRM step (#714). PUBLIC (no RequireAuthorization): the
         // activation link is opened from the account's own inbox, possibly logged-out or on a different
         // device, so the opaque token IS the authorization. Every rejection is a uniform 400 (no
-        // account/enumeration oracle — parity with /confirm-email-change). On success EmailConfirmed is
+        // account/enumeration oracle). On success EmailConfirmed is
         // set and the user can log in; NO session is issued (the confirming client is not necessarily
         // the user's) and NO logout-everywhere (this is not a recovery-vector change — the address was
         // always the account's). AuthWrite rate-limit (per-IP) against generic abuse; the opaque token
@@ -365,10 +383,9 @@ public static partial class AuthEndpoints
         // fells a short password first and answers with the {errors} shape instead — Auth.PasswordTooShort
         // is never emitted on this route.
         //
-        // On success the endpoint enacts C6 (logout-everywhere) with NO re-issue, following
-        // /confirm-email-change rather than /change-password: the actor here is anonymous and the link may
-        // be opened on any device, so minting a session for whoever opened it would turn recovery into
-        // login. 204, and the user logs in with the new password.
+        // On success the endpoint enacts C6 (logout-everywhere) with NO re-issue, unlike /change-password:
+        // the actor here is anonymous and the link may be opened on any device, so minting a session for
+        // whoever opened it would turn recovery into login. 204, and the user logs in with the new password.
         group.MapPost("/reset-password", async (
             ResetPasswordRequest body,
             IMediator mediator,
@@ -412,10 +429,19 @@ public static partial class AuthEndpoints
 
     /// <summary>
     /// POST /auth/change-email body — the re-auth grant (redeemed server-side by ReauthenticationBehavior,
-    /// #1739) and the new email address (uniqueness pre-checked; ownership confirmed via an emailed link
-    /// before the swap). A pure transport DTO; neither value is logged.
+    /// #1739) and the new email address (a code goes there before any swap). A pure transport DTO; neither value
+    /// is logged.
     /// </summary>
     public sealed record ChangeEmailRequest(string? ReauthGrant, string? NewEmail);
+
+    /// <summary>POST /auth/change-email/verify body (#1739). The code is a credential and is never logged.</summary>
+    public sealed record EmailChangeVerifyRequest(string? ChallengeId, string? Code);
+
+    /// <summary>
+    /// POST /auth/change-email/confirm body (#1739) — the grant /change-email/verify answered and the address it
+    /// was issued for. The grant is a credential and is never logged.
+    /// </summary>
+    public sealed record EmailChangeConfirmRequest(string? ChangeEmailGrant, string? NewEmail);
 
     /// <summary>
     /// POST /auth/forgot-password body — the address to send a reset link to. A pure transport DTO; the
@@ -435,18 +461,10 @@ public static partial class AuthEndpoints
     public sealed record ResetPasswordRequest(Guid Uid, string? Token, string? NewPassword);
 
     /// <summary>
-    /// POST /auth/confirm-email-change body — the (uid, new email, URL-safe token) carried by the
-    /// confirmation link and posted from the public landing page. Token-gated (the link is opened from
-    /// the new inbox, possibly logged-out): the token is the authorization. A pure transport DTO; the
-    /// token is never logged.
-    /// </summary>
-    public sealed record ConfirmEmailChangeRequest(Guid Uid, string? Email, string? Token);
-
-    /// <summary>
     /// POST /auth/verify-email body — the (uid, URL-safe token) carried by the registration activation
     /// link and posted from the public landing page. Token-gated (the link is opened from the account's
     /// inbox, possibly logged-out): the token is the authorization. No email is needed (the address is
-    /// not changing, unlike /confirm-email-change). A pure transport DTO; the token is never logged.
+    /// not changing). A pure transport DTO; the token is never logged.
     /// </summary>
     public sealed record VerifyEmailRequest(Guid Uid, string? Token);
 
@@ -579,20 +597,10 @@ public static partial class AuthEndpoints
         _ => error.ToProblemResult(),
     };
 
-    // C6 session-invalidation is best-effort: a completed email change must not be failed by a Redis
-    // blip, but live-session residue must be detectable (CTO risk 3). Source-gen per CA1848; no
-    // recipient/PII, only the userId surrogate.
-    // Keeps the full exception (a Redis fault's stack aids ops; it carries no user PII), unlike the
-    // email-send logs which log only the type per §5. Explicit EventId for parity with the sibling
-    // change-email log ids (4001/4002).
-    [LoggerMessage(4003, LogLevel.Error,
-        "Change-email confirm: session invalidation FAILED for user {UserId} — " +
-        "email changed, sessions may still be live")]
-    private static partial void LogSessionInvalidationFailed(ILogger logger, Exception ex, Guid userId);
-
-    // #1171 — the same shape as 4003 above and for the same reason (a Redis fault's stack aids ops and
-    // carries no user PII). Its own EventId because the consequence differs: after a RESET, live-session
-    // residue means an account that may have just been taken over still has the attacker's sessions.
+    // #1171 — the password-reset teardown is best-effort: live-session residue must be detectable. Keeps the
+    // full exception (a Redis fault's stack aids ops and carries no user PII); only the userId surrogate.
+    // After a RESET, live-session residue means an account that may have just been taken over still has the
+    // attacker's sessions.
     [LoggerMessage(4004, LogLevel.Error,
         "Password reset: session invalidation FAILED for user {UserId} — " +
         "password changed, sessions may still be live")]

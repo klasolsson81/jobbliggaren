@@ -73,6 +73,7 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
             LoginChallengeEmail.CodeAndLink withLink => withLink.Code,
             LoginChallengeEmail.NewAccountCode newAccount => newAccount.Code,
             LoginChallengeEmail.ReauthenticationCode reauthentication => reauthentication.Code,
+            LoginChallengeEmail.AddressChangeCode addressChange => addressChange.Code,
             LoginChallengeEmail.LinkOnly
                 or LoginChallengeEmail.RegistrationClosed
                 or LoginChallengeEmail.PendingDeletion
@@ -91,10 +92,6 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail, FollowedCompanyNotificationEmail content, CancellationToken cancellationToken) =>
         inner.SendFollowedCompanyNotificationEmailAsync(toEmail, content, cancellationToken);
-
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail, EmailChangeConfirmationEmail content, CancellationToken cancellationToken) =>
-        inner.SendEmailChangeConfirmationAsync(toEmail, content, cancellationToken);
 
     public Task SendEmailChangedNotificationAsync(string toEmail, CancellationToken cancellationToken) =>
         inner.SendEmailChangedNotificationAsync(toEmail, cancellationToken);

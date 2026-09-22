@@ -123,8 +123,6 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     [Theory]
     [InlineData(CooldownScopes.ResendConfirm)]
     [InlineData(CooldownScopes.AccountExists)]
-    [InlineData(CooldownScopes.ChangeEmailTarget)]
-    [InlineData(CooldownScopes.ChangeEmailUser)]
     [InlineData(CooldownScopes.PasswordReset)]
     public async Task Cooldown_ApiIdentity_AllowsOnlyItsRecordedScopes(string scope)
     {
@@ -198,7 +196,7 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
             LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget,
             LoginChallengePolicy.ReauthCooldown(TimeSpan.FromSeconds(60)), LoginChallengePolicy.ReauthCodeBudget,
             ChangeEmailPolicy.UserCooldown(TimeSpan.FromSeconds(60)), ChangeEmailPolicy.TargetCooldown(TimeSpan.FromSeconds(60)),
-            ChangeEmailPolicy.DailyTargetBudget };
+            ChangeEmailPolicy.UserTargetsDailyBudget };
         foreach (var scope in scopes)
         {
             var subject = scope == LoginChallengePolicy.UnknownAddressMailBudget

@@ -20,8 +20,8 @@ export type ResetPasswordActionState =
  * no session, so the token IS the authorization: no `getSessionId`, no Authorization header.
  *
  * 204 -> the password is changed and every session is torn down server-side -> `{ done: true }`. NO
- * session is issued, so the user logs in afterwards; that is the `/confirm-email-change` precedent and
- * is deliberate — the client that opened the link is not necessarily the user's device.
+ * session is issued, so the user logs in afterwards; that is deliberate — the client that opened the
+ * link is not necessarily the user's device.
  *
  * The 400 arm discriminates, which is safe here and would not be on the request half: the backend
  * reaches a PASSWORD error only after verifying the token, so naming the broken rule tells the holder

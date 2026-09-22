@@ -1,5 +1,3 @@
-using System.Buffers.Text;
-using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Registration;
@@ -133,7 +131,7 @@ public class StorableAddressPortTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_change_to_an_unstorable_address_is_refused_when_the_token_is_requested()
+    public async Task A_change_to_an_unstorable_address_is_refused_when_the_address_is_checked()
     {
         var tag = Tag();
         var stored = $"ask-{tag}@example.se";
@@ -141,7 +139,7 @@ public class StorableAddressPortTests(ApiFactory factory)
         var result = await WithAccountsAsync(async (accounts, _) =>
         {
             var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
-            return await accounts.GenerateChangeEmailTokenAsync(userId, " other-" + stored, Ct);
+            return await accounts.CheckAddressIsFreeAsync(userId, " other-" + stored, Ct);
         });
 
         result.IsFailure.ShouldBeTrue();
@@ -151,8 +149,6 @@ public class StorableAddressPortTests(ApiFactory factory)
     [Fact]
     public async Task A_change_to_an_unstorable_address_is_refused_at_the_write()
     {
-        // A token minted before the request-time refusal existed is still valid for its lifetime, so the writer
-        // refuses too. The token is minted by Identity itself, as GenerateChangeEmailTokenAsync did then.
         var tag = Tag();
         var stored = $"write-{tag}@example.se";
         var padded = " other-" + stored;
@@ -160,29 +156,15 @@ public class StorableAddressPortTests(ApiFactory factory)
         var (result, row) = await WithAccountsAsync(async (accounts, users) =>
         {
             var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
-            var user = (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
-            var token = Base64Url.EncodeToString(
-                Encoding.UTF8.GetBytes(await users.GenerateChangeEmailTokenAsync(user, padded)));
-
-            var confirm = await accounts.ConfirmChangeEmailAsync(userId, padded, token, Ct);
-            return (confirm, (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull());
+            var swap = await accounts.SwapConfirmedAddressAsync(userId, padded, Ct);
+            return (swap, (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull());
         });
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
         (await RowsTaggedAsync(tag)).ShouldBe(1);
         row.Email.ShouldBe(stored);
-    }
-
-    [Fact]
-    public async Task The_write_refuses_an_unstorable_address_the_same_for_an_unknown_user_id()
-    {
-        // The confirm endpoint is public. Judged after the account read, the refusal would answer differently
-        // for a user id that exists and one that does not.
-        var result = await WithAccountsAsync((accounts, _) =>
-            accounts.ConfirmChangeEmailAsync(Guid.NewGuid(), " nobody@example.se", "dG9rZW4", Ct));
-
-        result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
+        row.UserName.ShouldBe(stored);
     }
 
     [Fact]
@@ -195,8 +177,8 @@ public class StorableAddressPortTests(ApiFactory factory)
         var row = await WithAccountsAsync(async (accounts, users) =>
         {
             var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
-            var token = (await accounts.GenerateChangeEmailTokenAsync(userId, next, Ct)).Value;
-            (await accounts.ConfirmChangeEmailAsync(userId, next, token, Ct)).IsSuccess.ShouldBeTrue();
+            (await accounts.CheckAddressIsFreeAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
+            (await accounts.SwapConfirmedAddressAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
             return (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull();
         });
 

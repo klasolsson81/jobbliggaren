@@ -1,66 +1,62 @@
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
+using Jobbliggaren.Application.Common.Validation;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #679 CONFIRM step — pins the validator for the PUBLIC confirm command. UserId/NewEmail/Token are
-/// all carried by the confirmation link; a malformed link must be a clean 400 before UserManager runs
-/// (and, for UserId, before the post-success <c>AuditLogEntry.Create</c> empty-aggregateId throw —
-/// <c>ExtractAggregateId</c> returns UserId).
+/// The change-email confirm step's validator (#1739): a malformed request is a clean 400 before a grant is
+/// redeemed.
 /// </summary>
-public class ConfirmEmailChangeCommandValidatorTests
+public sealed class ConfirmEmailChangeCommandValidatorTests
 {
-    private readonly ConfirmEmailChangeCommandValidator _validator = new();
-
     private const string ValidEmail = "ny.adress@example.se";
-    private const string ValidToken = "opaque-url-safe-token"; // gitleaks:allow
+    private const string ValidGrant = "an-opaque-change-email-grant"; // gitleaks:allow
+
+    private readonly ConfirmEmailChangeCommandValidator _confirm = new();
 
     [Fact]
-    public void Validate_ValidLink_Passes()
-        => _validator.Validate(new ConfirmEmailChangeCommand(Guid.NewGuid(), ValidEmail, ValidToken))
-            .IsValid.ShouldBeTrue();
-
-    [Fact]
-    public void Validate_EmptyUserId_Fails()
-    {
-        var result = _validator.Validate(new ConfirmEmailChangeCommand(Guid.Empty, ValidEmail, ValidToken));
-
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.UserId));
-    }
+    public void A_grant_and_a_well_formed_address_pass()
+        => _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, ValidEmail)).IsValid.ShouldBeTrue();
 
     [Theory]
-    [InlineData("")]
     [InlineData(null)]
-    public void Validate_MissingNewEmail_Fails(string? email)
+    [InlineData("")]
+    public void A_missing_grant_fails(string? grant)
     {
-        var result = _validator.Validate(new ConfirmEmailChangeCommand(Guid.NewGuid(), email, ValidToken));
+        var result = _confirm.Validate(new ConfirmEmailChangeCommand(grant, ValidEmail));
 
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.NewEmail));
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.ChangeEmailGrant));
+    }
+
+    [Fact]
+    public void A_grant_longer_than_any_minted_one_fails()
+    {
+        var result = _confirm.Validate(new ConfirmEmailChangeCommand(new string('a', 65), ValidEmail));
+
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.ChangeEmailGrant));
+        _confirm.Validate(new ConfirmEmailChangeCommand(new string('a', 64), ValidEmail)).IsValid.ShouldBeTrue();
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
     [InlineData("not-an-email")]
-    [InlineData("@no-local.se")]
     [InlineData("no-domain@")]
-    public void Validate_MalformedNewEmail_Fails(string email)
+    public void A_missing_or_malformed_address_fails(string? email)
     {
-        var result = _validator.Validate(new ConfirmEmailChangeCommand(Guid.NewGuid(), email, ValidToken));
+        var result = _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, email));
 
-        result.IsValid.ShouldBeFalse();
         result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.NewEmail));
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void Validate_MissingToken_Fails(string? token)
+    [Fact]
+    public void An_address_over_the_one_email_bound_fails()
     {
-        var result = _validator.Validate(new ConfirmEmailChangeCommand(Guid.NewGuid(), ValidEmail, token));
+        var local = new string('a', EmailAddressRules.MaximumLength - "@example.se".Length + 1);
 
-        result.IsValid.ShouldBeFalse();
-        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.Token));
+        var result = _confirm.Validate(new ConfirmEmailChangeCommand(ValidGrant, local + "@example.se"));
+
+        result.Errors.ShouldContain(e => e.PropertyName == nameof(ConfirmEmailChangeCommand.NewEmail));
     }
 }

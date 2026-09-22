@@ -91,7 +91,7 @@ public sealed partial class UserAccountService(
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result.Failure(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+                DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // ChangePasswordAsync verifies the current password, sets the new one, and rotates the
         // security stamp — atomically. Enforces the registered password policy (RequiredLength = 12
@@ -227,10 +227,19 @@ public sealed partial class UserAccountService(
         return new AccountSummary(user.Email, roles.ToList());
     }
 
-    public async Task<bool> IsEmailTakenAsync(string email, CancellationToken ct)
+    public async Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct)
     {
-        var user = await userManager.FindByEmailAsync(email);
-        return user is not null;
+        if (!StorableAddress.IsStorable(newEmail))
+            return Result.Failure(EmailNotStorableFailure());
+
+        if (await userManager.FindByEmailAsync(newEmail) is not null)
+            return Result.Failure(EmailTakenFailure());
+
+        // The user name too: a swap that failed after its first write leaves the new address as a user name and
+        // not as an address, and the unique index holds it there (security-auditor, #1790). Only for someone else:
+        // on the caller's own row it is that swap, and the retry completes it.
+        var nameHolder = await userManager.FindByNameAsync(newEmail);
+        return nameHolder is null || nameHolder.Id == userId ? Result.Success() : Result.Failure(EmailTakenFailure());
     }
 
     // ILoginAccountLookup — one consumer, LoginSubjectResolver (#1735). A separate port rather than an
@@ -243,65 +252,14 @@ public sealed partial class UserAccountService(
         return user is { Email: { } accountEmail } ? new LoginAccount(user.Id, accountEmail) : null;
     }
 
-    public async Task<Result<string>> GenerateChangeEmailTokenAsync(
-        Guid userId, string newEmail, CancellationToken ct)
+    public async Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
     {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return Result.Failure<string>(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
-
-        if (!StorableAddress.IsStorable(newEmail))
-            return Result.Failure<string>(EmailNotStorableFailure());
-
-        // Opaque DataProtector token (CTO-bind #1) bound to (SecurityStamp, "ChangeEmail:{newEmail}").
-        // Nothing is persisted; the pending new email lives inside the token. The email is NOT changed.
-        var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
-
-        // Base64Url so the token (base64 with +,/,=) survives the email link -> query string -> POST
-        // round-trip without a layer turning '+' into a space (CTO-bind #2 mitigation). Decoded 1:1
-        // in ConfirmChangeEmailAsync.
-        var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
-        return Result.Success(urlSafeToken);
-    }
-
-    public async Task<Result> ConfirmChangeEmailAsync(
-        Guid userId, string newEmail, string urlSafeToken, CancellationToken ct)
-    {
-        // Judged before the account is read: a property of the submitted spelling alone, so unlike the
-        // uniform rejections below it cannot vary with the user id.
         if (!StorableAddress.IsStorable(newEmail))
             return Result.Failure(EmailNotStorableFailure());
 
-        // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token,
-        // address-taken-at-confirm): a PUBLIC confirm endpoint must not distinguish them, or it
-        // becomes an account-existence / email-enumeration oracle (parity AuthProblem's byte-identical
-        // 401). Callers surface DomainError.Validation -> 400.
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            return InvalidTokenFailure();
-
-        string token;
-        try
-        {
-            token = Encoding.UTF8.GetString(Base64Url.DecodeFromChars(urlSafeToken));
-        }
-        catch (FormatException)
-        {
-            // A malformed (non-Base64Url) token is just an invalid token — same uniform failure.
-            return InvalidTokenFailure();
-        }
-
-        // The mailed token is this PUBLIC route's whole authorization, and it is verified HERE, before any
-        // write: the user-name write below rotates the security stamp, so by the time ChangeEmailAsync runs
-        // the mailed token is dead and could no longer be checked there.
-        var mailedTokenIsValid = await userManager.VerifyUserTokenAsync(
-            user,
-            userManager.Options.Tokens.ChangeEmailTokenProvider,
-            UserManager<ApplicationUser>.GetChangeEmailTokenPurpose(newEmail),
-            token);
-        if (!mailedTokenIsValid)
-            return InvalidTokenFailure();
+            return Result.Failure(DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
         // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
@@ -315,21 +273,25 @@ public sealed partial class UserAccountService(
         catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
             // Both swaps passed the validator's read; the index refused this one's write.
-            return InvalidTokenFailure();
+            return Result.Failure(EmailTakenFailure());
         }
 
         if (!userNameResult.Succeeded)
-            return InvalidTokenFailure();
+        {
+            return Result.Failure(userNameResult.Errors.Any(error => IsDuplicateAccountError(error.Code))
+                ? EmailTakenFailure()
+                : EmailChangeIncompleteFailure());
+        }
 
         // ChangeEmailAsync sets Email + NormalizedEmail + EmailConfirmed=true, re-runs RequireUniqueEmail and
-        // rotates the security stamp again, so the mailed token and any sibling pending token stay dead. Its
-        // token argument proves nothing here; the mailed one did.
+        // rotates the security stamp again. Its token argument proves nothing: the code proven in the new inbox
+        // was the credential, and the token is minted after the user-name write rotated the stamp.
         var swapToken = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
         var changeResult = await userManager.ChangeEmailAsync(user, newEmail, swapToken);
         if (!changeResult.Succeeded)
         {
             LogAddressWriteFailedAfterUserName(userId);
-            return InvalidTokenFailure();
+            return Result.Failure(EmailChangeIncompleteFailure());
         }
 
         return Result.Success();
@@ -341,15 +303,15 @@ public sealed partial class UserAccountService(
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result.Failure<string>(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+                DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // #714 — opaque DataProtector token (EmailConfirmationTokenProvider, pinned in DI) bound to the
         // security stamp + the "EmailConfirmation" purpose. Nothing is persisted; the token IS the
-        // pending activation state. No pending new address (contrast the change-email token).
+        // pending activation state.
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
 
-        // Base64Url so the token survives the email link -> query string -> POST round-trip (parity
-        // with the change-email token, #679). Decoded 1:1 in ConfirmEmailAsync.
+        // Base64Url so the token survives the email link -> query string -> POST round-trip. Decoded 1:1
+        // in ConfirmEmailAsync.
         var urlSafeToken = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(token));
         return Result.Success(urlSafeToken);
     }
@@ -359,7 +321,7 @@ public sealed partial class UserAccountService(
     {
         // Uniform failure for EVERY rejection below (user-not-found, malformed/bad/expired token): a
         // PUBLIC confirm endpoint must not distinguish them, or it becomes an account-existence /
-        // enumeration oracle (parity with ConfirmChangeEmailAsync + AuthProblem's byte-identical 401).
+        // enumeration oracle (parity with AuthProblem's byte-identical 401).
         // Callers surface DomainError.Validation -> 400.
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
@@ -424,10 +386,11 @@ public sealed partial class UserAccountService(
     private static DomainError EmailNotStorableFailure() =>
         DomainError.Validation(AuthErrorCodes.EmailNotStorable, AuthErrorCodes.EmailNotStorableMessage);
 
-    private static Result InvalidTokenFailure() =>
-        Result.Failure(DomainError.Validation(
-            "Auth.InvalidEmailChangeToken",
-            "Bekräftelselänken är ogiltig eller har gått ut. Begär en ny ändring av e-postadressen."));
+    private static DomainError EmailTakenFailure() =>
+        DomainError.Conflict(AuthErrorCodes.EmailTaken, AuthErrorCodes.EmailTakenMessage);
+
+    private static DomainError EmailChangeIncompleteFailure() =>
+        DomainError.Conflict(AuthErrorCodes.EmailChangeIncomplete, AuthErrorCodes.EmailChangeIncompleteMessage);
 
     public async Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(
         string email, CancellationToken ct)

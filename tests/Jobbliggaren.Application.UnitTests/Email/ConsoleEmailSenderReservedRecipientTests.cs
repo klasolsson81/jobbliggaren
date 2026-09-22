@@ -70,13 +70,6 @@ public class ConsoleEmailSenderReservedRecipientTests
                 CancellationToken.None),
             CarriesProbe: true),
 
-        new(nameof(IEmailSender.SendEmailChangeConfirmationAsync), "email-change-confirmation",
-            (s, to) => s.SendEmailChangeConfirmationAsync(
-                to,
-                new EmailChangeConfirmationEmail(Guid.Empty, to, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
         new(nameof(IEmailSender.SendEmailChangedNotificationAsync), "email-changed-notification",
             (s, to) => s.SendEmailChangedNotificationAsync(to, CancellationToken.None),
             CarriesProbe: false),

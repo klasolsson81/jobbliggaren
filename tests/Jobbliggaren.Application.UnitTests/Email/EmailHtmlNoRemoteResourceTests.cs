@@ -133,11 +133,6 @@ public class EmailHtmlNoRemoteResourceTests
             EmailTemplates.EmailConfirmation(
                 BaseUrl, new EmailConfirmationEmail(UserId, UrlSafeToken))),
 
-        ("EmailChangeConfirmation",
-            EmailTemplates.EmailChangeConfirmation(
-                BaseUrl,
-                new EmailChangeConfirmationEmail(UserId, "ny.adress@example.com", UrlSafeToken))),
-
         ("EmailChangedNotification", EmailTemplates.EmailChangedNotification()),
 
         ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl)),
@@ -159,6 +154,8 @@ public class EmailHtmlNoRemoteResourceTests
         ("LoginNewAccountCodeLimitReached", EmailTemplates.LoginNewAccountCodeLimitReached()),
         ("LoginReauthenticationCode", EmailTemplates.LoginReauthenticationCode(
             new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")))),
+        ("LoginAddressChangeCode", EmailTemplates.LoginAddressChangeCode(
+            new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917")))),
     ];
 
     private static readonly LoginLinkToken SampleLink =

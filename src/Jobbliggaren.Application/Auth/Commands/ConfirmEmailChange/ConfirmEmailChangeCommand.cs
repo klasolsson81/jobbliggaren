@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -5,23 +6,16 @@ using Mediator;
 namespace Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 
 /// <summary>
-/// Self-service change-email — CONFIRM step (#679). Token-gated and PUBLIC: the link is opened from
-/// the NEW inbox, possibly logged-out or on a different device, so this command is deliberately NOT
-/// <c>IAuthenticatedRequest</c> and NOT <c>IReauthenticatingRequest</c> — the opaque, single-use,
-/// SecurityStamp-bound token IS the authorization. Named "Confirm…" so it does NOT trip the re-auth
-/// tripwire (which targets Change/Update/Set/Reset + Email/Password/Credential, and the erasure/export
-/// families — never "Confirm").
-///
-/// <para>
-/// Applies the pending change (verify token → swap email → keep UserName in lockstep → rotate the
-/// stamp); the endpoint then logs out every session (C6). Returns the target user id so
-/// <c>AuditBehavior</c> stamps <c>User.EmailChanged</c> (AggregateType "User"); the actor is null when
-/// the confirmer is logged-out, which is correct (the token proves authorization). Every rejection is
-/// ONE uniform failure so this public endpoint reveals no account-existence or enumeration oracle.
-/// </para>
+/// Self-service change-email — CONFIRM step (#679; a grant since #1739, ADR 0142 D5). Authenticated: the grant
+/// <c>VerifyEmailChangeChallengeCommand</c> issued is redeemed for exactly this user and this address, and only
+/// then is the account moved. It is NOT <c>IReauthenticatingRequest</c>: the re-authentication was the request
+/// step's, and the proof of the new inbox is the grant. Named "Confirm…" so the re-auth tripwire's pattern does
+/// not match it; a source sweep pins who may name the swap instead. Returns the user id so <c>AuditBehavior</c>
+/// stamps <c>User.EmailChanged</c> (AggregateType "User"); the endpoint then logs every session out and issues
+/// this device a fresh one.
 /// </summary>
-public sealed record ConfirmEmailChangeCommand(Guid UserId, string? NewEmail, string? Token)
-    : ICommand<Result<Guid>>, IAuditableCommand<Result<Guid>>
+public sealed record ConfirmEmailChangeCommand(string? ChangeEmailGrant, string? NewEmail)
+    : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
 {
     public string EventType => "User.EmailChanged";
     public string AggregateType => "User";

@@ -15,12 +15,6 @@ public static class CooldownScopes
     /// <summary>Per-target throttle on the registration account-exists notice (#703; silent no-op).</summary>
     public const string AccountExists = "account-exists";
 
-    /// <summary>Per-TARGET (new-address) throttle on the change-email request (#703; visible 409).</summary>
-    public const string ChangeEmailTarget = "change-email-target";
-
-    /// <summary>Per-USER (actor) throttle on the change-email request (#703; visible 409).</summary>
-    public const string ChangeEmailUser = "change-email-user";
-
     /// <summary>
     /// Per-TARGET throttle on the forgot-password request (#1171). <b>SILENT no-op, never a visible
     /// 409 — and that is not a copy of the resend scope's choice but the same requirement.</b> The

@@ -21,7 +21,7 @@ public sealed partial class ResetPasswordCommandHandler(
             || string.IsNullOrEmpty(command.Token)
             || string.IsNullOrEmpty(command.NewPassword))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Ogiltig återställningslänk."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Ogiltig återställningslänk."));
 
         // Capture the address BEFORE the reset so the security notice can reach it. The reset does not
         // change the address, but reading it first keeps the notice independent of anything the reset

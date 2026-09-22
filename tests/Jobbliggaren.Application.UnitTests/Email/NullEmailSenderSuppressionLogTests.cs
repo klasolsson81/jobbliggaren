@@ -102,7 +102,6 @@ public class NullEmailSenderSuppressionLogTests
     [InlineData("email-confirmation")]
     [InlineData("email-changed-notification")]
     [InlineData("account-exists-notice")]
-    [InlineData("email-change-confirmation")]
     [InlineData("password-reset")]
     [InlineData("password-changed-notice")]
     [InlineData("login-challenge")]
@@ -112,22 +111,20 @@ public class NullEmailSenderSuppressionLogTests
         var ct = CancellationToken.None;
         var userId = Guid.NewGuid();
 
-        // Every kind, so the mapping is pinned kind by kind rather than by one representative. Four are
+        // Every kind, so the mapping is pinned kind by kind rather than by one representative. Three are
         // UNREACHABLE in production, but by TWO different mechanisms and the distinction matters:
-        //   · email-change-confirmation, password-reset and login-challenge — their callers READ
-        //     CanDeliver and refuse before minting or sending (#1087, #1171, #1735).
+        //   · password-reset and login-challenge — their callers READ
+        //     CanDeliver and refuse before minting or sending (#1171, #1735).
         //   · password-changed-notice — its caller has NO CanDeliver branch. It is unreachable
         //     INDIRECTLY: no reset token can be minted while the sender cannot deliver, so the event
         //     this notice reports cannot occur (the same trigger-unreachability argument
         //     security-auditor accepted 2026-08-09 for the old-address notice).
-        // All four are raised at Warning anyway: if one ever fires, an invariant broke, which is a
+        // All three are raised at Warning anyway: if one ever fires, an invariant broke, which is a
         // louder event than a missing provider, not a quieter one.
         await sender.SendEmailConfirmationAsync(
             "user@example.com", new EmailConfirmationEmail(userId, "tok"), ct);
         await sender.SendEmailChangedNotificationAsync("old@example.com", ct);
         await sender.SendAccountExistsNoticeAsync("taken@example.com", ct);
-        await sender.SendEmailChangeConfirmationAsync(
-            "new@example.com", new EmailChangeConfirmationEmail(userId, "new@example.com", "tok"), ct);
         await sender.SendPasswordResetAsync(
             "user@example.com", new PasswordResetEmail(userId, "tok"), ct);
         await sender.SendPasswordChangedNoticeAsync("user@example.com", ct);

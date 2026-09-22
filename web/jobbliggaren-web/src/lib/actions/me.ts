@@ -419,8 +419,7 @@ export async function changeEmailAction(
       return { success: false, error: ts("account.errors.invalidInput") };
     }
     if (res.status === 409) {
-      // Two distinct 409 codes share this endpoint: `Auth.ChangeEmailCooldown` (the per-user
-      // rate-limit, #703) and `Auth.EmailTaken`. Read the ProblemDetails title to pick the right
+      // Read the ProblemDetails title to pick the right
       // localized copy (exact-whitelist only; the backend `detail` is never rendered). A 409 with
       // no recognized title falls back to the taken-address message (the deliberate #679 choice),
       // not the generic `stateConflict` message `mapActionError` returns for a 409.
@@ -474,7 +473,6 @@ export async function changeEmailAction(
     return { success: false, error: ts("account.errors.network") };
   }
 
-  // No revalidatePath: nothing server-rendered on /installningar changes now — the
-  // address swaps only after the emailed link is confirmed (confirmEmailChangeAction).
+  // No revalidatePath: nothing server-rendered on /installningar changes now.
   return { success: true };
 }

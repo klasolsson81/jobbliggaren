@@ -1059,6 +1059,48 @@ public class PreambleResidueTests
         _sut.Segment(cv).Content.Preamble.ShouldBe(prose + "7");
     }
 
+    [Fact]
+    public void Segment_HeadinglessParagraphOfProsePastTheCap_CutsAtTheCap()
+    {
+        var cv = Prose(2100);
+
+        _sut.Segment(cv).Content.Preamble.ShouldBe(cv[..PreambleResidue.MaxPreambleChars].TrimEnd());
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphOfOnlyDigitsPastTheCap_CarriesAPrefixTheScanPasses()
+    {
+        // The digit run starts the text, so there is nowhere outside it to cut: the scan decides.
+        var cv = new string('1', PreambleResidue.MaxPreambleChars + 1);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotBeEmpty();
+        cv.ShouldStartWith(preamble);
+        ScanCount(preamble).ShouldBe(0);
+    }
+
+    [Fact]
+    public void Segment_HeadinglessParagraphOfTenDigitsDilutedPastTheCap_CarriesAPrefixTheScanPasses()
+    {
+        // Ten digits of a personnummer spread by characters the scan strips, the eleventh past the
+        // cap: the whole text is an eleven-digit run to the scan, while the head alone would be the
+        // personnummer. The run starts the text, so the scan decides what is carried.
+        var filler = new string('\u200B', 200);
+        var cv = string.Join(filler, "8112189876".Select(d => d.ToString()));
+        cv += new string('\u200B', PreambleResidue.MaxPreambleChars - cv.Length) + "5 och fler rader.";
+
+        ScanCount(cv).ShouldBe(0);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        preamble.ShouldNotBeEmpty();
+        cv.ShouldStartWith(preamble);
+        ScanCount(preamble).ShouldBe(0);
+    }
+
     private void AssertTheHardCutMintsNothing(int proseLength, string run)
     {
         var prose = Prose(proseLength);

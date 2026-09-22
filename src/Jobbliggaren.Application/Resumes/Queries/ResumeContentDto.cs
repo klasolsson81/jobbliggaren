@@ -47,11 +47,7 @@ namespace Jobbliggaren.Application.Resumes.Queries;
 /// <c>new(...)</c>, which the grep cannot see. The guarantee never rested on an ingress count,
 /// so it does not need one.</para>
 /// <para>Adding a second redactor here would be two normalisers of the product's
-/// highest-priority PII rule. And on the one hazard specific to this field — a personnummer
-/// straddling a subtracted fragment, which <c>PreambleResidue.Subtract</c> can splice into a
-/// string that is NOT a substring of <c>RawText</c> and that the import scan therefore never
-/// saw — the canonical arm's write-side control is <b>stronger</b> than staging's primary one,
-/// not weaker.</para>
+/// highest-priority PII rule.</para>
 /// </param>
 public sealed record ResumeContentDto(
     PersonalInfoDto PersonalInfo,

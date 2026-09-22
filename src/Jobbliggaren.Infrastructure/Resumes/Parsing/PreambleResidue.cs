@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
@@ -290,8 +291,10 @@ internal static class PreambleResidue
     //
     // Nor may it end inside a digit run as the personnummer scan reads one, with format characters
     // stripped: the scan of the whole text rejects a run on its trailing-digit boundary, and a prefix
-    // of that run can be a personnummer. The cut steps back to where the run starts.
-    private static string? Truncate(string text)
+    // of that run can be a personnummer. The cut steps back to where the run starts. When the run
+    // starts the text there is nothing to step back to, and the scan decides: the longest prefix it
+    // passes is carried.
+    private static string Truncate(string text)
     {
         var head = text[..MaxPreambleChars];
 
@@ -300,8 +303,17 @@ internal static class PreambleResidue
             return head[..lastBreak].TrimEnd();
 
         var cut = char.IsHighSurrogate(head[^1]) ? MaxPreambleChars - 1 : MaxPreambleChars;
-        var carried = text[..CutOutsideDigitRun(text, cut)].TrimEnd();
-        return carried.Length == 0 ? null : carried;
+        var outside = CutOutsideDigitRun(text, cut);
+        return outside > 0 ? text[..outside].TrimEnd() : LongestPrefixTheScanPasses(text, cut);
+    }
+
+    private static string LongestPrefixTheScanPasses(string text, int cut)
+    {
+        var end = cut;
+        while (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
+                   text[..end], PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
+            end--;
+        return text[..end];
     }
 
     private static int CutOutsideDigitRun(string text, int cut)

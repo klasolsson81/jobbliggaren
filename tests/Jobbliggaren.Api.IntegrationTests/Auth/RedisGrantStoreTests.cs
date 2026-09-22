@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Common.Validation;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Microsoft.AspNetCore.DataProtection;
@@ -295,8 +296,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         // The ceiling is one constant for every payload — the longest address a validator admits, every
         // character escaped — so a 256-character address and a re-authentication grant with none protect to
         // one length. The DataProtector adds a fixed envelope, so the protected lengths compare directly.
-        var longest = $"{new string('a', 245)}@example.se";
-        longest.Length.ShouldBe(256);
+        var longest = $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se";
+        longest.Length.ShouldBe(EmailAddressRules.MaximumLength);
         GrantSubject[] subjects =
         [
             new GrantSubject.LoginComplete("a@b.se"),
@@ -321,7 +322,8 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
     public async Task A_padded_grant_still_redeems_to_its_subject()
     {
         var userId = Guid.NewGuid();
-        var subject = new GrantSubject.ChangeEmail(userId, $"{new string('a', 245)}@example.se");
+        var subject = new GrantSubject.ChangeEmail(
+            userId, $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se");
         var token = await _store.IssueAsync(subject, Ct);
 
         (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);

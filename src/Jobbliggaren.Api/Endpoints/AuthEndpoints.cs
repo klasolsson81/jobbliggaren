@@ -526,8 +526,7 @@ public static partial class AuthEndpoints
         // byte-identical 401 above. 403 ("we know who you are, but you can't proceed") is an
         // endpoint-local status like the 401 arm — no new ErrorKind (the kind-union models
         // 400/404/409/410; #239 Variant B, RFC 9110 §15.5.4). Same ProblemDetails shape as the central
-        // mapper (title=code, detail=message). The re-auth path normalizes EmailNotConfirmed back to
-        // InvalidCredentials, so this arm is reachable only via /login.
+        // mapper (title=code, detail=message). This arm is reachable only via /login.
         AuthErrorCodes.EmailNotConfirmed => Results.Problem(
             detail: AuthErrorCodes.EmailNotConfirmedMessage,
             title: AuthErrorCodes.EmailNotConfirmed,

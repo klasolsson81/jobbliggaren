@@ -66,6 +66,19 @@ public sealed class ReauthGrantRulesTests
     }
 
     [Fact]
+    public void The_three_implementers_are_the_whole_set()
+    {
+        // The tripwire pins that every implementer HAS a validator; the theories above pin what three validators
+        // say. A fourth implementer would pass the tripwire with any validator and reach none of the theories, so
+        // the set is pinned here: adding one means adding its row.
+        typeof(IReauthenticatingRequest).Assembly.GetTypes()
+            .Where(t => t is { IsInterface: false, IsAbstract: false } && typeof(IReauthenticatingRequest).IsAssignableFrom(t))
+            .Select(t => t.Name)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe([nameof(ChangeEmailCommand), nameof(ChangePasswordCommand), nameof(DeleteAccountCommand)]);
+    }
+
+    [Fact]
     public void The_bound_admits_a_minted_grant()
     {
         Jobbliggaren.Application.Auth.Grants.GrantToken.Generate().Reveal().Length

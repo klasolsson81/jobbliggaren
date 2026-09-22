@@ -15,10 +15,16 @@ public static class AuthErrorCodes
     public const string InvalidCredentials = "Auth.InvalidCredentials";
 
     /// <summary>
+    /// A handler's self-defending refusal when <c>ICurrentUser</c> carries no user: AuthorizationBehavior ran
+    /// before it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string NotAuthenticated = "Auth.NotAuthenticated";
+
+    /// <summary>
     /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
     /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
     /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
-    /// the wire — normalized by AuthProblem in both the behavior and /auth/verify paths) cannot
+    /// the wire — normalized by AuthProblem in the behavior path) cannot
     /// silently drift from the authoritative copy (dotnet-architect PR2c-1 Minor — single source).
     /// </summary>
     public const string InvalidCredentialsMessage = "E-post eller lösenord är felaktigt.";

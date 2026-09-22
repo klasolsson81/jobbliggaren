@@ -21,7 +21,7 @@ public sealed class DeleteAccountCommandHandler(
         if (!currentUser.UserId.HasValue)
             return Result.Failure<Guid>(
                 DomainError.Validation(
-                    "Auth.NotAuthenticated",
+                    AuthErrorCodes.NotAuthenticated,
                     "Inloggning krävs för att radera konto."));
 
         var userId = currentUser.UserId.Value;

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
@@ -287,7 +288,17 @@ public class ReauthenticationChallengeTests(ApiFactory factory)
 
         keys.ShouldContain(RedisLoginChallengeStore.BoundRecordKey(RedisLoginChallengeStore.RecordSegment(ChallengeId.FromRaw(challengeId))));
         keys.ShouldAllBe(k => !k.Contains(challengeId, StringComparison.Ordinal));
-        var dump = string.Join('\n', keys.Select(k => k + " " + redis.GetDatabase().HashGetAll(k).ToString()));
+        // The record's fields as the bytes Redis holds, read the way RedisGrantStoreTests reads a grant.
+        var fields = new List<string>();
+        foreach (var key in keys)
+        {
+            foreach (var entry in await redis.GetDatabase().HashGetAllAsync(key))
+                fields.Add($"{entry.Name}={Encoding.Latin1.GetString((byte[])entry.Value!)}");
+        }
+
+        fields.ShouldNotBeEmpty();
+        var dump = string.Join('\n', keys) + '\n' + string.Join('\n', fields);
+        dump.ShouldNotContain(challengeId);
         dump.ShouldNotContain(code);
         dump.ShouldNotContain(email);
     }

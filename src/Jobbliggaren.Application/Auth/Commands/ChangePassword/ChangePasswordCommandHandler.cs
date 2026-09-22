@@ -16,7 +16,7 @@ public sealed class ChangePasswordCommandHandler(
         // pipeline configuration. Throw-safe fallbacks instead of the null-forgiving operator.
         if (!currentUser.UserId.HasValue)
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att byta lösenord."));
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att byta lösenord."));
 
         // The validator guarantees both are non-empty; re-assert so the handler is correct in
         // isolation and the non-null values can be passed to the Identity port.

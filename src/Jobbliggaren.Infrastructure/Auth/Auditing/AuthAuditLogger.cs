@@ -140,7 +140,7 @@ public sealed partial class AuthAuditLogger(
     private static partial void LogLoginChallengeIssued(
         ILogger logger, string auditEvent, Guid userId, LoginChallengeKind challengeKind, string ip, string userAgent);
 
-    // #1739. UserId and the purpose only — never the address, the code or the grant.
+    // #1739. Never the address, the code or the grant.
     [LoggerMessage(1019, LogLevel.Information,
         "AuditEvent={AuditEvent} UserId={UserId} Purpose={Purpose} Ip={Ip} UserAgent={UserAgent}")]
     private static partial void LogReauthenticationSucceeded(

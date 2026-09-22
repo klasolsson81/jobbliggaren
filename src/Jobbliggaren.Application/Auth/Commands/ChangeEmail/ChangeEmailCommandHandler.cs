@@ -19,7 +19,7 @@ public sealed class ChangeEmailCommandHandler(
         // before this handler, but we do not take a dependency on pipeline configuration.
         if (!currentUser.UserId.HasValue)
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att byta e-postadress."));
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att byta e-postadress."));
 
         // The validator guarantees both are non-empty; re-assert so the handler is correct in isolation.
         if (string.IsNullOrEmpty(command.ReauthGrant) || string.IsNullOrEmpty(command.NewEmail))

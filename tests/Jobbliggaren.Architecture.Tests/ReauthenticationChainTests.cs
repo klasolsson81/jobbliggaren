@@ -1,7 +1,9 @@
 using System.Reflection;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
+using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.RequestReauthenticationChallenge;
+using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -16,7 +18,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// chain (<see cref="LoginProofChainTests"/>): the grant store is reached by exactly the four types that
 /// issue or redeem a grant, and the re-authentication binding is constructed in exactly the two handlers of
 /// the re-auth arm and the service that redeems it. The reach test is the load-bearing one: the two re-auth
-/// handlers can reach neither the outcome function that mints a session, nor the session store, nor a
+/// handlers take neither the outcome function that mints a session, nor the session store, nor a
 /// password check, so a bound proof can never become a login (D5's "never a session"). Same scan as the
 /// login chain's: every composing assembly, every constructor and method parameter, compiler-generated ones
 /// included.
@@ -59,21 +61,26 @@ public sealed class ReauthenticationChainTests
     }
 
     [Fact]
-    public void Only_the_re_auth_arm_takes_the_challenge_store_beside_the_login_arm()
+    public void Exactly_the_login_arm_and_the_re_auth_arm_take_the_challenge_store()
     {
         // The bound members live on the login challenge's port (ADR 0142 Amendment (4): a third kind of challenge
-        // is the signal to split it). Until then, the port's consumers are the login arm's three, the re-auth
-        // arm's two, and the dev seam that mints for the e2e flows — pinned as a set so a new consumer is seen.
-        ConsumersOf(typeof(ILoginChallengeStore)).ShouldContain(typeof(RequestReauthenticationChallengeCommandHandler).FullName!);
-        ConsumersOf(typeof(ILoginChallengeStore)).ShouldContain(typeof(VerifyReauthenticationChallengeCommandHandler).FullName!);
-        ConsumersOf(typeof(ILoginChallengeStore)).ShouldNotContain(typeof(ReauthenticationService).FullName!);
+        // is the signal to split it). Until then, the port's consumers are the login arm's three and the re-auth
+        // arm's two; a sixth is a new challenge path and is decided here.
+        ConsumersOf(typeof(ILoginChallengeStore)).ShouldBe(
+        [
+            typeof(ConsumeLoginLinkCommandHandler).FullName!,
+            typeof(RequestReauthenticationChallengeCommandHandler).FullName!,
+            typeof(VerifyLoginChallengeCommandHandler).FullName!,
+            typeof(VerifyReauthenticationChallengeCommandHandler).FullName!,
+            typeof(LoginChallengeIssuer).FullName!,
+        ]);
     }
 
     [Fact]
     public void The_re_auth_arm_can_reach_neither_a_session_nor_a_password_check()
     {
-        // Every type the two re-auth handlers can reach, following concrete classes through their constructors.
-        // A verified re-auth code must be a grant and nothing else (D5): no outcome function, no session grant,
+        // The two re-auth handlers' constructor dependencies, and those of any concrete class among them. A
+        // verified re-auth code must be a grant and nothing else (D5): no outcome function, no session grant,
         // no session store; and the arm never reads a password or touches lockout.
         var reached = new HashSet<Type>();
         var pending = new Stack<Type>(

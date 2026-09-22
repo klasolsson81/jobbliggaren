@@ -30,7 +30,7 @@ public sealed class RequestReauthenticationChallengeCommandHandler(
         // Self-defending: AuthorizationBehavior ran, but the handler does not depend on pipeline configuration.
         if (!currentUser.UserId.HasValue)
             return Result.Failure<ChallengeId>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att begära en kod."));
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att begära en kod."));
 
         var userId = currentUser.UserId.Value;
 

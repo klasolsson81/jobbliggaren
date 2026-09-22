@@ -177,7 +177,10 @@ public class DeleteMeTests(ApiFactory factory)
         {
             spend.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
             var spent = await _client.SendAsync(spend, Ct);
-            spent.StatusCode.ShouldNotBe(HttpStatusCode.Unauthorized, "the first redemption of a fresh grant succeeds");
+            // The grant redeemed (no 401); Identity then refused the passwordless account's current password.
+            spent.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            JsonDocument.Parse(await spent.Content.ReadAsStringAsync(Ct)).RootElement
+                .GetProperty("title").GetString().ShouldBe("Auth.PasswordMismatch");
         }
         var replayed = await PostDeleteAsync(sessionB, grantB);
 

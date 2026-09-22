@@ -24,7 +24,7 @@ public sealed class VerifyReauthenticationChallengeCommandHandler(
     {
         if (!currentUser.UserId.HasValue)
             return Result.Failure<GrantToken>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att bekräfta koden."));
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att bekräfta koden."));
 
         var userId = currentUser.UserId.Value;
 

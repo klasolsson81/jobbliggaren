@@ -64,7 +64,9 @@ public class ChallengeBindingTests
         // property can be set afterwards. An `init` accessor would let `with { Purpose = (ChallengePurpose)9 }`
         // compile and reach the store; the three refusal facts above would stay green, since they call the
         // constructor.
-        foreach (var property in typeof(ChallengeBinding).GetProperties())
+        var properties = typeof(ChallengeBinding).GetProperties();
+        properties.Select(p => p.Name).ShouldBe(["Purpose", "UserId"], ignoreOrder: true);
+        foreach (var property in properties)
             property.SetMethod.ShouldBeNull($"{property.Name} must be get-only");
     }
 }

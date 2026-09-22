@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Common.Validation;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -132,10 +133,12 @@ internal sealed partial class RedisGrantStore : IGrantStore
         return padded;
     }
 
-    // The longest address the request validators admit (MaximumLength(256)), as the characters the default
-    // encoder escapes to six bytes each. Computed once; a payload longer than it cannot arrive.
+    // The longest address the validators admit, as the characters the default encoder escapes to six bytes
+    // each, plus a user id. Computed once; a payload longer than it cannot arrive, because every address
+    // reaching a grant passed a validator that reads the same bound.
     private static readonly int PayloadCeiling = JsonSerializer.SerializeToUtf8Bytes(
-        new GrantPayload((int)GrantPurpose.ChangeEmail, new string('"', 256), Guid.Empty)).Length;
+        new GrantPayload(
+            (int)GrantPurpose.ChangeEmail, new string('"', EmailAddressRules.MaximumLength), Guid.Empty)).Length;
 
     internal static string Key(GrantToken token) =>
         $"{KeyPrefix}auth/grant/v1/{Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(token.Reveal())))}";

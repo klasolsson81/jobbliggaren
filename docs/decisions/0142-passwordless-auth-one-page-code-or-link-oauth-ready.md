@@ -388,7 +388,9 @@ to one ceiling for every purpose. **The declared window, and why it is a non-fin
 until 3b's, the delivered frontend still sends a password on three flows — delete-account, change-email and
 change-password — and each answers 400 (`ReauthGrant` binds null; the validator refuses before anything is
 redeemed), never a false wrong-password claim. The box holds two accounts, both the controller's own, and
-registration is closed; that reading was taken 2026-09-21 and re-taken at this PR. No data subject meets the
+registration is closed; that reading was taken 2026-09-21 and re-taken at this PR, read-only on the box
+2026-09-22T00:23:31Z: 2 rows in `AspNetUsers`, 2 the controller's; `Auth__RegistrationsOpen=false`, 1 line. No
+data subject meets the
 window, so it is a non-finding: no §9.6 (3) acceptance, no Klas grant, no signature. The three Playwright
 tests of the delete flow are `test.fixme` naming #1740.
 

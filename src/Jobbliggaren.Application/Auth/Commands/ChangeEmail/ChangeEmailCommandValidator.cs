@@ -5,10 +5,6 @@ namespace Jobbliggaren.Application.Auth.Commands.ChangeEmail;
 
 public sealed class ChangeEmailCommandValidator : AbstractValidator<ChangeEmailCommand>
 {
-    // Identity's EmailAddressAttribute and the NormalizedEmail column both stay well within this;
-    // a generous cap that still bounds the input before UserManager runs.
-    private const int MaxEmailLength = 256;
-
     public ChangeEmailCommandValidator()
     {
         // ValidationBehavior runs BEFORE ReauthenticationBehavior, so an empty grant is a 400 before the
@@ -20,6 +16,6 @@ public sealed class ChangeEmailCommandValidator : AbstractValidator<ChangeEmailC
         // so a malformed address is a clean 400 before a token is minted. The ValidationException arm
         // serializes only property->messages (never AttemptedValue), and an email address is not a
         // secret, so length/format rules are safe here.
-        RuleFor(c => c.NewEmail).NotEmpty().EmailAddress().MaximumLength(MaxEmailLength);
+        RuleFor(c => c.NewEmail).NotEmpty().EmailAddress().MaximumLength(EmailAddressRules.MaximumLength);
     }
 }

@@ -178,7 +178,7 @@ export default async function CvListPage() {
         )}
 
         {/* #815 (Klas): the match-setup card used to live here. It is gone. Matching is
-            configured under Inställningar, and duplicating that entry point on the CV hub
+            configured on Mina sidor, and duplicating that entry point on the CV hub
             made this page about two different things at once. The hub is about your CVs.
             Removing it also drops three requests from the page — the taxonomy tree, the
             profile, and a SEQUENTIAL skill-label round-trip that ran after the parallel

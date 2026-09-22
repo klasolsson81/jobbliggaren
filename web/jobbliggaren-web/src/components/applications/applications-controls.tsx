@@ -23,7 +23,7 @@ interface ApplicationsControlsProps {
  * + VY-växlaren (Lista/Tavla/Tabell) till höger. Delad chrome ovanför alla vyer.
  *
  * Växlaren återbrukar `Segment` (role=radiogroup, piltangent-nav, aktiv =
- * accent-800-fyll) — samma primitiv som Inställningarnas tema/språk-växlar (DRY,
+ * accent-800-fyll) — samma primitiv som språkväxlaren på Mina sidor (DRY,
  * CTO-bind D-A). Aktiv-etiketten bärs via `aria-label` ("Visa ansökningar som");
  * den synliga mono-"VY" är dekorativ kontext.
  *

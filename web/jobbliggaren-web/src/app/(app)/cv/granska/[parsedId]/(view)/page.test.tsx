@@ -175,7 +175,10 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
     render(await invoke());
 
     expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Inställningar/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
+      "href",
+      "mailto:kontakt@jobbliggaren.se",
+    );
   });
 
   it("renders the file-scoped cleared state when nothing blocks the artifact", async () => {

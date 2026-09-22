@@ -19,7 +19,7 @@ import {
  * then refreshes so the server re-renders in the chosen locale (the app uses
  * next-intl without i18n routing, so the URL never changes). See ADR 0078.
  *
- * **Placement: every surface whose user cannot reach Inställningar**
+ * **Placement: every surface whose user cannot reach Mina sidor**
  * (senior-cto-advisor bind 2026-08-23, deriving Klas's HANDOVER-v3 §0 punkt 7
  * amendment). The rule it replaces sent theme and language toggles to
  * Inställningar and the landing footer and kept them out of every header. The
@@ -29,7 +29,7 @@ import {
  * is `sv` and nothing negotiates Accept-Language, so that visitor gets Swedish —
  * which makes a surface with no control worse than the hard-to-find footer the
  * amendment was written to repair. `(app)` and `(admin)` keep their own Segment
- * in Inställningar and do NOT get this. The theme half of §0.7 is untouched.
+ * on Mina sidor and do NOT get this. The theme half of §0.7 is untouched.
  *
  * The HANDOVER is gitignored, so `site-header.test.tsx` and
  * `guest-shell.test.tsx` are the amended rule's only tracked readers.

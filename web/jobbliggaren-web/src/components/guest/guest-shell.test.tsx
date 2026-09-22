@@ -70,7 +70,7 @@ describe("GuestShell (LP-5b #259 — composes the shared HeaderStrip)", () => {
     expect(screen.queryByRole("link", { name: "Skapa konto" })).toBeNull();
   });
 
-  it("carries the language control, because guests cannot reach Inställningar", () => {
+  it("carries the language control, because guests cannot reach Mina sidor", () => {
     // Bites on revert: dropping the mount leaves the guest surfaces with no way to
     // change language at all. Why that matters: language-switcher.tsx's docblock.
     render(

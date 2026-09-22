@@ -133,7 +133,7 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
   it("carries NO language control — it moved to the header (#1476)", () => {
     // The footer is mounted on all six shells, so it was the switcher's home on
     // every surface. It is now on the surfaces whose users cannot reach
-    // Inställningar (senior-cto-advisor bind 2026-08-23), which is a header
+    // Mina sidor (senior-cto-advisor bind 2026-08-23), which is a header
     // question, not a footer one. Bites on revert: re-mounting it here puts a
     // second control on every public page.
     // Only the button query can bite: `role="group"` and `.jp-foot__lang` are both

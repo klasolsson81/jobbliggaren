@@ -41,7 +41,7 @@ public enum AutoPromoteBlockReason
     /// parse's own scan reports clean and no file-side surface shows anything.
     ///
     /// <para>It is a SEPARATE member because the two need different user actions and different
-    /// copy: this one is fixed under Inställningar, not by editing and re-uploading the CV.
+    /// copy: this one is not fixed by editing and re-uploading the CV.
     /// Reporting it as <see cref="PersonnummerPresent"/> sent the user to look in a clean file,
     /// which is a mis-reported verdict (CLAUDE.md §5) and a loop she cannot exit.</para>
     ///

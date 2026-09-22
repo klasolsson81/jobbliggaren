@@ -53,11 +53,10 @@ public class ResumeContentPersonnummerGuardTests
             Skills: [new SkillDto("C#", 8)],
             Summary: "Erfaren backend-utvecklare.");
 
-    // One entry per free-text field class CollectFreeText concatenates — 17 in total (11 original
-    // + the 6 Fas 4b AppCopy superset free-text fields, ADR 0095 D-E; SkillGroup.Members scanned
-    // directly per security-auditor 2026-07-05 so the guard is self-contained). If a field is ever
-    // dropped from CollectFreeText its entry here fails (the personnummer is no longer seen), so
-    // field-completeness is pinned rather than merely reviewed.
+    // One entry per free-text field class CollectFreeText concatenates (SkillGroup.Members is
+    // scanned directly per security-auditor 2026-07-05 so the guard is self-contained). If a field
+    // is ever dropped from CollectFreeText its entry here fails (the personnummer is no longer
+    // seen), so field-completeness is pinned rather than merely reviewed.
     public static IEnumerable<object[]> PersonnummerInEachFreeTextField()
     {
         yield return ["PersonalInfo.FullName",
@@ -80,6 +79,13 @@ public class ResumeContentPersonnummerGuardTests
             Clean() with { Educations = [CleanEducation() with { Institution = $"Skola {Pnr}" }] }];
         yield return ["Education.Degree",
             Clean() with { Educations = [CleanEducation() with { Degree = $"Examen {Pnr}" }] }];
+
+        // The verbatim period strings. Client-writable free text (bounded only by length) on the
+        // promote and master-content bodies, rendered into the PDF and the ATS text.
+        yield return ["Experience.RawPeriod",
+            Clean() with { Experiences = [CleanExperience() with { RawPeriod = $"2019 {Pnr}" }] }];
+        yield return ["Education.RawPeriod",
+            Clean() with { Educations = [CleanEducation() with { RawPeriod = $"2013 {Pnr}" }] }];
         yield return ["Skill.Name",
             Clean() with { Skills = [new SkillDto($"Kompetens {Pnr}", 3)] }];
 

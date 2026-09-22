@@ -123,8 +123,6 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     [Theory]
     [InlineData(CooldownScopes.ResendConfirm)]
     [InlineData(CooldownScopes.AccountExists)]
-    [InlineData(CooldownScopes.ChangeEmailTarget)]
-    [InlineData(CooldownScopes.ChangeEmailUser)]
     [InlineData(CooldownScopes.PasswordReset)]
     public async Task Cooldown_ApiIdentity_AllowsOnlyItsRecordedScopes(string scope)
     {

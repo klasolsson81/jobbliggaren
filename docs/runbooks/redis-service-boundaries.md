@@ -78,18 +78,13 @@ boundary.
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
 | RedisRateBudget / API volatile | `budget/{scope}/v1/*` | INCR, EXPIRE with NX |
 
-The five persistent cooldown scopes are `resend-confirm`, `account-exists`,
-`change-email-target`, `change-email-user` and `password-reset`.
+The three persistent cooldown scopes are `resend-confirm`, `account-exists`
+and `password-reset`.
 The volatile budget scopes are `login-challenge-cooldown`,
 `login-challenge-mails`, `login-challenge-codes`,
 `login-challenge-unknown-address-mails`, `reauth-cooldown`, `reauth-codes`,
 `change-email-user`, `change-email-target` and `change-email-targets-daily`.
 Each is enumerated in the template; unknown scopes are refused.
-`change-email-user` and `change-email-target` stand in both lists on purpose:
-change-email still runs its persistent `cd/` cooldowns, and #1739's PR 4 moves
-it onto the volatile budgets and removes the two `cd/` selectors from
-`persistent.acl.template`. Until #1739's PRs 3 and 4 the `reauth-*` and
-`change-email-*` budget scopes have no consumer.
 `VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
 application declares differ.
 

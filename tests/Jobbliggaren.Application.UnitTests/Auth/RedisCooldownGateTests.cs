@@ -212,15 +212,15 @@ public class RedisCooldownGateTests
     [Fact]
     public async Task TryBeginAsync_SameSubjectDifferentScope_ProducesDifferentKeys()
     {
-        // The scope namespaces the window: the same address under two actions (e.g. resend vs change-email
-        // target) MUST NOT share a throttle, or one action would silence the other.
+        // The scope namespaces the window: the same address under two actions (e.g. resend vs password
+        // reset) MUST NOT share a throttle, or one action would silence the other.
         var ct = TestContext.Current.CancellationToken;
         var keys = new List<string>();
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(ci => { keys.Add(ci.ArgAt<string>(0)); return (byte[]?)null; });
 
         await Sut().TryBeginAsync(CooldownScopes.ResendConfirm, Subject, TimeSpan.FromSeconds(60), ct);
-        await Sut().TryBeginAsync(CooldownScopes.ChangeEmailTarget, Subject, TimeSpan.FromSeconds(60), ct);
+        await Sut().TryBeginAsync(CooldownScopes.PasswordReset, Subject, TimeSpan.FromSeconds(60), ct);
 
         keys.Count.ShouldBe(2);
         keys[0].ShouldNotBe(keys[1], "distinct scopes must never collide on one subject");

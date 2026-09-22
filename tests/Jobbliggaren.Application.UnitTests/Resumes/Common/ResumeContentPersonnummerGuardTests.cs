@@ -191,6 +191,10 @@ public class ResumeContentPersonnummerGuardTests
 
         var ctor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
         var parameters = ctor.GetParameters();
+        type.GetProperties()
+            .Where(p => p.CanWrite && !parameters.Any(q => string.Equals(q.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(p => $"{path}.{p.Name}")
+            .ShouldBeEmpty();
         var args = new object?[parameters.Length];
         for (var i = 0; i < parameters.Length; i++)
             args[i] = BuildGraph(parameters[i].ParameterType, $"{path}.{parameters[i].Name}", ref slot, plant, slots);

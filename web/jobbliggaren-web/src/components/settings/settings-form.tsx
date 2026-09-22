@@ -17,9 +17,7 @@ import { DisplayCard } from "./display-card";
 import { BackgroundMatchCard } from "./background-match-card";
 import { FollowedCompanyNotificationsCard } from "./followed-company-notifications-card";
 import { MatchPreferencesCard } from "./match-preferences-card";
-import { ChangeEmailCard } from "./change-email-card";
-import { PrivacyCard } from "./privacy-card";
-import { LogoutCard } from "./logout-card";
+import { AccountCards } from "./account-cards";
 
 interface SettingsFormProps {
   initialProfile: JobSeekerProfileDto;
@@ -152,6 +150,8 @@ export function SettingsForm({
 
   const languageFailure = languageOutcome?.ok === false ? languageOutcome : null;
 
+  // D4 (design-reviewer, #1740): column 1 is what you are looking for and what we send about it,
+  // column 2 is your account. On one column the destructive card and Logga ut end the page.
   return (
     <div className="jp-settings-grid">
       <div className="jp-settings-grid__col">
@@ -173,18 +173,6 @@ export function SettingsForm({
           initialExperienceYears={initialProfile.experienceYears}
           initialOccupationExperience={initialProfile.preferredOccupationExperience}
           degraded={taxonomy === null}
-        />
-      </div>
-
-      <div className="jp-settings-grid__col">
-        {/* MVP: tema-segmentet borttaget — appen har bara ETT färgläge (light).
-            Dark-mode behålls dormant i koden (theme-provider DARK_MODE_ENABLED). */}
-        <DisplayCard
-          language={language}
-          onLanguageChange={onLanguageChange}
-          isPending={isPending}
-          error={languageFailure?.error ?? null}
-          savedAt={languageOutcome?.ok === true ? languageOutcome.at : null}
         />
         {/* ADR 0080 Vag 4 PR-6: bakgrundsmatchnings-notiser (opt-in + kadens).
             Äger sin EGEN action/endpoint (PUT /me/notification-consent) — INTE
@@ -210,12 +198,19 @@ export function SettingsForm({
           onEnabledChange={setFollowEnabled}
           cadence={cadence}
         />
-        {/* #679 — self-service change-email (request step). Owns its own
-            action/endpoint (POST /auth/change-email), not the shared
-            applyChange/updateMyProfile flow. */}
-        <ChangeEmailCard currentEmail={userEmail} />
-        <PrivacyCard userEmail={userEmail} />
-        <LogoutCard />
+      </div>
+
+      <div className="jp-settings-grid__col">
+        {/* MVP: tema-segmentet borttaget — appen har bara ETT färgläge (light).
+            Dark-mode behålls dormant i koden (theme-provider DARK_MODE_ENABLED). */}
+        <DisplayCard
+          language={language}
+          onLanguageChange={onLanguageChange}
+          isPending={isPending}
+          error={languageFailure?.error ?? null}
+          savedAt={languageOutcome?.ok === true ? languageOutcome.at : null}
+        />
+        <AccountCards email={userEmail} />
       </div>
     </div>
   );

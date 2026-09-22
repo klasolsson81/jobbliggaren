@@ -70,6 +70,9 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
       .map((h) => h.textContent);
     // F4-12 PR-B (ADR 0076): Matchning-kortet ligger i första kolumnen.
     // `taxonomy={null}` → kortet degraderar men behåller sin h2-rubrik.
+    // #1740 (design-reviewer D4): the two notice cards follow Matchning in column 1, because
+    // background matching reads that profile; column 2 is the account, ending in the
+    // destructive card and Logga ut.
     // TD-115 (2026-06-25): det gamla "Aviseringar"-kortet (EmailNotifications +
     // WeeklySummary) togs bort — de styrde ingen e-postväg.
     // Bevakning F4 (#803): "Notiser om företag du följer" ligger DIREKT efter
@@ -78,9 +81,9 @@ describe("SettingsForm — F6 Prompt 2 smoke", () => {
     // och DOM-ordningen håller även när gridden kollapsar till en kolumn.
     expect(headings).toEqual([
       "Matchning",
-      "Visning",
       "Matchningsnotiser",
       "Notiser om företag du följer",
+      "Visning",
       "Byt e-postadress",
       "Sekretess och data",
       "Logga ut",

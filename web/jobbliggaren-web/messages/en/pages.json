@@ -560,7 +560,7 @@
   "minaSidor": {
     "title": "My pages",
     "lede": "Here you manage your account, your notifications and which jobs you are looking for.",
-    "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
+    "profileMissing": "Your matching choices, notifications and language cannot be shown, because your profile is missing. Email <mail>kontakt@jobbliggaren.se</mail> and we will help you.",
     "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment.",
     "meta": {

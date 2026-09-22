@@ -4754,13 +4754,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ============================================================
    v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
    Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
-   som refaktoreras i F3-F6 (jobb/ansökningar/cv/mina-sidor/sökningar +
+   som refaktoreras i F3-F6 (jobb/ansökningar/cv/sökningar +
    status-dot/status-pill/applications-pipeline) samt admin-
    granskning (utanför v3-scope, HANDOVER §7 = 5 användarrouter).
    Tas bort per sida när dess fas refaktorerar; helt borta vid F-städ.
    ============================================================ */
 
-/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/mina-sidor/sokningar/admin) */
+/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/sokningar/admin) */
 .jp-h1 {
   font-size: var(--text-h1);
   font-weight: var(--jp-fw-bold);

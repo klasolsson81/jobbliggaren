@@ -5,6 +5,8 @@ import { getMyProfile } from "@/lib/api/me";
 import { getTaxonomyTree } from "@/lib/api/taxonomy";
 import { resolveSkillLabels } from "@/lib/api/skills";
 import { SettingsForm } from "@/components/settings/settings-form";
+import { AccountCards } from "@/components/settings/account-cards";
+import { mailLink } from "@/components/auth/mail-link";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,8 +23,9 @@ export async function generateMetadata(): Promise<Metadata> {
  * Server-component shell: fetches the session + profile and lifts them into the `<SettingsForm />`
  * client island, which holds the direct-apply state.
  *
- * The notFound branch (a new user without a profile row) renders an empty state rather than a blank
- * screen after login (Wroblewski 2008).
+ * Every card but the account cards reads the profile, so a profile that is missing or cannot be read
+ * takes their place with one sentence. The account cards read only the session's address and render
+ * on every branch (design-reviewer Major 3, #1740).
  */
 export default async function MinaSidorPage() {
   const user = await getServerSession();
@@ -57,30 +60,43 @@ export default async function MinaSidorPage() {
     skillGroupsResult?.kind === "ok" ? skillGroupsResult.data : [];
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("minaSidor.title")}</h1>
-        <p className="jp-lede">{t("minaSidor.lede")}</p>
-      </header>
+    <>
+      <section className="jp-pagehero">
+        <div className="jp-pagehero__inner">
+          <div className="jp-pagehero__main">
+            <h1 className="jp-pagehero__title">{t("minaSidor.title")}</h1>
+            <p className="jp-pagehero__lede">{t("minaSidor.lede")}</p>
+          </div>
+        </div>
+      </section>
 
-      {profileResult.kind === "ok" ? (
-        <SettingsForm
-          initialProfile={profileResult.data}
-          userEmail={user.email}
-          taxonomy={taxonomy}
-          initialSkillGroups={initialSkillGroups}
-        />
-      ) : (
-        <p className="text-body text-text-primary">
-          {profileResult.kind === "notFound"
-            ? t("minaSidor.profileNotCreated")
-            : profileResult.kind === "rateLimited"
-              ? t("minaSidor.rateLimited", {
-                  seconds: profileResult.retryAfterSeconds,
-                })
-              : t("minaSidor.profileLoadError")}
-        </p>
-      )}
-    </div>
+      <div className="jp-container jp-page">
+        {profileResult.kind === "ok" ? (
+          <SettingsForm
+            initialProfile={profileResult.data}
+            userEmail={user.email}
+            taxonomy={taxonomy}
+            initialSkillGroups={initialSkillGroups}
+          />
+        ) : (
+          <div className="jp-settings-grid">
+            <div className="jp-settings-grid__col">
+              <p className="text-body text-text-primary">
+                {profileResult.kind === "notFound"
+                  ? t.rich("minaSidor.profileMissing", { mail: mailLink })
+                  : profileResult.kind === "rateLimited"
+                    ? t("minaSidor.rateLimited", {
+                        seconds: profileResult.retryAfterSeconds,
+                      })
+                    : t("minaSidor.profileLoadError")}
+              </p>
+            </div>
+            <div className="jp-settings-grid__col">
+              <AccountCards email={user.email} />
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

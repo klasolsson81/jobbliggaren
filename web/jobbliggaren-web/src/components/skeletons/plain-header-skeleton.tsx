@@ -1,7 +1,7 @@
 /**
  * Skeleton for the `(app)` pages that use a plain `jp-h1` + `jp-lede` header
  * (NOT the `jp-pagehero` gradient band): /matchningar, /sparade, /sokningar,
- * /mina-sidor, /ny-ansokan (#739 — finding
+ * /ny-ansokan (#739 — finding
  * `p1-no-loading-tsx-any-primary-route`, P0).
  *
  * These pages must NOT fall back to the group `(app)/loading.tsx` pagehero
@@ -12,8 +12,8 @@
  *
  * `contained` wraps in `.jp-container.jp-page` for pages that own their width
  * (V3-native routes, e.g. /ny-ansokan); the default renders bare so the app-shell
- * transitional container supplies the width (matchningar/sparade/sokningar/
- * mina-sidor). sr-only `role="status"` announces; decorative shapes
+ * transitional container supplies the width (matchningar/sparade/sokningar).
+ * sr-only `role="status"` announces; decorative shapes
  * `aria-hidden`. Sync RSC, flat-grey `.jp-skeleton`, no animation.
  */
 export function PlainHeaderSkeleton({

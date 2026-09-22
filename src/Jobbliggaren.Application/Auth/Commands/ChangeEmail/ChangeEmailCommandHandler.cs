@@ -34,7 +34,7 @@ public sealed class ChangeEmailCommandHandler(
         // The validator guarantees both are non-empty; re-assert so the handler is correct in isolation.
         if (string.IsNullOrEmpty(command.ReauthGrant) || string.IsNullOrEmpty(command.NewEmail))
             return Result.Failure<EmailChangeChallenge>(
-                DomainError.Validation("Auth.InvalidInput", "Ny e-postadress krävs."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Ny e-postadress krävs."));
 
         // #1087 — refuse BEFORE anything happens rather than lie after: a code that cannot be delivered leaves
         // the user with no way forward. Ahead of the budgets, so the server's configuration spends none of them.
@@ -49,8 +49,8 @@ public sealed class ChangeEmailCommandHandler(
 
         // The budgets, each spent only when the one before admitted the request (security-auditor, PR 4's
         // pre-code round). The two keyed by the USER come first, so a refusal on a user key never spends the
-        // one shared between users; the target cooldown keeps the cooldown's own code, because a code of its
-        // own would tell the caller that someone asked for the same address a moment ago. The shared login
+        // ones shared between users; the two keyed by the address keep the cooldown's own code, because a code of
+        // their own would tell the caller that someone else asked for the same address. The shared login
         // mail budget is not consulted: the public login arm spends it anonymously, before any lookup.
         if (!await budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(_window), userId.ToString(), cancellationToken))
             return Result.Failure<EmailChangeChallenge>(Cooldown());
@@ -60,6 +60,9 @@ public sealed class ChangeEmailCommandHandler(
                 AuthErrorCodes.ChangeEmailTargetBudgetExhausted, AuthErrorCodes.ChangeEmailTargetBudgetExhaustedMessage));
 
         if (!await budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(_window), newEmail, cancellationToken))
+            return Result.Failure<EmailChangeChallenge>(Cooldown());
+
+        if (!await budget.TryConsumeAsync(ChangeEmailPolicy.PerTargetDailyBudget, newEmail, cancellationToken))
             return Result.Failure<EmailChangeChallenge>(Cooldown());
 
         // Storable and free, after the user budgets: probing addresses for existence costs a re-authentication
@@ -76,7 +79,7 @@ public sealed class ChangeEmailCommandHandler(
             cancellationToken);
 
         await emailSender.SendLoginChallengeAsync(
-            newEmail, new LoginChallengeEmail.AddressChangeCode(code, _window), cancellationToken);
+            newEmail, new LoginChallengeEmail.AddressChangeCode(code), cancellationToken);
 
         return Result.Success(new EmailChangeChallenge(userId, challengeId));
     }

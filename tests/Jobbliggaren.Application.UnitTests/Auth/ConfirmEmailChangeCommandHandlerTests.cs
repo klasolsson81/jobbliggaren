@@ -3,7 +3,8 @@ using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
-using Microsoft.Extensions.Logging.Abstractions;
+using Jobbliggaren.TestSupport;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
 
@@ -26,6 +27,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly IUserAccountService _accounts = Substitute.For<IUserAccountService>();
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly RecordingLogger<ConfirmEmailChangeCommandHandler> _logger = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -41,7 +43,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     }
 
     private ConfirmEmailChangeCommandHandler Sut() =>
-        new(_currentUser, _grants, _accounts, _sender, NullLogger<ConfirmEmailChangeCommandHandler>.Instance);
+        new(_currentUser, _grants, _accounts, _sender, _logger);
 
     private static ConfirmEmailChangeCommand Command => new(Grant.Reveal(), NewEmail);
 
@@ -104,7 +106,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
     }
 
     [Fact]
-    public async Task A_notice_that_throws_never_fails_the_completed_change()
+    public async Task A_notice_that_throws_never_fails_the_completed_change_and_logs_no_address()
     {
         _sender.SendEmailChangedNotificationAsync(OldEmail, Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("e-post-transport nere")));
@@ -113,6 +115,13 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(UserId);
+
+        var entry = _logger.Records.ShouldHaveSingleItem();
+        entry.Level.ShouldBe(LogLevel.Warning);
+        entry.EventId.Id.ShouldBe(4002);
+        entry.Message.ShouldContain(UserId.ToString());
+        entry.Message.ShouldNotContain(OldEmail);
+        entry.Message.ShouldNotContain(NewEmail);
     }
 
     [Fact]
@@ -149,7 +158,7 @@ public sealed class ConfirmEmailChangeCommandHandlerTests
         var result = await Sut().Handle(new ConfirmEmailChangeCommand(grant, newEmail), Ct);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Auth.InvalidInput");
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidInput);
         await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
         await _accounts.DidNotReceiveWithAnyArgs().SwapConfirmedAddressAsync(default, default!, Ct);
     }

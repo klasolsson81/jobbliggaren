@@ -7,9 +7,8 @@ public sealed class ConfirmEmailChangeCommandValidator : AbstractValidator<Confi
 {
     public ConfirmEmailChangeCommandValidator()
     {
-        // The grant token's bound is CompleteLoginChallengeCommandValidator's; no format rule, so no message
-        // describes what a real grant looks like.
-        RuleFor(c => c.ChangeEmailGrant).NotEmpty().MaximumLength(64);
+        // No format rule, so no message describes what a real grant looks like.
+        RuleFor(c => c.ChangeEmailGrant).NotEmpty().MaximumLength(ReauthGrantRules.MaximumLength);
 
         // The address the grant is asserted for: well-formed and within the one email bound, so a malformed
         // request is a clean 400 before anything is redeemed.

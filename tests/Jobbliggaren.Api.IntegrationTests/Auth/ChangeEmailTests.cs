@@ -257,6 +257,32 @@ public class ChangeEmailTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_new_address_gets_three_codes_a_day_whoever_asks()
+    {
+        // The per-address cap (security-auditor, PR 4's panel): guessing against one address is bounded however
+        // many accounts ask for it. Each ask waits out the target cooldown, which THE CLOCK ends (the helper).
+        var ct = TestContext.Current.CancellationToken;
+        var target = Address("capped-target");
+
+        foreach (var label in new[] { "capped-a", "capped-b", "capped-c" })
+        {
+            var email = Address(label);
+            var session = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: ct);
+            (await ChangeAsync(session, await MintGrantAsync(session, email, ct), target, ct))
+                .StatusCode.ShouldBe(HttpStatusCode.Accepted);
+            await ReauthTestHelpers.LetTheTargetCooldownLapseAsync(_factory, target);
+        }
+
+        var fourthEmail = Address("capped-d");
+        var fourth = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, fourthEmail, ct: ct);
+        var refused = await ChangeAsync(fourth, await MintGrantAsync(fourth, fourthEmail, ct), target, ct);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await TitleOf(refused, ct)).ShouldBe("Auth.ChangeEmailCooldown");
+        CodesTo(target).Count.ShouldBe(3);
+    }
+
+    [Fact]
     public async Task POST_change_email_writes_User_EmailChangeRequested_audit()
     {
         var ct = TestContext.Current.CancellationToken;

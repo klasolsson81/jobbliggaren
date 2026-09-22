@@ -21,6 +21,15 @@ public static class AuthErrorCodes
     public const string NotAuthenticated = "Auth.NotAuthenticated";
 
     /// <summary>
+    /// A handler's self-defending refusal of input its validator already refuses: ValidationBehavior ran before
+    /// it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string InvalidInput = "Auth.InvalidInput";
+
+    /// <summary>The account a user id names is gone. NotFound → 404.</summary>
+    public const string UserNotFound = "Auth.UserNotFound";
+
+    /// <summary>
     /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
     /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
     /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
@@ -171,7 +180,7 @@ public static class AuthErrorCodes
         "Det gick inte att slutföra bytet. Börja om med att begära en ny kod.";
 
     /// <summary>
-    /// #1739 — the swap did not complete after the user name was taken: the address write, or a user-name write
+    /// #1739 — the swap did not complete: the address write, or a user-name write
     /// that failed for any reason but a taken name. Conflict → 409.
     /// </summary>
     public const string EmailChangeIncomplete = "Auth.EmailChangeIncomplete";

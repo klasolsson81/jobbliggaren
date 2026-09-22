@@ -83,7 +83,8 @@ and `password-reset`.
 The volatile budget scopes are `login-challenge-cooldown`,
 `login-challenge-mails`, `login-challenge-codes`,
 `login-challenge-unknown-address-mails`, `reauth-cooldown`, `reauth-codes`,
-`change-email-user`, `change-email-target` and `change-email-targets-daily`.
+`change-email-user`, `change-email-target`, `change-email-target-daily` and
+`change-email-targets-daily`.
 Each is enumerated in the template; unknown scopes are refused.
 `VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
 application declares differ.

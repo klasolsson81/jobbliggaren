@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 
@@ -417,16 +418,15 @@ internal static partial class EmailTemplates
     /// the recipient has no account, and whoever typed the address may not own it; the whole Art. 14 notice is
     /// therefore unconditional, and Art. 14(2)(f) is answered with a category, since naming the account holder
     /// would be a disclosure in the other direction. The retention paragraph is <c>security-auditor</c>'s text
-    /// (PR 4's pre-code round, 2026-09-22), each duration read from what enforces it: the challenge's TTL, the
-    /// grant's TTL, and the one fingerprint of the address the request keeps, the target cooldown's window,
-    /// carried in on the content and rounded up so that "i högst" stays true.
+    /// (PR 4's pre-code round and panel, 2026-09-22), each duration read from what enforces it: the challenge's
+    /// TTL, the grant's TTL, and the longest fingerprint of the address, the per-address daily cap's.
     /// </summary>
     internal static EmailContent LoginAddressChangeCode(LoginChallengeEmail.AddressChangeCode content)
     {
         var code = content.Code.Reveal();
         var minutes = ChallengeMinutes();
         var grantMinutes = (int)LoginChallengePolicy.GrantTtl.TotalMinutes;
-        var targetWindow = UpTo(content.TargetWindow);
+        var targetDaily = Window(ChangeEmailPolicy.PerTargetDailyBudget.Window).Duration;
 
         return new EmailContent(
             Subject: "Bekräfta din nya e-postadress",
@@ -458,7 +458,7 @@ internal static partial class EmailTemplates
 
                 Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller.
                 Använder du koden sparas den i högst {grantMinutes} minuter till, medan bytet
-                slutförs. Ett avtryck av adressen sparas i högst {targetWindow} för att begränsa
+                slutförs. Avtryck av adressen sparas i högst {targetDaily} för att begränsa
                 hur många meddelanden som kan skickas till den. Slutförs bytet blir adressen
                 kontots adress och sparas så länge kontot finns. Slutförs det inte finns
                 adressen inte kvar hos oss efter tiderna ovan.
@@ -495,8 +495,8 @@ internal static partial class EmailTemplates
                         + $"slutar gälla efter {minutes} minuter.")
                     + EmailHtml.P(
                         $"Vi sparar adressen skyddad i högst {minutes} minuter medan koden gäller. Använder du koden "
-                        + $"sparas den i högst {grantMinutes} minuter till, medan bytet slutförs. Ett avtryck av "
-                        + $"adressen sparas i högst {targetWindow} för att begränsa hur många meddelanden som kan "
+                        + $"sparas den i högst {grantMinutes} minuter till, medan bytet slutförs. Avtryck av "
+                        + $"adressen sparas i högst {targetDaily} för att begränsa hur många meddelanden som kan "
                         + "skickas till den. Slutförs bytet blir adressen kontots adress och sparas så länge kontot finns. "
                         + $"Slutförs det inte finns adressen inte kvar hos oss efter tiderna ovan. {ProcessorHtml}")
                     + ControllerRightsAndComplaintHtml()
@@ -569,18 +569,14 @@ internal static partial class EmailTemplates
 
     private static int ChallengeMinutes() => (int)LoginChallengePolicy.ChallengeTtl.TotalMinutes;
 
-    // A window as whole minutes, rounded UP, so a copy that says "i högst" is never shorter than the TTL.
-    private static string UpTo(TimeSpan window)
-    {
-        var minutes = Math.Max(1, (int)Math.Ceiling(window.TotalMinutes));
-        return minutes == 1 ? "en minut" : $"{minutes} minuter";
-    }
-
     // The longest-lived fingerprint is the code budget's, so its window is the retention the mails state:
     // as a length ("högst ett dygn") and as the period just passed ("det senaste dygnet").
-    private static (string Duration, string JustPassed) CodeBudgetWindow()
+    private static (string Duration, string JustPassed) CodeBudgetWindow() =>
+        Window(LoginChallengePolicy.CodeBudget.Window);
+
+    private static (string Duration, string JustPassed) Window(TimeSpan window)
     {
-        var hours = (int)LoginChallengePolicy.CodeBudget.Window.TotalHours;
+        var hours = (int)window.TotalHours;
         return hours == 24
             ? ("ett dygn", "det senaste dygnet")
             : ($"{hours} timmar", $"de senaste {hours} timmarna");

@@ -202,8 +202,7 @@ public class CaddyfileTokenScrubbingPinTests
                 BaseUrl, new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))).PlainTextBody,
             EmailTemplates.LoginChallenge(
                 BaseUrl,
-                new LoginChallengeEmail.AddressChangeCode(
-                    LoginCode.FromRaw("042917"), TimeSpan.FromSeconds(60))).PlainTextBody,
+                new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917"))).PlainTextBody,
         };
 
         return bodies

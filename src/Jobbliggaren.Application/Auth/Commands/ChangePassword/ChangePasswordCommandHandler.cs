@@ -22,7 +22,7 @@ public sealed class ChangePasswordCommandHandler(
         // isolation and the non-null values can be passed to the Identity port.
         if (string.IsNullOrEmpty(command.CurrentPassword) || string.IsNullOrEmpty(command.NewPassword))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Nuvarande och nytt lösenord krävs."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Nuvarande och nytt lösenord krävs."));
 
         var userId = currentUser.UserId.Value;
 

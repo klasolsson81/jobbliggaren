@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Email;
@@ -34,12 +35,11 @@ public sealed class EmailTemplatesLoginChallengeTests
         "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))),
         "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
         "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))),
-        "address-change-code" => Render(AddressChange(TimeSpan.FromSeconds(60))),
+        "address-change-code" => Render(AddressChange()),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
-    private static LoginChallengeEmail.AddressChangeCode AddressChange(TimeSpan targetWindow) =>
-        new(LoginCode.FromRaw("042917"), targetWindow);
+    private static LoginChallengeEmail.AddressChangeCode AddressChange() => new(LoginCode.FromRaw("042917"));
 
     private static readonly Regex Tag = new("<[^>]*>", RegexOptions.CultureInvariant);
 
@@ -240,7 +240,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     [Fact]
     public void AddressChangeCode_carries_the_code_once_and_no_link()
     {
-        var rendered = Render(AddressChange(TimeSpan.FromSeconds(60)));
+        var rendered = Render(AddressChange());
 
         rendered.Subject.ShouldBe("Bekräfta din nya e-postadress");
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
@@ -260,7 +260,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         // the recipient is the account holder or a stranger. Pinned whole in both parts, because the two are
         // hand-maintained copies and drift is the failure mode; the rights paragraph is pinned up to its address
         // tail, the one place the parts differ by design.
-        var rendered = Render(AddressChange(TimeSpan.FromSeconds(60)));
+        var rendered = Render(AddressChange());
 
         const string sourceAndBasis =
             "Adressen har vi fått från en användare som angav den för bytet. Vi berättar inte vem det är, "
@@ -274,7 +274,7 @@ public sealed class EmailTemplatesLoginChallengeTests
             + "efter 15 minuter.";
         const string retentionAndProcessor =
             "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller. Använder du koden sparas den i "
-            + "högst 10 minuter till, medan bytet slutförs. Ett avtryck av adressen sparas i högst en minut för "
+            + "högst 10 minuter till, medan bytet slutförs. Avtryck av adressen sparas i högst ett dygn för "
             + "att begränsa hur många meddelanden som kan skickas till den. Slutförs bytet blir adressen kontots "
             + "adress och sparas så länge kontot finns. Slutförs det inte finns adressen inte kvar hos oss efter "
             + "tiderna ovan. E-posten levereras av Scaleway SAS i Frankrike, som behandlar meddelandet för att "
@@ -306,18 +306,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         LoginChallengePolicy.ChallengeTtl.ShouldBe(TimeSpan.FromMinutes(15), "the copy's 'högst 15 minuter'");
         LoginChallengePolicy.GrantTtl.ShouldBe(TimeSpan.FromMinutes(10), "the copy's 'högst 10 minuter till'");
-    }
-
-    [Theory]
-    [InlineData(1, "en minut")]
-    [InlineData(60, "en minut")]
-    [InlineData(61, "2 minuter")]
-    [InlineData(600, "10 minuter")]
-    public void AddressChangeCode_states_the_target_fingerprint_window_rounded_up(int seconds, string stated)
-    {
-        var text = Unwrapped(Render(AddressChange(TimeSpan.FromSeconds(seconds))).PlainTextBody);
-
-        text.ShouldContain($"Ett avtryck av adressen sparas i högst {stated} för att begränsa");
+        ChangeEmailPolicy.PerTargetDailyBudget.Window.ShouldBe(TimeSpan.FromHours(24), "the copy's 'högst ett dygn'");
     }
 
     [Fact]
@@ -327,10 +316,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         typeof(LoginChallengeEmail.AddressChangeCode).GetProperties()
             .Select(property => property.Name)
             .Order(StringComparer.Ordinal)
-            .ShouldBe([
-                nameof(LoginChallengeEmail.AddressChangeCode.Code),
-                nameof(LoginChallengeEmail.AddressChangeCode.TargetWindow),
-            ]);
+            .ShouldBe([nameof(LoginChallengeEmail.AddressChangeCode.Code)]);
     }
 
     [Theory]
@@ -369,7 +355,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")),
         [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
         [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")),
-        [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(TimeSpan.FromSeconds(60)),
+        [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(),
     };
 
     // The plain body is hard-wrapped; a sentence is asserted on its words, not on where a line breaks.

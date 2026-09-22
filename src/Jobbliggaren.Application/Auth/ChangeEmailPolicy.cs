@@ -3,8 +3,7 @@ using Jobbliggaren.Application.Common.Abstractions;
 namespace Jobbliggaren.Application.Auth;
 
 /// <summary>
-/// The budgets of a change-email request (ADR 0142 D5). They bound mail, not guessing: none of them enters the
-/// attempt budget's arithmetic, which is why they do not sit in <c>LoginChallengePolicy</c>. A scope's name
+/// The budgets of a change-email request (ADR 0142 D5). A scope's name
 /// becomes part of a Redis key and must never change once shipped.
 /// </summary>
 public static class ChangeEmailPolicy
@@ -15,6 +14,14 @@ public static class ChangeEmailPolicy
     /// </summary>
     public static readonly RateBudgetScope DailyTargetBudget =
         new("change-email-targets-daily", limit: 5, window: TimeSpan.FromHours(24));
+
+    /// <summary>
+    /// Codes to one new ADDRESS per 24 hours, whoever asks. It is what bounds guessing per address: the per-user
+    /// budgets bound one guesser, and a code guessed right would attach an address its owner never proved
+    /// (security-auditor, PR 4's panel).
+    /// </summary>
+    public static readonly RateBudgetScope PerTargetDailyBudget =
+        new("change-email-target-daily", limit: 3, window: TimeSpan.FromHours(24));
 
     /// <summary>Per USER: one change-email request per window (<c>AuthEmailCooldownOptions.ChangeEmailWindowSeconds</c>).</summary>
     public static RateBudgetScope UserCooldown(TimeSpan window) =>

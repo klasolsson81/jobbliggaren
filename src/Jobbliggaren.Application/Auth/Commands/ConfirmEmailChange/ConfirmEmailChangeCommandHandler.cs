@@ -27,7 +27,7 @@ public sealed partial class ConfirmEmailChangeCommandHandler(
         // The validator guarantees both are non-empty; re-assert so the handler is correct in isolation.
         if (string.IsNullOrEmpty(command.ChangeEmailGrant) || string.IsNullOrEmpty(command.NewEmail))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Ny e-postadress krävs."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Ny e-postadress krävs."));
 
         var userId = currentUser.UserId.Value;
 

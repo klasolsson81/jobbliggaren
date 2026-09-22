@@ -155,7 +155,7 @@ public class EmailHtmlNoRemoteResourceTests
         ("LoginReauthenticationCode", EmailTemplates.LoginReauthenticationCode(
             new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")))),
         ("LoginAddressChangeCode", EmailTemplates.LoginAddressChangeCode(
-            new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917"), TimeSpan.FromSeconds(60)))),
+            new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("042917")))),
     ];
 
     private static readonly LoginLinkToken SampleLink =

@@ -91,7 +91,7 @@ public sealed partial class UserAccountService(
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result.Failure(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+                DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // ChangePasswordAsync verifies the current password, sets the new one, and rotates the
         // security stamp — atomically. Enforces the registered password policy (RequiredLength = 12
@@ -259,7 +259,7 @@ public sealed partial class UserAccountService(
 
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            return Result.Failure(DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+            return Result.Failure(DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // The user name FIRST, and its refusal is fatal (#1739). The unique index is on the normalised USER
         // NAME; the e-mail index is not unique, and RequireUniqueEmail reads before it writes. Login resolves
@@ -303,7 +303,7 @@ public sealed partial class UserAccountService(
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result.Failure<string>(
-                DomainError.NotFound("Auth.UserNotFound", "Användaren hittades inte."));
+                DomainError.NotFound(AuthErrorCodes.UserNotFound, "Användaren hittades inte."));
 
         // #714 — opaque DataProtector token (EmailConfirmationTokenProvider, pinned in DI) bound to the
         // security stamp + the "EmailConfirmation" purpose. Nothing is persisted; the token IS the

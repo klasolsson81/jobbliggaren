@@ -5,6 +5,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.RateLimiting;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -194,6 +195,65 @@ public class ChangeEmailVerifyAndConfirmTests(ApiFactory factory)
             await ReauthTestHelpers.RequestAddressChangeAsync(_factory, _client, sessionId, email, newEmail, Ct);
         var asReauth = await ReauthTestHelpers.VerifyAsync(_client, sessionId, changeChallenge, changeCode, Ct);
         (await ProblemOf(asReauth)).ShouldBe((HttpStatusCode.Gone, "Auth.LoginCodeExpired"));
+    }
+
+    [Fact]
+    public async Task A_login_proof_of_another_inbox_is_neither_a_change_email_code_nor_a_change_email_grant()
+    {
+        // The takeover direction D5 exists for: a hijacked session proves an inbox the attacker reads through the
+        // anonymous login arm, and presents that proof to the change-email arm instead of re-authenticating.
+        var email = Address("hijacked");
+        var sessionId = await SignUpAsync(email);
+        var userId = await UserIdOf(email);
+        var attackers = Address("attackers");
+
+        var login = await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email = attackers }, Ct);
+        login.StatusCode.ShouldBe(HttpStatusCode.Accepted);
+        var loginId = (await login.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("challengeId").GetString()!;
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (ReauthTestHelpers.MailsTo(_factory, attackers).Count == 0)
+        {
+            DateTime.UtcNow.ShouldBeLessThan(deadline, "the dispatch consumer never sent the login mail");
+            await Task.Delay(25, Ct);
+        }
+        var loginCode = ReauthTestHelpers.MailsTo(_factory, attackers)[^1].Content
+            .ShouldBeOfType<LoginChallengeEmail.NewAccountCode>().Code.Reveal();
+
+        var asCode = await ReauthTestHelpers.VerifyAddressChangeAsync(_client, sessionId, loginId, loginCode, Ct);
+        (await ProblemOf(asCode)).ShouldBe((HttpStatusCode.Gone, "Auth.LoginCodeExpired"));
+
+        // Presented where it belongs, the same code still proves the inbox, and the grant it answers is no
+        // change-email grant either.
+        var verified = await _client.PostAsJsonAsync(
+            "/api/v1/auth/challenge/verify", new { challengeId = loginId, code = loginCode }, Ct);
+        verified.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var loginGrant = (await verified.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("grantToken").GetString()!;
+        var asGrant = await ConfirmAsync(sessionId, loginGrant, attackers);
+
+        (await ProblemOf(asGrant)).ShouldBe((HttpStatusCode.Gone, "Auth.EmailChangeGrantUnusable"));
+        (await RowAsync(userId)).Email.ShouldBe(email);
+    }
+
+    [Fact]
+    public async Task A_malformed_code_is_refused_by_validation_and_spends_no_attempt()
+    {
+        var email = Address("malformed");
+        var newEmail = Address("malformed-new");
+        var sessionId = await SignUpAsync(email);
+        var (challengeId, code) =
+            await ReauthTestHelpers.RequestAddressChangeAsync(_factory, _client, sessionId, email, newEmail, Ct);
+        var wrong = code == "000000" ? "000001" : "000000";
+
+        foreach (var malformed in new[] { "12345", "1234567", "abcdef", "" })
+            (await ReauthTestHelpers.VerifyAddressChangeAsync(_client, sessionId, challengeId, malformed, Ct))
+                .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        foreach (var _ in Enumerable.Range(0, LoginChallengePolicy.MaxAttempts - 1))
+            (await ReauthTestHelpers.VerifyAddressChangeAsync(_client, sessionId, challengeId, wrong, Ct))
+                .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        // Two real misses and four malformed presentations: the third real attempt still verifies.
+        (await ReauthTestHelpers.VerifyAddressChangeAsync(_client, sessionId, challengeId, code, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]

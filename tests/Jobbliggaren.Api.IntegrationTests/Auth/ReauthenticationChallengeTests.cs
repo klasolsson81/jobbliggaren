@@ -9,6 +9,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -249,6 +250,12 @@ public class ReauthenticationChallengeTests(ApiFactory factory)
             // The login cooldown is per address too, so the three mints are spaced by letting the clock end it.
             (await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email }, Ct)).StatusCode.ShouldBe(HttpStatusCode.Accepted);
             await LetTheLoginCooldownLapseAsync(email);
+        }
+
+        await using (var redis = await ConnectionMultiplexer.ConnectAsync(_factory.VolatileRedisConnectionString))
+        {
+            ((int)await redis.GetDatabase().StringGetAsync(RedisRateBudget.Key(LoginChallengePolicy.MailBudget, email)))
+                .ShouldBe(LoginChallengePolicy.MailBudget.Limit, "the three anonymous mints spent the whole mail budget");
         }
 
         (await RequestAsync(session)).StatusCode.ShouldBe(HttpStatusCode.Accepted);

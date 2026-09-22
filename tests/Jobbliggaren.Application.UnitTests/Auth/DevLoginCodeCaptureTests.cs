@@ -91,7 +91,7 @@ public sealed class DevLoginCodeCaptureTests
     [Fact]
     public async Task An_address_change_code_is_held_for_a_reserved_recipient_and_for_no_other()
     {
-        var mail = new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("141421"), TimeSpan.FromSeconds(60));
+        var mail = new LoginChallengeEmail.AddressChangeCode(LoginCode.FromRaw("141421"));
 
         await _sender.SendLoginChallengeAsync(Reserved, mail, Ct);
         await _sender.SendLoginChallengeAsync("person@example.se", mail, Ct);

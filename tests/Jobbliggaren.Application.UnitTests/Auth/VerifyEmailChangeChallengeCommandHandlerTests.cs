@@ -111,6 +111,8 @@ public sealed class VerifyEmailChangeChallengeCommandHandlerTests
         result.Error.Code.ShouldBe(AuthErrorCodes.LoginCodeExpired);
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
         await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        // Never a second look in the login family: a login code proves an inbox without re-authenticating.
+        await _store.DidNotReceiveWithAnyArgs().ConsumeCodeAsync(default, default, Ct);
     }
 
     [Fact]

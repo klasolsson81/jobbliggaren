@@ -53,9 +53,7 @@ public abstract record LoginChallengeEmail
     /// <summary>
     /// The code that proves a NEW address before a change-email completes (#1739, ADR 0142 D5), sent to that
     /// address. A code and never a link. Recipient class (3): the address sits on no account, and whoever
-    /// typed it may not own it, so the mail carries the whole Art. 14 notice. <see cref="TargetWindow"/> is the
-    /// target cooldown's window, the one fingerprint of the address the request keeps; it is configuration, so
-    /// the handler carries it in from the options it ran on.
+    /// typed it may not own it, so the mail carries the whole Art. 14 notice.
     /// </summary>
-    public sealed record AddressChangeCode(LoginCode Code, TimeSpan TargetWindow) : LoginChallengeEmail;
+    public sealed record AddressChangeCode(LoginCode Code) : LoginChallengeEmail;
 }

@@ -353,8 +353,7 @@ the signal to split the port.
 spend its ten daily login codes anonymously; past that budget the mail carries a link only (Klas's (A)), and a link
 yields a session, never a re-authentication. The owner's account deletion (Art. 17) and address change (Art. 16)
 would be blockable for a day by a stranger. So the cooldown and the code budget of a re-authentication are keyed by
-the USER id, which only a holder of the session can spend. Change-email's two cooldowns move onto `IRateBudget` in PR 4 (their
-scopes are declared with the substrate), and a per-user daily cap on new target addresses (5 / 24 h) bounds the
+the USER id, which only a holder of the session can spend. A per-user daily cap on new target addresses (5 / 24 h) bounds the
 bounce surface the 60-second cooldown alone would leave at one made-up address a minute. `VolatileAclBudgetScopeParityTests` fails when the scopes the application declares and
 the families in `deploy/redis/volatile.acl.template` differ.
 
@@ -396,8 +395,9 @@ tests of the delete flow are `test.fixme` naming #1740.
 **Change-email proves both inboxes (PR 4).** Three authenticated routes. `POST /auth/change-email` redeems a
 re-authentication grant in the behavior, as before; the handler then runs, each gate spent only when the one before
 admitted: the sender's capability (503), the per-user cooldown (409), the per-user daily cap on new addresses,
-5 / 24 h (409, its own code), the per-address target cooldown, shared between users (409 with the user cooldown's
-code, so the caller is not told that someone just asked for the address), the address storable (400) and free as an
+5 / 24 h (409, its own code), the per-address target cooldown and the per-address daily cap, 3 codes / 24 h, both shared
+between users (409 with the user cooldown's code, so the caller is not told that someone else asked for the
+address), the address storable (400) and free as an
 address or as a user name (409 `Auth.EmailTaken`), then a record bound to `(ChangeEmail, userId)` and addressed to the
 new address, and the `AddressChangeCode` mail, synchronously; the answer is 202 with the challenge id. The login arm's
 per-address mail budget is not consulted, because the public login arm spends it anonymously before any lookup
@@ -421,9 +421,10 @@ Redis and its ACL. The privacy policy said the new address gets a confirmation l
 
 **Lapse trigger 5 fired again, and was re-run (PR 4).** Two mint budgets changed. Re-authentication lost the
 per-address mail cap; `reauth-codes`, 10 / 24 h per user, was already the binding one, so the figures stand at
-0.003 %/day and 1.089 %/year. The change-email code is new: at most 5 per user per 24 h, 3 attempts each, 15 guesses
-a day, so 0.0015 %/day and 0.546 %/year, and every request spends a fresh re-authentication first. Arithmetic,
-re-taken 2026-09-22, not an observation.
+0.003 %/day and 1.089 %/year. The change-email code is new, and a correct guess would attach an address whose owner
+never read the code to the guesser's account. Per new address, whoever asks, at most 3 codes per 24 h, 3 attempts
+each: 9 guesses a day, so 0.0009 %/day and 0.328 %/year however many accounts guess (`security-auditor`, PR 4's
+panel). Arithmetic, re-taken 2026-09-22, not an observation.
 
 ### D6 — The consent record: a contract stamp, not Art. 7 consent
 
@@ -1136,8 +1137,8 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Live challenges per address | 1 live **code** challenge — a mint the code budget admits burns the previous; records minted past it are not indexed | `PutAsync` |
 | Mint budget per address | cooldown first; 3 / 10 min caps mails; 10 / 24 h caps codes, and above it the mail carries no code; silent, consumed before any lookup | `IRateBudget` |
 | Mails to addresses without an account | 20 / 24 h, all such addresses together; above it the record is written, carrying no credential (Amendment 2026-09-20), and no mail is sent; an account holder's mail is never counted | `IRateBudget`, in the consumer, consulted before the record is written |
-| Re-authentication mint budget (3a; the scopes are declared, the request path that consults them is PR 3's) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h; past `reauth-codes` the request is to be REFUSED, since a link cannot re-authenticate | `IRateBudget` |
-| Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window; each request also spends a re-authentication grant | `IRateBudget` |
+| Re-authentication mint budget (3a) | per USER: `reauth-cooldown` 1 per window and `reauth-codes` 10 / 24 h; past `reauth-codes` the request is REFUSED, since a link cannot re-authenticate | `IRateBudget` |
+| Change-email mint budget (3a, PR 4) | per USER: `change-email-user` 1 per window and `change-email-targets-daily` 5 / 24 h; per new address, whoever asks: `change-email-target` 1 per window and `change-email-target-daily` 3 / 24 h; each request also spends a re-authentication grant | `IRateBudget` |
 | Live bound challenges | 1 per user and purpose: every mint burns the previous | `PutBoundAsync` |
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |

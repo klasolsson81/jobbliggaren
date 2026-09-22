@@ -44,7 +44,7 @@ public sealed class ChangeEmailCommandHandlerTests
         Admit(user: true, daily: true, target: true);
     }
 
-    private void Admit(bool user, bool daily, bool target)
+    private void Admit(bool user, bool daily, bool target, bool targetDaily = true)
     {
         _budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(Window), UserId.ToString(), Arg.Any<CancellationToken>())
             .Returns(user);
@@ -52,6 +52,8 @@ public sealed class ChangeEmailCommandHandlerTests
             .Returns(daily);
         _budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(Window), NewEmail, Arg.Any<CancellationToken>())
             .Returns(target);
+        _budget.TryConsumeAsync(ChangeEmailPolicy.PerTargetDailyBudget, NewEmail, Arg.Any<CancellationToken>())
+            .Returns(targetDaily);
     }
 
     private ChangeEmailCommandHandler Sut() => new(
@@ -65,7 +67,7 @@ public sealed class ChangeEmailCommandHandlerTests
     private static ChangeEmailCommand Command => new(Grant, NewEmail);
 
     [Fact]
-    public async Task An_admitted_request_passes_the_user_cooldown_the_daily_cap_and_the_target_cooldown_in_that_order_then_checks_writes_and_sends()
+    public async Task An_admitted_request_passes_the_user_budgets_then_the_address_budgets_in_that_order_then_checks_writes_and_sends()
     {
         var result = await Sut().Handle(Command, Ct);
 
@@ -75,6 +77,7 @@ public sealed class ChangeEmailCommandHandlerTests
             await _budget.TryConsumeAsync(ChangeEmailPolicy.UserCooldown(Window), UserId.ToString(), Arg.Any<CancellationToken>());
             await _budget.TryConsumeAsync(ChangeEmailPolicy.DailyTargetBudget, UserId.ToString(), Arg.Any<CancellationToken>());
             await _budget.TryConsumeAsync(ChangeEmailPolicy.TargetCooldown(Window), NewEmail, Arg.Any<CancellationToken>());
+            await _budget.TryConsumeAsync(ChangeEmailPolicy.PerTargetDailyBudget, NewEmail, Arg.Any<CancellationToken>());
             await _accounts.CheckAddressIsFreeAsync(UserId, NewEmail, Arg.Any<CancellationToken>());
             await _store.PutBoundAsync(Arg.Any<NewBoundChallenge>(), Arg.Any<CancellationToken>());
             await _sender.SendLoginChallengeAsync(NewEmail, Arg.Any<LoginChallengeEmail>(), Arg.Any<CancellationToken>());
@@ -82,14 +85,14 @@ public sealed class ChangeEmailCommandHandlerTests
     }
 
     [Fact]
-    public async Task The_request_spends_exactly_its_three_budgets_and_never_the_shared_login_mail_budget()
+    public async Task The_request_spends_exactly_its_four_budgets_and_never_the_shared_login_mail_budget()
     {
         // The public login arm spends login-challenge-mails anonymously, before any lookup, so consulting it here
         // would let a stranger who knows the target address hold the change off (security-auditor, PR 4's
         // pre-code round).
         await Sut().Handle(Command, Ct);
 
-        await _budget.ReceivedWithAnyArgs(3).TryConsumeAsync(default!, default!, Ct);
+        await _budget.ReceivedWithAnyArgs(4).TryConsumeAsync(default!, default!, Ct);
         await _budget.DidNotReceive().TryConsumeAsync(
             LoginChallengePolicy.MailBudget, Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _budget.DidNotReceive().TryConsumeAsync(
@@ -130,13 +133,13 @@ public sealed class ChangeEmailCommandHandlerTests
     }
 
     [Fact]
-    public async Task The_mail_is_the_address_change_variant_carrying_the_minted_code_and_the_target_window()
+    public async Task The_mail_is_the_address_change_variant_carrying_the_minted_code()
     {
         await Sut().Handle(Command, Ct);
 
         await _sender.Received(1).SendLoginChallengeAsync(
             NewEmail,
-            Arg.Is<LoginChallengeEmail>(m => m == new LoginChallengeEmail.AddressChangeCode(Code, Window)),
+            Arg.Is<LoginChallengeEmail>(m => m == new LoginChallengeEmail.AddressChangeCode(Code)),
             Arg.Any<CancellationToken>());
     }
 
@@ -186,6 +189,24 @@ public sealed class ChangeEmailCommandHandlerTests
 
         targetCooled.IsFailure.ShouldBeTrue();
         targetCooled.Error.ShouldBe(userCooled.Error);
+        await _accounts.DidNotReceiveWithAnyArgs().CheckAddressIsFreeAsync(default, default!, Ct);
+        await _store.DidNotReceiveWithAnyArgs().PutBoundAsync(default!, Ct);
+        await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_target_over_its_daily_cap_is_refused_with_the_user_cooldowns_error_and_writes_and_sends_nothing()
+    {
+        // The per-address cap bounds guessing per address, whoever asks; like the target cooldown it is shared
+        // between users, so it answers the cooldown's code.
+        Admit(user: true, daily: true, target: true, targetDaily: false);
+        var capped = await Sut().Handle(Command, Ct);
+
+        Admit(user: false, daily: true, target: true);
+        var userCooled = await Sut().Handle(Command, Ct);
+
+        capped.IsFailure.ShouldBeTrue();
+        capped.Error.ShouldBe(userCooled.Error);
         await _accounts.DidNotReceiveWithAnyArgs().CheckAddressIsFreeAsync(default, default!, Ct);
         await _store.DidNotReceiveWithAnyArgs().PutBoundAsync(default!, Ct);
         await _sender.DidNotReceiveWithAnyArgs().SendLoginChallengeAsync(default!, default!, Ct);

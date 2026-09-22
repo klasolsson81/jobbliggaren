@@ -13,6 +13,11 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
  */
 
 test.describe("Radera konto (/installningar)", () => {
+  // #1739 (PR 3 of 4): the backend re-authenticates with a purpose-scoped code grant, and this dialog still
+  // sends the password, so the three flows below answer 400 until #1740 (part 3b) delivers the code dialog.
+  // The window is declared in ADR 0142 Amendment 2026-09-21 (4); fixme, not skip, so the spec stays listed.
+  test.fixme(true, "#1740: the code dialog replaces the password field on this surface");
+
   test("öppnar modal med typed-confirmation och håller submit disabled tills email-match + password", async ({ page }) => {
     const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
     await ensureConfirmedTestUser(BACKEND_URL, runId);

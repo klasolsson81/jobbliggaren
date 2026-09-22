@@ -72,6 +72,18 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
   });
 
+  // Declared unreachable until #1741's backend change: no path in src/ writes a CV without a
+  // name today (Resume.ValidateContent refuses a blank one). The reader tolerates null first,
+  // so a revert of the writer cannot strand the CVs it wrote. A null parses; an absent key is
+  // still refused by the test above.
+  it("accepts a null personalInfo.fullName", () => {
+    const nameless = {
+      ...validContent,
+      personalInfo: { ...validContent.personalInfo, fullName: null },
+    };
+    expect(resumeContentDtoSchema.parse(nameless).personalInfo.fullName).toBeNull();
+  });
+
   it("rejects when experience.startDate missing", () => {
     const broken = {
       ...validContent,

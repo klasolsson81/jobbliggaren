@@ -15,11 +15,3 @@ export function mailLink(chunks: ReactNode) {
     </a>
   );
 }
-
-/**
- * The same chunk as plain text, for copy that is read as a description (a field's hint): a link there
- * would put a tab stop between the field and the control after it (design-reviewer, #1740).
- */
-export function mailText(chunks: ReactNode) {
-  return chunks;
-}

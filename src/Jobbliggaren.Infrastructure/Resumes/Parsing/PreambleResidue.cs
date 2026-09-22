@@ -48,8 +48,8 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// <c>RawText</c> for personnummer BEFORE the aggregate is persisted, the carrier is a subset of that
 /// text, and <see cref="Truncate"/> never ends its hard cut inside a digit run, so the carrier adds no
 /// undetected surface; the carrier lives inside the same encrypted
-/// JSON shadow, on the same row, under the same DEK and the same Art. 17 erasure; it is on no wire
-/// (no DTO maps it) and in no log or evidence string; and <c>ParsedResume.EnsureReadyForPromotion</c>
+/// JSON shadow, on the same row, under the same DEK and the same Art. 17 erasure; it is in no log
+/// or evidence string; and <c>ParsedResume.EnsureReadyForPromotion</c>
 /// REFUSES promotion outright when a personnummer was found.
 ///
 /// <b>Binding on the PR that puts this on the wire:</b> the adopt-as-summary affordance must be
@@ -300,31 +300,31 @@ internal static class PreambleResidue
             return head[..lastBreak].TrimEnd();
 
         var cut = char.IsHighSurrogate(head[^1]) ? MaxPreambleChars - 1 : MaxPreambleChars;
-        var carried = text[..StartOfDigitRunAcross(text, cut)].TrimEnd();
+        var carried = text[..CutOutsideDigitRun(text, cut)].TrimEnd();
         return carried.Length == 0 ? null : carried;
     }
 
-    private static int StartOfDigitRunAcross(string text, int cut)
+    private static int CutOutsideDigitRun(string text, int cut)
     {
         var next = cut;
-        while (next < text.Length && IsFormat(text[next]))
+        while (next < text.Length && IsStrippedByScan(text[next]))
             next++;
 
         var previous = cut - 1;
-        while (previous >= 0 && IsFormat(text[previous]))
+        while (previous >= 0 && IsStrippedByScan(text[previous]))
             previous--;
 
         if (next == text.Length || previous < 0 || !char.IsDigit(text[next]) || !char.IsDigit(text[previous]))
             return cut;
 
         var start = previous;
-        while (start > 0 && (char.IsDigit(text[start - 1]) || IsFormat(text[start - 1])))
+        while (start > 0 && (char.IsDigit(text[start - 1]) || IsStrippedByScan(text[start - 1])))
             start--;
 
         return start;
     }
 
-    private static bool IsFormat(char c) => char.GetUnicodeCategory(c) == UnicodeCategory.Format;
+    private static bool IsStrippedByScan(char c) => char.GetUnicodeCategory(c) == UnicodeCategory.Format;
 
     /// <summary>
     /// One line, fragment-wise. Returns the line VERBATIM when no fragment is consumed (the prose

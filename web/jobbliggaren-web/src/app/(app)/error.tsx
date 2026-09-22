@@ -35,7 +35,7 @@ export default function AppError({
   return (
     // Mirrors (app)/not-found.tsx: jp-container jp-page assumes the errored
     // route is v3-native (/jobb, /foretag, … own their own width). A
-    // non-v3-native route (/installningar, /matchningar, …) that throws
+    // non-v3-native route (/mina-sidor, /matchningar, …) that throws
     // double-wraps (AppShell's transitional container + this one) — the same
     // accepted Minor not-found already carries; re-evaluate when the
     // transitional container is retired (ADR 0052).

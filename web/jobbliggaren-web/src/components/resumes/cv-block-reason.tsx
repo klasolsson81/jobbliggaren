@@ -79,7 +79,7 @@ export function CvBlockReason({
           uppladdningen, som annars bara finns längst ned på sidan. */}
       {reason === "PersonnummerInAccountName" && (
         <div className="jp-cvaction__actions">
-          <Link href="/installningar" className="jp-btn jp-btn--secondary">
+          <Link href="/mina-sidor" className="jp-btn jp-btn--secondary">
             {t("review.blockReason.settingsCta")}
           </Link>
         </div>

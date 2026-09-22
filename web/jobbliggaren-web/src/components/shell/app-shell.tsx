@@ -157,7 +157,7 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
             <div className="jp-usermenu__email">{email}</div>
           </div>
           <Link
-            href="/installningar"
+            href="/mina-sidor"
             className="jp-usermenu__item"
             onClick={(e) => onPlainNav(e, close)}
           >
@@ -343,9 +343,9 @@ function Drawer({
             );
           })}
           <Link
-            href="/installningar"
+            href="/mina-sidor"
             className="jp-drawer__item"
-            aria-current={isActive(pathname, "/installningar") ? "page" : undefined}
+            aria-current={isActive(pathname, "/mina-sidor") ? "page" : undefined}
             onClick={(e) => onPlainNav(e, handleNav)}
           >
             <Settings size={18} aria-hidden="true" /> {t("drawer.installningar")}

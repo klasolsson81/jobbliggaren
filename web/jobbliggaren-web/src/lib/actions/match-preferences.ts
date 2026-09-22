@@ -33,7 +33,7 @@ import type { ActionResult } from "./_action-result";
  * en enhet, så ett spar av regioner aldrig nollar angivna kommuner och vice
  * versa (CTO/architect NOTE-1). `parsed.data` bär nu `preferredMunicipalities`.
  *
- * Revaliderar både `/installningar` (kortet) och `/oversikt` (setup-nudgen
+ * Revaliderar både `/mina-sidor` (kortet) och `/oversikt` (setup-nudgen
  * styrs av `hasStatedDesiredOccupation` som ändras av detta skriv).
  */
 export async function updateMatchPreferencesAction(
@@ -73,7 +73,7 @@ export async function updateMatchPreferencesAction(
     };
   }
 
-  revalidatePath("/installningar");
+  revalidatePath("/mina-sidor");
   revalidatePath("/oversikt");
   return { success: true };
 }

@@ -9,23 +9,22 @@ import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
-  return { title: t("installningar.meta.title") };
+  return { title: t("minaSidor.meta.title") };
 }
 
 /**
- * `/installningar` — v3-version av användarens inställningssida (F6 Prompt 2,
- * ADR 0057). Ersätter `/mig`. Klas-direktiv: tema/lang/aviseringar/sekretess
- * + logga ut samlade på en route (CTO 2026-05-20 Val 1A).
+ * `/mina-sidor` — the account's own page (#1740, epic #1732 part 3b). It replaced the settings page
+ * of ADR 0057, whose two earlier paths survive only as 308s (`next.config.ts`). Language, the
+ * notification consents, matching, the address, deleting the account and logging out share one
+ * route (CTO 2026-05-20 Val 1A).
  *
- * Server-component-shell: hämtar session + profil, lyfter till
- * `<SettingsForm />` client-island som håller direct-apply-state. Profil-
- * fetch är samma `getMyProfile()` som tidigare `/mig` — ingen ny endpoint.
+ * Server-component shell: fetches the session + profile and lifts them into the `<SettingsForm />`
+ * client island, which holds the direct-apply state.
  *
- * notFound-grenen (ny användare utan profil-rad) hanteras genom att rendera
- * tom-state med samma copy som tidigare `/mig`-routens fallback — bevarar
- * UX-kontraktet (Wroblewski 2008: aldrig blank skärm efter login).
+ * The notFound branch (a new user without a profile row) renders an empty state rather than a blank
+ * screen after login (Wroblewski 2008).
  */
-export default async function InstallningarPage() {
+export default async function MinaSidorPage() {
   const user = await getServerSession();
   if (!user) redirect("/logga-in");
 
@@ -60,8 +59,8 @@ export default async function InstallningarPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="jp-h1">{t("installningar.title")}</h1>
-        <p className="jp-lede">{t("installningar.lede")}</p>
+        <h1 className="jp-h1">{t("minaSidor.title")}</h1>
+        <p className="jp-lede">{t("minaSidor.lede")}</p>
       </header>
 
       {profileResult.kind === "ok" ? (
@@ -74,12 +73,12 @@ export default async function InstallningarPage() {
       ) : (
         <p className="text-body text-text-primary">
           {profileResult.kind === "notFound"
-            ? t("installningar.profileNotCreated")
+            ? t("minaSidor.profileNotCreated")
             : profileResult.kind === "rateLimited"
-              ? t("installningar.rateLimited", {
+              ? t("minaSidor.rateLimited", {
                   seconds: profileResult.retryAfterSeconds,
                 })
-              : t("installningar.profileLoadError")}
+              : t("minaSidor.profileLoadError")}
         </p>
       )}
     </div>

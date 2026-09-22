@@ -56,7 +56,7 @@ type WriteOutcome =
   | { ok: false; error: string; field: "displayName" | null };
 
 /**
- * SettingsForm — orchestrerar alla preferens-kort på /installningar.
+ * SettingsForm — orchestrerar alla preferens-kort på /mina-sidor.
  *
  * CTO-dom 2026-05-20 (F6 P2, Val 2B): EN form, EN action, kort som visuella
  * grupperingar. Klas-direktiv: Visning/Aviseringar är "direct-apply" — språk +
@@ -202,7 +202,7 @@ export function SettingsForm({
         {/* F4-12 PR-B (ADR 0076): matchnings-önskemål. Kortet äger sin EGEN
             save (egen action/endpoint, egen useTransition) — INTE den delade
             applyChange/updateMyProfileSchema-flödet. `id="matchning"` på kortet
-            ankrar nudge-länken /installningar#matchning. */}
+            ankrar nudge-länken /mina-sidor#matchning. */}
         <MatchPreferencesCard
           occupationFields={taxonomy?.occupationFields ?? []}
           regions={taxonomy?.regions ?? []}

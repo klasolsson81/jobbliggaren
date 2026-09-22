@@ -90,7 +90,7 @@ export async function updateMyProfileAction(
     };
   }
 
-  revalidatePath("/installningar");
+  revalidatePath("/mina-sidor");
   return { success: true };
 }
 
@@ -106,7 +106,7 @@ export async function updateMyProfileAction(
  * GDPR: ett opt-in är samtycke (Art. 6(1)(a)/7), ett opt-out drar tillbaka det
  * (Art. 7(3)) — Domänen äger consent-stämplingen; denna action är ren transport.
  * Idempotent full-replace; kadensen skickas alltid med (meningsfull endast när
- * `enabled`, men wire bär den oavsett). Revaliderar `/installningar` så kortet
+ * `enabled`, men wire bär den oavsett). Revaliderar `/mina-sidor` så kortet
  * speglar det sparade läget.
  */
 export async function updateNotificationConsentAction(
@@ -127,7 +127,7 @@ export async function updateNotificationConsentAction(
   const result = await updateNotificationConsent(parsed.data);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/installningar");
+      revalidatePath("/mina-sidor");
       return { success: true };
     case "unauthorized":
       return {
@@ -157,7 +157,7 @@ export async function updateNotificationConsentAction(
  * background-match notifications (ADR 0087 D2) and is written by
  * `updateNotificationConsentAction`. After 7C the in-app follow-rail is
  * unaffected by this flag (Art. 6(1)(b) service); this gates the EMAIL channel
- * only. Revalidates `/installningar` so the card mirrors the saved state.
+ * only. Revalidates `/mina-sidor` so the card mirrors the saved state.
  */
 export async function updateFollowedCompanyNotificationConsentAction(
   input: UpdateFollowedCompanyNotificationConsentInput
@@ -178,7 +178,7 @@ export async function updateFollowedCompanyNotificationConsentAction(
   const result = await updateFollowedCompanyNotificationConsent(parsed.data);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/installningar");
+      revalidatePath("/mina-sidor");
       return { success: true };
     case "unauthorized":
       return {
@@ -367,7 +367,7 @@ export async function changePasswordAction(
   }
 
   // No revalidatePath: a password change alters nothing server-rendered on
-  // /installningar (unlike updateMyProfileAction). Stay-on-page — the card shows its
+  // /mina-sidor (unlike updateMyProfileAction). Stay-on-page — the card shows its
   // own confirmation and the cookie is already re-set for the next navigation.
   return { success: true };
 }
@@ -473,6 +473,6 @@ export async function changeEmailAction(
     return { success: false, error: ts("account.errors.network") };
   }
 
-  // No revalidatePath: nothing server-rendered on /installningar changes now.
+  // No revalidatePath: nothing server-rendered on /mina-sidor changes now.
   return { success: true };
 }

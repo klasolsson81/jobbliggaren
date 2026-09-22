@@ -238,6 +238,6 @@ describe("V3_NATIVE_ROUTES — the list itself", () => {
     expect(isV3Native("/cv/importera")).toBe(true);
     // Not a prefix match on a bare string overlap — /cvsomething is a different route.
     expect(isV3Native("/cv-granskning")).toBe(false);
-    expect(isV3Native("/installningar")).toBe(false);
+    expect(isV3Native("/mina-sidor")).toBe(false);
   });
 });

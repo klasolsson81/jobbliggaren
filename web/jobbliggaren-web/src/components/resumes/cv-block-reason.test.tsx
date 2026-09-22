@@ -33,7 +33,7 @@ describe("CvBlockReason", () => {
     expect(screen.getByText(/Filen är däremot ren/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Inställningar/ })).toHaveAttribute(
       "href",
-      "/installningar",
+      "/mina-sidor",
     );
     // It must NOT tell her to edit the file.
     expect(screen.queryByText(/Ta bort det ur filen/i)).not.toBeInTheDocument();

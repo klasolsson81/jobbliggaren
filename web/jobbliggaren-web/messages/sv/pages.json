@@ -17,7 +17,7 @@
     "matchningar": "Matchningarna läses in…",
     "sparade": "Sparade jobb läses in…",
     "sokningar": "Sökningarna läses in…",
-    "installningar": "Inställningarna läses in…",
+    "minaSidor": "Mina sidor läses in…",
     "nyAnsokan": "Ny ansökan läses in…"
   },
   "ansokningar": {
@@ -550,7 +550,7 @@
     "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar",
@@ -558,14 +558,14 @@
       "title": "Mina matchningar"
     }
   },
-  "installningar": {
-    "title": "Inställningar",
-    "lede": "Hantera dina kontouppgifter och inställningar.",
+  "minaSidor": {
+    "title": "Mina sidor",
+    "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
     "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
     "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
     "meta": {
-      "title": "Inställningar"
+      "title": "Mina sidor"
     }
   },
   "auth": {

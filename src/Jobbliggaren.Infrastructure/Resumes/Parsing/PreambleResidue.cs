@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
@@ -44,8 +45,9 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// or it is worthless, and a rewritten preamble is the engine editing the user's words.
 ///
 /// That is safe TODAY, and the reasons are structural, not luck: the import handler scans the WHOLE
-/// <c>RawText</c> for personnummer BEFORE the aggregate is persisted, so the carrier is a subset of
-/// already-scanned text and adds no undetected surface; the carrier lives inside the same encrypted
+/// <c>RawText</c> for personnummer BEFORE the aggregate is persisted, the carrier is a subset of that
+/// text, and <see cref="Truncate"/> never ends its hard cut inside a digit run, so the carrier adds no
+/// undetected surface; the carrier lives inside the same encrypted
 /// JSON shadow, on the same row, under the same DEK and the same Art. 17 erasure; it is on no wire
 /// (no DTO maps it) and in no log or evidence string; and <c>ParsedResume.EnsureReadyForPromotion</c>
 /// REFUSES promotion outright when a personnummer was found.
@@ -285,7 +287,11 @@ internal static class PreambleResidue
     // The hard cut must not split a UTF-16 surrogate pair: a lone surrogate is not valid text, and it
     // would be serialised straight into the encrypted JSON shadow. Step back one unit when the cut
     // lands between the halves of an astral character (an emoji in a CV header is not exotic).
-    private static string Truncate(string text)
+    //
+    // Nor may it end inside a digit run as the personnummer scan reads one, with format characters
+    // stripped: the scan of the whole text rejects a run on its trailing-digit boundary, and a prefix
+    // of that run can be a personnummer. The cut steps back to where the run starts.
+    private static string? Truncate(string text)
     {
         var head = text[..MaxPreambleChars];
 
@@ -293,11 +299,32 @@ internal static class PreambleResidue
         if (lastBreak > 0)
             return head[..lastBreak].TrimEnd();
 
-        if (char.IsHighSurrogate(head[^1]))
-            head = head[..^1];
-
-        return head.TrimEnd();
+        var cut = char.IsHighSurrogate(head[^1]) ? MaxPreambleChars - 1 : MaxPreambleChars;
+        var carried = text[..StartOfDigitRunAcross(text, cut)].TrimEnd();
+        return carried.Length == 0 ? null : carried;
     }
+
+    private static int StartOfDigitRunAcross(string text, int cut)
+    {
+        var next = cut;
+        while (next < text.Length && IsFormat(text[next]))
+            next++;
+
+        var previous = cut - 1;
+        while (previous >= 0 && IsFormat(text[previous]))
+            previous--;
+
+        if (next == text.Length || previous < 0 || !char.IsDigit(text[next]) || !char.IsDigit(text[previous]))
+            return cut;
+
+        var start = previous;
+        while (start > 0 && (char.IsDigit(text[start - 1]) || IsFormat(text[start - 1])))
+            start--;
+
+        return start;
+    }
+
+    private static bool IsFormat(char c) => char.GetUnicodeCategory(c) == UnicodeCategory.Format;
 
     /// <summary>
     /// One line, fragment-wise. Returns the line VERBATIM when no fragment is consumed (the prose

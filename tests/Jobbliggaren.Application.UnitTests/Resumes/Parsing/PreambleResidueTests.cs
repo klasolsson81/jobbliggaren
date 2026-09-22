@@ -1,3 +1,4 @@
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Shouldly;
@@ -985,6 +986,38 @@ public class PreambleResidueTests
         // cap" is satisfied by the empty string and by a single surviving line.
         preamble.Length.ShouldBeGreaterThan(PreambleResidue.MaxPreambleChars - line.Length - 1);
     }
+
+    [Theory]
+    [InlineData(1989, "811218-98765")]
+    [InlineData(1989, "811218-9876\u200B5")]
+    [InlineData(1988, "811218-9876\u200B5")]
+    public void Segment_HeadinglessParagraphHardCut_NeverMintsAPersonnummerTheWholeTextLacks(
+        int proseLength, string run)
+    {
+        // Premise: a DOCX paragraph is ONE extracted line (the extractor breaks only at </w:p>), so a
+        // headingless CV whose first paragraph passes the cap reaches the hard cut. The cap falls
+        // inside an 11-digit run, which the scan of the whole text rejects on its trailing-digit
+        // boundary; the zero-width rows put a format character on either side of the cut, which
+        // the scan strips before it reads. The carried prefix must not hold a personnummer the scan
+        // of the whole text did not: the promote-time guard reads the carrier, the import scan never
+        // did.
+        const string sentence = "Erfaren undersköterska med tio års erfarenhet av natt och trygg vård ";
+        var prose = string.Concat(Enumerable.Repeat(sentence, 40))[..(proseLength - 1)] + " ";
+        var cv = prose + run + " och fler rader utan rubrik.";
+
+        ScanCount(cv).ShouldBe(0);
+
+        var preamble = _sut.Segment(cv).Content.Preamble;
+
+        preamble.ShouldNotBeNull();
+        cv.ShouldStartWith(preamble);
+        preamble.ShouldStartWith(prose);
+        ScanCount(preamble).ShouldBe(0);
+    }
+
+    private static int ScanCount(string text) =>
+        PersonnummerScanner.Scan(
+            PersonnummerTextNormalizer.Normalize(text, PersonnummerGapProfile.ExtractedDocumentText)).Count;
 
     // ── Back-compat: the artifact is an encrypted JSON shadow (ADR 0095 D-D) ───────
 

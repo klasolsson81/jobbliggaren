@@ -45,14 +45,6 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// unsure-⇒-keep bias requires. Redacting it inside the carrier is rejected: the carrier is verbatim
 /// or it is worthless, and a rewritten preamble is the engine editing the user's words.
 ///
-/// That is safe TODAY, and the reasons are structural, not luck: the import handler scans the WHOLE
-/// <c>RawText</c> for personnummer BEFORE the aggregate is persisted, the carrier is a subset of that
-/// text, and <see cref="Truncate"/> never ends its hard cut inside a digit run, so the carrier adds no
-/// undetected surface; the carrier lives inside the same encrypted
-/// JSON shadow, on the same row, under the same DEK and the same Art. 17 erasure; it is in no log
-/// or evidence string; and <c>ParsedResume.EnsureReadyForPromotion</c>
-/// REFUSES promotion outright when a personnummer was found.
-///
 /// <b>Binding on the PR that puts this on the wire:</b> the adopt-as-summary affordance must be
 /// fail-closed on <c>Personnummer.Found</c> — the same guard <c>ImportResumeCommandHandler</c>
 /// already applies to the source-file capture. Do not surface a preamble from a flagged parse.</para>

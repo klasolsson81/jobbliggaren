@@ -28,8 +28,7 @@ public sealed class LoginCommandHandler(
             // event differs.
             // #714: EmailNotConfirmed is NOT a failed login attempt — the credentials were valid, the
             // account just is not confirmed yet — so it emits NO LoginFailed audit (that would pollute
-            // the brute-force signal). Its wire response is a distinct 403 (AuthEndpoints). The re-auth
-            // path never reaches this code (it normalizes EmailNotConfirmed to InvalidCredentials).
+            // the brute-force signal). Its wire response is a distinct 403 (AuthEndpoints).
             if (credentialsResult.Error.Code == AuthErrorCodes.AccountLocked)
                 auditLogger.AccountLockedOut(HashEmail(command.Email!));
             else if (credentialsResult.Error.Code != AuthErrorCodes.EmailNotConfirmed)

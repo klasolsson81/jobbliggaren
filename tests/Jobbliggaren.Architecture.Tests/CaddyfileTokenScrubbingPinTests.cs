@@ -186,6 +186,11 @@ public class CaddyfileTokenScrubbingPinTests
             EmailTemplates.LoginChallenge(
                 BaseUrl, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody,
             EmailTemplates.LoginChallenge(BaseUrl, new LoginChallengeEmail.NewAccountCodeLimitReached()).PlainTextBody,
+
+            // #1739 — the re-authentication mail renders NO link either (a link yields a session, never a
+            // re-authentication); read here for the same reason as the two above.
+            EmailTemplates.LoginChallenge(
+                BaseUrl, new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))).PlainTextBody,
         };
 
         return bodies

@@ -15,7 +15,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
 /// End-to-end tests for POST /api/v1/auth/change-email (#679, C5-email of epik #481) — the REQUEST
-/// step, re-auth-gated exactly like /change-password. The CURRENT password is the re-auth credential
+/// step, re-auth-gated exactly like /change-password. The re-auth credential is a purpose-scoped grant
+/// (#1739, ADR 0142 D5), minted through production by <see cref="ReauthTestHelpers"/>
 /// (verified by ReauthenticationBehavior before the handler); on success the endpoint emails an
 /// ownership-confirmation link to the NEW address and returns 202 — WITHOUT changing the email and
 /// WITHOUT touching any session (the swap + logout happens only at /confirm-email-change). Verifies:
@@ -36,16 +37,22 @@ public class ChangeEmailTests(ApiFactory factory)
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
+    // A well-formed grant nobody minted: a test fixture, not a secret.
+    private const string UnusableGrant = "AAECAwQFBgcICQoLDA0ODw"; // gitleaks:allow
+
     // Per-request Authorization so session checks never clobber a shared default header.
-    private async Task<HttpResponseMessage> ChangeAsync(string sessionId, string? current, string? newEmail, CancellationToken ct)
+    private async Task<HttpResponseMessage> ChangeAsync(string sessionId, string? reauthGrant, string? newEmail, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-email")
         {
-            Content = JsonContent.Create(new { currentPassword = current, newEmail }),
+            Content = JsonContent.Create(new { reauthGrant, newEmail }),
         };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return await _client.SendAsync(req, ct);
     }
+
+    private Task<string> MintGrantAsync(string sessionId, string email, CancellationToken ct) =>
+        ReauthTestHelpers.MintGrantAsync(_factory, _client, sessionId, email, ct);
 
     private async Task<HttpResponseMessage> GetMeAsync(string sessionId, CancellationToken ct)
     {
@@ -61,25 +68,25 @@ public class ChangeEmailTests(ApiFactory factory)
 
         var response = await _client.PostAsJsonAsync(
             "/api/v1/auth/change-email",
-            new { currentPassword = AuthTestHelpers.DefaultTestPassword, newEmail = $"ny-{Guid.NewGuid()}@example.se" },
+            new { reauthGrant = UnusableGrant, newEmail = $"ny-{Guid.NewGuid()}@example.se" },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task POST_change_email_with_wrong_current_password_returns_401_and_does_not_send()
+    public async Task POST_change_email_with_an_unusable_grant_returns_401_and_does_not_send()
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-wrong-{Guid.NewGuid()}@example.se";
         var newEmail = $"ce-wrong-new-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, "FelLosen123456", newEmail, ct);
+        var response = await ChangeAsync(sessionId, UnusableGrant, newEmail, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        // Byte-identical to the shared InvalidCredentials 401 (AuthProblem) — same oracle as /verify and
-        // /change-password. A wrong re-auth credential reveals nothing.
+        // Byte-identical to the shared InvalidCredentials 401 (AuthProblem) — same oracle as /me/delete and
+        // /change-password. An unusable grant reveals nothing.
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
         json.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
@@ -96,16 +103,16 @@ public class ChangeEmailTests(ApiFactory factory)
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public async Task POST_change_email_with_empty_current_returns_400(string? current)
+    public async Task POST_change_email_with_empty_grant_returns_400(string? reauthGrant)
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"ce-emptycur-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, current, $"ce-new-{Guid.NewGuid()}@example.se", ct);
+        var response = await ChangeAsync(sessionId, reauthGrant, $"ce-new-{Guid.NewGuid()}@example.se", ct);
 
-        // ValidationBehavior (NotEmpty on the current password) runs before ReauthenticationBehavior,
-        // so empty is 400 (validation), not 401 (re-auth): empty vs wrong = 400 vs 401, revealing nothing.
+        // ValidationBehavior (NotEmpty on the grant) runs before ReauthenticationBehavior, so empty is 400
+        // (validation), not 401 (re-auth): empty vs unusable = 400 vs 401, revealing nothing.
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
@@ -120,8 +127,9 @@ public class ChangeEmailTests(ApiFactory factory)
         var email = $"ce-badnew-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        // Correct current password, so the ONLY failure is the malformed/missing new email.
-        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
+        // A grant the validator admits, so the ONLY failure is the malformed/missing new email; validation
+        // runs before the grant is redeemed, so no grant is spent on a malformed request.
+        var response = await ChangeAsync(sessionId, UnusableGrant, newEmail, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -137,7 +145,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var email = $"ce-taker-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, takenEmail, ct);
+        var response = await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), takenEmail, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -159,7 +167,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var email = $"ce-self-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, email, ct);
+        var response = await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), email, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await response.Content.ReadFromJsonAsync<JsonElement>(ct))
@@ -176,7 +184,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var newEmail = $"ce-ok-new-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
+        var response = await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), newEmail, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
@@ -206,7 +214,7 @@ public class ChangeEmailTests(ApiFactory factory)
         var newEmail = $"ce-audit-new-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct))
+        (await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), newEmail, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Accepted);
 
         using var scope = _factory.Services.CreateScope();
@@ -249,10 +257,13 @@ public class ChangeEmailTests(ApiFactory factory)
         var newEmail = $"ce-nodeliver-new-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
+        // The grant is minted while the sender can deliver (the request path refuses first when it cannot),
+        // and the refused request below SPENDS it: the behavior redeems before the handler answers 503.
+        var grant = await MintGrantAsync(sessionId, email, ct);
         HttpResponseMessage refused;
         using (_factory.Emails.Incapable())
         {
-            refused = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct);
+            refused = await ChangeAsync(sessionId, grant, newEmail, ct);
         }
 
         refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
@@ -282,14 +293,17 @@ public class ChangeEmailTests(ApiFactory factory)
                 .ShouldBe(0, "a refused request must leave no audit trail of a change that was never requested");
         }
 
-        // The crossing arm: capability restored, everything else identical.
+        // The crossing arm: capability restored, everything else identical — except the grant, which the
+        // refused request spent; the same user mints another once THE CLOCK has ended the re-auth cooldown
+        // (the helper names that actor), so the arm stays the same user, same request.
         //
-        // It carries a second proof it was not written for, and the proof is free. Both cooldown
+        // It carries a second proof it was not written for, and the proof is free. Both change-email cooldown
         // scopes (per-actor and per-target) have a 60s window, and this call is immediate — so a 202
         // here also establishes that the refusal above did NOT begin either window. Had the gate been
         // placed after the cooldown, this line would be a 409 (Auth.ChangeEmailCooldown), and the user
         // would have been rate-limited out of retrying by our own misconfiguration.
-        (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newEmail, ct))
+        await ReauthTestHelpers.LetTheCooldownLapseAsync(_factory, email, ct);
+        (await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), newEmail, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Accepted);
         _factory.Emails.Sent.ShouldContain(e =>
             e.ToEmail == newEmail && e.Kind == RecordedEmailKind.EmailChangeConfirmation);

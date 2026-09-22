@@ -15,10 +15,16 @@ public static class AuthErrorCodes
     public const string InvalidCredentials = "Auth.InvalidCredentials";
 
     /// <summary>
+    /// A handler's self-defending refusal when <c>ICurrentUser</c> carries no user: AuthorizationBehavior ran
+    /// before it, so this is reached only when the pipeline is misconfigured. Validation → 400.
+    /// </summary>
+    public const string NotAuthenticated = "Auth.NotAuthenticated";
+
+    /// <summary>
     /// The single user-facing detail for the <see cref="InvalidCredentials"/> 401. Rendered on the
     /// wire ONLY via <c>AuthProblem.InvalidCredentials()</c> (Api); referenced from here so the
     /// Result-idiom <c>DomainError</c> message in <c>ReauthenticationService</c> (which never reaches
-    /// the wire — normalized by AuthProblem in both the behavior and /auth/verify paths) cannot
+    /// the wire — normalized by AuthProblem in the behavior path) cannot
     /// silently drift from the authoritative copy (dotnet-architect PR2c-1 Minor — single source).
     /// </summary>
     public const string InvalidCredentialsMessage = "E-post eller lösenord är felaktigt.";
@@ -114,6 +120,29 @@ public static class AuthErrorCodes
     /// </summary>
     public const string ChangeEmailCooldownMessage =
         "Du begärde nyligen ett adressbyte. Vänta en liten stund innan du försöker igen.";
+
+    /// <summary>
+    /// #1739 — a re-authentication code was requested inside the account's own cooldown, OR inside the shared
+    /// per-address mail budget (<c>LoginChallengePolicy.MailBudget</c>). ONE code for both on purpose: the mail
+    /// budget is shared with the public login challenge, so a refusal that told the two apart would tell a
+    /// hijacked session that a login mail was just requested for the address. The caller is signed in, so
+    /// the refusal is visible. Conflict → 409.
+    /// </summary>
+    public const string ReauthCooldown = "Auth.ReauthCooldown";
+
+    public const string ReauthCooldownMessage =
+        "Du begärde nyligen en kod. Vänta en liten stund innan du försöker igen.";
+
+    /// <summary>
+    /// #1739 — the account's re-authentication codes for the day are spent
+    /// (<c>LoginChallengePolicy.ReauthCodeBudget</c>). Terminal: unlike the login challenge there is no link to
+    /// fall back to, since a link yields a session and never a re-authentication, so the message says a day
+    /// and not a moment. Only a holder of the session can spend this budget. Conflict → 409.
+    /// </summary>
+    public const string ReauthCodeBudgetExhausted = "Auth.ReauthCodeBudgetExhausted";
+
+    public const string ReauthCodeBudgetExhaustedMessage =
+        "Du har begärt så många koder som går på ett dygn. Försök igen i morgon.";
 
     /// <summary>
     /// The public-registration kill-switch is CLOSED (<c>Auth:RegistrationsOpen</c> = false;

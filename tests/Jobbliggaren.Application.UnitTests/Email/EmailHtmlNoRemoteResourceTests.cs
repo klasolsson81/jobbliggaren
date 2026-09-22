@@ -157,6 +157,8 @@ public class EmailHtmlNoRemoteResourceTests
         ("LoginNewAccountCode", EmailTemplates.LoginNewAccountCode(
             new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")))),
         ("LoginNewAccountCodeLimitReached", EmailTemplates.LoginNewAccountCodeLimitReached()),
+        ("LoginReauthenticationCode", EmailTemplates.LoginReauthenticationCode(
+            new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")))),
     ];
 
     private static readonly LoginLinkToken SampleLink =

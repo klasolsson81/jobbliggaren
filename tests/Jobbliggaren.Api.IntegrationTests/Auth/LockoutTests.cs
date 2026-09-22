@@ -12,10 +12,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// #503 (OWASP A07): per-account lockout on login. Verifies that Identity's lockout
 /// is honored end-to-end (5 failures -> locked even with the correct password — which
 /// also proves LockoutEnabled=true is stamped at registration), that a successful login
-/// resets the counter, that a locked account renders a byte-identical 401 to a wrong
-/// password (no lockout oracle), and that the /verify re-auth path is not an unlocked
-/// bypass. ApiFactory raises rate limits to 10000/60s so these multi-step flows do not
-/// hit the per-IP AuthWrite throttle.
+/// resets the counter, and that a locked account renders a byte-identical 401 to a wrong
+/// password (no lockout oracle). ApiFactory raises rate limits to 10000/60s so these multi-step
+/// flows do not hit the per-IP AuthWrite throttle.
 /// </summary>
 [Collection("Api")]
 public class LockoutTests(ApiFactory factory)
@@ -108,31 +107,5 @@ public class LockoutTests(ApiFactory factory)
             .ShouldBe(wrongPwdJson.GetProperty("detail").GetString());
         // Hard pin: the title never leaks the internal discriminant "Auth.AccountLocked".
         lockedJson.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
-    }
-
-    [Fact]
-    public async Task Verify_endpoint_also_honors_lockout_no_bypass()
-    {
-        // #503: /verify (re-auth) goes through the same ValidateCredentialsAsync — it must
-        // not be an unlocked brute-force bypass of the login lockout. /verify authenticates
-        // via the session (ICurrentUser), so a locked account can still call it and must be
-        // rejected on the credential check.
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"lockout-verify-{Guid.NewGuid()}@example.com";
-        var password = AuthTestHelpers.DefaultTestPassword;
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(factory, email, password, ct: ct);
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-
-        // 5 failed /verify attempts -> locks the account.
-        for (var i = 0; i < MaxFailedAttempts; i++)
-        {
-            var attempt = await _client.PostAsJsonAsync(
-                "/api/v1/auth/verify", new { password = "WrongPwd!" }, ct);
-            attempt.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        }
-
-        // The correct password must now still be rejected (locked) — /verify short-circuits like login.
-        var locked = await _client.PostAsJsonAsync("/api/v1/auth/verify", new { password }, ct);
-        locked.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 }

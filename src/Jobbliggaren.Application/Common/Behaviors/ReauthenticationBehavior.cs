@@ -6,7 +6,7 @@ namespace Jobbliggaren.Application.Common.Behaviors;
 
 /// <summary>
 /// Enforces server-side re-authentication for every <see cref="IReauthenticatingRequest"/> (C5,
-/// epik #481). On a failed password it throws <see cref="ReauthenticationFailedException"/> — mapped
+/// epik #481; a purpose-scoped grant since #1739). On a failed re-auth it throws <see cref="ReauthenticationFailedException"/> — mapped
 /// centrally to a byte-identical 401 (mirrors how <c>AuthorizationBehavior</c>/<c>ValidationBehavior</c>
 /// gate) — so the handler, UnitOfWork commit and audit row are all skipped. Placed after
 /// authorization (the actor is known) and before FieldEncryptionKeyPrefetch/UnitOfWork/Audit (a
@@ -36,8 +36,8 @@ public sealed class ReauthenticationBehavior<TMessage, TResponse>(
                     "A re-authenticating request reached a host with no IReauthenticationService " +
                     "registered. Re-auth is only supported in the Api composition.");
 
-            var result = await service.VerifyCurrentUserPasswordAsync(
-                reauthenticating.Password, cancellationToken);
+            var result = await service.VerifyCurrentUserGrantAsync(
+                reauthenticating.ReauthGrant, cancellationToken);
 
             if (result.IsFailure)
                 throw new ReauthenticationFailedException();

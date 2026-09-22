@@ -23,6 +23,7 @@ internal static partial class EmailTemplates
         LoginChallengeEmail.PendingDeletion pendingDeletion => LoginPendingDeletion(pendingDeletion),
         LoginChallengeEmail.NewAccountCode newAccountCode => LoginNewAccountCode(newAccountCode),
         LoginChallengeEmail.NewAccountCodeLimitReached => LoginNewAccountCodeLimitReached(),
+        LoginChallengeEmail.ReauthenticationCode reauthenticationCode => LoginReauthenticationCode(reauthenticationCode),
         _ => throw new UnreachableException("A LoginChallengeEmail variant has no template."),
     };
 
@@ -352,6 +353,60 @@ internal static partial class EmailTemplates
                         + "Därefter finns den inte kvar hos oss. Det här meddelandet innehåller ingen kod, "
                         + $"så inget konto kan skapas med det. {ProcessorHtml}")
                     + ControllerRightsAndComplaintHtml()
+                    + EmailHtml.SignOff()));
+    }
+
+    /// <summary>
+    /// A re-authentication code for a signed-in user (#1739, ADR 0142 D5): a code and never a link, to the
+    /// account's own address. It names what the code is for, because the operation it unlocks is the
+    /// account's deletion or the address it is reached at, and a holder of a hijacked session is who
+    /// requested it when it was not the owner. No Art. 14 block: the recipient is the account holder, and
+    /// the address is the one the account already holds.
+    /// </summary>
+    internal static EmailContent LoginReauthenticationCode(LoginChallengeEmail.ReauthenticationCode content)
+    {
+        var code = content.Code.Reveal();
+        var minutes = ChallengeMinutes();
+
+        return new EmailContent(
+            Subject: "Din bekräftelsekod till Jobbliggaren",
+            PlainTextBody: $"""
+                Någon som är inloggad på ditt konto på Jobbliggaren vill göra en ändring
+                som kräver att du bekräftar att det är du: radera kontot, byta e-postadress
+                eller byta lösenord.
+
+                Din bekräftelsekod är:
+                {code}
+
+                Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och
+                kan bara användas en gång. Mejlet innehåller ingen länk.
+
+                Om det inte var du är någon annan inloggad på ditt konto. Koden finns bara i
+                det här meddelandet, så ändringen kan inte göras utan den. Skriv till oss
+                så hjälper vi dig:
+                {ContactAddress}
+
+                Vänliga hälsningar,
+                Jobbliggaren
+                """,
+            HtmlBody: EmailHtml.Document(
+                title: "Din bekräftelsekod till Jobbliggaren",
+                preheader: $"Koden gäller i {minutes} minuter.",
+                body: EmailHtml.P(
+                        "Någon som är inloggad på ditt konto på Jobbliggaren vill göra en ändring som "
+                        + "kräver att du bekräftar att det är du: radera kontot, byta e-postadress eller "
+                        + "byta lösenord.")
+                    + EmailHtml.P("Din bekräftelsekod är:")
+                    + EmailHtml.P(code)
+                    + EmailHtml.P(
+                        $"Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och "
+                        + "kan bara användas en gång. Mejlet innehåller ingen länk.")
+                    + EmailHtml.LinkParagraph(
+                        "Om det inte var du är någon annan inloggad på ditt konto. Koden finns bara i det "
+                        + "här meddelandet, så ändringen kan inte göras utan den. Skriv till oss så hjälper "
+                        + "vi dig:",
+                        $"mailto:{ContactAddress}",
+                        ContactAddress)
                     + EmailHtml.SignOff()));
     }
 

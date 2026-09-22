@@ -244,9 +244,7 @@ public interface IEmailSender
 
     /// <summary>
     /// Sends the login-challenge mail (#1735, ADR 0142 D2): exactly one per admitted request, in the variant
-    /// <paramref name="content"/> names — a code and a link, a link only, closed registration, or pending
-    /// deletion. It is sent by the out-of-band consumer, never on the request path, and to the address as
-    /// submitted: for an address with no account there is no stored spelling to prefer.
+    /// <paramref name="content"/> names.
     /// <para>
     /// <b>Delivery-dependent, and since #1735 the only login path that works without a password.</b>
     /// <c>RequestLoginChallengeCommandHandler</c> consults <see cref="CanDeliver"/> as its first statement and

@@ -22,7 +22,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 
     public static TheoryData<string> Variants() =>
         ["code-and-link", "link-only", "registration-closed", "pending-deletion", "new-account-code",
-            "new-account-code-limit-reached"];
+            "new-account-code-limit-reached", "reauthentication-code"];
 
     private static EmailTemplates.EmailContent RenderVariant(string variant) => variant switch
     {
@@ -32,6 +32,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         "pending-deletion" => Render(new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19))),
         "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))),
         "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
+        "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
@@ -202,10 +203,38 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldContain(EmailTemplates.ContactAddress);
     }
 
+    [Fact]
+    public void ReauthenticationCode_carries_the_code_once_no_link_no_art_14_notice_and_the_way_back()
+    {
+        // #1739 — to the account holder's own address, which the account already holds: no Art. 14 block (the
+        // recipient is not class (3)), no link (a link yields a session, never a re-authentication), and the
+        // contact address for the case where it was not the holder who asked, since no self-service
+        // logout-everywhere exists for a passwordless account.
+        var rendered = Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")));
+
+        rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
+        rendered.PlainTextBody.ShouldNotContain("token=");
+        rendered.HtmlBody.ShouldNotContain("token=");
+        rendered.PlainTextBody.ShouldContain("ingen länk");
+
+        rendered.Subject.ShouldNotContain("042917");
+        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
+        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
+
+        var text = Unwrapped(rendered.PlainTextBody);
+        text.ShouldContain("ditt konto");
+        text.ShouldContain("radera kontot, byta e-postadress eller byta lösenord");
+        text.ShouldContain(EmailTemplates.ContactAddress);
+        text.ShouldNotContain("artikel 6.1");
+        text.ShouldNotContain("Personuppgiftsansvarig");
+        text.ShouldNotContain("alla enheter");
+    }
+
     [Theory]
     [InlineData("code-and-link")]
     [InlineData("link-only")]
     [InlineData("new-account-code")]
+    [InlineData("reauthentication-code")]
     public void Every_credential_bearing_variant_states_the_lifespan_from_the_policy(string variant)
     {
         RenderVariant(variant).PlainTextBody
@@ -235,6 +264,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.PendingDeletion)] = new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)),
         [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")),
         [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
+        [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")),
     };
 
     // The plain body is hard-wrapped; a sentence is asserted on its words, not on where a line breaks.

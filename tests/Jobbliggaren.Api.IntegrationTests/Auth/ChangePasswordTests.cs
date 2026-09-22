@@ -15,13 +15,15 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
 /// End-to-end tests for POST /api/v1/auth/change-password (#678, C5-password + C6 of epik #481) with
-/// server-enforced re-auth. The CURRENT password is the re-auth credential (ReauthenticationBehavior
-/// verifies it before the handler); on success the endpoint re-issues the current session and logs
-/// the user out everywhere (C6). Verifies:
+/// server-enforced re-auth. The re-auth credential is a purpose-scoped grant (#1739, ADR 0142 D5), minted
+/// through production by <see cref="ReauthTestHelpers"/>; the current password travels beside it because
+/// Identity requires it. On success the endpoint re-issues the current session and logs the user out
+/// everywhere (C6). Verifies:
 /// <list type="bullet">
 /// <item>Auth guard (401 without token)</item>
-/// <item>Wrong current password → byte-identical 401 (no oracle) and the password is unchanged</item>
-/// <item>Empty current / weak new password → 400 (ValidationBehavior before re-auth)</item>
+/// <item>An unusable grant → byte-identical 401 (no oracle) and the password is unchanged</item>
+/// <item>A wrong current password with a fresh grant → 400 from Identity, and the grant is spent</item>
+/// <item>Empty grant / empty current / weak new password → 400 (ValidationBehavior before re-auth)</item>
 /// <item>Valid change → 200 with a NEW sessionId, the old id dead, the new id live, and the new
 /// password (not the old) logs in</item>
 /// <item>C6 logout-everywhere: another device's session is invalidated</item>
@@ -37,21 +39,28 @@ public class ChangePasswordTests(ApiFactory factory)
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
+    // A well-formed grant nobody minted: a test fixture, not a secret.
+    private const string UnusableGrant = "AAECAwQFBgcICQoLDA0ODw"; // gitleaks:allow
+
     // Hardcoded TEST fixture (a new password used by the change-password flow), not a real
     // secret. Tripped the gitleaks generic-api-key heuristic; the inline allow is the durable,
     // rebase/squash-stable fix (a commit-fingerprint in .gitleaksignore breaks on every re-SHA).
     private const string NewPassword = "NyttL0senord123456"; // gitleaks:allow
 
     // Per-request Authorization so old-vs-new session checks never clobber a shared default header.
-    private async Task<HttpResponseMessage> ChangeAsync(string sessionId, string? current, string? updated, CancellationToken ct)
+    private async Task<HttpResponseMessage> ChangeAsync(
+        string sessionId, string? reauthGrant, string? current, string? updated, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
         {
-            Content = JsonContent.Create(new { currentPassword = current, newPassword = updated }),
+            Content = JsonContent.Create(new { reauthGrant, currentPassword = current, newPassword = updated }),
         };
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         return await _client.SendAsync(req, ct);
     }
+
+    private Task<string> MintGrantAsync(string sessionId, string email, CancellationToken ct) =>
+        ReauthTestHelpers.MintGrantAsync(_factory, _client, sessionId, email, ct);
 
     private async Task<HttpResponseMessage> GetMeAsync(string sessionId, CancellationToken ct)
     {
@@ -67,23 +76,23 @@ public class ChangePasswordTests(ApiFactory factory)
 
         var response = await _client.PostAsJsonAsync(
             "/api/v1/auth/change-password",
-            new { currentPassword = AuthTestHelpers.DefaultTestPassword, newPassword = NewPassword },
+            new { reauthGrant = UnusableGrant, currentPassword = AuthTestHelpers.DefaultTestPassword, newPassword = NewPassword },
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task POST_change_password_with_wrong_current_password_returns_401_and_does_not_change()
+    public async Task POST_change_password_with_an_unusable_grant_returns_401_and_does_not_change()
     {
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-wrong-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, "FelLosen123456", NewPassword, ct);
+        var response = await ChangeAsync(sessionId, UnusableGrant, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        // Byte-identical to the shared InvalidCredentials 401 (AuthProblem) — same oracle as /verify.
+        // Byte-identical to the shared InvalidCredentials 401 (AuthProblem) — the same 401 as /me/delete.
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
         json.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
@@ -92,6 +101,43 @@ public class ChangePasswordTests(ApiFactory factory)
         var login = await _client.PostAsJsonAsync(
             "/api/v1/auth/login", new { email, password = AuthTestHelpers.DefaultTestPassword }, ct);
         login.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task POST_change_password_with_a_wrong_current_password_returns_400_and_spends_the_grant()
+    {
+        // The current password is Identity's requirement, not the re-auth credential: the grant is redeemed
+        // BEFORE the handler, so Identity's refusal costs a fresh re-auth (ADR 0142 D3: a redemption is single
+        // use whichever way it ends). A replay of the same grant is then the uniform 401.
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"cp-mismatch-{Guid.NewGuid()}@example.se";
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
+        var grant = await MintGrantAsync(sessionId, email, ct);
+
+        var response = await ChangeAsync(sessionId, grant, "FelLosen123456", NewPassword, ct);
+        var replay = await ChangeAsync(sessionId, grant, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        replay.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await _client.PostAsJsonAsync(
+                "/api/v1/auth/login", new { email, password = AuthTestHelpers.DefaultTestPassword }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task POST_change_password_with_empty_grant_returns_400(string? reauthGrant)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var email = $"cp-emptygrant-{Guid.NewGuid()}@example.se";
+        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
+
+        var response = await ChangeAsync(sessionId, reauthGrant, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
+
+        // ValidationBehavior (NotEmpty on the grant) runs before ReauthenticationBehavior, so empty is 400
+        // (validation), not 401 (re-auth).
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Theory]
@@ -103,10 +149,10 @@ public class ChangePasswordTests(ApiFactory factory)
         var email = $"cp-emptycur-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, current, NewPassword, ct);
+        var response = await ChangeAsync(sessionId, UnusableGrant, current, NewPassword, ct);
 
         // ValidationBehavior (NotEmpty on the current password) runs before ReauthenticationBehavior,
-        // so empty is 400 (validation), not 401 (re-auth).
+        // so empty is 400 (validation), not 401 (re-auth); nothing was redeemed for it.
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
@@ -120,7 +166,7 @@ public class ChangePasswordTests(ApiFactory factory)
         var email = $"cp-weaknew-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        var response = await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, newPw, ct);
+        var response = await ChangeAsync(sessionId, UnusableGrant, AuthTestHelpers.DefaultTestPassword, newPw, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
@@ -131,8 +177,9 @@ public class ChangePasswordTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var email = $"cp-ok-{Guid.NewGuid()}@example.se";
         var oldSession = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
+        var grant = await MintGrantAsync(oldSession, email, ct);
 
-        var response = await ChangeAsync(oldSession, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
+        var response = await ChangeAsync(oldSession, grant, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -165,7 +212,7 @@ public class ChangePasswordTests(ApiFactory factory)
         // Both sessions authenticate before the change.
         (await GetMeAsync(deviceB, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        (await ChangeAsync(deviceA, AuthTestHelpers.DefaultTestPassword, NewPassword, ct))
+        (await ChangeAsync(deviceA, await MintGrantAsync(deviceA, email, ct), AuthTestHelpers.DefaultTestPassword, NewPassword, ct))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         // C6 logout-everywhere: the OTHER device is invalidated.
@@ -180,7 +227,7 @@ public class ChangePasswordTests(ApiFactory factory)
         var email = $"cp-audit-{Guid.NewGuid()}@example.se";
         var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: ct);
 
-        (await ChangeAsync(sessionId, AuthTestHelpers.DefaultTestPassword, NewPassword, ct))
+        (await ChangeAsync(sessionId, await MintGrantAsync(sessionId, email, ct), AuthTestHelpers.DefaultTestPassword, NewPassword, ct))
             .StatusCode.ShouldBe(HttpStatusCode.OK);
 
         using var scope = _factory.Services.CreateScope();
@@ -216,7 +263,8 @@ public class ChangePasswordTests(ApiFactory factory)
             .GetProperty("sessionId").GetString();
         persistentSession.ShouldNotBeNullOrEmpty();
 
-        var response = await ChangeAsync(persistentSession!, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
+        var grant = await MintGrantAsync(persistentSession!, email, ct);
+        var response = await ChangeAsync(persistentSession!, grant, AuthTestHelpers.DefaultTestPassword, NewPassword, ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);

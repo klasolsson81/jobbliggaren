@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.Application.Common.Validation;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Microsoft.AspNetCore.DataProtection;
@@ -285,5 +286,46 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         var stored = Encoding.Latin1.GetString((byte[])(await _mux.GetDatabase().StringGetAsync(keys[0]))!);
         stored.ShouldNotContain(email);
         stored.ShouldNotContain(token.Reveal());
+    }
+
+    [Fact]
+    public async Task The_stored_length_is_the_same_for_every_purpose_and_every_address()
+    {
+        // #1739 (security-auditor's Minor 1 on #1793): the three purposes share one key family, so an unpadded
+        // value would tell a Redis reader which purpose a grant was issued for, and how long its address is.
+        // The ceiling is one constant for every payload — the longest address a validator admits, every
+        // character escaped — so a 256-character address and a re-authentication grant with none protect to
+        // one length. The DataProtector adds a fixed envelope, so the protected lengths compare directly.
+        var longest = $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se";
+        longest.Length.ShouldBe(EmailAddressRules.MaximumLength);
+        GrantSubject[] subjects =
+        [
+            new GrantSubject.LoginComplete("a@b.se"),
+            new GrantSubject.LoginComplete(longest),
+            new GrantSubject.Reauthentication(Guid.NewGuid()),
+            new GrantSubject.ChangeEmail(Guid.NewGuid(), "a@b.se"),
+            new GrantSubject.ChangeEmail(Guid.NewGuid(), longest),
+        ];
+        var db = _mux.GetDatabase();
+
+        var lengths = new List<long>();
+        foreach (var subject in subjects)
+        {
+            var token = await _store.IssueAsync(subject, Ct);
+            lengths.Add(await db.StringLengthAsync(RedisGrantStore.Key(token)));
+        }
+
+        lengths.Distinct().ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task A_padded_grant_still_redeems_to_its_subject()
+    {
+        var userId = Guid.NewGuid();
+        var subject = new GrantSubject.ChangeEmail(
+            userId, $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se");
+        var token = await _store.IssueAsync(subject, Ct);
+
+        (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
     }
 }

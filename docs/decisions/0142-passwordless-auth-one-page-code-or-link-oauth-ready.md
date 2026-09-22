@@ -292,7 +292,9 @@ to the old address as the detection channel. After D4 the session cookie is the 
 it lives 180 days; option (i) — one code to the new address — would let a stolen session repoint the
 recovery vector to the attacker's inbox, which is permanent takeover with detection sold as
 prevention. Option (iii) — re-auth plus today's DataProtector confirmation link — would keep two
-inbox-proof mechanisms and leave #706 open.
+inbox-proof mechanisms and leave #706 open. Between PR 3's deploy and PR 4's the delivered state IS
+(iii), transiently: a grant re-authentication in front of the old mailed link. PR 4 removes it; the
+rejection stands on DRY and is not reopened by the interval.
 
 Order: re-auth against the current address runs **first** and refuses before anything is minted.
 `IReauthenticatingRequest.Password` is renamed to a purpose-scoped grant (`string? ReauthGrant`);
@@ -300,7 +302,10 @@ Order: re-auth against the current address runs **first** and refuses before any
 marker, the validator, and the behavior's namespace — measured) and only its prose is corrected.
 `ReauthenticationService.VerifyCurrentUserPasswordAsync` → `VerifyCurrentUserGrantAsync`; the
 soft-delete gate (#1349) stays verbatim; the `EmailNotConfirmed` normalisation sentence is deleted,
-not rewritten. `DeleteAccountCommand` follows. "Så få klick som möjligt" is the directive about the
+not rewritten. The marker has THREE implementers, not two: `DeleteAccountCommand`, `ChangeEmailCommand`
+and `ChangePasswordCommand`, on which `ReauthenticationTripwireTests`' name pattern forces the marker;
+that one carries `ReauthGrant` BESIDE `CurrentPassword`, because Identity's `ChangePasswordAsync`
+requires the argument, until 5a removes the surface. "Så få klick som möjligt" is the directive about the
 login funnel; changing the recovery vector is rare and its failure is permanent — two inboxes is two
 sends, which is arithmetic.
 
@@ -363,10 +368,31 @@ inside its own session, not an observation.
 
 **The acceptance line of #1739 that asked for "audit rows as today (`reauth_succeeded` / `_failed`)" rested on a
 false premise:** no such event existed anywhere, and a failed re-authentication deliberately writes nothing, since
-the behavior sits before the unit of work and the audit stage. PR 3 is to add two ops-log lines, written from the
+the behavior sits before the unit of work and the audit stage. PR 3 added two ops-log lines, written from the
 service and never from the behavior, carrying the user id and the purpose and never an address, a code or a token
-(`security-auditor`). `audit_log` rows were ruled out: a failure row contradicts the behavior's placement, and a
-success row duplicates the operation's own.
+(`security-auditor`): `reauthentication_succeeded` and `reauthentication_failed`. `audit_log` rows were ruled out: a
+failure row contradicts the behavior's placement, and a success row duplicates the operation's own.
+
+**Re-authentication is a grant (PR 3).** Two authenticated routes, `POST /auth/reauth` and `POST /auth/reauth/verify`:
+the first reads the account's own address from the session's user, never from the client, and answers only the
+challenge id, which appears in no log line and no URL; the second presents the code with the binding
+`(Reauthentication, userId)` and answers a grant, never a session — the handlers reach neither the outcome
+function nor the session store (`ReauthenticationChainTests`). The gates on the request, cheapest first and each
+spent only when the one before admitted: the sender's capability (503), the per-user cooldown (409), the shared
+per-address mail budget (409 with the cooldown's own code, on purpose), the per-user code budget (409, terminal:
+no link to fall back to), then the record and a synchronous send. The two per-user budgets are keyed by the user
+id and never the address, pinned on the handler. `IReauthenticatingRequest.Password` became `ReauthGrant` on all
+three implementers; `ReauthenticationService` takes `IGrantStore` in place of `IUserAccountService` and redeems
+with `GrantAssertion.Of(new Reauthentication(userId))`, so it compares nothing itself; the grant payload is padded
+to one ceiling for every purpose. **The declared window, and why it is a non-finding.** From this PR's deploy
+until 3b's, the delivered frontend still sends a password on three flows — delete-account, change-email and
+change-password — and each answers 400 (`ReauthGrant` binds null; the validator refuses before anything is
+redeemed), never a false wrong-password claim. The box holds two accounts, both the controller's own, and
+registration is closed; that reading was taken 2026-09-21 and re-taken at this PR, read-only on the box
+2026-09-22T00:23:31Z: 2 rows in `AspNetUsers`, 2 the controller's; `Auth__RegistrationsOpen=false`, 1 line. No
+data subject meets the
+window, so it is a non-finding: no §9.6 (3) acceptance, no Klas grant, no signature. The three Playwright
+tests of the delete flow are `test.fixme` naming #1740.
 
 ### D6 — The consent record: a contract stamp, not Art. 7 consent
 
@@ -549,7 +575,11 @@ the `Session` profile. Every other class uses the passwordless one. Membership f
 never whether a class went red: a vacuous pass is green.
 
 **Migration rule.** A class moves to the passwordless bootstrap in the PR that removes its password
-or `Session` premise (3a for `/auth/verify` and `/me/delete`, 5a for the rest). The password
+or `Session` premise (3a for `/auth/verify` and `/me/delete`, 5a for the rest). In 3a `/auth/verify` is
+RETIRED, not moved — the query, its handler, validator and tests are deleted, since the frontend never
+called it — and `DeleteMeTests` moves with its lockout oracle rewritten as grant-refusal parity: an
+unknown grant, a spent one, another user's and its owner's afterwards answer one byte-identical 401,
+every premise produced by production. The password
 bootstrap, `DefaultTestPassword` and `LoginAndGetSessionIdAsync` are deleted in the PR that moves the
 last class, which ties them to the surfaces rather than to a part number.
 
@@ -1346,7 +1376,7 @@ boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1
 `redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
-true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate, re-authentication as a grant, change-email with two codes → **3b** #1740 Mina sidor →
+true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes → **3b** #1740 Mina sidor →
 **4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

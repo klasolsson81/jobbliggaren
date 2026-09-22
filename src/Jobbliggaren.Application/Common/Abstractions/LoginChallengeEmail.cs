@@ -42,4 +42,11 @@ public abstract record LoginChallengeEmail
 
     /// <summary>An address with no account while registration is open, past the code budget: no credential.</summary>
     public sealed record NewAccountCodeLimitReached : LoginChallengeEmail;
+
+    /// <summary>
+    /// A re-authentication code for a signed-in user (#1739, ADR 0142 D5), sent to the account's own address.
+    /// A code and never a link: a link yields a session, never a re-authentication. No Art. 14 notice — the
+    /// recipient is the account holder, whose address the account already holds.
+    /// </summary>
+    public sealed record ReauthenticationCode(LoginCode Code) : LoginChallengeEmail;
 }

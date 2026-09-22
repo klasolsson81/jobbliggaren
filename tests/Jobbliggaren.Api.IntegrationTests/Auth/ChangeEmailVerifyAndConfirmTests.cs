@@ -4,10 +4,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -140,7 +144,7 @@ public class ChangeEmailVerifyAndConfirmTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_wrong_code_is_refused_and_issues_no_grant()
+    public async Task A_wrong_code_is_refused_with_the_login_codes_error()
     {
         var email = Address("wrong");
         var newEmail = Address("wrong-new");
@@ -326,6 +330,27 @@ public class ChangeEmailVerifyAndConfirmTests(ApiFactory factory)
             path, new { challengeId = "AAECAwQFBgcICQoLDA0ODw", code = "042917", changeEmailGrant = "x", newEmail = "a@b.se" }, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/auth/change-email")]
+    [InlineData("/api/v1/auth/change-email/verify")]
+    [InlineData("/api/v1/auth/change-email/confirm")]
+    public void The_three_routes_carry_authorization_and_the_auth_write_rate_limit_as_metadata(string route)
+    {
+        // The commands are IAuthenticatedRequest, so AuthorizationBehavior answers 401 too, and a status-code test
+        // cannot tell the two 401s apart; the route-level requirement is pinned on the metadata, as for /reauth.
+        _ = _factory.CreateClient();
+
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText == route)
+            .ShouldHaveSingleItem();
+
+        endpoint.Metadata.GetMetadata<IAuthorizeData>().ShouldNotBeNull();
+        endpoint.Metadata.GetMetadata<IAllowAnonymous>().ShouldBeNull();
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>().ShouldNotBeNull()
+            .PolicyName.ShouldBe(RateLimitingExtensions.AuthWritePolicy);
     }
 
     [Fact]

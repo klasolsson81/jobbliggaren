@@ -101,9 +101,9 @@ describe("MinaSidorPage", () => {
     [
       "rateLimited",
       { kind: "rateLimited", retryAfterSeconds: 30 } as const,
-      /För många förfrågningar/,
+      /för många förfrågningar på kort tid/,
     ],
-    ["error", { kind: "error" } as const, /Profilen kunde inte hämtas just nu/],
+    ["error", { kind: "error" } as const, /kunde inte läsas in just nu/],
   ])(
     "keeps the account cards when the profile result is %s",
     async (_kind, result, message) => {

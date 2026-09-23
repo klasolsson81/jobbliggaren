@@ -112,7 +112,7 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
       <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
         {ts("account.changeEmail.current", { email: currentEmail })}
       </p>
-      <p className="text-body-sm text-text-primary">
+      <p className="mt-2 text-body-sm text-text-primary">
         {ts("account.changeEmail.description")}
       </p>
       {/* Persistent live region: the container is always in the DOM and the text is

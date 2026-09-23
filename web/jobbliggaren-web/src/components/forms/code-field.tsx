@@ -3,8 +3,7 @@ import { Input } from "@/components/ui/input";
 
 // The six-digit code field, in the one shape ADR 0142's "Page form" binds (design M3): ONE input,
 // never six boxes, a visible label, `one-time-code` so the platform's autofill fills it, numeric input
-// mode, no placeholder. Every code the product asks for is typed here, the login page's and the
-// re-authentication's alike, so the shape cannot drift between them.
+// mode, no placeholder. Every code the product asks for is typed here.
 //
 // The ids are props: a page can hold two code fields at once (a dialog over a card that already shows
 // one), and two elements must never share an id.

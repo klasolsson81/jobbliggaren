@@ -1,5 +1,7 @@
 "use client";
 
+// "use client": a countdown hook holding timer state — browser-only.
+
 import { useEffect, useState } from "react";
 
 /**

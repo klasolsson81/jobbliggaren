@@ -560,8 +560,8 @@
   "minaSidor": {
     "title": "My pages",
     "lede": "Here you manage your account, your notifications and which jobs you are looking for.",
-    "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
-    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment.",
+    "rateLimited": "Your matching choices, notifications and language could not be loaded, because too many requests came in a short time. Try reloading the page in {seconds, plural, one {# second} other {# seconds}}.",
+    "profileLoadError": "Your matching choices, notifications and language could not be loaded right now. Try reloading the page in a moment.",
     "meta": {
       "title": "My pages"
     }

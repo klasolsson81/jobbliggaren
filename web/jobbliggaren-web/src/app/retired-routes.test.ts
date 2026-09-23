@@ -58,6 +58,20 @@ function directoryNames(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+/** The URL of every `page.tsx` under `dir`. Route groups add no segment; slots and private folders serve none. */
+function servedRoutes(dir: string, segments: string[] = [], acc: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith("@") || entry.name.startsWith("_")) continue;
+      const next = entry.name.startsWith("(") ? segments : [...segments, entry.name];
+      servedRoutes(join(dir, entry.name), next, acc);
+    } else if (entry.name === "page.tsx") {
+      acc.push("/" + segments.join("/"));
+    }
+  }
+  return acc;
+}
+
 /** The path as a whole segment: `/mig` must not match `/migrate`, nor `/mig-x`. */
 function producerPattern(path: string): RegExp {
   return new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`);
@@ -77,11 +91,9 @@ describe.each(RETIRED)("the retired route $path", ({ path, destination, withSubp
     }
   });
 
-  it("has no route directory left to shadow the redirect, and the destination exists", () => {
-    const names = directoryNames(APP);
-
-    expect(names).not.toContain(path.slice(1));
-    expect(names).toContain(destination.slice(1));
+  it("has no route directory left to shadow the redirect, and a page serves the destination", () => {
+    expect(directoryNames(APP)).not.toContain(path.slice(1));
+    expect(servedRoutes(APP)).toContain(destination);
   });
 
   it("has no producer left in src/, in code or in a comment", () => {

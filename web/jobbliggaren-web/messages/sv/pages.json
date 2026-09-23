@@ -560,8 +560,8 @@
   "minaSidor": {
     "title": "Mina sidor",
     "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
-    "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
+    "rateLimited": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "profileLoadError": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "meta": {
       "title": "Mina sidor"
     }

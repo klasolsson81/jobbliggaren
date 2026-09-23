@@ -37,7 +37,6 @@ import { onPlainNav } from "@/lib/nav/modified-click";
  *
  * Tema-logik finns INTE här — `.jp-header` är vit i båda teman via
  * CSS-scopad override (`[data-theme="dark"] .jp-header`, ADR 0052 Beslut 6).
- * Theme/lang-toggles flyttade till Mina sidor + landing-footer (HANDOVER §0.7).
  */
 
 type NavLabelKey = "oversikt" | "jobb" | "ansokningar" | "foretag" | "cv";

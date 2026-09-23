@@ -294,10 +294,8 @@ public class JobSeekerTests
         // legacy name (tests/Shared/LegacyAccountName.cs) name: the current writer cannot produce the
         // state, so a fixture carrying a name asserts about a row a retired actor wrote.
         //
-        // (1) The `private set` relaxed to a public one.
-        var setter = typeof(JobSeeker).GetProperty(nameof(JobSeeker.DisplayName))!.SetMethod;
-        setter.ShouldNotBeNull();
-        setter.IsPublic.ShouldBeFalse();
+        // (1) A setter of any accessibility. Without one, only a constructor can assign the property.
+        typeof(JobSeeker).GetProperty(nameof(JobSeeker.DisplayName))!.SetMethod.ShouldBeNull();
 
         // (2) The factory taking a name again, required or optional: its parameters are exactly these.
         typeof(JobSeeker)

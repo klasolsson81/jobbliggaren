@@ -28,7 +28,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Admin;
 /// <list type="bullet">
 /// <item><b>Audit-row proof:</b> a successful trigger/retry writes exactly one audit_log row with the
 /// expected EventType for the admin actor; a REJECTED retry (NotFound/Conflict) writes NO row
-/// (AuditBehavior skips on failure). Mirrors <see cref="MyProfile.UpdateMyProfileAuditTests"/>.</item>
+/// (AuditBehavior skips on failure).</item>
 /// <item><b>Trigger allowlist over HTTP:</b> a non-allowlisted id → 400.</item>
 /// <item><b>Retry outcome mapping over HTTP:</b> Requeued → 200, JobNotFound → 404,
 /// NotInFailedState → 409.</item>

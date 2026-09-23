@@ -162,7 +162,7 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         atHead.MaxLength.ShouldBe(200);
         atHead.Default.ShouldBeNull("a default would hand every future insert a name nobody typed");
 
-        // --- 2. Two rows at head, both through the aggregate. The nameless one is the state the Up
+        // --- 2. Two rows at head. The nameless one is the state the Up
         // exists for, and its SaveChanges is the proof that EF persists an absent name here.
         var namedId = await RegisterSeekerAsync(SurvivingName, ct);
         var namelessId = await RegisterSeekerAsync(null, ct);

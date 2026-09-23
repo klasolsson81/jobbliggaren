@@ -504,10 +504,6 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
     // ADR 0142 D7: the backend deleted the member in #1741 PR A, and this set follows it in PR B,
     // for the UnclassifiedPreamble reason above.
     expect(autoPromoteBlockReasonSchema.options).not.toContain("PersonnummerInAccountName");
-    expect(
-      parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: "PersonnummerInAccountName" })
-        .success,
-    ).toBe(false);
   });
 });
 

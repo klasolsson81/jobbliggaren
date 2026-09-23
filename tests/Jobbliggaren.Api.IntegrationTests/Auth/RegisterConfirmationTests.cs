@@ -106,11 +106,6 @@ public class RegisterConfirmationTests(ApiFactory factory)
         // credential-dependent, NOT existence-dependent — Identity validates the password BEFORE
         // uniqueness, so a taken and a fresh address BOTH get the same Auth.PwnedPassword 400. This
         // pins that no breached-vs-duplicate status oracle exists.
-        //
-        // It is no longer the ONLY register 400 under the flag: #1117 added the display-name
-        // personnummer refusal, which is input-dependent and existence-independent for the same
-        // reason class, and is pinned by its own parity test below. The invariant this file defends
-        // is not "exactly one 400 exists" but "every reachable 400 is existence-INDEPENDENT".
         var ct = TestContext.Current.CancellationToken;
         var breachedPassword = $"Breached-{Guid.NewGuid():N}";
         _factory.BreachChecks.SetVerdict(breachedPassword, BreachCheckVerdict.Breached);

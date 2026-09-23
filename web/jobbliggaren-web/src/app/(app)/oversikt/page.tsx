@@ -135,7 +135,7 @@ export default async function OversiktRoute({
   }
 
   const displayName =
-    profile.kind === "ok" ? profile.data.displayName : null;
+    profile.kind === "ok" ? (profile.data.displayName ?? null) : null;
 
   // ADR 0079 STEG 6 — live match-count → number | null. Endast `ok` ger en
   // siffra; alla andra Result-kinds (unauthorized/rateLimited/error) blir null

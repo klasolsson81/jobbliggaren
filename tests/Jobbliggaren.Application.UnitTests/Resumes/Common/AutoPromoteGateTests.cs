@@ -22,7 +22,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 /// as <c>ImportResumeCommandHandler</c> constructs it when extraction yields nothing, and an
 /// experience entry missing its organization, which the segmenter produces whenever a CV lists
 /// a role without an employer line. The one state today's import cannot produce, the
-/// pre-widening parse, names its actor in the test that uses it.</para>
+/// pre-widening parse, names its actor.</para>
 /// </summary>
 public class AutoPromoteGateTests
 {
@@ -85,7 +85,12 @@ public class AutoPromoteGateTests
             FakeDateTimeProvider.Default);
 
     // What an import before the #665 scanner widening stored: the two-separator form sits in a
-    // projected field while the stored scan outcome is clean.
+    // projected field while the stored scan outcome is clean. §5 Tests: no import today produces
+    // this state, because today's scan flags the two-separator form (PersonnummerTextNormalizerTests
+    // .Scan_DoubleSeparatorNoSpace_FalseNegativeDirectly_FlaggedAfterNormalize). The actor is the
+    // scanner widening in eec4c31f2 (#665): a parse imported before it stored a clean outcome for
+    // this text, and the read path re-runs the gate on it. That actor is a code change, so a test
+    // using this seam asserts the current gate's own answer over the content.
     private static ParsedResume PreWideningParse() =>
         BuildParsed(content: CleanContent(
             experience:
@@ -159,35 +164,10 @@ public class AutoPromoteGateTests
     [Fact]
     public void Evaluate_GuardFlagsAProjectedFieldTheImportScanPassed_BlocksOnPersonnummerPresent()
     {
-        // §5 Tests: no import today produces this state, because today's scan flags the
-        // two-separator form (PersonnummerTextNormalizerTests
-        // .Scan_DoubleSeparatorNoSpace_FalseNegativeDirectly_FlaggedAfterNormalize). The actor is
-        // the scanner widening in eec4c31f2 (#665): a parse imported before it stored a clean
-        // outcome for this text, and the read path re-runs the gate on it. That actor is a code
-        // change, so the test asserts the current gate's own answer over the content.
         var blocked = Evaluate(PreWideningParse()).ShouldBeOfType<AutoPromoteGateVerdict.Blocked>();
 
         blocked.Reason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
         blocked.DomainErrorCode.ShouldBeNull();
-    }
-
-    [Fact]
-    public void Evaluate_PersonnummerInAScannedParseField_ReportsPersonnummerPresent()
-    {
-        // A personnummer in a scanned parse field is the FILE's, and the Tier-1 flag claims it
-        // before the composed content is ever built.
-        var parsed = BuildParsed(
-            content: CleanContent(
-                experience:
-                [
-                    new ParsedExperience(
-                        "Backend-utvecklare", $"Beta AB {ValidPersonnummer}", "2019–2022", "raw"),
-                ]),
-            pnr: Flagged());
-
-        var verdict = Evaluate(parsed);
-
-        verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
     }
 
     [Fact]

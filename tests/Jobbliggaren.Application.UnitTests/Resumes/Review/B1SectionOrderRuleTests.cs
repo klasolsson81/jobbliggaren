@@ -236,6 +236,33 @@ public class B1SectionOrderRuleTests
     }
 
     [Fact]
+    public async Task B1_ShouldMissTheContactSection_OnACanonicalCvWithNoContactFields()
+    {
+        var content = new ResumeContent(
+            new PersonalInfo(null, null, null, null),
+            experiences:
+            [
+                new Experience("Acme AB", "Backend-utvecklare",
+                    new DateOnly(2021, 1, 1), new DateOnly(2024, 1, 1),
+                    "Levererade 3 plattformsmigrationer."),
+            ],
+            educations:
+            [
+                new Education("KTH", "Civilingenjör", new DateOnly(2016, 8, 1), new DateOnly(2021, 6, 1)),
+            ]);
+
+        var result = await NewEngine().ReviewAsync(
+            CvReviewContext.FromCanonical(content, ResumeContentLinearizer.Linearize(content), ResumeLanguage.Sv),
+            RenderProfile.Ats,
+            TestContext.Current.CancellationToken);
+
+        var b1 = Verdict(result, "B1");
+        b1.Verdict.ShouldBe(CriterionVerdict.Warn);
+        b1.Evidence.ShouldHaveSingleItem().ShouldBeOfType<StructuralEvidence>()
+            .Observation.ShouldBe("Saknar sektion(er): kontakt.");
+    }
+
+    [Fact]
     public async Task B1_ShouldFindTheContactSection_OnAStagedFileWhoseOnlyContactFieldIsAPhone()
     {
         // The segmenter reports a phone-only contact as Degraded, not NotFound

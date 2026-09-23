@@ -31,7 +31,7 @@ namespace Jobbliggaren.Worker.IntegrationTests.Security;
 ///   1. The handler DECRYPTS the parse's Form-B content shadow under a warm owner DEK,
 ///      projects it, and persists a new Resume whose Master <c>content_enc</c> is ciphertext
 ///      (<c>v1:</c> sentinel, the profile PII marker absent on disk) that round-trips to the
-///      verbatim content — with the ACCOUNT display name, never the file's contact name; the
+///      verbatim content; the
 ///      source ParsedResume is <c>Promoted</c> + soft-deleted, and the distinct Art. 22
 ///      audit row (<c>Resume.AutoPromotedFromParsed</c>) is in the same database.
 ///   2. A LeftPending outcome persists NOTHING relationally: no resume row, the artifact
@@ -158,10 +158,10 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         return raw is null or DBNull ? null : raw.ToString();
     }
 
-    // ── 1. Clean parse → encrypted Resume, account name, Promoted artifact, distinct audit ─
+    // ── 1. Clean parse → encrypted Resume, Promoted artifact, distinct audit ─
 
     [Fact]
-    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_GeneratedLabelAccountNamed_AuditedDistinctly()
+    public async Task AutoPromote_CleanConfidentParse_PersistsEncryptedResume_GeneratedLabelAndNoName_AuditedDistinctly()
     {
         var ct = TestContext.Current.CancellationToken;
         var userId = Guid.NewGuid();

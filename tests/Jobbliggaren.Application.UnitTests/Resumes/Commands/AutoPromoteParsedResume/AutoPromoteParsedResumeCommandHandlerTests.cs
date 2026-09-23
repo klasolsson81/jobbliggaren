@@ -21,7 +21,7 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.AutoPromoteParsedR
 
 // CV-pivot PR 5a (CTO-bind 2026-07-17) — the "spara direkt" auto-promote of a CLEAN
 // PendingReview ParsedResume, verbatim, no synthesis. The handler orchestrates: auth →
-// owner {Id, DisplayName} projection → owner-scoped tracked load (IDOR fail-closed, parity
+// owner {Id} projection → owner-scoped tracked load (IDOR fail-closed, parity
 // PromoteParsedResume) → TWO policy gates (pnr → extraction failure; #1060 retired the
 // preamble gate and narrowed confidence to Failed) → verbatim
 // projection → shared pnr guard on the COMPOSED dto → ToDomain → CreateFromParsed
@@ -49,9 +49,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     // tests' positive cases). Must NOT appear in the clean fixtures below.
     private const string ValidPersonnummer = "811218-9876";
 
-    /// <summary>The account holder's display name — the BOUND name source (Klas
-    /// 2026-07-16). Deliberately different from the parsed contact name below so every
-    /// happy-path assertion also pins "never the parsed name".</summary>
+    /// <summary>The account holder's display name.</summary>
     private const string AccountName = "Anna Kontosson";
 
     /// <summary>The name the FILE claims — must never reach the canonical CV.</summary>
@@ -137,7 +135,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             : JobSeeker.Register(userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         if (registered.IsFailure)
+        {
+            registered.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
             db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
+        }
         var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -424,9 +425,9 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>The arm that must NOT be narrowed away: extraction produced nothing usable,
-    /// so promoting would build a canonical CV out of the account display name and nothing
-    /// else — a CV that says LESS than the file did, the same dishonesty class as dropping
-    /// (ADR 0109 §3). Narrowing this too would delete a working signal.</summary>
+    /// so promoting would build a canonical CV that says LESS than the file did, the same
+    /// dishonesty class as dropping (ADR 0109 §3). Narrowing this too would delete a working
+    /// signal.</summary>
     [Fact]
     public async Task Handle_FailedExtraction_LeftPendingParseNotConfident()
     {

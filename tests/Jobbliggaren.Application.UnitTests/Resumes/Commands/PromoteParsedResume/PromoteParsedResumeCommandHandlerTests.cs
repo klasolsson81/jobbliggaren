@@ -465,14 +465,15 @@ public class PromoteParsedResumeCommandHandlerTests
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
 
         var degraded = new ResumeContentDto(
-            new PersonalInfoDto(new string('A', 201), null, null, null),
-            Experiences: [], Educations: [], Skills: [], Summary: null);
+            new PersonalInfoDto("Anna Andersson", null, null, null),
+            Experiences: [new ExperienceDto("", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, null)],
+            Educations: [], Skills: [], Summary: null);
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value, degraded), TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameTooLong");
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
         // CreateFromParsed failed before Promote — the ParsedResume is untouched.
         parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
         parsed.DeletedAt.ShouldBeNull();

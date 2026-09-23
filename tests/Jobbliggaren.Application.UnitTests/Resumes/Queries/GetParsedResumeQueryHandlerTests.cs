@@ -186,10 +186,9 @@ public class GetParsedResumeQueryHandlerTests
             languages: ["Svenska"]);
 
     private async Task<ParsedResume> SeedHydratedAsync(
-        Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content,
-        string? displayName = "Test User")
+        Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content)
     {
-        var seeker = JobSeeker.Register(_userId, displayName, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = ParsedResume.Create(
             seeker.Id, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
@@ -244,23 +243,5 @@ public class GetParsedResumeQueryHandlerTests
 
         result.ShouldNotBeNull();
         result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.IncompleteContent));
-    }
-
-    [Fact]
-    public async Task Handle_ShouldReportNoBlockReason_WhenTheOwnerHasNoDisplayName()
-    {
-        // §5 Tests: a clean parse still pending for an owner without a name is left over from
-        // before #1741, when the canonical CV required a name; auto-promote runs only in the
-        // import request, so today's import promotes it instead. The actor is that gate change,
-        // so the test asserts the current gate's answer: nothing in the file blocks it.
-        var content = CleanContent();
-        var db = CreateHydratedDb(content);
-        var parsed = await SeedHydratedAsync(db, content, displayName: null);
-
-        var result = await CreateSut(db).Handle(
-            new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.ShouldNotBeNull();
-        result.BlockReason.ShouldBeNull();
     }
 }

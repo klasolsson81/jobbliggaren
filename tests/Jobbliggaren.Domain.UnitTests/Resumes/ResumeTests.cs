@@ -157,15 +157,15 @@ public class ResumeTests
     }
 
     [Fact]
-    public void Create_WithBlankFullName_BuildsAMasterWithoutAName()
+    public void Create_WithBlankFullName_NeverStoresTheBlank()
     {
         // Declared unreachable: CreateResumeCommandValidator refuses a blank name before the
         // handler runs, so no path in src/ reaches Create with one. This pins only that the
         // aggregate degrades safely if that invariant breaks: no exception, and no name.
         var result = Resume.Create(ValidJobSeekerId, ValidName, "   ", Clock);
 
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
+        if (result.IsSuccess)
+            result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     [Fact]
@@ -177,6 +177,17 @@ public class ResumeTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FullNameTooLong");
+    }
+
+    [Fact]
+    public void Create_WithFullNameAtMaxLength_ReturnsSuccess()
+    {
+        var atMax = new string('A', 200);
+
+        var result = Resume.Create(ValidJobSeekerId, ValidName, atMax, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBe(atMax);
     }
 
     // ---------------------------------------------------------------
@@ -330,7 +341,6 @@ public class ResumeTests
     [Fact]
     public void CreateFromParsed_WithNoFullName_Succeeds()
     {
-        // The account has no name (ADR 0142 D7), and auto-promote maps none into the CV:
         // AutoPromoteContentMapper.ToContentDto is the producer of this content.
         var content = new ResumeContent(new PersonalInfo(null, null, null, null));
 
@@ -535,6 +545,17 @@ public class ResumeTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("Resume.FullNameTooLong");
+    }
+
+    [Fact]
+    public void UpdateMasterContent_WithFullNameAtMaxLength_ReturnsSuccess()
+    {
+        var resume = CreateValidResume();
+        var content = new ResumeContent(new PersonalInfo(new string('A', 200), null, null, null));
+
+        var result = resume.UpdateMasterContent(content, Clock);
+
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact]

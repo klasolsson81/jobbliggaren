@@ -27,8 +27,7 @@ public class GetMyProfileQueryHandlerTests
         var result = await handler.Handle(new GetMyProfileQuery(), CancellationToken.None);
 
         result.ShouldNotBeNull();
-        result!.DisplayName.ShouldBe("Klas Olsson");
-        result.Id.ShouldBe(seekerResult.Value.Id.Value);
+        result!.Id.ShouldBe(seekerResult.Value.Id.Value);
         // A never-set user projects an EMPTY overlay (present, not null/absent) so the FE can
         // .map() it safely (ADR 0079-amendment read-side projection).
         result.PreferredOccupationExperience.ShouldBeEmpty();

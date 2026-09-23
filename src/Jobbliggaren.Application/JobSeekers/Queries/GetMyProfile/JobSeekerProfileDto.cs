@@ -4,7 +4,6 @@ namespace Jobbliggaren.Application.JobSeekers.Queries.GetMyProfile;
 
 public sealed record JobSeekerProfileDto(
     Guid Id,
-    string? DisplayName,
     string Language,
     // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in, GDPR Art. 6/7,
     // default OFF per PR-1) + the digest cadence, projected here so the settings toggle +
@@ -61,7 +60,6 @@ public sealed record JobSeekerProfileDto(
 {
     public static JobSeekerProfileDto FromDomain(JobSeeker js) => new(
         js.Id.Value,
-        js.DisplayName,
         js.Preferences.Language,
         js.Preferences.BackgroundMatchNotificationsEnabled,
         js.Preferences.DigestCadence,

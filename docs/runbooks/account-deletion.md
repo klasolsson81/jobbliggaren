@@ -8,12 +8,13 @@ delbeslut 3-6. Stänger del 2 av TD-16.
 
 ## 1. Översikt
 
-Användaren raderar sitt konto via `DELETE /api/v1/me`. Flödet har två
-faser:
+Användaren raderar sitt konto på `/mina-sidor` med en kod till kontots egen adress
+(`POST /api/v1/me/delete`, ADR 0142 D5, #1740). När koden inte går att få raderar en operatör på
+en mejlad begäran (§4.3). Flödet har två faser:
 
 | Fas | När | Vad | Vem |
 |---|---|---|---|
-| **Soft-delete** | Direkt vid `DELETE /me` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API |
+| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API, eller en operatör (§4.3) |
 | **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. | `HardDeleteAccountsJob` (Hangfire) |
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
@@ -24,33 +25,38 @@ SQL-procedur i §4.1 tills dess).
 
 ## 2. Flöde steg för steg
 
-### 2.1 Soft-delete (`DELETE /me`)
+### 2.1 Soft-delete (`POST /me/delete`)
 
-Användaren skickar `DELETE /api/v1/me` med giltigt session-token. Backend:
+Webbens Server Action löser in koden mot `POST /api/v1/auth/reauth/verify` och skickar i samma
+anrop `POST /api/v1/me/delete` med sessionen och kroppen `{ reauthGrant }`. Granten lämnar aldrig
+servern (#1740). Backend:
 
 1. `DeleteAccountCommand` triggas (Mediator-pipeline)
 2. Authorization-behavior verifierar `IAuthenticatedRequest`
-3. Handler hämtar `JobSeeker` via `currentUser.UserId` (`IgnoreQueryFilters`)
-4. **Idempotens-check:** om `DeletedAt is not null` → return Success (ingen ny audit-rad)
-5. Cascade `SoftDelete(clock)` på alla `Application`, `Resume` (deras barn cascadar internt) och `JobSeeker`
-6. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
-7. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
-8. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
-9. Klient får `204 No Content`
+3. `ReauthenticationBehavior` löser in granten före handlern; en grant som inte går att lösa in ger
+   401
+4. Handler hämtar `JobSeeker` via `currentUser.UserId` (`IgnoreQueryFilters`)
+5. **Idempotens-check:** om `DeletedAt is not null` → return Success (ingen ny audit-rad)
+6. Cascade `SoftDelete(clock)` på alla `Application`, `Resume` (deras barn cascadar internt) och `JobSeeker`
+7. `UnitOfWorkBehavior` committar alla soft-deletes + audit-rad atomic
+8. **Post-commit (Layer 2 backstop, PR2c-0):** `ISessionStore.MarkUserDeletedAsync(userId)` planterar en per-user `jobbliggaren:user:{userId}:deleted`-tombstone (TTL = 30-dagars restore-fönstret) FÖRE invalideringen — `GetAsync` fail-closed-avvisar (och self-heal-evicerar) varje session som överlever en partiell invalidering (Redis-blip / race), så läs-vägens Art. 17-radering håller även om fast-path-invalideringen delvis failar
+9. **Post-commit (fast path):** `ISessionStore.InvalidateAllForUserAsync(userId)` invaliderar alla aktiva sessioner via Redis secondary-set
+10. Klient får `204 No Content`
 
 ### 2.2 Login under restore-fönstret
 
-Användaren försöker logga in inom 30 dagar:
+Någon begär en inloggningskod för kontots adress inom 30 dagar:
 
-1. `LoginCommandHandler.Handle` validerar credentials via `UserManager`
-2. Hämtar `JobSeeker` (`IgnoreQueryFilters`) för userId
-3. Om `DeletedAt is not null`: returnerar `Auth.InvalidCredentials` (401) — **inte** "account-pending-deletion"
-4. Audit-rad `LoginFailed` skrivs
+1. Inloggningssidan svarar som för varje annan adress; den säger aldrig vad systemet gjorde (ADR 0142).
+2. `LoginChallengePlan` väljer `PendingDeletion`: utmaningen bär varken kod eller länk.
+3. Mejlet till kontots adress säger att kontot är markerat för radering, när det tidigast raderas
+   permanent och att det kan återställas genom att skriva till kontakt@jobbliggaren.se (§4.1).
 
-**Viktigt:** felmeddelandet är identiskt med "okänd email" / "fel lösen"
-för att undvika information disclosure (security-auditor STEG 10b Sec-1).
-Användaren får ingen indikation att kontot är raderat — kontaktar support
-out-of-band om de vill återställa.
+Beskedet når alltså bara den som läser kontots inkorg.
+
+Lösenordsinloggningen (`POST /api/v1/auth/login`) returnerar `Auth.InvalidCredentials` (401) för ett
+soft-deletat konto, identiskt med "okänd email" / "fel lösen" för att undvika information disclosure
+(security-auditor STEG 10b Sec-1), och skriver audit-raden `LoginFailed`.
 
 ### 2.3 Hard-delete (`HardDeleteAccountsJob`)
 
@@ -353,11 +359,60 @@ EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
 
 ---
 
+### 4.3 Radera ett levande konto på en mejlad begäran
+
+Självbetjäningen på `/mina-sidor` kräver en kod till kontots adress. När ingen kod går att få — mejl
+kan inte levereras, eller dygnsgränsen för koder är nådd — hänvisar sidan till
+kontakt@jobbliggaren.se, och begäran landar här. Proceduren ger samma utfall som självbetjäningen:
+kontot soft-deletas, sessionerna stängs och 30-dagarsfönstret för återställning börjar löpa.
+
+**Verifiering.** Svara på begäran till kontots registrerade adress och radera först när svaret kommer
+därifrån. Det är samma bevis som koden ger: kontroll över inkorgen. En avsändaradress ensam bevisar
+ingenting. **Går det inte att verifiera: radera inte** (Art. 11.2, Art. 12.6), som i §4.2.
+
+**Steg 1 — identifiera raden.**
+
+```sql
+SELECT js.id AS job_seeker_id, js.user_id, js.deleted_at
+FROM identity."AspNetUsers" u
+JOIN public.job_seekers js ON js.user_id = u.id
+WHERE u.normalized_email = upper('<adress>');
+```
+
+Är `deleted_at` redan satt är kontot redan raderat och klockan går; gå direkt till svaret nedan.
+
+**Steg 2 — sätt raderingstriggern.** Samma form som §4.2, med Identity-grinden omvänd: raden måste
+ha en Identity-user, så ett felklistrat id kan aldrig starta klockan på en reverse-orphan här.
+
+```sql
+UPDATE job_seekers SET deleted_at = NOW()
+WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
+```
+
+`NOW()` och inte en backdatering: självbetjäningen ger 30 dagars återställning, och den som mejlar
+får samma. `HardDeleteAccountsJob` raderar kontot vid första passet efter fönstret (§2.3).
+
+**Steg 3 — plantera tombsten**, efter steg 2 som API:t gör efter sin commit (§2.1). Den stänger
+läs-vägen för varje session kontot har kvar:
+
+```
+SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
+EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
+```
+
+**Svaret och posten.** Svara den registrerade att kontot är raderat och att det kan återställas i 30
+dagar genom att skriva till kontakt@ (Art. 12.3). SQL:en skriver ingen `Account.Deleted`-rad;
+begäransposten hör hemma i den personuppgiftsansvariges ärendeakt, samma hem som §4.2 namnger.
+Återställning inom fönstret går via §4.1.
+
+---
+
 ## 5. Failure-scenarier
 
-### 5.1 DELETE /me 5xx vid Redis-fel
+### 5.1 POST /me/delete 5xx vid Redis-fel
 
-**Symptom:** `DELETE /me` returnerar 500 efter `204` har "borde returnerats".
+**Symptom:** `POST /me/delete` returnerar 500 där `204` borde ha returnerats.
 
 **Orsak:** `DeleteAccountCommand` lyckades (DB committad), men
 `InvalidateAllForUserAsync` failade med `SessionStoreUnavailableException`.

@@ -189,16 +189,8 @@ public class GetParsedResumeQueryHandlerTests
         Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content,
         string? displayName = "Test User")
     {
-        // Registered with a placeholder, then the column is written directly. Since #1117
-        // JobSeeker.Register refuses a personnummer-shaped display name (pinned in
-        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so the one case that needs such a name
-        // is asserting about a row written BEFORE that invariant landed — the invariant is
-        // forward-only, since EF materializes an existing row past the factory methods, and that
-        // legacy population is exactly what the DQ6 arm still stands on. The seam is uniform so
-        // there is one path to read rather than a branch on the caller's argument.
-        var seeker = JobSeeker.Register(_userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, displayName, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
         var parsed = ParsedResume.Create(
             seeker.Id, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "raw text",
@@ -255,10 +247,12 @@ public class GetParsedResumeQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReportIncompleteContent_WhenTheOwnerHasNoDisplayName()
+    public async Task Handle_ShouldReportNoBlockReason_WhenTheOwnerHasNoDisplayName()
     {
-        // JobSeeker.Register admits an absent name (ADR 0142 D7), and the canonical CV still requires one
-        // until #1741: the artefact stays reviewable and says why it cannot be promoted.
+        // §5 Tests: a clean parse still pending for an owner without a name is left over from
+        // before #1741, when the canonical CV required a name; auto-promote runs only in the
+        // import request, so today's import promotes it instead. The actor is that gate change,
+        // so the test asserts the current gate's answer: nothing in the file blocks it.
         var content = CleanContent();
         var db = CreateHydratedDb(content);
         var parsed = await SeedHydratedAsync(db, content, displayName: null);
@@ -267,25 +261,6 @@ public class GetParsedResumeQueryHandlerTests
             new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
 
         result.ShouldNotBeNull();
-        result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.IncompleteContent));
-    }
-
-    [Fact]
-    public async Task Handle_ShouldPassTheOwnersDisplayName_IntoTheGatesContentGuard()
-    {
-        // The DisplayName column added to this handler's owner projection, pinned at the unit
-        // level as well as end to end. A personnummer in the ACCOUNT NAME with a CLEAN file is
-        // the only input on which the gate's answer depends on that column, so this is the
-        // assertion that fails if the projection ever stops carrying it.
-        var db = CreateHydratedDb(CleanContent());
-        var parsed = await SeedHydratedAsync(db, CleanContent(), displayName: "Anna 811218-9876");
-
-        var result = await CreateSut(db).Handle(
-            new GetParsedResumeQuery(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.ShouldNotBeNull();
-        result.BlockReason.ShouldBe(nameof(AutoPromoteBlockReason.PersonnummerInAccountName));
-        // The FILE is clean — so the reason cannot have come from the parse's own scan.
-        result.Personnummer.Found.ShouldBeFalse();
+        result.BlockReason.ShouldBeNull();
     }
 }

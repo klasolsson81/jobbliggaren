@@ -14,14 +14,6 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// predicate, and the user learns the reason by opening the review she was already opening,
 /// instead of re-uploading the file (#1060's third sub-requirement).
 ///
-/// <para><b>Two name parameters, not one, and that is the point (architect's bind, CTO-ACCEPTED
-/// 2026-07-25 D5-REBIND-2).</b> <paramref name="personName"/> is CV <i>content</i> — it becomes
-/// <c>PersonalInfo.FullName</c> inside the DEK-encrypted shadow, and it is what the DQ6 guard
-/// scans. <paramref name="label"/> is a plaintext <i>label channel</i> — it becomes
-/// <c>Resume.Name</c>, an unencrypted column that surfaces in CV lists. Two knowledge pieces,
-/// two data-protection classes, two failure meanings. Collapsing them into one
-/// <c>resolvedName</c> would re-unify exactly what PR A split.</para>
-///
 /// <para><b>Pure: no I/O, no DbContext, no mutation of anything the caller owns.</b> Every input
 /// is a value the caller already holds. That is what makes it callable from a query handler at
 /// all — a pure function is only callable where its arguments are obtainable, and D4's original
@@ -72,15 +64,12 @@ internal static class AutoPromoteGate
     /// builds.
     /// </summary>
     /// <param name="parsed">The staging artifact. Read-only here; nothing is mutated.</param>
-    /// <param name="personName">The account holder's display name — CV content, never the
-    /// parsed contact name and never the form field (5a CTO-bind R5).</param>
     /// <param name="label">The resolved CV label (<see cref="ResumeLabelResolver"/>).</param>
     /// <param name="jobSeekerId">The owner. The caller has already scoped its load to this
     /// owner; this value only reaches <c>CreateFromParsed</c>'s own required-id check.</param>
     /// <param name="clock">Injected time (CLAUDE.md §5 — never <c>DateTime.UtcNow</c>).</param>
     public static AutoPromoteGateVerdict Evaluate(
         ParsedResume parsed,
-        string personName,
         string label,
         JobSeekerId jobSeekerId,
         IDateTimeProvider clock)
@@ -142,39 +131,19 @@ internal static class AutoPromoteGate
         }
 
         // ── Tier 2: buildability, through the ONE existing promote pipeline.
-        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content, personName);
+        var dto = AutoPromoteContentMapper.ToContentDto(parsed.Content);
 
         // DQ6 on the COMPOSED content (arch-tripwire-required for every CreateFromParsed
         // caller — the tripwire's walk is transitive within the Application module, so the
         // command handler stays correctly classified with both the guard call and the sink
-        // call delegated here). The import scan covered the raw-text superset of everything
-        // the parse structured, so the one genuinely new text here is the account display
-        // name — a personnummer riding in it is caught HERE, and the disposition is the same
-        // honest "pending, review" (it is a personnummer presence, whichever field carries it).
-        //
-        // WHY this arm can still fire: since #1117, JobSeeker.Register/UpdateDisplayName run
-        // the same personnummer invariant Resume.ValidateName carries, so no CURRENT write
-        // path can put one in that column. The invariant is forward-only — EF materializes an
-        // existing row past the aggregate's factory methods — so what reaches this guard is a
-        // row written BEFORE that invariant landed. This arm is the control standing on those
-        // rows, and it is kept as defense-in-depth rather than retired with the write path.
+        // call delegated here). It can fire after a clean import scan, because the parse carries
+        // the import-time scan outcome while this guard runs today's scanner.
         var guard = ResumeContentPersonnummerGuard.Check(dto);
         if (guard.IsFailure)
         {
-            // A DISTINCT token (#1060 PR C, CTO-bind D2). Every other text in `dto` is a
-            // projection of the parse, and the import scan already covered that raw superset —
-            // so if this guard fires and the parse's own scan did not, the number is in the
-            // account display name, which is the one text this composition adds. Reporting it
-            // as PersonnummerPresent sent the user to search a clean file: a mis-reported
-            // verdict (CLAUDE.md §5) and a loop with no exit, because the fix is not in the file
-            // and nothing said so.
-            // Null even though `guard.Error.Code` exists (`Resume.PersonnummerMustBeRemoved`) —
-            // and the reason is the asymmetry the whole field exists for. THIS token is already
-            // 1:1 with that code: reaching this rung IS that refusal, so carrying it would add a
-            // second name for one fact. `IncompleteContent`, below, collapses `CreateFromParsed`'s
-            // WHOLE error set onto one token, and that is the collapse a reader cannot undo.
+            // DomainErrorCode is null on every policy arm (see AutoPromoteGateVerdict.Blocked).
             return new AutoPromoteGateVerdict.Blocked(
-                AutoPromoteBlockReason.PersonnummerInAccountName, DomainErrorCode: null);
+                AutoPromoteBlockReason.PersonnummerPresent, DomainErrorCode: null);
         }
 
         var content = ResumeContentMapper.ToDomain(dto);

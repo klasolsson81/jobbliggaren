@@ -13,7 +13,7 @@ namespace Jobbliggaren.Application.Resumes.Common;
 ///
 /// <para>Pure projection, three bound policies, zero synthesis (ADR 0071/CLAUDE.md §5):</para>
 /// <list type="bullet">
-/// <item><b>Name:</b> <paramref name="fullName"/> is the resolved ACCOUNT name — the parsed
+/// <item><b>Name:</b> none. The account holds no name (ADR 0142 D7) and the parsed
 /// <c>Contact.FullName</c> is never used (Klas-bound 2026-07-16).</item>
 /// <item><b>Dates:</b> the parse carries only loose period strings, so structured dates are
 /// honestly absent (null/null) and the verbatim <c>Period</c> rides <c>RawPeriod</c>
@@ -35,7 +35,7 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// </summary>
 internal static class AutoPromoteContentMapper
 {
-    public static ResumeContentDto ToContentDto(ParsedResumeContent parsed, string fullName)
+    public static ResumeContentDto ToContentDto(ParsedResumeContent parsed)
     {
         var contact = parsed.Contact;
 
@@ -93,7 +93,7 @@ internal static class AutoPromoteContentMapper
         // SkillGroups: the parse has no grouping concept — an empty overlay, never an
         // invented one.
         return new ResumeContentDto(
-            new PersonalInfoDto(fullName, contact.Email, contact.Phone, contact.Location),
+            new PersonalInfoDto(FullName: null, contact.Email, contact.Phone, contact.Location),
             experiences,
             educations,
             skills,

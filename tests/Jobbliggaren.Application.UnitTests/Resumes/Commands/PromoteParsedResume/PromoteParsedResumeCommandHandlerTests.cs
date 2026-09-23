@@ -459,20 +459,20 @@ public class PromoteParsedResumeCommandHandlerTests
     // ===============================================================
 
     [Fact]
-    public async Task Handle_WhenSubmittedContentHasEmptyFullName_ReturnsFullNameRequired_NoPromotion_NoResume()
+    public async Task Handle_WhenSubmittedContentFailsValidateContent_ReturnsItsCode_NoPromotion_NoResume()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
 
         var degraded = new ResumeContentDto(
-            new PersonalInfoDto(string.Empty, null, null, null),
+            new PersonalInfoDto(new string('A', 201), null, null, null),
             Experiences: [], Educations: [], Skills: [], Summary: null);
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value, degraded), TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+        result.Error.Code.ShouldBe("Resume.FullNameTooLong");
         // CreateFromParsed failed before Promote — the ParsedResume is untouched.
         parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
         parsed.DeletedAt.ShouldBeNull();

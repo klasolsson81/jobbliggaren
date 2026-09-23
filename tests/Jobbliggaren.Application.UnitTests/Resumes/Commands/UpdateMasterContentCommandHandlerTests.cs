@@ -114,22 +114,6 @@ public class UpdateMasterContentCommandHandlerTests
             () => handler.Handle(command, CancellationToken.None).AsTask());
     }
 
-    [Fact]
-    public async Task Handle_WithEmptyFullName_ReturnsResumeFullNameRequiredFailure()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var resume = await SeedResumeAsync(db, _userId);
-
-        var handler = new UpdateMasterContentCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, Substitute.For<IFailedAccessLogger>(), _reconciler);
-        // Domain ValidateContent kontrollerar PersonalInfo.FullName.
-        var command = new UpdateMasterContentCommand(resume.Id.Value, BuildContent(fullName: "   "));
-
-        var result = await handler.Handle(command, CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
-    }
-
     // ===============================================================
     // Fas 4b PR-4 (ADR 0093 §D2(e), CTO-bind Q2/Q3 + dotnet-architect Viktigt): the
     // staleness stamp lives in Resume.UpdateMasterContent and only fires when the

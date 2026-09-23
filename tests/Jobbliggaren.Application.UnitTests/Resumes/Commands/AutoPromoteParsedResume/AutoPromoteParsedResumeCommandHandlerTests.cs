@@ -125,16 +125,19 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         string? displayName = AccountName,
         string sourceFileName = "anna-cv.pdf")
     {
-        // Registered with a placeholder, then the column is written directly. Since #1117
-        // JobSeeker.Register refuses a personnummer-shaped display name (pinned in
-        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so the one case that needs such a name
-        // is asserting about a row written BEFORE that invariant landed — the invariant is
-        // forward-only, since EF materializes an existing row past the factory methods, and that
-        // legacy population is exactly what the DQ6 arm still stands on. The seam is uniform so
-        // there is one path to read rather than a branch on the caller's argument.
-        var seeker = JobSeeker.Register(userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        // A null name registers the way the passwordless consent step does
+        // (CompleteLoginChallengeCommandHandler), an ordinary one the way RegisterCommandHandler
+        // does. Since #1117 JobSeeker.Register refuses a personnummer-shaped name (pinned in
+        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so that one case is written to the column
+        // directly: it asserts about a row written BEFORE the invariant landed, which EF still
+        // materializes past the factory methods.
+        var registered = JobSeeker.Register(userId, displayName, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
+        var seeker = registered.IsSuccess
+            ? registered.Value
+            : JobSeeker.Register(userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
+        if (registered.IsFailure)
+            db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
         var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -239,19 +242,12 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The Klas-bound name rule: the canonical CV carries the ACCOUNT holder's name as
-    /// PersonalInfo.FullName — never the name the FILE claims. If this goes red, an
-    /// uploaded document has started deciding who the user is.
-    ///
-    /// #1060 split this from the LABEL. Until then one string fed both, so naming the CV
-    /// "Backend-CV 2026" printed that where the person's name belongs, and accepting the
-    /// suggested account name labelled every import identically. They are also in different
-    /// data-protection classes — Resume.Name is a plaintext column that surfaces in lists
-    /// (list + detail DTOs, both owner-scoped), PersonalInfo.FullName rides the DEK-encrypted
-    /// shadow.
+    /// The canonical CV carries no person's name (ADR 0142 D7): not the account holder's, even
+    /// when the account has one, and never the name the FILE claims. If this goes red, a name
+    /// has found its way back into the content.
     /// </summary>
     [Fact]
-    public async Task Handle_PersonNameIsTheAccountDisplayName_NeverTheParsedContactName()
+    public async Task Handle_ContentCarriesNoPersonName_EvenWhenTheAccountHasOne()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
@@ -261,8 +257,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
 
         result.IsSuccess.ShouldBeTrue();
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
-        resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBe(AccountName);
-        resume.MasterVersion.Content.PersonalInfo.FullName.ShouldNotBe(ParsedContactName);
+        resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     /// <summary>
@@ -516,10 +511,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
     }
 
-    /// <summary>An owner with no display name (ADR 0142 D7: <c>JobSeeker.Register</c> admits an absent
-    /// one) cannot be promoted until #1741 makes the CV's name optional: pending, never a fault.</summary>
+    /// <summary>An owner with no display name, as the passwordless consent step registers one
+    /// (ADR 0142 D7), is promoted: the CV requires no name.</summary>
     [Fact]
-    public async Task Handle_OwnerWithNoDisplayName_LeftPendingIncompleteContent()
+    public async Task Handle_OwnerWithNoDisplayName_Promotes()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId, displayName: null);
@@ -527,7 +522,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        db.Resumes.Local.ShouldHaveSingleItem()
+            .MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     /// <summary>
@@ -616,17 +614,11 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// Defense-in-depth beyond the Tier-1 artifact flag: the import scan covered the FILE's
-    /// text, but the composition adds the account display name — the shared guard on the
-    /// composed DTO is what catches a personnummer riding THERE.
-    ///
-    /// <para>Its OWN token since #1060 PR C (CTO-bind D2). The file is clean on this path, so
-    /// reporting it as <c>PersonnummerPresent</c> drove copy telling the user to remove a number
-    /// from a file that has none — a mis-reported verdict on the product's highest-priority PII
-    /// rule, and a loop with no exit (the fix is not in the file).</para>
+    /// A row written before #1117 can still hold a personnummer in the account name (the seam
+    /// names that actor). The name never reaches the CV, so it no longer blocks a clean file.
     /// </summary>
     [Fact]
-    public async Task Handle_PnrInAccountDisplayName_LeftPendingPersonnummerInAccountName()
+    public async Task Handle_PnrInALegacyAccountName_DoesNotBlock_TheNameNeverReachesTheCv()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(
@@ -635,8 +627,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
-        await AssertLeftPendingAsync(
-            db, result, parsed, AutoPromoteBlockReason.PersonnummerInAccountName);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
+        db.Resumes.Local.ShouldHaveSingleItem()
+            .MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     // ===============================================================
@@ -807,12 +801,11 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     // ===============================================================
 
     /// <summary>
-    /// The form field sets the LABEL only. This is the defect #1060 reports, inverted into a
-    /// pin: a user who labels the CV "Backend-CV 2026" must not end up with that printed
-    /// where her name belongs.
+    /// The form field sets the LABEL only: a user who labels the CV "Backend-CV 2026" must not
+    /// end up with that printed where a name would stand.
     /// </summary>
     [Fact]
-    public async Task Handle_NameOverrideSetsTheLabelOnly_PersonNameStaysTheAccountName()
+    public async Task Handle_NameOverrideSetsTheLabelOnly_TheContentCarriesNoName()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
@@ -824,7 +817,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         result.IsSuccess.ShouldBeTrue();
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
         resume.Name.ShouldBe("Backend-CV 2026"); // trimmed
-        resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBe(AccountName);
+        resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     [Fact]

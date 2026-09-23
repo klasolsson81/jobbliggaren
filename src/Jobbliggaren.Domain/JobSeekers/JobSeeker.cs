@@ -100,9 +100,8 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 
     // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the shared name-invariant enforced
     // on EVERY DisplayName-write path (Register / UpdateDisplayName). DisplayName is a
-    // PLAINTEXT, UNENCRYPTED column that surfaces on screen and in the profile DTO, and which
-    // the promote path composes into PersonalInfo.FullName — the header of the PDF the user
-    // sends to employers. So a personnummer typed into the ACCOUNT NAME must be refused. This
+    // PLAINTEXT, UNENCRYPTED column that surfaces on screen and in the profile DTO. So a
+    // personnummer typed into the ACCOUNT NAME must be refused. This
     // is a structural AGGREGATE invariant (DDD §2.2), not a boundary guard: enforcing it here
     // closes the channel for every caller by construction, fail-closed, so a future write path
     // (an external-identity login populating a name, say) cannot silently forget it.
@@ -115,9 +114,7 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     // Returns the trimmed, validated name so both callers use ONE canonical value.
     //
     // The invariant is FORWARD-ONLY: EF materializes an existing row through the private
-    // constructor, bypassing this method, so a row written before it landed still loads. That
-    // is deliberate — the DQ6 guard on the promote path (AutoPromoteGate) remains the control
-    // standing on those rows.
+    // constructor, bypassing this method, so a row written before it landed still loads.
     //
     // PUBLIC so a caller that must refuse BEFORE it can construct the aggregate can run the same
     // rule from its one home — not a second home for it. RegisterCommandHandler is that caller:

@@ -5,7 +5,7 @@ namespace Jobbliggaren.Application.Resumes.Common;
 
 /// <summary>
 /// Resolves the LABEL an imported CV is filed under (<c>Resume.Name</c>) — a use-case default,
-/// deliberately separate from the person's name that goes into the content (#1060).
+/// never a person's name (#1060).
 ///
 /// <para>The two are different concepts in different data-protection classes:
 /// <c>Resume.Name</c> is a plaintext column that surfaces in CV lists, and its classification

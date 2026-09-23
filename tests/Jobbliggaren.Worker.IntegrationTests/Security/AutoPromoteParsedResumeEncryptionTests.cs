@@ -216,7 +216,7 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
             auditEvent.ShouldBe(AutoPromoteParsedResumeCommand.AuditEventType);
         }
 
-        // Round-trip under a warm DEK: verbatim content, ACCOUNT-named — never the file's name.
+        // Round-trip under a warm DEK: verbatim content, and no person's name in it at all.
         using (var readScope = _fixture.Services.CreateScope())
         {
             await PrefetchOwnerDekAsync(readScope, owner, ct);
@@ -226,16 +226,14 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
                 .SingleAsync(r => r.Id == resumeId, ct);
 
             // #1060: the LABEL is GENERATED (non-PII by construction — never the file name,
-            // which ADR 0096 D-B refused for Resume, and never the account name), the PERSON
-            // name comes from the account (inside the DEK-encrypted shadow).
-            // Asserting both here is the point: they are different values in different
-            // protection classes, and this test is the one that reads them through the real
-            // encryption pipeline.
+            // which ADR 0096 D-B refused for Resume, and never the account name), and the content
+            // carries no person's name, neither the account's nor the file's (ADR 0142 D7). This
+            // test reads both through the real encryption pipeline, so the absent name round-trips
+            // the encrypted shadow here.
             resume.Name.ShouldStartWith("Importerat CV ");
             resume.Name.ShouldNotBe(AccountDisplayName);
             var content = resume.MasterVersion.Content;
-            content.PersonalInfo.FullName.ShouldBe(AccountDisplayName);
-            content.PersonalInfo.FullName.ShouldNotBe(ParsedContactName);
+            content.PersonalInfo.FullName.ShouldBeNull();
             content.Summary.ShouldBe(ProfileMarker);
             var exp = content.Experiences.ShouldHaveSingleItem();
             exp.Company.ShouldBe("Beta AB");

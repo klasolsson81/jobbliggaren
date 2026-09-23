@@ -21,7 +21,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 /// <c>PersonnummerScanner</c> over text, <c>ParseConfidence.Failed(ExtractionFailed)</c> exactly
 /// as <c>ImportResumeCommandHandler</c> constructs it when extraction yields nothing, and an
 /// experience entry missing its organization, which the segmenter produces whenever a CV lists
-/// a role without an employer line. Nothing here is a state <c>src/</c> cannot reach.</para>
+/// a role without an employer line. The one state today's import cannot produce, the
+/// pre-widening parse, names its actor in the test that uses it.</para>
 /// </summary>
 public class AutoPromoteGateTests
 {
@@ -29,9 +30,6 @@ public class AutoPromoteGateTests
 
     // A real Luhn-valid Swedish personnummer the scanner flags (parity with the handler tests).
     private const string ValidPersonnummer = "811218-9876";
-
-    /// <summary>The account holder's display name — CV CONTENT, the DQ6 guard's subject.</summary>
-    private const string AccountName = "Anna Kontosson";
 
     /// <summary>The generated, non-PII label the resolver produces when no one typed a name.
     /// This is what the READ path always passes (it has no form field).</summary>
@@ -79,14 +77,21 @@ public class AutoPromoteGateTests
             pnr ?? PersonnummerScanOutcome.None,
             [], FakeDateTimeProvider.Default).Value;
 
-    private static AutoPromoteGateVerdict Evaluate(
-        ParsedResume parsed, string? personName = null, string? label = null) =>
+    private static AutoPromoteGateVerdict Evaluate(ParsedResume parsed, string? label = null) =>
         AutoPromoteGate.Evaluate(
             parsed,
-            personName ?? AccountName,
             label ?? GeneratedLabel,
             Owner,
             FakeDateTimeProvider.Default);
+
+    // What an import before the #665 scanner widening stored: the two-separator form sits in a
+    // projected field while the stored scan outcome is clean.
+    private static ParsedResume PreWideningParse() =>
+        BuildParsed(content: CleanContent(
+            experience:
+            [
+                new ParsedExperience("Backend-utvecklare", "Beta AB 811218--9876", "2019–2022", "raw"),
+            ]));
 
     // ===============================================================
     // Promotable — the arm the write path adopts
@@ -99,10 +104,10 @@ public class AutoPromoteGateTests
 
         var promotable = verdict.ShouldBeOfType<AutoPromoteGateVerdict.Promotable>();
         promotable.Resume.Origin.ShouldBe(ResumeSourceOrigin.Import);
-        // The two name channels stayed separate: the LABEL is the generated default and the
-        // person name went into the content. Collapsing them is the defect PR A split apart.
+        // The LABEL is the generated default, and the content carries no person's name: neither
+        // the account's nor the parsed contact name (ADR 0142 D7).
         promotable.Resume.Name.ShouldBe(GeneratedLabel);
-        promotable.Resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBe(AccountName);
+        promotable.Resume.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
         verdict.BlockReason.ShouldBeNull();
     }
 
@@ -152,34 +157,25 @@ public class AutoPromoteGateTests
     }
 
     [Fact]
-    public void Evaluate_PersonnummerInTheAccountDisplayName_BlocksOnItsOwnToken_NotOnPersonnummerPresent()
+    public void Evaluate_GuardFlagsAProjectedFieldTheImportScanPassed_BlocksOnPersonnummerPresent()
     {
-        // DQ6 on the COMPOSED content: the display name is the one text this composition adds
-        // over the raw superset the import scan already covered, so this is the only control
-        // that can catch it — and the FILE is clean, which is exactly why it needs a token of
-        // its own (CTO-bind D2). PersonnummerPresent drives copy that says "take it out of the
-        // file and upload again", advice that cannot work when the file has nothing in it.
-        var verdict = Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}");
+        // §5 Tests: no import today produces this state, because today's scan flags the
+        // two-separator form (PersonnummerTextNormalizerTests
+        // .Scan_DoubleSeparatorNoSpace_FalseNegativeDirectly_FlaggedAfterNormalize). The actor is
+        // the scanner widening in eec4c31f2 (#665): a parse imported before it stored a clean
+        // outcome for this text, and the read path re-runs the gate on it. That actor is a code
+        // change, so the test asserts the current gate's own answer over the content.
+        var blocked = Evaluate(PreWideningParse()).ShouldBeOfType<AutoPromoteGateVerdict.Blocked>();
 
-        verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerInAccountName);
-        verdict.BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerPresent);
+        blocked.Reason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
+        blocked.DomainErrorCode.ShouldBeNull();
     }
 
     [Fact]
-    public void Evaluate_PersonnummerInASCANNEDParseField_ReportsPersonnummerPresent_NotTheAccountNameToken()
+    public void Evaluate_PersonnummerInAScannedParseField_ReportsPersonnummerPresent()
     {
-        // The counterfactual that makes PersonnummerInAccountName's claim legible
-        // (security-auditor round 2, Minor 2). That token asserts WHERE the number is, but
-        // ResumeContentPersonnummerGuard returns only pass/fail — the location is reached by
-        // ELIMINATION: every other text in the composed DTO is a projection of the parse, and
-        // the import scan already covered that raw superset, so a DQ6 failure the parse scan
-        // did not see must be the display name.
-        //
-        // The elimination holds only while the parse scan and the composed scan agree about
-        // parse-derived text. If they ever diverged, the FE would tell a user her file is clean
-        // when it is not, and send her to kontakt@ about her account name — the loop this PR
-        // exists to close, inverted. This pins the direction that matters: a personnummer
-        // sitting in a SCANNED parse field is the FILE's, and the Tier-1 flag claims it first.
+        // A personnummer in a scanned parse field is the FILE's, and the Tier-1 flag claims it
+        // before the composed content is ever built.
         var parsed = BuildParsed(
             content: CleanContent(
                 experience:
@@ -192,7 +188,6 @@ public class AutoPromoteGateTests
         var verdict = Evaluate(parsed);
 
         verdict.BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
-        verdict.BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerInAccountName);
     }
 
     [Fact]
@@ -223,9 +218,6 @@ public class AutoPromoteGateTests
             pnr: Flagged());
 
         Evaluate(parsed).BlockReason.ShouldBe(AutoPromoteBlockReason.PersonnummerPresent);
-        // …and it is the FILE token, not the account-name one: the parse's own scan fired, so
-        // the DQ6 arm was never reached.
-        Evaluate(parsed).BlockReason.ShouldNotBe(AutoPromoteBlockReason.PersonnummerInAccountName);
     }
 
     [Fact]
@@ -240,22 +232,20 @@ public class AutoPromoteGateTests
     }
 
     // ===============================================================
-    // The surviving reason set (#1060: PR B retired one, PR C split one out).
+    // The surviving reason set.
     // No number here on purpose — the assertion below reads the set dynamically, so a count
     // written beside it can only ever rot. Three of round 2's four Minors were exactly that.
     // ===============================================================
 
     [Fact]
-    public void AutoPromoteBlockReason_IsTheLockedFourMemberSet()
+    public void AutoPromoteBlockReason_IsTheLockedMemberSet()
     {
         // The FE writes one copy string per member and the review view switches on the token,
-        // so a member added without copy would render a block with nothing to read. #844's
-        // UnclassifiedPreamble was retired in PR B and PersonnummerInAccountName was split out
-        // of PersonnummerPresent in PR C; this pins the set the copy covers.
+        // so a member added without copy would render a block with nothing to read. This pins
+        // the set the copy covers.
         Enum.GetNames<AutoPromoteBlockReason>().ShouldBe(
             [
                 nameof(AutoPromoteBlockReason.PersonnummerPresent),
-                nameof(AutoPromoteBlockReason.PersonnummerInAccountName),
                 nameof(AutoPromoteBlockReason.ParseNotConfident),
                 nameof(AutoPromoteBlockReason.IncompleteContent),
             ],
@@ -304,8 +294,8 @@ public class AutoPromoteGateTests
                 confidence: ParseConfidence.Failed(ParseFallbackReason.ExtractionFailed)))),
             ("pnr in label", AutoPromoteBlockReason.PersonnummerPresent,
                 Evaluate(BuildParsed(), label: $"CV {ValidPersonnummer}")),
-            ("pnr DQ6", AutoPromoteBlockReason.PersonnummerInAccountName,
-                Evaluate(BuildParsed(), personName: $"Anna {ValidPersonnummer}")),
+            ("pnr DQ6", AutoPromoteBlockReason.PersonnummerPresent,
+                Evaluate(PreWideningParse())),
         };
 
         foreach (var (arm, expected, verdict) in policyArms)
@@ -322,19 +312,17 @@ public class AutoPromoteGateTests
         }
 
         // CLOSURE over the declared reason set: the fixtures above plus the buildability arm must
-        // cover it, so a fifth AutoPromoteBlockReason reddens this instead of sliding past a
+        // cover it, so a new AutoPromoteBlockReason reddens this instead of sliding past a
         // hand-written list.
         //
         // ITS LIMIT, stated because it is not the limit it looks like (code-reviewer + test-writer,
-        // both measured): this closes over TOKENS, not RUNGS. There are FIVE blocking call sites
-        // and only FOUR tokens — "pnr on parse" and "pnr in label" both return
-        // PersonnummerPresent — so `Distinct()` is unchanged if either of those two fixtures is
-        // removed, and a future SIXTH arm returning an existing token would not redden this
-        // either — five blocking call sites exist today, so the next one is the sixth. What covers that
-        // is the per-arm expectation in the loop above. What does not exist is a check that the
-        // arm COUNT is still five, and the obstacle is not assembly visibility (this project has
-        // `InternalsVisibleTo`): call sites are not a runtime surface. A source-text scan could
-        // do it, and the repo runs those elsewhere; it is out of scope here.
+        // both measured): this closes over TOKENS, not RUNGS. "pnr on parse", "pnr in label" and
+        // "pnr DQ6" all return PersonnummerPresent, so `Distinct()` is unchanged if any of those
+        // fixtures is removed, and a future arm returning an existing token would not redden this
+        // either. What covers that is the per-arm expectation in the loop above. What does not
+        // exist is a check on the arm COUNT, and the obstacle is not assembly visibility (this
+        // project has `InternalsVisibleTo`): call sites are not a runtime surface. A source-text
+        // scan could do it, and the repo runs those elsewhere; it is out of scope here.
         policyArms
             .Select(a => a.Expected.ToString())
             .Append(nameof(AutoPromoteBlockReason.IncompleteContent))

@@ -157,12 +157,15 @@ public class ResumeTests
     }
 
     [Fact]
-    public void Create_WithEmptyFullName_ReturnsFailure()
+    public void Create_WithBlankFullName_BuildsAMasterWithoutAName()
     {
-        var result = Resume.Create(ValidJobSeekerId, ValidName, string.Empty, Clock);
+        // Declared unreachable: CreateResumeCommandValidator refuses a blank name before the
+        // handler runs, so no path in src/ reaches Create with one. This pins only that the
+        // aggregate degrades safely if that invariant breaks: no exception, and no name.
+        var result = Resume.Create(ValidJobSeekerId, ValidName, "   ", Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     [Fact]
@@ -325,17 +328,17 @@ public class ResumeTests
     }
 
     [Fact]
-    public void CreateFromParsed_WithEmptyFullName_ReturnsFailure_NoSideEffects()
+    public void CreateFromParsed_WithNoFullName_Succeeds()
     {
-        // Degraded content with an empty FullName fails with the SAME code as
-        // UpdateMasterContent (ValidateContent parity) — Result.Failure, no Resume.
-        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+        // The account has no name (ADR 0142 D7), and auto-promote maps none into the CV:
+        // AutoPromoteContentMapper.ToContentDto is the producer of this content.
+        var content = new ResumeContent(new PersonalInfo(null, null, null, null));
 
         var result = Resume.CreateFromParsed(
             ValidJobSeekerId, ValidName, content, ValidSourceParsedId, Clock);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     [Fact]
@@ -520,18 +523,6 @@ public class ResumeTests
     // ---------------------------------------------------------------
     // UpdateMasterContent — validering
     // ---------------------------------------------------------------
-
-    [Fact]
-    public void UpdateMasterContent_WithEmptyFullName_ReturnsFailure()
-    {
-        var resume = CreateValidResume();
-        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
-
-        var result = resume.UpdateMasterContent(content, Clock);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
-    }
 
     [Fact]
     public void UpdateMasterContent_WithFullNameTooLong_ReturnsFailure()
@@ -1000,20 +991,6 @@ public class ResumeTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public void CreateTailored_WithEmptyFullName_ReturnsFailureAndAddsNoVersion()
-    {
-        var resume = CreateValidResume();
-        var versionCountBefore = resume.Versions.Count;
-        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
-
-        var result = resume.CreateTailored(content, Clock);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
-        resume.Versions.Count.ShouldBe(versionCountBefore);
-    }
-
-    [Fact]
     public void CreateTailored_WithExperienceCompanyEmpty_ReturnsFailureAndAddsNoVersion()
     {
         var resume = CreateValidResume();
@@ -1037,7 +1014,7 @@ public class ResumeTests
     {
         var resume = CreateValidResume();
         resume.ClearDomainEvents();
-        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+        var content = new ResumeContent(new PersonalInfo(new string('A', 201), null, null, null));
 
         resume.CreateTailored(content, Clock);
 
@@ -1050,7 +1027,7 @@ public class ResumeTests
         var resume = CreateValidResume();
         var updatedAtBefore = resume.UpdatedAt;
         var laterClock = FakeDateTimeProvider.At(Clock.UtcNow.AddHours(4));
-        var content = new ResumeContent(new PersonalInfo(string.Empty, null, null, null));
+        var content = new ResumeContent(new PersonalInfo(new string('A', 201), null, null, null));
 
         resume.CreateTailored(content, laterClock);
 

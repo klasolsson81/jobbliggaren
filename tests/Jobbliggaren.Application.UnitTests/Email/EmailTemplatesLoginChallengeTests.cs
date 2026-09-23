@@ -231,7 +231,6 @@ public sealed class EmailTemplatesLoginChallengeTests
         var text = Unwrapped(rendered.PlainTextBody);
         text.ShouldContain("ditt konto");
         text.ShouldContain("radera kontot eller byta e-postadress.");
-        // No page offers a password change since #1740, so the mail does not name one.
         text.ShouldNotContain("lösenord");
         rendered.HtmlBody.ShouldNotContain("lösenord");
         text.ShouldContain(EmailTemplates.ContactAddress);

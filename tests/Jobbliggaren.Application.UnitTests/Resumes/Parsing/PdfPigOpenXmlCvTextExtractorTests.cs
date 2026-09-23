@@ -639,9 +639,8 @@ public class PdfPigOpenXmlCvTextExtractorTests
             .RawText.ShouldBe("A\n\nB");
     }
 
-    // #1801 — a text box is read as its own lines, and an inline object separates its neighbours. Word writes
-    // a text box or an image as VML (w:pict) or as DrawingML (w:drawing, inline or anchored), often both at
-    // once inside mc:AlternateContent.
+    // #1801 — Word writes a text box or an image as VML (w:pict) or as DrawingML (w:drawing, inline or
+    // anchored), often both at once inside mc:AlternateContent.
     public static TheoryData<string> TextBoxForms() => ["vml floating", "vml inline", "drawing anchor", "drawing inline"];
 
     [Theory]
@@ -663,6 +662,16 @@ public class PdfPigOpenXmlCvTextExtractorTests
             "<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r><w:r>" + TextBox(form, "811218-9876") + "</w:r></w:p>");
 
         raw.ShouldBe(IsInline(form) ? "Tel 070-12 34 567 \n811218-9876" : "Tel 070-12 34 567\n811218-9876");
+        FlagCount(raw).ShouldBe(1);
+    }
+
+    [Theory]
+    [MemberData(nameof(TextBoxForms))]
+    public void Extract_DocxOpeningWithATextBox_ExtractsIt(string form)
+    {
+        var raw = ExtractXml("<w:p><w:r>" + TextBox(form, "811218-9876") + "</w:r></w:p>");
+
+        raw.ShouldBe("811218-9876");
         FlagCount(raw).ShouldBe(1);
     }
 
@@ -691,8 +700,12 @@ public class PdfPigOpenXmlCvTextExtractorTests
     public void Extract_DocxTextBoxInAlternateContent_StartsItsOwnLineInEveryBranch(string personnummer)
     {
         // Both branches are read today (#1801, point 2), so the oracle holds whether one or both are.
-        var anchor = personnummer == "before" ? "811218-9876" : "Tel 070-12 34 567";
-        var inBox = personnummer == "before" ? "070-123 45 67" : "811218-9876";
+        var (anchor, inBox) = personnummer switch
+        {
+            "before" => ("811218-9876", "070-123 45 67"),
+            "after" => ("Tel 070-12 34 567", "811218-9876"),
+            _ => throw new ArgumentOutOfRangeException(nameof(personnummer), personnummer, null),
+        };
         var raw = ExtractXml(
             "<w:p><w:r><w:t>" + anchor + "</w:t></w:r><w:r><mc:AlternateContent>" +
             "<mc:Choice Requires=\"wps\">" + TextBox("drawing anchor", inBox) + "</mc:Choice>" +
@@ -720,15 +733,30 @@ public class PdfPigOpenXmlCvTextExtractorTests
         FlagCount(raw).ShouldBe(1);
     }
 
+    [Theory]
+    [MemberData(nameof(InlineObjectForms))]
+    public void Extract_DocxInlineObjectAfterAPhoneNumber_SeparatesThem(string form)
+    {
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r><w:r>" + ObjectWithoutText(form) + "</w:r>" +
+            "<w:r><w:t>811218-9876</w:t></w:r></w:p>");
+
+        raw.ShouldBe("Tel 070-12 34 567 811218-9876");
+        FlagCount(raw).ShouldBe(1);
+    }
+
     public static TheoryData<string> FloatingObjectForms() => ["drawing anchor", "vml floating", "vml shapetype first"];
 
     [Theory]
     [MemberData(nameof(FloatingObjectForms))]
     public void Extract_DocxFloatingObjectWithoutText_AddsNothing(string form)
     {
+        // The next run's properties sit at the depth a VML shape had.
         var withObject = ExtractXml(
-            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r>" + ObjectWithoutText(form) + "</w:r><w:r><w:t>Andersson</w:t></w:r></w:p>");
-        var without = ExtractXml("<w:p><w:r><w:t>Anna</w:t></w:r><w:r><w:t>Andersson</w:t></w:r></w:p>");
+            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r>" + ObjectWithoutText(form) + "</w:r>" +
+            "<w:r><w:rPr><w:b/></w:rPr><w:t>Andersson</w:t></w:r></w:p>");
+        var without = ExtractXml(
+            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>Andersson</w:t></w:r></w:p>");
 
         withObject.ShouldBe(without);
     }

@@ -9,9 +9,6 @@ namespace Jobbliggaren.Architecture.Tests;
 /// scan alone, through <c>ScanText</c> (ADR 0074 Amendment 2026-09-23). Segmentation and persistence read
 /// <c>RawText</c>; a second reader would carry a header's text, or text a tracked change deleted, where the review
 /// never shows it.
-///
-/// <para><b>What this does not see.</b> It reads member access by name. A positional deconstruction or a property
-/// pattern reads the members without the name after a dot, and neither form appears in <c>src/</c> today.</para>
 /// </summary>
 public class ScanOnlyExtractionChannelTests
 {

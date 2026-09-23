@@ -1055,7 +1055,7 @@ permitted to differ is the detected language.
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
-- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**
+- **Entry boundaries still need a blank line, and nothing here recovers them.**
   `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
   per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
   fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not

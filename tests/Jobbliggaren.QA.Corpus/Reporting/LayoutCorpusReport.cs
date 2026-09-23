@@ -492,7 +492,7 @@ public static class LayoutCorpusReport
         L("  invisibility shipped as a measurement, not as a distinct extraction mechanic.");
         L("- **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`");
         L("  branch of the import handler's segment conditional is unexercised.");
-        L("- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**");
+        L("- **Entry boundaries still need a blank line, and nothing here recovers them.**");
         L("  `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry");
         L("  per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document");
         L("  fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not");

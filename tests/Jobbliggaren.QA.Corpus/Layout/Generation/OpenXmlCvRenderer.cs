@@ -36,7 +36,7 @@ internal static class OpenXmlCvRenderer
     /// <para>UNTIL #1060 β-1 the cell order made <c>SplitTitleOrganization</c> read Title as null,
     /// because the split ran against a line carrying nothing but a period. It now reads the next
     /// line instead, so this arm parses its one fused entry and PROMOTES (lossily — it still yields
-    /// one entry of five, for the unrelated reason that the document authors no blank paragraphs
+    /// one entry of five, for the unrelated reason that the document authors no blank lines
     /// and <c>SplitEntries</c> splits on those alone).</para></summary>
     internal static byte[] TableLabelFirstNoBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: false, roleFirst: false, companyFirst: false);
@@ -70,7 +70,7 @@ internal static class OpenXmlCvRenderer
     /// <summary>The fourth cell of the <c>useTable: true</c> 2×2 over (header order × blank
     /// separators), which the other three above already occupy. It exists to answer ONE question
     /// the corpus could not answer before: is the entry-boundary loss on the no-blanks arms a
-    /// property of the DOCUMENT (no blank paragraph ⇒ <c>SplitEntries</c> cannot split) or a
+    /// property of the DOCUMENT (no blank line ⇒ <c>SplitEntries</c> cannot split) or a
     /// property of the label-first HEADER ORDER? Every no-blanks arm the corpus shipped was also
     /// label-first, so the two variables were confounded and the report could not separate them.
     ///

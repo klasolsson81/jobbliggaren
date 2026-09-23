@@ -18,13 +18,11 @@ public enum PersonnummerGapProfile
     /// than the arbitrary-digit case the original bound was argued from.
     /// PersonnummerBridgeCollisionRateTests regenerates both rates.</para>
     ///
-    /// <para>Used by CV import (body and file name), resume content, the auto-promote gate,
-    /// <c>JobSeeker.DisplayName</c> and <c>Resume.Name</c>. The exact set is pinned by
-    /// <c>PersonnummerGapProfileCallSiteTests</c>, which is where to read it — a count repeated
-    /// here would decay the next time a surface moves. ADR 0134 names which of these are
-    /// candidates for the other profile; the file name is NOT one, because it is redacted
-    /// downstream on a path that keeps the narrow bridge, so flagging it wider would produce
-    /// flagged-but-unmasked (ADR 0134 D8).</para>
+    /// <para>The set of call sites is pinned by <c>PersonnummerGapProfileCallSiteTests</c>, which is
+    /// where to read it — a list repeated here would decay the next time a surface moves. ADR 0134
+    /// names which of them are candidates for the other profile; the CV import's file name is NOT
+    /// one, because it is redacted downstream on a path that keeps the narrow bridge, so flagging it
+    /// wider would produce flagged-but-unmasked (ADR 0134 D8).</para>
     /// </summary>
     ExtractedDocumentText,
 

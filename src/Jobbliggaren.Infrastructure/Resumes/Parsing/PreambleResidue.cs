@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Text;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes.Parsing;
 
 namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
@@ -42,13 +44,6 @@ namespace Jobbliggaren.Infrastructure.Resumes.Parsing;
 /// or a "0" trunk prefix, so "811218-9876" matches nothing, and the fragment is KEPT — as the
 /// unsure-⇒-keep bias requires. Redacting it inside the carrier is rejected: the carrier is verbatim
 /// or it is worthless, and a rewritten preamble is the engine editing the user's words.
-///
-/// That is safe TODAY, and the reasons are structural, not luck: the import handler scans the WHOLE
-/// <c>RawText</c> for personnummer BEFORE the aggregate is persisted, so the carrier is a subset of
-/// already-scanned text and adds no undetected surface; the carrier lives inside the same encrypted
-/// JSON shadow, on the same row, under the same DEK and the same Art. 17 erasure; it is on no wire
-/// (no DTO maps it) and in no log or evidence string; and <c>ParsedResume.EnsureReadyForPromotion</c>
-/// REFUSES promotion outright when a personnummer was found.
 ///
 /// <b>Binding on the PR that puts this on the wire:</b> the adopt-as-summary affordance must be
 /// fail-closed on <c>Personnummer.Found</c> — the same guard <c>ImportResumeCommandHandler</c>
@@ -285,6 +280,12 @@ internal static class PreambleResidue
     // The hard cut must not split a UTF-16 surrogate pair: a lone surrogate is not valid text, and it
     // would be serialised straight into the encrypted JSON shadow. Step back one unit when the cut
     // lands between the halves of an astral character (an emoji in a CV header is not exotic).
+    //
+    // Nor may it end inside a digit run as the personnummer scan reads one, with format characters
+    // stripped: the scan of the whole text rejects a run on its trailing-digit boundary, and a prefix
+    // of that run can be a personnummer. The cut steps back to where the run starts. When the run
+    // starts the text there is nothing to step back to, and the scan decides: the longest prefix it
+    // passes is carried.
     private static string Truncate(string text)
     {
         var head = text[..MaxPreambleChars];
@@ -293,11 +294,41 @@ internal static class PreambleResidue
         if (lastBreak > 0)
             return head[..lastBreak].TrimEnd();
 
-        if (char.IsHighSurrogate(head[^1]))
-            head = head[..^1];
-
-        return head.TrimEnd();
+        var cut = char.IsHighSurrogate(head[^1]) ? MaxPreambleChars - 1 : MaxPreambleChars;
+        var outside = CutOutsideDigitRun(text, cut);
+        return outside > 0 ? text[..outside].TrimEnd() : LongestPrefixTheScanPasses(text, cut);
     }
+
+    private static string LongestPrefixTheScanPasses(string text, int cut)
+    {
+        var end = cut;
+        while (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
+                   text[..end], PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
+            end--;
+        return text[..end];
+    }
+
+    private static int CutOutsideDigitRun(string text, int cut)
+    {
+        var next = cut;
+        while (next < text.Length && IsStrippedByScan(text[next]))
+            next++;
+
+        var previous = cut - 1;
+        while (previous >= 0 && IsStrippedByScan(text[previous]))
+            previous--;
+
+        if (next == text.Length || previous < 0 || !char.IsDigit(text[next]) || !char.IsDigit(text[previous]))
+            return cut;
+
+        var start = previous;
+        while (start > 0 && (char.IsDigit(text[start - 1]) || IsStrippedByScan(text[start - 1])))
+            start--;
+
+        return start;
+    }
+
+    private static bool IsStrippedByScan(char c) => char.GetUnicodeCategory(c) == UnicodeCategory.Format;
 
     /// <summary>
     /// One line, fragment-wise. Returns the line VERBATIM when no fragment is consumed (the prose

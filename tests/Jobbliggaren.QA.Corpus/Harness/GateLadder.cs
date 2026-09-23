@@ -20,7 +20,7 @@ public enum GateState
     /// exists at all. Distinct from NotEvaluated, which means an earlier GATE stopped control.</summary>
     NoVerdict,
 
-    /// <summary>THE INSTRUMENT has no arm for the reason the handler returned — the ladder does not
+    /// <summary>THE INSTRUMENT has no arm for the block the handler returned — the ladder does not
     /// know, and says so.
     ///
     /// <para>It exists because collapsing it into <see cref="NoVerdict"/> is what let a real
@@ -147,7 +147,7 @@ internal static class GateLadder
             AutoPromoteBlockReason.PersonnummerPresent when pnrFoundOnParse => [b, n, n, n, n],
             AutoPromoteBlockReason.PersonnummerPresent when pnrInResolvedLabel => [p, p, b, n, n],
 
-            // The instrument has no arm for this token. NEVER NoVerdict: that narrates a gap in THIS
+            // The instrument has no arm for this block. NEVER NoVerdict: that narrates a gap in THIS
             // FILE as a fault in the handler, which is the exact mis-report this rewrite removes.
             _ => [.. Enumerable.Repeat(GateState.Unresolved, Rungs.Length)],
         };

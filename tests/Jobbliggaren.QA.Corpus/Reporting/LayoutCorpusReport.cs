@@ -306,10 +306,9 @@ public static class LayoutCorpusReport
         L();
         L("- `not evaluated` — an earlier GATE stopped control, so this rung was never asked.");
         L("- `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.");
-        L("- `unresolved` — THE INSTRUMENT has no arm for the token the handler returned. It is an");
+        L("- `unresolved` — THE INSTRUMENT has no arm for the block the handler returned. It is an");
         L("  integrity failure, listed in §0 and red in the suite, never a statement about the");
-        L("  product. Before it existed, this case rendered as `no verdict` — publishing an honest");
-        L("  block as a handler fault, on the one case that exercises the DQ6 rung.");
+        L("  product.");
         L("- `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is");
         L("  nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a");
         L("  statement about the handler; here the handler was never asked.");

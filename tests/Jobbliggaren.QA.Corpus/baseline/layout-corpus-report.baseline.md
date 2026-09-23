@@ -578,10 +578,9 @@ corrected for (2026-07-28):
 
 - `not evaluated` — an earlier GATE stopped control, so this rung was never asked.
 - `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.
-- `unresolved` — THE INSTRUMENT has no arm for the token the handler returned. It is an
+- `unresolved` — THE INSTRUMENT has no arm for the block the handler returned. It is an
   integrity failure, listed in §0 and red in the suite, never a statement about the
-  product. Before it existed, this case rendered as `no verdict` — publishing an honest
-  block as a handler fault, on the one case that exercises the DQ6 rung.
+  product.
 - `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is
   nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a
   statement about the handler; here the handler was never asked.

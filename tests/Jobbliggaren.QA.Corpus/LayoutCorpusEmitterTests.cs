@@ -209,10 +209,10 @@ public sealed class LayoutCorpusEmitterTests
     }
 
     /// <summary>The exhaustiveness half, and it is what makes the theory above a MECHANISM rather
-    /// than four instances: every declared enum member must appear in the case list. A fifth member
+    /// than four instances: every declared enum member must appear in the case list. A new member
     /// fails HERE, at the enum, before anyone has to notice one wrong cell in an ~800-line
     /// artifact. No count is written down — the same reason
-    /// <c>AutoPromoteBlockReason_IsTheLockedFourMemberSet</c> writes none.
+    /// <c>AutoPromoteBlockReason_IsTheLockedMemberSet</c> writes none.
     ///
     /// <para>Its subject is <c>AutoPromoteBlockReason</c>, a PRODUCTION type, so it sits outside the
     /// assert rule's three categories and is argued rather than assumed — the convention
@@ -288,33 +288,6 @@ public sealed class LayoutCorpusEmitterTests
         }).ShouldContain("**gate ladder malformed:** `case-ladder`");
     }
 
-    /// <summary>The UNMAPPED-token path — the one line this PR's whole claim rests on, and the one
-    /// nothing was running.
-    ///
-    /// <para>The earlier mutation round looked like it covered this and did not: deleting the DQ6
-    /// arm kills a test by ROUTING THROUGH the catch-all, which proves a fall-through exists and
-    /// says nothing about what the catch-all returns. Flipping <c>_ =&gt;</c> back to
-    /// <see cref="GateState.NoVerdict"/> stayed green. That is the repo's own recorded lesson —
-    /// pin the CALL SITE, not only the rule — reproduced inside the PR that cites it.</para>
-    ///
-    /// <para><b>The path is a DEFENSIVE arm behind a closed union, and calling it "reachable" would
-    /// be true of its evidence and false of its subject.</b> <c>CvChainProbe</c>'s outcome switch
-    /// does carry <c>_ =&gt; (block: null, promoted: false, faulted: false)</c> — but
-    /// <c>AutoPromoteOutcome</c> is a CLOSED discriminated union (private constructor, exactly
-    /// <c>Promoted</c> and <c>LeftPending</c>, "nothing outside this file can add a case"), so that
-    /// arm cannot be entered today, for the same reason the ladder's own <c>_</c> cannot.</para>
-    ///
-    /// <para><b>There is a SECOND ingress, and it is not the union opening.</b>
-    /// <c>PersonnummerPresent</c> with both discriminators false also lands here — the handler said
-    /// the gate fired and neither observable the corpus recomputes agrees. That is a DIVERGENCE
-    /// between product and instrument, and it is exactly the case where a confident "DQ6 blocked"
-    /// used to be printed. Naming one ingress and implying it is the only one would be this PR's
-    /// own defect class.</para>
-    ///
-    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS before either
-    /// ingress opens, and PR C is this corpus's measured proof that closure expires. The mutation is
-    /// the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green until this
-    /// test existed.</para></summary>
     [Fact]
     public void Ladder_ForADq6Block_IsUnresolved_BecauseNoPublicDiscriminatorNamesIt()
     {
@@ -330,6 +303,26 @@ public sealed class LayoutCorpusEmitterTests
         GateLadder.IsWellFormed(ladder).ShouldBeFalse();
     }
 
+    /// <summary>The UNMAPPED-token path — the one line this PR's whole claim rests on, and the one
+    /// nothing was running.
+    ///
+    /// <para>The earlier mutation round looked like it covered this and did not: deleting the DQ6
+    /// arm kills a test by ROUTING THROUGH the catch-all, which proves a fall-through exists and
+    /// says nothing about what the catch-all returns. Flipping <c>_ =&gt;</c> back to
+    /// <see cref="GateState.NoVerdict"/> stayed green. That is the repo's own recorded lesson —
+    /// pin the CALL SITE, not only the rule — reproduced inside the PR that cites it.</para>
+    ///
+    /// <para><b>The path is a DEFENSIVE arm behind a closed union, and calling it "reachable" would
+    /// be true of its evidence and false of its subject.</b> <c>CvChainProbe</c>'s outcome switch
+    /// does carry <c>_ =&gt; (block: null, promoted: false, faulted: false)</c> — but
+    /// <c>AutoPromoteOutcome</c> is a CLOSED discriminated union (private constructor, exactly
+    /// <c>Promoted</c> and <c>LeftPending</c>, "nothing outside this file can add a case"), so that
+    /// arm cannot be entered today.</para>
+    ///
+    /// <para>Pinning it anyway is the point: it fixes what the catch-all ANSWERS, and PR C is
+    /// this corpus's measured proof that closure expires. The mutation is
+    /// the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green until this
+    /// test existed.</para></summary>
     [Fact]
     public void Ladder_ForAnUnmappedOutcome_IsUnresolvedAndNeverAFault()
     {

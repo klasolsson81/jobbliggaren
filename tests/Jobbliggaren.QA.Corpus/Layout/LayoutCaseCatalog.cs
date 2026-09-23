@@ -58,8 +58,7 @@ public static class LayoutCaseCatalog
     private const string Docx =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-    /// <summary>The account name every case registers unless it is specifically probing the DQ6
-    /// guard. Deliberately not a person's real-looking name and never a personnummer.</summary>
+    /// <summary>Deliberately not a person's real-looking name and never a personnummer.</summary>
     internal const string DefaultAccountName = "Konto Kontosson";
 
     /// <summary>The synthetic Luhn-valid personnummer, taken from the corpus's OWN lexicon rather

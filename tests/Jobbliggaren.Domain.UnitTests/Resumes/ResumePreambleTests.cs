@@ -184,9 +184,7 @@ public class ResumePreambleTests
     {
         // 2 000 is the boundary the two caps SHARE, and it must not be off by one in either
         // direction: a Domain cap one char tighter than the writer's would block the shape the
-        // writer is allowed to produce. Note the writer emits <= 2 000, not exactly 2 000 —
-        // PreambleResidue.Truncate cuts on a LINE boundary, so the emitted length lands at or
-        // below the cap rather than on it. The boundary is still the right place to pin.
+        // writer is allowed to produce. The boundary is still the right place to pin.
         var result = Resume.CreateFromParsed(
             Owner, "Importerat CV", Content(preamble: new string('a', 2_000)),
             new ParsedResumeId(Guid.NewGuid()), Clock);

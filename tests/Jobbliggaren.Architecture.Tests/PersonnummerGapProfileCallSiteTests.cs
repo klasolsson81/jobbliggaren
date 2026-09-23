@@ -35,6 +35,7 @@ public class PersonnummerGapProfileCallSiteTests
         ("Jobbliggaren.Application/Resumes/Common/ResumeContentPersonnummerGuard.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Domain/JobSeekers/JobSeeker.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Domain/Resumes/Resume.cs", "ExtractedDocumentText"),
+        ("Jobbliggaren.Infrastructure/Resumes/Parsing/PreambleResidue.cs", "ExtractedDocumentText"),
     ];
 
     // Matches a CALL, never a doc-comment mention: the profile argument must be present.
@@ -85,7 +86,7 @@ public class PersonnummerGapProfileCallSiteTests
             "that call site holds, and the two profiles are not orderable by strength. Widening a " +
             "CV surface to SingleLineUserInput opens the date-column collision measured in " +
             "PersonnummerBridgeCollisionRateTests; narrowing ?q= restores the plaintext leak of " +
-            "#1415. If this list is genuinely changing, change ADR 0134 in the same commit.");
+            "#1415. If this list is genuinely changing, change ADR 0134.");
     }
 
     [Fact]
@@ -115,9 +116,10 @@ public class PersonnummerGapProfileCallSiteTests
             $"{anyCalls - withProfile} call site(s) reach Normalize without a " +
             "PersonnummerGapProfile argument the scan can see");
         withProfile.ShouldBe(
-            7,
-            "six files, seven invocations: ImportResumeCommandHandler guards the CV body and the " +
-            "file name separately, and RecentJobSearchCaptureBehavior reaches Normalize ONCE — " +
+            8,
+            "seven files, eight invocations: ImportResumeCommandHandler guards the CV body and the " +
+            "file name separately, PreambleResidue lets the scan decide a hard cut the digit run " +
+            "leaves nowhere else to put, and RecentJobSearchCaptureBehavior reaches Normalize ONCE — " +
             "through the single BearsPersonnummer predicate that both ?q= and the five taxonomy " +
             "axes (#1419) call. It went 7 -> 8 -> 7 across those two PRs, and the way back down " +
             "was giving one predicate one home (#844), not removing a guard. A drop means a " +

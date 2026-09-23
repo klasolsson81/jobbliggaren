@@ -68,7 +68,7 @@ public class SetFindingStatusCommandHandlerTests
 
     private static async Task<Resume> SeedResumeAsync(Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         db.Resumes.Add(resume);
@@ -253,7 +253,7 @@ public class SetFindingStatusCommandHandlerTests
     public async Task Handle_ShouldThrowNotFound_WhenResumeNotFound_NoLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -271,7 +271,7 @@ public class SetFindingStatusCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherResume = await SeedResumeAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(CancellationToken.None);
 

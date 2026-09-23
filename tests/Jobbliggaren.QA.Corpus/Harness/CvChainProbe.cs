@@ -131,16 +131,12 @@ internal static class CvChainProbe
         var clock = FixedClock.Default;
         await using var db = CorpusAppDbContextFactory.Create();
 
-        // The account display name is a CASE input, not a fixed constant.
-        //
-        // Since #1117 JobSeeker.Register refuses a personnummer-shaped display name (pinned in
-        // Jobbliggaren.Domain.UnitTests, JobSeekerTests). The probe therefore registers a
-        // placeholder and writes the case's own name straight to the column, which is the state a
-        // row written BEFORE that invariant has — the invariant is forward-only, since EF
-        // materializes an existing row past the factory methods.
-        var seeker = JobSeeker.Register(userId, "Korpus Testkonto", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        // The account display name is a CASE input, not a fixed constant. The aggregate stores no
+        // name (ADR 0142 D7), so the case's own name is written straight to the column through
+        // LegacyAccountName, which names the retired actor that wrote such a row.
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
-        db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = accountDisplayName;
+        LegacyAccountName.Write(db, seeker, accountDisplayName);
         await db.SaveChangesAsync(ct);
 
         var currentUser = Substitute.For<ICurrentUser>();

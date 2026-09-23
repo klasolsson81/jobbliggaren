@@ -15,7 +15,7 @@ public class UpdateMyProfileCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
 
-        var seekerResult = JobSeeker.Register(userId, "Initial Name", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
+        var seekerResult = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seekerResult.Value);
         await db.SaveChangesAsync(CancellationToken.None);
 

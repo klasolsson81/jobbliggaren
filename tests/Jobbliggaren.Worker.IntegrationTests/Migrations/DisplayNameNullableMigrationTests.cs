@@ -112,8 +112,9 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
 
     /// <summary>
     /// Registers a seeker through <see cref="JobSeeker.Register"/> and saves it with
-    /// <see cref="AppDbContext"/> — the actor and the write path production uses, so the row is one
-    /// production can produce. The options are the migration-time ones this fixture already holds;
+    /// <see cref="AppDbContext"/>, the write path production uses. A named row is written through
+    /// <c>LegacyAccountName</c>, which names the retired actor that wrote one. The options are the
+    /// migration-time ones this fixture already holds;
     /// <c>job_seekers</c> has no field-encrypted property, so the interceptors the running hosts add
     /// have nothing to do on this write.
     /// </summary>
@@ -121,11 +122,13 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
     {
         var clock = new FixedClock(new DateTimeOffset(2026, 9, 21, 9, 0, 0, TimeSpan.Zero));
         var seeker = JobSeeker
-            .Register(Guid.NewGuid(), displayName, TermsAcceptance.AcceptCurrent(clock), clock)
+            .Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock)
             .Value;
 
         await using var db = NewAppContext();
         db.JobSeekers.Add(seeker);
+        if (displayName is not null)
+            LegacyAccountName.Write(db, seeker, displayName);
         await db.SaveChangesAsync(ct);
 
         return seeker.Id;

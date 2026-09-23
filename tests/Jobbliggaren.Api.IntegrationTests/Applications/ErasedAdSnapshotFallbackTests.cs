@@ -116,7 +116,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var clock = ClockAt(T0);
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         var activeAd = ImportAd("Aktiv systemutvecklare", "Aktiv AB", clock);
@@ -353,7 +353,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var clock = ClockAt(T0);
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         var erasedAd = ImportAd("Raderad annons", "Raderat Bolag AB", clock);
         db.JobAds.Add(erasedAd);
@@ -386,7 +386,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var clock = ClockAt(T0);
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         var archivedAd = ImportAd("Arkiverad annons", "Arkiverat Bolag AB", clock);
         db.JobAds.Add(archivedAd);
@@ -423,7 +423,7 @@ public sealed class ErasedAdSnapshotFallbackTests(ApiFactory factory)
         var clock = ClockAt(T0);
         var userId = Guid.NewGuid();
 
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 

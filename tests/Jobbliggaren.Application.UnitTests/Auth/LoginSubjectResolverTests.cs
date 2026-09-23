@@ -30,7 +30,7 @@ public sealed class LoginSubjectResolverTests
 
     private static JobSeeker Profile(Guid userId) =>
         JobSeeker.Register(
-            userId, "Test", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
+            userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
         .Value;
 
     [Fact]

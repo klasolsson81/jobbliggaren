@@ -5,6 +5,7 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -69,9 +70,17 @@ public class MeTests(ApiFactory factory)
         // ADR 0142 D7: the account has no name, so the profile does not carry the key, including for
         // an account that has one stored (the column stays until 4b, #1742).
         var ct = TestContext.Current.CancellationToken;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            factory, displayName: "Me User", ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
+        var userId = Guid.Parse(me.GetProperty("userId").GetString()!);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == userId, ct);
+            LegacyAccountName.Write(db, seeker, "Me User");
+            await db.SaveChangesAsync(ct);
+        }
 
         var response = await _client.GetAsync("/api/v1/me/profile", ct);
 
@@ -87,7 +96,7 @@ public class MeTests(ApiFactory factory)
         // The command carries only the language, and the endpoint binds it directly, so a stray key
         // is dropped by the serializer. The column is read back, since the profile no longer shows it.
         var ct = TestContext.Current.CancellationToken;
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, displayName: null, ct: ct);
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
         var me = await _client.GetFromJsonAsync<JsonElement>("/api/v1/me", ct);
         var userId = Guid.Parse(me.GetProperty("userId").GetString()!);

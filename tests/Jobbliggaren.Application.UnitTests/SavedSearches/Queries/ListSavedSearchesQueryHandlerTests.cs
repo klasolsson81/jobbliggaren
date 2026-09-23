@@ -73,9 +73,9 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ReturnsOnlyOwnSavedSearches()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var other = JobSeeker.Register(Guid.NewGuid(), "Other", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var other = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(other);
 
         db.SavedSearches.Add(NewSaved(seeker.Id, "Min A"));
@@ -120,7 +120,7 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ShouldPopulateOccupationGroupMunicipalityAndRegionLabels_WhenConceptIdsResolve()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(NewSaved(
             seeker.Id, "IT i Stockholm",
@@ -174,7 +174,7 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ShouldPropagateFallbackLabel_WhenConceptIdIsUnknown()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(NewSaved(
             seeker.Id, "Stale", occupationGroup: ["borttagen-kod"]));
@@ -195,7 +195,7 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ShouldReturnEmptyLabelLists_WhenCriteriaHasNoConceptIds()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         // Endast fritext-q, inga concept-id.
         db.SavedSearches.Add(SavedSearch.Create(
@@ -220,7 +220,7 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ShouldNotThrow_WhenSavedSearchHasNoConceptIds()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(SavedSearch.Create(
             seeker.Id, "Tom",
@@ -247,7 +247,7 @@ public class ListSavedSearchesQueryHandlerTests
     public async Task Handle_ShouldInvokeTaxonomyPort_ForEachSavedSearchWithConceptIds()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         db.SavedSearches.Add(NewSaved(seeker.Id, "A", occupationGroup: ["a1"], region: ["r1"]));
         db.SavedSearches.Add(NewSaved(seeker.Id, "B", occupationGroup: ["b1"], municipality: ["m1"]));
@@ -270,9 +270,9 @@ public class ListSavedSearchesQueryHandlerTests
         // invarianten (cross-tenant-läcka). Annans sökning syns aldrig,
         // ens med berikning aktiv.
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        var other = JobSeeker.Register(Guid.NewGuid(), "Other", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var other = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(other);
         db.SavedSearches.Add(NewSaved(seeker.Id, "Min", occupationGroup: ["mine"]));
         db.SavedSearches.Add(NewSaved(other.Id, "Annans", occupationGroup: ["theirs"]));

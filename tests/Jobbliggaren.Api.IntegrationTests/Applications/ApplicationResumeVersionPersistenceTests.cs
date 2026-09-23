@@ -44,7 +44,7 @@ public class ApplicationResumeVersionPersistenceTests(ApiFactory factory)
     private static async Task<(JobSeekerId seekerId, ResumeVersionId versionId)> SeedSeekerAndResumeAsync(
         IServiceScope scope, AppDbContext db, IDateTimeProvider clock, Guid userId, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         // Resume.Content krypteras (ADR 0049) → värm ägar-DEK FÖRE Add
@@ -95,7 +95,7 @@ public class ApplicationResumeVersionPersistenceTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
 
@@ -170,7 +170,7 @@ public class ApplicationResumeVersionPersistenceTests(ApiFactory factory)
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         _currentUser.UserId.Returns(_userId);
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, ct);
         var app = DomainApplication.Create(seeker.Id, null, "Brev", null, clock).Value;

@@ -123,22 +123,12 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         string? displayName = AccountName,
         string sourceFileName = "anna-cv.pdf")
     {
-        // A null name registers the way the passwordless consent step does
-        // (CompleteLoginChallengeCommandHandler), an ordinary one the way RegisterCommandHandler
-        // does. Since #1117 JobSeeker.Register refuses a personnummer-shaped name (pinned in
-        // Jobbliggaren.Domain.UnitTests, JobSeekerTests), so that one case is written to the column
-        // directly: it asserts about a row written BEFORE the invariant landed, which EF still
-        // materializes past the factory methods.
-        var registered = JobSeeker.Register(userId, displayName, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
-        var seeker = registered.IsSuccess
-            ? registered.Value
-            : JobSeeker.Register(userId, "Seeded Owner", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        // A null name is the state the aggregate produces. A given name is written to the column
+        // through LegacyAccountName, which names the retired actor that wrote such a row.
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        if (registered.IsFailure)
-        {
-            registered.Error.Code.ShouldBe("JobSeeker.DisplayNamePersonnummerMustBeRemoved");
-            db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = displayName;
-        }
+        if (displayName is not null)
+            LegacyAccountName.Write(db, seeker, displayName);
         var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -670,7 +660,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     public async Task Handle_WhenParsedResumeNotFound_ReturnsNotFoundFailure_NoCrossUserLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, AccountName, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -688,7 +678,7 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var (otherParsed, _) = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

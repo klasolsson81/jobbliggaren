@@ -110,7 +110,7 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
 
             var clock = new FixedClock(deletedAt.AddDays(-1));
             var seeker = JobSeeker.Register(
-                user.Id, "CryptoErasure Seed",
+                user.Id,
                 TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
@@ -253,7 +253,7 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
             // (ingen PII skriven ⇒ ingen GetOrCreateDataKeyAsync).
             var clock = new FixedClock(deletedAt.AddDays(-1));
             var seeker = JobSeeker.Register(
-                user.Id, "CryptoErasure NoKey",
+                user.Id,
                 TermsAcceptance.AcceptCurrent(clock), clock).Value;
             seeker.SoftDelete(new FixedClock(deletedAt));
             seedDb.JobSeekers.Add(seeker);

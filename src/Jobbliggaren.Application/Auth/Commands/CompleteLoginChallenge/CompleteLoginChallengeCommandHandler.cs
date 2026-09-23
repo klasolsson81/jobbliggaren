@@ -74,7 +74,7 @@ public sealed class CompleteLoginChallengeCommandHandler(
         if (created.IsFailure)
             return created.Error.Code == AuthErrorCodes.DuplicateAccount ? null : created.Error;
 
-        var seeker = JobSeeker.Register(created.Value, displayName: null, TermsAcceptance.AcceptCurrent(clock), clock);
+        var seeker = JobSeeker.Register(created.Value, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seeker.IsFailure)
         {
             await accounts.DeleteAsync(created.Value, ct);

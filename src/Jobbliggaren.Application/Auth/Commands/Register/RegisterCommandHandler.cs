@@ -99,7 +99,7 @@ public sealed partial class RegisterCommandHandler(
         // published versions at the clock's now. It is read from the clock a second time inside
         // Register for CreatedAt — two facts, so two reads, and not coupled to save one.
         var seekerResult = JobSeeker.Register(
-            userId, displayName: null, TermsAcceptance.AcceptCurrent(clock), clock);
+            userId, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seekerResult.IsFailure)
         {
             await userAccountService.DeleteUserAsync(userId, cancellationToken);

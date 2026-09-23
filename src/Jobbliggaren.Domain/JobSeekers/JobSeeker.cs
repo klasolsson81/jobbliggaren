@@ -1,6 +1,5 @@
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers.Events;
-using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 
 namespace Jobbliggaren.Domain.JobSeekers;
@@ -10,8 +9,8 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     public Guid UserId { get; private set; }
 
     /// <summary>
-    /// The holder's name as they gave it, or <c>null</c> when they have not given one: a passwordless account
-    /// is created before anyone has typed a name (ADR 0142 D7). Never blank.
+    /// The account has no name (ADR 0142 D7), and nothing in the aggregate writes this. It is
+    /// mapped only until 4b (#1742) drops the column: rows written before #1741 PR B can carry one.
     /// </summary>
     public string? DisplayName { get; private set; }
     public Preferences Preferences { get; private set; } = null!;
@@ -82,61 +81,18 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     private JobSeeker(
         JobSeekerId id,
         Guid userId,
-        string? displayName,
         Preferences preferences,
         TermsAcceptance termsAcceptance,
         DateTimeOffset createdAt) : base(id)
     {
         UserId = userId;
-        DisplayName = displayName;
         Preferences = preferences;
         TermsAcceptance = termsAcceptance;
         CreatedAt = createdAt;
     }
 
-    /// <summary>The display name's length limit. Exposed so a caller that validates the
-    /// name at a boundary caps against the aggregate's own number, not a copy of it.</summary>
-    public const int MaxDisplayNameLength = 200;
-
-    // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the shared name-invariant enforced
-    // on EVERY DisplayName-write path (Register / UpdateDisplayName). DisplayName is a
-    // PLAINTEXT, UNENCRYPTED column that surfaces on screen and in the profile DTO. So a
-    // personnummer typed into the ACCOUNT NAME must be refused. This
-    // is a structural AGGREGATE invariant (DDD §2.2), not a boundary guard: enforcing it here
-    // closes the channel for every caller by construction, fail-closed, so a future write path
-    // (an external-identity login populating a name, say) cannot silently forget it.
-    //
-    // Detection = the FLAG-path chain (Normalize -> Scan), the same PersonnummerScanner
-    // authority Resume.ValidateName runs one aggregate over, whose written justification
-    // applies verbatim here. The name is REFUSED, never redacted — a name is user intent, not
-    // free-text evidence to strip in place. The unchanged date+Luhn authority
-    // (Personnummer.TryParse) still governs, so an ordinary name is never over-flagged.
-    // Returns the trimmed, validated name so both callers use ONE canonical value.
-    //
-    // The invariant is FORWARD-ONLY: EF materializes an existing row through the private
-    // constructor, bypassing this method, so a row written before it landed still loads.
-    public static Result<string> ValidateDisplayName(string? displayName)
-    {
-        if (string.IsNullOrWhiteSpace(displayName))
-            return Result.Failure<string>(
-                DomainError.Validation("JobSeeker.DisplayNameRequired", "Visningsnamn är obligatoriskt."));
-
-        if (displayName.Length > MaxDisplayNameLength)
-            return Result.Failure<string>(DomainError.Validation(
-                "JobSeeker.DisplayNameTooLong",
-                $"Visningsnamn får vara max {MaxDisplayNameLength} tecken."));
-
-        if (PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(displayName, PersonnummerGapProfile.ExtractedDocumentText)).Count > 0)
-            return Result.Failure<string>(DomainError.Validation(
-                "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
-                "Ta bort personnummer ur visningsnamnet."));
-
-        return Result.Success(displayName.Trim());
-    }
-
     public static Result<JobSeeker> Register(
         Guid userId,
-        string? displayName,
         TermsAcceptance acceptance,
         IDateTimeProvider clock)
     {
@@ -154,22 +110,11 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
                 "JobSeeker.TermsAcceptanceRequired",
                 "Ett konto kan inte skapas utan godkända användarvillkor."));
 
-        // An absent name is admitted; a name that is given meets every rule of ValidateDisplayName.
-        string? validatedName = null;
-        if (!string.IsNullOrWhiteSpace(displayName))
-        {
-            var nameResult = ValidateDisplayName(displayName);
-            if (nameResult.IsFailure)
-                return Result.Failure<JobSeeker>(nameResult.Error);
-
-            validatedName = nameResult.Value;
-        }
-
         var now = clock.UtcNow;
         var id = JobSeekerId.New();
-        var jobSeeker = new JobSeeker(id, userId, validatedName, new Preferences(), acceptance, now);
+        var jobSeeker = new JobSeeker(id, userId, new Preferences(), acceptance, now);
         jobSeeker.RaiseDomainEvent(
-            new JobSeekerRegisteredDomainEvent(id, userId, validatedName, now));
+            new JobSeekerRegisteredDomainEvent(id, userId, now));
 
         return Result.Success(jobSeeker);
     }

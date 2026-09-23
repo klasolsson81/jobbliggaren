@@ -189,7 +189,7 @@ export async function updateFollowedCompanyNotificationConsentAction(
 function codeRefusal(
   refusal: BoundCodeRefusal,
   copy: { wrongCode: string; lastAttempt: string; tooManyAttempts: string; unavailable: string }
-): ReauthOutcome<never> {
+): Exclude<ReauthOutcome<never>, { kind: "refused" }> {
   switch (refusal.kind) {
     case "wrongCode":
       // One slot, one announcement: the last-attempt warning rides in the same alert as the miss.
@@ -228,7 +228,7 @@ function codeRefusal(
 export async function deleteAccountAction(
   confirmEmail: string,
   proof: CodeProof
-): Promise<ReauthOutcome<never>> {
+): Promise<Exclude<ReauthOutcome<never>, { kind: "refused" }>> {
   const ts = await getTranslations("settings");
   const tp = await getTranslations("pages");
 
@@ -395,13 +395,7 @@ export async function requestEmailChangeAction(
     };
   }
   if (res.status === 503 && (await readProblemTitle(res)) === AUTH_ERROR_CODES.EmailDeliveryUnavailable) {
-    return {
-      ok: false,
-      kind: "operationRefused",
-      error: spent(ts("account.errors.emailDeliveryUnavailable")),
-      channel: "status",
-      terminal: true,
-    };
+    return { ok: false, kind: "refused", error: spent(ts("account.errors.emailDeliveryUnavailable")) };
   }
   return notDone;
 }
@@ -415,12 +409,12 @@ export async function requestEmailChangeAction(
  * (security-auditor, #1740 Minor 3): a documented refusal leaves the address unchanged; a 5xx, a
  * transport failure or a 200 that does not parse may sit over a committed change and claims nothing;
  * a parsed 200 is done. Only then is the device's session re-issued (ADR 0018: the backend sets no
- * cookie), and nothing reads the session after the confirm, whose old id is dead from there on (S2).
+ * cookie).
  */
 export async function confirmEmailChangeAction(
   newEmail: string,
   proof: CodeProof
-): Promise<ReauthOutcome<null>> {
+): Promise<Exclude<ReauthOutcome<null>, { kind: "refused" }>> {
   const ts = await getTranslations("settings");
   const tp = await getTranslations("pages");
 
@@ -450,7 +444,7 @@ export async function confirmEmailChangeAction(
   const unknown = {
     ok: false,
     kind: "outcomeUnknown",
-    error: ts("account.changeEmail.outcomeUnknown", { newEmail: address.data }),
+    error: ts("account.changeEmail.outcomeUnknown"),
   } as const;
 
   let res: Response;

@@ -13,7 +13,9 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
+import { TEXT_LINK } from "@/components/auth/mail-link";
 import { CodeField } from "@/components/forms/code-field";
+import { PendingLabel } from "@/components/forms/pending-label";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,7 +49,7 @@ export type ReauthHandOff<T> =
   | { kind: "verified"; value: T }
   | { kind: "operationRefused"; error: string; channel: MessageChannel; terminal?: true }
   | { kind: "outcomeUnknown"; error: string }
-  | { kind: "refused" };
+  | { kind: "refused"; error?: string };
 
 type Challenge<C> = {
   /** Null once the backend has answered 410 for it: the step stays, but nothing is left to verify. */
@@ -62,6 +64,38 @@ type Panel = { kind: "terminal"; message: string } | { kind: "notLoggedIn" };
 type FocusTarget = "code" | "message" | "panel" | "resend";
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+type ReAuthCodeDialogProps<T, C> = {
+  /** The element that opens the dialog; its own `onClick` may `preventDefault()` to keep it closed. */
+  trigger: ReactNode;
+  title: string;
+  /** What the operation does and what it costs. Plain text: nothing focusable before the first field. */
+  description: string;
+  currentEmail: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  cancelLabel: string;
+  variant?: "default" | "destructive";
+  /** Fields the consumer asks for before a code is sent (delete's typed address). */
+  requestFields?: ReactNode;
+  /** Appended to the code field's hint (plain text: the hint is read as a description). */
+  codeHintExtra?: ReactNode;
+  /** Appended to the daily-budget message: the way on when no more codes can be sent today. */
+  terminalExtra?: ReactNode;
+  action: (proof: CodeProof, context: C) => Promise<ReauthOutcome<T>>;
+  onHandOff: (handOff: ReauthHandOff<T>) => void;
+  /** Moves focus to the consumer's target once a hand-off has closed the dialog. */
+  focusAfterHandOff: () => void;
+  onOpenChange?: (open: boolean) => void;
+} & ([C] extends [undefined]
+  ? { onBeforeRequest?: undefined }
+  : {
+      /**
+       * Validates `requestFields` when "Skicka kod" is pressed and returns what the operation needs
+       * from them, or null to stay (the consumer shows its own message on its field).
+       */
+      onBeforeRequest: () => C | null;
+    });
 
 export function ReAuthCodeDialog<T, C = undefined>({
   trigger,
@@ -80,34 +114,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   onHandOff,
   focusAfterHandOff,
   onOpenChange,
-}: {
-  /** The element that opens the dialog; its own `onClick` may `preventDefault()` to keep it closed. */
-  trigger: ReactNode;
-  title: string;
-  /** What the operation does and what it costs. Plain text: nothing focusable before the first field. */
-  description: string;
-  currentEmail: string;
-  confirmLabel: string;
-  pendingLabel: string;
-  cancelLabel: string;
-  variant?: "default" | "destructive";
-  /** Fields the consumer asks for before a code is sent (delete's typed address). */
-  requestFields?: ReactNode;
-  /**
-   * Validates `requestFields` when "Skicka kod" is pressed and returns what the operation needs from
-   * them, or null to stay (the consumer shows its own message on its field). Omitted: nothing to check.
-   */
-  onBeforeRequest?: () => C | null;
-  /** Appended to the code field's hint (plain text: the hint is read as a description). */
-  codeHintExtra?: ReactNode;
-  /** Appended to the daily-budget message: the way on when no more codes can be sent today. */
-  terminalExtra?: ReactNode;
-  action: (proof: CodeProof, context: C) => Promise<ReauthOutcome<T>>;
-  onHandOff: (handOff: ReauthHandOff<T>) => void;
-  /** Moves focus to the consumer's target once a hand-off has closed the dialog. */
-  focusAfterHandOff: () => void;
-  onOpenChange?: (open: boolean) => void;
-}) {
+}: ReAuthCodeDialogProps<T, C>) {
   const t = useTranslations("settings");
   const tp = useTranslations("pages");
   const tc = useTranslations("common");
@@ -185,6 +192,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
     resetView();
     handingOff.current = true;
     setOpen(false);
+    onOpenChange?.(false);
     onHandOff(result);
   }
 
@@ -286,7 +294,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
           handOff({ kind: "outcomeUnknown", error: outcome.error });
           return;
         case "refused":
-          handOff({ kind: "refused" });
+          handOff(outcome.error ? { kind: "refused", error: outcome.error } : { kind: "refused" });
           return;
       }
     });
@@ -394,22 +402,31 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 <>
                   <p>{t("account.reauth.notLoggedIn")}</p>
                   <p>
-                    <Link href="/logga-in?next=/mina-sidor">{t("account.reauth.toLogin")}</Link>
+                    <Link href="/logga-in?next=/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
+                      {t("account.reauth.toLogin")}
+                    </Link>
                   </p>
                 </>
               )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="max-md:h-11"
+                onClick={() => handleOpenChange(false)}
+              >
                 {tc("dialog.close")}
               </Button>
             </DialogFooter>
           </>
         ) : step === "request" ? (
           <form onSubmit={onRequest} noValidate className="flex flex-col gap-4">
-            <fieldset disabled={isPending} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
-              {requestFields}
-            </fieldset>
+            {requestFields && (
+              <fieldset disabled={isPending} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
+                {requestFields}
+              </fieldset>
+            )}
             {message && (
               <LoginFormMessage
                 id={messageId}
@@ -423,12 +440,17 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 type="button"
                 variant="ghost"
                 disabled={isPending}
+                className="max-md:h-11"
                 onClick={() => handleOpenChange(false)}
               >
                 {cancelLabel}
               </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? t("account.reauth.sending") : t("account.reauth.send")}
+              <Button type="submit" disabled={isPending} className="max-md:h-11">
+                <PendingLabel
+                  pending={isPending}
+                  idle={t("account.reauth.send")}
+                  busy={t("account.reauth.sending")}
+                />
               </Button>
             </DialogFooter>
           </form>
@@ -482,13 +504,14 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 type="button"
                 variant="ghost"
                 disabled={isPending}
+                className="max-md:h-11"
                 onClick={() => handleOpenChange(false)}
               >
                 {cancelLabel}
               </Button>
               {dead === null && (
-                <Button type="submit" variant={variant} disabled={isPending}>
-                  {isPending ? pendingLabel : confirmLabel}
+                <Button type="submit" variant={variant} disabled={isPending} className="max-md:h-11">
+                  <PendingLabel pending={isPending} idle={confirmLabel} busy={pendingLabel} />
                 </Button>
               )}
             </DialogFooter>

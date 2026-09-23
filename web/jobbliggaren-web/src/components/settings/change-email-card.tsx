@@ -23,6 +23,7 @@ import { useTranslations } from "next-intl";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
 import { TEXT_LINK } from "@/components/auth/mail-link";
 import { CodeField } from "@/components/forms/code-field";
+import { PendingLabel } from "@/components/forms/pending-label";
 import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,14 +47,15 @@ type View =
   | { step: "unknown"; message: string }
   | { step: "notLoggedIn" }
   /** No mail can be delivered on this deployment. */
-  | { step: "mailOff" };
+  | { step: "mailOff"; message?: string };
 
 type FocusTarget = "field" | "code" | "message" | "panel";
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 
 // The delivered text-link form of a control that changes state (`change-email-button.tsx`).
-const START_OVER_LINK = "-my-2 h-auto px-0 py-2 text-brand-700 underline underline-offset-2";
+const START_OVER_LINK =
+  "-my-2 h-auto px-0 py-2 text-brand-700 underline underline-offset-2 max-md:-my-2.5 max-md:py-2.5";
 
 export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
   const t = useTranslations("settings");
@@ -132,7 +134,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
         handOffFocus.current = "panel";
         return;
       case "refused":
-        setView({ step: "mailOff" });
+        setView(handOff.error ? { step: "mailOff", message: handOff.error } : { step: "mailOff" });
         handOffFocus.current = "panel";
         return;
     }
@@ -146,6 +148,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
 
   function toAddressStep(fieldMessage: string | null) {
     setView({ step: "address" });
+    setPendingAddress("");
     setCode("");
     setMessage(fieldMessage === null ? null : { text: fieldMessage, channel: "field" });
     pendingFocus.current = "field";
@@ -182,6 +185,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
         // The action re-set the session cookie, so the page re-renders with the new address.
         setView({ step: "address" });
         setInput("");
+        setPendingAddress("");
         setCode("");
         setMessage({
           text: t("account.changeEmail.success", { newEmail: challenge.address }),
@@ -227,10 +231,6 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
           setView({ step: "unknown", message: outcome.error });
           pendingFocus.current = "panel";
           return;
-        case "refused":
-          setView({ step: "mailOff" });
-          pendingFocus.current = "panel";
-          return;
       }
     });
   }
@@ -270,7 +270,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
           <div ref={panelRef} tabIndex={-1}>
             {title}
             <p role="status" className="text-body-sm text-text-primary">
-              {t("account.errors.emailDeliveryUnavailable")}
+              {view.message ?? t("account.errors.emailDeliveryUnavailable")}
             </p>
           </div>
         </section>
@@ -295,7 +295,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             <>
               <p>{t("account.reauth.notLoggedIn")}</p>
               <p>
-                <Link href="/logga-in?next=/mina-sidor" className={TEXT_LINK}>
+                <Link href="/logga-in?next=/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
                   {t("account.reauth.toLogin")}
                 </Link>
               </p>
@@ -313,7 +313,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             <>
               <p>{view.message}</p>
               <p>
-                <a href="/mina-sidor" className={TEXT_LINK}>
+                <a href="/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
                   {t("account.reload")}
                 </a>
               </p>
@@ -329,7 +329,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
           {current}
           {panel(<p>{view.message}</p>)}
           <div className="mt-3">
-            <Button type="button" onClick={() => toAddressStep(null)}>
+            <Button type="button" className="max-md:h-11" onClick={() => toAddressStep(null)}>
               {t("account.changeEmail.startOver")}
             </Button>
           </div>
@@ -359,8 +359,12 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             />
             {slot}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? t("account.changeEmail.confirming") : t("account.changeEmail.confirm")}
+              <Button type="submit" disabled={isPending} className="max-md:h-11">
+                <PendingLabel
+                  pending={isPending}
+                  idle={t("account.changeEmail.confirm")}
+                  busy={t("account.changeEmail.confirming")}
+                />
               </Button>
               <Button
                 type="button"
@@ -414,7 +418,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             <div>
               <ReAuthCodeDialog<{ challengeId: string }>
                 trigger={
-                  <Button type="submit" variant="secondary" onClick={onContinue}>
+                  <Button type="submit" variant="secondary" className="max-md:h-11" onClick={onContinue}>
                     {t("account.changeEmail.continue")}
                   </Button>
                 }

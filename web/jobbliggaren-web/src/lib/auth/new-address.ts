@@ -18,6 +18,12 @@ export const NEW_ADDRESS_REFUSAL_COPY = {
 // surrogate and format characters.
 const FORBIDDEN = /[\s\p{Cc}\p{Cf}\p{Cs}]/u;
 
+const hasSurrogateUnit = (value: string) =>
+  [...Array(value.length).keys()].some((i) => {
+    const unit = value.charCodeAt(i);
+    return unit >= 0xd800 && unit <= 0xdfff;
+  });
+
 /**
  * Checks a new address before a code is spent on it (security-auditor, #1740 Minor 4). It refuses at
  * least what the backend's validation step refuses — empty, over 256, not exactly one "@" that is
@@ -35,7 +41,8 @@ export function checkNewAddress(input: string, currentEmail: string): NewAddress
     at <= 0 ||
     at === address.length - 1 ||
     at !== address.lastIndexOf("@") ||
-    FORBIDDEN.test(address)
+    FORBIDDEN.test(address) ||
+    hasSurrogateUnit(address)
   ) {
     return { ok: false, reason: "invalid" };
   }

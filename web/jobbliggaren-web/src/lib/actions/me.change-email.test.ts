@@ -187,7 +187,7 @@ describe("requestEmailChangeAction", () => {
     });
   });
 
-  it("ends the flow when mail cannot be delivered after the code was spent", async () => {
+  it("answers mail that cannot be delivered after the code was spent as the deployment's refusal", async () => {
     backend({
       "/api/v1/auth/reauth/verify": verifiedReauth,
       "/api/v1/auth/change-email": () => problem(503, "Auth.EmailDeliveryUnavailable"),
@@ -195,10 +195,8 @@ describe("requestEmailChangeAction", () => {
 
     expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
       ok: false,
-      kind: "operationRefused",
+      kind: "refused",
       error: `settings.account.errors.emailDeliveryUnavailable ${SPENT}`,
-      channel: "status",
-      terminal: true,
     });
   });
 

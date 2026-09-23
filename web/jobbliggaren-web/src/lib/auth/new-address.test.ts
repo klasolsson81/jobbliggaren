@@ -35,6 +35,7 @@ describe("checkNewAddress", () => {
     ["a space", "ny x@exempel.se"],
     ["a format character", `ny${ZERO_WIDTH_SPACE}@exempel.se`],
     ["a lone surrogate", `ny${LONE_SURROGATE}@exempel.se`],
+    ["an astral character, a surrogate pair", `ny${String.fromCodePoint(0x1f600)}@exempel.se`],
   ])("refuses what StorableAddress refuses after a code is spent: %s", (_label, input) => {
     expect(checkNewAddress(input, CURRENT)).toEqual({ ok: false, reason: "invalid" });
   });

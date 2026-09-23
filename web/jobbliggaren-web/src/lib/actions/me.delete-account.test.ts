@@ -193,7 +193,7 @@ describe("deleteAccountAction", () => {
     expect(calls).toEqual([]);
   });
 
-  it.each([400, 401, 404, 409, 410, 429])(
+  it.each([400, 401, 404, 429])(
     "calls a documented %i after the code a refusal, and says the code is spent",
     async (status) => {
       backend(
@@ -238,7 +238,7 @@ describe("deleteAccountAction", () => {
     );
     const results: unknown[] = [];
     for (const remove of [
-      () => problem(409, "Auth.Anything"),
+      () => problem(401, "Auth.InvalidCredentials"),
       () => json(500, {}),
       () => json(200, { reauthGrant: 42 }),
     ]) {

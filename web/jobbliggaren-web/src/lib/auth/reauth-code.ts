@@ -11,8 +11,8 @@ import { readProblemTitle } from "@/lib/http/problem";
 // only from inside the actions that spend the grant in the same request, so a grant never leaves the
 // server (ADR 0142 D5, #1740).
 //
-// It classifies and never translates: the caller owns the copy. Nothing here logs; the code, the
-// challenge id and the grant never reach a console.
+// It classifies and never translates: the caller owns the copy. The code, the challenge id and the grant
+// never reach a console.
 
 /** Which bound challenge the code answers: the account's own address, or the new one. */
 export type BoundCodeStep = "reauth" | "changeEmail";

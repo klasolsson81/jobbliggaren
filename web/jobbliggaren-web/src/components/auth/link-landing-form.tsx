@@ -144,7 +144,7 @@ export function UnusableLink({
         {t("auth.passwordless.link.unusable")}
       </p>
       <p className="text-body-sm text-text-primary">
-        <Link href="/logga-in" className="text-brand-700 underline underline-offset-2">
+        <Link href="/logga-in" className="text-brand-700 underline underline-offset-2 max-md:py-3">
           {t("auth.passwordless.link.toLogin")}
         </Link>
       </p>

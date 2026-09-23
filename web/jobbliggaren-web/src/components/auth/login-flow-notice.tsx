@@ -8,8 +8,9 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 // Client because it takes focus when it mounts (`useFocusOnMount`).
 //
 // Why a visitor is on `/logga-in`: a grant that could not be used, a login that ran out before the
-// code was submitted, or the account that was just deleted (#1740). It arrives with a navigation, so it sits ABOVE the form, which
-// stays live; the remedy is the form itself. A status, never an alert and never danger colour.
+// code was submitted, or the account that was just deleted (#1740). It arrives with a navigation, so it
+// sits ABOVE the form, which stays live; the remedy is the form itself. A status, never an alert and
+// never danger colour.
 //
 // Carried by the flow cookie's `notice` phase. A Server Component cannot clear a cookie, so the
 // notice lives its 120 seconds or until the form is submitted, and a reload inside that window

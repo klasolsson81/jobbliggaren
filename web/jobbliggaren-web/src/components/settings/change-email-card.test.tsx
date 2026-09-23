@@ -275,7 +275,7 @@ describe("ChangeEmailCard", () => {
   });
 
   it("claims nothing when the outcome is unknown: a reload link, and no Börja om", async () => {
-    const unknown = `Vi kan inte se om adressen byttes. Ladda om sidan. Hamnar du på inloggningssidan har den bytts, och då loggar du in med ${NEW}.`;
+    const unknown = "Vi kan inte se om adressen byttes. Ladda om sidan.";
     confirmEmailChangeMock.mockResolvedValue({ ok: false, kind: "outcomeUnknown", error: unknown });
     const user = userEvent.setup();
     render(<ChangeEmailCard currentEmail={CURRENT} />);
@@ -406,6 +406,21 @@ describe("ChangeEmailCard", () => {
       expect(status).toHaveAttribute("role", "status");
       await waitFor(() => expect(status).toHaveFocus());
       expect(screen.getByRole("button", { name: "Fortsätt" })).toBeInTheDocument();
+    });
+
+    it("replaces the card with the delivered panel when mail stops after the code", async () => {
+      const mailOff = `E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Din adress är oförändrad. Försök igen senare. ${SPENT}`;
+      requestEmailChangeMock.mockResolvedValue({ ok: false, kind: "refused", error: mailOff });
+      const user = userEvent.setup();
+      render(<ChangeEmailCard currentEmail={CURRENT} />);
+
+      await reauthenticate(user);
+
+      const status = await screen.findByText(mailOff);
+      expect(status).toHaveAttribute("role", "status");
+      expect(screen.queryByText(/Du bekräftar bytet med två koder/)).not.toBeInTheDocument();
+      const heading = screen.getByRole("heading", { level: 2, name: "Byt e-postadress" });
+      await waitFor(() => expect(heading.parentElement).toHaveFocus());
     });
 
     it("closes the form for the day when no request can succeed", async () => {

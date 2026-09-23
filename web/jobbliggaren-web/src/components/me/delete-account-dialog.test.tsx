@@ -183,6 +183,25 @@ describe("DeleteAccountDialog", () => {
     );
   });
 
+  it("re-opens empty after a refusal has closed it", async () => {
+    deleteAccountActionMock.mockResolvedValue({
+      ok: false,
+      kind: "operationRefused",
+      error: "Kontot raderades inte.",
+      channel: "status",
+    });
+    const user = userEvent.setup();
+    render(<Harness onHandOff={vi.fn()} />);
+
+    await openAndRequest(user);
+    await user.type(await screen.findByLabelText("Sexsiffrig kod"), "123456");
+    await user.click(screen.getByRole("button", { name: "Radera mitt konto" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Radera konto" }));
+
+    expect(await screen.findByLabelText("Skriv din e-postadress för att bekräfta")).toHaveValue("");
+  });
+
   it("never puts the challenge id in the page", async () => {
     const user = userEvent.setup();
     render(<Harness onHandOff={vi.fn()} />);

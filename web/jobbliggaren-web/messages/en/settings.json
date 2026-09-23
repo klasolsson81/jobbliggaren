@@ -178,7 +178,7 @@
       "submit": "Delete my account",
       "mailOff": "Email delivery is not enabled right now, so we cannot send a code. If you want to delete your account, email <mail>kontakt@jobbliggaren.se</mail>.",
       "failed": "The account was not deleted.",
-      "outcomeUnknown": "We cannot tell whether the account was deleted. Reload the page. If you end up on the login page, the account was deleted.",
+      "outcomeUnknown": "We cannot tell whether the account was deleted. Reload the page.",
       "contactRoute": "You can also email <mail>kontakt@jobbliggaren.se</mail> and ask us to delete the account."
     },
     "reauth": {
@@ -223,7 +223,7 @@
       "unusable": "The new email address cannot be used. Check it or enter a different one.",
       "notDone": "The change was not made, and your address is unchanged.",
       "incomplete": "The change could not be completed, and your address is unchanged. Wait a while.",
-      "outcomeUnknown": "We cannot tell whether the address was changed. Reload the page. If you end up on the login page, it was changed, and you then log in with {newEmail}."
+      "outcomeUnknown": "We cannot tell whether the address was changed. Reload the page."
     },
     "errors": {
       "notLoggedIn": "You are not logged in.",

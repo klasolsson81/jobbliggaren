@@ -12,7 +12,7 @@ import { readProblemTitle } from "@/lib/http/problem";
 /**
  * Asks for a re-authentication code to the account's own address (#1740, ADR 0142 D5). The address is
  * the session user's and never the client's, so the request carries no body. The challenge id goes back
- * to the dialog that asked for it and nowhere else; nothing here logs.
+ * to the dialog that asked for it and nowhere else.
  *
  * The 202 follows a synchronous send, and every branch that sends nothing answers a visible refusal,
  * which is what lets the dialog say "Vi har skickat" where the login page may not (ADR 0142 "Page form").

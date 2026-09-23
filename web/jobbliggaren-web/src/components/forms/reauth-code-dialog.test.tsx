@@ -27,9 +27,11 @@ type User = ReturnType<typeof userEvent.setup>;
 function Harness({
   operation,
   onHandOff = () => {},
+  onOpenChange,
 }: {
   operation: Operation;
   onHandOff?: (handOff: ReauthHandOff<string>) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const target = useRef<HTMLDivElement>(null);
   return (
@@ -45,6 +47,7 @@ function Harness({
         action={(proof) => operation(proof)}
         onHandOff={onHandOff}
         focusAfterHandOff={() => target.current?.focus()}
+        onOpenChange={onOpenChange}
       />
       <div ref={target} tabIndex={-1} data-testid="hand-off-target" />
     </>
@@ -257,16 +260,22 @@ describe("ReAuthCodeDialog", () => {
       { ok: false, kind: "outcomeUnknown", error: "Okänt." },
       { kind: "outcomeUnknown", error: "Okänt." },
     ],
+    [
+      { ok: false, kind: "refused", error: "Inget mejl." },
+      { kind: "refused", error: "Inget mejl." },
+    ],
   ] as const)("closes on a spent code and hands the outcome over, focus following (%#)", async (outcome, handOff) => {
     operation.mockResolvedValue(outcome);
     const onHandOff = vi.fn();
+    const onOpenChange = vi.fn();
     const user = userEvent.setup();
-    render(<Harness operation={operation} onHandOff={onHandOff} />);
+    render(<Harness operation={operation} onHandOff={onHandOff} onOpenChange={onOpenChange} />);
 
     await toCodeStep(user);
     await submit(user);
 
     await waitFor(() => expect(onHandOff).toHaveBeenCalledWith(handOff));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("hand-off-target")).toHaveFocus());
   });

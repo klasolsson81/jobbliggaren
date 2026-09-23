@@ -178,7 +178,7 @@
       "submit": "Radera mitt konto",
       "mailOff": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Vill du radera ditt konto kan du mejla <mail>kontakt@jobbliggaren.se</mail>.",
       "failed": "Kontot raderades inte.",
-      "outcomeUnknown": "Vi kan inte se om kontot raderades. Ladda om sidan. Hamnar du på inloggningssidan är kontot raderat.",
+      "outcomeUnknown": "Vi kan inte se om kontot raderades. Ladda om sidan.",
       "contactRoute": "Du kan också mejla <mail>kontakt@jobbliggaren.se</mail> och be oss radera kontot."
     },
     "reauth": {
@@ -223,7 +223,7 @@
       "unusable": "Den nya e-postadressen går inte att använda. Kontrollera den eller skriv in en annan.",
       "notDone": "Bytet genomfördes inte, och din adress är oförändrad.",
       "incomplete": "Bytet kunde inte slutföras, och din adress är oförändrad. Vänta en stund.",
-      "outcomeUnknown": "Vi kan inte se om adressen byttes. Ladda om sidan. Hamnar du på inloggningssidan har den bytts, och då loggar du in med {newEmail}."
+      "outcomeUnknown": "Vi kan inte se om adressen byttes. Ladda om sidan."
     },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",

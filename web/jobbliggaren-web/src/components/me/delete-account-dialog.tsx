@@ -53,7 +53,7 @@ export function DeleteAccountDialog({
   return (
     <ReAuthCodeDialog<never, string>
       trigger={
-        <Button type="button" variant="destructive">
+        <Button type="button" variant="destructive" className="max-md:h-11">
           {ts("account.delete.trigger")}
         </Button>
       }
@@ -70,7 +70,8 @@ export function DeleteAccountDialog({
           <Input
             ref={fieldRef}
             id={fieldId}
-            type="email"
+            type="text"
+            inputMode="email"
             autoComplete="off"
             spellCheck={false}
             aria-invalid={mismatch ? true : undefined}

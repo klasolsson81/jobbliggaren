@@ -42,12 +42,12 @@ export type ReauthOutcome<T> =
    */
   | { ok: false; kind: "inputRefused"; error: string }
   /**
-   * The operation's own refusal, documented by the backend, after the code was accepted and spent (the
-   * message says so). `channel` says whether it belongs to a field the consumer owns or is a status;
+   * The operation's own refusal, after the code was accepted and spent (the message says so). `channel`
+   * says whether it belongs to a field the consumer owns or is a status;
    * `terminal`, that no retry in this flow can succeed, so the consumer replaces its form with the message.
    */
   | { ok: false; kind: "operationRefused"; error: string; channel: MessageChannel; terminal?: true }
   /** The operation's request left and nothing readable came back: it may or may not have happened. */
   | { ok: false; kind: "outcomeUnknown"; error: string }
   /** No mail can be delivered on this deployment. */
-  | { ok: false; kind: "refused" };
+  | { ok: false; kind: "refused"; error?: string };

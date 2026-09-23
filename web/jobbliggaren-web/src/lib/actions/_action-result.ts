@@ -32,12 +32,6 @@ export type ActionResult = ActionSuccess | ActionFailure;
  * different input can succeed until an operator changes something. It is deliberately
  * named for the class, not the feature.
  *
- * <b>What it is NOT, and the near miss sits in the same function as the only call site:</b>
- * a cooldown or rate-limit is not a refusal. `changeEmailAction`'s 409 arm
- * (`Auth.ChangeEmailCooldown`) is also a refusal by deployment state, but a retry after
- * waiting DOES succeed, so marking it `refused` would tell a cooling-down user their
- * address change is permanently unavailable and remove the control they need.
- *
  * `error` stays populated on the refused variant. A consumer that ignores the flag renders
  * an ordinary error, so the fail-safe is today's behaviour rather than a blank message.
  */

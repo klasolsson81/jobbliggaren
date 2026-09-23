@@ -570,8 +570,6 @@
     "backToStart": "Till startsidan",
     "showPassword": "Visa lösenord",
     "hidePassword": "Dölj lösenord",
-    "showPasswordNamed": "Visa {field}",
-    "hidePasswordNamed": "Dölj {field}",
     "login": {
       "title": "Logga in",
       "emailLabel": "E-postadress",
@@ -778,6 +776,10 @@
         "codeExpired": {
           "title": "Inloggningen gick ut",
           "body": "En inloggning gäller i 15 minuter, och den tiden har gått. Skriv in din e-postadress nedan och börja om."
+        },
+        "accountDeleted": {
+          "title": "Ditt konto är raderat",
+          "body": "Du är utloggad på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
         }
       },
       "errors": {

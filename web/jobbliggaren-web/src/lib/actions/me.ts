@@ -7,18 +7,26 @@ import {
   deleteSessionCookie,
   getServerSession,
   getSessionId,
+  setSessionCookie,
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { readProblemTitle } from "@/lib/http/problem";
 import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
+import { emailInputSchema } from "@/lib/auth/challenge-schemas";
+import { comparableAddress } from "@/lib/auth/comparable-address";
+import { writeLoginFlow } from "@/lib/auth/login-flow-cookie";
+import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
+import type { CodeProof, ReauthOutcome } from "@/lib/auth/reauth-action-state";
+import { type BoundCodeRefusal, verifyBoundCode } from "@/lib/auth/reauth-code";
+import { parseResponse } from "@/lib/dto/_helpers";
+import { boundChallengeSchema, reissuedSessionSchema } from "@/lib/dto/reauth";
 import {
   updateFollowedCompanyNotificationConsent,
   updateNotificationConsent,
 } from "@/lib/api/me";
 import {
-  makeChangeEmailSchema,
-  makeDeleteMyAccountSchema,
-  type DeleteMyAccountInput,
+  codeProofSchema,
+  deleteConfirmationSchema,
   makeUpdateMyProfileSchema,
   type UpdateMyProfileInput,
   makeUpdateNotificationConsentSchema,
@@ -27,7 +35,7 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
-import type { ActionResult, RefusableActionResult } from "./_action-result";
+import type { ActionResult } from "./_action-result";
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
@@ -175,198 +183,323 @@ export async function updateFollowedCompanyNotificationConsentAction(
 }
 
 /**
- * TD-28 / PR2c-1 — delete account with server-enforced re-auth. Two steps:
- *   1. Validate the typed confirmation (email-match) + password form (client
- *      friction only).
- *   2. POST /api/v1/me/delete with `{ password }`. The server re-authenticates
- *      the password (wrong -> 401, empty -> 400, correct -> 204) AND performs
- *      the soft-delete + cascade session-invalidation in the same operation.
- *      The password travels with the delete; there is no separate
- *      /api/v1/auth/verify pre-call any more.
- * On 204: drop the local cookie + redirect to /logga-in.
+ * A bound code the backend did not accept, in the consumer's copy. The code was not spent by it: a
+ * wrong code keeps its remaining attempts, and a dead one needs a new code whatever happens next.
+ */
+function codeRefusal(
+  refusal: BoundCodeRefusal,
+  copy: { wrongCode: string; lastAttempt: string; tooManyAttempts: string; unavailable: string }
+): ReauthOutcome<never> {
+  switch (refusal.kind) {
+    case "wrongCode":
+      // One slot, one announcement: the last-attempt warning rides in the same alert as the miss.
+      return {
+        ok: false,
+        kind: "wrongCode",
+        error: refusal.lastAttempt ? `${copy.wrongCode} ${copy.lastAttempt}` : copy.wrongCode,
+      };
+    case "deadCode":
+      return { ok: false, kind: "deadCode", reason: refusal.reason };
+    case "status":
+      if (refusal.cause === "notLoggedIn") return { ok: false, kind: "notLoggedIn" };
+      return {
+        ok: false,
+        kind: "status",
+        error: refusal.cause === "tooManyAttempts" ? copy.tooManyAttempts : copy.unavailable,
+      };
+  }
+}
+
+/**
+ * #1740 — deletes the account on a re-authentication code (ADR 0142 D5). The code is verified and the
+ * account deleted in this one action, so the grant between them never leaves the server.
  *
- * The action does not return on success — `redirect` throws. On failure it
- * returns an `ActionResult` with a Swedish message. PII (password, email) is
- * NEVER logged on the error path.
+ * The typed address is compared with the SESSION's address before anything is spent (#822: an address
+ * the caller hands in is friction it can hand itself), in the one comparison form this side of the wire
+ * uses (`comparableAddress`). Once the code is accepted it is spent, and the backend's answer falls in
+ * one of three classes (security-auditor, #1740 Minor 3): a documented refusal says the account was not
+ * deleted; a 5xx, a transport failure or any other 2xx may sit over a committed deletion and claims
+ * nothing; a 204 is done.
+ *
+ * On 204 the login page's notice and the session's end travel in this one response, before the
+ * redirect. The notice carries nothing but its name: the cookie outlives the account for up to two
+ * minutes on a device that may be shared. `redirect` throws, so it stays outside every try.
  */
 export async function deleteAccountAction(
-  input: DeleteMyAccountInput
-): Promise<ActionResult> {
+  confirmEmail: string,
+  proof: CodeProof
+): Promise<ReauthOutcome<never>> {
   const ts = await getTranslations("settings");
-  const te = await getTranslations("errors");
-  const t = await getTranslations("validation");
-  const parsed = makeDeleteMyAccountSchema(t).safeParse(input);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
-    };
-  }
+  const tp = await getTranslations("pages");
 
-  // Email-match — case-insensitive, trimmed. #822: the expected address is now resolved
-  // from the SESSION here, not passed in from the client. It used to arrive as a Server
-  // Action argument, i.e. serialized from the browser and fully caller-controlled, while
-  // the comment claimed it was "server-trusted" — a caller could post a matching pair and
-  // walk straight through. The authoritative control was, and remains, the password
-  // re-auth the API enforces; this typed confirmation is friction against the user's own
-  // mistake. But friction that an attacker can hand itself is not friction at all.
+  const code = codeProofSchema.safeParse(proof);
+  if (!code.success) {
+    return { ok: false, kind: "wrongCode", error: tp("auth.passwordless.code.malformedCode") };
+  }
+  const confirmation = deleteConfirmationSchema.safeParse(confirmEmail);
   const session = await getServerSession();
-  if (!session) {
-    return { success: false, error: ts("account.errors.notLoggedIn") };
-  }
-
-  const confirm = parsed.data.confirmEmail.trim().toLowerCase();
-  const expected = session.email.trim().toLowerCase();
-  // Fail closed if the expected address is absent — never let the comparison degenerate
-  // to "" === "" and arm an irreversible action on an empty field (ASVS V6.2.5). This is
-  // the server-side mirror of the guard in delete-account-dialog.tsx.
-  if (expected.length === 0 || confirm !== expected) {
-    return {
-      success: false,
-      error: ts("account.errors.emailMismatch"),
-    };
+  if (!session) return { ok: false, kind: "notLoggedIn" };
+  const expected = comparableAddress(session.email);
+  // Fail closed: an absent expected address must never let "" === "" arm an irreversible action.
+  if (
+    !confirmation.success ||
+    expected.length === 0 ||
+    comparableAddress(confirmation.data) !== expected
+  ) {
+    return { ok: false, kind: "inputRefused", error: ts("account.delete.confirmMismatch") };
   }
 
   const sessionId = await getSessionId();
-  if (!sessionId)
-    return { success: false, error: ts("account.errors.notLoggedIn") };
+  if (!sessionId) return { ok: false, kind: "notLoggedIn" };
 
-  // Delete the account — the password travels with the operation and the server
-  // re-authenticates it. `authedFetch` returns the raw Response and never reads
-  // the body, so we branch on the status code only.
-  try {
-    const res = await authedFetch(sessionId, `/api/v1/me/delete`, {
-      method: "POST",
-      body: JSON.stringify({ password: parsed.data.password }),
+  const verified = await verifyBoundCode("reauth", sessionId, code.data);
+  if (!verified.ok) {
+    return codeRefusal(verified, {
+      wrongCode: tp("auth.passwordless.code.wrongCode"),
+      lastAttempt: tp("auth.passwordless.code.lastAttempt"),
+      tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
+      unavailable: ts("account.reauth.verifyUnavailable"),
     });
-
-    if (res.status === 401) {
-      return { success: false, error: ts("account.errors.wrongPassword") };
-    }
-    if (res.status === 400) {
-      return { success: false, error: ts("account.errors.invalidInput") };
-    }
-    if (res.status !== 204) {
-      return {
-        success: false,
-        error: mapActionError(res, ts("account.errors.deleteFailed"), te),
-      };
-    }
-    // 204 — falls through to the cookie removal + redirect below.
-  } catch {
-    return {
-      success: false,
-      error: ts("account.errors.network"),
-    };
   }
 
-  // The backend has invalidated all sessions — drop the local cookie + redirect.
-  // `redirect` throws NEXT_REDIRECT, so it must stay outside the try/catch.
+  let res: Response;
+  try {
+    res = await authedFetch(sessionId, "/api/v1/me/delete", {
+      method: "POST",
+      body: JSON.stringify({ reauthGrant: verified.grant }),
+    });
+  } catch {
+    return { ok: false, kind: "outcomeUnknown", error: ts("account.delete.outcomeUnknown") };
+  }
+  if (res.status !== 204) {
+    return res.status >= 400 && res.status < 500
+      ? {
+          ok: false,
+          kind: "operationRefused",
+          error: `${ts("account.delete.failed")} ${ts("account.reauth.codeSpent")}`,
+          channel: "status",
+        }
+      : { ok: false, kind: "outcomeUnknown", error: ts("account.delete.outcomeUnknown") };
+  }
+
+  await writeLoginFlow({ phase: "notice", notice: "accountDeleted" });
   await deleteSessionCookie();
   redirect("/logga-in");
 }
 
 /**
- * #679 — self-service change-email (request step). The current password travels
- * with the operation and is re-authenticated server-side (wrong -> 401, empty
- * current / malformed email -> 400, address already taken -> 409). On success the
- * backend returns 202 and emails a confirmation link to the NEW address; the email
- * is NOT changed at this point and NO session is touched, so there is no cookie to
- * re-issue and no session-body to read.
- * STAY-ON-PAGE: returns `{ success: true }` (no redirect) so the card can confirm
- * that a link was sent. PII (the password, the new email) is NEVER logged on any
- * path.
+ * #1740 — the REQUEST step of change-email by two codes (ADR 0142 D5). The re-authentication code is
+ * verified and the change requested in this one action, so the grant between them never leaves the
+ * server. The new address is checked the way the card checks it before anything is spent; what an
+ * address is stays the backend's to say.
+ *
+ * Once the code is accepted it is spent, and every refusal after it says so. The address cannot change
+ * at this step, so no answer here is an unknown outcome (design-reviewer, #1740): a 202 without a
+ * readable id, a 5xx or a lost response all leave the address as it was. Among the 409s only the two
+ * with copy of their own are compared; every other one, the shared cooldown among them, takes the
+ * neutral copy, so no producer of a 409 can be told apart (security-auditor, #1740 S3).
  */
-export async function changeEmailAction(
-  currentPassword: string,
-  newEmail: string
-): Promise<RefusableActionResult> {
+export async function requestEmailChangeAction(
+  newEmail: string,
+  proof: CodeProof
+): Promise<ReauthOutcome<{ challengeId: string }>> {
   const ts = await getTranslations("settings");
-  const te = await getTranslations("errors");
-  const t = await getTranslations("validation");
+  const tp = await getTranslations("pages");
 
-  const parsed = makeChangeEmailSchema(t).safeParse({ currentPassword, newEmail });
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
-    };
+  const code = codeProofSchema.safeParse(proof);
+  if (!code.success) {
+    return { ok: false, kind: "wrongCode", error: tp("auth.passwordless.code.malformedCode") };
+  }
+  const session = await getServerSession();
+  if (!session) return { ok: false, kind: "notLoggedIn" };
+  const address = checkNewAddress(typeof newEmail === "string" ? newEmail : "", session.email);
+  if (!address.ok) {
+    return { ok: false, kind: "inputRefused", error: ts(NEW_ADDRESS_REFUSAL_COPY[address.reason]) };
   }
 
   const sessionId = await getSessionId();
-  if (!sessionId)
-    return { success: false, error: ts("account.errors.notLoggedIn") };
+  if (!sessionId) return { ok: false, kind: "notLoggedIn" };
 
-  try {
-    const res = await authedFetch(sessionId, `/api/v1/auth/change-email`, {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: parsed.data.currentPassword,
-        newEmail: parsed.data.newEmail,
-      }),
+  const verified = await verifyBoundCode("reauth", sessionId, code.data);
+  if (!verified.ok) {
+    return codeRefusal(verified, {
+      wrongCode: tp("auth.passwordless.code.wrongCode"),
+      lastAttempt: tp("auth.passwordless.code.lastAttempt"),
+      tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
+      unavailable: ts("account.reauth.verifyUnavailable"),
     });
-
-    if (res.status === 401) {
-      return { success: false, error: ts("account.errors.wrongPassword") };
-    }
-    if (res.status === 400) {
-      return { success: false, error: ts("account.errors.invalidInput") };
-    }
-    if (res.status === 409) {
-      // Read the ProblemDetails title to pick the right
-      // localized copy (exact-whitelist only; the backend `detail` is never rendered). A 409 with
-      // no recognized title falls back to the taken-address message (the deliberate #679 choice),
-      // not the generic `stateConflict` message `mapActionError` returns for a 409.
-      const title = await readProblemTitle(res);
-      return {
-        success: false,
-        error:
-          title === AUTH_ERROR_CODES.ChangeEmailCooldown
-            ? ts("account.errors.changeEmailCooldown")
-            : ts("account.errors.emailTaken"),
-      };
-    }
-    if (res.status === 503) {
-      // #734 B-ii. Discriminated on the ProblemDetails TITLE, never on the status alone,
-      // because at least two other producers answer 503 on THIS route:
-      //   - `Program.cs` maps SessionStoreUnavailableException across the whole pipeline, and
-      //     this endpoint is RequireAuthorization(), so every request touches the session
-      //     store first. It writes JSON that HAS no `title` key.
-      //   - A reverse proxy can answer 503 of its own, with a body that is not JSON at all.
-      // Those are two different mechanisms and readProblemTitle resolves both to null by
-      // different routes (missing key vs. rejected parse); each is pinned separately. They
-      // then fall through to the generic copy, which is literally true for them. A status-only
-      // arm would instead print "email is not enabled" during a Redis outage and mask it.
-      // The rate limiter is NOT a third producer: ASP.NET defaults rejection to 503, but
-      // RateLimitingExtensions overrides it to 429. That override buys the right COPY, not
-      // the arm's correctness — a 503 from the limiter carries no title either, so it would
-      // fall through here rather than claim email is off.
-      const title = await readProblemTitle(res);
-      if (title === AUTH_ERROR_CODES.EmailDeliveryUnavailable) {
-        // `refused`, not a plain error: the sender cannot deliver until an operator sets a real
-        // Email:Provider, so the card replaces its trigger with a status panel instead of
-        // re-offering a submit that cannot succeed. Same exact-whitelist discipline as the 409
-        // arm above — the title is compared, never rendered, and backend `detail` is not read.
-        return {
-          success: false,
-          refused: true,
-          error: ts("account.errors.emailDeliveryUnavailable"),
-        };
-      }
-    }
-    if (!res.ok) {
-      return {
-        success: false,
-        error: mapActionError(res, ts("account.errors.changeEmailFailed"), te),
-      };
-    }
-    // 202 (any 2xx): a confirmation link was emailed to the NEW address. The email
-    // is not changed and no session was touched, so there is nothing to read from
-    // the body and no cookie to re-issue. Fall through to the stay-on-page success.
-  } catch {
-    return { success: false, error: ts("account.errors.network") };
   }
 
-  // No revalidatePath: nothing server-rendered on /mina-sidor changes now.
-  return { success: true };
+  const spent = (message: string) => `${message} ${ts("account.reauth.codeSpent")}`;
+  const notDone = {
+    ok: false,
+    kind: "operationRefused",
+    error: spent(ts("account.changeEmail.notDone")),
+    channel: "status",
+  } as const;
+
+  let res: Response;
+  try {
+    res = await authedFetch(sessionId, "/api/v1/auth/change-email", {
+      method: "POST",
+      body: JSON.stringify({ reauthGrant: verified.grant, newEmail: address.address }),
+    });
+  } catch {
+    return notDone;
+  }
+
+  if (res.status === 202) {
+    try {
+      const { challengeId } = await parseResponse(
+        res,
+        boundChallengeSchema,
+        "POST /api/v1/auth/change-email"
+      );
+      return { ok: true, value: { challengeId } };
+    } catch {
+      return notDone;
+    }
+  }
+  if (res.status === 409) {
+    const title = await readProblemTitle(res);
+    if (title === AUTH_ERROR_CODES.EmailTaken) {
+      return {
+        ok: false,
+        kind: "operationRefused",
+        error: spent(ts("account.errors.emailTaken")),
+        channel: "field",
+      };
+    }
+    if (title === AUTH_ERROR_CODES.ChangeEmailTargetBudgetExhausted) {
+      return {
+        ok: false,
+        kind: "operationRefused",
+        error: spent(ts("account.errors.changeEmailTargetBudget")),
+        channel: "status",
+        terminal: true,
+      };
+    }
+    return {
+      ok: false,
+      kind: "operationRefused",
+      error: spent(ts("account.errors.changeEmailCooldown")),
+      channel: "status",
+    };
+  }
+  if (res.status === 400) {
+    return {
+      ok: false,
+      kind: "operationRefused",
+      error: spent(ts("account.changeEmail.unusable")),
+      channel: "field",
+    };
+  }
+  if (res.status === 503 && (await readProblemTitle(res)) === AUTH_ERROR_CODES.EmailDeliveryUnavailable) {
+    return {
+      ok: false,
+      kind: "operationRefused",
+      error: spent(ts("account.errors.emailDeliveryUnavailable")),
+      channel: "status",
+      terminal: true,
+    };
+  }
+  return notDone;
+}
+
+/**
+ * #1740 — the CONFIRM step of change-email: the code mailed to the NEW address is verified and the
+ * change confirmed in this one action, so neither grant leaves the server. The address is the one the
+ * request sent, verbatim: the grant binds it as spelled.
+ *
+ * Once the code is accepted it is spent, and the answer falls in one of three classes
+ * (security-auditor, #1740 Minor 3): a documented refusal leaves the address unchanged; a 5xx, a
+ * transport failure or a 200 that does not parse may sit over a committed change and claims nothing;
+ * a parsed 200 is done. Only then is the device's session re-issued (ADR 0018: the backend sets no
+ * cookie), and nothing reads the session after the confirm, whose old id is dead from there on (S2).
+ */
+export async function confirmEmailChangeAction(
+  newEmail: string,
+  proof: CodeProof
+): Promise<ReauthOutcome<null>> {
+  const ts = await getTranslations("settings");
+  const tp = await getTranslations("pages");
+
+  const code = codeProofSchema.safeParse(proof);
+  if (!code.success) {
+    return { ok: false, kind: "wrongCode", error: tp("auth.passwordless.code.malformedCode") };
+  }
+  const address = emailInputSchema.safeParse(newEmail);
+  if (!address.success) {
+    return { ok: false, kind: "inputRefused", error: ts("account.changeEmail.invalidEmail") };
+  }
+
+  const sessionId = await getSessionId();
+  if (!sessionId) return { ok: false, kind: "notLoggedIn" };
+
+  const verified = await verifyBoundCode("changeEmail", sessionId, code.data);
+  if (!verified.ok) {
+    return codeRefusal(verified, {
+      wrongCode: ts("account.changeEmail.wrongCode"),
+      lastAttempt: ts("account.changeEmail.lastAttempt"),
+      tooManyAttempts: tp("auth.passwordless.errors.tooManyAttempts"),
+      unavailable: ts("account.reauth.verifyUnavailable"),
+    });
+  }
+
+  const spent = (message: string) => `${message} ${ts("account.reauth.codeSpent")}`;
+  const unknown = {
+    ok: false,
+    kind: "outcomeUnknown",
+    error: ts("account.changeEmail.outcomeUnknown", { newEmail: address.data }),
+  } as const;
+
+  let res: Response;
+  try {
+    res = await authedFetch(sessionId, "/api/v1/auth/change-email/confirm", {
+      method: "POST",
+      body: JSON.stringify({ changeEmailGrant: verified.grant, newEmail: address.data }),
+    });
+  } catch {
+    return unknown;
+  }
+
+  if (res.status === 200) {
+    let reissued: { sessionId: string; persistent: boolean };
+    try {
+      reissued = await parseResponse(
+        res,
+        reissuedSessionSchema,
+        "POST /api/v1/auth/change-email/confirm"
+      );
+    } catch {
+      return unknown;
+    }
+    await setSessionCookie(reissued.sessionId, reissued.persistent);
+    return { ok: true, value: null };
+  }
+  if (res.status >= 400 && res.status < 500) {
+    const title = res.status === 409 ? await readProblemTitle(res) : null;
+    if (title === AUTH_ERROR_CODES.EmailTaken) {
+      return {
+        ok: false,
+        kind: "operationRefused",
+        error: spent(ts("account.errors.emailTaken")),
+        channel: "field",
+      };
+    }
+    return {
+      ok: false,
+      kind: "operationRefused",
+      error: spent(
+        ts(
+          title === AUTH_ERROR_CODES.EmailChangeIncomplete
+            ? "account.changeEmail.incomplete"
+            : "account.changeEmail.notDone"
+        )
+      ),
+      channel: "status",
+      terminal: true,
+    };
+  }
+  return unknown;
 }

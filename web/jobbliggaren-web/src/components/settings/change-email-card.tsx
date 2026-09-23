@@ -1,196 +1,436 @@
 "use client";
 
-// #679 — change-email card. The generic <ReAuthDialog> owns the CURRENT password (its
-// re-auth field, rendered first via childrenPosition="after"), the shell,
-// RHF/useTransition, the server-error line and reset-on-close. This card owns only the
-// single NEW-email field (injected via `children`), the valid-and-different submit gate
-// (`canSubmit`, client friction only), the action binding, and the stay-on-page
-// confirmation (`onSuccess`).
+// Change-email by two codes (#1740, ADR 0142 D5), as Klas ruled on 2026-09-22: the shared dialog only
+// re-authenticates, by a code to the current address, and closes; this card then takes the code mailed
+// to the NEW address in a step of its own. The new address is checked when "Fortsätt" is pressed,
+// before the dialog opens, so no code is spent on an address the check refuses.
 //
-// There is NO done-state: the address swaps only after the emailed link is opened, so
-// the confirmation says a link was SENT, not that the email was changed.
+// The change challenge lives only in this card's state (security-auditor, #1740 S1): it is dropped on a
+// confirm that succeeds, on a dead code, on "Börja om", after its lifetime and on unmount.
 
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { z } from "zod";
+import { LoginFormMessage } from "@/components/auth/login-form-message";
+import { TEXT_LINK } from "@/components/auth/mail-link";
+import { CodeField } from "@/components/forms/code-field";
+import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ReAuthDialog } from "@/components/forms/reauth-dialog";
-import { changeEmailAction } from "@/lib/actions/me";
+import { confirmEmailChangeAction, requestEmailChangeAction } from "@/lib/actions/me";
+import type { MessageChannel } from "@/lib/auth/challenge-action-state";
+import { codeInputSchema } from "@/lib/auth/challenge-schemas";
+import { CODE_PHASE_MAX_AGE_SECONDS } from "@/lib/auth/login-flow";
+import { checkNewAddress, NEW_ADDRESS_REFUSAL_COPY } from "@/lib/auth/new-address";
 
-// Structural client-side email check (server authoritative). Mirrors the action
-// schema's `newEmail` rule (z.email) so the client gate and the server validation
-// agree; used only to gate submit, never to render a message.
-const emailShape = z.email();
+type ChangeChallenge = { id: string; sentAt: number; address: string };
 
-interface ChangeEmailCardProps {
-  currentEmail: string;
-}
+type View =
+  | { step: "address" }
+  /** No request can succeed today: the panel takes the place of the field and "Fortsätt". */
+  | { step: "addressClosed"; message: string }
+  | { step: "code"; challenge: ChangeChallenge }
+  /** The change code can no longer be used, so "Börja om" is the way on. */
+  | { step: "codeDead"; message: string }
+  /** The confirm left and nothing readable came back: the address may have changed. */
+  | { step: "unknown"; message: string }
+  | { step: "notLoggedIn" }
+  /** No mail can be delivered on this deployment. */
+  | { step: "mailOff" };
 
-export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
-  const ts = useTranslations("settings");
-  const newEmailId = useId();
-  const newEmailHintId = useId();
-  const sameEmailFeedbackId = useId();
-  const [newEmail, setNewEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  // #734 B-ii: the backend refused up front because no configured sender can deliver
-  // (503 + Auth.EmailDeliveryUnavailable). Its own state rather than the dialog's error
-  // line, because no retry can succeed until an operator sets a real Email:Provider.
-  const [refusedMessage, setRefusedMessage] = useState<string | null>(null);
-  const refusedRef = useRef<HTMLDivElement>(null);
+type FocusTarget = "field" | "code" | "message" | "panel";
 
-  // Focus management (not data fetching): submitting closes the dialog, so the focused
-  // element leaves the DOM and focus falls to <body>. And role="status" announces CHANGES
-  // to a live region that already exists; this one mounts already filled, which NVDA and
-  // JAWS routinely miss (WCAG 4.1.3). The focus move is what actually delivers the message
-  // — the same reason every sibling auth panel does it (RegisterForm).
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+// The delivered text-link form of a control that changes state (`change-email-button.tsx`).
+const START_OVER_LINK = "-my-2 h-auto px-0 py-2 text-brand-700 underline underline-offset-2";
+
+export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
+  const t = useTranslations("settings");
+  const tp = useTranslations("pages");
+
+  const [view, setView] = useState<View>({ step: "address" });
+  const [input, setInput] = useState("");
+  // The address "Fortsätt" last admitted: the dialog's description names it and its action sends it.
+  const [pendingAddress, setPendingAddress] = useState("");
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<{ text: string; channel: MessageChannel } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const pendingFocus = useRef<FocusTarget | null>(null);
+  const handOffFocus = useRef<FocusTarget | null>(null);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
+  const messageRef = useRef<HTMLParagraphElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const fieldId = useId();
+  const fieldHintId = useId();
+  const codeId = useId();
+  const codeHintId = useId();
+  const codeStepId = useId();
+  const messageId = useId();
+
+  function focus(target: FocusTarget) {
+    const refs = { field: fieldRef, code: codeRef, message: messageRef, panel: panelRef };
+    refs[target].current?.focus();
+  }
+
+  // Focus follows the state it belongs to, once that state is on screen. A hand-off from the dialog
+  // is the exception: it is focused from the dialog's close, after its focus trap has let go.
   useEffect(() => {
-    if (refusedMessage) refusedRef.current?.focus();
-  }, [refusedMessage]);
+    const target = pendingFocus.current;
+    if (!target) return;
+    pendingFocus.current = null;
+    focus(target);
+  });
 
-  function resetFields() {
-    setNewEmail("");
+  function onContinue(event: MouseEvent<HTMLButtonElement>) {
+    const verdict = checkNewAddress(input, currentEmail);
+    if (!verdict.ok) {
+      event.preventDefault(); // the dialog stays closed, and the form unsent
+      setMessage({ text: t(NEW_ADDRESS_REFUSAL_COPY[verdict.reason]), channel: "field" });
+      pendingFocus.current = "field";
+      return;
+    }
+    setMessage(null);
+    setPendingAddress(verdict.address);
   }
 
-  // Surface WHY submit is gated (a11y): when the entered address matches the current
-  // one it is a valid email but the same account, so the same-different gate below
-  // silently blocks submit. Only complain once the field has content, so we don't nag
-  // mid-typing.
-  const isSameEmail =
-    newEmail.trim().length > 0 &&
-    newEmail.trim().toLowerCase() === currentEmail.trim().toLowerCase();
-
-  // Client friction only (server authoritative): the new address is a valid email
-  // AND differs from the current one (case-insensitive, trimmed). The same-address
-  // guard keeps the backend's 409 backstop from being the first line of defense.
-  function isValidDifferentEmail() {
-    const trimmed = newEmail.trim();
-    if (!emailShape.safeParse(trimmed).success) return false;
-    return trimmed.toLowerCase() !== currentEmail.trim().toLowerCase();
+  function onHandOff(handOff: ReauthHandOff<{ challengeId: string }>) {
+    switch (handOff.kind) {
+      case "verified":
+        setView({
+          step: "code",
+          challenge: { id: handOff.value.challengeId, sentAt: nowSeconds(), address: pendingAddress },
+        });
+        setCode("");
+        setMessage(null);
+        handOffFocus.current = "code";
+        return;
+      case "operationRefused":
+        if (handOff.terminal) {
+          setView({ step: "addressClosed", message: handOff.error });
+          handOffFocus.current = "panel";
+          return;
+        }
+        setMessage({ text: handOff.error, channel: handOff.channel });
+        handOffFocus.current = handOff.channel === "field" ? "field" : "message";
+        return;
+      case "outcomeUnknown":
+        setView({ step: "unknown", message: handOff.error });
+        handOffFocus.current = "panel";
+        return;
+      case "refused":
+        setView({ step: "mailOff" });
+        handOffFocus.current = "panel";
+        return;
+    }
   }
 
-  // Delivery is refused for the whole deployment, so the change-email flow is rendered in
-  // place of itself: no trigger, no dialog, nothing to submit. Mirrors RegisterForm's
-  // registrations-closed panel, and for the same reason — a live control that cannot
-  // succeed invites a retry and reads as a fault the user could fix.
-  //
-  // The promise copy (`description`) is deliberately NOT rendered here. Its string is
-  // untouched in messages/, so release-checklist.md §2.6 point 5.5 condition (a) is
-  // unaffected — this is one conditional state, not a softening of the published claim,
-  // and publishing "Vi skickar en bekräftelselänk" directly above its own denial would
-  // contradict the panel.
-  if (refusedMessage) {
-    return (
-      <section className="jp-card">
-        {/* Focus lands on the wrapper, not the message, so the heading is read with it:
-            /mina-sidor is a page of stacked cards, and the message alone gives a
-            screen-reader user no anchor to which one it belongs to. role="status" stays on the <p>
-            alone — nested live regions double-announce. No focus:outline-none here: the
-            global *:focus-visible rule paints a token-borne ring, which a keyboard user
-            needs in order to see where focus went. */}
-        <div ref={refusedRef} tabIndex={-1}>
-          <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
-          <p
-            role="status"
-            aria-live="polite"
-            className="text-body-sm text-text-primary"
-          >
-            {refusedMessage}
-          </p>
-        </div>
-      </section>
-    );
+  function focusAfterHandOff() {
+    const target = handOffFocus.current;
+    handOffFocus.current = null;
+    if (target) focus(target);
   }
 
-  return (
-    <section className="jp-card">
-      <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
-      {/* The page's one statement of the account's address, since the name card that also
-          showed it is gone (#1740). */}
-      <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
-        {ts("account.changeEmail.current", { email: currentEmail })}
-      </p>
-      <p className="mt-2 text-body-sm text-text-primary">
-        {ts("account.changeEmail.description")}
-      </p>
-      {/* Persistent live region: the container is always in the DOM and the text is
-          toggled, so a screen reader announces the "link sent" confirmation reliably
-          (an element inserted together with its text can be missed). Empty => zero
-          height. */}
-      <p role="status" aria-live="polite" className="text-body-sm text-text-primary">
-        {sent ? ts("account.changeEmail.success") : ""}
-      </p>
-      <div className="mt-3">
-        <ReAuthDialog
-          trigger={
-            <Button type="button" variant="secondary">
-              {ts("account.changeEmail.trigger")}
-            </Button>
+  function toAddressStep(fieldMessage: string | null) {
+    setView({ step: "address" });
+    setCode("");
+    setMessage(fieldMessage === null ? null : { text: fieldMessage, channel: "field" });
+    pendingFocus.current = "field";
+  }
+
+  function toDead(text: string) {
+    setView({ step: "codeDead", message: text });
+    setCode("");
+    setMessage(null);
+    pendingFocus.current = "panel";
+  }
+
+  function onConfirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (view.step !== "code") return;
+    const { challenge } = view;
+    if (nowSeconds() - challenge.sentAt >= CODE_PHASE_MAX_AGE_SECONDS) {
+      toDead(t("account.changeEmail.deadCode"));
+      return;
+    }
+    const parsed = codeInputSchema.safeParse(code);
+    if (!parsed.success) {
+      setMessage({ text: tp("auth.passwordless.code.malformedCode"), channel: "field" });
+      pendingFocus.current = "code";
+      return;
+    }
+    setMessage(null);
+    startTransition(async () => {
+      const outcome = await confirmEmailChangeAction(challenge.address, {
+        challengeId: challenge.id,
+        code: parsed.data,
+      });
+      if (outcome.ok) {
+        // The action re-set the session cookie, so the page re-renders with the new address.
+        setView({ step: "address" });
+        setInput("");
+        setCode("");
+        setMessage({
+          text: t("account.changeEmail.success", { newEmail: challenge.address }),
+          channel: "status",
+        });
+        pendingFocus.current = "message";
+        return;
+      }
+      switch (outcome.kind) {
+        case "wrongCode":
+          // The code is never echoed back, so it is typed again after a miss.
+          setCode("");
+          setMessage({ text: outcome.error, channel: "field" });
+          pendingFocus.current = "code";
+          return;
+        case "deadCode":
+          toDead(
+            t(outcome.reason === "burned" ? "account.changeEmail.burned" : "account.changeEmail.deadCode")
+          );
+          return;
+        case "status":
+          setMessage({ text: outcome.error, channel: "status" });
+          pendingFocus.current = "message";
+          return;
+        case "notLoggedIn":
+          setView({ step: "notLoggedIn" });
+          pendingFocus.current = "panel";
+          return;
+        case "inputRefused":
+          toAddressStep(outcome.error);
+          return;
+        case "operationRefused":
+          if (outcome.channel === "field") {
+            toAddressStep(outcome.error);
+          } else if (outcome.terminal) {
+            toDead(outcome.error);
+          } else {
+            setMessage({ text: outcome.error, channel: "status" });
+            pendingFocus.current = "message";
           }
-          title={ts("account.changeEmail.title")}
-          description={ts("account.changeEmail.dialogDescription")}
-          confirmLabel={ts("account.changeEmail.submit")}
-          pendingLabel={ts("account.changeEmail.pending")}
-          cancelLabel={ts("account.changeEmail.cancel")}
-          // The re-auth field is the CURRENT password: render it first, label it
-          // clearly, and name its show/hide toggle (the injected field is an email,
-          // not a password, so its toggle needs no disambiguation).
-          childrenPosition="after"
-          passwordLabel={ts("account.changeEmail.currentPasswordLabel")}
-          passwordFieldName={ts("account.changeEmail.currentPasswordFieldName")}
-          // The current password travels with the operation; the server re-authenticates it.
-          action={(currentPassword) => changeEmailAction(currentPassword, newEmail)}
-          // Client friction only (server authoritative): valid new email AND different.
-          canSubmit={() => isValidDifferentEmail()}
-          onOpenChange={(open) => {
-            if (open) setSent(false);
-            else resetFields();
-          }}
-          onSuccess={() => {
-            resetFields();
-            setSent(true);
-          }}
-          // The dialog closes and hands the message over; the card then renders itself as
-          // the panel above. The action already resolved the copy from messages/ — the
-          // backend `detail` is never rendered (see changeEmailAction's 503 arm).
-          onRefused={(message) => {
-            resetFields();
-            setSent(false);
-            setRefusedMessage(message);
-          }}
-        >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={newEmailId}>
-              {ts("account.changeEmail.newEmailLabel")}
-            </Label>
-            <Input
-              id={newEmailId}
-              type="email"
-              autoComplete="email"
-              aria-required="true"
-              aria-invalid={isSameEmail ? true : undefined}
-              aria-describedby={`${newEmailHintId} ${sameEmailFeedbackId}`}
-              value={newEmail}
-              onChange={(event) => setNewEmail(event.target.value)}
-            />
-            <p id={newEmailHintId} className="text-body-sm text-text-primary">
-              {ts("account.changeEmail.newEmailHint")}
-            </p>
-            {/* Persistent live region: explains the otherwise-silent submit gate when
-                the new address equals the current one. Empty (zero height) otherwise. */}
-            <p
-              id={sameEmailFeedbackId}
-              role="status"
-              aria-live="polite"
-              className="text-body-sm text-danger-600"
-            >
-              {isSameEmail ? ts("account.changeEmail.sameEmail") : ""}
+          return;
+        case "outcomeUnknown":
+          setView({ step: "unknown", message: outcome.error });
+          pendingFocus.current = "panel";
+          return;
+        case "refused":
+          setView({ step: "mailOff" });
+          pendingFocus.current = "panel";
+          return;
+      }
+    });
+  }
+
+  const title = <h2 className="jp-card__title">{t("account.changeEmail.title")}</h2>;
+  const current = (
+    <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
+      {t("account.changeEmail.current", { email: currentEmail })}
+    </p>
+  );
+  const slot = message && (
+    <LoginFormMessage
+      id={messageId}
+      message={message.text}
+      channel={message.channel}
+      statusRef={messageRef}
+    />
+  );
+  const panel = (content: ReactNode) => (
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      role="status"
+      className="mt-3 flex flex-col gap-2 text-body-sm text-text-primary [overflow-wrap:anywhere]"
+    >
+      {content}
+    </div>
+  );
+
+  switch (view.step) {
+    case "mailOff":
+      // The delivered form: the promise in `description` is not repeated above its own denial.
+      return (
+        <section className="jp-card">
+          {/* Focus lands on the wrapper so the heading is read with the message; role="status" sits
+              on the message alone, since nested live regions announce twice. */}
+          <div ref={panelRef} tabIndex={-1}>
+            {title}
+            <p role="status" className="text-body-sm text-text-primary">
+              {t("account.errors.emailDeliveryUnavailable")}
             </p>
           </div>
-        </ReAuthDialog>
-      </div>
-    </section>
-  );
+        </section>
+      );
+
+    case "addressClosed":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
+          {panel(<p>{view.message}</p>)}
+        </section>
+      );
+
+    case "notLoggedIn":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          {panel(
+            <>
+              <p>{t("account.reauth.notLoggedIn")}</p>
+              <p>
+                <Link href="/logga-in?next=/mina-sidor" className={TEXT_LINK}>
+                  {t("account.reauth.toLogin")}
+                </Link>
+              </p>
+            </>
+          )}
+        </section>
+      );
+
+    case "unknown":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          {panel(
+            <>
+              <p>{view.message}</p>
+              <p>
+                <a href="/mina-sidor" className={TEXT_LINK}>
+                  {t("account.reload")}
+                </a>
+              </p>
+            </>
+          )}
+        </section>
+      );
+
+    case "codeDead":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          {panel(<p>{view.message}</p>)}
+          <div className="mt-3">
+            <Button type="button" onClick={() => toAddressStep(null)}>
+              {t("account.changeEmail.startOver")}
+            </Button>
+          </div>
+        </section>
+      );
+
+    case "code":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          <form onSubmit={onConfirm} noValidate className="mt-3 flex flex-col gap-3">
+            <p id={codeStepId} className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
+              {t("account.changeEmail.codeStep", { newEmail: view.challenge.address })}
+            </p>
+            <CodeField
+              id={codeId}
+              hintId={codeHintId}
+              label={t("account.changeEmail.codeLabel")}
+              hint={t("account.changeEmail.codeHint")}
+              invalid={message?.channel === "field"}
+              errorId={messageId}
+              leadingDescriptionId={codeStepId}
+              inputRef={codeRef}
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
+            {slot}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Button type="submit" disabled={isPending}>
+                {isPending ? t("account.changeEmail.confirming") : t("account.changeEmail.confirm")}
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                disabled={isPending}
+                className={START_OVER_LINK}
+                onClick={() => toAddressStep(null)}
+              >
+                {t("account.changeEmail.startOver")}
+              </Button>
+            </div>
+          </form>
+        </section>
+      );
+
+    case "address":
+      return (
+        <section className="jp-card">
+          {title}
+          {current}
+          <p className="mt-2 text-body-sm text-text-primary">{t("account.changeEmail.description")}</p>
+          {/* Enter in the field presses "Fortsätt", the form's one submit; the form itself sends
+              nothing. */}
+          <form
+            onSubmit={(event) => event.preventDefault()}
+            noValidate
+            className="mt-3 flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={fieldId}>{t("account.changeEmail.newEmailLabel")}</Label>
+              <Input
+                ref={fieldRef}
+                id={fieldId}
+                type="email"
+                autoComplete="email"
+                spellCheck={false}
+                aria-required="true"
+                aria-invalid={message?.channel === "field" ? true : undefined}
+                aria-describedby={
+                  message?.channel === "field" ? `${fieldHintId} ${messageId}` : fieldHintId
+                }
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+              />
+              <p id={fieldHintId} className="text-body-sm text-text-primary">
+                {t("account.changeEmail.newEmailHint")}
+              </p>
+            </div>
+            {slot}
+            <div>
+              <ReAuthCodeDialog<{ challengeId: string }>
+                trigger={
+                  <Button type="submit" variant="secondary" onClick={onContinue}>
+                    {t("account.changeEmail.continue")}
+                  </Button>
+                }
+                title={t("account.changeEmail.title")}
+                description={t("account.changeEmail.dialogDescription", { newEmail: pendingAddress })}
+                currentEmail={currentEmail}
+                confirmLabel={tp("auth.passwordless.code.submit")}
+                pendingLabel={tp("auth.passwordless.code.submitting")}
+                cancelLabel={t("account.changeEmail.cancel")}
+                action={(proof) => requestEmailChangeAction(pendingAddress, proof)}
+                onHandOff={onHandOff}
+                focusAfterHandOff={focusAfterHandOff}
+              />
+            </div>
+          </form>
+        </section>
+      );
+  }
 }

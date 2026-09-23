@@ -22,8 +22,6 @@
     "batchConflict": "Samma ansökan förekommer med olika målstatus."
   },
   "profile": {
-    "confirmEmailInvalid": "Ange en giltig e-postadress.",
-    "passwordRequired": "Lösenord krävs.",
     "languageInvalid": "Välj ett giltigt språk."
   },
   "resume": {

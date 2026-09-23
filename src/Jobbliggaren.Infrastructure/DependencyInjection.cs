@@ -1,8 +1,10 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -12,7 +14,9 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Registration;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
@@ -1602,6 +1606,16 @@ public static class DependencyInjection
     public const string DataProtectionKeyPathConfigKey = "DataProtection:KeyPath";
 
     /// <summary>
+    /// #1735 — the connection string NAME of the non-persisted Redis instance both stacks declare
+    /// (<c>redis-volatile</c>, ADR 0142 D1). <c>VolatileRedis</c> rather than <c>RedisVolatile</c>:
+    /// <c>ConnectionStrings__Redis</c> would otherwise be a strict prefix of this key's environment form, and
+    /// the compose pins scan lines. <c>DeployComposeVolatileRedisTests</c> derives the environment variable
+    /// from this constant, so a rename here fails that pin rather than silently pointing the deploy stack at
+    /// nothing.
+    /// </summary>
+    public const string VolatileRedisConnectionStringName = "VolatileRedis";
+
+    /// <summary>
     /// #1350 — the Api's Data-Protection keyring. Its own method rather than four lines inside
     /// <see cref="AddIdentityAndSessions"/>, because that one needs Postgres and Redis to register
     /// at all and this must be testable without either (CLAUDE.md §2.4).
@@ -1665,6 +1679,18 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Redis saknas i konfiguration.");
 
+        // #1735 — no fallback to ConnectionStrings:Redis, in any environment: the refusal is what keeps the
+        // login challenge's keys off the persisted instance, not rollout discipline. IsNullOrWhiteSpace
+        // rather than `??`: compose renders an unset variable as "", which `??` lets through.
+        var volatileRedisConnectionString = configuration.GetConnectionString(VolatileRedisConnectionStringName);
+        if (string.IsNullOrWhiteSpace(volatileRedisConnectionString))
+        {
+            throw new InvalidOperationException(
+                $"ConnectionStrings:{VolatileRedisConnectionStringName} is missing. The login challenge store "
+                + "and the rate budgets run on the non-persisted Redis instance and have no fallback "
+                + "(docs/runbooks/local-dev-setup.md; deploy/docker-compose.yml `redis-volatile`).");
+        }
+
         services.AddApiDataProtection(configuration);
 
         services.AddDbContext<AppIdentityDbContext>(options =>
@@ -1689,6 +1715,8 @@ public static class DependencyInjection
                 opts.Password.RequireUppercase = false;
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
+
+                TheUserNameIsTheAddress(opts.User);
 
                 // #679 (CTO-bind #1): route the change-email confirmation token through the
                 // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
@@ -1803,14 +1831,24 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
+        // #1735 (ADR 0142 D1) — the connection to the non-persisted Redis instance. A concrete type, never
+        // a second IConnectionMultiplexer: see VolatileRedisConnection. The container disposes it.
+        services.AddSingleton(_ => new VolatileRedisConnection(volatileRedisConnectionString));
+
         // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
-        // and the code budget). Api-only: it runs in the request path and needs the IConnectionMultiplexer
-        // registered above, which the Worker composition does not have.
+        // and the code budget). Api-only: it runs in the request path and on the volatile connection above,
+        // which the Worker composition does not have.
         services.AddSingleton<IRateBudget, RedisRateBudget>();
 
         // #1735 (ADR 0142 D1) — the login challenge store. Api-only for the same reason, and one more: it
         // protects the address and the code with the Api's Data-Protection keyring (AddApiDataProtection).
         services.AddSingleton<ILoginChallengeStore, RedisLoginChallengeStore>();
+
+        // #1737 (ADR 0142 D1/D3) — the grant a proven new address redeems at `complete`, and the per-address
+        // claim taken before an account is created. On the volatile connection, Api-only like the two above;
+        // the grant store protects its payload with the Api's keyring too.
+        services.AddSingleton<IGrantStore, RedisGrantStore>();
+        services.AddSingleton<IRegistrationClaim, RedisRegistrationClaim>();
 
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer
@@ -1828,7 +1866,7 @@ public static class DependencyInjection
 
         // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
         // drop event, so a forgot-password flood cannot drop logins. Api-EXCLUSIVE: the consumer's store
-        // protects with this composition's Data-Protection keyring and runs on its Redis multiplexer.
+        // protects with this composition's Data-Protection keyring and runs on its volatile Redis connection.
         // LoginChallengeCompositionTests pins the pair (here yes, AddCoreIdentityForWorker no); a hand-written
         // line in Worker/Program.cs is caught by nothing but a reader.
         services.AddOptions<LoginChallengeDispatchOptions>()
@@ -1840,6 +1878,7 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<LoginChallengeDispatchChannel>());
         services.AddHostedService<LoginChallengeDispatchService>();
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
+        services.AddScoped<IPasswordlessAccountCreator, UserAccountService>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
@@ -1982,6 +2021,12 @@ public static class DependencyInjection
         return services;
     }
 
+    // The user name IS the address here, so Identity's default ASCII user-name charset refused addresses both
+    // email validators admit (o'brien@, björn@). What may be stored is StorableAddress's question, asked at the
+    // writers in UserAccountService. One rule for both compositions: they validate the same rows.
+    private static void TheUserNameIsTheAddress(UserOptions user) =>
+        user.AllowedUserNameCharacters = string.Empty;
+
     /// <summary>
     /// HTTP-fri Identity-modul för Worker. Registrerar
     /// <see cref="AppIdentityDbContext"/>, AspNet IdentityCore (UserManager +
@@ -2019,7 +2064,7 @@ public static class DependencyInjection
         // (password-reset, email-confirm) kräver IDataProtectionProvider
         // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
         // DeleteAsync vilka inte använder token-providers.
-        services.AddIdentityCore<ApplicationUser>()
+        services.AddIdentityCore<ApplicationUser>(opts => TheUserNameIsTheAddress(opts.User))
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();
 

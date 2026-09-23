@@ -48,7 +48,7 @@ describe("/matchning page (#365)", () => {
     ).toBeInTheDocument();
   });
 
-  it("visar de fyra graderna + relaterad och CTA till /registrera", async () => {
+  it("visar de fyra graderna + relaterad och CTA till /logga-in", async () => {
     await renderPage();
 
     for (const grade of ["Top", "Strong", "Good", "Basic", "Related"]) {
@@ -56,6 +56,6 @@ describe("/matchning page (#365)", () => {
     }
     expect(
       screen.getByRole("link", { name: "Skapa konto" })
-    ).toHaveAttribute("href", "/registrera");
+    ).toHaveAttribute("href", "/logga-in");
   });
 });

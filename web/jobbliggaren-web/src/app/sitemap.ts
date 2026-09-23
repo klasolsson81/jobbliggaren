@@ -8,7 +8,7 @@ import { SITE_URL } from "@/lib/site-url";
  * `(marketing-inner)` content pages). Deliberately excluded:
  * - the authenticated app (`(app)` — middleware-protected; never indexed, see robots.ts),
  * - the `/gast` demo sandbox (not canonical content),
- * - the auth utility pages (`/logga-in`, `/registrera`) — added when open registration ships
+ * - the auth utility page (`/logga-in`) — added when open registration ships
  *   (#267); a closed-beta/waitlist entry is not a canonical SEO page yet.
  *
  * Explicit list (App Router sitemaps are static by design): add new public marketing pages here

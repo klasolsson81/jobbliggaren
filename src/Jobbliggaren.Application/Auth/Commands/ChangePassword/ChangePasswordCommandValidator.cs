@@ -7,12 +7,13 @@ public sealed class ChangePasswordCommandValidator : AbstractValidator<ChangePas
 {
     public ChangePasswordCommandValidator()
     {
-        // The current password is the re-auth credential: NotEmpty ONLY. A length/complexity rule
-        // here could fail on a non-empty supplied credential and echo it through the
+        // ValidationBehavior runs BEFORE ReauthenticationBehavior, so an empty grant is a 400 (validation)
+        // before the re-auth check runs — empty vs wrong = 400 vs 401, revealing nothing about the account.
+        RuleFor(c => c.ReauthGrant).ReauthGrant();
+
+        // The current password is what Identity's ChangePasswordAsync requires: NotEmpty ONLY. A
+        // length/complexity rule here could fail on a non-empty supplied credential and echo it through the
         // ValidationException path, and the strength of an EXISTING password is irrelevant.
-        // ValidationBehavior runs BEFORE ReauthenticationBehavior, so an empty current password is a
-        // 400 (validation) before the re-auth check runs — empty vs wrong = 400 vs 401, revealing
-        // nothing about the account. (Parity with DeleteAccountCommandValidator.)
         RuleFor(c => c.CurrentPassword).NotEmpty();
 
         // The new password uses the shared strength rule (NotEmpty + MinimumLength 12), matching

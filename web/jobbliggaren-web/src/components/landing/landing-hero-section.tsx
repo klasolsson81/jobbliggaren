@@ -23,8 +23,7 @@ import { LandingAccountCard } from "@/components/landing/landing-account-card";
  * is nothing to suspend, so the boundary and its skeleton went with it.
  *
  * Live stats live in the <SiteHeader/> and are never repeated here (design
- * rule 2). No CTA buttons besides the card's one primary, no OAuth:
- * civic-utility, deterministic.
+ * rule 2). No CTA buttons besides the card's one primary.
  */
 
 const VERB_KEYS = ["hero.step1", "hero.step2", "hero.step3"] as const;

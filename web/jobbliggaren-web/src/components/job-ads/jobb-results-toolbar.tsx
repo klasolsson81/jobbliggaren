@@ -41,6 +41,7 @@ import {
 import { codedTaxonomyName } from "@/lib/i18n/coded-taxonomy";
 import { formatOrgNr } from "@/lib/company-follows/org-nr";
 import { publishTotalCount } from "@/lib/job-ads/total-count-store";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 
 /**
  * Result-toolbar för /jobb (HANDOVER-v3.md §7.2, ADR 0055).
@@ -621,7 +622,7 @@ export function JobbResultsToolbar({
     {showMatchSortDisclosure && (
       <p className="jp-matchsort-note" role="status">
         {t("toolbar.matchSortDisclosure")}{" "}
-        <Link href="/installningar#matchning" className="jp-matchsort-note__link">
+        <Link href={MATCH_SETTINGS_HREF} className="jp-matchsort-note__link">
           {t("toolbar.matchSortDisclosureLink")}
         </Link>
       </p>

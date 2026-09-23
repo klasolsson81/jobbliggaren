@@ -889,7 +889,7 @@ public class ListJobAdsQueryHandlerTests
         Guid userId, CancellationToken ct)
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(userId, "Status User", TermsAcceptance.AcceptCurrent(SeedClock()), SeedClock()).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(SeedClock()), SeedClock()).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return (db, seeker.Id);

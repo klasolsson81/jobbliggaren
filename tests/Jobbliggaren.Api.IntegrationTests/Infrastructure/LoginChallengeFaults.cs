@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
@@ -9,7 +10,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// 503 can be driven end to end without a fourth <c>WebApplicationFactory</c> (the EF ceiling documented on
 /// <see cref="RecordingEmailSender.Incapable"/>). The fault thrown is the adapters' own contract: on a Redis
 /// fault <c>RedisRateBudget</c> and <c>RedisLoginChallengeStore</c> throw
-/// <see cref="LoginChallengeStoreUnavailableException"/> with the Redis exception's type name, which
+/// <see cref="VolatileRedisUnavailableException"/> with the Redis exception's type name, which
 /// <c>RedisRateBudgetTests</c> and <c>RedisLoginChallengeStoreTests</c> measure against a stopped container.
 /// </summary>
 internal sealed class LoginChallengeFaults
@@ -25,7 +26,7 @@ internal sealed class LoginChallengeFaults
     internal void ThrowIfUnavailable()
     {
         if (_unavailable)
-            throw new LoginChallengeStoreUnavailableException("RedisConnectionException");
+            throw new VolatileRedisUnavailableException("RedisConnectionException");
     }
 
     private sealed class Scope(LoginChallengeFaults owner) : IDisposable
@@ -62,5 +63,33 @@ internal sealed class FaultableLoginChallengeStore(ILoginChallengeStore inner, L
     {
         faults.ThrowIfUnavailable();
         return inner.ConsumeLinkAsync(token, ct);
+    }
+
+    public Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.PutBoundAsync(challenge, ct);
+    }
+
+    public Task<ChallengeVerdict> ConsumeBoundCodeAsync(
+        ChallengeId id, LoginCode presented, ChallengeBinding expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.ConsumeBoundCodeAsync(id, presented, expected, ct);
+    }
+}
+
+internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFaults faults) : IGrantStore
+{
+    public Task<GrantToken> IssueAsync(GrantSubject subject, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.IssueAsync(subject, ct);
+    }
+
+    public Task<GrantSubject?> RedeemAsync(GrantToken token, GrantAssertion expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.RedeemAsync(token, expected, ct);
     }
 }

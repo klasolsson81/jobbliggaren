@@ -19,7 +19,7 @@ public class JobSeekerFollowedCompanyConsentTests
     private static readonly Guid ValidUserId = Guid.NewGuid();
 
     private static JobSeeker NewSeeker() =>
-        JobSeeker.Register(ValidUserId, "Klas Olsson", TermsAcceptance.AcceptCurrent(BaseClock), BaseClock).Value;
+        JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(BaseClock), BaseClock).Value;
 
     private static FakeDateTimeProvider Later(int hours) =>
         FakeDateTimeProvider.At(BaseClock.UtcNow.AddHours(hours));

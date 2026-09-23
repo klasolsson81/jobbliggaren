@@ -50,6 +50,7 @@ import type {
   CvSectionSuggestionsDto,
 } from "@/lib/dto/parsed-resume";
 import type { ResumeContentDto } from "@/lib/types/resumes";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 
 const STEP_COUNT = 4;
 const CLOSE_HREF = "/cv";
@@ -1178,7 +1179,7 @@ export function CvCompleteGuide({
                 !sectionSuggestions.hasOccupationPreference && (
                   <p className="jp-sectionsuggest__prompt">
                     {tr("experience.suggestionsNoOccupation")}{" "}
-                    <Link href="/installningar#matchning" className="jp-nudgelink">
+                    <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
                       {tr("experience.suggestionsNoOccupationLink")}
                     </Link>
                   </p>
@@ -1261,7 +1262,7 @@ export function CvCompleteGuide({
                   {!sectionSuggestions.hasOccupationPreference && (
                     <p className="jp-sectionsuggest__prompt">
                       {tr("experience.suggestionsNoOccupation")}{" "}
-                      <Link href="/installningar#matchning" className="jp-nudgelink">
+                      <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">
                         {tr("experience.suggestionsNoOccupationLink")}
                       </Link>
                     </p>

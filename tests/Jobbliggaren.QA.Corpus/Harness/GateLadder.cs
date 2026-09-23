@@ -20,7 +20,7 @@ public enum GateState
     /// exists at all. Distinct from NotEvaluated, which means an earlier GATE stopped control.</summary>
     NoVerdict,
 
-    /// <summary>THE INSTRUMENT has no arm for the reason the handler returned — the ladder does not
+    /// <summary>THE INSTRUMENT has no arm for the block the handler returned — the ladder does not
     /// know, and says so.
     ///
     /// <para>It exists because collapsing it into <see cref="NoVerdict"/> is what let a real
@@ -64,32 +64,21 @@ public sealed record GateCell(string GateId, string CallSite, GateState State);
 /// here would fork the gate ORDER — and the order is exactly what pin P6 pins, so a corpus holding
 /// its own copy of it would stay green through a reordering of the product.</para>
 ///
-/// <para><b>The collapsed token, and how it is resolved — by TWO POSITIVE DISCRIMINATORS, no longer
-/// by elimination. Rewritten 2026-07-28, because the previous wording had become false and was still
-/// being printed into the artifact.</b> It said "three distinct predicates return the single
-/// <c>PersonnummerPresent</c> reason … whatever remains after eliminating those two IS the DQ6 guard
-/// — there is no fourth site." #1060 PR C split the token: the composed-DTO DQ6 guard now returns
-/// its own <c>PersonnummerInAccountName</c>. <b>TWO</b> predicates collapse onto
-/// <c>PersonnummerPresent</c> today — the parse-level check and the resolved-label scan — and both
-/// are resolvable from outside the Application assembly without re-typing either:
-/// <c>parsed.Personnummer.Found</c> is readable on the aggregate, and <c>ResumeLabelResolver</c>
-/// plus <c>PersonnummerScanner</c> are both public, so the corpus runs the same two public calls the
-/// handler runs.</para>
-///
-/// <para><b>"Elimination" is the wrong word for what happens now, and using it would repeat the
-/// defect this paragraph was rewritten for.</b> Both remaining arms carry a POSITIVE guard
-/// (<c>when pnrFoundOnParse</c>, <c>when pnrInResolvedLabel</c>); nothing is inferred from a
-/// remainder, and what falls past them is not attributed to a third site — it becomes
-/// <see cref="GateState.Unresolved"/>. Elimination was only ever sound while the corpus knew the
-/// site list was complete, and PR C is the measured proof that such knowledge expires.</para>
+/// <para><b>The collapsed token, and how it is resolved: by POSITIVE DISCRIMINATORS, never by
+/// elimination.</b> Three sites return <c>PersonnummerPresent</c>: the parse-level check, the
+/// resolved-label scan and the DQ6 guard over the composed content. The first two are resolvable
+/// from outside the Application assembly without re-typing either: <c>parsed.Personnummer.Found</c>
+/// is readable on the aggregate, and <c>ResumeLabelResolver</c> plus <c>PersonnummerScanner</c> are
+/// both public, so the corpus runs the same two public calls the handler runs. The DQ6 guard has no
+/// public discriminator, so a DQ6 block falls past both arms and becomes
+/// <see cref="GateState.Unresolved"/>: in the corpus that is a producer of a DQ6 hit nobody has
+/// named, and it must redden the instrument rather than be attributed to a rung by remainder.</para>
 ///
 /// <para><b>Why there is no per-case "not exercisable" state.</b> An earlier revision keyed such a
 /// state on whether a case authored a personnummer, and it was wrong in both directions: it printed
 /// "no fixture can make this fire" on 15 cases while case 12 was firing that very gate, and it
 /// masked the label and DQ6 rungs on every promoted row where control had provably passed them.
-/// Exercisability is a property of the CORPUS, not of a case, and the corpus does exercise all five
-/// rungs — the DQ6 rung via the account-display-name case, which is the only route to it that a
-/// parse-level personnummer does not pre-empt.</para>
+/// Exercisability is a property of the CORPUS, not of a case.</para>
 /// </summary>
 internal static class GateLadder
 {
@@ -152,20 +141,13 @@ internal static class GateLadder
             AutoPromoteBlockReason.ParseNotConfident => [p, b, n, n, n],
             AutoPromoteBlockReason.IncompleteContent => [p, p, p, p, b],
 
-            // The still-collapsed token, resolved by elimination over the TWO remaining sites that
-            // return it. The two policy gates return unconditionally, so a block reached from below
-            // the first proves both passed.
+            // The collapsed token, resolved by its two positive discriminators; a DQ6 block has
+            // none and falls through to Unresolved. The two policy gates return unconditionally, so
+            // a block reached from below the first proves both passed.
             AutoPromoteBlockReason.PersonnummerPresent when pnrFoundOnParse => [b, n, n, n, n],
             AutoPromoteBlockReason.PersonnummerPresent when pnrInResolvedLabel => [p, p, b, n, n],
 
-            // DQ6 over the composed content (#1060 PR C). The SAME rung and the SAME literal as the
-            // arm this replaces — only the pattern moved, because the reason reaching this rung is
-            // now named rather than inferred. It is deliberately no longer a guard-less
-            // `PersonnummerPresent` arm: once a fourth token existed, that arm was a guess wearing
-            // elimination's clothes, and it would have answered "DQ6 blocked" for any future token.
-            AutoPromoteBlockReason.PersonnummerInAccountName => [p, p, p, b, n],
-
-            // The instrument has no arm for this token. NEVER NoVerdict: that narrates a gap in THIS
+            // The instrument has no arm for this block. NEVER NoVerdict: that narrates a gap in THIS
             // FILE as a fault in the handler, which is the exact mis-report this rewrite removes.
             _ => [.. Enumerable.Repeat(GateState.Unresolved, Rungs.Length)],
         };

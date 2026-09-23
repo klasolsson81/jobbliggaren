@@ -1095,7 +1095,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
       /brev                   -- cover letters
       /foretag                -- companies + contacts
       /kalender               -- upcoming events
-      /installningar
+      /mina-sidor
         /profil
         /integrationer        -- Gmail, Calendar
         /aviseringar
@@ -1166,7 +1166,7 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
 (Klas-beslut 2026-08-22, nedskrivet 2026-08-28: *"Allt på sidan måste översättas just nu
 till både svenska och engelska. Appen riktar sig till Sverige och svenska arbetsmarknaden,
 men alla kanske inte förstår svenska."*). `en` är nåbar för varje inloggad användare —
-`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i footern och i `/installningar` —
+`locales = ["sv","en"]`, `NEXT_LOCALE`-cookie, växlare i `/mina-sidor` —
 så en oöversatt sträng är en yta en riktig testanvändare möter, inte en hypotes.
 
 - **Svenska är standardspråket** (`defaultLocale`) och tonen sätts på svenska; engelskan är
@@ -1386,9 +1386,7 @@ permanent infra aktiveras; listan nedan speglar **beslutad** uppsättning, ADR 0
   defaulten som ett driftläge.)* **Statusen på grinden själv står i `release-checklist.md` §2.5
   punkt 1 och är oförändrat KVAR** — den här raden säger vad som körs, aldrig om det fick köras.
   Gäller **all** utgående e-post, inte bara
-  notiser: `EmailTemplates` har nio sorter varav sju är kontolivscykel (bekräfta e-post,
-  byta e-post, ändrad-e-post-avisering, konto-finns-redan, lösenordsåterställning,
-  ändrat-lösenord-avisering, inloggningsutmaning i fyra varianter). **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
+  notiser. **Ingen tredjelandsöverföring — och det är en OMPRÖVAD fråga,
   inte en ärvd:** avtalsparten är fransk, behandlingen sker i Frankrike, och den *krok* som
   gjorde SES-posten till en Kap. V-fråga — en EU-avtalspart under en **amerikansk** koncernmoder
   som kan nå uppgifterna (Schrems II / EDPB Rec. 01/2020) — saknas i en kedja som är fransk hela
@@ -1706,7 +1704,7 @@ byggt:
 
 **Backend — en netcup RS 1000 G12** (x86 AMD EPYC 9645, 4 dedikerade kärnor / 8 GB DDR5 ECC
 / 256 GB NVMe, Debian 13, Nürnberg). Hela backend-stacken kör i **Docker Compose** på boxen:
-.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis + **Caddy**
+.NET API + .NET Worker + PostgreSQL (co-tenant container, ingen managed-DB) + Redis (två instanser: den durabla `redis` och `redis-volatile` utan persistens, ADR 0142 D1) + **Caddy**
 (reverse proxy, auto-TLS via Let's Encrypt **direkt**, HTTP-01/TLS-ALPN-01 — ingen DNS-01 och
 ingen CDN, Klas-beslut K3). **`mem_limit` sätts på varje tjänst, Postgres inklusive** — den
 tidigare hybrid-doktrinen ("generös/osatt på Postgres") vilade uttryckligen på att 16 GB löste

@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { env } from "@/lib/env";
 import { forwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemBody } from "@/lib/http/problem";
+import { AUTH_ERROR_CODES } from "@/lib/auth/auth-error-codes";
 
 /**
  * The result of {@link resetPasswordAction}. A flag bag rather than a discriminated union, matching
@@ -19,8 +20,8 @@ export type ResetPasswordActionState =
  * no session, so the token IS the authorization: no `getSessionId`, no Authorization header.
  *
  * 204 -> the password is changed and every session is torn down server-side -> `{ done: true }`. NO
- * session is issued, so the user logs in afterwards; that is the `/confirm-email-change` precedent and
- * is deliberate — the client that opened the link is not necessarily the user's device.
+ * session is issued, so the user logs in afterwards; that is deliberate — the client that opened the
+ * link is not necessarily the user's device.
  *
  * The 400 arm discriminates, which is safe here and would not be on the request half: the backend
  * reaches a PASSWORD error only after verifying the token, so naming the broken rule tells the holder
@@ -78,7 +79,7 @@ export async function resetPasswordAction(
       // is ever emitted on this route.
       const body = await readProblemBody(res);
 
-      if (body?.title === "Auth.PwnedPassword") {
+      if (body?.title === AUTH_ERROR_CODES.PwnedPassword) {
         return { error: t("auth.actions.passwordBreached") };
       }
 

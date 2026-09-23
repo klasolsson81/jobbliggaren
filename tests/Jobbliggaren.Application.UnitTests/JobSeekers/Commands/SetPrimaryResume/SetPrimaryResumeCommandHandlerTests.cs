@@ -23,7 +23,7 @@ public class SetPrimaryResumeCommandHandlerTests
     private static async Task<(JobSeeker seeker, Resume resume)> SeedSeekerAndResumeAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
@@ -89,7 +89,7 @@ public class SetPrimaryResumeCommandHandlerTests
         var (_, otherResume) = await SeedSeekerAndResumeAsync(db, otherUserId);
 
         // Egen JobSeeker (utan resumes)
-        var ownSeeker = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -109,7 +109,7 @@ public class SetPrimaryResumeCommandHandlerTests
     public async Task Handle_NonExistentResume_ThrowsNotFoundException_NoLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var ownSeeker = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

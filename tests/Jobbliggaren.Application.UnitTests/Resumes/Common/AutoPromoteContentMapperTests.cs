@@ -11,8 +11,6 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Common;
 // buildability gate downstream owns rejection.
 public class AutoPromoteContentMapperTests
 {
-    private const string AccountName = "Anna Kontosson";
-
     private static ParsedResumeContent FullParse() => new(
         new ParsedContact("Fil Namnsson", "fil@example.com", "070-1234567", "Stockholm"),
         profile: "Erfaren backend-utvecklare.",
@@ -29,18 +27,17 @@ public class AutoPromoteContentMapperTests
     // ── PersonalInfo ─────────────────────────────────────────────────────
 
     [Fact]
-    public void ToContentDto_FullNameIsTheResolvedAccountName_NeverTheParsedContactName()
+    public void ToContentDto_CarriesNoFullName_NeverTheParsedContactName()
     {
-        var dto = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(FullParse());
 
-        dto.PersonalInfo.FullName.ShouldBe(AccountName);
-        dto.PersonalInfo.FullName.ShouldNotBe("Fil Namnsson");
+        dto.PersonalInfo.FullName.ShouldBeNull();
     }
 
     [Fact]
     public void ToContentDto_ContactFieldsCarryOneToOne()
     {
-        var dto = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(FullParse());
 
         dto.PersonalInfo.Email.ShouldBe("fil@example.com");
         dto.PersonalInfo.Phone.ShouldBe("070-1234567");
@@ -52,11 +49,11 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_SummaryIsTheParsedProfile()
     {
-        AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        AutoPromoteContentMapper.ToContentDto(FullParse())
             .Summary.ShouldBe("Erfaren backend-utvecklare.");
 
         AutoPromoteContentMapper.ToContentDto(
-                new ParsedResumeContent(ParsedContact.Empty), AccountName)
+                new ParsedResumeContent(ParsedContact.Empty))
             .Summary.ShouldBeNull(); // no profile → honest null, never invented
     }
 
@@ -74,7 +71,7 @@ public class AutoPromoteContentMapperTests
         const string preamble = "Erfaren backend-utvecklare med tio år i betalbranschen.";
 
         AutoPromoteContentMapper.ToContentDto(
-                FullParse() with { Preamble = preamble }, AccountName)
+                FullParse() with { Preamble = preamble })
             .Preamble.ShouldBe(preamble);
     }
 
@@ -91,8 +88,7 @@ public class AutoPromoteContentMapperTests
 
         // A parse with a preamble and NO profile — the exact shape that tempts the fold.
         var dto = AutoPromoteContentMapper.ToContentDto(
-            new ParsedResumeContent(ParsedContact.Empty) with { Preamble = preamble },
-            AccountName);
+            new ParsedResumeContent(ParsedContact.Empty) with { Preamble = preamble });
 
         dto.Summary.ShouldBeNull();
         (dto.Sections ?? []).ShouldBeEmpty();
@@ -104,7 +100,7 @@ public class AutoPromoteContentMapperTests
     {
         // Null means "no region above the first heading" and drives the affordance's ABSENCE;
         // collapsing it to "" would render an empty quote box on every imported CV.
-        AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        AutoPromoteContentMapper.ToContentDto(FullParse())
             .Preamble.ShouldBeNull();
     }
 
@@ -113,7 +109,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_ExperienceMapsOrganizationToCompany_TitleToRole()
     {
-        var exp = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        var exp = AutoPromoteContentMapper.ToContentDto(FullParse())
             .Experiences.ShouldHaveSingleItem();
 
         exp.Company.ShouldBe("Beta AB");
@@ -123,7 +119,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_ExperienceDatesAreNull_PeriodRidesRawPeriodVerbatim()
     {
-        var exp = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        var exp = AutoPromoteContentMapper.ToContentDto(FullParse())
             .Experiences.ShouldHaveSingleItem();
 
         exp.StartDate.ShouldBeNull();  // the parse holds no structured dates — honest absence
@@ -137,7 +133,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_ExperienceDescriptionIsNull_RawTextNeverCarried()
     {
-        var exp = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        var exp = AutoPromoteContentMapper.ToContentDto(FullParse())
             .Experiences.ShouldHaveSingleItem();
 
         exp.Description.ShouldBeNull();
@@ -159,7 +155,7 @@ public class AutoPromoteContentMapperTests
                 new ParsedExperience(null, null, null, "raw three"),
             ]);
 
-        var dto = AutoPromoteContentMapper.ToContentDto(parse, AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(parse);
 
         dto.Experiences.Count.ShouldBe(3);
         dto.Experiences[0].RawPeriod.ShouldBe(overlong); // verbatim, 101 chars intact
@@ -186,7 +182,7 @@ public class AutoPromoteContentMapperTests
                 new ParsedEducation(null, "Master", null, "raw3"),
             ]);
 
-        var dto = AutoPromoteContentMapper.ToContentDto(parse, AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(parse);
 
         dto.Educations.Count.ShouldBe(3);
         dto.Educations[0].Institution.ShouldBe("KTH");
@@ -200,7 +196,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_EducationMapsInstitutionDegree_NullDates_RawPeriod()
     {
-        var edu = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        var edu = AutoPromoteContentMapper.ToContentDto(FullParse())
             .Educations.ShouldHaveSingleItem();
 
         edu.Institution.ShouldBe("KTH");
@@ -215,7 +211,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_SkillsCarryNamesWithNullYears()
     {
-        var dto = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(FullParse());
 
         dto.Skills.Select(s => s.Name).ShouldBe(["C#", "PostgreSQL"]);
         dto.Skills.ShouldAllBe(s => s.YearsExperience == null); // the parse knows no years
@@ -226,7 +222,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_LanguagesMapToNotStated()
     {
-        var dto = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(FullParse());
 
         dto.Languages.ShouldNotBeNull();
         dto.Languages.Select(l => l.Name).ShouldBe(["Svenska", "Engelska"]);
@@ -236,7 +232,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_SkillGroupsAreEmpty_TheParseHasNoGroupingConcept()
     {
-        AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName)
+        AutoPromoteContentMapper.ToContentDto(FullParse())
             .SkillGroups.ShouldNotBeNull().ShouldBeEmpty();
     }
 
@@ -245,7 +241,7 @@ public class AutoPromoteContentMapperTests
     [Fact]
     public void ToContentDto_FreeSectionsMapOneToOne_HeadingAndEntriesVerbatim()
     {
-        var dto = AutoPromoteContentMapper.ToContentDto(FullParse(), AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(FullParse());
 
         var section = dto.Sections.ShouldNotBeNull().ShouldHaveSingleItem();
         section.Heading.ShouldBe("Projekt");
@@ -272,7 +268,7 @@ public class AutoPromoteContentMapperTests
                     [new ParsedSectionEntry(null, ["Lämnas på begäran."])]),
             ]);
 
-        var dto = AutoPromoteContentMapper.ToContentDto(parse, AccountName);
+        var dto = AutoPromoteContentMapper.ToContentDto(parse);
 
         dto.Sections.ShouldNotBeNull();
         dto.Sections.Count.ShouldBe(2);
@@ -290,7 +286,7 @@ public class AutoPromoteContentMapperTests
             ParsedContact.Empty,
             sections: [new ParsedSection("Referenser", [new ParsedSectionEntry(null, ["Lämnas på begäran."])])]);
 
-        var entry = AutoPromoteContentMapper.ToContentDto(parse, AccountName)
+        var entry = AutoPromoteContentMapper.ToContentDto(parse)
             .Sections.ShouldNotBeNull().ShouldHaveSingleItem()
             .Entries.ShouldNotBeNull().ShouldHaveSingleItem();
 

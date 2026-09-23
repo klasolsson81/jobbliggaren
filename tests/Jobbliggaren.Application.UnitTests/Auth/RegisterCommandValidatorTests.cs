@@ -19,11 +19,10 @@ public class RegisterCommandValidatorTests
     private readonly RegisterCommandValidator _validator = new();
 
     private static RegisterCommand WithPassword(string password) =>
-        new(Email: "klas@example.com", Password: password, DisplayName: "Klas Olsson", AcceptTerms: true);
+        new(Email: "klas@example.com", Password: password, AcceptTerms: true);
 
     private static RegisterCommand WithAcceptTerms(bool acceptTerms) =>
-        new(Email: "klas@example.com", Password: new string('a', 12), DisplayName: "Klas Olsson",
-            AcceptTerms: acceptTerms);
+        new(Email: "klas@example.com", Password: new string('a', 12), AcceptTerms: acceptTerms);
 
     [Fact]
     public void Validate_TwelveCharPassword_Passes()

@@ -70,7 +70,7 @@ public class DigestDispatchJobTests
         CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Test", TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         seeker.UpdateNotificationConsent(enabled: true, cadence, NowClock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
@@ -84,7 +84,7 @@ public class DigestDispatchJobTests
         CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Återkallat", TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         seeker.UpdateNotificationConsent(enabled: true, cadence, NowClock);
         seeker.UpdateNotificationConsent(enabled: false, cadence, NowClock);
         db.JobSeekers.Add(seeker);
@@ -255,7 +255,7 @@ public class DigestDispatchJobTests
         var db = TestAppDbContextFactory.Create();
         // Default Preferences → BackgroundMatchNotificationsEnabled == false (never opted in).
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Ej samtyckande", TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         await SeedMatchAsync(db, userId, NotifiableMatchGrade.Strong, "Roll", "Bolag", ct);
@@ -491,7 +491,7 @@ public class DigestDispatchJobTests
         CancellationToken ct)
     {
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Follow", TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(NowClock), NowClock).Value;
         seeker.UpdateNotificationConsent(enabled: false, cadence, NowClock); // sets DigestCadence only
         seeker.UpdateFollowedCompanyNotificationConsent(enabled: true, NowClock);
         db.JobSeekers.Add(seeker);

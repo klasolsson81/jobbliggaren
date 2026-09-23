@@ -77,9 +77,11 @@ git check-ignore -v .env
 docker compose up -d
 ```
 
-Tre containrar startar (namn/portar per `docker-compose.yml`):
+Fyra containrar startar (namn/portar per `docker-compose.yml`):
 - `jobbliggaren-postgres-dev` på `5435` (db: `jobbliggaren`, user: `jobbliggaren`)
 - `jobbliggaren-redis-dev` på `6379`
+- `jobbliggaren-redis-volatile-dev` på `6381` — en Redis utan persistens (ingen AOF, ingen RDB, ingen
+  volym, `/data` på tmpfs), byggd för inloggningsutmaningens nycklar (ADR 0142 D1)
 - `jobbliggaren-seq` på `5341` (UI + API) och `5342` (ingestion)
 
 ### 2.3 Verifiera
@@ -94,6 +96,10 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
 
 # Redis
 docker exec jobbliggaren-redis-dev redis-cli ping
+# → PONG
+
+# Redis utan persistens
+docker exec jobbliggaren-redis-volatile-dev redis-cli ping
 # → PONG
 
 # Seq UI
@@ -119,6 +125,12 @@ openssl rand -base64 32   # → AuditPseudonymization:PepperBase64
 openssl rand -base64 32   # → CompanyWatchPseudonymization:PepperBase64
 openssl rand -base64 32   # → CvReviewFingerprintPseudonymization:PepperBase64
 ```
+
+**`ConnectionStrings:VolatileRedis` (#1735) krävs av API:t vid start men hör INTE hemma i
+`appsettings.Local.json`.** Värdet ligger i `appsettings.Development.json` (`localhost:6381`,
+containern `jobbliggaren-redis-volatile-dev`). `Program.cs` lägger `appsettings.Local.json` EFTER
+miljövariablerna, så ett värde där skulle skriva över den instans varje testvärd pekar sig själv mot.
+Worker:n behöver ingen sådan nyckel.
 
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
 källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
@@ -202,7 +214,20 @@ Om `docker compose up` säger `Bind for 127.0.0.1:5435 failed: port is already a
 falsifierades av att alla portar nu binds till `127.0.0.1`, och porten var fel redan
 innan, eftersom 5432 är containerporten och 5435 den publicerade.)*
 
-Samma procedur för 5433 (test-postgres), 6379/6380 (redis), 5341/5342 (seq).
+Samma procedur för 5433 (test-postgres), 6379/6380/6381 (redis), 5341/5342 (seq).
+
+### 6.1b `/api/ready` svarar 503, eller `POST /auth/challenge` svarar 503 (#1735)
+
+API:t startar även när `redis-volatile-dev` är nere (anslutningen går i återanslutningsläge i stället
+för att fälla starten), men readiness-kontrollen `redis-volatile` blir Unhealthy och varje anrop som
+rör inloggningsutmaningen svarar den uniforma 503:an. Loggraden är `event_name=store_unavailable
+store=volatile-redis`. Vanligaste orsaken: en `docker compose up -d` som kördes före #1773 och aldrig
+om efteråt, så containern finns inte.
+
+```bash
+docker compose up -d
+docker exec jobbliggaren-redis-volatile-dev redis-cli ping   # → PONG
+```
 
 ### 6.2 Docker Desktop inte igång
 
@@ -355,6 +380,19 @@ Alla tre startas av CC som bakgrundsprocesser.
    `CvReviewFingerprintPseudonymization`) via env, **lästa ur API:ts `appsettings.Local.json`
    så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
    krypterade/pseudonymiserade data).
+6. **API:t vägrar starta utan `ConnectionStrings:VolatileRedis` (#1735).** I `Development` kommer
+   värdet ur `appsettings.Development.json`, så startblocket nedan exporterar inget. Kör du API:t i
+   en ANNAN miljö lokalt måste du exportera `ConnectionStrings__VolatileRedis="localhost:6381"`
+   själv; felet heter `ConnectionStrings:VolatileRedis is missing`. Worker:n läser aldrig nyckeln.
+   Containern måste dessutom vara uppe — se §6.1b för hur det ser ut när den inte är det.
+7. **Inloggningens budgetar är konstanter och TYSTA (#1738).** En inloggning är en mejlad kod, och
+   `LoginChallengePolicy` går inte att konfigurera bort: samma adress igen inom 60 sekunder, eller en
+   fjärde gång på tio minuter, får ett `challengeId` UTAN post och inget mejl, och en NY adress drar
+   på ett globalt tak om 20 mejl per dygn till adresser utan konto. Allt svarar 202. Symptomet lokalt
+   är att `POST /api/v1/dev/login-code` svarar 404 tills Playwright-hjälparen ger upp (den namnger
+   orsakerna). Budgetnycklarna ligger på `redis-volatile`, som inte persisterar, så
+   `docker compose restart redis-volatile` nollställer dem. Därför loggar e2e-specarna in EN gång
+   per fil (`tests/e2e/helpers/session.ts`), och bara ett test skapar konto genom flödet.
 
 ### Portar (matchar `docker-compose.yml`)
 
@@ -364,6 +402,7 @@ Alla tre startas av CC som bakgrundsprocesser.
 | FE (Next dev) | 3000 | `pnpm dev` |
 | Postgres dev | 5435 | db/user `jobbliggaren`, container `jobbliggaren-postgres-dev` |
 | Redis dev | 6379 | container `jobbliggaren-redis-dev` |
+| Redis dev, utan persistens | 6381 | container `jobbliggaren-redis-volatile-dev` |
 
 ### Start / omstart (Git Bash, från repo-roten)
 

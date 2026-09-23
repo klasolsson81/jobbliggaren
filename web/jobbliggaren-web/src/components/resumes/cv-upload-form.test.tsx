@@ -221,15 +221,18 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     // default:en, så den kan inte säga något om namnet användaren skrev — hon fick beskedet
     // att inget hindrar filen, laddade upp igen med samma namn och blockerades igen.
     //
-    // Sedan token-splitten kan `PersonnummerPresent` med ren kroppsscan bara komma från
-    // etiketten (kontots visningsnamn har eget skäl, parse-flaggan ger alltid count > 0), så
-    // grinden är entydig. Felet hör hemma på fältet som orsakade det.
+    // The error belongs on the field that caused it: the user sent a name, and that is the name
+    // the server refused.
     const user = userEvent.setup();
     global.fetch = vi
       .fn()
       .mockResolvedValue(pendingResponse("PersonnummerPresent", 0));
 
     render(<CvUploadForm />);
+    await user.type(
+      screen.getByRole("textbox", { name: "Namn på CV (valfritt)" }),
+      "CV 811218-9876"
+    );
     await selectFile(fileInput());
     await submit(user);
 
@@ -258,6 +261,25 @@ describe("CvUploadForm — utfalls-baserad ruttning (CV-pivot 5c)", () => {
     // regeln är `warn` och varken pre-commit eller CI kör med `--max-warnings` — inget
     // lint-utfall blir rött. Den här assertionen är det enda som gör en sådan förenkling röd.
     expect(screen.getByLabelText(/namn/i)).toHaveFocus();
+  });
+
+  // Declared unreachable on the write path: with no name sent, a clean body scan and this token
+  // have no known producer once the preamble cut can no longer mint a personnummer (#1798). This
+  // pins only that the flow degrades safely if one appears: it routes on, with no field error.
+  it("PersonnummerPresent (count 0) utan skickat namn rutar till granskningen, utan fältfel", async () => {
+    const user = userEvent.setup();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(pendingResponse("PersonnummerPresent", 0));
+
+    render(<CvUploadForm />);
+    await selectFile(fileInput());
+    await submit(user);
+
+    await waitFor(() =>
+      expect(pushMock).toHaveBeenCalledWith(`/cv/granska/${PARSED_ID}`)
+    );
+    expect(screen.queryByText("Ta bort personnummer ur CV-namnet.")).not.toBeInTheDocument();
   });
 
   it("onUploaded får det sammansatta utfallet + filnamnet i stället för navigation", async () => {

@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -71,6 +72,9 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        // One container behind both keys: this host asserts nothing about which instance a key lands on.
+        // VolatileRedisPlacementTests does, on ApiFactory's two containers.
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _redisCs);
 
         // De tre nya "me"-policyerna aggressiva för test-snabbhet (TD-87 + TD-92).
         // MeListRead: GET /api/v1/me/profile m.fl. — partition UserId (claim "sub").
@@ -98,6 +102,7 @@ public sealed class MeRateLimitApiFactory : WebApplicationFactory<Program>, IAsy
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__MeListRead__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__JobAdStatusBatch__PermitLimit", null);

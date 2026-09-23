@@ -63,7 +63,7 @@ public class PnrConsentCaptureEncryptionTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(DateTimeOffset.UtcNow);
         var seeker = JobSeeker.Register(
-            userId, "Anna Kontosson", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+            userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;
@@ -89,7 +89,7 @@ public class PnrConsentCaptureEncryptionTests(WorkerTestFixture fixture)
 
         var extractor = Substitute.For<ICvTextExtractor>();
         extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
-            .Returns(new CvExtractionResult(rawText, CvExtractionStatus.Extracted));
+            .Returns(new CvExtractionResult(rawText, CvExtractionStatus.Extracted, string.Empty, string.Empty));
 
         var layoutAnalyzer = Substitute.For<ICvLayoutAnalyzer>();
         layoutAnalyzer.Analyze(

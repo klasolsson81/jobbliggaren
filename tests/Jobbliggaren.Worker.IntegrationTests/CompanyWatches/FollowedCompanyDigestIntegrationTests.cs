@@ -352,7 +352,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
             userId = Guid.NewGuid();
         }
 
-        var jobSeeker = JobSeeker.Register(userId, "Follow Seed", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var jobSeeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         // The digest cadence is the SHARED DigestCadence (ADR 0087 D2) — set it via the background-
         // match consent path (cadence is one preference), then gate the FOLLOW pass on the separate
         // follow flag.

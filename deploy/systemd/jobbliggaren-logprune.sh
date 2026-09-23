@@ -101,7 +101,7 @@ readonly RETENTION_DAYS=30
 #
 # NOR IS IT A FOURTH RETENTION NUMBER. The window follows the DATA, not the container: D7
 # policy 1 derives it from the Art. 17 restore window (D5/D6), and a row bearing a user id is
-# governed by that window wherever it is written. A separate number for these five would be the
+# governed by that window wherever it is written. A separate number for these six would be the
 # fourth; the same number is the rule.
 #
 # THE SET IS THE COMMITMENT'S, NOT TODAY'S MEASUREMENT'S. Some of these sit inside the window
@@ -120,6 +120,7 @@ readonly -a RETENTION_BOUND_CONTAINERS=(
   jobbliggaren-caddy
   jobbliggaren-postgres
   jobbliggaren-redis
+  jobbliggaren-redis-volatile
   jobbliggaren-seq
   jobbliggaren-migrate
   jobbliggaren-migrate-rewrap

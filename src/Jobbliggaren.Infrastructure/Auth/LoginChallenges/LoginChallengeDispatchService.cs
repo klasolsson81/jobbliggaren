@@ -7,7 +7,7 @@ namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 /// <summary>
 /// The consumer for <see cref="LoginChallengeDispatchChannel"/>. The drain is the shared base's; the decision
 /// is <see cref="LoginChallengeIssuer"/>'s. Api composition only: the store protects with the Api's
-/// Data-Protection keyring and runs on the Api's Redis multiplexer, neither of which the Worker has
+/// Data-Protection keyring and runs on the Api's volatile Redis connection, neither of which the Worker has
 /// (ADR 0023, ADR 0142 D2).
 /// </summary>
 internal sealed partial class LoginChallengeDispatchService(

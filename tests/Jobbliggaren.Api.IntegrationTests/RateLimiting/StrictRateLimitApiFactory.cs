@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -76,6 +77,9 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        // One container behind both keys: this host asserts nothing about which instance a key lands on.
+        // VolatileRedisPlacementTests does, on ApiFactory's two containers.
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _redisCs);
 
         // VIKTIGT: clear:a ev. ApiFactory-overlays som lever i samma process —
         // strikt-factoryn ska se default-värden i RateLimitingOptions.
@@ -99,6 +103,7 @@ public sealed class StrictRateLimitApiFactory : WebApplicationFactory<Program>, 
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
 
         await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
         await base.DisposeAsync();

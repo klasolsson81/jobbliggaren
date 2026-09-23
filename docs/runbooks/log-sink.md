@@ -616,7 +616,7 @@ journalctl -u jobbliggaren-logprune -n 20 --no-pager
 # expect: the same shape as step 2 with dry_run=0, and `systemctl --failed` still empty.
 
 # 6. Prove the LIVE segments survived the run — the property the whole design is built around.
-for c in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
+for c in jobbliggaren-api jobbliggaren-worker jobbliggaren-web jobbliggaren-caddy jobbliggaren-postgres jobbliggaren-redis jobbliggaren-redis-volatile jobbliggaren-seq jobbliggaren-migrate jobbliggaren-migrate-rewrap; do
   id=$(sudo docker inspect -f '{{.Id}}' "$c" 2>/dev/null) || continue
   printf '%-24s live=%s\n' "$c" \
     "$(sudo test -f /var/lib/docker/containers/$id/$id-json.log && echo present || echo MISSING)"

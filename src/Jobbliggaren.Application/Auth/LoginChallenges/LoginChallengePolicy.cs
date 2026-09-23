@@ -20,6 +20,18 @@ public static class LoginChallengePolicy
     /// <summary>How long a challenge (code and link) lives. One expiry state for both arms.</summary>
     public static readonly TimeSpan ChallengeTtl = TimeSpan.FromMinutes(15);
 
+    /// <summary>
+    /// How long a grant lives between a proven address and the accepted terms (ADR 0142 D3). The new-account
+    /// mail states this number to its recipient.
+    /// </summary>
+    public static readonly TimeSpan GrantTtl = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// How long the per-address registration claim lives: the window between winning it and both writes having
+    /// committed. Not one of lapse trigger 5's quantities; it enters no guess arithmetic.
+    /// </summary>
+    public static readonly TimeSpan RegistrationClaimTtl = TimeSpan.FromMinutes(1);
+
     /// <summary>Mails of any kind per address per 10 minutes. A refusal sends nothing and writes nothing.</summary>
     public static readonly RateBudgetScope MailBudget =
         new("login-challenge-mails", limit: 3, window: TimeSpan.FromMinutes(10));
@@ -50,4 +62,19 @@ public static class LoginChallengePolicy
     /// </summary>
     public static RateBudgetScope Cooldown(TimeSpan window) =>
         new("login-challenge-cooldown", limit: 1, window: window);
+
+    /// <summary>
+    /// Re-authentication codes per USER per 24 hours (ADR 0142 D5). It cannot fall back to a link as
+    /// <see cref="CodeBudget"/> does: a link yields a session, never a re-authentication, so past this budget the
+    /// request has to be refused. It enters the guess arithmetic exactly as <see cref="CodeBudget"/> does.
+    /// </summary>
+    public static readonly RateBudgetScope ReauthCodeBudget =
+        new("reauth-codes", limit: 10, window: TimeSpan.FromHours(24));
+
+    /// <summary>
+    /// The per-USER cooldown on a re-authentication request: one mint per window. The window is configuration,
+    /// as <see cref="Cooldown"/>'s is, and for the same reason.
+    /// </summary>
+    public static RateBudgetScope ReauthCooldown(TimeSpan window) =>
+        new("reauth-cooldown", limit: 1, window: window);
 }

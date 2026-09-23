@@ -47,7 +47,7 @@ public class UserDataKeyCryptoErasureIntegrationTests(WorkerTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(DateTimeOffset.UtcNow);
             seeker = JobSeeker.Register(
-                Guid.NewGuid(), "Erasure Test", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+                Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
         }
@@ -127,7 +127,7 @@ public class UserDataKeyCryptoErasureIntegrationTests(WorkerTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var clock = new FixedClock(DateTimeOffset.UtcNow);
             seeker = JobSeeker.Register(
-                Guid.NewGuid(), "Erasure NoKey", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+                Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
             db.JobSeekers.Add(seeker);
             await db.SaveChangesAsync(ct);
         }

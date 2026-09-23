@@ -20,9 +20,7 @@ import type { TaxonomyRegion } from "@/lib/dto/taxonomy";
 import type { OrtChoice } from "@/lib/job-ads/ort-selection";
 import type { WatchFilter } from "@/lib/dto/company-follows";
 import { setWatchFilterAction } from "@/lib/actions/company-follows";
-
-// Samma nudge-mål som radens "Ställ in matchning" (SPOT — en väg till matchnings-inställningarna).
-const MATCH_SETTINGS_HREF = "/installningar#matchning";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 
 interface WatchFilterDialogProps {
   readonly open: boolean;

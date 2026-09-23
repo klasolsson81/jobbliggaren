@@ -6,6 +6,7 @@
     "ansokningar": "Mina ansökningar",
     "foretag": "Företag",
     "cv": "CV",
+    "minaSidor": "Mina sidor",
     "brandHome": "Jobbliggaren, startsida"
   },
   "header": {
@@ -23,8 +24,7 @@
     "empty": "Inga nya aviseringar."
   },
   "userMenu": {
-    "ariaLabel": "Användarmeny",
-    "installningar": "Inställningar",
+    "signedInAs": "Inloggad som",
     "senasteSokningar": "Senaste sökningar",
     "sparadeAnnonser": "Sparade annonser",
     "minaMatchningar": "Mina matchningar",
@@ -37,7 +37,6 @@
     "navAriaLabel": "Meny",
     "close": "Stäng",
     "closeAriaLabel": "Stäng meny",
-    "installningar": "Inställningar",
     "granskning": "Granskning"
   },
   "modal": {

@@ -1,81 +1,106 @@
 "use client";
 
-// Thin wrapper over the generic <ReAuthDialog> (PR2c-1). It owns only the
-// delete-specific bits: the typed confirm-email field (injected via `children`),
-// the email-match gate (`canSubmit`), and the action binding. The password field,
-// the Dialog shell, RHF/useTransition, the server-error line and reset-on-close
-// all live in ReAuthDialog. Behaviour and copy are unchanged from #595.
+// Delete-account on the shared re-authentication dialog (#1740, ADR 0142 D5). The dialog carries the
+// code; this owns only what deletion adds: the typed address in the request step, and the action.
+//
+// The typed address is friction against the user's own mistake, never proof of identity (the code is).
+// It is checked when "Skicka kod" is pressed, never by a disabled button, which would hide its reason,
+// and the action compares it again with the SESSION's address before anything is spent (#822). The
+// dialog holds what was confirmed together with the code, so a close and a re-open on the code step
+// cannot reach the action without it.
 
-import { useId, useState } from "react";
+import { type RefObject, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { mailLink, mailText } from "@/components/auth/mail-link";
+import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ReAuthDialog } from "@/components/forms/reauth-dialog";
 import { deleteAccountAction } from "@/lib/actions/me";
+import { comparableAddress } from "@/lib/auth/comparable-address";
 
-interface DeleteAccountDialogProps {
+export function DeleteAccountDialog({
+  currentEmail,
+  onHandOff,
+  handOffTarget,
+}: {
   currentEmail: string;
-}
-
-export function DeleteAccountDialog({ currentEmail }: DeleteAccountDialogProps) {
+  /** The section renders what came of a press the dialog could not finish itself. */
+  onHandOff: (handOff: ReauthHandOff<never>) => void;
+  /** Where focus goes once the dialog has closed on a hand-off. */
+  handOffTarget: RefObject<HTMLElement | null>;
+}) {
   const ts = useTranslations("settings");
-  const confirmEmailId = useId();
+  const fieldId = useId();
+  const expectedId = useId();
+  const errorId = useId();
+  const fieldRef = useRef<HTMLInputElement>(null);
   const [confirmEmail, setConfirmEmail] = useState("");
+  const [mismatch, setMismatch] = useState(false);
 
-  // Case-insensitive, trimmed match against the signed-in account. This is client-side
-  // friction only (GitHub/Stripe typed-confirmation pattern). The Server Action re-checks
-  // it against the address it resolves from the SESSION (#822 — it used to trust an
-  // address the client passed in); the authoritative control is the password re-auth the
-  // API enforces.
-  //
-  // #822 — the expected address MUST be non-empty for the gate to arm. While /me
-  // returned an empty email, this comparison degenerated to "" === "" and the gate
-  // INVERTED: it blocked the user who typed their address correctly and armed on an
-  // empty field. The backend fix restores the address; this guard makes the safeguard
-  // fail closed rather than open if the expected value is ever absent again — an
-  // irreversible action must never lose its confirmation (ASVS V6.2.5).
-  const expectedEmail = currentEmail.trim().toLowerCase();
-  const emailMatches =
-    expectedEmail.length > 0 &&
-    confirmEmail.trim().toLowerCase() === expectedEmail;
+  function confirm(): string | null {
+    const expected = comparableAddress(currentEmail);
+    // Fail closed: an absent expected address must never let "" === "" arm an irreversible action.
+    if (expected.length === 0 || comparableAddress(confirmEmail) !== expected) {
+      setMismatch(true);
+      fieldRef.current?.focus();
+      return null;
+    }
+    setMismatch(false);
+    return confirmEmail;
+  }
 
   return (
-    <ReAuthDialog
+    <ReAuthCodeDialog<never, string>
       trigger={
-        <Button type="button" variant="destructive">
+        <Button type="button" variant="destructive" className="max-md:h-11">
           {ts("account.delete.trigger")}
         </Button>
       }
       title={ts("account.delete.title")}
       description={ts("account.delete.description")}
+      currentEmail={currentEmail}
       confirmLabel={ts("account.delete.submit")}
       pendingLabel={ts("account.delete.deleting")}
       cancelLabel={ts("account.delete.cancel")}
       variant="destructive"
-      // The password travels with the delete; the server re-authenticates it.
-      action={(password) => deleteAccountAction({ confirmEmail, password })}
-      canSubmit={() => emailMatches}
+      requestFields={
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={fieldId}>{ts("account.delete.confirmEmailLabel")}</Label>
+          <Input
+            ref={fieldRef}
+            id={fieldId}
+            type="text"
+            inputMode="email"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={mismatch ? true : undefined}
+            aria-describedby={mismatch ? `${expectedId} ${errorId}` : expectedId}
+            value={confirmEmail}
+            onChange={(event) => setConfirmEmail(event.target.value)}
+          />
+          <p id={expectedId} className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
+            {ts("account.delete.expected", { email: currentEmail })}
+          </p>
+          {mismatch && (
+            <p id={errorId} role="alert" className="text-body-sm text-danger-600">
+              {ts("account.delete.confirmMismatch")}
+            </p>
+          )}
+        </div>
+      }
+      onBeforeRequest={confirm}
+      codeHintExtra={ts.rich("account.delete.contactRoute", { mail: mailText })}
+      terminalExtra={ts.rich("account.delete.contactRoute", { mail: mailLink })}
+      action={(proof, confirmed) => deleteAccountAction(confirmed, proof)}
+      onHandOff={onHandOff}
+      focusAfterHandOff={() => handOffTarget.current?.focus()}
       onOpenChange={(open) => {
-        if (!open) setConfirmEmail("");
+        if (!open) {
+          setConfirmEmail("");
+          setMismatch(false);
+        }
       }}
-    >
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={confirmEmailId}>
-          {ts("account.delete.confirmEmailLabel")}
-        </Label>
-        <Input
-          id={confirmEmailId}
-          type="email"
-          autoComplete="off"
-          spellCheck={false}
-          value={confirmEmail}
-          onChange={(event) => setConfirmEmail(event.target.value)}
-        />
-        <p className="text-body-sm text-text-primary">
-          {ts("account.delete.expected", { email: currentEmail })}
-        </p>
-      </div>
-    </ReAuthDialog>
+    />
   );
 }

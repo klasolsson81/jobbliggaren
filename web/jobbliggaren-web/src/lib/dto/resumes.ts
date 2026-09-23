@@ -5,7 +5,7 @@ export const resumeVersionKindSchema = z.enum(["Master", "Tailored"]);
 export type ResumeVersionKind = z.infer<typeof resumeVersionKindSchema>;
 
 export const personalInfoDtoSchema = z.object({
-  fullName: z.string(),
+  fullName: z.string().nullable(),
   email: z.string().nullable(),
   phone: z.string().nullable(),
   location: z.string().nullable(),

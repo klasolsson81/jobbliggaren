@@ -1,10 +1,12 @@
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -28,6 +30,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
     private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+
+    // #1735 — a SECOND Redis, built from the deploy stack's own `redis-volatile` declaration. Two instances
+    // rather than one behind both keys, because VolatileRedisPlacementTests asserts which instance each key
+    // class lands on, and one instance cannot tell the two apart.
+    private readonly RedisContainer _volatileRedis = VolatileRedisContainer.FromDeployCompose();
 
     // #241 — last-wins IEmailSender override so the host never composes the real transactional provider.
     // Held as a field (not just type-registered) so tests can read the recorded sends via Emails.
@@ -72,6 +79,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // Set in InitializeAsync before Services is accessed (triggers host creation)
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private string _volatileRedisCs = string.Empty;
+
+    /// <summary>#1735 — the durable instance (sessions, cooldowns, caches), for a test that scans its keyspace.</summary>
+    internal string DurableRedisConnectionString => _redisCs;
+
+    /// <summary>#1735 — the non-persisted instance (login challenges, rate budgets), for the same purpose.</summary>
+    internal string VolatileRedisConnectionString => _volatileRedisCs;
 
     // Replaces DbContext registrations (which are registered before ConfigureWebHost runs)
     // with Testcontainer connection strings. Redis is replaced the same way.
@@ -206,6 +220,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<ILoginChallengeStore>();
             services.AddSingleton<ILoginChallengeStore>(sp => new FaultableLoginChallengeStore(
                 ActivatorUtilities.CreateInstance<RedisLoginChallengeStore>(sp), _loginChallengeFaults));
+            services.RemoveAll<IGrantStore>();
+            services.AddSingleton<IGrantStore>(sp => new FaultableGrantStore(
+                ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults));
 
             // #616 — replace the real HIBP typed client (AddBreachedPasswordCheck) with the stub.
             // Every register/change-password test funnels through PwnedPasswordValidator inside
@@ -306,10 +323,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync(), _volatileRedis.StartAsync());
 
         _postgresCs = _postgres.GetConnectionString();
         _redisCs = _redis.GetConnectionString();
+        _volatileRedisCs = _volatileRedis.GetConnectionString();
 
         // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access så WebApplication.
         // CreateBuilder() i Program.cs läser rätt värde. UseEnvironment() i
@@ -326,6 +344,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // vid första request → 500 på alla auth-endpoints.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _volatileRedisCs);
 
         // Höj IP-baserade rate-limits drastiskt för testkörning så befintliga
         // tester (alla från 127.0.0.1) inte rate-limit:as på varandras gemen-
@@ -418,6 +437,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthWrite__WindowSeconds", null);
         Environment.SetEnvironmentVariable("RateLimiting__AuthLoose__PermitLimit", null);
@@ -439,7 +459,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__PermitLimit", null);
         Environment.SetEnvironmentVariable("RateLimiting__HealthCheck__WindowSeconds", null);
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync(), _volatileRedis.StopAsync());
         await base.DisposeAsync();
     }
 }

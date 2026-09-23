@@ -81,5 +81,7 @@
          when Jobbliggaren.QA.Corpus became a second consumer. Linked rather than duplicated
          (CTO constraint 2): two recording loggers would be two homes for one test utility. -->
     <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
+    <!-- #1741 PR B - the seam that writes a legacy account name, one home for its provenance. -->
+    <Compile Include="..\Shared\LegacyAccountName.cs" Link="Shared\LegacyAccountName.cs" />
   </ItemGroup>
 </Project>

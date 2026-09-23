@@ -6,7 +6,10 @@ import { Check } from "lucide-react";
  * LandingAccountCard — the hero's right column (direction 2b "Kontokortet",
  * #1480). It replaces the embedded `<AuthCard/>`, which asked an anonymous
  * visitor to fill in a registration form before the page had said what an
- * account is for. The card sells the account and links to `/registrera`.
+ * account is for. The card sells the account and links to `/logga-in`, which
+ * both logs in and creates an account (ADR 0142). The data line lives here since
+ * its other home, the register page, is gone: a privacy claim deleted from the
+ * product reads as a claim withdrawn.
  *
  * Server component. Removing the form removed the Suspense boundary the inner
  * forms needed (they read `useSearchParams`, which suspends during static
@@ -54,12 +57,13 @@ export function LandingAccountCard() {
         ))}
       </ul>
       <Link
-        href="/registrera"
+        href="/logga-in"
         className="jp-btn jp-btn--primary jp-land-account__cta"
       >
         {t("account.cta")}
       </Link>
       <p className="jp-auth-free">{t("auth.free")}</p>
+      <p className="jp-auth-fine">{t("auth.fine")}</p>
     </div>
   );
 }

@@ -51,7 +51,7 @@ describe("resetPasswordAction", () => {
     const result = await resetPasswordAction(null, form());
 
     expect(result).toEqual({ done: true });
-    // The backend deliberately returns no session (the /confirm-email-change precedent), so there is
+    // The backend deliberately returns no session, so there is
     // nothing for this action to set. Pinned so a future "helpful" auto-login has to be deliberate.
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(init.headers).not.toHaveProperty("Authorization");

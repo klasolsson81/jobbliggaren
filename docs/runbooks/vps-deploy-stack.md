@@ -15,7 +15,7 @@ invariants). Where this runbook and an ADR disagree, the ADR wins and this file 
 
 ## 1. What the stack is
 
-Eight services start with the Compose project (`deploy/docker-compose.yml`), plus a ninth,
+Nine services start with the Compose project (`deploy/docker-compose.yml`), plus a tenth,
 `migrate-rewrap`, which carries `profiles: ["ops"]` and therefore never starts with `up` —
 it is invoked by hand for the master-key re-wrap (M-3). All images are pulled from GHCR;
 nothing is built on the box, which is capacity condition 1.
@@ -29,6 +29,7 @@ nothing is built on the box, which is capacity condition 1.
 | `migrate` | Oneshot; gates `api`/`worker` via `service_completed_successfully` | nothing |
 | `postgres` | Data | nothing |
 | `redis` | Sessions, cooldown gates, landing-stats cache, and the company-register cache | nothing |
+| `redis-volatile` | A Redis nothing can persist from: no AOF, no RDB, no volume, `/data` a sized tmpfs under a read-only root. Built for the login challenge's TTL-bounded keys (ADR 0142 D1). Only `api` is handed its connection string | nothing |
 | `seq` | The queryable log sink (#1175, ADR 0128). No host port and no SSH tunnel — `AllowTcpForwarding no` — so it is reachable only from inside the project network | nothing |
 | `migrate-rewrap` | `profiles: ["ops"]`, so **not started by `up`**. Operator-invoked one-shot for the master-key re-wrap; shares `migrate`'s image and the app-secrets mount | nothing |
 

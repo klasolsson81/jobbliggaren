@@ -72,14 +72,28 @@ boundary.
 | RedisLandingStatsCache / Worker persistent | exactly `landing:stats:v1` | HMSET, EXPIRE |
 | RedisLoginChallengeStore / API volatile | `auth/challenge/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Challenge address index / API volatile | `auth/challenge-by-address/v1/*` | SET with GET and expiry |
+| RedisLoginChallengeStore, bound challenges / API volatile | `auth/challenge-bound/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
+| Bound challenge index / API volatile | `auth/challenge-by-user/v1/*` | SET with GET and expiry |
+| RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
+| RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
 | RedisRateBudget / API volatile | `budget/{scope}/v1/*` | INCR, EXPIRE with NX |
 
-The five persistent cooldown scopes are `resend-confirm`, `account-exists`,
-`change-email-target`, `change-email-user` and `password-reset`.
-The four volatile budget scopes are `login-challenge-cooldown`,
-`login-challenge-mails`, `login-challenge-codes` and
-`login-challenge-unknown-address-mails`. Each is enumerated in the template;
-unknown scopes are refused.
+The three persistent cooldown scopes are `resend-confirm`, `account-exists`
+and `password-reset`.
+The volatile budget scopes are `login-challenge-cooldown`,
+`login-challenge-mails`, `login-challenge-codes`,
+`login-challenge-unknown-address-mails`, `reauth-cooldown`, `reauth-codes`,
+`change-email-user`, `change-email-target`, `change-email-per-target-daily` and
+`change-email-targets-daily`.
+Each is enumerated in the template; unknown scopes are refused.
+`VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
+application declares differ.
+
+A missing selector fails closed and does not look like what it is: the API is
+healthy and `/api/ready` is green, because both volatile identities may `PING`,
+while every route that reaches the uncovered key family answers the uniform
+503 and logs a throttled `store_unavailable`. Compare the rendered ACL with the
+table above before suspecting the Redis instance.
 
 The volatile adapter also needs MULTI, EXEC, DISCARD and SCRIPT LOAD. Its code
 consumption script uses EXISTS, HINCRBY and HGET on one challenge record. Tests
@@ -228,6 +242,8 @@ Example dry-run cases (all keys are synthetic names, and no writes execute):
 | api-volatile / volatile | `HINCRBY jobbliggaren:auth/challenge/v1/probe a 1` | OK |
 | api-volatile / volatile | `INCR jobbliggaren:budget/login-challenge-mails/v1/probe` | OK |
 | api-volatile / volatile | `INCR jobbliggaren:budget/unregistered/v1/probe` | Refused |
+| api-volatile / volatile | `GETDEL jobbliggaren:auth/grant/v1/probe` | OK |
+| api-volatile / volatile | `GET jobbliggaren:auth/grant/v1/probe` | Refused |
 | Each application user / its store | `ACL LIST`, `FLUSHALL`, `KEYS *` | Refused |
 | Each health user / its store | `PING` | OK |
 | Each health user / its store | `HMGET jobbliggaren:landing:stats:v1 data` | Refused |

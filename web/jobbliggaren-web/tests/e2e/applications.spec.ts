@@ -1,17 +1,9 @@
-import { test, expect } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import { expect } from "@playwright/test";
+import { loggedInTest } from "./helpers/session";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 // Unique run ID ensures each test run starts with a fresh user (no leftover applications).
 const RUN_ID = Date.now();
-
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
-
-test.beforeEach(async ({ page }) => {
-  await loginAs(page, RUN_ID);
-});
+const test = loggedInTest(RUN_ID);
 
 // UX-ÄNDRINGS-MAPPNING (STOPP 3b — /ansokningar-omarbetning):
 //

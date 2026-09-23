@@ -31,17 +31,21 @@ describe("/cookies page (#262)", () => {
     ).toBeInTheDocument();
   });
 
-  it("bär 180-dagarsupplysningen som annars inte finns någonstans", async () => {
-    // security-auditor Minor 1 on PR #1493: that PR removed the duplicate of
-    // this statement from beside the login checkbox, so this page became the
-    // sole carrier of the retention period a user consents to. The catalog
+  it("bär upplysningen om hur länge man förblir inloggad", async () => {
+    // security-auditor Minor 1 on PR #1493 made this page the carrier of the retention
+    // period. Since #1738 the login steps state it too (ADR 0142 D4), and a session is
+    // persistent by default: the policy leads with the 30 days that apply in practice,
+    // names 180 as the ceiling, and keeps the shared-computer remedy. The catalog
     // assertion covers the second locale, which the render cannot reach.
     await renderPage();
 
     // Two rows carry the duration (the prose section and the cookie table), so
     // the assertion is on presence, not on a single occurrence.
     expect(screen.getAllByText(/i upp till 180 dagar/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/delade datorer/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/30 dagar/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/delad dator/).length).toBeGreaterThan(0);
+    // The checkbox is gone; a policy that still describes it describes nothing.
+    expect(screen.queryByText(/Håll mig inloggad/)).toBeNull();
 
     const en = JSON.stringify(enLegal);
     expect(en).toContain("180 days");

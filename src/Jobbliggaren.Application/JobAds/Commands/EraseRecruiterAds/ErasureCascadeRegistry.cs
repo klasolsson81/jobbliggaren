@@ -491,8 +491,7 @@ public static class ErasureCascadeRegistry
 
             // ── job_seekers: her own profile row, searched ───────────────────────────────────
             // #1435. The wholesale ground said "Not one column accepts free text ABOUT A THIRD
-            // PARTY". display_name accepts any Unicode under 200 chars that is not a personnummer;
-            // match_preferences accepts six lists of shape-validated tokens; and `Language` inside
+            // PARTY". match_preferences accepts six lists of shape-validated tokens; and `Language` inside
             // the `preferences` container accepts anything at all. `preferences` and `Language` are
             // the same bytes - the model reports the container column and the JSON property inside
             // it separately, and one arm over the whole container covers both.
@@ -766,16 +765,7 @@ public static class ErasureCascadeRegistry
                 "FOUR KEYS, THREE COLUMNS: `preferences` and `Language` are the same bytes - the "
                 + "model reports the OwnsOne(...).ToJson() container column and the JSON property "
                 + "inside it separately, and one arm over the whole container covers both. "
-                + "display_name is plaintext varchar(200) with no converter. ValidateDisplayName "
-                + "refuses empty, over-length and a personnummer (#1117) and NOTHING else, so a "
-                + "recruiter's name typed into an account name persists. The table sat on the "
-                + "wholesale-exclusion list because this IS her own datum - but the admission rule "
-                + "is a CONJUNCTION, and its second half fails: the write path DOES receive a third "
-                + "party's free text. The remedy is not constructible without her, since the "
-                + "invariant refuses empty and a system does not rename a person; a human asks her. "
-                + "That invariant is also FORWARD-ONLY (EF materialises an existing row through the "
-                + "private constructor) with no backfill job, so rows written before it stand - "
-                + "which is a reason to SEARCH this column, never to trust it. "
+                + "display_name is plaintext varchar(200) with no converter. "
                 + "match_preferences is jsonb holding six lists of up to 400 elements, every element "
                 + "gated by ^[A-Za-z0-9_-]{1,32} and by nothing else - no concept-id is resolved "
                 + "against any taxonomy table on that path. Same false ground, same shape, as "

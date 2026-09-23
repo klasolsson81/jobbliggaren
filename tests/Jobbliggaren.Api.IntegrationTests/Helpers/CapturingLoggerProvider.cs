@@ -8,7 +8,7 @@ public sealed record CapturedLog(string Category, LogLevel Level, EventId EventI
 
 /// <summary>
 /// Minimal <see cref="ILoggerProvider"/> that captures every log record into an in-memory queue,
-/// so a test can assert that a specific event (e.g. <c>session_store_unavailable</c>, #512) was
+/// so a test can assert that a specific event (e.g. <c>store_unavailable</c>, #512) was
 /// emitted. Thread-safe. Register it as an <see cref="ILoggerProvider"/> singleton on the host
 /// under test, or wrap it in a <see cref="LoggerFactory"/> for a pure unit test.
 /// </summary>

@@ -20,13 +20,6 @@ public sealed class UpdateMyProfileCommandHandler(
             .FirstOrDefaultAsync(js => js.UserId == currentUser.UserId!.Value, cancellationToken)
             ?? throw new NotFoundException($"{nameof(JobSeeker)} hittades inte för användare {currentUser.UserId!.Value}.");
 
-        if (command.DisplayName is not null)
-        {
-            var nameResult = jobSeeker.UpdateDisplayName(command.DisplayName, clock);
-            if (nameResult.IsFailure)
-                return Result.Failure<Guid>(nameResult.Error);
-        }
-
         if (command.Language is not null)
         {
             // Mutate ONLY the locale via `with` — preserving every Vag 4 consent field

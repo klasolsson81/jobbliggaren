@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Microsoft.EntityFrameworkCore;
@@ -5,18 +6,19 @@ using Microsoft.EntityFrameworkCore;
 namespace Jobbliggaren.Application.Auth;
 
 /// <summary>
-/// Lifts the credential-check body out of the original <c>VerifyCredentialsQueryHandler</c> so the
-/// re-auth policy lives in ONE place (both <c>ReauthenticationBehavior</c> and <c>/auth/verify</c>
-/// consume it), and adds the Layer 1 soft-delete liveness gate.
+/// The re-auth policy in ONE place (<c>ReauthenticationBehavior</c> consumes it): the grant is redeemed
+/// against the session's user, then the Layer 1 soft-delete liveness gate runs. Since #1739 the credential
+/// is a purpose-scoped grant (ADR 0142 D5), earned by the code mailed to the account's own address.
 /// </summary>
 public sealed class ReauthenticationService(
     ICurrentUser currentUser,
-    IUserAccountService userAccountService,
+    IGrantStore grants,
     IAppDbContext db,
-    ISessionStore sessionStore)
+    ISessionStore sessionStore,
+    IAuthAuditLogger audit)
     : IReauthenticationService
 {
-    public async ValueTask<Result> VerifyCurrentUserPasswordAsync(string? password, CancellationToken ct)
+    public async ValueTask<Result> VerifyCurrentUserGrantAsync(string? grant, CancellationToken ct)
     {
         // Defense: the calling endpoint requires authorization, so ICurrentUser is set. Failsafe
         // so a misconfiguration cannot expose a sensitive op to an anonymous caller.
@@ -25,39 +27,26 @@ public sealed class ReauthenticationService(
 
         var userId = currentUser.UserId.Value;
 
-        // Self-defending: callers validate NotEmpty (DeleteAccountCommandValidator /
-        // VerifyCredentialsQueryValidator) before this runs, but the single re-auth source must not
-        // depend on that — an empty password is never valid. Removes the bare null-forgiving below.
-        if (string.IsNullOrEmpty(password))
+        // Self-defending: the validators refuse an empty grant before this runs, but the single re-auth
+        // source must not depend on that — an empty grant is never valid, and it reaches no store.
+        if (string.IsNullOrEmpty(grant))
+        {
+            audit.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
             return InvalidCredentials();
+        }
 
-        // SessionAuthenticationHandler sets no email claim — resolve from Identity by userId so we
-        // do not depend on claim shape.
-        var email = await userAccountService.GetEmailAsync(userId, ct);
-        if (string.IsNullOrEmpty(email))
+        // The store asserts the purpose AND the user (ADR 0142 D3): a grant issued to another user, for
+        // another purpose, expired, unknown or already used is one answer. The redemption is single use
+        // whichever way it ends, so a grant shown in the wrong session is dead for its owner too.
+        var subject = await grants.RedeemAsync(
+            GrantToken.FromRaw(grant),
+            GrantAssertion.Of(new GrantSubject.Reauthentication(userId)),
+            ct);
+        if (subject is null)
+        {
+            audit.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
             return InvalidCredentials();
-
-        // Lockout-aware (CTO condition 2 / #503, OWASP ASVS re-auth + anti-automation): re-auth
-        // shares login's brute-force protection, so it can never be an unlocked bypass. A locked
-        // account yields Auth.AccountLocked internally, normalized to Auth.InvalidCredentials on
-        // the wire. Validated FIRST (before the soft-delete gate) so a wrong-password attempt takes
-        // the identical path regardless of account state — no timing/response oracle on soft-delete
-        // status (M8 discipline).
-        var credentialsResult = await userAccountService.ValidateCredentialsAsync(email, password, ct);
-        if (credentialsResult.IsFailure)
-            // #714 (CTO-bind Risk 2): the shared ValidateCredentialsAsync may now emit
-            // EmailNotConfirmed (the email-confirmation-first login gate). On the re-auth surface that
-            // must stay a uniform 401 — normalize it back to InvalidCredentials so the distinct 403 arm
-            // is reachable ONLY via LoginCommandHandler. Unreachable in practice (only confirmed users
-            // hold sessions, and re-auth requires a session), but defense-in-depth keeps /auth/verify
-            // and ReauthenticationBehavior byte-identical for every failure.
-            return credentialsResult.Error.Code == AuthErrorCodes.EmailNotConfirmed
-                ? InvalidCredentials()
-                : Result.Failure(credentialsResult.Error);
-
-        // TOCTOU defense: the email must resolve back to the same userId as the session.
-        if (credentialsResult.Value.UserId != userId)
-            return InvalidCredentials();
+        }
 
         // Layer 1 soft-delete liveness gate: a soft-deleted-but-not-hard-deleted account (30d
         // window) whose session outlived deletion must not run a sensitive op — reject it, and
@@ -65,8 +54,7 @@ public sealed class ReauthenticationService(
         // Layer 2 :deleted tombstone, which fail-closes the read path; this covers the rare case
         // where the tombstone was never planted, e.g. Redis was down at deletion). IgnoreQueryFilters
         // — the global DeletedAt==null filter would hide the row; keyed userId -> JobSeeker.UserId
-        // (as LoginCommandHandler). Runs AFTER the password check so a wrong password never reveals
-        // soft-delete state.
+        // (as LoginCommandHandler).
         // #1349 — projected to a ROW, not to a nullable value, and that is the whole repair. The
         // previous `Select(js => (DateTimeOffset?)js.DeletedAt)` made FirstOrDefaultAsync answer null
         // for BOTH "no row at all" and "a live row", so this gate could not see an account with no
@@ -95,9 +83,11 @@ public sealed class ReauthenticationService(
                 // not turn the gate into a 500 that leaks "soft-deleted" via a distinct status.
             }
 
+            audit.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
             return InvalidCredentials();
         }
 
+        audit.ReauthenticationSucceeded(userId, GrantPurpose.Reauthentication);
         return Result.Success();
     }
 

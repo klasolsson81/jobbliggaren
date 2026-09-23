@@ -12,7 +12,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// account/credential command cannot be built without re-auth. This is the "can't forget" guard the
 /// CTO-bind required — a future change-email / change-password / PII-export command that does not
 /// implement <see cref="IReauthenticatingRequest"/> fails the build, so it cannot ship a sensitive
-/// operation that a hijacked long-lived session could run without the password.
+/// operation that a hijacked long-lived session could run without re-authenticating (a purpose-scoped
+/// grant since #1739, ADR 0142 D5).
 /// </summary>
 public class ReauthenticationTripwireTests
 {
@@ -46,17 +47,17 @@ public class ReauthenticationTripwireTests
 
         missing.ShouldBeEmpty(
             "Sensitive Auth commands missing IReauthenticatingRequest — server-side re-auth is NOT " +
-            "enforced, so a hijacked session could run these without the password: " +
+            "enforced, so a hijacked session could run these on its own: " +
             string.Join(", ", missing));
     }
 
     [Fact]
     public void Reauthenticating_requests_must_have_a_validator()
     {
-        // Each re-auth-gated request must carry a validated Password (NotEmpty) so an empty password
+        // Each re-auth-gated request must carry a validated ReauthGrant (NotEmpty) so an empty grant
         // is a 400 (ValidationBehavior runs before ReauthenticationBehavior) rather than reaching the
-        // re-auth check — empty vs wrong = 400 vs 401. A validator MUST exist; the NotEmpty(Password)
-        // rule itself is pinned by the per-command validator unit tests.
+        // re-auth check — empty vs wrong = 400 vs 401. A validator MUST exist; the rule itself is pinned
+        // by ReauthGrantRulesTests across every implementer.
         var reauthTypes = ApplicationAssembly.GetTypes()
             .Where(t => t is { IsInterface: false, IsAbstract: false }
                         && typeof(IReauthenticatingRequest).IsAssignableFrom(t))
@@ -73,7 +74,7 @@ public class ReauthenticationTripwireTests
             .ToList();
 
         withoutValidator.ShouldBeEmpty(
-            "IReauthenticatingRequest implementations without a FluentValidation validator (Password " +
+            "IReauthenticatingRequest implementations without a FluentValidation validator (ReauthGrant " +
             "would be unvalidated → empty vs wrong not distinguished): " +
             string.Join(", ", withoutValidator));
     }

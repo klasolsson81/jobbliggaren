@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Domain.JobSeekers;
@@ -16,21 +17,21 @@ namespace Jobbliggaren.Api.IntegrationTests.MyProfile;
 
 /// <summary>
 /// End-to-end-tester för POST /api/v1/me/delete — GDPR Art. 17-flödet per ADR 0024 D4+D5 MED
-/// server-enforced re-autentisering (PR2c/C5, epik #481). Endpointen är nu POST /me/delete (inte
-/// DELETE /me) och BÄR ett lösenord i bodyn (<c>DeleteAccountRequest</c>); <c>ReauthenticationBehavior</c>
-/// verifierar det FÖRE handlern körs. Verifierar:
+/// server-enforced re-autentisering (PR2c/C5, epik #481; en ändamålsbunden grant sedan #1739, ADR 0142
+/// D5). Kontot är det lösenordslösa D10-formatet, och varje grant mintas genom produktionen: sessionen
+/// begär en kod till kontots egen adress, koden läses ur mejlet och presenteras. Verifierar:
 /// <list type="bullet">
 /// <item>Auth-skydd (401 utan token)</item>
-/// <item>Rätt lösenord → cascade soft-delete + Account.Deleted-audit + session-invalidering (204)</item>
-/// <item>FEL lösenord → 401 och kontot raderas INTE (en kapad session ensam räcker inte)</item>
-/// <item>Tomt/saknat lösenord → 400 (ValidationBehavior före re-auth) och kontot raderas inte</item>
-/// <item>Oracle-paritet: fel-lösenord-401 är byte-identisk med låst-konto-401 (ingen orakel)</item>
-/// <item>Login-blockering efter radering (samma 401 som okänd email/fel lösen)</item>
+/// <item>Färsk grant → cascade soft-delete + Account.Deleted-audit + session-invalidering (204)</item>
+/// <item>Oanvändbar grant → 401 och kontot raderas INTE (en kapad session ensam räcker inte)</item>
+/// <item>Tom/saknad grant → 400 (ValidationBehavior före re-auth) och kontot raderas inte</item>
+/// <item>Grant-vägrans-paritet: en okänd grant, en förbrukad, en annan användares och dess ägares därefter
+///   ger byte-identisk 401 — ingen av dem avslöjar varför</item>
 /// </list>
 ///
 /// OBS rate-limit: AccountDeletion-policyn är UserId-partitionerad med PermitLimit=1/60s och hålls
-/// på default i testmiljön, så varje user träffar POST /me/delete HÖGST en gång per test. Låsnings-
-/// scenariot lockar därför via /auth/verify (AuthWrite höjd i ApiFactory) och gör bara EN delete.
+/// på default i testmiljön, så varje user träffar POST /me/delete HÖGST en gång per test. Re-auth-
+/// cooldownen är 1 kod per user och 60 s, så varje grant mintas av en egen user.
 /// </summary>
 [Collection("Api")]
 public class DeleteMeTests(ApiFactory factory)
@@ -38,17 +39,31 @@ public class DeleteMeTests(ApiFactory factory)
     private readonly ApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
-    // POST /me/delete med Bearer-session + lösenord i bodyn. Sätter Authorization per anrop så varje
-    // anrop är självständigt (t.ex. oracle-testet som växlar mellan två konton).
-    private Task<HttpResponseMessage> PostDeleteAsync(string sessionId, string? password, CancellationToken ct)
+    // A well-formed grant nobody minted: a test fixture, not a secret.
+    private const string UnusableGrant = "AAECAwQFBgcICQoLDA0ODw"; // gitleaks:allow
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static string NewAddress(string label) => $"delete-{label}-{Guid.NewGuid():N}@example.se";
+
+    // POST /me/delete med Bearer-session + grant i bodyn. Sätter Authorization per anrop så varje
+    // anrop är självständigt (t.ex. paritetstestet som växlar mellan konton).
+    private async Task<HttpResponseMessage> PostDeleteAsync(string sessionId, string? reauthGrant)
     {
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-        return _client.PostAsJsonAsync("/api/v1/me/delete", new { password }, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/me/delete")
+        {
+            Content = JsonContent.Create(new { reauthGrant }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        return await _client.SendAsync(request, Ct);
     }
+
+    private Task<string> MintGrantAsync(string sessionId, string email) =>
+        ReauthTestHelpers.MintGrantAsync(_factory, _client, sessionId, email, Ct);
 
     // Slår upp seekern via UserId (email → ApplicationUser → JobSeeker) i en egen server-scope, obeoende
     // av HTTP-sessionens tillstånd. IgnoreQueryFilters så soft-deletade rader syns.
-    private async Task<JobSeeker?> LoadSeekerByEmailAsync(string email, CancellationToken ct)
+    private async Task<JobSeeker?> LoadSeekerByEmailAsync(string email)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -60,162 +75,157 @@ public class DeleteMeTests(ApiFactory factory)
         return await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == user.Id, ct);
+            .FirstOrDefaultAsync(js => js.UserId == user.Id, Ct);
+    }
+
+    // The 401 body with the per-request trace id removed: what a caller could compare across attempts.
+    private static async Task<string> ComparableBodyAsync(HttpResponseMessage response)
+    {
+        var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
+        node.Remove("traceId");
+        return node.ToJsonString();
     }
 
     [Fact]
     public async Task POST_me_delete_without_token_returns_401()
     {
-        var ct = TestContext.Current.CancellationToken;
-
         // Ingen Authorization-header → RequireAuthorization returnerar 401 före endpointen (och före
         // re-auth), oavsett body.
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/me/delete", new { password = AuthTestHelpers.DefaultTestPassword }, ct);
+            "/api/v1/me/delete", new { reauthGrant = UnusableGrant }, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task POST_me_delete_with_correct_password_returns_204_and_softDeletes_jobseeker()
+    public async Task POST_me_delete_with_a_fresh_grant_returns_204_and_softDeletes_jobseeker()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"delete-me-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        var email = NewAddress("ok");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var grant = await MintGrantAsync(sessionId, email);
 
-        var response = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
+        var response = await PostDeleteAsync(sessionId, grant);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        var seeker = await LoadSeekerByEmailAsync(email, ct);
+        var seeker = await LoadSeekerByEmailAsync(email);
         seeker.ShouldNotBeNull();
-        seeker.DeletedAt.ShouldNotBeNull("POST /me/delete med rätt lösenord ska soft-deleta JobSeeker");
+        seeker.DeletedAt.ShouldNotBeNull("POST /me/delete med en färsk grant ska soft-deleta JobSeeker");
     }
 
     [Fact]
-    public async Task POST_me_delete_with_wrong_password_returns_401_and_does_not_delete()
+    public async Task POST_me_delete_with_an_unusable_grant_returns_401_and_does_not_delete()
     {
-        // Kärn-assertionen för PR2c: en (kapad) giltig session ENSAM räcker inte — utan rätt lösenord
-        // gatar ReauthenticationBehavior operationen och handlern körs aldrig.
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"delete-wrong-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        // Kärn-assertionen för PR2c: en (kapad) giltig session ENSAM räcker inte — utan en grant som
+        // kontots egen inkorg gett gatar ReauthenticationBehavior operationen och handlern körs aldrig.
+        var email = NewAddress("unusable");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
 
-        var response = await PostDeleteAsync(sessionId, "FelLosen!", ct);
+        var response = await PostDeleteAsync(sessionId, UnusableGrant);
 
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
         // Kontot lever fortfarande — ingen soft-delete skedd.
-        var seeker = await LoadSeekerByEmailAsync(email, ct);
+        var seeker = await LoadSeekerByEmailAsync(email);
         seeker.ShouldNotBeNull();
-        seeker.DeletedAt.ShouldBeNull("fel lösenord får INTE radera kontot");
+        seeker.DeletedAt.ShouldBeNull("en oanvändbar grant får INTE radera kontot");
     }
 
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public async Task POST_me_delete_with_missing_or_empty_password_returns_400_and_does_not_delete(string? password)
+    public async Task POST_me_delete_with_missing_or_empty_grant_returns_400_and_does_not_delete(string? reauthGrant)
     {
-        // ValidationBehavior (NotEmpty) kör FÖRE ReauthenticationBehavior, så tomt/saknat lösenord är
-        // 400 (validering) — inte 401 (re-auth). Tomt vs fel = 400 vs 401 avslöjar inget om kontot.
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"delete-empty-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        // ValidationBehavior (NotEmpty) kör FÖRE ReauthenticationBehavior, så tom/saknad grant är
+        // 400 (validering) — inte 401 (re-auth). Tom vs oanvändbar = 400 vs 401 avslöjar inget om kontot.
+        var email = NewAddress("empty");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
 
-        var response = await PostDeleteAsync(sessionId, password, ct);
+        var response = await PostDeleteAsync(sessionId, reauthGrant);
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
 
         // Handlern körs aldrig (validering kortsluter) → kontot lever.
-        var seeker = await LoadSeekerByEmailAsync(email, ct);
+        var seeker = await LoadSeekerByEmailAsync(email);
         seeker.ShouldNotBeNull();
         seeker.DeletedAt.ShouldBeNull("400-validering ska inte radera kontot");
     }
 
     [Fact]
-    public async Task POST_me_delete_wrong_password_401_is_byte_identical_to_locked_account_no_oracle()
+    public async Task POST_me_delete_answers_every_refused_grant_with_one_byte_identical_401()
     {
-        // ADR 0024 D5 + GDPR Art. 32 oracle-avoidance, utsträckt till delete-vägen: ett FEL lösenord
-        // och ett LÅST konto (rätt lösenord) måste rendera byte-identisk 401 — annars blir lås-status
-        // ett enumererings-/DoS-orakel. Central 401 kommer från ReauthenticationFailedException →
-        // AuthProblem (samma källa som /auth/verify), som alltid renderar Auth.InvalidCredentials och
-        // aldrig det interna Auth.AccountLocked.
-        var ct = TestContext.Current.CancellationToken;
-        var password = AuthTestHelpers.DefaultTestPassword;
+        // ADR 0142 D3 + GDPR Art. 32 oracle-avoidance på delete-vägen: en okänd grant, en förbrukad, en annan
+        // användares (fel bindning) och dess ägares därefter (bränd av den främmande inlösningen) renderar EN
+        // 401 — annars vore inlösningsstatus ett orakel om vems grant som visats var. Varje premiss produceras
+        // av produktionen: den förbrukade spenderades av /auth/change-password (behavioren löser in före
+        // handlern, som sedan vägrar ett lösenordslöst konto), den främmande mintades av sin egen session.
+        // Varje konto träffar /me/delete EN gång (AccountDeletion-limit=1/user).
 
-        // Konto A — vanligt fel lösenord (ej låst). EN delete (AccountDeletion-limit=1/user).
-        var emailA = $"delete-oracle-wrong-{Guid.NewGuid()}@example.se";
-        var sessionA = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailA, password, ct: ct);
-        var wrongResponse = await PostDeleteAsync(sessionA, "FelLosen!", ct);
+        // Konto A — en grant ingen mintade.
+        var emailA = NewAddress("parity-unknown");
+        var sessionA = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, emailA, ct: Ct);
+        var unknown = await PostDeleteAsync(sessionA, UnusableGrant);
 
-        // Konto B — lås via 5 misslyckade /auth/verify (AuthWrite höjd i test → ingen 429), sedan EN
-        // /me/delete med RÄTT lösenord. Låst → ValidateCredentials avvisar → samma centrala 401.
-        // /verify används för lås-loopen så /me/delete träffas bara EN gång (limit=1/user).
-        var emailB = $"delete-oracle-locked-{Guid.NewGuid()}@example.se";
-        var sessionB = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, emailB, password, ct: ct);
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
-        for (var i = 0; i < 5; i++)
-            await _client.PostAsJsonAsync("/api/v1/auth/verify", new { password = "FelLosen!" }, ct);
-        var lockedResponse = await PostDeleteAsync(sessionB, password, ct);
+        // Konto B — en grant som redan är förbrukad.
+        var emailB = NewAddress("parity-spent");
+        var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, emailB, ct: Ct);
+        var grantB = await MintGrantAsync(sessionB, emailB);
+        using (var spend = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
+        {
+            Content = JsonContent.Create(new { reauthGrant = grantB, currentPassword = "x", newPassword = new string('a', 12) }),
+        })
+        {
+            spend.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
+            var spent = await _client.SendAsync(spend, Ct);
+            // The grant redeemed (no 401); Identity then refused the passwordless account's current password.
+            spent.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            JsonDocument.Parse(await spent.Content.ReadAsStringAsync(Ct)).RootElement
+                .GetProperty("title").GetString().ShouldBe("Auth.PasswordMismatch");
+        }
+        var replayed = await PostDeleteAsync(sessionB, grantB);
 
-        wrongResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        lockedResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        // Konto C visar konto D:s grant; konto D visar sedan sin egen, som C:s försök brände.
+        var emailC = NewAddress("parity-stranger");
+        var sessionC = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, emailC, ct: Ct);
+        var emailD = NewAddress("parity-owner");
+        var sessionD = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, emailD, ct: Ct);
+        var grantD = await MintGrantAsync(sessionD, emailD);
+        var stranger = await PostDeleteAsync(sessionC, grantD);
+        var burnedOwner = await PostDeleteAsync(sessionD, grantD);
 
-        var wrongJson = await wrongResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var lockedJson = await lockedResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
+        foreach (var response in new[] { unknown, replayed, stranger, burnedOwner })
+            response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
 
-        // Identisk title OCH detail → inget orakel mellan "fel lösen" och "låst" på delete-vägen.
-        wrongJson.GetProperty("title").GetString()
-            .ShouldBe(lockedJson.GetProperty("title").GetString());
-        wrongJson.GetProperty("detail").GetString()
-            .ShouldBe(lockedJson.GetProperty("detail").GetString());
-        // Hard pin: den centrala 401:an renderar Auth.InvalidCredentials (aldrig interna Auth.AccountLocked).
-        wrongJson.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
-        wrongJson.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
-    }
+        var body = await ComparableBodyAsync(unknown);
+        (await ComparableBodyAsync(replayed)).ShouldBe(body);
+        (await ComparableBodyAsync(stranger)).ShouldBe(body);
+        (await ComparableBodyAsync(burnedOwner)).ShouldBe(body);
 
-    [Fact]
-    public async Task POST_me_delete_blocks_subsequent_login_with_indistinguishable_invalid_credentials_response()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"login-blocked-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        // Hard pin: den centrala 401:an renderar Auth.InvalidCredentials, aldrig ett grant-specifikt skäl.
+        var json = JsonDocument.Parse(body).RootElement;
+        json.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
+        json.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
 
-        var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
-        deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-
-        _client.DefaultRequestHeaders.Authorization = null;
-
-        var loginResponse = await _client.PostAsJsonAsync(
-            "/api/v1/auth/login",
-            new { email, password = AuthTestHelpers.DefaultTestPassword },
-            ct);
-
-        // ADR 0024 D5 + security-auditor STEG 10b Sec-1 (information disclosure):
-        // soft-deletad konto returnerar SAMMA fel som okänd email / fel lösen
-        // (Auth.InvalidCredentials, 401) — inte särskiljande "AccountPendingDeletion"
-        // som hade gett credential-stuffing-listor en konto-status-orakelt.
-        loginResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
-            "soft-deletad konto ska INTE kunna logga in (samma 401 som okänd email/fel lösen)");
-        var body = await loginResponse.Content.ReadAsStringAsync(ct);
-        body.ShouldContain("Auth.InvalidCredentials");
-        body.Contains("AccountPendingDeletion", StringComparison.Ordinal).ShouldBeFalse(
-            "AccountPendingDeletion-koden får aldrig läcka till klient");
+        // Inget konto raderades, och D:s konto lever trots att en riktig grant fanns för det.
+        foreach (var email in new[] { emailA, emailB, emailC, emailD })
+            (await LoadSeekerByEmailAsync(email)).ShouldNotBeNull().DeletedAt.ShouldBeNull();
     }
 
     [Fact]
     public async Task POST_me_delete_invalidates_active_sessions()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"sess-invalidated-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        var email = NewAddress("sessions");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var grant = await MintGrantAsync(sessionId, email);
 
-        var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
+        var deleteResponse = await PostDeleteAsync(sessionId, grant);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         // Försök använda samma session-id igen — ska få 401 (session invaliderad av
         // InvalidateAllForUserAsync + :deleted-tombstone).
-        var meResponse = await _client.GetAsync("/api/v1/me", ct);
+        using var me = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me");
+        me.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
+        var meResponse = await _client.SendAsync(me, Ct);
         meResponse.StatusCode.ShouldBe(HttpStatusCode.Unauthorized,
             "session-id ska vara invaliderat efter POST /me/delete");
     }
@@ -223,11 +233,11 @@ public class DeleteMeTests(ApiFactory factory)
     [Fact]
     public async Task POST_me_delete_writes_Account_Deleted_audit_entry()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var email = $"audit-{Guid.NewGuid()}@example.se";
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email: email, ct: ct);
+        var email = NewAddress("audit");
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var grant = await MintGrantAsync(sessionId, email);
 
-        var deleteResponse = await PostDeleteAsync(sessionId, AuthTestHelpers.DefaultTestPassword, ct);
+        var deleteResponse = await PostDeleteAsync(sessionId, grant);
         deleteResponse.StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
         using var scope = _factory.Services.CreateScope();
@@ -241,13 +251,13 @@ public class DeleteMeTests(ApiFactory factory)
         var seeker = await db.JobSeekers
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(js => js.UserId == user.Id, ct);
+            .FirstOrDefaultAsync(js => js.UserId == user.Id, Ct);
         seeker.ShouldNotBeNull();
 
         var auditEntries = await db.AuditLogEntries
             .AsNoTracking()
             .Where(e => e.AggregateId == seeker.Id.Value && e.EventType == "Account.Deleted")
-            .ToListAsync(ct);
+            .ToListAsync(Ct);
 
         auditEntries.Count.ShouldBe(1, "exakt en Account.Deleted-rad ska skrivas per POST /me/delete");
         auditEntries[0].AggregateType.ShouldBe("JobSeeker");
@@ -258,5 +268,7 @@ public class DeleteMeTests(ApiFactory factory)
     // och login är blockerad efter första radering per D5 (dessutom kapar AccountDeletion-rate-limiten
     // en andra delete inom samma minut). Idempotens verifieras indirekt av "exakt EN Account.Deleted-
     // rad"-asserten ovan (om handlern inte var idempotent skulle vi få N rader vid Hangfire-retry) och
-    // direkt av handler-unit-testet i DeleteAccountCommandHandlerTests.
+    // direkt av handler-unit-testet i DeleteAccountCommandHandlerTests. Att ett raderat konto inte kan
+    // logga in pinnas där inloggningen bor: LoginChallengeProofTests
+    // (An_account_deleted_after_the_mail_went_out_gets_its_deletion_date_not_a_session).
 }

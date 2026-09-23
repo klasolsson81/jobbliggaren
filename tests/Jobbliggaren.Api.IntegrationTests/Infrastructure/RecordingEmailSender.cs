@@ -140,16 +140,6 @@ internal sealed class RecordingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail,
-        EmailChangeConfirmationEmail content,
-        CancellationToken cancellationToken)
-    {
-        ThrowIfFailing("email-change-confirmation");
-        _sent.Enqueue(new RecordedEmail(RecordedEmailKind.EmailChangeConfirmation, toEmail));
-        return Task.CompletedTask;
-    }
-
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
         CancellationToken cancellationToken)
@@ -214,7 +204,6 @@ internal enum RecordedEmailKind
 {
     MatchNotification,
     FollowedCompanyNotification,
-    EmailChangeConfirmation,
     EmailChangedNotification,
     EmailConfirmation,
     AccountExistsNotice,

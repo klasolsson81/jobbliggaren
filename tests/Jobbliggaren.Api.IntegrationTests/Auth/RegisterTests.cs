@@ -40,6 +40,33 @@ public class RegisterTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task POST_register_with_an_unstorable_address_returns_400_in_swedish()
+    {
+        // The wire contract of Auth.EmailNotStorable: the status comes from the error's kind, and the detail
+        // is the house's own Swedish text, never Identity's English one.
+        var ct = TestContext.Current.CancellationToken;
+        var body = new
+        {
+            email = $" pad-{Guid.NewGuid():N}@example.se",
+            password = "T3stlosen123456",
+            displayName = "Test User",
+            acceptTerms = true,
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        problem.GetProperty("title").GetString().ShouldBe(AuthErrorCodes.EmailNotStorable);
+        var detail = problem.GetProperty("detail").GetString();
+        detail.ShouldBe(AuthErrorCodes.EmailNotStorableMessage);
+
+        // Independent of the constant above, as in the duplicate test below.
+        detail!.ShouldStartWith("E-postadressen");
+        detail.ShouldNotContain("Username");
+    }
+
+    [Fact]
     public async Task POST_register_with_duplicate_email_returns_400()
     {
         // #481 Low — a duplicate registration must not leak account existence. The 400 is collapsed
@@ -72,23 +99,6 @@ public class RegisterTests(ApiFactory factory)
         // '!' is honest — the ShouldBe above already fails the test if detail is null.
         detail!.ShouldNotContain(email);
         detail!.ShouldNotContain("is already taken");
-    }
-
-    [Fact]
-    public async Task POST_register_with_blank_display_name_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var body = new
-        {
-            email = $"blank-{Guid.NewGuid()}@example.com",
-            password = "T3stlosen123456",
-            displayName = "   ",
-            acceptTerms = true,
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     // ---------- #1736 (ADR 0142 D6) — the terms checkbox on the wire ----------

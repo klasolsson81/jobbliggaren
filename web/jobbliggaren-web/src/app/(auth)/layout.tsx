@@ -7,8 +7,8 @@ import { SiteHeader } from "@/components/site/site-header";
 import { SiteFooter } from "@/components/site/site-footer";
 
 /**
- * Auth layout — wraps every route in `(auth)` (/logga-in, /registrera,
- * /glomt-losenord, /aterstall-losenord, /bekrafta-epost, /bekrafta-konto) in
+ * Auth layout — wraps every route in `(auth)` (/logga-in and its steps,
+ * /glomt-losenord, /aterstall-losenord, /bekrafta-konto) in
  * SiteHeader (brand link to /) + SiteFooter. Klas-direktiv 2026-05-24: these
  * pages get the same "vanliga layout" as the marketing pages so a visitor can
  * always navigate back.

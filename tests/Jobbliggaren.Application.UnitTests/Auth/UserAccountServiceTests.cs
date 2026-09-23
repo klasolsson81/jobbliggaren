@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.TestSupport;
@@ -45,7 +46,13 @@ public class UserAccountServiceTests
     private UserAccountService CreateSut(bool requireEmailConfirmation = false) =>
         new(_userManager, _equalizer,
             Options.Create(new AuthOptions { RequireEmailConfirmation = requireEmailConfirmation }),
-            Substitute.For<ILogger<UserAccountService>>());
+            Substitute.For<ILogger<UserAccountService>>(),
+            Substitute.For<IDbExceptionInspector>());
+
+    // A password account, as CreateUserAsync(email, password) leaves it: the hash is set. Its value is never
+    // read here (CheckPasswordAsync is stubbed); its PRESENCE keeps a fixture off the passwordless gate, which
+    // answers before the lockout and the hash check.
+    private const string StoredPasswordHash = "stored-hash";
 
     public UserAccountServiceTests() => _sut = CreateSut();
 
@@ -68,7 +75,7 @@ public class UserAccountServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         const string password = "WrongPwd!";
-        var user = new ApplicationUser { Email = "known@example.com", UserName = "known@example.com" };
+        var user = new ApplicationUser { Email = "known@example.com", UserName = "known@example.com", PasswordHash = StoredPasswordHash };
         _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
         _userManager.IsLockedOutAsync(user).Returns(false);
         _userManager.CheckPasswordAsync(user, password).Returns(false);
@@ -87,7 +94,7 @@ public class UserAccountServiceTests
     public async Task ValidateCredentialsAsync_ShouldSkipEqualizerAndHashCheck_WhenAccountLocked()
     {
         var ct = TestContext.Current.CancellationToken;
-        var user = new ApplicationUser { Email = "locked@example.com", UserName = "locked@example.com" };
+        var user = new ApplicationUser { Email = "locked@example.com", UserName = "locked@example.com", PasswordHash = StoredPasswordHash };
         _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
         _userManager.IsLockedOutAsync(user).Returns(true);
 
@@ -110,7 +117,13 @@ public class UserAccountServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
-        var user = new ApplicationUser { Email = "u@example.com", UserName = "u@example.com", EmailConfirmed = false };
+        var user = new ApplicationUser
+        {
+            Email = "u@example.com",
+            UserName = "u@example.com",
+            EmailConfirmed = false,
+            PasswordHash = StoredPasswordHash,
+        };
         _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
         _userManager.IsLockedOutAsync(user).Returns(false);
         _userManager.CheckPasswordAsync(user, password).Returns(true);
@@ -130,7 +143,13 @@ public class UserAccountServiceTests
     {
         var ct = TestContext.Current.CancellationToken;
         const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
-        var user = new ApplicationUser { Email = "c@example.com", UserName = "c@example.com", EmailConfirmed = true };
+        var user = new ApplicationUser
+        {
+            Email = "c@example.com",
+            UserName = "c@example.com",
+            EmailConfirmed = true,
+            PasswordHash = StoredPasswordHash,
+        };
         _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
         _userManager.IsLockedOutAsync(user).Returns(false);
         _userManager.CheckPasswordAsync(user, password).Returns(true);
@@ -148,7 +167,13 @@ public class UserAccountServiceTests
         // Legacy behavior: with the flag OFF the gate is inert, so an unconfirmed account logs in.
         var ct = TestContext.Current.CancellationToken;
         const string password = "Correct-pass-123456"; // gitleaks:allow — test-only password literal, not a secret
-        var user = new ApplicationUser { Email = "o@example.com", UserName = "o@example.com", EmailConfirmed = false };
+        var user = new ApplicationUser
+        {
+            Email = "o@example.com",
+            UserName = "o@example.com",
+            EmailConfirmed = false,
+            PasswordHash = StoredPasswordHash,
+        };
         _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
         _userManager.IsLockedOutAsync(user).Returns(false);
         _userManager.CheckPasswordAsync(user, password).Returns(true);
@@ -157,6 +182,113 @@ public class UserAccountServiceTests
         var result = await _sut.ValidateCredentialsAsync("o@example.com", password, ct);
 
         result.IsSuccess.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldPayEqualizerAndNeverTouchLockout_WhenAccountHasNoPassword()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = new ApplicationUser { Email = "nopass@example.com", UserName = "nopass@example.com", PasswordHash = null };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+
+        var result = await _sut.ValidateCredentialsAsync("nopass@example.com", "whatever", ct);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidCredentials);
+        _equalizer.Received(1).Equalize("whatever");
+        await _userManager.DidNotReceive().IsLockedOutAsync(Arg.Any<ApplicationUser>());
+        await _userManager.DidNotReceive().CheckPasswordAsync(Arg.Any<ApplicationUser>(), Arg.Any<string>());
+        await _userManager.DidNotReceive().AccessFailedAsync(Arg.Any<ApplicationUser>());
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_ShouldAnswerExactlyLikeAnUnknownAddress_WhenAccountHasNoPassword()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var passwordless = new ApplicationUser { Email = "nopass@example.com", UserName = "nopass@example.com", PasswordHash = null };
+        _userManager.FindByEmailAsync("nopass@example.com").Returns(passwordless);
+        _userManager.FindByEmailAsync("nobody@example.com").Returns((ApplicationUser?)null);
+
+        var forPasswordless = await _sut.ValidateCredentialsAsync("nopass@example.com", "whatever", ct);
+        var forUnknown = await _sut.ValidateCredentialsAsync("nobody@example.com", "whatever", ct);
+
+        forPasswordless.Error.ShouldBe(forUnknown.Error);
+    }
+
+    [Fact]
+    public async Task TryPreparePasswordResetAsync_ShouldReturnNullAndMintNoToken_WhenAccountHasNoPassword()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = new ApplicationUser { Email = "nopass@example.com", UserName = "nopass@example.com", PasswordHash = null };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+
+        var delivery = await _sut.TryPreparePasswordResetAsync("nopass@example.com", ct);
+
+        delivery.ShouldBeNull();
+        await _userManager.DidNotReceive().GeneratePasswordResetTokenAsync(Arg.Any<ApplicationUser>());
+    }
+
+    [Fact]
+    public async Task TryPreparePasswordResetAsync_ShouldMintAToken_WhenAccountHasAPassword()
+    {
+        // The control for the test above: the same call on a password account mints, so the null there is the
+        // gate's answer and not a stub that returns nothing.
+        var ct = TestContext.Current.CancellationToken;
+        var user = new ApplicationUser
+        {
+            Email = "haspass@example.com",
+            UserName = "haspass@example.com",
+            PasswordHash = StoredPasswordHash,
+        };
+        _userManager.FindByEmailAsync(Arg.Any<string>()).Returns(user);
+        _userManager.GeneratePasswordResetTokenAsync(user).Returns("minted-token");
+
+        var delivery = await _sut.TryPreparePasswordResetAsync("haspass@example.com", ct);
+
+        delivery.ShouldNotBeNull().Email.ShouldBe("haspass@example.com");
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ShouldAnswerTheUniformTokenFailureAndWriteNothing_WhenAccountHasNoPassword()
+    {
+        // A token minted while the account still had a password outlives the gate on the mint. Without this
+        // arm the reset would give a passwordless account a password.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser { Id = userId, Email = "nopass@example.com", PasswordHash = null };
+        _userManager.FindByIdAsync(userId.ToString()).Returns(user);
+
+        var result = await _sut.ResetPasswordAsync(userId, "dG9rZW4", "A-new-password-123456", ct); // gitleaks:allow
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe(AuthErrorCodes.InvalidPasswordResetToken);
+        await _userManager.DidNotReceive()
+            .ResetPasswordAsync(Arg.Any<ApplicationUser>(), Arg.Any<string>(), Arg.Any<string>());
+        await _userManager.DidNotReceive().UpdateAsync(Arg.Any<ApplicationUser>());
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ShouldReachIdentity_WhenAccountHasAPassword()
+    {
+        // The control for the test above.
+        var ct = TestContext.Current.CancellationToken;
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "haspass@example.com",
+            EmailConfirmed = true,
+            PasswordHash = StoredPasswordHash,
+        };
+        _userManager.FindByIdAsync(userId.ToString()).Returns(user);
+        _userManager.ResetPasswordAsync(user, Arg.Any<string>(), Arg.Any<string>()).Returns(IdentityResult.Success);
+        _userManager.ResetAccessFailedCountAsync(user).Returns(IdentityResult.Success);
+        _userManager.SetLockoutEndDateAsync(user, null).Returns(IdentityResult.Success);
+
+        var result = await _sut.ResetPasswordAsync(userId, "dG9rZW4", "A-new-password-123456", ct); // gitleaks:allow
+
+        result.IsSuccess.ShouldBeTrue();
+        await _userManager.Received(1).ResetPasswordAsync(user, "token", "A-new-password-123456"); // gitleaks:allow
     }
 
     // #828 — /me's address + roles in ONE identity round-trip.
@@ -230,7 +362,8 @@ public class UserAccountServiceTests
         // recorder that keeps the state rather than snapshotting it reads back empty (#1237).
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
-            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger,
+            Substitute.For<IDbExceptionInspector>());
         var userId = Guid.NewGuid();
         var user = new ApplicationUser { Id = userId, Email = "gone@example.com" };
         _userManager.FindByIdAsync(userId.ToString()).Returns(user);
@@ -314,7 +447,8 @@ public class UserAccountServiceTests
         var ct = TestContext.Current.CancellationToken;
         var logger = new RecordingLogger<UserAccountService>();
         var sut = new UserAccountService(
-            _userManager, _equalizer, Options.Create(new AuthOptions()), logger);
+            _userManager, _equalizer, Options.Create(new AuthOptions()), logger,
+            Substitute.For<IDbExceptionInspector>());
         var userId = Guid.NewGuid();
         _userManager.FindByIdAsync(userId.ToString()).Returns((ApplicationUser?)null);
 

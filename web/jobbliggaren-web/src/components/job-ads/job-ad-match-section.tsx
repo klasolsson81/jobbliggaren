@@ -11,6 +11,7 @@ import type {
   MatchVerdict,
 } from "@/lib/dto/job-ad-match";
 import { useCodedTaxonomyName } from "@/lib/i18n/use-coded-taxonomy-name";
+import { MATCH_SETTINGS_HREF } from "@/lib/nav/match-settings-href";
 import {
   classifyOrtConcept,
   type OrtGranularity,
@@ -36,11 +37,6 @@ type MatchTranslator = ReturnType<typeof useTranslations<"jobads.ui.match">>;
  * Saknas hela `match`-propen (anonym / ingen träffdata) renderar anroparen
  * INGEN sektion alls (frånvaro, ej teater — ADR 0053).
  */
-
-// Kanonisk länk — IDENTISK med Översikt setup-nudgen (oversikt-page.tsx:181)
-// och /jobb-disclosuren. Texten resolveras via next-intl (`ui.match.settingsCta`,
-// SPOT med Översikt-/toolbar-disclosuren — ingen drift mellan ytor).
-const MATCH_SETTINGS_HREF = "/installningar#matchning";
 
 // CV-import-länk för signposten "ladda upp CV" (PR-B2). Samma route som
 // matchnings-kortets CV-förslag (importCvHref).

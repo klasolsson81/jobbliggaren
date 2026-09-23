@@ -70,13 +70,6 @@ public class ConsoleEmailSenderReservedRecipientTests
                 CancellationToken.None),
             CarriesProbe: true),
 
-        new(nameof(IEmailSender.SendEmailChangeConfirmationAsync), "email-change-confirmation",
-            (s, to) => s.SendEmailChangeConfirmationAsync(
-                to,
-                new EmailChangeConfirmationEmail(Guid.Empty, to, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
         new(nameof(IEmailSender.SendEmailChangedNotificationAsync), "email-changed-notification",
             (s, to) => s.SendEmailChangedNotificationAsync(to, CancellationToken.None),
             CarriesProbe: false),
@@ -183,6 +176,41 @@ public class ConsoleEmailSenderReservedRecipientTests
 
         level.ShouldBe(LogLevel.Warning);
         eventId.Id.ShouldBe(3008);
+    }
+
+    // #1737 — the table above has one case per IEmailSender METHOD, and SendLoginChallengeAsync's carries a
+    // login code. The new-account variant rides the same method with a code that leads to an ACCOUNT, so the
+    // gate is measured for it as well.
+    [Fact]
+    public async Task NewAccountCode_ToANonReservedRecipient_WithholdsTheCodeAndTheRecipient()
+    {
+        var (sender, log) = Create();
+
+        await sender.SendLoginChallengeAsync(
+            NonReservedRecipient, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(BodyProbe)),
+            CancellationToken.None);
+
+        var (level, eventId, message, properties) = log.Records.ShouldHaveSingleItem();
+        var emitted = message + " " + string.Join(" ", properties.Select(p => $"{p.Key}={p.Value}"));
+        emitted.ShouldNotContain(NonReservedRecipient);
+        emitted.ShouldNotContain(BodyProbe);
+        level.ShouldBe(LogLevel.Warning);
+        eventId.Id.ShouldBe(3008);
+    }
+
+    [Fact]
+    public async Task NewAccountCode_ToAReservedRecipient_LogsTheBodyWithItsCode()
+    {
+        var (sender, log) = Create();
+
+        await sender.SendLoginChallengeAsync(
+            ReservedRecipient, new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(BodyProbe)),
+            CancellationToken.None);
+
+        var (level, eventId, message, _) = log.Records.ShouldHaveSingleItem();
+        level.ShouldBe(LogLevel.Information);
+        eventId.Id.ShouldBe(3001);
+        message.ShouldContain(BodyProbe);
     }
 
     // ---------------------------------------------------------------------------------------

@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `b637b691`.
+> Base commit: `3643526e`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -174,7 +174,7 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 14 | `pdf-decorated-heading-glue` | recognition axis — its falsifier is a SOURCE edit where P7's is a DATA edit | pdf | — | no | no vertical gutter of 15 pt or more exists |
 | 15 | `pdf-two-page-seam` | extraction axis — covers PdfPigOpenXmlCvTextExtractor.cs:118, half the cited defect | pdf | — | no | the document has exactly 2 physical pages |
 | 16 | `pdf-pnr-bearing` | gate axis — a personnummer in the CV BODY, which blocks at the parse-level rung | pdf | — | no | no vertical gutter of 15 pt or more exists |
-| 17 | `pdf-clean-body-pnr-in-account-name` | gate axis — the only route to the DQ6 rung on the composed DTO | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists |
+| 17 | `pdf-clean-body-pnr-in-account-name` | gate axis — no account name reaches the composed DTO (ADR 0142 D7) | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists |
 | 18 | `docx-table-label-first-no-blanks` | (c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible | docx | — | yes | the package contains a w:tbl and no self-closing w:p |
 | 19 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
 | 20 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
@@ -236,7 +236,7 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 | 14 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
 | 15 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 16 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
-| 17 | `pdf-clean-body-pnr-in-account-name` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerInAccountName |
+| 17 | `pdf-clean-body-pnr-in-account-name` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 18 | `docx-table-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 19 | `docx-flat-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 20 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
@@ -411,14 +411,14 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `pdf-pnr-bearing` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Klarna AB | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Consid AB | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-clean-body-pnr-in-account-name` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
+| `pdf-clean-body-pnr-in-account-name` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `docx-table-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
@@ -540,7 +540,7 @@ reader's inference, never an emitted ratio.
 | 24 | `docx-irreducible-unattributed-experience` | `C6EF355B8C7E` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
-DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
+DOCX extractor has no `w:tbl`/`w:tr`/`w:tc` handling, so a
 table and a flat paragraph sequence in the same order should produce identical text. An
 ordering assertion would restate our own writer; equal digests are a fact about the
 extractor.
@@ -561,11 +561,11 @@ extractor.
 ## 5. Gate ladder
 
 No predicate expression is re-typed anywhere in this corpus; the states are derived from
-what the real handler returned. **TWO** predicates still collapse onto one
-`PersonnummerPresent` token, and each is settled by its own POSITIVE discriminator — the
+what the real handler returned. **THREE** predicates collapse onto one
+`PersonnummerPresent` token. Two are settled by their own POSITIVE discriminator — the
 aggregate's own flag for the parse rung, the two PUBLIC calls the handler makes for the
-label rung. The DQ6 guard is no longer among them: #1060 PR C gave it its own
-`PersonnummerInAccountName` token, so that rung is reached by name.
+label rung. The DQ6 guard has no public discriminator, so a DQ6 block is reported as
+`unresolved` rather than attributed to that rung by remainder.
 
 Earlier revisions said these were resolved "by ELIMINATION — whatever remains IS the DQ6
 guard, there is no fourth site". That reasoning was sound only while the site list was
@@ -578,10 +578,9 @@ corrected for (2026-07-28):
 
 - `not evaluated` — an earlier GATE stopped control, so this rung was never asked.
 - `no verdict` — the handler returned a genuine FAULT, so no gate decided anything.
-- `unresolved` — THE INSTRUMENT has no arm for the token the handler returned. It is an
+- `unresolved` — THE INSTRUMENT has no arm for the block the handler returned. It is an
   integrity failure, listed in §0 and red in the suite, never a statement about the
-  product. Before it existed, this case rendered as `no verdict` — publishing an honest
-  block as a handler fault, on the one case that exercises the DQ6 rung.
+  product.
 - `—` — no ladder exists at all: the case CRASHED before any gate was reached, so there is
   nothing for the rungs to report. §0 names it. Distinct from `no verdict`, which is a
   statement about the handler; here the handler was never asked.
@@ -621,7 +620,7 @@ neither asked the Domain the question. A row whose code could not be READ prints
 | 14 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 15 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 16 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | — | no |
-| 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | **BLOCKED** | not evaluated | PersonnummerInAccountName | — | — | no |
+| 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
@@ -654,7 +653,7 @@ corpus measures. The value itself is never printed.
 | `pdf-decorated-heading-glue` | Confident | no | no | none | no |
 | `pdf-two-page-seam` | Confident | no | no | none | no |
 | `pdf-pnr-bearing` | Confident | yes | — | body (synthetic, not printed) | yes |
-| `pdf-clean-body-pnr-in-account-name` | Confident | no | — | account name (synthetic, not printed) | no |
+| `pdf-clean-body-pnr-in-account-name` | Confident | no | no | account name (synthetic, not printed) | no |
 | `docx-table-label-first-no-blanks` | Confident | no | no | none | no |
 | `docx-flat-label-first-no-blanks` | Confident | no | no | none | no |
 | `docx-table-label-first-with-blanks` | Confident | no | no | none | no |
@@ -1050,12 +1049,12 @@ permitted to differ is the detected language.
 
 - **No genuine vendor export.** The CTO's class (d) is answered PARTIALLY: the mechanic
   is reproduced, the vendor claim is not made.
-- **Table-ness is invisible to the DOCX extractor** (it handles `w:t` and `w:p` only —
-  no `w:tbl`/`w:tr`/`w:tc`), so class (c) is answered as a container fact with its
+- **Table-ness is invisible to the DOCX extractor** (it has no
+  `w:tbl`/`w:tr`/`w:tc` handling), so class (c) is answered as a container fact with its
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
-- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**
+- **Entry boundaries still need a blank line, and nothing here recovers them.**
   `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
   per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
   fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not

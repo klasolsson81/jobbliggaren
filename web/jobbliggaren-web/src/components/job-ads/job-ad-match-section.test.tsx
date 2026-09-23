@@ -220,7 +220,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       screen.getByText(/Du har inte angett vilka yrken du söker inom/)
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Ställ in matchning" });
-    expect(link).toHaveAttribute("href", "/installningar#matchning");
+    expect(link).toHaveAttribute("href", "/mina-sidor#matchning");
     // Signpost ersätter nedbrytningen — ingen chip.
     expect(screen.queryByText("Toppmatch")).not.toBeInTheDocument();
   });

@@ -80,7 +80,7 @@ public class PreviewCvImprovementQueryHandlerTests
     private static async Task<Resume> SeedResumeAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId, Action<Resume>? configure = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var resume = Resume.Create(seeker.Id, "Mitt CV", "Klas Olsson", FakeDateTimeProvider.Default).Value;
         configure?.Invoke(resume);
@@ -181,7 +181,7 @@ public class PreviewCvImprovementQueryHandlerTests
     public async Task Handle_ShouldReturnNotFoundFailure_WhenResumeNotFound_NoLog()
     {
         var db = CreateDb(PreviewContent());
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
         StubReview(ResultWith(FailA2()));
@@ -199,7 +199,7 @@ public class PreviewCvImprovementQueryHandlerTests
     {
         var db = CreateDb(PreviewContent());
         var otherResume = await SeedResumeAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(CancellationToken.None);
         StubReview(ResultWith(FailA2()));

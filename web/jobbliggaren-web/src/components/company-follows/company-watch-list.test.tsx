@@ -194,7 +194,7 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
     ).toBeInTheDocument();
     // Nudge-länken pekar på den kanoniska matchnings-setup-rutten.
     const cta = screen.getByRole("link", { name: "Ställ in matchning" });
-    expect(cta).toHaveAttribute("href", "/installningar#matchning");
+    expect(cta).toHaveAttribute("href", "/mina-sidor#matchning");
     // Ingen numerisk matchande-räknare får renderas (varken "0 matchande" eller
     // "Inga matchande annonser just nu"). Nudge-copyn innehåller ordet "matchande
     // annonser" legitimt, så assertionen scopas till den numeriska räknar-formen.

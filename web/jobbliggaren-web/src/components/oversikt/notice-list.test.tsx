@@ -23,7 +23,7 @@ const nonDismissibleNudge: NoticeData = {
   label: "Matchning",
   text: "Du har inte angett vilka yrken du söker inom.",
   cta: "Ställ in matchning",
-  href: "/installningar#matchning",
+  href: "/mina-sidor#matchning",
   time: "",
 };
 

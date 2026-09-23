@@ -24,14 +24,16 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  */
 export default function Loading() {
   const t = useTranslations("pages");
+  const tOversikt = useTranslations("oversikt");
   return (
     <>
       <span role="status" aria-live="polite" aria-busy="true" className="sr-only">
         {t("navLoading.oversikt")}
       </span>
 
-      {/* kicker = the greeting overline Översikt renders above its title. */}
-      <PageHeroSkeleton kicker aside={null} />
+      {/* The title and lede are the page's own static translations, rendered for real so they
+          wrap as the loaded page does (#1385). */}
+      <PageHeroSkeleton aside={null} title={tOversikt("hero.title")} lede={tOversikt("hero.lede")} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         {/* Toolbar: the time-only stamp + refresh on the left, the single gear on the right. */}

@@ -74,7 +74,7 @@ public sealed class CompleteLoginChallengeTests
     {
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns(new LoginAccount(_userId, Email));
         var profile = JobSeeker.Register(
-            _userId, "Test", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
+            _userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
             .Value;
         if (softDeleted)
             profile.SoftDelete(FakeDateTimeProvider.Default);

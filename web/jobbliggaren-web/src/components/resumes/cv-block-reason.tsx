@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { mailLink } from "@/components/auth/mail-link";
 import { StatusPill } from "@/components/ui/status-pill";
 import { cn } from "@/lib/utils";
 import type { AutoPromoteBlockReason } from "@/lib/dto/parsed-resume";
@@ -70,14 +69,13 @@ export function CvBlockReason({
         <p className="jp-cvaction__body">
           {cleared
             ? t("review.blockReason.clearedBody")
-            : t.rich(`review.blockReason.${reason}`, { mail: mailLink })}
+            : t(`review.blockReason.${reason}`)}
         </p>
       </div>
 
       {/* Every state that gives an instruction gets its control next to the instruction
           (ADR 0047). The cleared state points at the upload, which otherwise sits only at
-          the bottom of the page. The account name cannot be changed in the service since
-          #1740, so that state's control is inside its sentence: a mail link to kontakt@. */}
+          the bottom of the page. */}
       {cleared && (
         <div className="jp-cvaction__actions">
           <Link href="/cv/importera" className="jp-btn jp-btn--secondary">

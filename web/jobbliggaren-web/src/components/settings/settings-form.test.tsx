@@ -38,7 +38,6 @@ vi.mock("@/components/me/delete-account-section", () => ({
 
 const baseProfile: JobSeekerProfileDto = {
   id: "profile-1",
-  displayName: "Klas Olsson",
   language: "sv",
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",

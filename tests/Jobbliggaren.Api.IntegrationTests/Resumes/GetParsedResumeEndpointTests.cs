@@ -7,6 +7,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -266,7 +267,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _factory, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", displayName: null, ct: ct);
+            _factory, email: $"parsed-{Guid.NewGuid():N}@jobbliggaren.test", ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         // B3 grades the name only once e-mail and phone are present, so this CV carries both.
@@ -292,17 +293,15 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
     [Fact]
     public async Task Import_for_a_legacy_account_name_carrying_a_personnummer_promotes_and_never_echoes_it()
     {
-        // THE ACTOR THAT PRODUCED THIS STATE: rows written before the #1117 invariant landed.
-        // JobSeeker.Register and UpdateDisplayName refuse a personnummer-shaped display name since
-        // then (pinned one project over in Jobbliggaren.Domain.UnitTests, JobSeekerTests), so the
-        // account is registered with a clean name and the column is written directly, as such a
-        // row sits in the database. The account name no longer reaches the CV (ADR 0142 D7), so it
-        // cannot block a clean file; this guards against that channel being re-opened.
+        // THE ACTOR THAT PRODUCED THIS STATE: a row written before the #1117 invariant landed, the
+        // one that let a personnummer into the account name. The column is written directly through
+        // LegacyAccountName, which names the pin. The account name no longer reaches the CV (ADR 0142
+        // D7), so it cannot block a clean file; this guards against that channel being re-opened.
         var ct = TestContext.Current.CancellationToken;
         var client = _factory.CreateClient();
         var email = $"parsed-{Guid.NewGuid():N}@jobbliggaren.test";
         var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _factory, email: email, displayName: "Anna Andersson", ct: ct);
+            _factory, email: email, ct: ct);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
         await using (var scope = _factory.Services.CreateAsyncScope())
@@ -314,7 +313,7 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
             // Keyed on THIS account's user id, never on the display name: the fixture shares a
             // collection, so a name-matched lookup could bind another test's seeker.
             var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == user.Id, ct);
-            db.Entry(seeker).Property(js => js.DisplayName).CurrentValue = $"Anna {ValidPersonnummer}";
+            LegacyAccountName.Write(db, seeker, $"Anna {ValidPersonnummer}");
             await db.SaveChangesAsync(ct);
         }
 

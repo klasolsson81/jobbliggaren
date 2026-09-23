@@ -118,7 +118,7 @@ public sealed class MyMatchesSurfaceTests(ApiFactory factory)
     private static async Task SeedSeekerAsync(
         AppDbContext db, Guid userId, DateTimeOffset? lastSeen, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Surface User", TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(ClockAt(T0)), ClockAt(T0)).Value;
         if (lastSeen is { } seen)
             seeker.SetLastSeenMatches(seen, ClockAt(seen));
         db.JobSeekers.Add(seeker);

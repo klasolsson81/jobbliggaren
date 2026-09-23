@@ -157,34 +157,6 @@ describe("RegisterForm", () => {
     ).toBeInTheDocument();
   });
 
-  // #1117 — the refusal names one input with one fix, so it must be wired to that input and
-  // not merely rendered near it. Both polarities: the discriminator is only meaningful if its
-  // ABSENCE is pinned too, otherwise stamping every failure would pass the positive case while
-  // telling a screen-reader user her name is wrong when the network dropped.
-  it("wires aria-invalid, aria-describedby and focus when the action names the field", async () => {
-    registerActionMock.mockResolvedValue({
-      error: "Namnet far inte innehalla ett personnummer.",
-      field: "displayName",
-    });
-
-    const user = userEvent.setup();
-    render(<RegisterForm />);
-
-    await user.type(screen.getByLabelText("Namn"), "Anna 811218-9876");
-    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
-    await user.type(screen.getByLabelText("Lösenord"), "password1");
-    await user.click(screen.getByRole("checkbox", { name: TERMS }));
-    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
-
-    const alert = await screen.findByRole("alert");
-    const nameInput = screen.getByLabelText("Namn");
-
-    expect(nameInput).toHaveAttribute("aria-invalid", "true");
-    expect(alert.id).not.toBe("");
-    expect(nameInput.getAttribute("aria-describedby")).toContain(alert.id);
-    await waitFor(() => expect(nameInput).toHaveFocus());
-  });
-
   it("leaves the name input unmarked for a failure that is not about the field", async () => {
     registerActionMock.mockResolvedValue({ error: "Kunde inte na servern." });
 
@@ -273,8 +245,8 @@ describe("RegisterForm", () => {
   });
 
   it("wires aria-invalid, aria-describedby and focus when the action refuses on the terms", async () => {
-    // Same both-polarities discipline as the displayName pair above: the server-side refusal is
-    // only reachable past a browser that skipped `required`, and it has to name its own input.
+    // The server-side refusal is only reachable past a browser that skipped `required`, and it
+    // has to name its own input.
     registerActionMock.mockResolvedValue({
       error:
         "Du måste godkänna användarvillkoren och integritetspolicyn för att skapa konto.",
@@ -382,28 +354,6 @@ describe("RegisterForm", () => {
     await waitFor(() => expect(alert).toHaveFocus());
     // Programmatic focus only — the message must not join the Tab order.
     expect(alert).toHaveAttribute("tabindex", "-1");
-  });
-
-  it("leaves focus on the named input when the failure DOES name one", async () => {
-    // The counterfactual for the move above: a field error still lands on the field, which is the
-    // control the user has to change. Without this, focusing the message unconditionally would
-    // silently undo #1117 and the test above would not notice.
-    registerActionMock.mockResolvedValue({
-      error: "Namnet far inte innehalla ett personnummer.",
-      field: "displayName",
-    });
-
-    const user = userEvent.setup();
-    render(<RegisterForm />);
-
-    await user.type(screen.getByLabelText("Namn"), "Anna 811218-9876");
-    await user.type(screen.getByLabelText("E-postadress"), "anna@example.se");
-    await user.type(screen.getByLabelText("Lösenord"), "password1");
-    await user.click(screen.getByRole("checkbox", { name: TERMS }));
-    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
-
-    await screen.findByRole("alert");
-    await waitFor(() => expect(screen.getByLabelText("Namn")).toHaveFocus());
   });
 
   it("wires aria-invalid, aria-describedby and focus when the password is refused as breached", async () => {

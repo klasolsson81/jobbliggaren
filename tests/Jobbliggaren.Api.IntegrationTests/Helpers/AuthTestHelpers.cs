@@ -25,7 +25,6 @@ public static class AuthTestHelpers
     public static async Task<string> RegisterAndGetSessionIdAsync(
         WebApplicationFactory<Program> factory,
         string? email = null,
-        string? displayName = "Test User",
         CancellationToken ct = default)
     {
         email ??= $"test-{Guid.NewGuid()}@example.se";
@@ -40,7 +39,7 @@ public static class AuthTestHelpers
                 $"Bootstrap user creation failed: {string.Join(", ", created.Errors.Select(e => e.Code))}");
 
         return await RegisterJobSeekerAndCreateSessionAsync(
-            services, user.Id, displayName, SessionLifetime.Persistent, ct);
+            services, user.Id, SessionLifetime.Persistent, ct);
     }
 
     /// <summary>
@@ -53,7 +52,6 @@ public static class AuthTestHelpers
         WebApplicationFactory<Program> factory,
         string? email = null,
         string password = DefaultTestPassword,
-        string? displayName = "Test User",
         CancellationToken ct = default)
     {
         email ??= $"test-{Guid.NewGuid()}@example.se";
@@ -67,18 +65,17 @@ public static class AuthTestHelpers
             throw new InvalidOperationException($"Bootstrap user creation failed: {created.Error.Code}");
 
         return await RegisterJobSeekerAndCreateSessionAsync(
-            services, created.Value, displayName, SessionLifetime.Session, ct);
+            services, created.Value, SessionLifetime.Session, ct);
     }
 
     private static async Task<string> RegisterJobSeekerAndCreateSessionAsync(
         IServiceProvider services,
         Guid userId,
-        string? displayName,
         SessionLifetime lifetime,
         CancellationToken ct)
     {
         var clock = services.GetRequiredService<IDateTimeProvider>();
-        var seeker = JobSeeker.Register(userId, displayName, TermsAcceptance.AcceptCurrent(clock), clock);
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seeker.IsFailure)
             throw new InvalidOperationException($"Bootstrap JobSeeker.Register failed: {seeker.Error.Code}");
 

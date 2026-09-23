@@ -61,7 +61,7 @@ public sealed class LoginChallengeIssuerTests
         if (subject is "active" or "pending-deletion")
         {
             var profile = JobSeeker.Register(
-                userId, "Test", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default),
+                userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default),
                 FakeDateTimeProvider.Default).Value;
             if (subject == "pending-deletion")
                 profile.SoftDelete(FakeDateTimeProvider.Default);

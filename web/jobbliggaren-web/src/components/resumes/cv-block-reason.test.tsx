@@ -21,23 +21,6 @@ describe("CvBlockReason", () => {
     expect(screen.getByText(/ladda upp den igen/i)).toBeInTheDocument();
   });
 
-  it("sends the ACCOUNT-NAME case to kontakt@, and says the file is clean", () => {
-    // The design/security Blocker of #1060: the file has nothing in it on this path, so
-    // telling the user to remove a number from her file is advice that cannot work. Since #1740
-    // the name cannot be changed in the service at all until part 4a, so a button to Mina sidor
-    // would promise a fix the page does not have (design-reviewer: a Blocker if it ships). The
-    // control is the mail link inside the sentence (ADR 0047), and no other link is offered.
-    render(<CvBlockReason reason="PersonnummerInAccountName" />);
-
-    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByText(/men filen är ren/i)).toBeInTheDocument();
-    const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute("href", "mailto:kontakt@jobbliggaren.se");
-    // It must NOT tell her to edit the file.
-    expect(screen.queryByText(/Ta bort det ur filen/i)).not.toBeInTheDocument();
-  });
-
   it("explains a failed extraction as an ACTION, leaving the statement to ParseSummary", () => {
     // ParseSummary renders `parse.overallFailed` on this same page, and the two must reconcile
     // rather than contradict (ADR 0047). Until #1373 both ended on "fylla i uppgifterna för
@@ -78,8 +61,8 @@ describe("CvBlockReason", () => {
       return text;
     });
 
-    expect(bodies).toHaveLength(4);
-    expect(new Set(bodies).size).toBe(4);
+    expect(bodies).toHaveLength(3);
+    expect(new Set(bodies).size).toBe(3);
   });
 
   it("scopes the null verdict to the FILE and never certifies a save", () => {

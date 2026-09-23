@@ -735,7 +735,7 @@ public class CompanyWatchScanJobIntegrationTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(Now);
 
-        var jobSeeker = JobSeeker.Register(Guid.NewGuid(), "Follow Seed", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var jobSeeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         switch (consent)
         {
             case FollowConsent.On:

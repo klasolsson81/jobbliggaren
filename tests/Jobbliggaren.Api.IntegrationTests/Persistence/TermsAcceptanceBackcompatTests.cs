@@ -2,6 +2,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -53,9 +54,10 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var seeker = JobSeeker
-            .Register(Guid.NewGuid(), displayName, TermsAcceptance.AcceptCurrent(SeedClock), SeedClock)
+            .Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(SeedClock), SeedClock)
             .Value;
         db.JobSeekers.Add(seeker);
+        LegacyAccountName.Write(db, seeker, displayName);
         await db.SaveChangesAsync(ct);
         return seeker;
     }

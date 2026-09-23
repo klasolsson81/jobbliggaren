@@ -154,7 +154,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
         var created = await userManager.CreateAsync(user, "DigestPass123!");
         created.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
-        var jobSeeker = JobSeeker.Register(user.Id, "Digest Seed", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var jobSeeker = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         jobSeeker.UpdateNotificationConsent(enabled: true, DigestCadence.Weekly, clock);
         db.JobSeekers.Add(jobSeeker);
         await db.SaveChangesAsync(ct);

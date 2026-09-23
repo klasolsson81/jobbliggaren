@@ -51,9 +51,6 @@ export type DigestCadence = z.infer<typeof digestCadenceSchema>;
  */
 export const jobSeekerProfileSchema = z.object({
   id: z.string(),
-  // ADR 0142 D7: the account has no name. Tolerated absent before the backend drops the key
-  // (#1741 PR B), and still read when an older backend sends it.
-  displayName: z.string().nullish(),
   language: z.string(),
   // ADR 0080 Vag 4 PR-6: background-match notification consent (opt-in, GDPR
   // Art. 6/7, default OFF per PR-1) + the digest cadence for accumulated Strong

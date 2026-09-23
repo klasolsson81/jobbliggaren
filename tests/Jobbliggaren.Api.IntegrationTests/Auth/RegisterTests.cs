@@ -101,23 +101,6 @@ public class RegisterTests(ApiFactory factory)
         detail!.ShouldNotContain("is already taken");
     }
 
-    [Fact]
-    public async Task POST_register_with_blank_display_name_returns_400()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var body = new
-        {
-            email = $"blank-{Guid.NewGuid()}@example.com",
-            password = "T3stlosen123456",
-            displayName = "   ",
-            acceptTerms = true,
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", body, ct);
-
-        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
-
     // ---------- #1736 (ADR 0142 D6) — the terms checkbox on the wire ----------
 
     [Fact]

@@ -271,8 +271,6 @@ public static class AuthErrorCodes
     /// <b>The client arm exists since #734 B-ii</b> (it did not until then: a 503 fell through to the
     /// generic <c>settings.account.errors.changeEmailFailed</c>, so the user learned neither the
     /// reason nor that the address was unchanged, and the submit button stayed live).
-    /// <c>changeEmailAction</c> now returns a <c>refused</c> result on this title and the card
-    /// replaces itself with a <c>role="status"</c> panel, removing the retry affordance.
     /// <b>It discriminates on the TITLE, never on the status alone</b> (the gate is conjunctive —
     /// status 503 AND the exact title), because this route has at least two other 503 producers:
     /// a Redis-backed <c>SessionStoreUnavailableException</c>, whose body carries no <c>title</c>

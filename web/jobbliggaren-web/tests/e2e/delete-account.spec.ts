@@ -1,127 +1,88 @@
-import { test, expect } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser, TEST_PASSWORD, testEmail } from "./helpers/auth";
+import { test, expect, type Page } from "@playwright/test";
+import { ensureConfirmedTestUser, loginAs, takeLoginCode, testEmail } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
+const SESSION_COOKIE = "__Host-jobbliggaren_session";
 
 /**
- * TD-65 — End-to-end-flow för konto-radering. Verifierar hela kedjan
- * från login → /installningar (goto("/mig") 308-redirectar dit sedan ADR 0057) →
- * typed-confirmation + re-auth → backend delete → cookie-borttagning + redirect.
- *
- * Varje test skapar egen runId så user:n inte återanvänds (destruktiv
- * operation — gammal user är borta efter delete-success).
+ * Deleting the account on /mina-sidor, re-authenticated by a code to the account's own address (#1740,
+ * ADR 0142 D5). Each test seeds its own address: a deletion is destructive, and an address logs in once
+ * per cooldown (`helpers/session.ts`).
  */
 
-test.describe("Radera konto (/installningar)", () => {
-  // #1739 (PR 3 of 4): the backend re-authenticates with a purpose-scoped code grant, and this dialog still
-  // sends the password, so the three flows below answer 400 until #1740 (part 3b) delivers the code dialog.
-  // The window is declared in ADR 0142 Amendment 2026-09-21 (4); fixme, not skip, so the spec stays listed.
-  test.fixme(true, "#1740: the code dialog replaces the password field on this surface");
+const newRunId = () => Date.now() + Math.floor(Math.random() * 1_000_000);
 
-  test("öppnar modal med typed-confirmation och håller submit disabled tills email-match + password", async ({ page }) => {
-    const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
+/** A six-digit code that is certainly not `code`. */
+const otherThan = (code: string) => String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+
+async function requestCode(page: Page, typed: string) {
+  await page.goto("/mina-sidor");
+  await page.getByRole("button", { name: "Radera konto" }).click();
+  const dialog = page.getByRole("dialog", { name: "Radera ditt konto" });
+  await dialog.getByLabel("Skriv din e-postadress för att bekräfta").fill(typed);
+  await dialog.getByRole("button", { name: "Skicka kod" }).click();
+  return dialog;
+}
+
+test.describe("Radera konto (/mina-sidor)", () => {
+  test("checks the typed address when Skicka kod is pressed, and sends no code until it matches", async ({
+    page,
+  }) => {
+    const runId = newRunId();
     await ensureConfirmedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
-    await page.goto("/mig");
-    await expect(
-      page.getByRole("heading", { name: "Farligt område" })
-    ).toBeVisible();
+    const dialog = await requestCode(page, "fel@example.se");
 
-    await page
-      .getByRole("button", { name: "Radera konto permanent" })
-      .first()
-      .click();
-
-    await expect(
-      page.getByRole("heading", { name: "Radera konto permanent" })
-    ).toBeVisible();
-    await expect(
-      page.getByText(/Den här åtgärden går inte att ångra/)
-    ).toBeVisible();
-
-    // Submit disabled från start (inget ifyllt)
-    const submitBtn = page.getByRole("button", { name: "Radera mitt konto" });
-    await expect(submitBtn).toBeDisabled();
-
-    // Fel email → fortfarande disabled
-    await page
-      .getByLabel(/Skriv din e-postadress/)
-      .fill("fel@example.se");
-    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
-    await expect(submitBtn).toBeDisabled();
-
-    // Rätt email → submit aktiveras
-    await page.getByLabel(/Skriv din e-postadress/).fill(testEmail(runId));
-    await expect(submitBtn).toBeEnabled();
-  });
-
-  test("happy path: delete → redirect till /logga-in + session ogiltig", async ({ page }) => {
-    const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
-    await loginAs(page, runId);
-
-    // Fånga session-token FÖRE delete så vi kan verifiera Redis-revoke
-    // efter delete. Browser-cookie-redirect ensam räcker inte —
-    // ADR 0024 D4 kräver att ISessionStore.InvalidateAllForUserAsync
-    // körs post-commit. Direkt backend-anrop med gamla token bevakar att
-    // Redis-sessionen faktiskt är borta (skyddar mot cookie-stöld-scenario).
-    const preCookies = await page.context().cookies();
-    const sessionCookie = preCookies.find(
-      (c) => c.name === "__Host-jobbliggaren_session"
+    await expect(dialog).toContainText("I 30 dagar kan du få kontot återställt");
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Skriv din e-postadress som den står under fältet."
     );
-    expect(sessionCookie?.value).toBeTruthy();
-    const sessionToken = sessionCookie!.value;
+    await expect(dialog.getByLabel("Sexsiffrig kod")).toHaveCount(0);
 
-    await page.goto("/mig");
-    await page
-      .getByRole("button", { name: "Radera konto permanent" })
-      .first()
-      .click();
+    await dialog.getByLabel("Skriv din e-postadress för att bekräfta").fill(testEmail(runId));
+    await dialog.getByRole("button", { name: "Skicka kod" }).click();
 
-    await page.getByLabel(/Skriv din e-postadress/).fill(testEmail(runId));
-    await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
-    await page.getByRole("button", { name: "Radera mitt konto" }).click();
-
-    // Server action → deleteSessionCookie + redirect("/logga-in")
-    await page.waitForURL("**/logga-in", { timeout: 10_000 });
-
-    // Säkerhetsinvariant 1: middleware blockerar /mig efter cookie-borttagning
-    await page.goto("/mig");
-    await expect(page).toHaveURL(/\/logga-in/);
-
-    // Säkerhetsinvariant 2 (ADR 0024 D4 + GDPR Art. 17): backend-session
-    // i Redis är invaliderad. Direkt anrop med gamla token → 401, inte 200.
-    const backendCheck = await fetch(`${BACKEND_URL}/api/v1/me`, {
-      headers: { Authorization: `Bearer ${sessionToken}` },
-    });
-    expect(backendCheck.status).toBe(401);
+    await expect(dialog.getByLabel("Sexsiffrig kod")).toBeFocused();
   });
 
-  test("fel lösenord → form-error och session intakt", async ({ page }) => {
-    const runId = Date.now() + Math.floor(Math.random() * 1_000_000);
+  test("deletes on the code: the login page says so, and the old session is dead in the backend", async ({
+    page,
+  }) => {
+    const runId = newRunId();
+    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await loginAs(page, runId);
+    const session = (await page.context().cookies()).find((c) => c.name === SESSION_COOKIE)?.value;
+    expect(session).toBeTruthy();
+
+    const dialog = await requestCode(page, testEmail(runId));
+    await dialog.getByLabel("Sexsiffrig kod").fill(await takeLoginCode(testEmail(runId)));
+    await dialog.getByRole("button", { name: "Radera mitt konto" }).click();
+
+    await page.waitForURL("**/logga-in");
+    await expect(page.getByRole("heading", { name: "Ditt konto är raderat" })).toBeVisible();
+    // ADR 0024 D4, GDPR Art. 17: the session is gone in Redis, not only its cookie in this browser.
+    const me = await fetch(`${BACKEND_URL}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${session}` },
+    });
+    expect(me.status).toBe(401);
+    await page.goto("/mina-sidor");
+    await expect(page).toHaveURL(/\/logga-in/);
+  });
+
+  test("refuses a wrong code on the field, and deletes nothing", async ({ page }) => {
+    const runId = newRunId();
     await ensureConfirmedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
-    await page.goto("/mig");
-    await page
-      .getByRole("button", { name: "Radera konto permanent" })
-      .first()
-      .click();
+    const dialog = await requestCode(page, testEmail(runId));
+    await dialog.getByLabel("Sexsiffrig kod").fill(otherThan(await takeLoginCode(testEmail(runId))));
+    await dialog.getByRole("button", { name: "Radera mitt konto" }).click();
 
-    await page.getByLabel(/Skriv din e-postadress/).fill(testEmail(runId));
-    await page.getByLabel("Lösenord", { exact: true }).fill("WrongPassword!");
-    await page.getByRole("button", { name: "Radera mitt konto" }).click();
-
-    // PR2c-1: re-auth är server-enforced — POST /api/v1/me/delete med fel lösenord → 401 →
-    // action returnerar { success:false, error:"Lösenordet är felaktigt." } (inget separat /auth/verify-steg)
-    // Scopa till dialogen: /installningar bär flera role="alert"-regioner (strict-mode).
-    await expect(
-      page.getByRole("dialog").getByRole("alert")
-    ).toContainText("Lösenordet är felaktigt");
-
-    // Session intakt: vi är kvar på inställningssidan. /mig är en 308 till
-    // /installningar sedan ADR 0057 — URL:en efter goto("/mig") är den senare.
-    await expect(page).toHaveURL(/\/installningar/);
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Koden stämmer inte. Kontrollera siffrorna och försök igen."
+    );
+    await page.goto("/mina-sidor");
+    await expect(page).toHaveURL(/\/mina-sidor$/);
   });
 });

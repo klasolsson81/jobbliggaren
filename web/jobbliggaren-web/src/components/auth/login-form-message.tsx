@@ -23,7 +23,7 @@ export function LoginFormMessage({
 }) {
   if (channel === "field") {
     return (
-      <p id={id} role="alert" className="text-body-sm leading-5 text-danger-600">
+      <p id={id} role="alert" className="text-body-sm leading-5 text-danger-600 [overflow-wrap:anywhere]">
         {message}
       </p>
     );
@@ -34,7 +34,7 @@ export function LoginFormMessage({
       tabIndex={-1}
       role="status"
       aria-live="polite"
-      className="text-body-sm leading-5 text-text-primary"
+      className="text-body-sm leading-5 text-text-primary [overflow-wrap:anywhere]"
     >
       {message}
     </p>

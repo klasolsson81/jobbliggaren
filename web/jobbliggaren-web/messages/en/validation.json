@@ -22,8 +22,6 @@
     "batchConflict": "The same application appears with different target statuses."
   },
   "profile": {
-    "confirmEmailInvalid": "Enter a valid email address.",
-    "passwordRequired": "Password is required.",
     "languageInvalid": "Choose a valid language."
   },
   "resume": {

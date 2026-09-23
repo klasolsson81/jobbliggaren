@@ -1,4 +1,4 @@
-import type { ChangeEventHandler, Ref } from "react";
+import type { ChangeEventHandler, ReactNode, Ref } from "react";
 import { Input } from "@/components/ui/input";
 
 // The six-digit code field, in the one shape ADR 0142's "Page form" binds (design M3): ONE input,
@@ -14,6 +14,7 @@ export function CodeField({
   hint,
   invalid,
   errorId,
+  leadingDescriptionId,
   inputRef,
   name,
   value,
@@ -22,7 +23,9 @@ export function CodeField({
   id: string;
   hintId: string;
   label: string;
-  hint: string;
+  hint: ReactNode;
+  /** A line read before the hint, e.g. the step's "we have sent a code to …". */
+  leadingDescriptionId?: string;
   /** The field carries a message the user can correct; `errorId` names it. */
   invalid: boolean;
   errorId: string;
@@ -49,7 +52,9 @@ export function CodeField({
         required
         aria-required="true"
         aria-invalid={invalid ? true : undefined}
-        aria-describedby={invalid ? `${hintId} ${errorId}` : hintId}
+        aria-describedby={[leadingDescriptionId, hintId, invalid ? errorId : null]
+          .filter(Boolean)
+          .join(" ")}
         value={value}
         onChange={onChange}
       />

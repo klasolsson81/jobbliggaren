@@ -41,6 +41,7 @@ describe("the login flow cookie value", () => {
     ["outcome, registration closed", { phase: "outcome", result: { outcome: "registrationClosed" } }],
     ["outcome, account unavailable", { phase: "outcome", result: { outcome: "accountUnavailable" } }],
     ["notice", { phase: "notice", notice: "grantUnusable" }],
+    ["notice, account deleted", { phase: "notice", notice: "accountDeleted" }],
   ])("round-trips the %s phase", (_label, flow) => {
     expect(decodeLoginFlow(encodeLoginFlow(flow))).toEqual(flow);
   });

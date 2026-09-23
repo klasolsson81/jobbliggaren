@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { LoginOutcomePanel } from "@/components/auth/login-outcome-panel";
+import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { Button } from "@/components/ui/button";
 import type { LinkStepState } from "@/lib/auth/challenge-action-state";
 import { consumeLink } from "@/lib/auth/challenge-actions";
@@ -144,7 +145,7 @@ export function UnusableLink({
         {t("auth.passwordless.link.unusable")}
       </p>
       <p className="text-body-sm text-text-primary">
-        <Link href="/logga-in" className="text-brand-700 underline underline-offset-2">
+        <Link href="/logga-in" className={STANDALONE_LINK}>
           {t("auth.passwordless.link.toLogin")}
         </Link>
       </p>

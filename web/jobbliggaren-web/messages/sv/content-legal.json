@@ -315,7 +315,7 @@
       "description": "Vilka kakor (cookies) Jobbliggaren använder och varför. Endast nödvändiga och funktionella kakor, ingen spårning och ingen samtyckesbanner."
     },
     "title": "Cookiepolicy",
-    "updated": "Senast uppdaterad: 2026-09-21",
+    "updated": "Senast uppdaterad: 2026-09-23",
     "intro": "Den här cookiepolicyn beskriver vilka kakor (cookies) och liknande lagringstekniker Jobbliggaren använder, varför de används och hur du kontrollerar dem. Policyn är informativ. Jobbliggaren använder inga spårnings-, analys- eller marknadsföringskakor, och därför visas ingen samtyckesbanner.",
     "sections": [
       {
@@ -333,7 +333,7 @@
         ],
         "list": [
           "__Host-jobbliggaren_session: håller dig inloggad. Innehåller endast ett slumpmässigt sessions-id, inga personuppgifter. Sätts med HttpOnly, Secure och SameSite=Strict och varar i upp till 180 dagar, medan du loggas ut efter 30 dagar utan att ha använt tjänsten.",
-          "__Host-jobbliggaren_login: håller ihop inloggningen medan den pågår. Sätts när du anger din e-postadress på inloggningssidan och innehåller den adress du skrev, så att du ser vilken adress du angav och kan begära en ny kod. Sätts med HttpOnly, Secure och SameSite=Strict, kan inte läsas av sidans skript, och varar i högst 15 minuter. Den byts mot en kortlivad kaka utan adress när du går vidare, och den tas bort när du loggar in.",
+          "__Host-jobbliggaren_login: håller ihop inloggningen medan den pågår. Sätts när du anger din e-postadress på inloggningssidan och innehåller den adress du skrev, så att du ser vilken adress du angav och kan begära en ny kod. Sätts med HttpOnly, Secure och SameSite=Strict, kan inte läsas av sidans skript, och varar i högst 15 minuter. Den byts mot en kortlivad kaka utan adress när du går vidare, och den tas bort när du loggar in. Raderar du ditt konto sätts den också som en kortlivad kaka utan adress, så att inloggningssidan kan bekräfta att kontot är raderat.",
           "__Host-jobbliggaren_refresh_after: en teknisk hjälpkaka utan personuppgifter som styr hur ofta din inloggning förnyas i bakgrunden. Innehåller endast en tidsstämpel.",
           "Skydd mot förfalskade förfrågningar (CSRF): Jobbliggaren skyddar dig mot så kallade cross-site request forgery-attacker. Skyddet bygger på hur sessionskakan är inställd (SameSite=Strict) tillsammans med kontroll på serversidan av varifrån förfrågan kommer. Det krävs ingen särskild, separat skyddskaka."
         ]

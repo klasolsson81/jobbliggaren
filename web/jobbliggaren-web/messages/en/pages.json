@@ -570,8 +570,6 @@
     "backToStart": "To the start page",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "showPasswordNamed": "Show {field}",
-    "hidePasswordNamed": "Hide {field}",
     "login": {
       "title": "Log in",
       "emailLabel": "Email address",
@@ -778,6 +776,10 @@
         "codeExpired": {
           "title": "The login expired",
           "body": "A login is valid for 15 minutes, and that time has passed. Enter your email address below and start again."
+        },
+        "accountDeleted": {
+          "title": "Your account has been deleted",
+          "body": "You are logged out on all devices. For 30 days you can have the account restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
         }
       },
       "errors": {

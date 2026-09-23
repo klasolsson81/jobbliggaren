@@ -1264,7 +1264,7 @@ form that moves it into a short-lived cookie was not chosen);
   drawer and menu re-pointed to `/mina-sidor` with one label (as delivered: Amendment 2026-09-22 (5)).
 - **Re-authentication by code** (design D1/D2, part 3b): the dialog only re-authenticates, by a code to
   the account's own address, and closes; change-email's second code, to the new address, is taken in the
-  card, and delete-account reuses the dialog unchanged (Klas 2026-09-22). **A page may state a send only
+  card, and delete-account reuses the dialog (Klas 2026-09-22). **A page may state a send only
   where three facts hold:** the 2xx follows an awaited send, every branch that sends nothing answers a
   visible refusal, and the address shown is the recipient. `POST /auth/reauth` and `POST /auth/change-email`
   meet all three, so *"Vi har skickat en sexsiffrig kod till {email}"* is true there; `POST /auth/challenge`
@@ -1446,8 +1446,8 @@ dropped after a verify that answered 200, on a 410, after the code's lifetime an
 every Server Action call with its arguments unless `logging.serverFunctions` is off; it is, and pinned (S6).
 
 **The re-issue** (S2). The change-email confirm sets the session cookie only from a strictly parsed 200, with both
-of its values; a 200 that does not parse sets nothing and is an unknown outcome. Nothing reads the session after
-the confirm. **What the proxy does to it, measured** 2026-09-23 with the rotation forced
+of its values; a 200 that does not parse sets nothing and is an unknown outcome.
+**What the proxy does to it, measured** 2026-09-23 with the rotation forced
 (`Session:Persistent:RotationInterval` 20 s): Next 16.3.3 sends the proxy's rotated id and the re-issued one on
 the confirm's response, in that order, and the browser keeps the last, which is live; the rotated one is dead,
 because the confirm ends every session. The reading that the action's cookie replaces the proxy's did not hold;
@@ -1470,8 +1470,8 @@ decide which challenge a spelling reaches (Amendment 2026-09-21 (3)); neither co
 the caller's own account.
 
 **DoD 8** (`security-auditor` S5). No new personal data: the flow writes nothing new on the server (its records,
-grants and budgets are 3a's and registered), and the client state lives in the tab's memory for at most 15
-minutes. No new logging. Retention unchanged. No DPIA. The deletion notice rides the login flow cookie's `notice`
+grants and budgets are 3a's and registered), and the client state lives in the tab's memory.
+No new logging. Retention unchanged. No DPIA. The deletion notice rides the login flow cookie's `notice`
 phase with its name only, for its 120 seconds; the cookie policy says so and `cookies.updated` moved, while the
 privacy policy and its version did not.
 

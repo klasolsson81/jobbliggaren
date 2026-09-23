@@ -7,19 +7,22 @@ using Jobbliggaren.Application.Matching.Abstractions;
 using Jobbliggaren.Application.Resumes.Abstractions;
 using Jobbliggaren.Application.Resumes.Commands.ImportResume;
 using Jobbliggaren.Application.UnitTests.Common;
+using Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
+using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using Shouldly;
+using static Jobbliggaren.Application.UnitTests.Resumes.Parsing.DocxRevisionMarkup;
 
 namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.ImportResume;
 
 // Fas 4 STEG 8 (F4-8, ADR 0074) — the import/parse orchestration handler. THIN: the
 // Infrastructure ports (ICvTextExtractor, IResumeSegmenter, IOccupationCodeDeriver) do
-// the heavy lifting and are NSubstitute-mocked. The handler's own logic under test:
-// the file-format gate, the personnummer guard call-site (scan on the RAW text BEFORE
+// the heavy lifting. The handler's own logic under test:
+// the file-format gate, the personnummer guard call-site (scan on the extracted text BEFORE
 // persist), the extraction→Failed-confidence fallback, the SSYK call-site (only when a
 // title exists), and the response mapping. The PERSISTED RawText is the ORIGINAL
 // extracted text — never the personnummer-normalized scan-copy.
@@ -95,7 +98,7 @@ public class ImportResumeCommandHandlerTests
 
     private async Task<JobSeeker> SeedJobSeekerAsync(Infrastructure.Persistence.AppDbContext db)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return seeker;
@@ -103,7 +106,7 @@ public class ImportResumeCommandHandlerTests
 
     private void StubExtractor(string rawText, CvExtractionStatus status) =>
         _extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
-            .Returns(new CvExtractionResult(rawText, status));
+            .Returns(new CvExtractionResult(rawText, status, string.Empty, string.Empty));
 
     private void StubSegmenter(ResumeSegmentationResult result) =>
         _segmenter.Segment(Arg.Any<string>()).Returns(result);
@@ -919,5 +922,132 @@ public class ImportResumeCommandHandlerTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe("JobSeeker.NotFound");
         db.ParsedResumes.Local.ShouldBeEmpty();
+    }
+
+    // ===============================================================
+    // #1810 — the real extractor over a DOCX whose personnummer stands only in another story
+    // ===============================================================
+
+    private ImportResumeCommandHandler CreateSutWithTheRealExtractor(Infrastructure.Persistence.AppDbContext db) =>
+        new(db, _currentUser, FakeDateTimeProvider.Default, new PdfPigOpenXmlCvTextExtractor(), _layoutAnalyzer,
+            _segmenter, _deriver, _experienceDeriver, _skillResolver, _sealer, _correlationId, _requestContext);
+
+    private static ImportResumeCommand DocxCommand(byte[] docx) =>
+        new("cv.docx", CvFileSignature.DocxContentType, docx);
+
+    public static TheoryData<string> OtherStories() => DocxStoryFixture.Stories();
+
+    [Theory]
+    [MemberData(nameof(OtherStories))]
+    public async Task Handle_DocxPersonnummerOnlyInAnotherStory_IsFlagged_AndOnlyTheMainStoryIsSegmentedAndKept(string story)
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+        var docx = DocxStoryFixture.Build(
+            "<w:p><w:r><w:t>Anna Andersson</w:t></w:r></w:p>", DocxStoryFixture.Paragraph(story, "811218-9876"));
+
+        var result = await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        result.Value.Personnummer.Found.ShouldBeTrue();
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson");
+        _segmenter.Received(1).Segment("Anna Andersson");
+    }
+
+    [Fact]
+    public async Task Handle_DocxWithAnEmptyMainStory_FlagsTheHeadersPersonnummer_AndFailsTheExtraction()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        var docx = DocxStoryFixture.Build("<w:p/>", DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        var result = await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        result.Value.Personnummer.Found.ShouldBeTrue();
+        result.Value.Confidence.Fallback.ShouldBe(ParseFallbackReason.ExtractionFailed.ToString());
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBeEmpty();
+        _segmenter.DidNotReceive().Segment(Arg.Any<string>());
+    }
+
+    // ===============================================================
+    // #1803 — the real extractor over a DOCX whose personnummer stands only in tracked changes
+    // ===============================================================
+
+    private const string AnnaParagraph = "<w:p><w:r><w:t>Anna Andersson</w:t></w:r></w:p>";
+
+    public static TheoryData<string> DeletionStories() => DocxStoryFixture.MainAndStories();
+
+    [Theory]
+    [MemberData(nameof(DeletionStories))]
+    public async Task Handle_DocxPersonnummerOnlyInDeletedText_IsFlagged_AndTheFileIsNotCaptured(string story)
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+        var deleted = Para(Del(DelText(Pnr)));
+        var docx = story == "main"
+            ? DocxStoryFixture.Build(AnnaParagraph + deleted)
+            : DocxStoryFixture.Build(AnnaParagraph, DocxStoryFixture.Part(story, deleted));
+
+        var result = await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        result.Value.Personnummer.Found.ShouldBeTrue();
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson");
+        _segmenter.Received(1).Segment("Anna Andersson");
+        db.ResumeFiles.Local.ShouldBeEmpty();
+        _sealer.DidNotReceive().Seal(Arg.Any<ReadOnlyMemory<byte>>());
+    }
+
+    public static TheoryData<string> LastFourDigitsTrackedAway() => ["deleted", "replaced by letters"];
+
+    [Theory]
+    [MemberData(nameof(LastFourDigitsTrackedAway))]
+    public async Task Handle_DocxPersonnummerWithItsLastFourDigitsTrackedAway_IsFlagged_AndTheFileIsNotCaptured(string how)
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+        var (tail, rawText) = how == "deleted"
+            ? (Del(DelText("9876")), "Anna Andersson\n811218-")
+            : (Del(DelText("9876")) + Ins(Kept("XXXX")), "Anna Andersson\n811218-XXXX");
+        var docx = DocxStoryFixture.Build(AnnaParagraph + Para(Kept("811218-"), tail));
+
+        var result = await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        result.Value.Personnummer.Found.ShouldBeTrue();
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe(rawText);
+        db.ResumeFiles.Local.ShouldBeEmpty();
+        _sealer.DidNotReceive().Seal(Arg.Any<ReadOnlyMemory<byte>>());
+    }
+
+    [Fact]
+    public async Task Handle_DocxWithOnlyDeletedText_FlagsItAndFailsTheExtraction()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        var docx = DocxStoryFixture.Build(Para(Del(DelText(Pnr))));
+
+        var result = await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        result.Value.Personnummer.Found.ShouldBeTrue();
+        result.Value.Confidence.Fallback.ShouldBe(ParseFallbackReason.ExtractionFailed.ToString());
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBeEmpty();
+        _segmenter.DidNotReceive().Segment(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Handle_DocxWithADeletedMarkAndAMovedParagraph_SegmentsAndKeepsTheAcceptedText()
+    {
+        var db = TestAppDbContextFactory.Create();
+        await SeedJobSeekerAsync(db);
+        StubSegmenter(ConfidentSegmentation(experienceTitle: null));
+        var docx = DocxStoryFixture.Build(
+            MarkedPara(DeletedMark, Kept("Anna")) + Para(Kept("Andersson")) +
+            MarkedPara(MovedMark, MovedFrom(Kept("Flyttad"))) + Para(MovedTo(Kept("Flyttad"))));
+
+        await CreateSutWithTheRealExtractor(db).Handle(DocxCommand(docx), CancellationToken.None);
+
+        _segmenter.Received(1).Segment("Anna Andersson\nFlyttad");
+        db.ParsedResumes.Local.ShouldHaveSingleItem().RawText.ShouldBe("Anna Andersson\nFlyttad");
     }
 }

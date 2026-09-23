@@ -233,7 +233,7 @@ export default async function MatchningPage() {
           </h2>
           <p className="mt-2 text-body text-text-primary">{t("cta.text")}</p>
           <p className="mt-4">
-            <Link href="/registrera" className="jp-btn jp-btn--primary">
+            <Link href="/logga-in" className="jp-btn jp-btn--primary">
               {t("cta.button")}
             </Link>
           </p>

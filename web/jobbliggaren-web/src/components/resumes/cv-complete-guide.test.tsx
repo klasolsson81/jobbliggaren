@@ -1049,8 +1049,8 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
     ).toBeInTheDocument();
     // …och hon får vägen in till att förbättra dem.
     expect(
-      screen.getByRole("link", { name: "Till inställningar" }),
-    ).toHaveAttribute("href", "/installningar#matchning");
+      screen.getByRole("link", { name: "Till Mina sidor" }),
+    ).toHaveAttribute("href", "/mina-sidor#matchning");
   });
 
   it("frågar INTE efter yrket när hon redan angett ett som landar i Övriga", async () => {
@@ -1074,7 +1074,7 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
       screen.getByRole("button", { name: /Lägg till sektionen Kurser/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Till inställningar" }),
+      screen.queryByRole("link", { name: "Till Mina sidor" }),
     ).not.toBeInTheDocument();
   });
 
@@ -1186,7 +1186,7 @@ describe("CvCompleteGuide — yrkesstyrda sektionsförslag (8b.4a, ADR 0107)", (
 
     expect(screen.queryByText("Föreslagna sektioner")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Till inställningar" }),
-    ).toHaveAttribute("href", "/installningar#matchning");
+      screen.getByRole("link", { name: "Till Mina sidor" }),
+    ).toHaveAttribute("href", "/mina-sidor#matchning");
   });
 });

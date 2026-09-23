@@ -73,7 +73,7 @@ internal static class GetParsedResumeMapper
             //  1. PRIMARY — fail-closed on Personnummer.Found. The Domain binding (PreambleResidue,
             //     #844) is categorical: NEVER surface a preamble from a flagged parse. The residue
             //     subtracts no personnummer (no recogniser knows the shape), and redaction re-scans
-            //     the RECONSTRUCTED carrier, not the contiguous RawText the import scan flagged — so
+            //     the RECONSTRUCTED carrier, not the text the import scan flagged — so
             //     suppression, not egress-detection, is the load-bearing control.
             //  2. SECONDARY — PersonnummerRedactor on the unflagged path (belt-and-braces, parity
             //     GetResumeAtsText): a no-op when the import scan found nothing, a safety net if the

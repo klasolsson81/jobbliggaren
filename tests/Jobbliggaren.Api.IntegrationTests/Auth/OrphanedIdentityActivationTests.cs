@@ -29,8 +29,8 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// remains, enumerated at the fixtures: a failed <c>JobSeeker</c> commit,
 /// <c>AccountHardDeleter</c> step 2h, and rows written before this change — the last
 /// being the only one this PR retires. The <c>JobSeeker.Register</c> failure arm is not among them:
-/// #1117 left it no trigger the real Identity adapter produces, as
-/// <c>RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser</c> records.
+/// the refusals that caller can reach are an empty user id, which the real Identity adapter never
+/// returns, and a missing terms acceptance, which the handler always supplies.
 /// </para>
 /// <para>
 /// The second pins that such a row is refused at the CAPABILITY seam, in BOTH its homes: login and
@@ -196,12 +196,10 @@ public class OrphanedIdentityActivationTests(ApiFactory factory)
         //      against the REAL AccountHardDeleter in HardDeleteAccountsJobIntegrationTests
         //      .CleanupIdentityOrphans_DoesNotSweepIdentityUserWithinGraceWindow.
         //   3. NOT the compensating delete in RegisterCommandHandler's JobSeeker.Register failure arm.
-        //      #1117 moved every display-name rule ahead of CreateUserAsync, so that arm's only
-        //      remaining trigger is an empty userId the real Identity adapter never returns — the same
-        //      reading recorded at
-        //      RegisterCommandHandlerTests.Handle_FlagOn_RefusesADisplayNameBeforeCreatingAnyUser. It
-        //      stands as defense-in-depth, and since #1410 DeleteUserAsync reports a failed delete
-        //      rather than discarding it.
+        //      The refusals that caller can reach are an empty userId, which the real Identity adapter
+        //      never returns, and a missing TermsAcceptance, which the handler always supplies
+        //      (TermsAcceptance.AcceptCurrent). It stands as defense-in-depth, and since #1410
+        //      DeleteUserAsync reports a failed delete rather than discarding it.
         //   4. Rows written before this change, when the confirmation send threw — the only one retired
         //      here, by Registration_whose_confirmation_send_fails_still_commits_the_job_seeker.
         //

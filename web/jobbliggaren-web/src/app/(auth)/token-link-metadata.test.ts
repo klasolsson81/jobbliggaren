@@ -13,6 +13,16 @@ import type { Metadata } from "next";
 // under (auth)/ whose source declares a `token?:` searchParam. A token route added in
 // another route group, or reading a token in another shape, is OUTSIDE this reach and
 // must extend the glob/shape when added — the limit is recorded on #706.
+//
+// ONE page answers "same-origin" instead, and the exception is named rather than the rule
+// loosened. `/logga-in/lank` must work without JavaScript, and a no-JS form POST under
+// `no-referrer` carries `Origin: null`, which Next refuses for a Server Action
+// (`LOGIN_LINK_REFERRER_POLICY` has the derivation). `same-origin` still strips the referrer on
+// every cross-origin request, which is the leak this invariant exists for. Any other value, on
+// this page or another, fails.
+const REFERRER_EXCEPTIONS: Readonly<Record<string, string>> = {
+  "./logga-in/lank/page.tsx": "same-origin",
+};
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => () => "",
@@ -31,15 +41,20 @@ describe("token-carrying (auth) pages — metadata invariants (#706)", () => {
     expect(tokenPages.map(([key]) => key)).toEqual(
       expect.arrayContaining([
         "./aterstall-losenord/page.tsx",
-        "./bekrafta-epost/page.tsx",
         "./bekrafta-konto/page.tsx",
+        "./logga-in/lank/page.tsx",
       ]),
     );
   });
 
+  it("names an exception only for a page that discovery reaches", () => {
+    const discovered = tokenPages.map(([key]) => key);
+    for (const key of Object.keys(REFERRER_EXCEPTIONS)) expect(discovered).toContain(key);
+  });
+
   it.each(tokenPages)(
-    "%s sets robots noindex AND referrer no-referrer",
-    async (_key, importer) => {
+    "%s sets robots noindex AND a referrer policy that never crosses the origin",
+    async (key, importer) => {
       // These pages moved from `export const metadata` to `generateMetadata` when they
       // gained a translated document title (WCAG 2.4.2): a title read from the message
       // catalogue is async, and Next allows only one of the two exports per file. The
@@ -51,7 +66,7 @@ describe("token-carrying (auth) pages — metadata invariants (#706)", () => {
 
       const metadata = await mod.generateMetadata!();
       expect(metadata.robots).toEqual({ index: false, follow: false });
-      expect(metadata.referrer).toBe("no-referrer");
+      expect(metadata.referrer).toBe(REFERRER_EXCEPTIONS[key] ?? "no-referrer");
     },
   );
 });

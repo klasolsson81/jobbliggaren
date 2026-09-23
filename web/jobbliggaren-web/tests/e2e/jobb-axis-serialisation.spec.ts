@@ -1,8 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
-import { loginAs, ensureConfirmedTestUser } from "./helpers/auth";
+import { expect, type Page } from "@playwright/test";
+import { loggedInTest } from "./helpers/session";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const RUN_ID = Date.now();
+const test = loggedInTest(RUN_ID);
 
 /**
  * `/jobb` axis serialisation — the guarantee only a real browser can check.
@@ -67,10 +67,6 @@ const EMPLOYMENT_B = {
 const EMPLOYMENT_C = { id: "1paU_aCR_nGn", label: "Behovsanställning" };
 const SEPARATOR = ".";
 
-test.beforeAll(async () => {
-  await ensureConfirmedTestUser(BACKEND_URL, RUN_ID);
-});
-
 /**
  * Next's cache key, as fix PR #93368 describes it: repeated keys collapse to the
  * last value, first-appearance key order preserved.
@@ -110,7 +106,6 @@ test.describe("/jobb — a filter removal applies", () => {
   test("unticking a non-last value re-renders the page, not just the URL", async ({
     page,
   }) => {
-    await loginAs(page, RUN_ID);
     await page.goto("/jobb");
     await openFilterPanel(page);
 
@@ -176,7 +171,6 @@ test.describe("/jobb — a filter removal applies", () => {
   test("a link shared in the pre-2026-08-01 repeated form still applies both filters", async ({
     page,
   }) => {
-    await loginAs(page, RUN_ID);
     // Back-compat: the parser accepts both shapes, so no redirect and no
     // migration are needed and every previously shared link keeps working.
     await page.goto(

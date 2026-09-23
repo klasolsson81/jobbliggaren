@@ -68,7 +68,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     private static async Task<ParsedResume> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -207,7 +207,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     public async Task Handle_ShouldReturnNullAndNotCallEngines_WhenParsedResumeNotFound()
     {
         var db = CreateDb();
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -224,7 +224,7 @@ public class SuggestCvImprovementsQueryHandlerTests
     {
         var db = CreateDb();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

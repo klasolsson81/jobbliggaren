@@ -565,7 +565,6 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
                         .HasColumnName("deleted_at");
 
                     b.Property<string>("DisplayName")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("display_name");

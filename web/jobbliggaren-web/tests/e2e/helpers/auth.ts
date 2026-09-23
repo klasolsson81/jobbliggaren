@@ -46,28 +46,91 @@ function assertSafeBaseURL(url: string): void {
   }
 }
 
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
+
+/**
+ * Reads the login code the DEV-ONLY seam captured for a reserved recipient
+ * (`POST /api/v1/dev/login-code`, mapped under IsDevelopment() only; ADR 0142 D10).
+ *
+ * It POLLS, because the 202 from `/auth/challenge` returns BEFORE the challenge is written and the
+ * mail sent: a background consumer does both. Same cadence as the backend's own tests.
+ *
+ * A timeout names its causes, because none of them looks like a broken test from the outside: the
+ * budgets are constants in `LoginChallengePolicy` and they are silent by design.
+ */
+export async function takeLoginCode(email: string): Promise<string> {
+  assertSafeBaseURL(BACKEND_URL);
+  const deadline = Date.now() + 30_000;
+  let lastStatus = 0;
+  while (Date.now() < deadline) {
+    const res = await fetch(`${BACKEND_URL}/api/v1/dev/login-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    lastStatus = res.status;
+    if (res.ok) {
+      const { code } = (await res.json()) as { code: string };
+      return code;
+    }
+    if (res.status !== 404) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(
+    `No login code for ${email} (last status ${lastStatus}). One of: ` +
+      `(1) the dispatch consumer has not written the challenge yet; ` +
+      `(2) this address asked again inside the 60 s cooldown, or more than 3 times in 10 minutes, ` +
+      `and such a request gets a challenge id with NO record and no mail, so log in ONCE per ` +
+      `address (see helpers/session.ts); ` +
+      `(3) a NEW address, and the 20-per-24-h cap on mails to addresses without an account is ` +
+      `spent in this Redis (locally: \`docker compose restart redis-volatile\` resets it); ` +
+      `(4) the recipient's domain is not reserved, or the API is not running in Development.`
+  );
+}
+
+/**
+ * Logs in through the real UI: address, then the code from the dev seam. For an address that
+ * HAS an account (seed it first with `ensureConfirmedTestUser`), so it spends nothing of the
+ * global cap on new addresses.
+ *
+ * ONCE per address. A second login for the same address inside the cooldown can never succeed
+ * (see `takeLoginCode`), which is why the data specs log in once per FILE through
+ * `helpers/session.ts` instead of once per test.
+ */
 export async function loginAs(page: Page, runId: number): Promise<void> {
   await page.goto("/logga-in");
   // Playwright resolverar page.goto mot config-baseURL — guard:a efter navigation
-  // för att fånga felkonfigurerade baseURL (CI mot prod) innan credentials fylls i.
+  // för att fånga felkonfigurerade baseURL (CI mot prod) innan adressen fylls i.
   assertSafeBaseURL(page.url());
   await page.getByLabel("E-postadress").fill(testEmail(runId));
-  // exact: the shared PasswordInput's "Visa lösenord" toggle also matches a loose
-  // "Lösenord" label (strict-mode violation → fill fails), same as auth.spec.ts.
-  await page.getByLabel("Lösenord", { exact: true }).fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: "Logga in" }).click();
-  // A successful login redirects to /oversikt (loginAction's safeRedirectPath default) —
-  // the old "**/mig" wait could never match: /mig has been a 308 → /installningar since
-  // ADR 0057, and it was never the post-login target. #813.
+  // exact: the three provider rows are buttons named "Fortsätt med …" and match loosely.
+  await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
+  await page.waitForURL("**/logga-in/kod");
+  await page.getByLabel("Sexsiffrig kod").fill(await takeLoginCode(testEmail(runId)));
+  await page.getByRole("button", { name: "Bekräfta koden" }).click();
+  // A login with no `next` lands on /oversikt (`safeRedirectPath`'s default).
   await page.waitForURL("**/oversikt");
 }
 
+/**
+ * Registers the test account WITH A PASSWORD, straight through `POST /api/v1/auth/register`, and
+ * deliberately not through the login flow's consent step: an address that already has an account
+ * costs nothing of the global 20-per-24-h cap on mails to addresses without one, where seeding every
+ * spec's user through the code flow would spend the cap within a couple of local runs (measured,
+ * #1738).
+ *
+ * ⚠ Part 5a removes `/auth/register`. This helper must be re-seeded there.
+ */
 export async function ensureTestUser(baseURL: string, runId: number): Promise<void> {
+  await registerAccount(baseURL, testEmail(runId));
+}
+
+async function registerAccount(baseURL: string, email: string): Promise<void> {
   assertSafeBaseURL(baseURL);
   const res = await fetch(`${baseURL}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId), password: TEST_PASSWORD, displayName: "E2E Testare", acceptTerms: true }),
+    body: JSON.stringify({ email, password: TEST_PASSWORD, displayName: "E2E Testare", acceptTerms: true }),
   });
   if (!res.ok && res.status !== 409) {
     if (res.status === 400) {
@@ -90,11 +153,15 @@ export async function ensureTestUser(baseURL: string, runId: number): Promise<vo
  * Tolerates 404 (account not found — treated as a no-op so callers can be defensive).
  */
 export async function confirmTestUser(baseURL: string, runId: number): Promise<void> {
+  await confirmAccount(baseURL, testEmail(runId));
+}
+
+async function confirmAccount(baseURL: string, email: string): Promise<void> {
   assertSafeBaseURL(baseURL);
   const res = await fetch(`${baseURL}/api/v1/dev/confirm-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: testEmail(runId) }),
+    body: JSON.stringify({ email }),
   });
   if (!res.ok && res.status !== 404) {
     throw new Error(`Failed to confirm test user: ${res.status}`);
@@ -107,12 +174,18 @@ export async function confirmTestUser(baseURL: string, runId: number): Promise<v
  * unconfirmed (→ login-403), so `loginAs` would time out waiting for /mig. This pairs
  * the register with the dev confirmed-login seam so the account can log in.
  *
- * NOTE: keep `ensureTestUser` (register-only) for `auth.spec.ts`, whose login-403
- * regression deliberately needs an UNCONFIRMED user — do not fold confirm into it.
+ * The confirm also matters for the code login: an UNCONFIRMED account's first passwordless
+ * proof removes its password (ADR 0142 D10), and these accounts need theirs.
  */
 export async function ensureConfirmedTestUser(baseURL: string, runId: number): Promise<void> {
   await ensureTestUser(baseURL, runId);
   await confirmTestUser(baseURL, runId);
+}
+
+/** The same seeding for an address the caller spells itself (it must be on a reserved domain). */
+export async function ensureConfirmedAccount(baseURL: string, email: string): Promise<void> {
+  await registerAccount(baseURL, email);
+  await confirmAccount(baseURL, email);
 }
 
 /**

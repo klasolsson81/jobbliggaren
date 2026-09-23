@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -22,18 +21,6 @@ public sealed class VerifyLoginChallengeCommandHandler(ILoginChallengeStore stor
         if (verdict.IsVerified)
             return Result.Success(await outcome.ResolveAsync(verdict.Proof, LoginMethod.Code, cancellationToken));
 
-        return Result.Failure<LoginOutcome>(verdict.Outcome switch
-        {
-            // The page warns before the burn; keyed on the count, so it stays true if MaxAttempts moves.
-            ChallengeOutcome.Wrong when verdict.AttemptsRemaining == 1 => DomainError.Validation(
-                AuthErrorCodes.LoginCodeWrongLastAttempt, AuthErrorCodes.LoginCodeWrongLastAttemptMessage),
-            ChallengeOutcome.Wrong => DomainError.Validation(
-                AuthErrorCodes.LoginCodeWrong, AuthErrorCodes.LoginCodeWrongMessage),
-            ChallengeOutcome.Burned => DomainError.Gone(
-                AuthErrorCodes.LoginCodeBurned, AuthErrorCodes.LoginCodeBurnedMessage),
-            ChallengeOutcome.Missing => DomainError.Gone(
-                AuthErrorCodes.LoginCodeExpired, AuthErrorCodes.LoginCodeExpiredMessage),
-            var other => throw new UnreachableException($"Unmapped challenge outcome {other}."),
-        });
+        return Result.Failure<LoginOutcome>(ChallengeVerdictErrors.For(verdict));
     }
 }

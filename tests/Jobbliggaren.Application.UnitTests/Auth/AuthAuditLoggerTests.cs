@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
@@ -86,6 +87,41 @@ public class AuthAuditLoggerTests
         recorder.Latest.Message.ShouldContain("ChallengeKind=LinkOnly");
         recorder.Latest.Message.ShouldContain("Ip=203.0.113.0");
         recorder.Latest.Message.ShouldContain("UserAgent=probe/1.0");
+    }
+
+    [Fact]
+    public void ReauthenticationSucceeded_EmitsEventId1019_Information_WithTheUserIdAndThePurpose()
+    {
+        // #1739 — the ops-log line the service writes; the user id and the purpose, and the request context the
+        // other in-request lines carry. Never an address, a code or a grant: the method takes none.
+        var (sut, recorder) = CreateLogger();
+        var userId = Guid.NewGuid();
+
+        sut.ReauthenticationSucceeded(userId, GrantPurpose.Reauthentication);
+
+        recorder.Latest.EventId.Id.ShouldBe(1019);
+        recorder.Latest.Level.ShouldBe(LogLevel.Information);
+        recorder.Latest.Message.ShouldContain("AuditEvent=reauthentication_succeeded");
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("Purpose=Reauthentication");
+        recorder.Latest.Message.ShouldContain("Ip=1.2.3.0");
+    }
+
+    [Fact]
+    public void ReauthenticationFailed_EmitsEventId1020_Warning()
+    {
+        // Warning, as LoginFailed is: after 5b a series of these on one user id is the signal that someone
+        // holds a hijacked session.
+        var (sut, recorder) = CreateLogger();
+        var userId = Guid.NewGuid();
+
+        sut.ReauthenticationFailed(userId, GrantPurpose.Reauthentication);
+
+        recorder.Latest.EventId.Id.ShouldBe(1020);
+        recorder.Latest.Level.ShouldBe(LogLevel.Warning);
+        recorder.Latest.Message.ShouldContain("AuditEvent=reauthentication_failed");
+        recorder.Latest.Message.ShouldContain(userId.ToString());
+        recorder.Latest.Message.ShouldContain("Purpose=Reauthentication");
     }
 
     [Fact]

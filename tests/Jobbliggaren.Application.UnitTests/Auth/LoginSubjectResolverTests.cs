@@ -13,19 +13,24 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// </summary>
 public sealed class LoginSubjectResolverTests
 {
+    // The row's own spelling. Every test asks with another one, as Identity's case-folding lookup admits.
+    private const string StoredEmail = "person@example.com";
+    private const string TypedEmail = "Person@Example.com";
+
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static (LoginSubjectResolver Resolver, IAppDbContext Db) Resolver(Guid? accountUserId)
     {
         var lookup = Substitute.For<ILoginAccountLookup>();
-        lookup.FindUserIdAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(accountUserId);
+        lookup.FindAccountAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(accountUserId is { } id ? new LoginAccount(id, StoredEmail) : null);
         var db = TestAppDbContextFactory.Create();
         return (new LoginSubjectResolver(lookup, db), db);
     }
 
     private static JobSeeker Profile(Guid userId) =>
         JobSeeker.Register(
-            userId, "Test", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
+            userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
         .Value;
 
     [Fact]
@@ -44,7 +49,7 @@ public sealed class LoginSubjectResolverTests
         db.JobSeekers.Add(Profile(userId));
         await db.SaveChangesAsync(Ct);
 
-        (await resolver.ResolveAsync("active@example.com", Ct)).ShouldBe(new LoginSubject.Active(userId));
+        (await resolver.ResolveAsync(TypedEmail, Ct)).ShouldBe(new LoginSubject.Active(userId, StoredEmail));
     }
 
     [Fact]
@@ -57,11 +62,9 @@ public sealed class LoginSubjectResolverTests
         db.JobSeekers.Add(profile);
         await db.SaveChangesAsync(Ct);
 
-        var subject = await resolver.ResolveAsync("leaving@example.com", Ct);
+        var subject = await resolver.ResolveAsync(TypedEmail, Ct);
 
-        var pending = subject.ShouldBeOfType<LoginSubject.PendingDeletion>();
-        pending.UserId.ShouldBe(userId);
-        pending.DeletedAt.ShouldBe(profile.DeletedAt!.Value);
+        subject.ShouldBe(new LoginSubject.PendingDeletion(userId, StoredEmail, profile.DeletedAt!.Value));
     }
 
     [Fact]
@@ -70,6 +73,6 @@ public sealed class LoginSubjectResolverTests
         var userId = Guid.NewGuid();
         var (resolver, _) = Resolver(userId);
 
-        (await resolver.ResolveAsync("orphan@example.com", Ct)).ShouldBe(new LoginSubject.ProfileMissing(userId));
+        (await resolver.ResolveAsync(TypedEmail, Ct)).ShouldBe(new LoginSubject.ProfileMissing(userId, StoredEmail));
     }
 }

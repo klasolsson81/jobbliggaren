@@ -805,10 +805,8 @@ public class HeadingDrivenResumeSegmenterTests
         //
         // Producible by production: SplitEntries yields a one-line entry from any non-blank line
         // with blanks on both sides, which is what a Word document with an EMPTY PARAGRAPH either
-        // side of its date line extracts to. Named precisely: ExtractDocx reads w:t, text nodes
-        // and the </w:p> EndElement — never w:spacing — so the producer is the empty paragraph,
-        // not paragraph spacing. Both halves are asserted — that it does not throw, AND that it
-        // degrades to honest absence rather than to some invented field.
+        // side of its date line extracts to. Both halves are asserted — that it does not throw, AND
+        // that it degrades to honest absence rather than to some invented field.
         const string cv =
             """
             Anna Andersson

@@ -21,7 +21,7 @@ interface CompanySummaryProps {
    *
    * Gäst-demon (#1572) skickar `null`, och det är etiketten som avgör det, inte
    * href:en: `companySummary.link` lyder "Visa bevakade företag", så en omdirigering
-   * till `/registrera` hade gjort ETIKETTEN falsk i stället för att laga länken.
+   * till inloggningssidan hade gjort ETIKETTEN falsk i stället för att laga länken.
    * Demot har ingen `/gast/foretag` att peka på, och sektionens notis bär redan
    * "Skapa konto" som konverteringsväg.
    *

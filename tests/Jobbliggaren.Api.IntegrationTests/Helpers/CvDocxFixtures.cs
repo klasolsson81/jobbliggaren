@@ -21,17 +21,19 @@ public static class CvDocxFixtures
     /// paragraphs back as raw text. The two private copies this assembly used to carry were
     /// retired in favour of this one.
     /// </summary>
-    public static byte[] BuildDocx(params string[] paragraphs)
+    public static byte[] BuildDocx(params string[] paragraphs) =>
+        BuildDocx([.. paragraphs.Select(text => new Paragraph(new Run(new Text(text))))]);
+
+    /// <summary>The same package from paragraphs the caller builds, for run content a string cannot
+    /// carry.</summary>
+    public static byte[] BuildDocx(params Paragraph[] paragraphs)
     {
         using var stream = new MemoryStream();
         using (var document = WordprocessingDocument.Create(
             stream, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
-            var body = new Body();
-            foreach (var text in paragraphs)
-                body.AppendChild(new Paragraph(new Run(new Text(text))));
-            mainPart.Document = new Document(body);
+            mainPart.Document = new Document(new Body(paragraphs));
             mainPart.Document.Save();
         }
 

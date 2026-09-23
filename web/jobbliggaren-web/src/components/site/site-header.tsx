@@ -8,7 +8,7 @@ import { type LandingStats } from "@/components/landing/landing-stats-format";
 
 /**
  * SiteHeader — the ONE public header. Landing (`/`), the auth surfaces
- * (`/logga-in`, `/registrera`, …) and every page in `(marketing-inner)` mount
+ * (`/logga-in`, …) and every page in `(marketing-inner)` mount
  * this component.
  *
  * It absorbs the former `landing-header.tsx` (LP-4 / #257), which was a second

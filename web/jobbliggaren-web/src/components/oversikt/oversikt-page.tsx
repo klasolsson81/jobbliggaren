@@ -53,8 +53,6 @@ import { RequiresYouCard } from "./requires-you-card";
 import { SavedSearchNoticeText } from "./saved-search-notice-text";
 
 interface OversiktPageProps {
-  readonly email: string;
-  readonly displayName: string | null;
   readonly profile: ApiResult<JobSeekerProfileDto>;
   readonly pipeline: ApiResult<PipelineGroupDto[]>;
   readonly savedJobAds: ApiResult<ListSavedJobAdsResult>;
@@ -107,8 +105,6 @@ interface OversiktPageProps {
  * `unavailable`-text — aldrig en blank cell, aldrig en blank sida.
  */
 export function OversiktPage({
-  email,
-  displayName,
   profile,
   pipeline,
   savedJobAds,
@@ -139,10 +135,6 @@ export function OversiktPage({
   // notification-port finns: byt slug+datum mot riktigt notificationId per
   // backend-instans.
   const dateSlug = swedishDateSlug(today);
-  const kickerName =
-    displayName && displayName.trim().length > 0
-      ? displayName
-      : (email.split("@")[0] ?? email);
 
   const pipelineData = pipeline.kind === "ok" ? pipeline.data : [];
   const allApps = flattenPipeline(pipelineData);
@@ -393,9 +385,6 @@ export function OversiktPage({
       <section className="jp-pagehero">
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
-            <div className="jp-pagehero__kicker">
-              {t("hero.kicker", { name: kickerName })}
-            </div>
             <h1 className="jp-pagehero__title">{t("hero.title")}</h1>
             <p className="jp-pagehero__lede">{t("hero.lede")}</p>
           </div>

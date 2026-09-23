@@ -1020,20 +1020,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-.jp-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--jp-r-pill);
-  background: var(--jp-accent-100);
-  color: var(--jp-accent-700);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: var(--jp-fw-bold);
-  font-size: var(--text-caption);
-  border: 1px solid var(--jp-border);
-  cursor: pointer;
-}
 
 /* Mobile drawer trigger */
 .jp-drawer-trigger { display: none; }
@@ -1118,20 +1104,18 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding: 8px;
   z-index: 50;
 }
+/* Who is logged in: two lines, both body text on ink-1 (DESIGN.md §4: 14 px floor, mono only for
+   codes). The popup is 240 px wide, so a long address wraps and is never truncated. */
 .jp-usermenu__head {
   padding: 8px 10px 12px;
   border-bottom: 1px solid var(--jp-border-soft);
   margin-bottom: 6px;
-}
-.jp-usermenu__name {
-  font-weight: var(--jp-fw-semibold);
+  font-size: var(--text-body-sm);
   color: var(--jp-ink-1);
-  font-size: var(--text-ui);
 }
 .jp-usermenu__email {
-  font-family: var(--jp-font-mono);
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
+  font-weight: var(--jp-fw-semibold);
+  overflow-wrap: anywhere;
   margin-top: 2px;
 }
 .jp-usermenu__item {
@@ -4572,6 +4556,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-header__actions .jp-btn--ghost { height: 36px; }
 @media (max-width: 768px) {
   .jp-header__actions .jp-btn--ghost { min-height: 44px; }
+  /* The icon buttons in the same row (Aviseringar, Mina sidor, the drawer trigger) meet the same
+     touch floor (DESIGN.md §5); at rest they are 38 px. */
+  .jp-header__actions .jp-icon-btn { width: 44px; height: 44px; }
 }
 
 /* The shell contract needs the same graded row, and for the same reason: the
@@ -4599,16 +4586,16 @@ a.jp-adminnav__link[aria-current="page"]::after {
 
 /* ── Gratis- och datarader under ett registreringsformulär ───
    Kvar av det flikade auth-kortet, som förlorade sin enda konsument
-   med <AuthCard/> i #1480. /registrera renderar båda raderna;
-   landningens kontokort bara gratisraden. */
-.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; }
+   med <AuthCard/> i #1480. Landningens kontokort renderar båda raderna
+   sedan registreringssidan gick i #1738. */
+.jp-auth-fine { margin: 0; font-size: var(--text-caption); color: var(--jp-ink-1); line-height: 1.5; text-align: center; }
 /* Klartext, ingen chip/ikon/badge. */
 .jp-auth-free { margin: 0; font-size: var(--text-caption); font-weight: var(--jp-fw-semibold); color: var(--jp-ink-1); text-align: center; }
 
 /* ── Kontokortet i landningens hero (riktning 2b, #1480) ─────
    Ljust kort på den mörka plattan. Ersatte det inbäddade
    registreringsformuläret: kortet säljer kontot och länkar till
-   /registrera i stället för att kräva ifyllnad direkt.
+   /logga-in i stället för att kräva ifyllnad direkt.
    Radierna, färgerna och skuggan är befintliga tokens — inga nya. */
 .jp-land-account {
   background: var(--jp-surface); border: 1px solid var(--jp-border);
@@ -4767,13 +4754,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
 /* ============================================================
    v2 STRUKTURELL KOMPAT-SHIM (branch-by-abstraction, CTO Beslut 3).
    Verbatim-bevarade v2-klasser som ännu konsumeras av sidor/komponenter
-   som refaktoreras i F3-F6 (jobb/ansökningar/cv/mig/sökningar +
+   som refaktoreras i F3-F6 (jobb/ansökningar/cv/sökningar +
    status-dot/status-pill/applications-pipeline) samt admin-
    granskning (utanför v3-scope, HANDOVER §7 = 5 användarrouter).
    Tas bort per sida när dess fas refaktorerar; helt borta vid F-städ.
    ============================================================ */
 
-/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/mig/sokningar/admin) */
+/* jp-h1/h2/h3/lede — sidrubriker (jobb/ansokningar/cv/sokningar/admin) */
 .jp-h1 {
   font-size: var(--text-h1);
   font-weight: var(--jp-fw-bold);

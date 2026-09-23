@@ -3,11 +3,14 @@ using System.Security.Cryptography;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Landing.Common;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Registration;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Landing;
 using Microsoft.AspNetCore.DataProtection;
@@ -120,8 +123,6 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     [Theory]
     [InlineData(CooldownScopes.ResendConfirm)]
     [InlineData(CooldownScopes.AccountExists)]
-    [InlineData(CooldownScopes.ChangeEmailTarget)]
-    [InlineData(CooldownScopes.ChangeEmailUser)]
     [InlineData(CooldownScopes.PasswordReset)]
     public async Task Cooldown_ApiIdentity_AllowsOnlyItsRecordedScopes(string scope)
     {
@@ -161,11 +162,41 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task BoundChallenges_ApiVolatileIdentity_ReplaceConsumeAndAdmitOnlyTheirOwnCommands()
+    {
+        var store = Challenges();
+        var owner = new ChallengeBinding(ChallengePurpose.Reauthentication, Guid.NewGuid());
+        var email = Guid.NewGuid() + "@example.com";
+        var old = ChallengeId.Generate();
+        var oldCode = await store.PutBoundAsync(new NewBoundChallenge(old, email, owner), Ct);
+        var current = ChallengeId.Generate();
+        var code = await store.PutBoundAsync(new NewBoundChallenge(current, email, owner), Ct);
+
+        (await store.ConsumeBoundCodeAsync(old, oldCode, owner, Ct)).Outcome.ShouldBe(ChallengeOutcome.Missing);
+        var wrong = LoginCode.FromRaw(code.Reveal() == "000000" ? "111111" : "000000");
+        (await store.ConsumeBoundCodeAsync(current, wrong, owner, Ct)).Outcome.ShouldBe(ChallengeOutcome.Wrong);
+        (await store.ConsumeBoundCodeAsync(current, code, owner, Ct)).IsVerified.ShouldBeTrue();
+
+        var live = ChallengeId.Generate();
+        await store.PutBoundAsync(new NewBoundChallenge(live, email, owner), Ct);
+        var recordKey = RedisLoginChallengeStore.BoundRecordKey(RedisLoginChallengeStore.RecordSegment(live));
+        var indexKey = RedisLoginChallengeStore.BoundIndexKey(owner);
+        var db = fixture.Challenge.GetDatabase();
+        await DeniedAsync(() => db.HashGetAllAsync(recordKey));
+        await DeniedAsync(() => db.StringGetAsync(indexKey));
+        await DeniedAsync(() => db.KeyDeleteAsync(indexKey));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(recordKey)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Budgets_ApiVolatileIdentity_EnforcesEveryProductionScopeAndTtl()
     {
         var budget = new RedisRateBudget(fixture.ChallengeAdapter);
         var scopes = new[] { LoginChallengePolicy.Cooldown(TimeSpan.FromSeconds(60)),
-            LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget };
+            LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget,
+            LoginChallengePolicy.ReauthCooldown(TimeSpan.FromSeconds(60)), LoginChallengePolicy.ReauthCodeBudget,
+            ChangeEmailPolicy.UserCooldown(TimeSpan.FromSeconds(60)), ChangeEmailPolicy.TargetCooldown(TimeSpan.FromSeconds(60)),
+            ChangeEmailPolicy.UserTargetsDailyBudget };
         foreach (var scope in scopes)
         {
             var subject = scope == LoginChallengePolicy.UnknownAddressMailBudget
@@ -180,6 +211,50 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
             (await fixture.VolatileAdmin.GetDatabase().KeyTimeToLiveAsync(key)).ShouldNotBeNull()
                 .ShouldBeLessThanOrEqualTo(before.Value);
         }
+    }
+
+    [Fact]
+    public async Task GrantsAndClaims_ApiVolatileIdentity_IssueRedeemOnceAndClaimOnceWithTtl()
+    {
+        var grants = new RedisGrantStore(
+            fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), NullLogger<RedisGrantStore>.Instance);
+        var email = Guid.NewGuid() + "@example.com";
+        var bearer = GrantAssertion.Bearer(GrantPurpose.LoginComplete);
+        var admin = fixture.VolatileAdmin.GetDatabase();
+
+        var token = await grants.IssueAsync(new GrantSubject.LoginComplete(email), Ct);
+        (await admin.KeyTimeToLiveAsync(RedisGrantStore.Key(token))).ShouldNotBeNull().ShouldBeGreaterThan(TimeSpan.Zero);
+        (await grants.RedeemAsync(token, bearer, Ct)).ShouldBe(new GrantSubject.LoginComplete(email));
+        (await grants.RedeemAsync(token, bearer, Ct)).ShouldBeNull();
+
+        var claim = new RedisRegistrationClaim(fixture.ChallengeAdapter);
+        (await claim.TryClaimAsync(email, Ct)).ShouldBeTrue();
+        (await claim.TryClaimAsync(email, Ct)).ShouldBeFalse();
+        (await admin.KeyTimeToLiveAsync(RedisRegistrationClaim.Key(email))).ShouldNotBeNull().ShouldBeGreaterThan(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task GrantAndClaimKeys_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands()
+    {
+        var grants = new RedisGrantStore(
+            fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), NullLogger<RedisGrantStore>.Instance);
+        var email = Guid.NewGuid() + "@example.com";
+        var grantKey = RedisGrantStore.Key(await grants.IssueAsync(new GrantSubject.LoginComplete(email), Ct));
+        (await new RedisRegistrationClaim(fixture.ChallengeAdapter).TryClaimAsync(email, Ct)).ShouldBeTrue();
+        var claimKey = RedisRegistrationClaim.Key(email);
+        var db = fixture.Challenge.GetDatabase();
+
+        await DeniedAsync(() => db.StringGetAsync(grantKey));
+        await DeniedAsync(() => db.KeyDeleteAsync(grantKey));
+        await DeniedAsync(() => db.KeyExpireAsync(grantKey, TimeSpan.FromHours(1)));
+        await DeniedAsync(() => db.ScriptEvaluateAsync("return redis.call('GET', KEYS[1])", [new RedisKey(grantKey)]));
+        await DeniedAsync(() => db.StringGetAsync(claimKey));
+        await DeniedAsync(() => db.StringGetDeleteAsync(claimKey));
+        await DeniedAsync(() => db.KeyDeleteAsync(claimKey));
+
+        var challengeKey = RedisLoginChallengeStore.RecordKey(RedisLoginChallengeStore.RecordSegment(ChallengeId.Generate()));
+        await DeniedAsync(() => db.StringGetDeleteAsync(challengeKey));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(grantKey)).ShouldBeTrue();
     }
 
     [Theory]

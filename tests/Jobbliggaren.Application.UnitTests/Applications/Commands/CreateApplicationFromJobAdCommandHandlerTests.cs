@@ -29,7 +29,7 @@ public class CreateApplicationFromJobAdCommandHandlerTests
     private async Task<(JobSeeker seeker, JobAd jobAd)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(_clock), _clock).Value;
         db.JobSeekers.Add(seeker);
 
         var jobAd = JobAd.Create(

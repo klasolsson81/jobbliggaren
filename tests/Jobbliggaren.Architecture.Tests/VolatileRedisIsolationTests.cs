@@ -1,6 +1,8 @@
 using System.Reflection;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Registration;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Microsoft.Extensions.Caching.Distributed;
 using Shouldly;
@@ -16,7 +18,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// <remarks>
 /// A constructor-injection scan, the shape <see cref="ErasurePortInjectionRadiusTests"/> records: a
 /// minimal-API delegate parameter is a second injection form no constructor scan can see, but
-/// <see cref="VolatileRedisConnection"/> is internal to Infrastructure and the Api has no
+/// <see cref="VolatileRedisConnection"/> is internal to Infrastructure, which grants the Api no
 /// <c>InternalsVisibleTo</c>, so an endpoint cannot name it.
 /// </remarks>
 public class VolatileRedisIsolationTests
@@ -58,6 +60,8 @@ public class VolatileRedisIsolationTests
         [
             typeof(RedisLoginChallengeStore).FullName!,
             typeof(RedisRateBudget).FullName!,
+            typeof(RedisGrantStore).FullName!,
+            typeof(RedisRegistrationClaim).FullName!,
             typeof(VolatileRedisHealthCheck).FullName!,
             typeof(ApiRedisStartupValidator).FullName!,
         ];
@@ -71,6 +75,8 @@ public class VolatileRedisIsolationTests
     [Theory]
     [InlineData(typeof(RedisLoginChallengeStore))]
     [InlineData(typeof(RedisRateBudget))]
+    [InlineData(typeof(RedisGrantStore))]
+    [InlineData(typeof(RedisRegistrationClaim))]
     public void VolatileStore_TakesNoRouteToTheDurableInstance(Type store)
     {
         ConstructorParameterTypes(store).ShouldNotContain(p => DurableRoutes.Contains(p));

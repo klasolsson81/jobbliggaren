@@ -25,8 +25,7 @@
     "navJobb": "Jobs",
     "navAnsokningar": "My applications",
     "navCv": "CV",
-    "logIn": "Log in",
-    "register": "Create account"
+    "logIn": "Log in"
   },
   "layout": {
     "skipToContent": "Skip to main content"

@@ -1,7 +1,11 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
-import { buildSecurityHeaders } from "./src/lib/security/security-headers";
+import {
+  buildSecurityHeaders,
+  LOGIN_LINK_ROUTE,
+  LOGIN_LINK_ROUTE_HEADERS,
+} from "./src/lib/security/security-headers";
 
 // next-intl without i18n routing: the plugin wires the request config at
 // `src/i18n/request.ts` (locale resolved from the `NEXT_LOCALE` cookie). See ADR 0078.
@@ -10,6 +14,12 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   // Remove the `X-Powered-By: Next.js` fingerprint (information disclosure).
   poweredByHeader: false,
+
+  // `next dev` prints every Server Action call with its arguments unless this is off, and the
+  // arguments carry sign-in and re-authentication codes (security-auditor, #1740 S6).
+  logging: {
+    serverFunctions: false,
+  },
 
   // The FE container (#196): emit `.next/standalone` with a self-contained
   // `server.js` and only the traced runtime dependencies, so the image does not
@@ -65,23 +75,46 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: buildSecurityHeaders(isDev).map((h) => ({ ...h })),
       },
+      // AFTER the global block on purpose: for a key two entries both set, the later entry is
+      // the one served, and this route overrides `Referrer-Policy`. Measured, not assumed, in
+      // `tests/e2e/security-headers.spec.ts`.
+      {
+        source: LOGIN_LINK_ROUTE,
+        headers: LOGIN_LINK_ROUTE_HEADERS.map((h) => ({ ...h })),
+      },
     ];
   },
 
-  // F6 Prompt 2 (ADR 0057) — /mig → /installningar permanent redirect.
-  // Status 308 (permanent + method-preserving) så bokmärken och externa
-  // länkar mot gamla routen pekas korrekt utan att tappa POST/PUT-metod.
-  // Next.js `permanent: true` ⇔ HTTP 308.
+  // Retired routes, each a permanent (308, method-preserving) shim for bookmarks and mail already
+  // sent, never a routing layer: nothing in `src/` points at them (`retired-routes.test.ts`).
+  // `/registrera` → `/logga-in` (ADR 0142): one page logs in and creates an account.
+  // `/installningar` → `/mina-sidor` (#1740, ADR 0142 D7), and `/mig`, which ADR 0057 had pointed at
+  // `/installningar`, straight to the new route: a shim never answers with another shim.
   async redirects() {
     return [
       {
+        source: "/registrera",
+        destination: "/logga-in",
+        permanent: true,
+      },
+      {
+        source: "/installningar",
+        destination: "/mina-sidor",
+        permanent: true,
+      },
+      {
+        source: "/installningar/:path*",
+        destination: "/mina-sidor/:path*",
+        permanent: true,
+      },
+      {
         source: "/mig",
-        destination: "/installningar",
+        destination: "/mina-sidor",
         permanent: true,
       },
       {
         source: "/mig/:path*",
-        destination: "/installningar/:path*",
+        destination: "/mina-sidor/:path*",
         permanent: true,
       },
     ];

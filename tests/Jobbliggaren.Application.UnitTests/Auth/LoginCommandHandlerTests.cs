@@ -44,7 +44,7 @@ public class LoginCommandHandlerTests
     private static async Task<IAppDbContext> DbWithActiveJobSeekerAsync(Guid userId, CancellationToken ct)
     {
         var db = TestAppDbContextFactory.Create();
-        db.JobSeekers.Add(JobSeeker.Register(userId, "Aktiv användare", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value);
+        db.JobSeekers.Add(JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value);
         await db.SaveChangesAsync(ct);
         return db;
     }
@@ -236,7 +236,7 @@ public class LoginCommandHandlerTests
             .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
 
         var clock = FakeDateTimeProvider.Default;
-        var seeker = JobSeeker.Register(userId, "Soft Deleted User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         seeker.SoftDelete(clock);
 
         var db = TestAppDbContextFactory.Create();
@@ -268,7 +268,7 @@ public class LoginCommandHandlerTests
             .Returns(Result.Success(new UserCredentials(userId, new List<string>())));
 
         var clock = FakeDateTimeProvider.Default;
-        var seeker = JobSeeker.Register(userId, "Active User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         // INTE soft-deletad
 
         var db = TestAppDbContextFactory.Create();
@@ -382,7 +382,7 @@ public class LoginCommandHandlerTests
 
         var orphanDb = TestAppDbContextFactory.Create();
 
-        var deletedSeeker = JobSeeker.Register(deletedUserId, "Soft Deleted User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var deletedSeeker = JobSeeker.Register(deletedUserId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         deletedSeeker.SoftDelete(clock);
         var deletedDb = TestAppDbContextFactory.Create();
         deletedDb.JobSeekers.Add(deletedSeeker);

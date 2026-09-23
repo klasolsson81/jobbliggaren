@@ -16,18 +16,18 @@ public sealed class ChangePasswordCommandHandler(
         // pipeline configuration. Throw-safe fallbacks instead of the null-forgiving operator.
         if (!currentUser.UserId.HasValue)
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.NotAuthenticated", "Inloggning krävs för att byta lösenord."));
+                DomainError.Validation(AuthErrorCodes.NotAuthenticated, "Inloggning krävs för att byta lösenord."));
 
         // The validator guarantees both are non-empty; re-assert so the handler is correct in
         // isolation and the non-null values can be passed to the Identity port.
         if (string.IsNullOrEmpty(command.CurrentPassword) || string.IsNullOrEmpty(command.NewPassword))
             return Result.Failure<Guid>(
-                DomainError.Validation("Auth.InvalidInput", "Nuvarande och nytt lösenord krävs."));
+                DomainError.Validation(AuthErrorCodes.InvalidInput, "Nuvarande och nytt lösenord krävs."));
 
         var userId = currentUser.UserId.Value;
 
-        // The current password was already verified by ReauthenticationBehavior; UserManager
-        // re-verifies it atomically as part of the change and re-stamps the security stamp. Note the
+        // UserManager verifies the current password atomically as part of the change and re-stamps the
+        // security stamp (the re-authentication itself is the grant, redeemed before this handler). Note the
         // stamp rotation does NOT invalidate the Redis-backed sessions — the endpoint's C6 re-issue
         // is the only logout-everywhere mechanism. IdentityError -> DomainError mapping matches
         // CreateUserAsync (e.g. Auth.PasswordTooShort / Auth.PasswordMismatch).

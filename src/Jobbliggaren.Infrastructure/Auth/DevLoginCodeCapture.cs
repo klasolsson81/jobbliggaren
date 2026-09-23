@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
@@ -66,8 +67,22 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
     {
         await inner.SendLoginChallengeAsync(toEmail, content, cancellationToken);
 
-        if (content is LoginChallengeEmail.CodeAndLink withCode)
-            capture.Capture(toEmail, withCode.Code);
+        // Exhaustive, so a variant added later is decided here and not skipped by a pattern that never matched.
+        LoginCode? code = content switch
+        {
+            LoginChallengeEmail.CodeAndLink withLink => withLink.Code,
+            LoginChallengeEmail.NewAccountCode newAccount => newAccount.Code,
+            LoginChallengeEmail.ReauthenticationCode reauthentication => reauthentication.Code,
+            LoginChallengeEmail.AddressChangeCode addressChange => addressChange.Code,
+            LoginChallengeEmail.LinkOnly
+                or LoginChallengeEmail.RegistrationClosed
+                or LoginChallengeEmail.PendingDeletion
+                or LoginChallengeEmail.NewAccountCodeLimitReached => null,
+            _ => throw new UnreachableException($"Unmapped login challenge mail {content.GetType().Name}."),
+        };
+
+        if (code is { } held)
+            capture.Capture(toEmail, held);
     }
 
     public Task SendMatchNotificationEmailAsync(
@@ -77,10 +92,6 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
     public Task SendFollowedCompanyNotificationEmailAsync(
         string toEmail, FollowedCompanyNotificationEmail content, CancellationToken cancellationToken) =>
         inner.SendFollowedCompanyNotificationEmailAsync(toEmail, content, cancellationToken);
-
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail, EmailChangeConfirmationEmail content, CancellationToken cancellationToken) =>
-        inner.SendEmailChangeConfirmationAsync(toEmail, content, cancellationToken);
 
     public Task SendEmailChangedNotificationAsync(string toEmail, CancellationToken cancellationToken) =>
         inner.SendEmailChangedNotificationAsync(toEmail, cancellationToken);

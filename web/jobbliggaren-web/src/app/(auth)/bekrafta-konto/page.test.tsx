@@ -6,8 +6,8 @@ import type { ActionResult } from "@/lib/actions/_action-result";
 import svPages from "../../../../messages/sv/pages.json";
 import BekraftaKontoPage from "./page";
 
-// #714 — the PUBLIC /bekrafta-konto registration-confirmation landing + its confirm island. Mirrors
-// the #679 /bekrafta-epost test. The page is an async Server Component using getTranslations; mock it
+// #714 — the PUBLIC /bekrafta-konto registration-confirmation landing + its confirm island. The page is
+// an async Server Component using getTranslations; mock it
 // to a real Swedish translator so page copy matches the island copy. The confirm action is mocked so
 // no fetch runs and the no-auto-POST invariant can be asserted (the action must fire only on click).
 

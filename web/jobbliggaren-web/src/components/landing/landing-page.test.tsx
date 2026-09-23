@@ -151,8 +151,7 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     ]) {
       expect(screen.getByText(row)).toBeInTheDocument();
     }
-    // The CTA is a LINK to /registrera, not a submit. Scoped to the card: the
-    // footer's "Kom igång" column carries a link with the same label. Bites on
+    // The CTA is a LINK to /logga-in, not a submit. Scoped to the card. Bites on
     // revert: mounting a form here turns this back into a role="button".
     const card = container.querySelector(".jp-land-account") as HTMLElement;
     expect(card).not.toBeNull();
@@ -161,7 +160,10 @@ describe("LandingPage (LP-4, #257 — Liggaren ledger hero)", () => {
     // consciously reopening that verdict, not just appending a key.
     expect(within(card).getAllByRole("listitem")).toHaveLength(5);
     const cta = within(card).getByRole("link", { name: "Skapa konto" });
-    expect(cta).toHaveAttribute("href", "/registrera");
+    expect(cta).toHaveAttribute("href", "/logga-in");
+    // Both reassurance lines live on the card since the register page went (#1738).
+    expect(within(card).getByText("Jobbliggaren är helt gratis att använda.")).toBeInTheDocument();
+    expect(within(card).getByText("Jobbliggaren säljer aldrig din data.")).toBeInTheDocument();
   });
 
   it("is the page's only solid primary button (ADR 0038 / DESIGN.md §6)", async () => {

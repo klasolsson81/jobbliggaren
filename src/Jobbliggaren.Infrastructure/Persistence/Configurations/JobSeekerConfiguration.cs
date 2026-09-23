@@ -26,7 +26,7 @@ public sealed class JobSeekerConfiguration : IEntityTypeConfiguration<JobSeeker>
         builder.Property(js => js.UserId).IsRequired();
         builder.HasIndex(js => js.UserId).IsUnique();
 
-        builder.Property(js => js.DisplayName).HasMaxLength(200).IsRequired();
+        builder.Property(js => js.DisplayName).HasMaxLength(200);
 
         builder.OwnsOne(js => js.Preferences, prefs =>
         {

@@ -134,9 +134,6 @@ export default async function OversiktRoute({
     redirect("/logga-in");
   }
 
-  const displayName =
-    profile.kind === "ok" ? profile.data.displayName : null;
-
   // ADR 0079 STEG 6 — live match-count → number | null. Endast `ok` ger en
   // siffra; alla andra Result-kinds (unauthorized/rateLimited/error) blir null
   // ⇒ match-notisen utelämnas (degraderad render), aldrig mock-fallback.
@@ -192,8 +189,6 @@ export default async function OversiktRoute({
   return (
     <>
       <OversiktPage
-        email={user.email}
-        displayName={displayName}
         profile={profile}
         pipeline={pipeline}
         savedJobAds={savedJobAds}

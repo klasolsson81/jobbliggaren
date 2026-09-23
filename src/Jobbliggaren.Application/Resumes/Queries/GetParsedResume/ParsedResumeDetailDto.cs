@@ -67,7 +67,7 @@ public sealed record ParsedResumeDetailDto(
 /// with the highest-priority personnummer control in two layers (CLAUDE.md §5): PRIMARY — the
 /// carrier is suppressed to <c>null</c> when the parse is flagged (<c>Personnummer.Found</c>), the
 /// categorical Domain binding (<c>PreambleResidue</c>, #844 — a residue subtracts no personnummer,
-/// and redaction re-scans the reconstructed carrier, not the flagged RawText); SECONDARY —
+/// and redaction re-scans the reconstructed carrier, not the text the import scan flagged); SECONDARY —
 /// <c>PersonnummerRedactor</c> on the unflagged path (belt-and-braces, parity <c>GetResumeAtsText</c>).
 /// ADR 0109 Amendment (5c-b): the adopt/classify action is FAS-DEFERRED — the Slutför guide that
 /// once hosted it is retired (ADR 0112), so the affordance is display-only; the path to adopt the

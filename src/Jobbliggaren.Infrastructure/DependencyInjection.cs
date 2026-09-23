@@ -1,8 +1,10 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
@@ -12,7 +14,9 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Auth.Registration;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
@@ -1709,6 +1713,8 @@ public static class DependencyInjection
                 opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
 
+                TheUserNameIsTheAddress(opts.User);
+
                 // #679 (CTO-bind #1): route the change-email confirmation token through the
                 // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
                 // Identity's default ChangeEmailTokenProvider is the "Email" provider — a 6-digit
@@ -1818,6 +1824,12 @@ public static class DependencyInjection
         // protects the address and the code with the Api's Data-Protection keyring (AddApiDataProtection).
         services.AddSingleton<ILoginChallengeStore, RedisLoginChallengeStore>();
 
+        // #1737 (ADR 0142 D1/D3) — the grant a proven new address redeems at `complete`, and the per-address
+        // claim taken before an account is created. On the volatile connection, Api-only like the two above;
+        // the grant store protects its payload with the Api's keyring too.
+        services.AddSingleton<IGrantStore, RedisGrantStore>();
+        services.AddSingleton<IRegistrationClaim, RedisRegistrationClaim>();
+
         // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
         // cooldown is (it runs in the request path) and for one more that is structural: the consumer
         // MINTS a reset token, which needs the token providers only this composition registers. The
@@ -1846,6 +1858,7 @@ public static class DependencyInjection
             sp => sp.GetRequiredService<LoginChallengeDispatchChannel>());
         services.AddHostedService<LoginChallengeDispatchService>();
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
+        services.AddScoped<IPasswordlessAccountCreator, UserAccountService>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
@@ -1988,6 +2001,12 @@ public static class DependencyInjection
         return services;
     }
 
+    // The user name IS the address here, so Identity's default ASCII user-name charset refused addresses both
+    // email validators admit (o'brien@, björn@). What may be stored is StorableAddress's question, asked at the
+    // writers in UserAccountService. One rule for both compositions: they validate the same rows.
+    private static void TheUserNameIsTheAddress(UserOptions user) =>
+        user.AllowedUserNameCharacters = string.Empty;
+
     /// <summary>
     /// HTTP-fri Identity-modul för Worker. Registrerar
     /// <see cref="AppIdentityDbContext"/>, AspNet IdentityCore (UserManager +
@@ -2025,7 +2044,7 @@ public static class DependencyInjection
         // (password-reset, email-confirm) kräver IDataProtectionProvider
         // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
         // DeleteAsync vilka inte använder token-providers.
-        services.AddIdentityCore<ApplicationUser>()
+        services.AddIdentityCore<ApplicationUser>(opts => TheUserNameIsTheAddress(opts.User))
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();
 

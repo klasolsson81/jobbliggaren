@@ -73,17 +73,9 @@ export function CvBlockReason({
         </p>
       </div>
 
-      {/* Varje tillstånd som ger en instruktion får kontrollen bredvid instruktionen
-          (ADR 0047). Personnumret i visningsnamnet ändras under Inställningar, tre
-          skärmar bort och namngivet ingen annanstans; det klarade läget pekar på
-          uppladdningen, som annars bara finns längst ned på sidan. */}
-      {reason === "PersonnummerInAccountName" && (
-        <div className="jp-cvaction__actions">
-          <Link href="/installningar" className="jp-btn jp-btn--secondary">
-            {t("review.blockReason.settingsCta")}
-          </Link>
-        </div>
-      )}
+      {/* Every state that gives an instruction gets its control next to the instruction
+          (ADR 0047). The cleared state points at the upload, which otherwise sits only at
+          the bottom of the page. */}
       {cleared && (
         <div className="jp-cvaction__actions">
           <Link href="/cv/importera" className="jp-btn jp-btn--secondary">

@@ -23,7 +23,7 @@ public class UpdateSavedSearchCommandHandlerTests
     private static async Task<(JobSeeker seeker, SavedSearch saved)> SeedAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var criteria = SearchCriteria.Create(
@@ -153,7 +153,7 @@ public class UpdateSavedSearchCommandHandlerTests
         var (_, otherSaved) = await SeedAsync(db, otherUserId);
         // current user måste ha egen JobSeeker — annars tidig-return innan
         // cross-tenant-detektion.
-        var ownSeeker = JobSeeker.Register(_userId, "Current", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -175,7 +175,7 @@ public class UpdateSavedSearchCommandHandlerTests
         var db = TestAppDbContextFactory.Create();
         var otherUserId = Guid.NewGuid();
         var (_, otherSaved) = await SeedAsync(db, otherUserId);
-        var ownSeeker = JobSeeker.Register(_userId, "Current", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 

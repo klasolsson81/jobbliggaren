@@ -185,6 +185,15 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_code_only_record_mints_a_code_that_verifies_and_no_link()
+    {
+        var (id, issued) = await PutAsync("code-only@example.com", ChallengeCredentials.CodeOnly, replaces: false);
+
+        issued.Link.ShouldBeNull();
+        (await _store.ConsumeCodeAsync(id, issued.Code!.Value, Ct)).IsVerified.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task A_record_without_credentials_answers_codes_like_a_wrong_code_and_has_no_link()
     {
         var (id, issued) = await PutAsync("closed@example.com", ChallengeCredentials.None);
@@ -323,7 +332,7 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
         const string email = "one-length@example.com";
         var db = _mux.GetDatabase();
         var lengths = new List<long>();
-        foreach (var credentials in new[] { ChallengeCredentials.CodeAndLink, ChallengeCredentials.LinkOnly, ChallengeCredentials.None })
+        foreach (var credentials in Enum.GetValues<ChallengeCredentials>())
         {
             var (id, _) = await PutAsync(email, credentials, replaces: false);
             lengths.Add(((byte[])(await db.HashGetAsync(

@@ -22,9 +22,8 @@ namespace Jobbliggaren.QA.Corpus.Layout.Generation;
 /// silently measures a fiction, which is why <c>ByteProof</c> asserts the serialization form from
 /// <c>word/document.xml</c> rather than trusting this comment.</para>
 ///
-/// <para><b>2. A Word table is BYTE-INVISIBLE to the extractor.</b> The DOCX branch handles
-/// exactly three node conditions — <c>w:t</c> Element, <c>w:t</c> EndElement, and <c>w:p</c>
-/// EndElement. There is no handling of <c>w:tbl</c>, <c>w:tr</c>, <c>w:tc</c> or <c>w:br</c>. A
+/// <para><b>2. A Word table is BYTE-INVISIBLE to the extractor.</b> There is no handling of
+/// <c>w:tbl</c>, <c>w:tr</c> or <c>w:tc</c>. A
 /// table and a flat paragraph sequence in the same order therefore produce identical text. So
 /// "table-based Word template" cannot be a DEFINING mechanic here, and an ordering assertion over
 /// the extracted text would restate this file rather than measure the product. The corpus covers
@@ -37,7 +36,7 @@ internal static class OpenXmlCvRenderer
     /// <para>UNTIL #1060 β-1 the cell order made <c>SplitTitleOrganization</c> read Title as null,
     /// because the split ran against a line carrying nothing but a period. It now reads the next
     /// line instead, so this arm parses its one fused entry and PROMOTES (lossily — it still yields
-    /// one entry of five, for the unrelated reason that the document authors no blank paragraphs
+    /// one entry of five, for the unrelated reason that the document authors no blank lines
     /// and <c>SplitEntries</c> splits on those alone).</para></summary>
     internal static byte[] TableLabelFirstNoBlanks(CvModel m) =>
         Build(m, useTable: true, blankSeparators: false, roleFirst: false, companyFirst: false);
@@ -71,7 +70,7 @@ internal static class OpenXmlCvRenderer
     /// <summary>The fourth cell of the <c>useTable: true</c> 2×2 over (header order × blank
     /// separators), which the other three above already occupy. It exists to answer ONE question
     /// the corpus could not answer before: is the entry-boundary loss on the no-blanks arms a
-    /// property of the DOCUMENT (no blank paragraph ⇒ <c>SplitEntries</c> cannot split) or a
+    /// property of the DOCUMENT (no blank line ⇒ <c>SplitEntries</c> cannot split) or a
     /// property of the label-first HEADER ORDER? Every no-blanks arm the corpus shipped was also
     /// label-first, so the two variables were confounded and the report could not separate them.
     ///
@@ -149,7 +148,7 @@ internal static class OpenXmlCvRenderer
 
             void Line(string text) => body.AppendChild(new Paragraph(new Run(new Text(text))));
 
-            // The ONLY authoring form that produces a blank line — see the class remarks.
+            // The blank-paragraph form that produces a blank line — see the class remarks.
             void Blank()
             {
                 if (blankSeparators)

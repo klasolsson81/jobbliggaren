@@ -1,4 +1,6 @@
+using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
@@ -53,6 +55,9 @@ public sealed class LoginChallengeCompositionTests
             && d.ImplementationType == typeof(LoginChallengeDispatchService));
         services.ShouldContain(d => d.ServiceType == typeof(ILoginChallengeStore));
         services.ShouldContain(d => d.ServiceType == typeof(IRateBudget));
+        services.ShouldContain(d => d.ServiceType == typeof(IGrantStore));
+        services.ShouldContain(d => d.ServiceType == typeof(IRegistrationClaim));
+        services.ShouldContain(d => d.ServiceType == typeof(IPasswordlessAccountCreator));
         services.ShouldContain(d => d.ServiceType == typeof(IInboxProofRecorder));
         services.ShouldContain(d => d.ServiceType == typeof(VolatileRedisConnection));
     }
@@ -70,6 +75,9 @@ public sealed class LoginChallengeCompositionTests
         services.ShouldNotContain(d => d.ImplementationType == typeof(LoginChallengeDispatchService));
         services.ShouldNotContain(d => d.ServiceType == typeof(ILoginChallengeStore));
         services.ShouldNotContain(d => d.ServiceType == typeof(IRateBudget));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IGrantStore));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IRegistrationClaim));
+        services.ShouldNotContain(d => d.ServiceType == typeof(IPasswordlessAccountCreator));
         services.ShouldNotContain(d => d.ServiceType == typeof(IInboxProofRecorder));
         services.ShouldNotContain(d => d.ServiceType == typeof(VolatileRedisConnection));
     }

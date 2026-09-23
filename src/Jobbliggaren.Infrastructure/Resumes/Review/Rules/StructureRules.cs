@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.KnowledgeBank.Abstractions;
 using Jobbliggaren.Application.Resumes.Review.Abstractions;
+using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Resumes.Sections;
 
@@ -72,9 +73,7 @@ internal sealed class B1SectionsRule : ICriterionRule
 
         var hasExperience = content.Experience.Count > 0;
         var hasEducation = content.Education.Count > 0;
-        var hasContact = content.Contact is not null
-            && (!string.IsNullOrWhiteSpace(content.Contact.FullName)
-                || !string.IsNullOrWhiteSpace(content.Contact.Email));
+        var hasContact = context.DetectedSections.Contains(ParsedSectionKind.Contact);
 
         var missing = new List<string>();
         if (!hasContact)
@@ -201,15 +200,19 @@ internal sealed class B3ContactRule : ICriterionRule
         }
 
         // Fail-signal: "Saknar e-post/telefon".
-        if (hardMissing.Count > 0)
+        if (contact is null || hardMissing.Count > 0)
         {
             return CvCriterionVerdict.Assessed("B3", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Kontaktsektion hittad; saknar {string.Join(" och ", hardMissing)}.")));
+                    $"Saknar {string.Join(" och ", hardMissing)}.")));
         }
 
+        // The canonical arm grades no name: the CV takes none from the account (ADR 0142 D7), so a
+        // name is neither missed nor claimed there.
+        var canonical = context.Source == CvReviewSourceKind.Canonical;
+
         var softMissing = new List<string>();
-        if (string.IsNullOrWhiteSpace(contact!.FullName))
+        if (!canonical && string.IsNullOrWhiteSpace(contact.FullName))
         {
             softMissing.Add("namn");
         }
@@ -223,7 +226,9 @@ internal sealed class B3ContactRule : ICriterionRule
             ? CvCriterionVerdict.Assessed("B3", category, CriterionVerdict.Warn,
                 ReviewText.Cite(ReviewText.Structural($"Kontaktsektion hittad; saknar {string.Join(", ", softMissing)}.")))
             : CvCriterionVerdict.Assessed("B3", category, CriterionVerdict.Pass,
-                ReviewText.Cite(ReviewText.Structural("Namn, e-post, telefon och ort finns i klartext.")));
+                ReviewText.Cite(ReviewText.Structural(canonical
+                    ? "E-post, telefon och ort finns i klartext."
+                    : "Namn, e-post, telefon och ort finns i klartext.")));
     }
 }
 

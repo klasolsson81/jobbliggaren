@@ -6,7 +6,7 @@
    here at runtime (globals.css also loads on (app) routes, before this file).
    Imported by src/app/(app)/layout.tsx. Guarded by scripts/guard-css.mjs. */
 
-/* ── Inställningar-grid + field-block — F6 Prompt 2 ──────────
+/* ── Mina sidor-grid + field-block — F6 Prompt 2 ──────────
    Två kolumner (1fr 1fr) på desktop, en kolumn under 900px.
    Alla kort staplas inom respektive kolumn med 20px gap. */
 .jp-settings-grid {

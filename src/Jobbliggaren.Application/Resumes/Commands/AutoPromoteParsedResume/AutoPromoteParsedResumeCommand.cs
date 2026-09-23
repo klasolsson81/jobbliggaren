@@ -26,9 +26,9 @@ namespace Jobbliggaren.Application.Resumes.Commands.AutoPromoteParsedResume;
 /// <para><see cref="NameOverride"/> is the optional upload-form value and it is the CV's
 /// LABEL only (<c>Resume.Name</c>), never the person's name (#1060). The form sends it only
 /// when the user actually typed one, so absent means "no human named this" and the handler
-/// generates a non-PII default (<c>ResumeLabelResolver</c>). The person's name inside the
-/// content is ALWAYS <c>JobSeeker.DisplayName</c> — never this field, and never the parsed
-/// file's contact name (5a CTO-bind R5).</para>
+/// generates a non-PII default (<c>ResumeLabelResolver</c>). The content carries no person's
+/// name: never this field, never the account's, and never the parsed file's contact name
+/// (ADR 0142 D7).</para>
 ///
 /// <para><see cref="IRequiresFieldEncryptionKey"/> is mandatory twice over: the handler
 /// reads the parse's encrypted content shadow (Form B decrypt on load) and writes the new

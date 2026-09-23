@@ -7,8 +7,8 @@ namespace Jobbliggaren.Domain.Privacy;
 /// call-site result, ADR 0074 Invariant 1). Deliberately carries ONLY a count and
 /// the distinct kinds — never a raw value, never offsets into the source text.
 /// Surfacing offsets into persisted PII would itself be a reconstruction aid
-/// (dotnet-architect/security-auditor ruling) — the guard FLAGS ("we found N
-/// personnummer, remove them"), it never points at byte ranges. Safe to log.
+/// (dotnet-architect/security-auditor ruling) — the guard FLAGS, it never points at
+/// byte ranges. Safe to log.
 /// </summary>
 public sealed record PersonnummerScanOutcome
 {
@@ -35,7 +35,7 @@ public sealed record PersonnummerScanOutcome
     public bool Found { get; }
 
     /// <summary>How many BODY detections (not de-duplicated — a number repeated twice
-    /// counts twice; the user is asked to remove all of them). Filename detections are a
+    /// counts twice). Filename detections are a
     /// bool flag only (<see cref="FoundInFileName"/>), never folded into this count.</summary>
     public int Count { get; }
 

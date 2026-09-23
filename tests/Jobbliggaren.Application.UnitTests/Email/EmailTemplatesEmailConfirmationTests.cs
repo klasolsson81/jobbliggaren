@@ -6,11 +6,11 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 
 /// <summary>
 /// #714 — locks the invariants of <see cref="EmailTemplates.EmailConfirmation"/> (Infrastructure-
-/// internal, reachable via InternalsVisibleTo; parity with <c>EmailTemplatesEmailChangeConfirmationTests</c>).
+/// internal, reachable via InternalsVisibleTo).
 /// Load-bearing invariants: the activation link is built as
 /// <c>{baseUrl}/bekrafta-konto?uid={uid:D}&amp;token={raw}</c>; the Base64Url token passes through
 /// UNescaped (escaping <c>-</c>/<c>_</c> would corrupt the token so a valid link would 400); there is
-/// NO email query param (unlike the change-email confirm, the address is unchanged and never in the
+/// NO email query param (the address is unchanged and never in the
 /// link); the base URL is not double-slashed; the 24-hour validity is stated; and the body keeps civic
 /// tone (no exclamation marks, no em-dash).
 /// </summary>

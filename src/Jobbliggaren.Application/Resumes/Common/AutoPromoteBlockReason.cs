@@ -20,46 +20,17 @@ namespace Jobbliggaren.Application.Resumes.Common;
 /// </summary>
 public enum AutoPromoteBlockReason
 {
-    /// <summary>The FILE carries a personnummer — the parse's own scan flagged it, or the CV
-    /// LABEL the user typed does. Fail-closed, and consent does NOT change that: the 5b consent
-    /// path (DPIA #659 Beslut 2(c)) stores the original FILE only; content promotion still
-    /// requires the personnummer removed (5b security-bind B3 — original-file-only depth).
-    ///
-    /// <para><b>This member NARROWED on 2026-07-28 (#1060 PR C, CTO-bind D2).</b> It used to
-    /// cover the account-display-name case too, which made it a token that could not say where
-    /// the number was — and the copy it drove told the user to fix her file when the file was
-    /// clean. See <see cref="PersonnummerInAccountName"/>. The split is bound rather than
-    /// branched in the FE, because branching on <c>Personnummer.Found</c> to infer WHERE the
-    /// number sat would rest on an unwritten ordering invariant nothing pins (D4-REBIND
-    /// alternative (6), the same reasoning that refused a DEK-free prefix evaluator).</para></summary>
+    /// <summary>A personnummer stands in the way: the parse's own scan flagged the file, the CV
+    /// LABEL the user typed carries one, or the DQ6 guard finds one in the content composed from
+    /// the parse. Fail-closed, and consent does NOT change that: the 5b consent path (DPIA #659
+    /// Beslut 2(c)) stores the original FILE only; content promotion still requires the
+    /// personnummer removed (5b security-bind B3 — original-file-only depth).</summary>
     PersonnummerPresent,
 
-    /// <summary>The composed content carries a personnummer that the file does not: the account
-    /// holder's <c>JobSeeker.DisplayName</c> does (#1060 PR C, CTO-bind D2). DQ6 on the composed
-    /// content is the only control that can catch this — the display name is the one text the
-    /// promote composition adds over the raw superset the import scan already covered — so the
-    /// parse's own scan reports clean and no file-side surface shows anything.
-    ///
-    /// <para>It is a SEPARATE member because the two need different user actions and different
-    /// copy: this one is fixed under Inställningar, not by editing and re-uploading the CV.
-    /// Reporting it as <see cref="PersonnummerPresent"/> sent the user to look in a clean file,
-    /// which is a mis-reported verdict (CLAUDE.md §5) and a loop she cannot exit.</para>
-    ///
-    /// <para><b>Not a new PII surface:</b> like every other member this is a gate identity, not
-    /// evidence. It says which control fired, never what it saw.</para>
-    ///
-    /// <para><b>Reachable only from a legacy row since #1117.</b> The display-name channel is now
-    /// closed at the source: <c>JobSeeker.Register</c>/<c>UpdateDisplayName</c> refuse a
-    /// personnummer, so no current write path can produce this state. The invariant is
-    /// forward-only (EF materializes existing rows past the factory methods), so this member
-    /// still fires on a row written before it landed, and the user action it names is
-    /// unchanged.</para></summary>
-    PersonnummerInAccountName,
-
     /// <summary>Extraction produced nothing usable — <c>ParseConfidence.Overall</c> is
-    /// <c>Failed</c>. Promoting that would build a <c>Resume</c> out of the account display name
-    /// and nothing else: a canonical CV that says LESS than the file did, which is the same
-    /// dishonesty class as dropping (ADR 0109 §3).
+    /// <c>Failed</c>. Promoting that would build a <c>Resume</c> that holds nothing: a canonical
+    /// CV that says LESS than the file did, which is the same dishonesty class as dropping
+    /// (ADR 0109 §3).
     ///
     /// <para><b>The token means <c>Failed</c> only — this NARROWED on 2026-07-25 (#1060 CTO-bind
     /// D1.3) and the narrowing reverses the 5a bind's R3.</b> R3 had tightened the gate from

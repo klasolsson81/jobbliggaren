@@ -17,7 +17,7 @@
     "matchningar": "Your matches are loading…",
     "sparade": "Saved jobs are loading…",
     "sokningar": "Your searches are loading…",
-    "installningar": "Settings are loading…",
+    "minaSidor": "My pages are loading…",
     "nyAnsokan": "New application is loading…"
   },
   "ansokningar": {
@@ -126,8 +126,6 @@
         "ParseNotConfident": "The file needs to contain text that can be selected. If it is an image, a scan or a password-protected document, save it again as PDF or Word and upload it.",
         "IncompleteContent": "One or more entries in the file are incomplete. Check that every job has an employer and a job title, and every education has an institution and a degree. Complete them and upload the file again.",
         "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
-        "PersonnummerInAccountName": "Your account name contains a personal identity number. The file itself is clean. Change it under Settings and upload the file again.",
-        "settingsCta": "Go to Settings",
         "clearedKicker": "No blockers in the file",
         "clearedTitle": "Nothing in the file blocks it",
         "clearedBody": "We find nothing in the file that stops it. Upload it again and it will be checked afresh. A name you type yourself is only checked at upload."
@@ -550,7 +548,7 @@
     "newBadgeAriaLabel": "New match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
-    "emptyBody": "Background matching runs every night once you have turned on Match notifications under Settings (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
+    "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches",
@@ -558,22 +556,19 @@
       "title": "My matches"
     }
   },
-  "installningar": {
-    "title": "Settings",
-    "lede": "Manage your account details and settings.",
-    "profileNotCreated": "Your profile has not been created yet. Fill in the details below to get started.",
-    "rateLimited": "Too many requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
-    "profileLoadError": "The profile could not be loaded right now. Try reloading the page in a moment.",
+  "minaSidor": {
+    "title": "My pages",
+    "lede": "Here you manage your account, your notifications and which jobs you are looking for.",
+    "rateLimited": "Your matching choices, notifications and language could not be loaded, because too many requests came in a short time. Try reloading the page in {seconds, plural, one {# second} other {# seconds}}.",
+    "profileLoadError": "Your matching choices, notifications and language could not be loaded right now. Try reloading the page in a moment.",
     "meta": {
-      "title": "Settings"
+      "title": "My pages"
     }
   },
   "auth": {
     "backToStart": "To the start page",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "showPasswordNamed": "Show {field}",
-    "hidePasswordNamed": "Hide {field}",
     "login": {
       "title": "Log in",
       "emailLabel": "Email address",
@@ -617,28 +612,12 @@
       "unexpectedError": "An unexpected error occurred. Try again.",
       "serverUnreachable": "Could not reach the server. Try again.",
       "registrationFailed": "Registration failed.",
-      "displayNamePersonnummer": "Your name cannot contain a personal identity number. Enter the name without it and try again.",
       "registrationsClosed": "Registration is not open yet. Try again later.",
       "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
       "emailNotConfirmed": "Your email address is not confirmed yet. Check your inbox and your spam folder.",
       "passwordResetEmailRequired": "Enter your email address.",
       "passwordResetFailed": "We could not send a reset link right now. Try again in a moment.",
       "emailDeliveryUnavailable": "Email delivery is not enabled right now, so we cannot send a reset link. Your password is unchanged. Try again later."
-    },
-    "confirmEmailChange": {
-      "title": "Confirm your new email address",
-      "intro": "Click the button to complete the email address change. When you confirm, the address is changed and you are logged out on all devices for security reasons.",
-      "confirm": "Confirm new email address",
-      "pending": "Confirming…",
-      "successTitle": "The email address has been changed",
-      "successBody": "You have been logged out on all devices for security reasons. Log in again with your new email address and your usual password.",
-      "loginLink": "Log in",
-      "invalidTitle": "The link cannot be used",
-      "invalidBody": "The link is invalid or has expired. Log in and request a new email change under Settings.",
-      "networkError": "Could not reach the server. Try again in a moment.",
-      "meta": {
-        "title": "Confirm email address"
-      }
     },
     "confirmAccount": {
       "title": "Confirm your email address",
@@ -693,6 +672,117 @@
       "networkError": "We could not reach the server. Try again in a moment.",
       "meta": {
         "title": "Choose a new password"
+      }
+    },
+    "passwordless": {
+      "entry": {
+        "meta": {
+          "title": "Log in or create account"
+        },
+        "title": "Log in or create account",
+        "lede": "You log in with a code we send to your email address. You do not need a password.",
+        "emailLabel": "Email address",
+        "emailHint": "The format is name@domain.se",
+        "privacyHint": "How we process your email address: <privacy>the privacy policy</privacy>.",
+        "emailRequired": "Enter your email address.",
+        "submit": "Continue",
+        "submitting": "Sending…",
+        "providersHeading": "Other ways to log in",
+        "providers": {
+          "google": "Continue with Google",
+          "linkedin": "Continue with LinkedIn",
+          "github": "Continue with GitHub",
+          "comingSoon": "Coming soon"
+        }
+      },
+      "code": {
+        "meta": {
+          "title": "Enter the code"
+        },
+        "title": "Enter the code",
+        "resting": "Check your inbox and your spam folder. If there is an email from Jobbliggaren, follow the instructions in it. If the email contains a six-digit code, enter it here. The code is valid for 15 minutes.",
+        "codeLabel": "Six-digit code",
+        "codeHint": "If no email arrives within a few minutes, you can send a new code or change the email address.",
+        "submit": "Confirm the code",
+        "submitting": "Confirming the code…",
+        "wrongCode": "The code is not correct. Check the digits and try again.",
+        "malformedCode": "The code is six digits. Check the digits and try again.",
+        "lastAttempt": "One attempt left. After that you need to request a new code.",
+        "expired": "That code can no longer be used. Send a new code and try again.",
+        "burned": "You have entered the wrong code three times, so the code can no longer be used. If the email contains a login link you can use that instead, otherwise send a new code.",
+        "youEntered": "You entered {email}.",
+        "resend": {
+          "button": "Send new code",
+          "sending": "Sending…",
+          "consequence": "A new code replaces the previous one. Enter the code from the most recent email.",
+          "receipt": "We have received your request. Check your inbox and your spam folder. Enter the code from the most recent email.",
+          "cooldownHint": "You can send a new code in {seconds, plural, one {# second} other {# seconds}}."
+        },
+        "changeEmail": "Change email address"
+      },
+      "consent": {
+        "meta": {
+          "title": "Create your account"
+        },
+        "title": "Create your account",
+        "identification": "The account is created for the email address you just confirmed with the code.",
+        "termsLabel": "I accept the <terms>terms of use</terms>.",
+        "termsHint": "The links open in a new tab.",
+        "privacySibling": "We process your data in accordance with the <privacy>privacy policy</privacy>.",
+        "termsRequired": "You need to accept the terms of use to create the account.",
+        "submit": "Create account",
+        "submitting": "Creating account…",
+        "startOver": "Start over with a different email address"
+      },
+      "link": {
+        "meta": {
+          "title": "Log in to Jobbliggaren"
+        },
+        "title": "Log in to Jobbliggaren",
+        "body": "You have opened a login link from your email. The link works once and is valid for 15 minutes.",
+        "submit": "Log in",
+        "submitting": "Logging in…",
+        "unusable": "The link cannot be used. Request a new code on the login page.",
+        "toLogin": "To the login page",
+        "alreadyLoggedIn": {
+          "title": "You are already logged in",
+          "body": "A login is already active in this browser. If you continue, it is replaced by the login the link is for, and everything you do afterwards belongs to that account.",
+          "continue": "Continue and log in",
+          "stay": "Stay logged in"
+        }
+      },
+      "persistence": "You stay logged in on this device for up to 180 days. You can log out whenever you want, and Log out is on every logged-in page.",
+      "outcome": {
+        "registrationClosed": {
+          "title": "Registration is not open yet.",
+          "homeLink": "To the start page"
+        },
+        "accountUnavailable": {
+          "title": "We cannot log in to this address right now.",
+          "body": "Try again later, or contact us at <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "pendingDeletion": {
+          "title": "Your account is permanently deleted on {date}.",
+          "body": "Until then you can have it restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "notice": {
+        "grantUnusable": {
+          "title": "Registration was not completed",
+          "body": "We could not complete the registration. Enter your email address below and start again."
+        },
+        "codeExpired": {
+          "title": "The login expired",
+          "body": "A login is valid for 15 minutes, and that time has passed. Enter your email address below and start again."
+        },
+        "accountDeleted": {
+          "title": "Your account has been deleted",
+          "body": "You are logged out on all devices. For 30 days you can have the account restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "errors": {
+        "unavailable": "Logging in is not possible right now. Try again in a few minutes.",
+        "tooManyAttempts": "Too many attempts. Wait a moment and try again."
       }
     }
   }

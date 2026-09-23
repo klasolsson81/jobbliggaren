@@ -17,7 +17,7 @@
     "matchningar": "Matchningarna läses in…",
     "sparade": "Sparade jobb läses in…",
     "sokningar": "Sökningarna läses in…",
-    "installningar": "Inställningarna läses in…",
+    "minaSidor": "Mina sidor läses in…",
     "nyAnsokan": "Ny ansökan läses in…"
   },
   "ansokningar": {
@@ -126,8 +126,6 @@
         "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen.",
         "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
-        "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer. Filen är däremot ren. Ändra det under Inställningar och ladda upp filen igen.",
-        "settingsCta": "Gå till Inställningar",
         "clearedKicker": "Inga hinder i filen",
         "clearedTitle": "Inget i filen hindrar den",
         "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
@@ -550,7 +548,7 @@
     "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar",
@@ -558,22 +556,19 @@
       "title": "Mina matchningar"
     }
   },
-  "installningar": {
-    "title": "Inställningar",
-    "lede": "Hantera dina kontouppgifter och inställningar.",
-    "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
-    "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
+  "minaSidor": {
+    "title": "Mina sidor",
+    "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
+    "rateLimited": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "profileLoadError": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "meta": {
-      "title": "Inställningar"
+      "title": "Mina sidor"
     }
   },
   "auth": {
     "backToStart": "Till startsidan",
     "showPassword": "Visa lösenord",
     "hidePassword": "Dölj lösenord",
-    "showPasswordNamed": "Visa {field}",
-    "hidePasswordNamed": "Dölj {field}",
     "login": {
       "title": "Logga in",
       "emailLabel": "E-postadress",
@@ -617,28 +612,12 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades.",
-      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Skriv namnet utan personnummer och försök igen.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "emailNotConfirmed": "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",
       "passwordResetEmailRequired": "Skriv in din e-postadress.",
       "passwordResetFailed": "Det gick inte att skicka någon återställningslänk just nu. Försök igen om en stund.",
       "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon återställningslänk. Ditt lösenord är oförändrat. Försök igen senare."
-    },
-    "confirmEmailChange": {
-      "title": "Bekräfta din nya e-postadress",
-      "intro": "Klicka på knappen för att slutföra bytet av e-postadress. När du bekräftar byts adressen och du loggas ut från alla enheter av säkerhetsskäl.",
-      "confirm": "Bekräfta ny e-postadress",
-      "pending": "Bekräftar…",
-      "successTitle": "E-postadressen är bytt",
-      "successBody": "Din inloggning har avslutats på alla enheter av säkerhetsskäl. Logga in igen med din nya e-postadress och ditt vanliga lösenord.",
-      "loginLink": "Logga in",
-      "invalidTitle": "Länken går inte att använda",
-      "invalidBody": "Länken är ogiltig eller har gått ut. Logga in och begär ett nytt adressbyte under Inställningar.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
-      "meta": {
-        "title": "Bekräfta e-postadress"
-      }
     },
     "confirmAccount": {
       "title": "Bekräfta din e-postadress",
@@ -693,6 +672,117 @@
       "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
       "meta": {
         "title": "Välj nytt lösenord"
+      }
+    },
+    "passwordless": {
+      "entry": {
+        "meta": {
+          "title": "Logga in eller skapa konto"
+        },
+        "title": "Logga in eller skapa konto",
+        "lede": "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord.",
+        "emailLabel": "E-postadress",
+        "emailHint": "Formatet är namn@domän.se",
+        "privacyHint": "Så behandlar vi din e-postadress: <privacy>integritetspolicyn</privacy>.",
+        "emailRequired": "Skriv in din e-postadress.",
+        "submit": "Fortsätt",
+        "submitting": "Skickar…",
+        "providersHeading": "Andra sätt att logga in",
+        "providers": {
+          "google": "Fortsätt med Google",
+          "linkedin": "Fortsätt med LinkedIn",
+          "github": "Fortsätt med GitHub",
+          "comingSoon": "Kommer snart"
+        }
+      },
+      "code": {
+        "meta": {
+          "title": "Ange koden"
+        },
+        "title": "Ange koden",
+        "resting": "Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller i 15 minuter.",
+        "codeLabel": "Sexsiffrig kod",
+        "codeHint": "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress.",
+        "submit": "Bekräfta koden",
+        "submitting": "Bekräftar koden…",
+        "wrongCode": "Koden stämmer inte. Kontrollera siffrorna och försök igen.",
+        "malformedCode": "Koden är sex siffror. Kontrollera siffrorna och försök igen.",
+        "lastAttempt": "Ett försök kvar. Sedan behöver du begära en ny kod.",
+        "expired": "Koden går inte att använda längre. Skicka en ny kod och försök igen.",
+        "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod.",
+        "youEntered": "Du angav {email}.",
+        "resend": {
+          "button": "Skicka ny kod",
+          "sending": "Skickar…",
+          "consequence": "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet.",
+          "receipt": "Vi har tagit emot din begäran. Kontrollera inkorgen och skräpposten. Skriv in koden från det senaste mejlet.",
+          "cooldownHint": "Du kan skicka en ny kod om {seconds, plural, one {# sekund} other {# sekunder}}."
+        },
+        "changeEmail": "Byt e-postadress"
+      },
+      "consent": {
+        "meta": {
+          "title": "Skapa ditt konto"
+        },
+        "title": "Skapa ditt konto",
+        "identification": "Kontot skapas på den e-postadress du nyss bekräftade med koden.",
+        "termsLabel": "Jag godkänner <terms>användarvillkoren</terms>.",
+        "termsHint": "Länkarna öppnas i en ny flik.",
+        "privacySibling": "Vi behandlar dina uppgifter enligt <privacy>integritetspolicyn</privacy>.",
+        "termsRequired": "Du behöver godkänna användarvillkoren för att skapa kontot.",
+        "submit": "Skapa konto",
+        "submitting": "Skapar konto…",
+        "startOver": "Börja om med en annan e-postadress"
+      },
+      "link": {
+        "meta": {
+          "title": "Logga in på Jobbliggaren"
+        },
+        "title": "Logga in på Jobbliggaren",
+        "body": "Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.",
+        "submit": "Logga in",
+        "submitting": "Loggar in…",
+        "unusable": "Länken går inte att använda. Begär en ny kod på inloggningssidan.",
+        "toLogin": "Till inloggningssidan",
+        "alreadyLoggedIn": {
+          "title": "Du är redan inloggad",
+          "body": "En inloggning är redan aktiv i den här webbläsaren. Fortsätter du ersätts den av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
+          "continue": "Fortsätt och logga in",
+          "stay": "Stanna kvar som inloggad"
+        }
+      },
+      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Du kan logga ut när du vill, Logga ut finns på varje inloggad sida.",
+      "outcome": {
+        "registrationClosed": {
+          "title": "Registreringen är inte öppen ännu.",
+          "homeLink": "Till startsidan"
+        },
+        "accountUnavailable": {
+          "title": "Vi kan inte logga in på den här adressen just nu.",
+          "body": "Försök igen senare, eller kontakta oss på <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "pendingDeletion": {
+          "title": "Ditt konto raderas permanent {date}.",
+          "body": "Fram till dess kan du få det återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "notice": {
+        "grantUnusable": {
+          "title": "Registreringen slutfördes inte",
+          "body": "Det gick inte att slutföra registreringen. Skriv in din e-postadress nedan och börja om."
+        },
+        "codeExpired": {
+          "title": "Inloggningen gick ut",
+          "body": "En inloggning gäller i 15 minuter, och den tiden har gått. Skriv in din e-postadress nedan och börja om."
+        },
+        "accountDeleted": {
+          "title": "Ditt konto är raderat",
+          "body": "Du är utloggad på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+        }
+      },
+      "errors": {
+        "unavailable": "Det går inte att logga in just nu. Försök igen om några minuter.",
+        "tooManyAttempts": "För många försök. Vänta en stund och försök igen."
       }
     }
   }

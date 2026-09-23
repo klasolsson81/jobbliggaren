@@ -1,285 +1,412 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// #679 — changeEmailAction. Pins the branches the card test can't reach: the
-// status -> Swedish-error mapping (401/400/409/500/network), the client-side schema
-// gate, and the invariant that — unlike change-password — NO session cookie is ever
-// touched (the email is not changed at request time; a link is emailed). The
-// translator mock returns the key verbatim, so assertions check the resolved key.
+// #1740 — change-email by two codes. What it pins: the new address is checked before anything is spent;
+// each code is verified by the action that spends it, so no grant and no session id leaves the server
+// (security-auditor, #1740 S1 (d)); every refusal after a verified code says the code is spent (Minor 7);
+// the request's 409 compares only the two codes with copy of their own (S3); the confirm's answer falls
+// in three classes (Minor 3), and only a parsed 200 re-issues the session (S2). The translator returns
+// "namespace.key", so assertions check the resolved key.
 
-const { setSessionCookieMock, getSessionIdMock, authedFetchMock } = vi.hoisted(
+const { getSessionIdMock, getServerSessionMock, setSessionCookieMock, authedFetchMock } = vi.hoisted(
   () => ({
+    getSessionIdMock: vi.fn(async () => "session-under-test" as string | null),
+    getServerSessionMock: vi.fn(),
     setSessionCookieMock: vi.fn(),
-    getSessionIdMock: vi.fn(async () => "sess-current" as string | null),
     authedFetchMock: vi.fn(),
-  }),
+  })
 );
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("next-intl/server", () => ({
-  getTranslations: async () => (key: string) => key,
+  getTranslations: async (namespace: string) => (key: string) => `${namespace}.${key}`,
 }));
 vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
+  getServerSession: getServerSessionMock,
   setSessionCookie: setSessionCookieMock,
   deleteSessionCookie: vi.fn(),
 }));
+vi.mock("@/lib/auth/login-flow-cookie", () => ({ writeLoginFlow: vi.fn() }));
 vi.mock("@/lib/http/authed-fetch", () => ({ authedFetch: authedFetchMock }));
-vi.mock("@/lib/api/me", () => ({ updateNotificationConsent: vi.fn() }));
+vi.mock("@/lib/api/me", () => ({
+  updateNotificationConsent: vi.fn(),
+  updateFollowedCompanyNotificationConsent: vi.fn(),
+}));
 
-import { changeEmailAction } from "./me";
+import { confirmEmailChangeAction, requestEmailChangeAction } from "./me";
 
-const CURRENT = "Current123456";
-const NEW_EMAIL = "ny.adress@exempel.se";
+const CURRENT = "anna@exempel.se";
+const NEW = "ny.adress@exempel.se";
+const PROOF = { challengeId: "challenge-under-test", code: "123456" };
+const GRANT = "grant-sentinel-7c1e";
+const CHANGE_GRANT = "change-grant-sentinel-44b9";
+const REISSUED = "reissued-session-sentinel-90aa";
+const SPENT = "settings.account.reauth.codeSpent";
 
-function fakeResponse(status: number, body: unknown = {}): Response {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    json: async () => body,
-  } as unknown as Response;
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+const problem = (status: number, title: string) =>
+  json(status, { type: "about:blank", title, status, detail: "backend text" });
+
+/** Answers each backend path the way its endpoint would. */
+function backend(routes: Record<string, () => Response | Promise<Response>>) {
+  authedFetchMock.mockImplementation(async (_session: string, path: string) => {
+    const route = routes[path];
+    if (!route) throw new Error(`unexpected path ${path}`);
+    return route();
+  });
 }
 
-/**
- * A response whose body is not JSON — what a reverse proxy in front of the API answers
- * with (an HTML error page). `res.json()` rejects, which is the third 503 producer named
- * in release-checklist.md §2.6 point 5.5.
- */
-function fakeNonJsonResponse(status: number): Response {
-  return {
-    status,
-    ok: false,
-    json: async () => {
-      throw new SyntaxError("Unexpected token '<', \"<html>\"... is not valid JSON");
-    },
-  } as unknown as Response;
-}
+const verifiedReauth = () => json(200, { reauthGrant: GRANT });
+const verifiedChange = () => json(200, { changeEmailGrant: CHANGE_GRANT });
+const paths = () => authedFetchMock.mock.calls.map((call) => call[1]);
 
-describe("changeEmailAction", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    getSessionIdMock.mockResolvedValue("sess-current");
+beforeEach(() => {
+  vi.clearAllMocks();
+  getSessionIdMock.mockResolvedValue("session-under-test");
+  getServerSessionMock.mockResolvedValue({ email: CURRENT });
+});
+
+describe("requestEmailChangeAction", () => {
+  it("spends the re-auth code on the change request and hands back only the change challenge", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => json(202, { challengeId: "change-challenge" }),
+    });
+
+    const result = await requestEmailChangeAction(`  ${NEW}  `, PROOF);
+
+    expect(result).toEqual({ ok: true, value: { challengeId: "change-challenge" } });
+    // The trimmed address goes over the wire verbatim; the grant goes there and nowhere else.
+    expect(authedFetchMock).toHaveBeenCalledWith("session-under-test", "/api/v1/auth/change-email", {
+      method: "POST",
+      body: JSON.stringify({ reauthGrant: GRANT, newEmail: NEW }),
+    });
+    expect(JSON.stringify(result)).not.toContain(GRANT);
   });
 
-  it("treats 202 as success and never touches the session cookie", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(202));
+  it.each([
+    ["an empty address", "   ", "settings.account.changeEmail.newEmailRequired"],
+    ["a malformed address", "ny.exempel.se", "settings.account.changeEmail.invalidEmail"],
+    ["the account's own address", " ANNA@exempel.se ", "settings.account.changeEmail.sameEmail"],
+  ])("refuses %s before anything is spent", async (_label, input, copy) => {
+    const result = await requestEmailChangeAction(input, PROOF);
 
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
+    expect(result).toEqual({ ok: false, kind: "inputRefused", error: copy });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
 
-    expect(result).toEqual({ success: true });
-    // The email is not changed at request time — no cookie re-issue (the drop).
+  it("refuses a malformed code before anything is spent", async () => {
+    const result = await requestEmailChangeAction(NEW, { challengeId: "c", code: "12ab" });
+
+    expect(result).toEqual({
+      ok: false,
+      kind: "wrongCode",
+      error: "pages.auth.passwordless.code.malformedCode",
+    });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("stops at a refused code: the request is never sent and nothing says a code was spent", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": () => problem(400, "Auth.LoginCodeWrongLastAttempt"),
+    });
+
+    const result = await requestEmailChangeAction(NEW, PROOF);
+
+    expect(result).toEqual({
+      ok: false,
+      kind: "wrongCode",
+      error: "pages.auth.passwordless.code.wrongCode pages.auth.passwordless.code.lastAttempt",
+    });
+    expect(paths()).toEqual(["/api/v1/auth/reauth/verify"]);
+  });
+
+  it("puts a taken address back on the field, and says the code is spent", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => problem(409, "Auth.EmailTaken"),
+    });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.errors.emailTaken ${SPENT}`,
+      channel: "field",
+    });
+  });
+
+  it("ends the flow for the day when the target budget is spent", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => problem(409, "Auth.ChangeEmailTargetBudgetExhausted"),
+    });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.errors.changeEmailTargetBudget ${SPENT}`,
+      channel: "status",
+      terminal: true,
+    });
+  });
+
+  it.each([
+    ["the shared cooldown", "Auth.ChangeEmailCooldown"],
+    ["a future 409", "Auth.SomethingNew"],
+    ["a 409 carrying the mail title", "Auth.EmailDeliveryUnavailable"],
+  ])(
+    "gives every other 409 the neutral copy: %s",
+    async (_label, title) => {
+      backend({
+        "/api/v1/auth/reauth/verify": verifiedReauth,
+        "/api/v1/auth/change-email": () => problem(409, title),
+      });
+
+      expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+        ok: false,
+        kind: "operationRefused",
+        error: `settings.account.errors.changeEmailCooldown ${SPENT}`,
+        channel: "status",
+      });
+    }
+  );
+
+  it("names an address the backend cannot store as unusable, on the field", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => problem(400, "Auth.EmailNotStorable"),
+    });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.changeEmail.unusable ${SPENT}`,
+      channel: "field",
+    });
+  });
+
+  it("answers mail that cannot be delivered after the code was spent as the deployment's refusal", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => problem(503, "Auth.EmailDeliveryUnavailable"),
+    });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "refused",
+      error: `settings.account.errors.emailDeliveryUnavailable ${SPENT}`,
+    });
+  });
+
+  it.each([
+    ["a 401", () => new Response(null, { status: 401 })],
+    ["a 429", () => new Response(null, { status: 429 })],
+    ["a 500", () => new Response(null, { status: 500 })],
+    ["a 503 without a title", () => json(503, { error: "Tjänsten är inte tillgänglig just nu." })],
+    ["a 503 whose title is not about mail", () => problem(503, "Auth.SomethingElse")],
+    ["a 503 from a proxy, not JSON", () => new Response("<html>Bad gateway</html>", { status: 503 })],
+    ["a 202 without a readable id", () => json(202, { nothing: true })],
+  ])("says the change was not made on %s, since the address cannot change at this step", async (_l, answer) => {
+    backend({ "/api/v1/auth/reauth/verify": verifiedReauth, "/api/v1/auth/change-email": answer });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.changeEmail.notDone ${SPENT}`,
+      channel: "status",
+    });
+  });
+
+  it("says the change was not made when the request never answers", async () => {
+    backend({
+      "/api/v1/auth/reauth/verify": verifiedReauth,
+      "/api/v1/auth/change-email": () => Promise.reject(new Error("network down")),
+    });
+
+    expect(await requestEmailChangeAction(NEW, PROOF)).toMatchObject({
+      kind: "operationRefused",
+      error: `settings.account.changeEmail.notDone ${SPENT}`,
+    });
+  });
+});
+
+describe("confirmEmailChangeAction", () => {
+  it("re-issues the device's session from a parsed 200, and hands back nothing of it", async () => {
+    backend({
+      "/api/v1/auth/change-email/verify": verifiedChange,
+      "/api/v1/auth/change-email/confirm": () => json(200, { sessionId: REISSUED, persistent: true }),
+    });
+
+    const result = await confirmEmailChangeAction(NEW, PROOF);
+
+    expect(result).toEqual({ ok: true, value: null });
+    expect(setSessionCookieMock).toHaveBeenCalledWith(REISSUED, true);
+    expect(authedFetchMock).toHaveBeenCalledWith(
+      "session-under-test",
+      "/api/v1/auth/change-email/confirm",
+      { method: "POST", body: JSON.stringify({ changeEmailGrant: CHANGE_GRANT, newEmail: NEW }) }
+    );
+    expect(JSON.stringify(result)).not.toContain(REISSUED);
+    expect(JSON.stringify(result)).not.toContain(CHANGE_GRANT);
+    // The old id is dead once the confirm has answered: nothing reads the session after it.
+    expect(getServerSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a session's lifetime profile: a non-persistent device stays non-persistent", async () => {
+    backend({
+      "/api/v1/auth/change-email/verify": verifiedChange,
+      "/api/v1/auth/change-email/confirm": () => json(200, { sessionId: REISSUED, persistent: false }),
+    });
+
+    await confirmEmailChangeAction(NEW, PROOF);
+
+    expect(setSessionCookieMock).toHaveBeenCalledWith(REISSUED, false);
+  });
+
+  it.each([
+    ["a 200 that does not parse", () => json(200, { sessionId: 42 })],
+    ["a 500", () => problem(500, "An error occurred")],
+    ["a lost response", () => Promise.reject(new Error("socket hang up"))],
+  ])("claims nothing on %s: the change may have been committed", async (_label, answer) => {
+    backend({ "/api/v1/auth/change-email/verify": verifiedChange, "/api/v1/auth/change-email/confirm": answer });
+
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "outcomeUnknown",
+      error: "settings.account.changeEmail.outcomeUnknown",
+    });
     expect(setSessionCookieMock).not.toHaveBeenCalled();
   });
 
-  it("POSTs the current password + new email to /auth/change-email", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(202));
-
-    await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(authedFetchMock).toHaveBeenCalledWith(
-      "sess-current",
-      "/api/v1/auth/change-email",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ currentPassword: CURRENT, newEmail: NEW_EMAIL }),
-      }),
-    );
-  });
-
-  it("maps 401 to the wrong-password error", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(401));
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.wrongPassword",
+  it("sends a taken address back to the field when it was taken meanwhile", async () => {
+    backend({
+      "/api/v1/auth/change-email/verify": verifiedChange,
+      "/api/v1/auth/change-email/confirm": () => problem(409, "Auth.EmailTaken"),
     });
-  });
 
-  it("maps 400 to the invalid-input error", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(400));
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.invalidInput",
-    });
-  });
-
-  it("maps a 409 without a recognized title to the email-taken error (the fallback)", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(409));
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.emailTaken",
-    });
-  });
-
-  it("maps a 409 with the ChangeEmailCooldown title to the cooldown copy (not email-taken)", async () => {
-    // #703/#792: the change-email endpoint returns two distinct 409 codes. A cooldown must render the
-    // wait-a-moment message, not the (wrong) "address already taken" copy.
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(409, { title: "Auth.ChangeEmailCooldown" })
-    );
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.changeEmailCooldown",
-    });
-  });
-
-  // #734 B-ii — the 503 arm. This route has at least THREE 503 producers and only one of
-  // them is ours, so every test below is paired with its counterfactual: a discriminating
-  // assertion measured against only the outcome it is meant to catch cannot discriminate.
-  // Fixture provenance: the winning shape is the one the API actually emits, pinned by
-  // tests/Jobbliggaren.Api.IntegrationTests/Auth/ChangeEmailTests.cs:263; the losing shape
-  // is the one src/Jobbliggaren.Api/Program.cs:296 actually writes.
-  it("maps OUR 503 (Auth.EmailDeliveryUnavailable) to the refused state, not the generic failure", async () => {
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(503, { title: "Auth.EmailDeliveryUnavailable" })
-    );
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      refused: true,
-      error: "account.errors.emailDeliveryUnavailable",
-    });
-  });
-
-  it("does NOT claim email is disabled for the session-store 503 (the Redis counterfactual)", async () => {
-    // Program.cs:296 writes `WriteAsJsonAsync(new { error = ex.Message })` — plain JSON with
-    // no `title` field at all, so readProblemTitle resolves it to null. A status-only arm
-    // would print "e-post är inte aktiverat" during a Redis outage and mask the incident.
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(503, { error: "Redis-session-store är inte tillgänglig." })
-    );
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.changeEmailFailed",
-    });
-    // toEqual tolerates an explicitly-undefined key; assert absence directly.
-    expect(result).not.toHaveProperty("refused");
-  });
-
-  it("does NOT claim email is disabled for a 503 carrying some OTHER ProblemDetails title", async () => {
-    // The whitelist is exact, not "has a title". DECLARED UNREACHABLE: no producer sends this
-    // particular title on this route (Auth.RegistrationsClosed comes from POST /auth/register
-    // only), so the fixture is a deliberately non-matching well-formed ProblemDetails. It pins
-    // the SHAPE of the comparison — exact match, not "title present" — and asserts only that
-    // the read side degrades to the generic copy.
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(503, { title: "Auth.RegistrationsClosed" })
-    );
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.changeEmailFailed",
-    });
-    expect(result).not.toHaveProperty("refused");
-  });
-
-  it("does NOT claim email is disabled for a 503 whose body is not JSON (the proxy counterfactual)", async () => {
-    authedFetchMock.mockResolvedValue(fakeNonJsonResponse(503));
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.changeEmailFailed",
-    });
-    expect(result).not.toHaveProperty("refused");
-  });
-
-  it("does NOT refuse on a 409 carrying our title — the arm is bound to the status too", async () => {
-    // Mirror of the hard constraint: the title alone must not trigger the refusal. What this
-    // crosses is an arm that reads the title WITHOUT the `res.status === 503` gate — that arm
-    // would swallow the cooldown/taken branch. Moving the 503 block verbatim above the 409 arm
-    // is behaviour-neutral while the status gate is present, and would leave this test green;
-    // the gate, not the position, is what it measures.
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(409, { title: "Auth.EmailDeliveryUnavailable" })
-    );
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.emailTaken",
-    });
-    expect(result).not.toHaveProperty("refused");
-  });
-
-  it("reads the 503 body exactly once (readProblemTitle consumes it)", async () => {
-    // problem.ts:14-15 makes single-read a contract and nothing pinned it before. A second
-    // read would reject on an already-consumed stream against a real Response.
-    const json = vi.fn(async () => ({ error: "Redis-session-store är inte tillgänglig." }));
-    authedFetchMock.mockResolvedValue({
-      status: 503,
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
       ok: false,
-      json,
-    } as unknown as Response);
-
-    await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(json).toHaveBeenCalledTimes(1);
-  });
-
-  it("maps an unexpected non-ok status to the generic change-email failure", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(500));
-
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.changeEmailFailed",
+      kind: "operationRefused",
+      error: `settings.account.errors.emailTaken ${SPENT}`,
+      channel: "field",
     });
   });
 
-  it("maps a network/fetch throw to the network error", async () => {
-    authedFetchMock.mockRejectedValue(new Error("boom"));
+  it("names an incomplete swap, and the flow starts over", async () => {
+    backend({
+      "/api/v1/auth/change-email/verify": verifiedChange,
+      "/api/v1/auth/change-email/confirm": () => problem(409, "Auth.EmailChangeIncomplete"),
+    });
 
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
-
-    expect(result).toEqual({ success: false, error: "account.errors.network" });
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.changeEmail.incomplete ${SPENT}`,
+      channel: "status",
+      terminal: true,
+    });
   });
 
-  it("rejects a malformed new email client-side without calling the backend", async () => {
-    const result = await changeEmailAction(CURRENT, "not-an-email");
+  it.each([
+    ["a 410", () => problem(410, "Auth.EmailChangeGrantUnusable")],
+    ["a 400", () => problem(400, "Validation")],
+    ["a 401", () => new Response(null, { status: 401 })],
+    ["a 429", () => new Response(null, { status: 429 })],
+    ["another 409", () => problem(409, "Auth.SomethingNew")],
+  ])("says the change was not made on %s, and the flow starts over", async (_label, answer) => {
+    backend({ "/api/v1/auth/change-email/verify": verifiedChange, "/api/v1/auth/change-email/confirm": answer });
 
-    expect(result.success).toBe(false);
-    expect(authedFetchMock).not.toHaveBeenCalled();
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "operationRefused",
+      error: `settings.account.changeEmail.notDone ${SPENT}`,
+      channel: "status",
+      terminal: true,
+    });
+    expect(setSessionCookieMock).not.toHaveBeenCalled();
   });
 
-  it("rejects an empty current password client-side without calling the backend", async () => {
-    const result = await changeEmailAction("", NEW_EMAIL);
+  it("names which code was wrong: the one mailed to the new address", async () => {
+    backend({ "/api/v1/auth/change-email/verify": () => problem(400, "Auth.LoginCodeWrong") });
 
-    expect(result.success).toBe(false);
-    expect(authedFetchMock).not.toHaveBeenCalled();
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "wrongCode",
+      error: "settings.account.changeEmail.wrongCode",
+    });
+    expect(paths()).toEqual(["/api/v1/auth/change-email/verify"]);
   });
 
-  it("returns notLoggedIn when there is no session", async () => {
-    getSessionIdMock.mockResolvedValue(null);
+  it("warns before the last attempt in the change code's own words", async () => {
+    backend({ "/api/v1/auth/change-email/verify": () => problem(400, "Auth.LoginCodeWrongLastAttempt") });
 
-    const result = await changeEmailAction(CURRENT, NEW_EMAIL);
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({
+      ok: false,
+      kind: "wrongCode",
+      error: "settings.account.changeEmail.wrongCode settings.account.changeEmail.lastAttempt",
+    });
+  });
 
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.notLoggedIn",
+  it.each([
+    ["burned", "Auth.LoginCodeBurned", "burned"],
+    ["expired", "Auth.LoginCodeExpired", "expired"],
+  ])("hands back a dead code as %s", async (_label, title, reason) => {
+    backend({ "/api/v1/auth/change-email/verify": () => problem(410, title) });
+
+    expect(await confirmEmailChangeAction(NEW, PROOF)).toEqual({ ok: false, kind: "deadCode", reason });
+  });
+
+  it("refuses a malformed address or code before anything is spent", async () => {
+    expect(await confirmEmailChangeAction("   ", PROOF)).toEqual({
+      ok: false,
+      kind: "inputRefused",
+      error: "settings.account.changeEmail.invalidEmail",
+    });
+    expect(await confirmEmailChangeAction(NEW, { challengeId: "c", code: "1" })).toMatchObject({
+      kind: "wrongCode",
     });
     expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("both change-email actions", () => {
+  it("never return a grant or a session id, and write none of the secrets to a console", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map((level) =>
+      vi.spyOn(console, level).mockImplementation(() => {})
+    );
+    const results: unknown[] = [];
+    for (const answer of [
+      () => problem(409, "Auth.EmailTaken"),
+      () => json(500, {}),
+      () => json(202, { challengeId: 7 }),
+    ]) {
+      backend({ "/api/v1/auth/reauth/verify": verifiedReauth, "/api/v1/auth/change-email": answer });
+      results.push(await requestEmailChangeAction(NEW, PROOF));
+    }
+    for (const answer of [
+      () => json(200, { sessionId: REISSUED, persistent: true }),
+      // Fails the strict parse while carrying the new session id: the parse error must not echo it.
+      () => json(200, { sessionId: REISSUED }),
+      () => problem(409, "Auth.EmailChangeIncomplete"),
+    ]) {
+      backend({
+        "/api/v1/auth/change-email/verify": verifiedChange,
+        "/api/v1/auth/change-email/confirm": answer,
+      });
+      results.push(await confirmEmailChangeAction(NEW, PROOF));
+    }
+
+    const returned = JSON.stringify(results);
+    const written = JSON.stringify(spies.flatMap((spy) => spy.mock.calls));
+    for (const secret of [GRANT, CHANGE_GRANT, REISSUED, "session-under-test"]) {
+      expect(returned).not.toContain(secret);
+      expect(written).not.toContain(secret);
+    }
+    for (const secret of [PROOF.code, PROOF.challengeId]) {
+      expect(written).not.toContain(secret);
+    }
+    spies.forEach((spy) => spy.mockRestore());
   });
 });

@@ -123,7 +123,7 @@ public class PromoteParsedResumeCommandHandlerTests
     private static async Task<(ParsedResume Parsed, JobSeeker Owner)> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId, PersonnummerScanOutcome? pnr = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildPendingReview(seeker.Id, pnr);
         db.ParsedResumes.Add(parsed);
@@ -206,27 +206,27 @@ public class PromoteParsedResumeCommandHandlerTests
     /// The ORDERING, which is the part of the derivation that is easy to get wrong: the
     /// substitution happens BEFORE the personnummer guard, not after.
     ///
-    /// <para>The parse's preamble is not a substring of <c>RawText</c> — <c>PreambleResidue</c>
-    /// splices the fragments that survive subtraction — so a personnummer straddling a
-    /// subtracted fragment was never visible to the import scan that sets
-    /// <c>Personnummer.Found</c>, and G1 cannot have caught it. DQ6 on the composed content is
-    /// the only control that can. Substituting after the guard would hand
-    /// <c>CreateFromParsed</c> a preamble nothing on this path had scanned.</para>
+    /// <para>Substituting after the guard would hand <c>CreateFromParsed</c> a preamble nothing on
+    /// this path had scanned.</para>
     /// </summary>
     [Fact]
     public async Task Handle_PreambleFromTheParseCarriesAPersonnummer_IsRefused_ScannedNotBypassed()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Anna Andersson", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
-        // The parse is NOT flagged — PersonnummerScanOutcome.None — which is the whole point:
-        // this is the population G1 lets through and only DQ6 can stop.
+        // §5 Tests: the parse is NOT flagged (PersonnummerScanOutcome.None) while its preamble
+        // carries the two-separator form. No import today produces that: today's scan flags the
+        // form (PersonnummerTextNormalizerTests
+        // .Scan_DoubleSeparatorNoSpace_FalseNegativeDirectly_FlaggedAfterNormalize). The actor is
+        // the scanner widening in eec4c31f2 (#665): a file imported before it stored a clean
+        // outcome, and only the guard on the composed content stops it here.
         var content = new ParsedResumeContent(
             new ParsedContact("Anna Andersson", "anna@example.com", "070-1234567", "Stockholm"),
             profile: "Erfaren backend-utvecklare.",
             experience: [new ParsedExperience("Backend-utvecklare", "Beta AB", "2021–", "raw entry")],
-            preamble: "Anna Andersson, 811218-9876, Stockholm");
+            preamble: "Anna Andersson, 811218--9876, Stockholm");
         var parsed = ParsedResume.Create(
             seeker.Id, "anna-cv.pdf", "application/pdf", ResumeLanguage.Sv,
             content, "Anna Andersson\nBackend-utvecklare, Beta AB",
@@ -326,7 +326,7 @@ public class PromoteParsedResumeCommandHandlerTests
     public async Task Handle_WhenParsedResumeNotFound_ReturnsNotFoundFailure_NoCrossUserLog()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -352,7 +352,7 @@ public class PromoteParsedResumeCommandHandlerTests
         // Another user's ParsedResume.
         var (otherParsed, _) = await SeedOwnedAsync(db, Guid.NewGuid());
         // The requesting user has a JobSeeker but does not own the artifact.
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -459,20 +459,21 @@ public class PromoteParsedResumeCommandHandlerTests
     // ===============================================================
 
     [Fact]
-    public async Task Handle_WhenSubmittedContentHasEmptyFullName_ReturnsFullNameRequired_NoPromotion_NoResume()
+    public async Task Handle_WhenSubmittedContentFailsValidateContent_ReturnsItsCode_NoPromotion_NoResume()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
 
         var degraded = new ResumeContentDto(
-            new PersonalInfoDto(string.Empty, null, null, null),
-            Experiences: [], Educations: [], Skills: [], Summary: null);
+            new PersonalInfoDto("Anna Andersson", null, null, null),
+            Experiences: [new ExperienceDto("", "Backend-utvecklare", new DateOnly(2021, 1, 1), null, null)],
+            Educations: [], Skills: [], Summary: null);
 
         var result = await CreateSut(db).Handle(
             Command(parsed.Id.Value, degraded), TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
+        result.Error.Code.ShouldBe("Resume.ExperienceCompanyRequired");
         // CreateFromParsed failed before Promote — the ParsedResume is untouched.
         parsed.Status.ShouldBe(ParsedResumeStatus.PendingReview);
         parsed.DeletedAt.ShouldBeNull();
@@ -503,7 +504,7 @@ public class PromoteParsedResumeCommandHandlerTests
     public async Task Handle_WhenParsedResumeNotFound_DoesNotRunReviewReconcile()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 

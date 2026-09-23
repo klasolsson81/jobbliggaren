@@ -33,4 +33,27 @@ public abstract record LoginChallengeEmail
     /// the contact address; login never restores it).
     /// </summary>
     public sealed record PendingDeletion(DateOnly PermanentDeletionEarliest) : LoginChallengeEmail;
+
+    /// <summary>
+    /// An address with no account while registration is open, within the code budget: the code that leads
+    /// to an account. No link — a magic link is for an existing account only (ADR 0142 D1).
+    /// </summary>
+    public sealed record NewAccountCode(LoginCode Code) : LoginChallengeEmail;
+
+    /// <summary>An address with no account while registration is open, past the code budget: no credential.</summary>
+    public sealed record NewAccountCodeLimitReached : LoginChallengeEmail;
+
+    /// <summary>
+    /// A re-authentication code for a signed-in user (#1739, ADR 0142 D5), sent to the account's own address.
+    /// A code and never a link: a link yields a session, never a re-authentication. No Art. 14 notice — the
+    /// recipient is the account holder, whose address the account already holds.
+    /// </summary>
+    public sealed record ReauthenticationCode(LoginCode Code) : LoginChallengeEmail;
+
+    /// <summary>
+    /// The code that proves a NEW address before a change-email completes (#1739, ADR 0142 D5), sent to that
+    /// address. A code and never a link. Recipient class (3): the address sits on no account, and whoever
+    /// typed it may not own it, so the mail carries the whole Art. 14 notice.
+    /// </summary>
+    public sealed record AddressChangeCode(LoginCode Code) : LoginChallengeEmail;
 }

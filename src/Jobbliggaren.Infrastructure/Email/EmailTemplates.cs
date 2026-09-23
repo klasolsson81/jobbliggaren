@@ -75,7 +75,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var matchesLink = $"{trimmed}/matchningar";
-        var settingsLink = $"{trimmed}/installningar";
+        var settingsLink = $"{trimmed}/mina-sidor";
 
         var items = new StringBuilder();
         var htmlItems = new List<string>();
@@ -168,7 +168,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var jobsLink = $"{trimmed}/jobb";
-        var settingsLink = $"{trimmed}/installningar";
+        var settingsLink = $"{trimmed}/mina-sidor";
         var companiesLink = $"{trimmed}/foretag";
 
         var items = new StringBuilder();
@@ -299,131 +299,6 @@ internal static partial class EmailTemplates
 
         return EmailHtml.LinkParagraph(
             FilterDisclosureSentence, companiesLink, FilterDisclosureAction);
-    }
-
-    /// <summary>
-    /// #679 — change-email ownership confirmation, sent to the NEW address. Builds the confirmation
-    /// link from <paramref name="baseUrl"/> + the URL-safe token; the new address is percent-encoded
-    /// (plus-addressing) and the token is already Base64Url (no escaping needed). Civic tone
-    /// (1177/Digg): no exclamation marks, no em-dash. The address is not changed until the link is
-    /// opened; the link is valid for 24h (CTO-bind #1 TokenLifespan).
-    ///
-    /// <para>
-    /// <b>Carries an Art. 14 notice, and it is UNCONDITIONAL.</b> This goes to recipient class (3) —
-    /// an address that by construction sits on no account, since <c>ChangeEmailCommandHandler</c>
-    /// verifies <c>IsEmailTakenAsync</c> is false before sending — so a mistyped address delivers a
-    /// message to someone who is neither a user nor the source of the data. The notice cannot be
-    /// conditioned on the recipient being a stranger, because at send time we cannot know whether it
-    /// is the holder or a third party; a branch would only ever be right by accident. Art. 14(2)(f)
-    /// is answered with a CATEGORY, since naming the account holder would be a disclosure in the
-    /// other direction. Both parts carry it — see <see cref="BuildFilterDisclosureHtml"/> for why.
-    /// </para>
-    /// <para>
-    /// <b>The retention sentence says nothing about where the address IS</b>, and that is the
-    /// constraint rather than a phrasing choice (<c>security-auditor</c> Blocker, 2026-08-16): ADR
-    /// 0133 accepts Scaleway's own retention as UNMEASURED, so any exhaustive location claim would
-    /// assert what the house has recorded it cannot measure. What the copy may say is what our own
-    /// side does, which is measured: the address reaches no table and no audit projection
-    /// (<c>ChangeEmailCommand</c>'s remarks), and the only derived artefact is the cooldown gate's
-    /// SHA-256 fingerprint at a 60 s TTL (<c>RedisCooldownGate</c>), which is not a copy of it.
-    /// Residency is stated at the rank the contract gives it — DPA Art. 11 undertakes EU level, not
-    /// region level. <c>release-checklist.md</c> §2.5 point 1 precondition 6 owns the reasoning.
-    /// </para>
-    /// </summary>
-    public static EmailContent EmailChangeConfirmation(
-        string baseUrl, EmailChangeConfirmationEmail content)
-    {
-        var trimmed = baseUrl.TrimEnd('/');
-
-        // uid: dashed 'D' Guid — LOAD-BEARING. /confirm-email-change binds ConfirmEmailChangeRequest.Uid
-        // as a Guid via System.Text.Json, whose Guid converter accepts ONLY the dashed 'D' form; a compact
-        // 'N' uid fails to bind and 400s every confirm (#981, same root cause as the registration link).
-        // Do NOT shorten this to ':N'. email: percent-encoded (plus-addressing / '@'). token: already
-        // Base64Url (only [A-Za-z0-9_-]) so it survives the query round-trip unescaped.
-        var confirmLink =
-            $"{trimmed}/bekrafta-epost" +
-            $"?uid={content.UserId:D}" +
-            $"&email={Uri.EscapeDataString(content.NewEmail)}" +
-            $"&token={content.UrlSafeToken}";
-
-        return new EmailContent(
-            Subject: "Bekräfta din nya e-postadress",
-            PlainTextBody: $"""
-                Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till
-                den här adressen.
-
-                Om det var du, bekräfta att adressen är din genom att öppna länken nedan.
-                Länken gäller i 24 timmar.
-                {confirmLink}
-
-                Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt
-                ändringen kan du bortse från det här meddelandet.
-
-                Adressen har vi fått från en användare som angav den för bytet. Vi berättar
-                inte vem det är, eftersom det skulle vara en uppgift om en annan person.
-                Adressen används bara för att skicka det här meddelandet och för att
-                kontrollera att den som äger adressen godkänner bytet. Grunden är berättigat
-                intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto
-                utan att den som äger den bekräftar det.
-
-                Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till
-                kontot och vi sparar den inte hos oss. Länken slutar gälla efter 24 timmar.
-                E-posten levereras av Scaleway SAS i Frankrike, som behandlar meddelandet
-                för att kunna leverera det. I personuppgiftsbiträdesavtalet har
-                leverantören åtagit sig att behandlingen sker inom EU.
-
-                Personuppgiftsansvarig är Klas Olsson, privatperson, som driver
-                Jobbliggaren.
-
-                Du har rätt att invända mot behandlingen och att begära information,
-                rättelse, radering eller begränsning. Skriv till oss:
-                {ContactAddress}
-
-                Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål
-                till Integritetsskyddsmyndigheten, imy.se.
-
-                Vänliga hälsningar,
-                Jobbliggaren
-                """,
-            HtmlBody: EmailHtml.Document(
-                title: "Bekräfta din nya e-postadress",
-                preheader: "Adressen ändras inte förrän du har öppnat länken. Länken gäller i 24 timmar.",
-                body: EmailHtml.P(
-                        "Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till "
-                        + "den här adressen.")
-                    + EmailHtml.P(
-                        "Om det var du, bekräfta att adressen är din genom att öppna länken nedan. "
-                        + "Länken gäller i 24 timmar.")
-                    + EmailHtml.Button(confirmLink, "Bekräfta din nya adress")
-                    + EmailHtml.P(
-                        "Adressen ändras inte förrän du har öppnat länken. Om du inte har begärt "
-                        + "ändringen kan du bortse från det här meddelandet.")
-                    + EmailHtml.P(
-                        "Adressen har vi fått från en användare som angav den för bytet. Vi "
-                        + "berättar inte vem det är, eftersom det skulle vara en uppgift om en "
-                        + "annan person. Adressen används bara för att skicka det här meddelandet "
-                        + "och för att kontrollera att den som äger adressen godkänner bytet. "
-                        + "Grunden är berättigat intresse (artikel 6.1 f): en adress ska inte "
-                        + "kunna kopplas till ett konto utan att den som äger den bekräftar det.")
-                    + EmailHtml.P(
-                        "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig "
-                        + "till kontot och vi sparar den inte hos oss. Länken slutar gälla efter "
-                        + "24 timmar. E-posten levereras av Scaleway SAS i Frankrike, som "
-                        + "behandlar meddelandet för att kunna leverera det. I "
-                        + "personuppgiftsbiträdesavtalet har leverantören åtagit sig att "
-                        + "behandlingen sker inom EU.")
-                    + EmailHtml.P(
-                        "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver "
-                        + "Jobbliggaren.")
-                    + EmailHtml.LinkParagraph(
-                        "Du har rätt att invända mot behandlingen och att begära information, "
-                        + "rättelse, radering eller begränsning. Skriv till oss:",
-                        $"mailto:{ContactAddress}",
-                        ContactAddress)
-                    + EmailHtml.P(
-                        "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna "
-                        + "klagomål till Integritetsskyddsmyndigheten, imy.se.")
-                    + EmailHtml.SignOff()));
     }
 
     /// <summary>

@@ -69,16 +69,6 @@ public sealed partial class ConsoleEmailSender(
         return Task.CompletedTask;
     }
 
-    public Task SendEmailChangeConfirmationAsync(
-        string toEmail,
-        EmailChangeConfirmationEmail content,
-        CancellationToken cancellationToken)
-    {
-        var body = EmailTemplates.EmailChangeConfirmation(_options.BaseUrl, content);
-        WriteEmail("email-change-confirmation", toEmail, body.Subject, body.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
     public Task SendEmailChangedNotificationAsync(
         string toEmail,
         CancellationToken cancellationToken)

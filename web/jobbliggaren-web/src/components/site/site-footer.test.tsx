@@ -53,11 +53,13 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
 
   it("links live routes (no dead hrefs)", () => {
     render(<SiteFooter />);
-    // start.register is live per the CTO verdict (forward-compatible /registrera).
-    expect(screen.getByRole("link", { name: "Skapa konto" })).toHaveAttribute(
-      "href",
-      "/registrera",
-    );
+    // One entry for both doors: `/logga-in` logs in and creates an account (ADR 0142).
+    expect(
+      screen.getByRole("link", { name: "Logga in eller skapa konto" }),
+    ).toHaveAttribute("href", "/logga-in");
+    // The pair it replaced named one URL twice. Either label coming back is that defect.
+    expect(screen.queryByRole("link", { name: "Skapa konto" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Logga in" })).toBeNull();
     // about.self resolves to the public /om page (link, distinct from the
     // identically-named column heading).
     expect(screen.getByRole("link", { name: "Om Jobbliggaren" })).toHaveAttribute(
@@ -131,7 +133,7 @@ describe("SiteFooter (LP-3, #256; civic-IA #390 → #393)", () => {
   it("carries NO language control — it moved to the header (#1476)", () => {
     // The footer is mounted on all six shells, so it was the switcher's home on
     // every surface. It is now on the surfaces whose users cannot reach
-    // Inställningar (senior-cto-advisor bind 2026-08-23), which is a header
+    // Mina sidor (senior-cto-advisor bind 2026-08-23), which is a header
     // question, not a footer one. Bites on revert: re-mounting it here puts a
     // second control on every public page.
     // Only the button query can bite: `role="group"` and `.jp-foot__lang` are both

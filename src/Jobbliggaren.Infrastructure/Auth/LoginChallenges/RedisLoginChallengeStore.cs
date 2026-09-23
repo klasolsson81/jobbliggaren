@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -13,11 +14,17 @@ using StackExchange.Redis;
 namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 
 /// <summary>
-/// Redis-backed <see cref="ILoginChallengeStore"/> (ADR 0142 D1), on the volatile instance. A challenge is
-/// one hash with two fields:
+/// Redis-backed <see cref="ILoginChallengeStore"/> (ADR 0142 D1), on the volatile instance. A login challenge
+/// is one hash with two fields:
 /// <c>p</c>, the DataProtector-protected payload (address, code, link-secret hash), and <c>a</c>, the code
 /// arm's attempt counter. A Redis reader is in scope (D1's threat model), so nothing that tells whether the
 /// address has an account — no subject flag, no bare link hash — sits outside the protected payload.
+/// <para>
+/// A bound challenge (#1739) has the same two fields in a key family of its own. Its payload holds the address,
+/// the code and the user id, and is protected under a sub-purpose per <see cref="ChallengePurpose"/>, so a
+/// payload written for one purpose cannot be opened as another's. Its index key carries the purpose's number
+/// and a fingerprint of the user id.
+/// </para>
 /// </summary>
 internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
 {
@@ -66,13 +73,19 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     public Task<IssuedCredentials> PutAsync(NewLoginChallenge challenge, CancellationToken ct) =>
         _redis.ExecuteAsync(async db =>
         {
-            LoginCode? code = challenge.Credentials == ChallengeCredentials.CodeAndLink ? MintCode() : null;
-            var secret = challenge.Credentials is ChallengeCredentials.LinkOnly or ChallengeCredentials.CodeAndLink
-                ? RandomNumberGenerator.GetBytes(LinkSecretLength)
-                : null;
+            var (mintsCode, mintsLink) = challenge.Credentials switch
+            {
+                ChallengeCredentials.None => (false, false),
+                ChallengeCredentials.CodeOnly => (true, false),
+                ChallengeCredentials.LinkOnly => (false, true),
+                ChallengeCredentials.CodeAndLink => (true, true),
+                var other => throw new UnreachableException($"Unmapped challenge credentials {other}."),
+            };
+            LoginCode? code = mintsCode ? MintCode() : null;
+            var secret = mintsLink ? RandomNumberGenerator.GetBytes(LinkSecretLength) : null;
 
             var payload = new ChallengePayload(
-                challenge.Email,
+                challenge.Recipient,
                 code?.Reveal(),
                 secret is null ? null : Convert.ToBase64String(SHA256.HashData(secret)));
             var protectedPayload = _protector.Protect(Padded(payload));
@@ -89,7 +102,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 [new HashEntry(PayloadField, protectedPayload), new HashEntry(AttemptsField, 0)]);
             var expire = transaction.KeyExpireAsync(recordKey, LoginChallengePolicy.ChallengeTtl);
             var displaced = challenge.ReplacesLiveChallenge
-                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Email), segment, LoginChallengePolicy.ChallengeTtl)
+                ? transaction.StringSetAndGetAsync(IndexKey(challenge.Recipient), segment, LoginChallengePolicy.ChallengeTtl)
                 : null;
             await transaction.ExecuteAsync();
             await write;
@@ -145,7 +158,7 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
                 // Single use: of two concurrent hits, or a hit racing the link or a newer mint, exactly one
                 // delete returns true.
                 return await db.KeyDeleteAsync(recordKey)
-                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Email))
+                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient))
                     : ChallengeVerdict.Missing;
             }
 
@@ -182,7 +195,83 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             if (!matched)
                 return null;
 
-            return await db.KeyDeleteAsync(recordKey) ? new LoginChallengeProof(payload.Email) : null;
+            return await db.KeyDeleteAsync(recordKey) ? new LoginChallengeProof(payload.Recipient) : null;
+        });
+
+    public Task<LoginCode> PutBoundAsync(NewBoundChallenge challenge, CancellationToken ct) =>
+        _redis.ExecuteAsync(async db =>
+        {
+            var binding = challenge.Binding;
+            var code = MintCode();
+
+            // No padding: the code is always present and of one length, and a Guid serialises to one width, so
+            // the protected length already depends on the address alone.
+            var protectedPayload = BoundProtectorFor(binding.Purpose).Protect(JsonSerializer.SerializeToUtf8Bytes(
+                new BoundChallengePayload(challenge.Recipient, code.Reveal(), binding.UserId)));
+
+            var segment = RecordSegment(challenge.Id);
+            var recordKey = BoundRecordKey(segment);
+
+            // The index swap is unconditional, and it is what bounds guessing: one live bound challenge per user
+            // and purpose, so minting again never adds a second set of attempts.
+            var transaction = db.CreateTransaction();
+            var write = transaction.HashSetAsync(
+                recordKey,
+                [new HashEntry(PayloadField, protectedPayload), new HashEntry(AttemptsField, 0)]);
+            var expire = transaction.KeyExpireAsync(recordKey, LoginChallengePolicy.ChallengeTtl);
+            var displaced = transaction.StringSetAndGetAsync(
+                BoundIndexKey(binding), segment, LoginChallengePolicy.ChallengeTtl);
+            await transaction.ExecuteAsync();
+            await write;
+            await expire;
+
+            var previous = await displaced;
+            if (!previous.IsNull && previous != segment)
+                await db.KeyDeleteAsync(BoundRecordKey(previous.ToString()));
+
+            return code;
+        });
+
+    public Task<ChallengeVerdict> ConsumeBoundCodeAsync(
+        ChallengeId id, LoginCode presented, ChallengeBinding expected, CancellationToken ct) =>
+        _redis.ExecuteAsync(async db =>
+        {
+            var presentedBytes = Encoding.ASCII.GetBytes(presented.Reveal());
+            var recordKey = BoundRecordKey(RecordSegment(id));
+
+            var result = await db.ScriptEvaluateAsync(ConsumeCodeScript, [recordKey]);
+            if (result.IsNull)
+            {
+                PayDummyCompare(presentedBytes);
+                return ChallengeVerdict.Missing;
+            }
+
+            var parts = (RedisResult[])result!;
+            var attempt = (long)parts[0];
+
+            // Another purpose cannot open the payload, and another user is refused here: both before the
+            // attempt count is answered, so whoever does not own the record learns nothing about it.
+            var payload = OpenBound((byte[]?)parts[1], expected.Purpose);
+            if (payload is null || payload.UserId != expected.UserId)
+            {
+                _ = CryptographicOperations.FixedTimeEquals(presentedBytes, DummyCode);
+                return ChallengeVerdict.Missing;
+            }
+
+            var matched = CryptographicOperations.FixedTimeEquals(presentedBytes, Encoding.ASCII.GetBytes(payload.Code));
+            if (attempt > LoginChallengePolicy.MaxAttempts)
+                return ChallengeVerdict.Burned;
+
+            if (matched)
+            {
+                return await db.KeyDeleteAsync(recordKey)
+                    ? ChallengeVerdict.Verified(new LoginChallengeProof(payload.Recipient))
+                    : ChallengeVerdict.Missing;
+            }
+
+            return attempt >= LoginChallengePolicy.MaxAttempts
+                ? ChallengeVerdict.Burned
+                : ChallengeVerdict.Wrong(LoginChallengePolicy.MaxAttempts - (int)attempt);
         });
 
     // RandomNumberGenerator.GetInt32 draws uniformly over the range (the runtime rejects biased samples), so
@@ -220,6 +309,28 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
             return null;
         }
     }
+
+    // Another purpose's protector, a lost keyring and a malformed body all read as a missing record.
+    private BoundChallengePayload? OpenBound(byte[]? protectedPayload, ChallengePurpose purpose)
+    {
+        if (protectedPayload is null)
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<BoundChallengePayload>(
+                BoundProtectorFor(purpose).Unprotect(protectedPayload));
+        }
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
+        {
+            LogPayloadUnreadable(_logger, ex.GetType().Name);
+            return null;
+        }
+    }
+
+    // The purpose's NUMBER, as RedisGrantStore.ProtectorFor has it. ChallengeBinding admits defined purposes only.
+    private IDataProtector BoundProtectorFor(ChallengePurpose purpose) =>
+        _protector.CreateProtector(((int)purpose).ToString(CultureInfo.InvariantCulture));
 
     private static (ChallengeId Id, byte[] SecretHash)? DecodeLinkToken(string raw)
     {
@@ -263,12 +374,25 @@ internal sealed partial class RedisLoginChallengeStore : ILoginChallengeStore
     internal static string IndexKey(string email) =>
         $"{KeyPrefix}auth/challenge-by-address/v1/{SubjectFingerprint.Hex(email)}";
 
+    // A family of its own (ADR 0142 D1: a record-shape change costs a new segment), so the login arm cannot see a
+    // bound record and a bound consume cannot see a login record.
+    internal static string BoundRecordKey(string segment) => $"{KeyPrefix}auth/challenge-bound/v1/{segment}";
+
+    internal static string BoundIndexKey(ChallengeBinding binding) =>
+        $"{KeyPrefix}auth/challenge-by-user/v1/{(int)binding.Purpose}/{SubjectFingerprint.Hex(binding.UserId.ToString())}";
+
     [LoggerMessage(1012, LogLevel.Warning,
         "Login challenge payload unreadable ({ErrorType}) — answered as a missing challenge")]
     private static partial void LogPayloadUnreadable(ILogger logger, string errorType);
 
     internal sealed record ChallengePayload(
-        [property: JsonPropertyName("e")] string Email,
+        [property: JsonPropertyName("e")] string Recipient,
         [property: JsonPropertyName("c")] string? Code,
         [property: JsonPropertyName("l")] string? LinkHash);
+
+    // No link field: a bound challenge cannot carry one.
+    internal sealed record BoundChallengePayload(
+        [property: JsonPropertyName("e")] string Recipient,
+        [property: JsonPropertyName("c")] string Code,
+        [property: JsonPropertyName("u")] Guid UserId);
 }

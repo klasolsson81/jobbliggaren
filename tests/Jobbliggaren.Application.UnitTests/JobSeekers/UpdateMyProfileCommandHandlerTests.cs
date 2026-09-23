@@ -15,7 +15,7 @@ public class UpdateMyProfileCommandHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
 
-        var seekerResult = JobSeeker.Register(userId, "Initial Name", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
+        var seekerResult = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default);
         db.JobSeekers.Add(seekerResult.Value);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -27,42 +27,13 @@ public class UpdateMyProfileCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithNewDisplayName_UpdatesSuccessfully()
-    {
-        var userId = Guid.NewGuid();
-        var (handler, db) = await CreateHandler(userId);
-
-        var result = await handler.Handle(
-            new UpdateMyProfileCommand("Klas Olsson", null), CancellationToken.None);
-
-        result.IsSuccess.ShouldBeTrue();
-        var seeker = db.JobSeekers.First(js => js.UserId == userId);
-        seeker.DisplayName.ShouldBe("Klas Olsson");
-        // #192: the owner JobSeeker id is echoed for AuditBehavior.ExtractAggregateId.
-        result.Value.ShouldBe(seeker.Id.Value);
-    }
-
-    [Fact]
-    public async Task Handle_WithBlankDisplayName_ReturnsFailure()
-    {
-        var userId = Guid.NewGuid();
-        var (handler, _) = await CreateHandler(userId);
-
-        var result = await handler.Handle(
-            new UpdateMyProfileCommand("   ", null), CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("JobSeeker.DisplayNameRequired");
-    }
-
-    [Fact]
     public async Task Handle_WithLanguage_UpdatesLanguage()
     {
         var userId = Guid.NewGuid();
         var (handler, db) = await CreateHandler(userId);
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand(null, "en"), CancellationToken.None);
+            new UpdateMyProfileCommand("en"), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
@@ -84,7 +55,7 @@ public class UpdateMyProfileCommandHandlerTests
         await db.SaveChangesAsync(CancellationToken.None);
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand(null, "en"), CancellationToken.None);
+            new UpdateMyProfileCommand("en"), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         var reloaded = db.JobSeekers.First(js => js.UserId == userId);
@@ -96,11 +67,11 @@ public class UpdateMyProfileCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithDisplayNameOnly_LeavesPreferencesUntouched()
+    public async Task Handle_WithoutLanguage_LeavesPreferencesUntouched()
     {
-        // TD-115: the command now carries two independent fields. A display-name-only
-        // change must NOT touch Preferences at all (the Language branch must be skipped) —
-        // else a future refactor could clobber consent through a no-op mutation.
+        // TD-115: a command without a language must NOT touch Preferences at all (the Language
+        // branch must be skipped) — else a future refactor could clobber consent through a no-op
+        // mutation.
         var userId = Guid.NewGuid();
         var (handler, db) = await CreateHandler(userId);
         var seeker = db.JobSeekers.First(js => js.UserId == userId);
@@ -109,11 +80,10 @@ public class UpdateMyProfileCommandHandlerTests
         var originalPrefs = seeker.Preferences;
 
         var result = await handler.Handle(
-            new UpdateMyProfileCommand("Nytt Namn", null), CancellationToken.None);
+            new UpdateMyProfileCommand(null), CancellationToken.None);
 
         result.IsSuccess.ShouldBeTrue();
         var reloaded = db.JobSeekers.First(js => js.UserId == userId);
-        reloaded.DisplayName.ShouldBe("Nytt Namn");
         reloaded.Preferences.ShouldBe(originalPrefs); // record value-equality — nothing touched
     }
 
@@ -128,6 +98,6 @@ public class UpdateMyProfileCommandHandlerTests
         var handler = new UpdateMyProfileCommandHandler(db, currentUser, FakeDateTimeProvider.Default);
 
         await Should.ThrowAsync<NotFoundException>(
-            () => handler.Handle(new UpdateMyProfileCommand("Name", null), CancellationToken.None).AsTask());
+            () => handler.Handle(new UpdateMyProfileCommand("sv"), CancellationToken.None).AsTask());
     }
 }

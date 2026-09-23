@@ -63,7 +63,7 @@ public class PnrConsentCaptureEncryptionTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(DateTimeOffset.UtcNow);
         var seeker = JobSeeker.Register(
-            userId, "Anna Kontosson", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+            userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;

@@ -7,10 +7,11 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
 
 /// <summary>
 /// TD-115 (2026-06-25): the legacy EmailNotifications/WeeklySummary flags were retired
-/// (they gated no email path — see Preferences) so this command carries only DisplayName + locale.
+/// (they gated no email path — see Preferences). Since #1741 PR B the account has no name
+/// (ADR 0142 D7), so this command carries only the locale.
 /// <para>
-/// <b>Auditable (#192, GDPR Art. 5(2)/30):</b> a profile mutation is accountability-relevant —
-/// <c>DisplayName</c> is personal data — so this owner-scoped JobSeeker mutation carries
+/// <b>Auditable (#192, GDPR Art. 5(2)/30):</b> a profile mutation is accountability-relevant,
+/// so this owner-scoped JobSeeker mutation carries
 /// <see cref="IAuditableCommand{TResponse}"/>; <c>AuditBehavior</c> writes ONE <c>audit_log</c> row
 /// (actor + occurred-at + IP/UA + correlation) on success, closing the audit-coverage gap left by
 /// every OTHER owner-scoped JobSeeker self-mutation already being audited (UpdateNotificationConsent
@@ -19,13 +20,11 @@ namespace Jobbliggaren.Application.JobSeekers.Commands.UpdateMyProfile;
 /// <see cref="ExtractAggregateId"/> can read it. The endpoint discards the echoed id (still 200).
 /// </para>
 /// </summary>
-public sealed record UpdateMyProfileCommand(
-    string? DisplayName,
-    string? Language)
+public sealed record UpdateMyProfileCommand(string? Language)
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>
 {
     // Stable, append-only event name (audit queries depend on it). One event covers the
-    // profile mutation (DisplayName and/or locale) — parity JobSeeker.NotificationConsentUpdated.
+    // profile mutation — parity JobSeeker.NotificationConsentUpdated.
     public string EventType => "JobSeeker.ProfileUpdated";
     public string AggregateType => "JobSeeker";
     public Guid ExtractAggregateId(Result<Guid> response) => response.Value;

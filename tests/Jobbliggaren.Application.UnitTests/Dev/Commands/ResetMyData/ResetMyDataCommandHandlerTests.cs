@@ -66,7 +66,7 @@ public class ResetMyDataCommandHandlerTests
     private static async Task<JobSeeker> SeedFullUserAsync(
         Jobbliggaren.Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.UpdateMatchPreferences(StatedPreferences(), Clock);
         db.JobSeekers.Add(seeker);
 
@@ -170,7 +170,7 @@ public class ResetMyDataCommandHandlerTests
         // object is constructed with no initialiser, exactly as an absent DevTools section binds.
         var db = TestAppDbContextFactory.Create();
         var userId = Guid.NewGuid();
-        var seeker = JobSeeker.Register(userId, "Me", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         seeker.UpdateMatchPreferences(StatedPreferences(), Clock);
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);

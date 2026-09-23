@@ -43,9 +43,9 @@ public sealed record LayoutCase(
     string? ProjectHeadingRendered = null,
 
     /// <summary>The account holder's display name this case registers. It is a case input so the
-    /// corpus can pin that no account name reaches the CV (ADR 0142 D7). A personnummer-shaped name
-    /// is a state of rows written before #1117, which the probe writes to the column directly
-    /// (<c>CvChainProbe</c> names that actor).</summary>
+    /// corpus can pin that no account name reaches the CV (ADR 0142 D7). The probe writes it to the
+    /// column directly (<c>CvChainProbe</c>, through <c>LegacyAccountName</c>, which names the
+    /// actor).</summary>
     string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
 /// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
@@ -293,7 +293,7 @@ public static class LayoutCaseCatalog
 
         // ADR 0142 D7's pin: a personnummer in the ACCOUNT display name never reaches the CV, so
         // this case's verdict is its sibling's. Such a name is a state of rows written before
-        // #1117 (JobSeeker.Register refuses it since), so the probe writes the column directly.
+        // #1117, and the probe writes the column directly.
         new("pdf-clean-body-pnr-in-account-name",
             "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
             "gate axis — no account name reaches the composed DTO (ADR 0142 D7)",

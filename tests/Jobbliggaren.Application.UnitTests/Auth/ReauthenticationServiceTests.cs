@@ -70,7 +70,7 @@ public class ReauthenticationServiceTests
 
     private async Task SeedSeekerAsync(Guid userId, bool softDeleted, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value;
         if (softDeleted)
             seeker.SoftDelete(Clock);
         _db.JobSeekers.Add(seeker);

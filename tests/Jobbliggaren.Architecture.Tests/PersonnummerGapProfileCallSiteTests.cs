@@ -33,7 +33,6 @@ public class PersonnummerGapProfileCallSiteTests
         ("Jobbliggaren.Application/Resumes/Commands/ImportResume/ImportResumeCommandHandler.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Application/Resumes/Common/AutoPromoteGate.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Application/Resumes/Common/ResumeContentPersonnummerGuard.cs", "ExtractedDocumentText"),
-        ("Jobbliggaren.Domain/JobSeekers/JobSeeker.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Domain/Resumes/Resume.cs", "ExtractedDocumentText"),
         ("Jobbliggaren.Infrastructure/Resumes/Parsing/PreambleResidue.cs", "ExtractedDocumentText"),
     ];
@@ -116,14 +115,16 @@ public class PersonnummerGapProfileCallSiteTests
             $"{anyCalls - withProfile} call site(s) reach Normalize without a " +
             "PersonnummerGapProfile argument the scan can see");
         withProfile.ShouldBe(
-            8,
-            "seven files, eight invocations: ImportResumeCommandHandler guards the CV body and the " +
+            7,
+            "six files, seven invocations: ImportResumeCommandHandler guards the CV body and the " +
             "file name separately, PreambleResidue lets the scan decide a hard cut the digit run " +
             "leaves nowhere else to put, and RecentJobSearchCaptureBehavior reaches Normalize ONCE — " +
             "through the single BearsPersonnummer predicate that both ?q= and the five taxonomy " +
             "axes (#1419) call. It went 7 -> 8 -> 7 across those two PRs, and the way back down " +
-            "was giving one predicate one home (#844), not removing a guard. A drop means a " +
-            "guarded surface lost its guard OR a predicate was consolidated; a rise means a new " +
+            "was giving one predicate one home (#844), not removing a guard. #1741 PR B took it " +
+            "from 8 to 7 by removing a surface: the account name, whose scan left with its last " +
+            "writer. A drop means a guarded surface lost its guard, a predicate was consolidated, " +
+            "or the surface itself went; a rise means a new " +
             "surface arrived and someone chose its profile — read ADR 0134 D2 before changing " +
             "this number, because that choice is the thing this file exists to make visible.");
     }

@@ -58,7 +58,7 @@ public sealed class LoginProofTests
     private async Task WithProfileAsync(bool softDeleted = false)
     {
         var profile = JobSeeker.Register(
-            _userId, "Test", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
+            _userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default)
             .Value;
         if (softDeleted)
             profile.SoftDelete(FakeDateTimeProvider.Default);

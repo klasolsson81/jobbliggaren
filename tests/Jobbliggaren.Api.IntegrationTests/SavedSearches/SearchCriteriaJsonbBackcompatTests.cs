@@ -45,7 +45,7 @@ public sealed class SearchCriteriaJsonbBackcompatTests(ApiFactory factory)
 
     private static async Task<JobSeeker> SeedSeekerAsync(AppDbContext db, IDateTimeProvider clock, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(Guid.NewGuid(), "Backcompat User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;

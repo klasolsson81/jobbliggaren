@@ -45,7 +45,6 @@ const EMAIL = "klas@example.se";
 
 const profile: JobSeekerProfileDto = {
   id: "profile-1",
-  displayName: null,
   language: "sv",
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",

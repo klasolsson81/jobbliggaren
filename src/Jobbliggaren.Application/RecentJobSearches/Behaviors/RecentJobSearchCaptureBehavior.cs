@@ -175,7 +175,7 @@ public sealed partial class RecentJobSearchCaptureBehavior<TMessage, TResponse>(
         // hyphenated, 12-digit and gapped forms the ten-digit employer axis structurally cannot,
         // and the employer helper's unparseable arm - fail-safe on a format axis - would refuse
         // every ordinary search string here. This is instead the house's single-sourced flag path
-        // (JobSeeker.ValidateDisplayName, Resume.ValidateName, AutoPromoteGate run the identical
+        // (Resume.ValidateName, AutoPromoteGate run the identical
         // one-liner) rather than a predicate re-derived per call site (#844: a rule with two
         // normalisers is two rules). What this axis DOES choose is the gap POLICY: #1415 split it
         // per kind of text, and a hand-typed box takes SingleLineUserInput (ADR 0134 D2). The CV

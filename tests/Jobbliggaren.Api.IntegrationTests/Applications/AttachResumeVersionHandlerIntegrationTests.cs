@@ -47,7 +47,7 @@ public class AttachResumeVersionHandlerIntegrationTests(ApiFactory factory)
     private static async Task<JobSeekerId> SeedSeekerAsync(
         AppDbContext db, IDateTimeProvider clock, Guid userId, CancellationToken ct)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker.Id;

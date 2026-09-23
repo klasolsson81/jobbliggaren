@@ -51,7 +51,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         Guid userId,
         string? coverLetter = null)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         // TD-13 C3: värm ägar-DEK FÖRE krypterade entiteter läggs till
@@ -204,7 +204,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -245,7 +245,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var otherUserId = Guid.NewGuid();
         var (_, otherApp) = await SeedAsync(scope, db, clock, otherUserId);
 
-        var ownSeeker = JobSeeker.Register(_userId, "Current User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -269,7 +269,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(CancellationToken.None);
 
@@ -314,7 +314,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var taxonomy = scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
 
         // En JobAd-länkad ansökan med snapshot skapas BARA via "Har ansökt"-vägen
@@ -393,7 +393,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
         var taxonomy = scope.ServiceProvider.GetRequiredService<ITaxonomyReadModel>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
 
@@ -474,7 +474,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
 
@@ -509,7 +509,7 @@ public class GetApplicationByIdQueryHandlerIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
 
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await EncryptionKeyTestSeed.WarmAsync(scope, seeker.Id, CancellationToken.None);
 

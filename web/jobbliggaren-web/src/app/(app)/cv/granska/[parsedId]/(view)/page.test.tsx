@@ -164,23 +164,6 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
     expect(screen.getByText(/anställning har arbetsgivare och titel/i)).toBeInTheDocument();
   });
 
-  it("carries the ACCOUNT-NAME reason through to its own copy and control", async () => {
-    // The wiring that matters most: this reason renders on a page where every file-side
-    // surface says "clean", so if the page passed the wrong value nothing else would betray it.
-    getParsedResume.mockResolvedValue({
-      kind: "ok",
-      data: detail("PersonnummerInAccountName"),
-    });
-
-    render(await invoke());
-
-    expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
-      "href",
-      "mailto:kontakt@jobbliggaren.se",
-    );
-  });
-
   it("renders the file-scoped cleared state when nothing blocks the artifact", async () => {
     getParsedResume.mockResolvedValue({ kind: "ok", data: detail(null) });
 

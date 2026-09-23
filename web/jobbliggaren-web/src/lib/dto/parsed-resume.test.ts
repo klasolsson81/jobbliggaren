@@ -495,21 +495,15 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
   it("är EN mängd, delad med importsvaret — inte två uppräkningar som kan glida isär", () => {
     expect(autoPromoteBlockReasonSchema.options).toEqual([
       "PersonnummerPresent",
-      "PersonnummerInAccountName",
       "ParseNotConfident",
       "IncompleteContent",
     ]);
   });
 
-  it("skiljer personnummer i FILEN från personnummer i KONTOTS visningsnamn", () => {
-    // CTO-bind D2. De två kräver olika åtgärd (redigera filen respektive mejla kontakt@), så
-    // de är två tokens och inte en token plus en FE-gissning på `personnummer.found` — den
-    // gissningen vore sann om filskanningen och falsk om sitt ämne.
-    for (const reason of ["PersonnummerPresent", "PersonnummerInAccountName"] as const) {
-      const result = parsedResumeDetailDtoSchema.safeParse({ ...base, blockReason: reason });
-      expect(result.success).toBe(true);
-      if (result.success) expect(result.data.blockReason).toBe(reason);
-    }
+  it("avvisar PersonnummerInAccountName — kontot har inget namn, och backend skickar den inte längre", () => {
+    // ADR 0142 D7: the backend deleted the member in #1741 PR A, and this set follows it in PR B,
+    // for the UnclassifiedPreamble reason above.
+    expect(autoPromoteBlockReasonSchema.options).not.toContain("PersonnummerInAccountName");
   });
 });
 

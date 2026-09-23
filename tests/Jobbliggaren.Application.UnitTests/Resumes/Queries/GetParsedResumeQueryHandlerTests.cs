@@ -80,7 +80,7 @@ public class GetParsedResumeQueryHandlerTests
     private static async Task<ParsedResume> SeedOwnedAsync(
         Infrastructure.Persistence.AppDbContext db, Guid userId)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = BuildParsedResume(seeker.Id);
         db.ParsedResumes.Add(parsed);
@@ -118,7 +118,7 @@ public class GetParsedResumeQueryHandlerTests
     public async Task Handle_ShouldReturnNull_WhenArtifactNotFound_AndNotLogCrossUser()
     {
         var db = TestAppDbContextFactory.Create();
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -135,7 +135,7 @@ public class GetParsedResumeQueryHandlerTests
     {
         var db = TestAppDbContextFactory.Create();
         var otherParsed = await SeedOwnedAsync(db, Guid.NewGuid());
-        var self = JobSeeker.Register(_userId, "Self", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var self = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(self);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -188,7 +188,7 @@ public class GetParsedResumeQueryHandlerTests
     private async Task<ParsedResume> SeedHydratedAsync(
         Infrastructure.Persistence.AppDbContext db, ParsedResumeContent content)
     {
-        var seeker = JobSeeker.Register(_userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
         var parsed = ParsedResume.Create(
             seeker.Id, "CV_Anna.pdf", "application/pdf", ResumeLanguage.Sv,

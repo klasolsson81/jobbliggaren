@@ -12,6 +12,7 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,8 +65,9 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(DateTimeOffset.UtcNow);
         var seeker = JobSeeker.Register(
-            userId, AccountDisplayName, TermsAcceptance.AcceptCurrent(clock), clock).Value;
+            userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
+        LegacyAccountName.Write(db, seeker, AccountDisplayName);
         await db.SaveChangesAsync(ct);
         return seeker;
     }

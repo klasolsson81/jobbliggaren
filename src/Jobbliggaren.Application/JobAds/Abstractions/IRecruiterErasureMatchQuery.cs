@@ -244,14 +244,10 @@ public interface IRecruiterErasureMatchQuery
     /// bytes). <b>Counted and REPORTED; a human erases it, with the account holder in the loop.</b>
     /// </summary>
     /// <remarks>
-    /// Every gate on the way in is a shape gate, never a content gate: <c>ValidateDisplayName</c>
-    /// refuses only empty, over-length and a personnummer; <c>match_preferences</c> admits six lists
+    /// Every gate on the way in is a shape gate, never a content gate: <c>match_preferences</c> admits six lists
     /// of <c>^[A-Za-z0-9_-]{1,32}</c> tokens with no taxonomy lookup on any path; and
     /// <c>Language</c> has no server-side validation at all. So the two jsonb arms walk VALUES and
     /// compare every WRITTEN form, for the same two reasons as the watch filter above.
-    /// <b>No remedy here is constructible without the account holder</b> — the display-name
-    /// invariant refuses empty, so there is no <c>UpdateLabel(null)</c> analogue and a system does
-    /// not rename a person.
     /// <para>
     /// This surface WILL match on a shared name: a user who merely happens to be called what the
     /// requester is called is counted, because a display name IS that user's own name. The count

@@ -33,7 +33,7 @@ public class BatchTransitionApplicationsCommandHandlerTests
         Guid userId,
         int applicationCount)
     {
-        var seeker = JobSeeker.Register(userId, "Test User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
 
         var applications = new List<DomainApplication>(applicationCount);
@@ -303,7 +303,7 @@ public class BatchTransitionApplicationsCommandHandlerTests
         // response is one uniform 404 either way (no enumeration oracle).
         var db = TestAppDbContextFactory.Create();
         var (_, foreignApps) = await SeedAsync(db, Guid.NewGuid(), 1);
-        var ownSeeker = JobSeeker.Register(_userId, "Current User", TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
+        var ownSeeker = JobSeeker.Register(_userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(ownSeeker);
         await db.SaveChangesAsync(CancellationToken.None);
         var handler = CreateHandler(db);

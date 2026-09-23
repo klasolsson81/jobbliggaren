@@ -35,7 +35,7 @@ import type { ReactElement } from "react";
  * an empty aside costs nothing beside `__main` but takes a whole line plus the row `gap`
  * once it wraps, and the band then over-reserves at exactly the narrow widths a hero with
  * no aside is most sensitive at (#1385). `kicker` adds the mono overline row that
- * Översikt renders above its title (`.jp-pagehero__kicker`), so the band height
+ * the two CV review pages render above their title (`.jp-pagehero__kicker`), so the band height
  * matches on those pages (the plate is `align-items: flex-start`, so a missing
  * row would let the band grow on swap).
  *

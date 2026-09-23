@@ -58,6 +58,8 @@
     <!-- #1735 - the compose-file reader. VolatileRedisContainer builds the non-persisted Redis from the
          deploy stack's own declaration, through the same reader DeployComposeVolatileRedisTests pins it with. -->
     <Compile Include="..\Shared\ComposeFile.cs" Link="Shared\ComposeFile.cs" />
+    <!-- #1741 PR B - the seam that writes a legacy account name, one home for its provenance. -->
+    <Compile Include="..\Shared\LegacyAccountName.cs" Link="Shared\LegacyAccountName.cs" />
   </ItemGroup>
 
   <!-- #1735 - the deploy stack's compose file, read by VolatileRedisContainer. -->

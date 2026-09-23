@@ -65,7 +65,7 @@ public class PromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         using var scope = _fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = new FixedClock(DateTimeOffset.UtcNow);
-        var seeker = JobSeeker.Register(userId, "Promote Test", TermsAcceptance.AcceptCurrent(clock), clock).Value;
+        var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
         return seeker;

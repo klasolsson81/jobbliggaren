@@ -126,7 +126,6 @@
         "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen.",
         "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
-        "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer, men filen är ren. Namnet går inte att ändra i tjänsten just nu. Mejla <mail>kontakt@jobbliggaren.se</mail> så hjälper vi dig.",
         "clearedKicker": "Inga hinder i filen",
         "clearedTitle": "Inget i filen hindrar den",
         "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
@@ -613,7 +612,6 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades.",
-      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Skriv namnet utan personnummer och försök igen.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "emailNotConfirmed": "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",

@@ -621,24 +621,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RawText.ShouldBe("Rad ett\nRad två 811218-9876");
     }
 
-    [Fact]
-    public void Extract_DocxTabStopDefinitionsInATextBoxAfterText_AddNothing()
-    {
-        // The one shape where text precedes a paragraph's properties in the output: a text box anchored
-        // after text in the same paragraph. The oracle is the same document without the definitions.
-        string Doc(string properties) => DocumentXml(
-            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r><w:pict><v:shape><v:textbox><w:txbxContent>" +
-            "<w:p>" + properties + "<w:r><w:t>Box</w:t></w:r></w:p>" +
-            "</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>");
-
-        var withTabStops = _sut.Extract(BuildMinimalOpcWithDocumentXml(
-            Doc("<w:pPr><w:tabs><w:tab w:val=\"left\" w:pos=\"4536\"/></w:tabs></w:pPr>")),
-            CvFileKind.Docx, CancellationToken.None);
-        var without = _sut.Extract(BuildMinimalOpcWithDocumentXml(Doc("")), CvFileKind.Docx, CancellationToken.None);
-
-        withTabStops.RawText.ShouldBe(without.RawText);
-    }
-
     public static TheoryData<string> BreaksBesideALineEnd() => ["two breaks in a run", "a break closing a paragraph"];
 
     [Theory]
@@ -656,6 +638,142 @@ public class PdfPigOpenXmlCvTextExtractorTests
         _sut.Extract(BuildDocxFromParagraphs(paragraphs), CvFileKind.Docx, CancellationToken.None)
             .RawText.ShouldBe("A\n\nB");
     }
+
+    // #1801 — a text box is read as its own lines, and an inline object separates its neighbours. Word writes
+    // a text box or an image as VML (w:pict) or as DrawingML (w:drawing, inline or anchored), often both at
+    // once inside mc:AlternateContent.
+    public static TheoryData<string> TextBoxForms() => ["vml floating", "vml inline", "drawing anchor", "drawing inline"];
+
+    [Theory]
+    [MemberData(nameof(TextBoxForms))]
+    public void Extract_DocxTextBoxAfterText_StartsItsOwnLine(string form)
+    {
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r><w:r>" + TextBox(form, "070-123 45 67") + "</w:r></w:p>");
+
+        raw.ShouldBe(IsInline(form) ? "811218-9876 \n070-123 45 67" : "811218-9876\n070-123 45 67");
+        FlagCount(raw).ShouldBe(1);
+    }
+
+    [Theory]
+    [MemberData(nameof(TextBoxForms))]
+    public void Extract_DocxTextBoxAfterAPhoneNumber_StartsItsOwnLine(string form)
+    {
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r><w:r>" + TextBox(form, "811218-9876") + "</w:r></w:p>");
+
+        raw.ShouldBe(IsInline(form) ? "Tel 070-12 34 567 \n811218-9876" : "Tel 070-12 34 567\n811218-9876");
+        FlagCount(raw).ShouldBe(1);
+    }
+
+    [Theory]
+    [MemberData(nameof(TextBoxForms))]
+    public void Extract_DocxTextBoxOpeningAParagraph_AddsNoBlankLine(string form)
+    {
+        var raw = ExtractXml("<w:p><w:r><w:t>Rad ett</w:t></w:r></w:p><w:p><w:r>" + TextBox(form, "Box") + "</w:r></w:p>");
+
+        raw.ShouldBe("Rad ett\nBox");
+    }
+
+    [Theory]
+    [MemberData(nameof(TextBoxForms))]
+    public void Extract_DocxTextBoxAfterATab_StillStartsItsOwnLine(string form)
+    {
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>Tel</w:t><w:tab/></w:r><w:r>" + TextBox(form, "811218-9876") + "</w:r></w:p>");
+
+        raw.ShouldBe("Tel \n811218-9876");
+    }
+
+    [Theory]
+    [InlineData("before")]
+    [InlineData("after")]
+    public void Extract_DocxTextBoxInAlternateContent_StartsItsOwnLineInEveryBranch(string personnummer)
+    {
+        // Both branches are read today (#1801, point 2), so the oracle holds whether one or both are.
+        var anchor = personnummer == "before" ? "811218-9876" : "Tel 070-12 34 567";
+        var inBox = personnummer == "before" ? "070-123 45 67" : "811218-9876";
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>" + anchor + "</w:t></w:r><w:r><mc:AlternateContent>" +
+            "<mc:Choice Requires=\"wps\">" + TextBox("drawing anchor", inBox) + "</mc:Choice>" +
+            "<mc:Fallback>" + TextBox("vml floating", inBox) + "</mc:Fallback>" +
+            "</mc:AlternateContent></w:r></w:p>");
+
+        raw.Split('\n').Where(line => line.Contains("811218")).ShouldAllBe(line => line == "811218-9876");
+        var occurrences = raw.Split("811218-9876").Length - 1;
+        occurrences.ShouldBeGreaterThanOrEqualTo(1);
+        FlagCount(raw).ShouldBe(occurrences);
+    }
+
+    public static TheoryData<string> InlineObjectForms() =>
+        ["drawing inline", "vml inline", "vml mso-position only", "object"];
+
+    [Theory]
+    [MemberData(nameof(InlineObjectForms))]
+    public void Extract_DocxInlineObjectBetweenFields_SeparatesThem(string form)
+    {
+        var raw = ExtractXml(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r><w:r>" + ObjectWithoutText(form) + "</w:r>" +
+            "<w:r><w:t>070-123 45 67</w:t></w:r></w:p>");
+
+        raw.ShouldBe("811218-9876 070-123 45 67");
+        FlagCount(raw).ShouldBe(1);
+    }
+
+    public static TheoryData<string> FloatingObjectForms() => ["drawing anchor", "vml floating", "vml shapetype first"];
+
+    [Theory]
+    [MemberData(nameof(FloatingObjectForms))]
+    public void Extract_DocxFloatingObjectWithoutText_AddsNothing(string form)
+    {
+        var withObject = ExtractXml(
+            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r>" + ObjectWithoutText(form) + "</w:r><w:r><w:t>Andersson</w:t></w:r></w:p>");
+        var without = ExtractXml("<w:p><w:r><w:t>Anna</w:t></w:r><w:r><w:t>Andersson</w:t></w:r></w:p>");
+
+        withObject.ShouldBe(without);
+    }
+
+    private static bool IsInline(string form) => form is "vml inline" or "drawing inline";
+
+    // A text box holding one paragraph, as the run content of the paragraph that anchors it.
+    private static string TextBox(string form, string text)
+    {
+        var content = "<w:txbxContent><w:p><w:r><w:t>" + text + "</w:t></w:r></w:p></w:txbxContent>";
+        return form switch
+        {
+            "vml floating" => "<w:pict><v:shape style=\"position:absolute;width:100pt;height:50pt\"><v:textbox>" +
+                content + "</v:textbox></v:shape></w:pict>",
+            "vml inline" => "<w:pict><v:shape style=\"width:100pt;height:50pt\"><v:textbox>" +
+                content + "</v:textbox></v:shape></w:pict>",
+            "drawing anchor" => "<w:drawing><wp:anchor>" + Graphic("<wps:wsp><wps:txbx>" + content + "</wps:txbx></wps:wsp>") +
+                "</wp:anchor></w:drawing>",
+            "drawing inline" => "<w:drawing><wp:inline>" + Graphic("<wps:wsp><wps:txbx>" + content + "</wps:txbx></wps:wsp>") +
+                "</wp:inline></w:drawing>",
+            _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),
+        };
+    }
+
+    // An image, as the run content of the paragraph that holds it.
+    private static string ObjectWithoutText(string form) => form switch
+    {
+        "drawing inline" => "<w:drawing><wp:inline>" + Graphic("<pic:pic/>") + "</wp:inline></w:drawing>",
+        "drawing anchor" => "<w:drawing><wp:anchor>" + Graphic("<pic:pic/>") + "</wp:anchor></w:drawing>",
+        "vml inline" => "<w:pict><v:shape style=\"width:10pt;height:10pt\"><v:imagedata/></v:shape></w:pict>",
+        "vml floating" => "<w:pict><v:shape style=\"position:absolute;width:10pt;height:10pt\"><v:imagedata/></v:shape></w:pict>",
+        // Word also writes mso-position-horizontal:absolute, which positions nothing on its own.
+        "vml mso-position only" =>
+            "<w:pict><v:shape style=\"mso-position-horizontal:absolute;width:10pt;height:10pt\"><v:imagedata/></v:shape></w:pict>",
+        "vml shapetype first" => "<w:pict><v:shapetype/><v:shape style=\"position:absolute;width:10pt;height:10pt\">" +
+            "<v:imagedata/></v:shape></w:pict>",
+        "object" => "<w:object><v:shape style=\"width:10pt;height:10pt\"><v:imagedata/></v:shape><o:OLEObject/></w:object>",
+        _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),
+    };
+
+    private static string Graphic(string data) =>
+        "<a:graphic><a:graphicData uri=\"urn:example\">" + data + "</a:graphicData></a:graphic>";
+
+    private string ExtractXml(string body) =>
+        _sut.Extract(BuildMinimalOpcWithDocumentXml(DocumentXml(body)), CvFileKind.Docx, CancellationToken.None).RawText;
 
     private static readonly XNamespace WordMain = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -709,7 +827,12 @@ public class PdfPigOpenXmlCvTextExtractorTests
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
         "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
         "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" " +
-        "xmlns:v=\"urn:schemas-microsoft-com:vml\">" +
+        "xmlns:v=\"urn:schemas-microsoft-com:vml\" " +
+        "xmlns:o=\"urn:schemas-microsoft-com:office:office\" " +
+        "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" " +
+        "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" " +
+        "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" " +
+        "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
         "<w:body>" + body + "</w:body></w:document>";
 
     // Builds a minimal, VALID OPC/DOCX package (the three required parts) with a

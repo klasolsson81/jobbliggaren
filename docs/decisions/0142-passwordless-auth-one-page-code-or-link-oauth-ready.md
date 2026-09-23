@@ -522,15 +522,17 @@ that; it is a #734 launch condition, written into #734's table (row 7, 2026-09-2
 
 #### Amendment 2026-09-22 (#1741, part 4a) — the CV half, and how 4a ships
 
-4a ships in seven PRs (`senior-cto-advisor`, #1741's form round; the ruling is #1741 comment 5783718789, and its
-follow-ups added DX and DX2):
+4a ships in eight PRs (`senior-cto-advisor`, #1741's form round; the ruling is #1741 comment 5783718789, and its
+follow-ups added DX and DX2; PR B's form round added B0, `docs/reviews/2026-09-23-1741-b-form-cto.md` Q6/Q8):
 **A0** the frontend's read schema accepts an absent name, merged first so that a revert of the writer cannot
 leave the CVs it wrote unreadable; **V1** the preamble's hard cut never ends inside a digit run; **DX** a DOCX line
 break ends a line and a tab separates its neighbours, a Major security-auditor found in V1's review, merged
 before A; **DX2** (#1801) a DOCX text box starts its own line and an inline object separates its neighbours, a
 Major security-auditor found in DX's review, merged before A; **A** the CV half
 below, merged once V1 is merged and A0 is live; **RP** the verbatim period strings join the personnummer guard's
-field list, independent of the rest; **B** the account half, after 3b (#1740). No part of 4a carries a migration:
+field list, independent of the rest; **B0** the frontend's profile read tolerates an absent name, merged and live
+before B, since the release builds each image in its own cell and the box can run a new api beside an old web;
+**B** the account half, after 3b (#1740). No part of 4a carries a migration:
 the CV content is the encrypted `content_enc` shadow, and `display_name` has been nullable since 1c's second PR.
 
 The CV half, as delivered:
@@ -1576,8 +1578,9 @@ the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs 
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes (PR 4; the mailed link and `/bekrafta-epost` retired) → **3b** #1740 in two PRs, the order binding
 (Amendment 2026-09-22 (5)): Mina sidor replaces Inställningar, then re-authentication by code for delete and
 change-email →
-**4a** #1741 in seven PRs (Amendment 2026-09-22, #1741): A0 the tolerant reader → V1 the preamble cut → DX and DX2
-the DOCX line model → A `Resume.FullName` optional, the CV half → B the account half, after 3b; RP beside them → **4b** #1742
+**4a** #1741 in eight PRs (Amendment 2026-09-22, #1741): A0 the tolerant reader → V1 the preamble cut → DX and DX2
+the DOCX line model → A `Resume.FullName` optional, the CV half → B0 the profile read's tolerant reader → B the
+account half, after 3b; RP beside them → **4b** #1742
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

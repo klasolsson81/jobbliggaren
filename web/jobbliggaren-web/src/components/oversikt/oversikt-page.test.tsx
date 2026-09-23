@@ -42,7 +42,6 @@ const COPY = messages.oversikt;
 
 const baseProfile: JobSeekerProfileDto = {
   id: "22222222-2222-2222-2222-222222222222",
-  displayName: "Anna",
   language: "sv",
   backgroundMatchNotificationsEnabled: false,
   digestCadence: "Weekly",
@@ -94,8 +93,6 @@ function renderOversikt(
   };
   return render(
     <OversiktPage
-      email="anna@example.se"
-      displayName="Anna"
       profile={profile}
       pipeline={pipeline}
       savedJobAds={savedJobAds}
@@ -212,6 +209,20 @@ function text(el: Element | null): string {
 }
 
 beforeEach(() => window.localStorage.clear());
+
+describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
+  it("bär bara titel och ingress: ingen kicker, alltså varken ett namn eller en adress", () => {
+    // The kicker said "Inloggad som" + the name or the address's local part. The account has no
+    // name, and the shell's Mina sidor popup is where the address is shown.
+    const { container } = renderOversikt(true);
+    const hero = container.querySelector<HTMLElement>(".jp-pagehero");
+    expect(hero).not.toBeNull();
+    expect(hero!.querySelector(".jp-pagehero__kicker")).toBeNull();
+    const main = hero!.querySelector<HTMLElement>(".jp-pagehero__main")!;
+    expect([...main.children].map((c) => c.tagName)).toEqual(["H1", "P"]);
+    expect(main.textContent).toBe(COPY.hero.title + COPY.hero.lede);
+  });
+});
 
 describe("OversiktPage — kompositionen (ADR 0140)", () => {
   it("renderar sex kort i rutnätet, i handoffens ordning, var och ett namngivet ur katalogen", () => {

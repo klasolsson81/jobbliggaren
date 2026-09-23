@@ -46,7 +46,6 @@ describe("currentUserSchema", () => {
 describe("jobSeekerProfileSchema", () => {
   const valid = {
     id: "22222222-2222-2222-2222-222222222222",
-    displayName: "Anna",
     language: "sv",
     // ADR 0080 Vag 4 PR-6 — background-match notification consent (opt-in,
     // default OFF) + digest cadence (wire enum `Daily`/`Weekly`).
@@ -73,27 +72,13 @@ describe("jobSeekerProfileSchema", () => {
     expect(jobSeekerProfileSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("accepts a profile with no display name", () => {
-    const result = jobSeekerProfileSchema.safeParse({ ...valid, displayName: null });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.displayName).toBeNull();
-  });
-
-  it("accepts a profile without the display-name key", () => {
-    // #1741 PR B drops the key from the backend. Two images can run skewed on the box
-    // (independent build cells), so this reader has to be live before the key goes.
-    const withoutName: Partial<typeof valid> = { ...valid };
-    delete withoutName.displayName;
-    const result = jobSeekerProfileSchema.safeParse(withoutName);
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.displayName).toBeUndefined();
-  });
-
-  it("accepts a profile that still carries a display name", () => {
-    // The other direction of the same skew: a backend that has not yet dropped the key.
-    const result = jobSeekerProfileSchema.safeParse({ ...valid, displayName: "Anna" });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.displayName).toBe("Anna");
+  it("accepts a payload from a backend that still sends a display name, and drops it", () => {
+    // The other direction of the skew B0 (#1816) made safe: an api older than #1741 PR B.
+    for (const displayName of ["Anna", null]) {
+      const result = jobSeekerProfileSchema.safeParse({ ...valid, displayName });
+      expect(result.success).toBe(true);
+      if (result.success) expect("displayName" in result.data).toBe(false);
+    }
   });
 
   it("accepts a stated experienceYears integer", () => {

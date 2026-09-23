@@ -184,6 +184,30 @@ WHERE u.id IS NULL;
 
 ## 4. Manuella åtgärder utanför appen
 
+### Redis operator preflight
+
+Run the Redis steps on the deployment host through
+`sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh`.
+They require a separately approved operation and the existing verified credential
+set. The helper authenticates as `operator-persistent` in DB 0, using the running
+persistent Redis container's network namespace and the host-only password on stdin.
+Do not substitute anonymous commands or mount that password into a service.
+
+Before `mark-deleted`, establish the effective API
+`SessionStoreOptions.DeletionTombstoneTtl`, including all configuration overrides.
+Record the reviewed configuration revision and confirmed positive whole-second
+duration in the existing private operation record. Set `TTL_SECONDS` to that
+confirmed duration. The source default example is `2592000` seconds; it does not
+prove the deployed value. The helper has no default and does not verify the
+configuration match. If the duration cannot be established, stop the operation.
+
+Pass the verified account UUID as `USER_ID`; the helper converts it to lowercase.
+For `delete-known-session`, `SESSION_KEY` must be an exact
+`jobbliggaren:session:<SHA-256 base64url hash>` key already associated with the
+verified account in the private operation evidence. Never pass a raw cookie or
+session token. The helper validates key shape, not account ownership; it neither
+scans keys nor reads the session index or session contents.
+
 ### 4.1 Restore inom 30-dagars-fönstret
 
 **Fas 6 admin-yta saknas tills vidare** — restore sker manuellt via SQL.
@@ -250,7 +274,7 @@ planterade en `jobbliggaren:user:<userId>:deleted`-tombstone som `GetAsync`
 fail-closed-avvisar ALLA sessioner mot (inklusive färska sessioner efter en ny
 login — `GetAsync` kollar tombstonen, `CreateAsync` gör det inte). Rensa den efter
 SQL-restore, annars kan den återställda användaren inte hålla sig inloggad förrän
-tombstonen självdör (≤30 dagar): `DEL jobbliggaren:user:<userId>:deleted`. En
+tombstonen självdör (≤30 dagar): `sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh clear-deleted "$USER_ID"`. En
 framtida `AccountRestored`-command (Fas 6) MÅSTE anropa motsvarande rensning.
 
 **Audit-trail:** restore-händelsen skrivs INTE automatiskt (saknas
@@ -349,13 +373,13 @@ ett ställe (kontoraderingen i §2.1) — `AccountHardDeleter` planterar ingen. 
 en **levande session kvar**. Vet du inte hur raden uppstod, plantera tombsten före Steg 2. TTL:en ska
 matcha `SessionStoreOptions.DeletionTombstoneTtl`, som är sanningskällan (30 dagar som standard):
 
-```
-SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
-EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
+```bash
+sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"
 ```
 
-⚠ Redis-nycklar är skiftlägeskänsliga och koden bygger nyckeln ur en GUID i gemener. En versaliserad
-`<userId>` planterar en nyckel ingen läser, utan felmeddelande — därav `EXISTS`-raden.
+Require the helper's verified-presence receipt before proceeding.
+
+The helper builds the lowercase account key and requires `EXISTS` to return `1` after `SET`.
 
 ---
 
@@ -396,10 +420,11 @@ får samma. `HardDeleteAccountsJob` raderar kontot vid första passet efter fön
 **Steg 3 — plantera tombsten** för det `user_id` som steg 2 returnerade, efter steg 2 som API:t gör
 efter sin commit (§2.1). Den stänger läs-vägen för varje session kontot har kvar:
 
+```bash
+sudo bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-account.sh mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"
 ```
-docker exec jobbliggaren-redis redis-cli SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
-docker exec jobbliggaren-redis redis-cli EXISTS jobbliggaren:user:<userId>:deleted   # ska ge 1
-```
+
+Require the verified-presence receipt before confirming this step complete.
 
 **Svaret och posten.** Svara den registrerade att kontot är raderat och att det kan återställas i 30
 dagar genom att skriva till kontakt@ (Art. 12.3). SQL:en skriver ingen `Account.Deleted`-rad;
@@ -429,10 +454,12 @@ begäransposten hör hemma i den personuppgiftsansvariges ärendeakt, samma hem 
 
 **Åtgärd:**
 1. Verifiera DB-state (§3.3) — JobSeeker.DeletedAt ska vara satt
-2. Manuellt rensa Redis: `DEL jobbliggaren:user:<userId>:sessions` + iterera
-   och radera individuella `jobbliggaren:session:*`-keys (om kända)
-3. Om Redis var helt nere vid delete (tombstonen planterades aldrig): plantera den
-   manuellt så läs-vägen stängs — `SET jobbliggaren:user:<userId>:deleted 1 EX 2592000` (30 dagar)
+2. Through the host helper above, run `delete-session-index "$USER_ID"`, then
+   `delete-known-session "$USER_ID" --session-key "$SESSION_KEY"` for each exact
+   session key already associated with the verified account. Do not scan or use wildcards.
+3. If Redis was unavailable for both calls and the marker is absent, run
+   `mark-deleted "$USER_ID" --ttl-seconds "$TTL_SECONDS"` through the same helper.
+   Require its verified-presence receipt; an error does not complete this step.
 4. Eller acceptera och vänta på TTL — säkerhetsrisken är låg eftersom
    aktiv session bara har user:s egna data och D5 blockerar ny inloggning
 
@@ -441,9 +468,11 @@ begäransposten hör hemma i den personuppgiftsansvariges ärendeakt, samma hem 
 **Symptom:** Hangfire-dashboard visar "Failed". Vissa konton hard-deletade,
 andra kvar.
 
-**Orsak:** Per-konto exception (DB-lock, FK-violation, etc.) bubblar och
-avbryter loopen för alla efterföljande konton (TD-25 — per-konto try/catch
-saknas).
+`HardDeleteAccountsJob` catches and logs per-account failures and continues the loop
+(EventId 2502). Investigate the failed account and the final failed count; an
+account failure alone does not fail the entire job. Startup/orphan-cleanup failures
+and cancellation can still end the run. `HardDeleteAccountsJobTests` pins the
+per-account continuation behavior.
 
 **Åtgärd:**
 1. Hangfire retry:ar automatiskt (default 10 retries)
@@ -496,11 +525,11 @@ ingripande krävs.
 ## 7. Tech-debt-länkar
 
 - **TD-16** (audit-retention + Art. 17) — del 1 stängd via STEG 10a, del 2 stängd via STEG 10b
-- **TD-21** — rate-limiting på DELETE /me + auth-endpoints (innan prod-deploy)
+- Rate limiting is implemented in `RateLimitingExtensions` and covered by `AuthWriteRateLimitTests` (historical TD-21).
 - **TD-22** → [#1170](https://github.com/klasolsson81/jobbliggaren/issues/1170) — app-logg-retention
-- **TD-23** — Redis MULTI/EXEC för CreateAsync atomicitet (Fas 2)
-- **TD-24** — DeleteAccountCommand cascade-paginering (Fas 4)
-- **TD-25** — HardDeleteAccountsJob per-konto try/catch (opportunistiskt)
+- [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — parked Redis session atomicity work; re-measure before pickup.
+- [#1172](https://github.com/klasolsson81/jobbliggaren/issues/1172) — parked account-deletion cascade pagination; re-measure before pickup.
+- Per-account failure isolation is implemented in `HardDeleteAccountsJob` and covered by `HardDeleteAccountsJobTests` (historical TD-25).
 
 ---
 

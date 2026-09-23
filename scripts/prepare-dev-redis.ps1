@@ -27,9 +27,9 @@ foreach ($store in @('persistent', 'volatile')) {
         $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($passwords[$role]))).ToLowerInvariant()
         $policy = $policy.Replace('{{' + $role.ToUpperInvariant().Replace('-', '_') + '_SHA256}}', $hash)
     }
-    $operator = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '../deploy/redis/operator.acl.template'))
+    $operator = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "../deploy/redis/operator-$store.acl.template"))
     $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($passwords["operator-$store"]))).ToLowerInvariant()
-    $operator = $operator.Replace('{{STORE}}', $store).Replace('{{OPERATOR_SHA256}}', $hash)
+    $operator = $operator.Replace('{{OPERATOR_SHA256}}', $hash)
     $policy = ($policy.TrimEnd() + "`n" + $operator.TrimEnd() + "`n").Replace("`r`n", "`n")
     if ($policy.Contains('{{') -or $policy.Contains('}}')) { throw 'Unresolved Redis policy placeholder.' }
     Write-PrivateFile "$store/users.acl" $policy

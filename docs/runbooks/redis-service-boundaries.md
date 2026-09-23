@@ -82,7 +82,8 @@ boundary.
 | API volatile readiness / API volatile | none | PING through VolatileRedisConnection |
 | Worker startup + socket readiness / Worker persistent | none | PING on the publishing multiplexer |
 | Container health / health-persistent + health-volatile | none | PING |
-| Host operator / operator-persistent + operator-volatile | no initial key grant | INFO, CONFIG GET, ACL LIST/DRYRUN/SETUSER/DELUSER, CLIENT KILL |
+| Host operator / operator-persistent + operator-volatile | administrative inspection and identity maintenance | INFO, CONFIG GET, ACL LIST/DRYRUN/SETUSER/DELUSER, CLIENT KILL |
+| Account maintenance / operator-persistent only | `user:*:deleted`; `user:*:sessions`, `session:*` | tombstone SET/EXISTS/DEL; session index and exact session DEL |
 
 The three persistent cooldown scopes are `resend-confirm`, `account-exists`
 and `password-reset`.
@@ -132,8 +133,8 @@ persistent connection secrets. The existing directory shared by API and Worker
 must not contain API Redis credentials. Web and Caddy receive no Redis secrets.
 Redis-only mounts contain the effective ACL and that store's health credential.
 The fixture's administrative identity is appended only in test memory and never
-appears in a deployment template. Operator credentials are independently managed. The operator template grants
-administrative ACL mutation: it can grant itself data access. It is host-only,
+appears in a deployment template. Operator credentials are independently managed. The store-specific operator templates grant
+administrative ACL mutation: each operator can grant itself data access. It is host-only,
 not a read-only identity. Never mount its password into an application or Redis
 service. After a runtime revocation, update the reviewed policy file as well;
 otherwise a restart would restore the old grant.
@@ -342,7 +343,7 @@ health identities cannot run INFO or CONFIG. Read the operator password from its
 host-only file through protected stdin to a network-scoped ephemeral Redis CLI;
 never expose it in `docker exec` arguments, Docker environment or public reports.
 Compare the effective `ACL LIST` against the rendered policy before traffic,
-then perform the dry-runs below and the real application flow checks. PING alone
+then perform the dry-runs above and the real application flow checks. PING alone
 does not attest authorization.
 
 The integration intentionally refuses the previous anonymous Compose connection
@@ -350,3 +351,23 @@ configuration. Before publishing a release that hourly reconciliation can select
 record the new-image/previous-Compose result and obtain a separate GO for the
 reviewed image/configuration pin and cutover order. Keep #1759 open through the
 live acceptance and the coordinated #1760/#1767 checks.
+
+
+## Account maintenance consumer
+
+`jobbliggaren-redis-account.sh` owns the fixed host operations `mark-deleted`,
+`check-deleted`, `clear-deleted`, `delete-session-index` and `delete-known-session`.
+The persistent operator template includes separate tombstone and delete-only session
+selectors; the volatile operator has no initial data grants. Provisioning, local
+credential generation and the isolated fixture render the same store-specific files.
+Unknown stores and unresolved placeholders are refused.
+
+[Account deletion](account-deletion.md#redis-operator-preflight) owns identity
+verification, SQL ordering, the explicit effective TTL preflight and the private
+operation record. The helper constructs lowercase account keys and accepts only an
+exact canonical hashed session key already tied to that account by the operator.
+It cannot infer ownership from a hash. It does not accept wildcard operations,
+read session contents or discover keys. Its CLI runs ephemerally in the inspected
+persistent Redis container's network namespace, receives the password only on
+stdin, and rejects failed authentication or unexpected responses. No live command
+is authorized by adding this consumer contract.

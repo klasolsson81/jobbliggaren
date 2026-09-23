@@ -34,8 +34,13 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
     internal ConnectionMultiplexer PersistentAdmin { get; private set; } = null!;
     internal ConnectionMultiplexer VolatileAdmin { get; private set; } = null!;
 
-    public RedisBoundaryFixture()
+    private readonly string _image;
+
+    public RedisBoundaryFixture() : this(Image) { }
+
+    internal RedisBoundaryFixture(string image)
     {
+        _image = image;
         foreach (var user in new[] { ApiPersistent, WorkerPersistent, ApiVolatile, Admin, "health-persistent", "health-volatile", "operator-persistent", "operator-volatile" })
             _passwords.Add(user, NewPassword());
 
@@ -114,15 +119,19 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
 
     internal string RenderPolicy(string kind)
     {
+        if (kind is not ("persistent" or "volatile"))
+            throw new ArgumentOutOfRangeException(nameof(kind));
         var policy = Resource(kind + ".acl.template");
         foreach (var (user, password) in _passwords)
             policy = policy.Replace("{{" + user.ToUpperInvariant().Replace('-', '_') + "_SHA256}}", Hash(password), StringComparison.Ordinal);
         if (policy.Contains("{{", StringComparison.Ordinal))
             throw new InvalidOperationException("Unresolved ACL credential placeholder.");
 
-        policy += "\n" + Resource("operator.acl.template")
-            .Replace("{{STORE}}", kind, StringComparison.Ordinal)
+        policy += "\n" + Resource("operator-" + kind + ".acl.template")
             .Replace("{{OPERATOR_SHA256}}", Hash(_passwords["operator-" + kind]), StringComparison.Ordinal);
+
+        if (policy.Contains("{{", StringComparison.Ordinal) || policy.Contains("}}", StringComparison.Ordinal))
+            throw new InvalidOperationException("Unresolved operator ACL credential placeholder.");
 
         // The control connection exists only in this fixture, never in the deployment policy.
         policy += $"\nuser {Admin} reset on #{Hash(_passwords[Admin])} ~* &* +@all\n";
@@ -131,7 +140,7 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
 
     private IContainer BuildStore(string kind, bool persisted)
     {
-        return new ContainerBuilder(Image)
+        return new ContainerBuilder(_image)
             .WithNetwork(persisted ? _persistentNetwork : _volatileNetwork)
             .WithPortBinding(6379, true)
             .WithTmpfsMount("/data")

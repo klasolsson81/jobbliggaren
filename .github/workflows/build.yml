@@ -482,8 +482,16 @@ jobs:
       - name: Resolved Redis Compose contracts
         run: python3 .github/scripts/redis-compose-contract.test.py
 
-      - name: Redis secret provisioning (isolated Linux tmpfs)
-        run: docker run --rm --network none --tmpfs /run -v "$GITHUB_WORKSPACE:/repo:ro" python:3.12-slim python /repo/deploy/systemd/jobbliggaren-redis-secrets.test.py
+      - name: Development Redis policy parity
+        shell: pwsh
+        run: ./scripts/verify-dev-redis-policy.ps1
+
+      - name: Redis provisioning and account CLI contracts (isolated Linux tmpfs)
+        run: |
+          for image in redis:8.6-alpine redis:8.10-alpine; do
+            docker run --rm --tmpfs /run -v "$GITHUB_WORKSPACE:/repo:ro" "$image" sh -c \
+              'apk add --no-cache bash python3 coreutils util-linux >/dev/null && python3 /repo/deploy/systemd/jobbliggaren-redis-account.test.py'
+          done
 
       - name: jobbliggaren-backup (fixturer)
         run: bash deploy/systemd/jobbliggaren-backup.test.sh

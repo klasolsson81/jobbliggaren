@@ -1,1 +1,0 @@
-user operator-{{STORE}} reset on #{{OPERATOR_SHA256}} resetchannels -@all +ping +echo +client|setname +client|setinfo +quit +info +config|get +acl|list +acl|dryrun +acl|setuser +acl|deluser +client|kill

@@ -23,6 +23,7 @@ fi
 valid_password() { [[ $1 =~ ^[A-Fa-f0-9]{64}$ ]]; }
 render_policy() {
   local store=$1 rendered placeholder digest user
+  [[ $store == persistent || $store == volatile ]] || fail 'unknown policy store'
   rendered=$(cat "$POLICY/$store.acl.template")
   for user in "${USERS[@]}"; do
     placeholder=${user^^}; placeholder=${placeholder//-/_}
@@ -32,8 +33,7 @@ render_policy() {
   [[ "$rendered" != *'{{'* && "$rendered" != *'}}'* ]] || fail 'ACL has an unresolved placeholder'
   printf '%s\n' "$rendered"
   digest=$(printf '%s' "${passwords[operator-$store]}" | sha256sum); digest=${digest%% *}
-  rendered=$(cat "$POLICY/operator.acl.template")
-  rendered=${rendered//\{\{STORE\}\}/$store}
+  rendered=$(cat "$POLICY/operator-$store.acl.template")
   rendered=${rendered//\{\{OPERATOR_SHA256\}\}/$digest}
   [[ "$rendered" != *'{{'* && "$rendered" != *'}}'* ]] || fail 'operator ACL has an unresolved placeholder'
   printf '%s\n' "$rendered"

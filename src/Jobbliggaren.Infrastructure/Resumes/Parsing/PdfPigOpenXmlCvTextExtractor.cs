@@ -130,7 +130,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     string.Empty,
                     document.NumberOfPages > 0
                         ? CvExtractionStatus.NoTextLayer
-                        : CvExtractionStatus.Empty, string.Empty);
+                        : CvExtractionStatus.Empty, AuxiliaryText: string.Empty);
             }
 
             return new CvExtractionResult(text, CvExtractionStatus.Extracted, string.Empty);
@@ -149,12 +149,28 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         }
     }
 
-    // #1810: one budget for the bytes every part of a DOCX inflates, so the number of parts cannot multiply
-    // MaxDecompressedMainPartBytes. The main part is read first and may use all of it.
-    private const long MaxDecompressedDocumentBytes = 16L * 1024 * 1024;
+    // #1810: one budget for the bytes of every part this extractor streams, so the number of parts cannot
+    // multiply MaxDecompressedMainPartBytes. The main part is read first and may use all of it.
+    private const long MaxDecompressedDocumentBytes = MaxDecompressedMainPartBytes;
 
     // #1810: ten sections with six header and footer variants each, plus footnotes, endnotes and comments, is 63.
     private const int MaxOtherStories = 64;
+
+    // #1810: a bound on the relationship elements read to list the other stories, whatever their type, so a main
+    // part related to many parts costs a fixed amount to list.
+    private const int MaxRelationshipsScanned = 1024;
+
+    private const string PackageRelationshipsNamespace = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+    // #1810: the transitional relationship types of Word's stories outside the main one.
+    private static readonly HashSet<string> OtherStoryRelationshipTypes = new(StringComparer.Ordinal)
+    {
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header",
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes",
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes",
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+    };
 
     private static CvExtractionResult ExtractDocx(ReadOnlyMemory<byte> file, CancellationToken cancellationToken)
     {
@@ -176,8 +192,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             // buffering is not contractually lazy (dotnet/runtime #23750) and could
             // materialize a crafted oversized part before any cap applies. We read only the
             // Uri here and stream the bytes ourselves below.
-            string mainPartPath;
-            IReadOnlyList<string> otherStoryPaths;
+            Uri mainPartUri;
             using (var packageStream = new MemoryStream(bytes, writable: false))
             using (var document = WordprocessingDocument.Open(packageStream, isEditable: false))
             {
@@ -185,8 +200,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 if (mainPart is null)
                     return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
-                mainPartPath = EntryName(mainPart);
-                otherStoryPaths = OtherStoryPaths(mainPart, mainPartPath);
+                mainPartUri = mainPart.Uri;
             }
 
             // #272 SEC-1: stream the main part's bytes directly via ZipArchive in READ mode —
@@ -197,7 +211,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             // declared-size guard above.
             using var zipStream = new MemoryStream(bytes, writable: false);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
-            var entry = archive.GetEntry(mainPartPath);
+            var entry = archive.GetEntry(EntryName(mainPartUri));
             if (entry is null)
                 return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
@@ -210,7 +224,8 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 ReadStory(reader, mainStory, cancellationToken);
             }
 
-            return Finalize(mainStory, ReadOtherStories(archive, otherStoryPaths, budget, cancellationToken));
+            var otherStories = OtherStories(archive, mainPartUri, entry, budget, cancellationToken);
+            return Finalize(mainStory, ReadOtherStories(otherStories, budget, cancellationToken));
         }
         catch (OperationCanceledException)
         {
@@ -225,41 +240,75 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         }
     }
 
-    // #1810: Word's stories outside the main one, headers and footers first. Only each part's Uri is read, as for
-    // the main part. A package whose parts cannot be listed adds no story and keeps its main text.
-    private static IReadOnlyList<string> OtherStoryPaths(MainDocumentPart mainPart, string mainPartPath)
+    // #1810: Word's stories outside the main one, in the order the main part's relationships list them. The
+    // relationship part is read as a story is, after the main story and under the same budget, and never through the
+    // SDK, whose first access to a part collection loads every part the main part relates to. A listing that fails
+    // adds no story and keeps the main text.
+    private static List<ZipArchiveEntry> OtherStories(
+        ZipArchive archive, Uri mainPartUri, ZipArchiveEntry mainEntry, ByteBudget budget, CancellationToken cancellationToken)
     {
+        var stories = new List<ZipArchiveEntry>();
         try
         {
-            IEnumerable<OpenXmlPart?> parts =
-            [
-                .. mainPart.HeaderParts,
-                .. mainPart.FooterParts,
-                mainPart.FootnotesPart,
-                mainPart.EndnotesPart,
-                mainPart.WordprocessingCommentsPart,
-            ];
+            var relationships = archive.GetEntry(EntryName(System.IO.Packaging.PackUriHelper.GetRelationshipPartUri(mainPartUri)));
+            if (relationships is null)
+                return stories;
 
-            return [.. parts
-                .OfType<OpenXmlPart>()
-                .Select(EntryName)
-                .Where(path => !path.Equals(mainPartPath, StringComparison.OrdinalIgnoreCase))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(MaxOtherStories)];
+            using var partStream = relationships.Open();
+            using var cappedStream = new ByteCappedReadStream(partStream, budget);
+            using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
+            var scanned = 0;
+            while (stories.Count < MaxOtherStories && reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.NodeType != XmlNodeType.Element || reader.LocalName != "Relationship"
+                    || reader.NamespaceURI != PackageRelationshipsNamespace)
+                    continue;
+
+                if (++scanned > MaxRelationshipsScanned)
+                    break;
+
+                var story = OtherStory(archive, mainPartUri, reader);
+                if (story is not null && story != mainEntry && !stories.Contains(story))
+                    stories.Add(story);
+            }
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            return [];
+            stories.Clear();
+        }
+
+        return stories;
+    }
+
+    // The part a story relationship targets: null for any other relationship, and for a target that cannot be
+    // resolved or that the package does not hold, which skips only its own relationship.
+    private static ZipArchiveEntry? OtherStory(ZipArchive archive, Uri mainPartUri, XmlReader relationship)
+    {
+        if (!OtherStoryRelationshipTypes.Contains(relationship.GetAttribute("Type") ?? string.Empty)
+            || relationship.GetAttribute("TargetMode") == "External"
+            || relationship.GetAttribute("Target") is not { Length: > 0 } target)
+            return null;
+
+        try
+        {
+            var partUri = System.IO.Packaging.PackUriHelper.ResolvePartUri(
+                mainPartUri, new Uri(target, UriKind.RelativeOrAbsolute));
+            return archive.GetEntry(EntryName(partUri));
+        }
+        catch (Exception ex) when (ex is ArgumentException or UriFormatException)
+        {
+            return null;
         }
     }
 
-    // #1810: the other stories are read for the personnummer scan alone, under the byte budget the main part left
-    // and a character cap of their own. A story the reader rejects adds nothing and costs the main text nothing.
+    // #1810: the other stories are read for the personnummer scan alone, under what is left of the byte budget and a
+    // character cap of their own. A story the reader rejects adds nothing and costs the main text nothing.
     private static StringBuilder ReadOtherStories(
-        ZipArchive archive, IReadOnlyList<string> paths, ByteBudget budget, CancellationToken cancellationToken)
+        IReadOnlyList<ZipArchiveEntry> stories, ByteBudget budget, CancellationToken cancellationToken)
     {
         var builder = new StringBuilder();
-        foreach (var path in paths)
+        foreach (var story in stories)
         {
             if (builder.Length >= MaxOutputChars)
                 break;
@@ -267,12 +316,8 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             var start = builder.Length;
             try
             {
-                var entry = archive.GetEntry(path);
-                if (entry is null)
-                    continue;
-
                 StartOwnLine(builder);
-                using var partStream = entry.Open();
+                using var partStream = story.Open();
                 using var cappedStream = new ByteCappedReadStream(partStream, budget);
                 using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
                 ReadStory(reader, builder, cancellationToken);
@@ -408,8 +453,8 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             builder.Append('\n');
     }
 
-    private static string EntryName(OpenXmlPart part) =>
-        Uri.UnescapeDataString(part.Uri.OriginalString).TrimStart('/');
+    private static string EntryName(Uri partUri) =>
+        Uri.UnescapeDataString(partUri.OriginalString).TrimStart('/');
 
     // One space between neighbours, never a second one and never at the start of a line.
     private static void AppendSeparator(StringBuilder builder)
@@ -473,7 +518,8 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             .Trim();
     }
 
-    // #1810: what all the parts of one document may inflate together. A part that fails is still charged.
+    // #1810: what the parts this extractor streams from one document may inflate together. A part that fails
+    // is still charged.
     private sealed class ByteBudget(long bytes)
     {
         private long _remaining = bytes;

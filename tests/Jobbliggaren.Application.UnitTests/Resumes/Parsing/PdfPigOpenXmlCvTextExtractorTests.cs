@@ -804,7 +804,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [Fact]
     public void Extract_DocxThreeHeaderVariants_AreEachRead()
     {
-        // The section references them as Word writes them: default, first and even.
         var result = ExtractStories(AnnaBody,
             DocxStoryFixture.Paragraph("header", "Kontakt"),
             DocxStoryFixture.Paragraph("header", "Utvecklare"),
@@ -815,16 +814,144 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
-    public void Extract_DocxOtherStories_StartOnALineOfTheirOwn()
+    public void Extract_DocxOtherStories_StartOnALineAfterTheMainText()
     {
-        // The main text and the footer end in a phone number's digits, and the story after each starts with the number.
+        // The main text ends in a phone number's digits, and the header starts with the number.
         var result = ExtractStories("<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r></w:p>",
-            DocxStoryFixture.Paragraph("header", "811218-9876"),
-            DocxStoryFixture.Paragraph("footer", "Tel 070-12 34 567"),
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.ScanText.ShouldBe("Tel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxStoryEndingOutsideAParagraph_StillEndsItsLine()
+    {
+        // #1806's form: run content outside a paragraph, the one way a story's text ends without a line end.
+        var result = ExtractStories(AnnaBody,
+            DocxStoryFixture.Part("footer",
+                "<w:ins w:id=\"1\" w:author=\"a\"><w:r><w:t>Tel 070-12 34 567</w:t></w:r></w:ins>"),
             DocxStoryFixture.Paragraph("footnote", "811218-9876"));
 
-        result.ScanText.ShouldBe("Tel 070-12 34 567\n811218-9876\nTel 070-12 34 567\n811218-9876");
-        FlagCount(result).ShouldBe(2);
+        result.AuxiliaryText.ShouldBe("Tel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMainTextAtTheCharacterCap_StillScansTheOtherStories()
+    {
+        var result = ExtractStories("<w:p><w:r><w:t>" + new string('A', 1_000_001) + "</w:t></w:r></w:p>",
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.RawText.Length.ShouldBe(1_000_000);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxHeaderWithTwoRelationships_IsReadOnce()
+    {
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [("rId1", "header", "header1.xml"), ("rId2", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipsThatResolveToNoPart_SkipOnlyThemselves()
+    {
+        // A part the package does not hold, and an absolute target, which is no part at all.
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [("rId1", "header", "header9.xml"), ("rId2", "header", "https://example.se/header.xml"),
+                ("rId3", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxExternalStoryRelationship_IsNeverRead()
+    {
+        // The target names a part the package holds, which an external relationship must never reach.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\" TargetMode=\"External\"/>");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody, relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxStoryRelationshipToTheMainPart_ReadsTheMainTextOnce()
+    {
+        var docx = BuildDocxWithRelationships(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", [("rId1", "header", "document.xml")]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipsTheReaderRejects_CostTheMainTextNothing()
+    {
+        // The package opens (the SDK reads this part without refusing the DTD); the hardened reader refuses it.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>")
+            .Replace("<Relationships ", "<!DOCTYPE Relationships [<!ENTITY x \"y\">]><Relationships ");
+        var docx = BuildDocxWithRelationshipsXml("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", relationships);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(1024, 1)]
+    [InlineData(1025, 0)]
+    public void Extract_DocxStoryRelationshipPastTheRelationshipBound_IsNotRead(int position, int flags)
+    {
+        var links = Enumerable.Range(1, position - 1).Select(i => ("rIdL" + i, "hyperlink", "https://example.se/" + i));
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [.. links, ("rIdH", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(flags);
+    }
+
+    [Fact]
+    public void Extract_DocxWithTenThousandHeaders_ListsAtMostSixtyFour_AndKeepsTheMainText()
+    {
+        var headers = Enumerable.Range(1, 10_000).ToArray();
+        var docx = BuildDocxWithRelationships(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>",
+            [.. headers.Select(i => ("rId" + i, "header", "header" + i + ".xml"))],
+            [.. headers.Select(i => ("header", "header" + i + ".xml",
+                DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>Rubrik " + i + "</w:t></w:r></w:p>")))]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.Split('\n').Length.ShouldBe(64);
+        FlagCount(result).ShouldBe(1);
     }
 
     [Fact]
@@ -839,7 +966,7 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
-    public void Extract_DocxStoryTheReaderRejects_CostsTheMainTextNothing()
+    public void Extract_DocxStoryTheReaderRejects_AddsNothing_AndTheNextStoryIsRead()
     {
         // The hardened reader refuses a DTD here as it does in the main part; the footer after it is still read.
         const string body = "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>";
@@ -855,18 +982,19 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
-    public void Extract_DocxStoriesPastTheByteBudget_CostTheMainTextNothing()
+    public void Extract_DocxPartsPastTheByteBudget_AddNothing_AndTheMainPartCountsTowardsIt()
     {
-        // Each header stays under the reader's character ceiling; together they pass the document's byte budget.
+        // Each part stays under the reader's character ceiling; the main part and four headers together pass the
+        // document's byte budget, so the fourth header is the one that does not fit.
         var filler = new string(' ', 3_900_000);
-        var headers = Enumerable.Range(1, 5)
+        var headers = Enumerable.Range(1, 4)
             .Select(i => DocxStoryFixture.Part("header", "<w:p><w:r><w:t>Rad " + i + "</w:t></w:r></w:p>" + filler))
             .ToArray();
 
-        var result = ExtractStories("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", headers);
+        var result = ExtractStories("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>" + filler, headers);
 
         result.RawText.ShouldBe("811218-9876");
-        result.AuxiliaryText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3", "Rad 4"], ignoreOrder: true);
+        result.AuxiliaryText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3"], ignoreOrder: true);
         FlagCount(result).ShouldBe(1);
     }
 
@@ -1005,6 +1133,59 @@ public class PdfPigOpenXmlCvTextExtractorTests
         "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" " +
         "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
         "<w:body>" + body + "</w:body></w:document>";
+
+    // A package whose main part's relationships are written by hand: the SDK refuses two relationships to one part,
+    // and a relationship to a part the package does not hold.
+    private static byte[] BuildDocxWithRelationships(
+        string bodyXml, (string Id, string Kind, string Target)[] relationships, params (string Kind, string Target, string Xml)[] parts) =>
+        BuildDocxWithRelationshipsXml(bodyXml,
+            RelationshipsXml(string.Concat(relationships.Select(r =>
+                "<Relationship Id=\"" + r.Id + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/" +
+                r.Kind + "\" Target=\"" + r.Target + "\"" + (r.Kind == "hyperlink" ? " TargetMode=\"External\"" : "") + "/>"))),
+            parts);
+
+    private static string RelationshipsXml(string elements) =>
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + elements + "</Relationships>";
+
+    private static byte[] BuildDocxWithRelationshipsXml(
+        string bodyXml, string documentRelationshipsXml, params (string Kind, string Target, string Xml)[] parts)
+    {
+        var overrides = string.Concat(parts.Select(part =>
+            "<Override PartName=\"/word/" + part.Target + "\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml." +
+            part.Kind + "+xml\"/>"));
+        var contentTypes =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+            "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+            overrides + "</Types>";
+        const string rootRelationships =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" " +
+            "Target=\"word/document.xml\"/></Relationships>";
+
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            Write(archive, "[Content_Types].xml", contentTypes);
+            Write(archive, "_rels/.rels", rootRelationships);
+            Write(archive, "word/_rels/document.xml.rels", documentRelationshipsXml);
+            Write(archive, "word/document.xml", DocumentXml(bodyXml));
+            foreach (var (_, target, xml) in parts)
+                Write(archive, "word/" + target, xml);
+        }
+
+        return ms.ToArray();
+
+        static void Write(ZipArchive archive, string name, string content)
+        {
+            using var stream = archive.CreateEntry(name).Open();
+            var bytes = Encoding.UTF8.GetBytes(content);
+            stream.Write(bytes, 0, bytes.Length);
+        }
+    }
 
     // Builds a minimal, VALID OPC/DOCX package (the three required parts) with a
     // caller-supplied word/document.xml — so a crafted document.xml (e.g. a DTD payload)

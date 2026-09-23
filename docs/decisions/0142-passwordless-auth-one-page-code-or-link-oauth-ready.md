@@ -1351,8 +1351,8 @@ three statements this part made false.
 
 #### Amendment 2026-09-22 (5) (#1740, part 3b, PR A) — Mina sidor replaces Inställningar, and the corrections above
 
-*Decided before code in one form round: `design-reviewer` and `security-auditor` in parallel, one scoped
-follow-up each, then `senior-cto-advisor` (`docs/reviews/2026-09-22-1740-form-{design,security,cto}.md`).* The
+*Decided before code in one form round: `design-reviewer` and `security-auditor` in parallel, then
+`senior-cto-advisor` (`docs/reviews/2026-09-22-1740-form-{design,security,cto}.md`).* The
 sentences in D7, this section and "Implementation status" that the round contradicted were corrected in place;
 this block records why. PR B adds its own block.
 
@@ -1408,7 +1408,7 @@ profile branch, and the branch's sentence takes the place of the cards that read
 branch for a missing profile: `getMyProfile` reads without `includeNotFound`, so the backend's 404 arrives as
 `error`, and the branch design gave copy for could never render (measured in the rendered round). It was
 deleted, per design's rule for an unreachable branch. For that 404 the error sentence advises a reload that
-cannot help. No account on the box lacks a profile (2 of 2, the reading above), and since part 2 no login
+cannot help. Since part 2 no login
 opens a session for one (`LoginProofOutcome`).
 
 **The 308s are permanent.** The notification mails' Art. 7(3) withdrawal link was `/installningar` until

@@ -1,7 +1,7 @@
 # ADR 0057 — Inställningar v3: route-rename `/mig` → `/installningar`, direct-apply-preferenser
 
 **Datum:** 2026-05-20
-**Status:** Accepted
+**Status:** Accepted (Beslut 1 superseded 2026-09-22 by ADR 0142, #1740)
 **Kontext:** F6 Prompt 2 (Inställningar-refactor till v3-design). HANDOVER-v3.md §7.6 + §0 punkt 6+7 är veto-status över alla tidigare ADRs.
 **Beslutsfattare:** Klas Olsson; CC implementation; senior-cto-advisor 2026-05-20 (4 multi-approach-val A/B/C — Klas accepterade CTO-rek A/B/B/B).
 **Relaterad:** ADR 0017 (frontend auth-pattern — middleware-protected prefixes), ADR 0020 (frontend DTO-validering), ADR 0030 (api result kind-union), ADR 0052 (designsystem v3), ADR 0054 (header-meny ersätter sidebar — user-menu placering), ADR 0056 (Landing v3-shell — föregångare i F6-batchen), HANDOVER-v3 §7.6, målbild `10-installningar-dark.png`

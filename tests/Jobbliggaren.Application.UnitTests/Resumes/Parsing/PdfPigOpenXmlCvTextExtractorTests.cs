@@ -1544,6 +1544,23 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RevisionText.Length.ShouldBe(1_000_000);
     }
 
+    public static TheoryData<string> InsertedTableParts() => ["row", "cell"];
+
+    [Theory]
+    [MemberData(nameof(InsertedTableParts))]
+    public void Extract_DocxInsertedTablePart_IsLeftOutOfTheRejectedReading(string part)
+    {
+        var content = Para(Kept("a"), Del(DelText("b")));
+        var row = part == "row"
+            ? "<w:tr><w:trPr>" + InsertedMark + "</w:trPr><w:tc>" + content + "</w:tc></w:tr>"
+            : "<w:tr><w:tc><w:tcPr><w:cellIns w:id=\"94\" w:author=\"Granskare\"/></w:tcPr>" + content + "</w:tc></w:tr>";
+
+        var result = ExtractStories("<w:tbl>" + row + "</w:tbl>");
+
+        result.RawText.ShouldBe("a");
+        result.RevisionText.ShouldBe("b");
+    }
+
     private static bool IsInline(string form) => form is "vml inline" or "drawing inline";
 
     // A text box holding one paragraph, as the run content of the paragraph that anchors it.

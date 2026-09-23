@@ -198,6 +198,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
 
             var builder = new StringBuilder();
             var insideText = false;
+            var insideTabStops = 0;
 
             while (reader.Read())
             {
@@ -235,6 +236,35 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     case XmlNodeType.EndElement
                         when reader.LocalName == "p" && reader.NamespaceURI == WordprocessingMainNamespace:
                         builder.Append('\n');
+                        break;
+
+                    // #1741: a line break of any type (Shift+Enter in Word) and a carriage return end a
+                    // line as a paragraph does.
+                    case XmlNodeType.Element
+                        when reader.LocalName is "br" or "cr" && reader.NamespaceURI == WordprocessingMainNamespace:
+                        builder.Append('\n');
+                        break;
+
+                    // <w:tabs> defines tab stops under the run tab's local name. The self-closing form has
+                    // no end element, so only the open form is counted.
+                    case XmlNodeType.Element
+                        when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace
+                            && !reader.IsEmptyElement:
+                        insideTabStops++;
+                        break;
+
+                    case XmlNodeType.EndElement
+                        when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace:
+                        insideTabStops--;
+                        break;
+
+                    // #1741: a tab, a positioned tab and a symbol separate their neighbours.
+                    case XmlNodeType.Element
+                        when reader.LocalName is "tab" or "ptab" or "sym"
+                            && reader.NamespaceURI == WordprocessingMainNamespace
+                            && insideTabStops == 0
+                            && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]):
+                        builder.Append(' ');
                         break;
                 }
 

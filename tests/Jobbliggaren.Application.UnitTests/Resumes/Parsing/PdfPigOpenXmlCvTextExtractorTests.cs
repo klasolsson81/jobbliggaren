@@ -4,6 +4,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Application.Resumes.Abstractions;
+using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Infrastructure.Resumes.Parsing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -501,6 +502,209 @@ public class PdfPigOpenXmlCvTextExtractorTests
         Should.Throw<OperationCanceledException>(
             () => _sut.Extract(bytes, CvFileKind.Docx, cts.Token));
     }
+
+    // #1741 — Word writes Shift+Enter as <w:br/> and a tab as <w:tab/> inside the run (ECMA-376
+    // §17.3.3.1, §17.3.3.32). A line break and a carriage return end a line as a paragraph does; a tab,
+    // a positioned tab and a symbol separate their neighbours with one space.
+    public static TheoryData<string> LineBreaks() => ["br", "br page", "br column", "cr"];
+
+    [Theory]
+    [MemberData(nameof(LineBreaks))]
+    public void Extract_DocxContactBlockWrittenWithLineBreaks_IsTheSameTextAsThreeParagraphs(string lineBreak)
+    {
+        var bytes = BuildDocxFromParagraphs(new Paragraph(new Run(
+            new Text("Anna Andersson"), RunElement(lineBreak),
+            new Text("811218-9876"), RunElement(lineBreak),
+            new Text("070-123 45 67"))));
+        var threeParagraphs = BuildDocx("Anna Andersson", "811218-9876", "070-123 45 67");
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe(
+            _sut.Extract(threeParagraphs, CvFileKind.Docx, CancellationToken.None).RawText);
+        FlagCount(result.RawText).ShouldBe(1);
+        PersonnummerRedactor.Redact(result.RawText).ShouldNotContain("811218-9876");
+    }
+
+    public static TheoryData<string> Separators() => ["tab", "ptab", "sym"];
+
+    [Theory]
+    [MemberData(nameof(Separators))]
+    public void Extract_DocxFieldsSeparatedInTheRun_AreSeparatedBySpaces(string separator)
+    {
+        var bytes = BuildDocxFromParagraphs(new Paragraph(new Run(
+            new Text("070-123 45 67"), RunElement(separator),
+            new Text("811218-9876"), RunElement(separator),
+            new Text("070-765 43 21"))));
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("070-123 45 67 811218-9876 070-765 43 21");
+        FlagCount(result.RawText).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxTabsInsideAPersonnummer_AreOneSpaceTheBridgeSpans()
+    {
+        var bytes = BuildDocxFromParagraphs(new Paragraph(new Run(
+            new Text("811218"), new TabChar(), new TabChar(), new TabChar(), new Text("9876"))));
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218 9876");
+        FlagCount(result.RawText).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxLineBreakInsideAPersonnummer_SplitsIt()
+    {
+        // The residual ADR 0134 D1 accepts for every line break in a CV, as at </w:p>.
+        var bytes = BuildDocxFromParagraphs(new Paragraph(new Run(
+            new Text("811218-"), new Break(), new Text("9876"))));
+
+        var result = _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-\n9876");
+        FlagCount(result.RawText).ShouldBe(0);
+    }
+
+    [Fact]
+    public void Extract_DocxTabAtTheStartOfALine_YieldsNothing()
+    {
+        var bytes = BuildDocxFromParagraphs(
+            new Paragraph(new Run(new TabChar(), new Text("Rad ett"))),
+            new Paragraph(new Run(new TabChar(), new Text("Rad två"))));
+
+        _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None).RawText.ShouldBe("Rad ett\nRad två");
+    }
+
+    [Fact]
+    public void Extract_DocxTabStopDefinitions_YieldNothing()
+    {
+        // <w:tabs> in the paragraph properties defines tab stops under the run tab's local name.
+        var bytes = BuildDocxFromParagraphs(
+            new Paragraph(new Run(new Text("Rad ett"))),
+            new Paragraph(
+                new ParagraphProperties(new Tabs(new TabStop { Val = TabStopValues.Left, Position = 4536 })),
+                new Run(new Text("Rad två"))));
+
+        _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None).RawText.ShouldBe("Rad ett\nRad två");
+    }
+
+    [Fact]
+    public void Extract_DocxEmptyTabStopList_LeavesTheRunTabAfterItASeparator()
+    {
+        // new Tabs() serialises as the self-closing <w:tabs/>, which has no end element.
+        var doc = DocumentXml(
+            "<w:p><w:pPr><w:tabs/></w:pPr>" +
+            "<w:r><w:t>070-123 45 67</w:t><w:tab/><w:t>811218-9876</w:t></w:r></w:p>");
+
+        var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("070-123 45 67 811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxBreakAndTabWithEndElements_YieldOneCharacterEach()
+    {
+        var doc = DocumentXml(
+            "<w:p><w:r><w:t>Rad ett</w:t><w:br></w:br><w:t>070-123 45 67</w:t>" +
+            "<w:tab></w:tab><w:t>811218-9876</w:t></w:r></w:p>");
+
+        var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Rad ett\n070-123 45 67 811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxBreakAndTabInAnotherNamespace_YieldNothing()
+    {
+        // DrawingML, the text language of shapes, has a br and a tab of its own.
+        var doc = DocumentXml("<w:p><w:r><w:t>Rad</w:t><a:br/><a:tab/><w:t>ett</w:t></w:r></w:p>");
+
+        var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Radett");
+    }
+
+    [Fact]
+    public void Extract_DocxTextBox_TabStopsYieldNothing_RunTabsYieldASpace()
+    {
+        // A text box is run content of the paragraph that anchors it, so its own paragraphs, tab-stop
+        // definitions included, sit inside an open <w:r>. This is its VML form.
+        var doc = DocumentXml(
+            "<w:p><w:r><w:t>Rad ett</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>" +
+            "<w:p><w:pPr><w:tabs><w:tab w:val=\"left\" w:pos=\"4536\"/></w:tabs></w:pPr>" +
+            "<w:r><w:t>Rad två</w:t><w:tab/><w:t>811218-9876</w:t></w:r></w:p>" +
+            "</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>");
+
+        var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Rad ett\nRad två 811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxTabStopDefinitionsInATextBoxAfterText_AddNothing()
+    {
+        // The one shape where text precedes a paragraph's properties in the output: a text box anchored
+        // after text in the same paragraph. The oracle is the same document without the definitions.
+        string Doc(string properties) => DocumentXml(
+            "<w:p><w:r><w:t>Anna</w:t></w:r><w:r><w:pict><v:shape><v:textbox><w:txbxContent>" +
+            "<w:p>" + properties + "<w:r><w:t>Box</w:t></w:r></w:p>" +
+            "</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>");
+
+        var withTabStops = _sut.Extract(BuildMinimalOpcWithDocumentXml(
+            Doc("<w:pPr><w:tabs><w:tab w:val=\"left\" w:pos=\"4536\"/></w:tabs></w:pPr>")),
+            CvFileKind.Docx, CancellationToken.None);
+        var without = _sut.Extract(BuildMinimalOpcWithDocumentXml(Doc("")), CvFileKind.Docx, CancellationToken.None);
+
+        withTabStops.RawText.ShouldBe(without.RawText);
+    }
+
+    private static OpenXmlElement RunElement(string name) => name switch
+    {
+        "br" => new Break(),
+        "br page" => new Break { Type = BreakValues.Page },
+        "br column" => new Break { Type = BreakValues.Column },
+        "cr" => new CarriageReturn(),
+        "tab" => new TabChar(),
+        "ptab" => new PositionalTab
+        {
+            Alignment = AbsolutePositionTabAlignmentValues.Right,
+            RelativeTo = AbsolutePositionTabPositioningBaseValues.Margin,
+            Leader = AbsolutePositionTabLeaderCharValues.None,
+        },
+        "sym" => new SymbolChar { Font = "Wingdings", Char = "F028" },
+        _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
+    };
+
+    // The import's flag path as ImportResumeCommandHandler composes it. The profile it passes there is
+    // pinned by PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
+    private static int FlagCount(string rawText) =>
+        PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
+            rawText, PersonnummerGapProfile.ExtractedDocumentText)).Count;
+
+    private static byte[] BuildDocxFromParagraphs(params Paragraph[] paragraphs)
+    {
+        using var stream = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(
+            stream, WordprocessingDocumentType.Document))
+        {
+            var mainPart = document.AddMainDocumentPart();
+            mainPart.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(new Body(paragraphs));
+            mainPart.Document.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static string DocumentXml(string body) =>
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" " +
+        "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" " +
+        "xmlns:v=\"urn:schemas-microsoft-com:vml\">" +
+        "<w:body>" + body + "</w:body></w:document>";
 
     // Builds a minimal, VALID OPC/DOCX package (the three required parts) with a
     // caller-supplied word/document.xml — so a crafted document.xml (e.g. a DTD payload)

@@ -82,10 +82,9 @@ export type PersonnummerScanDto = z.infer<typeof personnummerScanDtoSchema>;
  * aldrig skickar hade renderat ett block med ett saknat översättningsnyckel-fel om den ändå kom.
  * Mätt före borttagningen: noll läsare i `src/` och noll copy-nycklar i `messages/`.
  *
- * `PersonnummerInAccountName` TILLKOM i PR C (CTO-bind D2): DQ6 kan falla på kontots
- * visningsnamn medan FILEN är ren, och `PersonnummerPresent` drev då copy som bad
- * användaren ta bort ett nummer ur en fil som inte har något. Två skäl, två åtgärder,
- * alltså två tokens. FE:t grenar ALDRIG på
+ * `PersonnummerInAccountName` is accepted here and no longer sent: the backend retired it when
+ * the account name stopped reaching the CV (ADR 0142 D7), and the member and its copy
+ * leave the FE with #1741's account half. FE:t grenar ALDRIG på
  * `personnummer.found` för att gissa var numret satt — det vore ett påstående sant om
  * filskanningen och falskt om sitt ämne. */
 export const autoPromoteBlockReasonSchema = z.enum([

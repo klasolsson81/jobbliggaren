@@ -100,9 +100,9 @@ public sealed class LayoutCorpusEmitterTests
 
     /// <summary>
     /// The highest-priority PII control in this PR, measured rather than promised. One case authors
-    /// a synthetic personnummer in the CV body and one in the account display name, precisely so
-    /// the personnummer gates fire; the report must report that they fired without ever carrying
-    /// the value. Asserted over the WHOLE lexicon list, because that list is what every existing
+    /// a synthetic personnummer in the CV body, so the personnummer gate fires, and one in the
+    /// account display name; the report must say where they were authored without ever carrying
+    /// either value. Asserted over the WHOLE lexicon list, because that list is what every existing
     /// leak sweep in this project enumerates — a value added there is covered here for free.
     /// </summary>
     [Fact]
@@ -187,10 +187,9 @@ public sealed class LayoutCorpusEmitterTests
     /// user-typed <c>NameOverride</c>) but not in this corpus, which always resolves the label
     /// from a generated default that carries no personnummer.</para>
     ///
-    /// <para>This is the pin the defect proved was missing. #1060 PR C added
-    /// <c>PersonnummerInAccountName</c> and this file had nothing that noticed; the token fell to a
-    /// catch-all that printed five `no verdict` cells, and the suite stayed green because
-    /// <c>IsWellFormed</c> accepted them.</para></summary>
+    /// <para>This is the pin the defect proved was missing. #1060 PR C added a gate token (retired
+    /// since) and this file had nothing that noticed; the token fell to a catch-all that printed five
+    /// `no verdict` cells, and the suite stayed green because <c>IsWellFormed</c> accepted them.</para></summary>
     [Theory]
     [MemberData(nameof(ReachableGateStates))]
     public void Ladder_ForEveryReachableBlock_NamesOneRungAndIsWellFormed(
@@ -316,6 +315,21 @@ public sealed class LayoutCorpusEmitterTests
     /// ingress opens, and PR C is this corpus's measured proof that closure expires. The mutation is
     /// the evidence — flipping the arm to <see cref="GateState.NoVerdict"/> was green until this
     /// test existed.</para></summary>
+    [Fact]
+    public void Ladder_ForADq6Block_IsUnresolved_BecauseNoPublicDiscriminatorNamesIt()
+    {
+        // A DQ6 hit returns PersonnummerPresent with neither the parse flag nor a label hit, and
+        // the corpus has no public call that proves DQ6 fired. Attributing it by remainder is the
+        // elimination the ladder refuses, so it reddens the instrument instead.
+        var ladder = GateLadder.From(
+            AutoPromoteBlockReason.PersonnummerPresent, promoted: false, promoteFaulted: false,
+            pnrFoundOnParse: false, pnrInResolvedLabel: false);
+
+        ladder.Select(c => c.State)
+            .ShouldBe(Enumerable.Repeat(GateState.Unresolved, GateLadder.RungHeaders.Count));
+        GateLadder.IsWellFormed(ladder).ShouldBeFalse();
+    }
+
     [Fact]
     public void Ladder_ForAnUnmappedOutcome_IsUnresolvedAndNeverAFault()
     {
@@ -514,10 +528,8 @@ public sealed class LayoutCorpusEmitterTests
     }
 
     /// <summary>The `(false, true)` arm of the authored-personnummer column: a CLEAN body whose
-    /// ACCOUNT name carries one. Unexercised until now, and the row it would have mislabelled is
-    /// `pdf-clean-body-pnr-in-account-name` — the only case that reaches the DQ6 rung. "pnr
-    /// authored: none" beside a blocked DQ6 cell is this PR's own incident #2, on its own case.
-    /// The value itself is never printed; the arm says only that one was authored and where.</summary>
+    /// ACCOUNT name carries one, the shape of `pdf-clean-body-pnr-in-account-name`. The value itself
+    /// is never printed; the arm says only that one was authored and where.</summary>
     [Fact]
     public void Report_ForACleanBodyWithAPersonnummerInTheAccountName_SaysWhereItWasAuthored()
     {
@@ -840,7 +852,6 @@ public sealed class LayoutCorpusEmitterTests
             { AutoPromoteBlockReason.PersonnummerPresent, true, false, 0 },   // G1  parse flag
             { AutoPromoteBlockReason.ParseNotConfident, false, false, 1 },    // G2  confidence
             { AutoPromoteBlockReason.PersonnummerPresent, false, true, 2 },   // G2b label scan
-            { AutoPromoteBlockReason.PersonnummerInAccountName, false, false, 3 }, // G3a DQ6
             { AutoPromoteBlockReason.IncompleteContent, false, false, 4 },    // G3b buildability
         };
 

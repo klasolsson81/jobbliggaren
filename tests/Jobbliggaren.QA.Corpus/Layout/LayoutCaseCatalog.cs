@@ -42,9 +42,10 @@ public sealed record LayoutCase(
     /// contained.</summary>
     string? ProjectHeadingRendered = null,
 
-    /// <summary>The account holder's display name this case registers. It is a case input because
-    /// the auto-promote handler feeds it into the composed DTO, making it the only text the DQ6
-    /// guard sees that the import scan did not already cover.</summary>
+    /// <summary>The account holder's display name this case registers. It is a case input so the
+    /// corpus can pin that no account name reaches the CV (ADR 0142 D7). A personnummer-shaped name
+    /// is a state of rows written before #1117, which the probe writes to the column directly
+    /// (<c>CvChainProbe</c> names that actor).</summary>
     string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
 
 /// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
@@ -291,20 +292,12 @@ public static class LayoutCaseCatalog
             "no vertical gutter of 15 pt or more exists",
             SpikeMeasuredExtractSegment: false),
 
-        // The DQ6 rung's ONLY route. A body-borne personnummer is pre-empted by the parse-level
-        // gate, so the case above can never reach it; without this one, deleting the DQ6 guard
-        // call would leave the entire report byte-identical -- which is precisely the regression
-        // the personnummer cases exist to catch. The account display name is the one text the
-        // composed DTO adds over the import-scanned superset, and the handler says so itself.
-        //
-        // Since #1117 this name is a LEGACY-ROW state, not a registrable one: JobSeeker.Register
-        // refuses a personnummer-shaped display name, so the probe writes the column directly
-        // (CvChainProbe names the actor). The rung it exercises is unchanged -- DQ6 is kept
-        // precisely because rows written before that invariant still exist -- so this case now
-        // measures the guard over the population that can still reach it.
+        // ADR 0142 D7's pin: a personnummer in the ACCOUNT display name never reaches the CV, so
+        // this case's verdict is its sibling's. Such a name is a state of rows written before
+        // #1117 (JobSeeker.Register refuses it since), so the probe writes the column directly.
         new("pdf-clean-body-pnr-in-account-name",
             "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
-            "gate axis — the only route to the DQ6 rung on the composed DTO",
+            "gate axis — no account name reaches the composed DTO (ADR 0142 D7)",
             "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",

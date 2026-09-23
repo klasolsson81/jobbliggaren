@@ -283,11 +283,11 @@ public static class LayoutCorpusReport
         L("## 5. Gate ladder");
         L();
         L("No predicate expression is re-typed anywhere in this corpus; the states are derived from");
-        L("what the real handler returned. **TWO** predicates still collapse onto one");
-        L("`PersonnummerPresent` token, and each is settled by its own POSITIVE discriminator — the");
+        L("what the real handler returned. **THREE** predicates collapse onto one");
+        L("`PersonnummerPresent` token. Two are settled by their own POSITIVE discriminator — the");
         L("aggregate's own flag for the parse rung, the two PUBLIC calls the handler makes for the");
-        L("label rung. The DQ6 guard is no longer among them: #1060 PR C gave it its own");
-        L("`PersonnummerInAccountName` token, so that rung is reached by name.");
+        L("label rung. The DQ6 guard has no public discriminator, so a DQ6 block is reported as");
+        L("`unresolved` rather than attributed to that rung by remainder.");
         L();
         L("Earlier revisions said these were resolved \"by ELIMINATION — whatever remains IS the DQ6");
         L("guard, there is no fourth site\". That reasoning was sound only while the site list was");

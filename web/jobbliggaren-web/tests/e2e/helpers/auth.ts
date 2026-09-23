@@ -114,11 +114,10 @@ export async function loginAs(page: Page, runId: number): Promise<void> {
 
 /**
  * Registers the test account WITH A PASSWORD, straight through `POST /api/v1/auth/register`, and
- * deliberately not through the login flow's consent step. Two reasons, both measured (#1738):
- * an address that already has an account costs nothing of the global 20-per-24-h cap on mails to
- * addresses without one, where seeding every spec's user through the code flow would spend the
- * cap within a couple of local runs; and `delete-account.spec` re-authenticates with the password
- * until part 3a (#1739) replaces that with a code.
+ * deliberately not through the login flow's consent step: an address that already has an account
+ * costs nothing of the global 20-per-24-h cap on mails to addresses without one, where seeding every
+ * spec's user through the code flow would spend the cap within a couple of local runs (measured,
+ * #1738).
  *
  * ⚠ Part 5a removes `/auth/register`. This helper must be re-seeded there.
  */

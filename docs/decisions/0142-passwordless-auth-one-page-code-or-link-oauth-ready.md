@@ -222,7 +222,7 @@ one member, `LoginComplete = 1`; 3a added `Reauthentication(userId) = 2` and `Ch
 the grant → `TryClaimAsync`, AFTER the redeem (a loser still holding a live grant could retry into the winner's
 account) → re-check existence through `LoginSubjectResolver` (registered meanwhile → the outcome function
 answers for that account; the duplicate error is handled even when the claim was won) →
-`CreatePasswordlessUserAsync` → `JobSeeker.Register(userId, displayName, TermsAcceptance, clock)` → one explicit
+`CreatePasswordlessUserAsync` → `JobSeeker.Register(userId, TermsAcceptance, clock)` → one explicit
 save of the profile and the `User.AccountCreated` audit row → the outcome function, so a `Persistent` session.
 **No `AspNetUsers` or `job_seekers` row is written before the acceptance exists — on the code path
 and on the OAuth path** (security Major 6): an external identity waits in the grant record and
@@ -430,11 +430,12 @@ panel). Arithmetic, re-taken 2026-09-22, not an observation.
 
 `TermsAcceptance` is a Domain value object (`JobSeekers/TermsAcceptance.cs`, a `sealed record`,
 with the version constants and one total factory, `AcceptCurrent(IDateTimeProvider clock)` —
-corrected 2026-09-17, amendment below). `JobSeeker.Register(Guid userId, string? displayName,
-TermsAcceptance acceptance, IDateTimeProvider clock)` **replaces** the current signature — not an
+corrected 2026-09-17, amendment below). `JobSeeker.Register(Guid userId, TermsAcceptance acceptance,
+IDateTimeProvider clock)` (its name parameter left in 4a's PR B, D7) **replaces** the current signature — not an
 overload, so the consent-less path stops being callable (§2.2); the cost is one call site in `src/`
 (`RegisterCommandHandler.cs`) plus every test call site, swept by the compiler in one mechanical
-commit and counted in the PR body with `git grep -c 'JobSeeker\.Register(' -- src tests`. Mapped as
+commit and counted in the PR body with `git grep -c 'JobSeeker\.Register(' -- src tests` plus the calls split before `.Register(`,
+`git grep -n -B1 -E '^\s*\.Register\(' -- src tests` read for `JobSeeker`. Mapped as
 `OwnsOne(...)` + `Navigation(...).IsRequired(false)` →
 three nullable columns `terms_accepted_at`, `terms_version`, `privacy_policy_version` on
 `job_seekers` (parity with `Preferences`; not `ToJson` — an Art. 7(1)-grade record is queryable).
@@ -497,8 +498,8 @@ with the walk-up shared through `tests/Shared/ContentLegalMessages.cs`; it reads
 body wrote `Register` without `displayName`; both were filed before this ADR was ratified. The ADR
 governs and the bodies were corrected on 2026-09-17: `DisplayName` stays required and validated until
 4a, which also owns the fate of the parameter and of the event's non-nullable `DisplayName`. *(From #1737's
-second PR on, 2026-09-21: the EXPAND half moved into 1c — see D7. `Register` admits an absent name and the
-event's name is nullable; a name that is given is validated as before.)*
+second PR on, 2026-09-21: the EXPAND half moved into 1c — see D7. From 4a's PR B on, `Register` takes no
+name and the event carries none: Amendment 2026-09-23 (7).)*
 
 ### D7 — The account has no name and the CV stops requiring one
 
@@ -513,8 +514,9 @@ liten PR 2"). `complete` carries no name and `JobSeeker.Register` refused a blan
 after 1c, so the epic's own order could not be built. 1c's second PR therefore makes
 `job_seekers.display_name` nullable (migration `DisplayNameNullable`), lets `Register` store an absent name
 while a given name still runs `ValidateDisplayName` inside the aggregate, makes the event's and
-`JobSeekerProfileDto`'s name nullable, and makes the FE profile read tolerate `null`. `ValidateDisplayName`
-still refuses an absent name, so the password path and `UpdateDisplayName` are unchanged. Everything in the
+`JobSeekerProfileDto`'s name nullable, and makes the FE profile read tolerate `null`. At 1c `ValidateDisplayName`
+still refused an absent name, so the password path and `UpdateDisplayName` were unchanged; 4a's PR B removed
+all three (Amendment 2026-09-23 (7)). Everything in the
 paragraph above stays 4a's. Until 4a, an account without a name cannot promote an imported CV: the gate
 answers `IncompleteContent`, and the only copy the user is shown for it tells her to complete the entries
 in the file and upload it again, while the file is clean. 4a closes
@@ -555,6 +557,62 @@ The CV half, as delivered:
 **#734 row 7 is met by A** (Klas, 2026-09-22: "Uppfylld efter PR A"), measured live by a NEW import from an
 account without a name, since auto-promote runs only in the import request. The 4b gate below still covers all
 of 4a, B included.
+
+#### Amendment 2026-09-23 (7) (#1741, part 4a, PR B) — the account half, and the corrections above
+
+*Decided in PR B's own form round: `dotnet-architect`, `security-auditor` and `design-reviewer`, then
+`senior-cto-advisor`, who decided without escalation (#1741 comment 5796245153).* The sentences above that B
+made false were corrected in place; this block records why. With B, all of 4a is merged.
+
+**What the account half removes.** `JobSeeker.Register(Guid userId, TermsAcceptance acceptance,
+IDateTimeProvider clock)` takes no name, and `JobSeekerRegisteredDomainEvent` carries none. `UpdateDisplayName`,
+`ValidateDisplayName`, `MaxDisplayNameLength` and the three `JobSeeker.DisplayName*` codes went with their last
+callers; so did the password path's `RegisterCommand.DisplayName`, its validator rule and its pre-check.
+`UpdateMyProfileCommand` takes the language only, `JobSeekerProfileDto` carries no name, and the web neither
+reads nor shows one. The `/oversikt` kicker is removed rather than rewritten to the address (`design-reviewer`:
+a mono, uppercase, 11 px address fails WCAG 1.4.10 at 320 px and the 14 px floor, and the shell's Mina sidor
+popup already shows it). The frontend's `PersonnummerInAccountName` left with it (point 1 above). The
+personnummer scan on the name left in the same commit as the last writer, never before it (`security-auditor`).
+The `DisplayName` property and its EF row stay until 4b drops the column:
+`JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate` pins that nothing writes it, and the one test seam
+that writes a legacy name (`tests/Shared/LegacyAccountName.cs`) names that pin and the retired actors. The
+password path's frontend (`RegisterForm`, `registerAction`) stays until 5a (C1) and sends a key the endpoint
+ignores.
+
+**B0 went first** (#1816). A new api beside an old web is a reachable state: `release-images.yml` builds each
+image in its own matrix cell and the box runs `:latest`. So the web's profile read accepted a payload without
+`displayName` before the backend stopped sending it, and B's `agents-done` waited until B0's web image was
+measured running on the box.
+
+**Copy follows data, refined** (`senior-cto-advisor`, Q2 (c); the strings are `security-auditor`'s): a mention
+of data follows the data, and a mention of a purpose follows the purpose. B strikes "Visningsnamn" from the
+privacy policy's purpose sentence, since its purpose, the greeting, ends here; `privacy.updated` and
+`CurrentPrivacyPolicyVersion` moved to 2026-09-23 together. The stored-data sentence keeps "visningsnamn" and
+the Art. 30 register keeps `display_name` until 4b drops the column.
+
+**Legacy CVs: no scrub.** CVs auto-promoted before PR A carry the account name in their encrypted content and
+render it. The set is closed, since nothing has written the name into a CV since `69983af5`, and a scrub would
+rewrite CV content without a propose-and-approve diff (AGENTS.md §5). **The reading**, read-only on the box,
+counted and never printed, 2026-09-23T12:49:27Z: 6 `resumes` rows with `origin = 'Import' AND created_at <
+2026-09-23T08:47:47Z`, 1 live and 5 soft-deleted, each with its auto-promote audit row, none created after
+PR A, all the controller's. The selector is the origin and the date, never the audit event, whose partitions
+drop after 90 days. A soft-deleted CV keeps its content until the account is deleted, which is #1528.
+
+**From B's deploy to 4b: a declared non-finding, not an acceptance** (no §9.6 (3), no Klas grant, no
+signature). (a) No writer of `job_seekers.display_name` exists after B, whatever the #734 flip does. (b) **The
+reading**, taken fresh at the end of B's content, read-only, counted and never printed, 2026-09-23T14:56:57Z:
+`identity."AspNetUsers"` 2 rows, both the controller's; `job_seekers` 2, both named; 0 named rows whose
+account is not the controller's; `Auth__RegistrationsOpen=false`, 1 line and the only one. This block is its
+home. (c) Any non-null `display_name` whose account is not the controller's stops B and returns this entry to
+`security-auditor`. A matched legacy name keeps B5's flow, a human with the holder in the loop; no domain
+method nulls it, since that would add a writer in the PR that removes the last one. C2 (Amendment 2026-09-22
+(5)) was about the CV gate reading the name; it closes at B's deploy as written.
+
+**DoD 8.** No new personal data: B removes the name's collection, write, read and display. No new logging.
+Retention unchanged until 4b drops the column. No DPIA.
+
+**The 4b gate** (Klas, 2026-09-23): B counts as measured live when Klas himself has checked /oversikt and
+/mina-sidor behind basic_auth. The session's read of the box is necessary, not the gate.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
@@ -1523,7 +1581,8 @@ keys it creates: the grant keys go in with 1c, the OAuth-state keys with 6a. The
 `Sessioner` bullet's "payload carries only non-PII" gains *"this holds for the session record, not the
 challenge record"*; a line records that the challenge record is practically unreachable for
 Art. 15/17 because it expires within the response time. **Copy follows data, never precedes it:**
-"lösenord (hash)" (`content-legal.json:32`) is struck in **5b**, "visningsnamn" in **4b**, the
+"lösenord (hash)" (`content-legal.json:32`) is struck in **5b**; "visningsnamn" leaves the purpose sentence in
+**4a's PR B**, with its purpose, and the stored-data sentence in **4b**, with the data (Amendment 2026-09-23 (7)); the
 register's "the operation carries a credential (the password)" in **3a**. **No DPIA is required**
 (Art. 35(3)(a)–(c) all negative: no systematic evaluation with legal effect, no large-scale special
 categories, no public-area monitoring) — recorded here for DoD point 8.

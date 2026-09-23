@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 /** A text link in running copy: the brand colour and an underline, never colour alone. */
 export const TEXT_LINK = "text-brand-700 underline underline-offset-2";
 
+export const STANDALONE_LINK = `${TEXT_LINK} max-md:inline-flex max-md:min-h-11 max-md:items-center`;
+
 /**
  * Renders a message's `<mail>` chunk as a mailto link. The address has one home, the message itself:
  * the link reads it out of the chunk.

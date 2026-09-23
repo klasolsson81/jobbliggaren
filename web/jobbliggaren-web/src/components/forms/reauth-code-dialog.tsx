@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
-import { TEXT_LINK } from "@/components/auth/mail-link";
+import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { CodeField } from "@/components/forms/code-field";
 import { PendingLabel } from "@/components/forms/pending-label";
 import { Button } from "@/components/ui/button";
@@ -402,7 +402,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 <>
                   <p>{t("account.reauth.notLoggedIn")}</p>
                   <p>
-                    <Link href="/logga-in?next=/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
+                    <Link href="/logga-in?next=/mina-sidor" className={STANDALONE_LINK}>
                       {t("account.reauth.toLogin")}
                     </Link>
                   </p>

@@ -21,7 +21,7 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { LoginFormMessage } from "@/components/auth/login-form-message";
-import { TEXT_LINK } from "@/components/auth/mail-link";
+import { STANDALONE_LINK } from "@/components/auth/mail-link";
 import { CodeField } from "@/components/forms/code-field";
 import { PendingLabel } from "@/components/forms/pending-label";
 import { ReAuthCodeDialog, type ReauthHandOff } from "@/components/forms/reauth-code-dialog";
@@ -295,7 +295,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             <>
               <p>{t("account.reauth.notLoggedIn")}</p>
               <p>
-                <Link href="/logga-in?next=/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
+                <Link href="/logga-in?next=/mina-sidor" className={STANDALONE_LINK}>
                   {t("account.reauth.toLogin")}
                 </Link>
               </p>
@@ -313,7 +313,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
             <>
               <p>{view.message}</p>
               <p>
-                <a href="/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
+                <a href="/mina-sidor" className={STANDALONE_LINK}>
                   {t("account.reload")}
                 </a>
               </p>

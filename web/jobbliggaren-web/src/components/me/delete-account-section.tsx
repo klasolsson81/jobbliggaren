@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { mailLink, TEXT_LINK } from "@/components/auth/mail-link";
+import { mailLink, STANDALONE_LINK } from "@/components/auth/mail-link";
 import type { ReauthHandOff } from "@/components/forms/reauth-code-dialog";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 
@@ -57,7 +57,7 @@ export function DeleteAccountSection({ currentEmail }: { currentEmail: string })
           </p>
           {outcome.kind === "outcomeUnknown" && (
             <p className="text-body-sm">
-              <a href="/mina-sidor" className={`${TEXT_LINK} max-md:py-3`}>
+              <a href="/mina-sidor" className={STANDALONE_LINK}>
                 {t("account.reload")}
               </a>
             </p>

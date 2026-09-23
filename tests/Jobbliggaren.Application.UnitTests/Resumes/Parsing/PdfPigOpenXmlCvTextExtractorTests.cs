@@ -1565,17 +1565,19 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RevisionText.ShouldBe("b");
     }
 
-    public static TheoryData<string> LineStartsAfterARemovedLineEnd() => ["a text box", "the next story"];
+    public static TheoryData<string> LineStartsAfterARemovedLineEnd() =>
+        ["a text box", "a tab, then a text box", "the next story", "a tab, then the next story"];
 
     [Theory]
     [MemberData(nameof(LineStartsAfterARemovedLineEnd))]
     public void Extract_DocxRemovedLineEndBeforeALineStart_CostsRawTextNoMoreThanTheLineEnd(string lineStart)
     {
-        var result = lineStart == "a text box"
+        var tab = lineStart.StartsWith("a tab", StringComparison.Ordinal) ? "<w:r><w:tab/></w:r>" : string.Empty;
+        var result = lineStart.EndsWith("a text box", StringComparison.Ordinal)
             ? ExtractStories(string.Concat(Enumerable.Repeat(
-                    MarkedPara(DeletedMark, Kept("x")) + Para("<w:r><w:txbxContent/></w:r>"), 100))
+                    MarkedPara(DeletedMark, Kept("x")) + Para(tab + "<w:r><w:txbxContent/></w:r>"), 100))
                 + Para(Kept(new string('A', 999_679))) + Para(Kept(Pnr)))
-            : ExtractStories(AnnaBody, [.. Enumerable.Repeat(DocxStoryFixture.Part("header", MarkedPara(DeletedMark, Kept("x"))), 63),
+            : ExtractStories(AnnaBody, [.. Enumerable.Repeat(DocxStoryFixture.Part("header", MarkedPara(DeletedMark, Kept("x")) + tab), 63),
                 DocxStoryFixture.Part("header", Para(Kept(new string('A', 999_862))) + Para(Kept(Pnr)))]);
 
         FlagCount(result).ShouldBe(1);

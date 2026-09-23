@@ -788,7 +788,11 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             {
                 _separatorPending = false;
             }
-            else if (_separatorPending && emission is Emission.Text or Emission.Separator)
+            else if (_separatorPending && emission == Emission.Separator)
+            {
+                return;
+            }
+            else if (_separatorPending && emission == Emission.Text)
             {
                 _separatorPending = false;
                 Write(accepted, Emission.Separator, string.Empty, MaxOutputChars);

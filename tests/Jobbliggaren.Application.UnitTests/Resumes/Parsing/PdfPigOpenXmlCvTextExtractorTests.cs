@@ -11,6 +11,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using Shouldly;
+using static Jobbliggaren.Application.UnitTests.Resumes.Parsing.DocxRevisionMarkup;
 // `Document` is ambiguous between QuestPDF and OpenXml (both are used here — QuestPDF builds
 // the PDF fixtures, OpenXml the DOCX ones). Alias the QuestPDF one; OpenXml's `Document` stays
 // bare in BuildDocx. Same convention as PdfPigCvLayoutAnalyzerTests.
@@ -1075,6 +1076,474 @@ public class PdfPigOpenXmlCvTextExtractorTests
         FlagCount(result).ShouldBe(occurrences);
     }
 
+    // #1803 — tracked changes. RawText and AuxiliaryText read each story with every change accepted, a separator
+    // standing where accepting removes a line end. The scan also reads each group a change touches as its runs are
+    // written, accepted with nothing at a removed line end, and rejected.
+    public static TheoryData<string> DeletionStories() => ["main", "header", "footer", "footnote", "endnote", "comment"];
+
+    [Theory]
+    [MemberData(nameof(DeletionStories))]
+    public void Extract_DocxDeletedPersonnummer_ReachesTheScanButNotRawText(string story)
+    {
+        var deleted = Para(Del(DelText(Pnr)));
+
+        var result = story == "main"
+            ? ExtractStories(AnnaBody + deleted)
+            : ExtractStories(AnnaBody, DocxStoryFixture.Part(story, deleted));
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> PartlyDeletedShapes() =>
+        ["kept head", "kept tail", "two runs in one deletion", "two deletions", "a proofing mark between",
+            "a bookmark between", "a comment range between"];
+
+    [Theory]
+    [MemberData(nameof(PartlyDeletedShapes))]
+    public void Extract_DocxPartlyDeletedPersonnummer_ReachesTheScanWhole(string shape)
+    {
+        var (body, rawText) = shape switch
+        {
+            "kept head" => (Para(Kept("811218-"), Del(DelText("9876"))), "811218-"),
+            "kept tail" => (Para(Del(DelText("811218-")), Kept("9876")), "9876"),
+            "two runs in one deletion" => (Para(Del(DelText("811218-"), DelText("9876"))), ""),
+            "two deletions" => (Para(Del(DelText("811218-")), Del(DelText("9876"))), ""),
+            "a proofing mark between" =>
+                (Para(Del(DelText("811218")), "<w:proofErr w:type=\"spellStart\"/>", Del(DelText("-9876"))), ""),
+            "a bookmark between" =>
+                (Para(Del(DelText("811218")), "<w:bookmarkStart w:id=\"0\" w:name=\"b\"/><w:bookmarkEnd w:id=\"0\"/>",
+                    Del(DelText("-9876"))), ""),
+            "a comment range between" =>
+                (Para(Del(DelText("811218")), "<w:commentRangeStart w:id=\"0\"/><w:commentRangeEnd w:id=\"0\"/>",
+                    Del(DelText("-9876"))), ""),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        var result = ExtractStories(body);
+
+        result.RawText.ShouldBe(rawText);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> ReplacementShapes() => ["whole number", "last four by digits", "last four by letters"];
+
+    [Theory]
+    [MemberData(nameof(ReplacementShapes))]
+    public void Extract_DocxPersonnummerReplacedByAnInsertion_ReachesTheScan(string shape)
+    {
+        var (body, rawText) = shape switch
+        {
+            "whole number" => (Para(Del(DelText(Pnr)), Ins(Kept("[borttaget]"))), "[borttaget]"),
+            "last four by digits" => (Para(Kept("811218-"), Del(DelText("9876")), Ins(Kept("0000"))), "811218-0000"),
+            "last four by letters" => (Para(Kept("811218-"), Del(DelText("9876")), Ins(Kept("XXXX"))), "811218-XXXX"),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        var result = ExtractStories(body);
+
+        result.RawText.ShouldBe(rawText);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxLineDeletedAfterADeletedMark_ReachesTheScanOnItsOwnLine()
+    {
+        // Three digits end the line before, so a rejected reading that joined the two lines would find no number.
+        var result = ExtractStories(MarkedPara(DeletedMark, Kept("Tel 070-123 45 678")) + Para(Del(DelText(Pnr))));
+
+        result.RawText.ShouldBe("Tel 070-123 45 678");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> RemovedBoundaries() =>
+        ["deleted mark", "deleted mark with an end tag", "moved mark", "deleted break", "deleted carriage return"];
+
+    [Theory]
+    [MemberData(nameof(RemovedBoundaries))]
+    public void Extract_DocxBoundaryTheAcceptanceRemoves_IsASeparatorInRawText(string shape)
+    {
+        var body = shape switch
+        {
+            "deleted mark" => MarkedPara(DeletedMark, Kept("811218-")) + Para(Kept("9876")),
+            "deleted mark with an end tag" => MarkedPara(DeletedMarkWithEndTag, Kept("811218-")) + Para(Kept("9876")),
+            "moved mark" => MarkedPara(MovedMark, Kept("811218-")) + Para(Kept("9876")),
+            "deleted break" => Para(Kept("811218-"), Del("<w:r><w:br/></w:r>"), Kept("9876")),
+            "deleted carriage return" => Para(Kept("811218-"), Del("<w:r><w:cr/></w:r>"), Kept("9876")),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        var result = ExtractStories(body);
+
+        // RawText and the reading joined with nothing each carry the number once.
+        result.RawText.ShouldBe("811218- 9876");
+        FlagCount(result).ShouldBe(2);
+    }
+
+    public static TheoryData<string> DigitBesideADeletedMark() => ["before", "after"];
+
+    [Theory]
+    [MemberData(nameof(DigitBesideADeletedMark))]
+    public void Extract_DocxDeletedMarkBesideADigit_KeepsTheNumberApartInRawText(string side)
+    {
+        var (body, rawText) = side switch
+        {
+            "before" => (MarkedPara(DeletedMark, Kept("Ref 1")) + Para(Kept(Pnr)), "Ref 1 811218-9876"),
+            "after" => (MarkedPara(DeletedMark, Kept(Pnr)) + Para(Kept("1 Ref")), "811218-9876 1 Ref"),
+            _ => throw new ArgumentOutOfRangeException(nameof(side), side, null),
+        };
+
+        var result = ExtractStories(body);
+
+        result.RawText.ShouldBe(rawText);
+        FlagCount(result).ShouldBe(2);
+    }
+
+    [Fact]
+    public void Extract_DocxMovedPersonnummer_IsReadOnceInRawText()
+    {
+        var result = ExtractStories(Para(MovedFrom(Kept(Pnr))) + Para(MovedTo(Kept(Pnr))));
+
+        result.RawText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(2);
+    }
+
+    [Fact]
+    public void Extract_DocxMovedTextBetweenDigits_IsASeparatorInRawText()
+    {
+        var result = ExtractStories(Para(Kept("12"), MovedFrom(Kept("x")), Kept(Pnr)));
+
+        result.RawText.ShouldBe("12 811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxInsertedMarkInsideAPersonnummer_JoinsInTheScan()
+    {
+        var result = ExtractStories(MarkedPara(InsertedMark, Kept("811218-")) + Para(Kept("9876")));
+
+        result.RawText.ShouldBe("811218-\n9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxInsertedMarkBeforeTabStops_JoinsTheRejectedReading()
+    {
+        // The rejected reading continues the line into the next paragraph's properties, where a tab stop is no tab.
+        var result = ExtractStories(MarkedPara(InsertedMark, Kept("8112")) + TabStopPara(Kept("18-9876")));
+
+        result.RawText.ShouldBe("8112\n18-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> DeletedMarkInsideTheBirthDate() => ["plain", "tab stops after it"];
+
+    [Theory]
+    [MemberData(nameof(DeletedMarkInsideTheBirthDate))]
+    public void Extract_DocxDeletedMarkInsideTheBirthDate_JoinsInTheScan(string shape)
+    {
+        var next = shape == "plain" ? Para(Kept("18-9876")) : TabStopPara(Kept("18-9876"));
+
+        var result = ExtractStories(MarkedPara(DeletedMark, Kept("8112")) + next);
+
+        // The separator keeps RawText apart, and the gap bridge needs six or eight digits before it.
+        result.RawText.ShouldBe("8112 18-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> DeletedContentShapes() =>
+        ["text in a deletion", "deleted text outside a deletion", "a deletion inside an insertion", "a deleted text box"];
+
+    [Theory]
+    [MemberData(nameof(DeletedContentShapes))]
+    public void Extract_DocxDeletedContent_LeavesRawTextAndReachesTheScan(string shape)
+    {
+        var body = shape switch
+        {
+            "text in a deletion" => Para(Del(Kept(Pnr))),
+            "deleted text outside a deletion" => Para(DelText(Pnr)),
+            "a deletion inside an insertion" => Para(Ins(Del(DelText(Pnr)))),
+            "a deleted text box" => Para(Del(TextBoxRun(Para(Kept(Pnr))))),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        var result = ExtractStories(body);
+
+        result.RawText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> DeletedTextContainers() => ["a text box", "a deleted table row"];
+
+    [Theory]
+    [MemberData(nameof(DeletedTextContainers))]
+    public void Extract_DocxDeletedTextInAContainer_ReachesTheScan(string container)
+    {
+        var deleted = Para(Del(DelText(Pnr)));
+        var body = container switch
+        {
+            "a text box" => Para(TextBoxRun(deleted)),
+            "a deleted table row" => "<w:tbl><w:tr><w:trPr>" + DeletedMark + "</w:trPr><w:tc>" + deleted +
+                "</w:tc></w:tr></w:tbl>",
+            _ => throw new ArgumentOutOfRangeException(nameof(container), container, null),
+        };
+
+        FlagCount(ExtractStories(body)).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxDeletedLineAfterADigitRun_StartsItsOwnLineInTheScan()
+    {
+        var result = ExtractStories(Para(Kept("Tel 070-12 34 567")) + Para(Del(DelText(Pnr))));
+
+        result.ScanText.ShouldBe("Tel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> SecondStoryWithAChange() => ["main then header", "two headers"];
+
+    [Theory]
+    [MemberData(nameof(SecondStoryWithAChange))]
+    public void Extract_DocxChangedGroupsOfTwoStories_AreSeparateLinesInTheScan(string stories)
+    {
+        // The first group's rejected reading ends in digits, the second's starts with the number.
+        var endsInDigits = Para(Del(DelText("x")), Kept("Tel 070-12 34 567"));
+        var number = Para(Del(DelText(Pnr)));
+
+        var result = stories == "main then header"
+            ? ExtractStories(endsInDigits, DocxStoryFixture.Part("header", number))
+            : ExtractStories(AnnaBody, DocxStoryFixture.Part("header", endsInDigits), DocxStoryFixture.Part("header", number));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMainStoryOnlyDeleted_IsEmptyAndReachesTheScan()
+    {
+        var result = ExtractStories(Para(Del(DelText(Pnr))));
+
+        result.Status.ShouldBe(CvExtractionStatus.Empty);
+        result.RawText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMainTextAtTheCharacterCap_StillScansAHeadersDeletedPersonnummer()
+    {
+        var result = ExtractStories(Para(Kept(new string('A', 1_000_001))),
+            DocxStoryFixture.Part("header", Para(Del(DelText(Pnr)))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxKeptPersonnummerInAGroupEveryReadingChanges_IsCountedOncePerReading()
+    {
+        var result = ExtractStories(
+            MarkedPara(DeletedMark, Kept("811218-9876 a"), Del(DelText("b")), Ins(Kept("c"))) + Para(Kept("d")));
+
+        result.RawText.ShouldBe("811218-9876 ac d");
+        FlagCount(result).ShouldBe(4);
+    }
+
+    [Fact]
+    public void Extract_DocxKeptPersonnummerBesideADeletedLetter_IsCountedByTheRejectedReadingToo()
+    {
+        var result = ExtractStories(Para(Kept("811218-9876 Utveckl"), Del(DelText("k")), Kept("are")));
+
+        result.RawText.ShouldBe("811218-9876 Utvecklare");
+        FlagCount(result).ShouldBe(2);
+    }
+
+    public static TheoryData<string> FragmentsKeptApart() => ["kept text between", "a paragraph end between"];
+
+    [Theory]
+    [MemberData(nameof(FragmentsKeptApart))]
+    public void Extract_DocxDeletedFragmentsWithAKeptBoundaryBetween_AreNotJoined(string boundary)
+    {
+        var body = boundary == "kept text between"
+            ? Para(Del(DelText("811218-")), Kept("x"), Del(DelText("9876")))
+            : Para(Del(DelText("811218-"))) + Para(Del(DelText("9876")));
+
+        FlagCount(ExtractStories(body)).ShouldBe(0);
+    }
+
+    public static TheoryData<string> ChangeOnTheNextLine() => ["body", "footer ending outside a paragraph"];
+
+    [Theory]
+    [MemberData(nameof(ChangeOnTheNextLine))]
+    public void Extract_DocxKeptPersonnummerBeforeAChangedLine_IsCountedOnce(string where)
+    {
+        var result = where == "body"
+            ? ExtractStories(Para(Kept(Pnr)) + Para(Del(DelText("x"))))
+            : ExtractStories(AnnaBody, DocxStoryFixture.Part("footer", Para(Kept(Pnr)) + Ins(Kept("x"))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> RowMarkers() => [DeletedMark, DeletedMarkWithEndTag];
+
+    [Theory]
+    [MemberData(nameof(RowMarkers))]
+    public void Extract_DocxDeletedRowMarker_LeavesTheTextAfterItInRawText(string marker)
+    {
+        var result = ExtractStories("<w:tbl><w:tr><w:trPr>" + marker + "</w:trPr><w:tc>" + Para(Kept(Pnr)) +
+            "</w:tc></w:tr></w:tbl>" + Para(Kept("Rad två")));
+
+        result.RawText.ShouldBe("811218-9876\nRad två");
+    }
+
+    [Fact]
+    public void Extract_DocxDeletedTextPastTheCharacterCap_KeepsTheTextAfterItInRawText()
+    {
+        var result = ExtractStories(Para(Del(DelText(new string('x', 1_000_001))), Kept(Pnr)));
+
+        result.RawText.ShouldBe("811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxMovedAndInsertedSpacesAroundAPersonnummer_KeepItApart()
+    {
+        var result = ExtractStories(Para(Kept("1"), MovedFrom(Kept(" ")), Kept(Pnr), Ins(Kept(" ")), Kept("3")));
+
+        result.RawText.ShouldBe("1 811218-9876 3");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> MovedTextNoOtherReadingCarries() => ["beside a deleted digit", "head moved, tail inserted"];
+
+    [Theory]
+    [MemberData(nameof(MovedTextNoOtherReadingCarries))]
+    public void Extract_DocxMovedTextOnlyTheWrittenReadingCarries_ReachesTheScan(string shape)
+    {
+        var body = shape == "beside a deleted digit"
+            ? Para(MovedFrom(Kept(Pnr)), Del(DelText("5")))
+            : Para(MovedFrom(Kept("811218-")), Ins(Kept("9876")));
+
+        FlagCount(ExtractStories(body)).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMainStoryDeletionPastItsRoom_LeavesTheOtherStoriesRoom()
+    {
+        var result = ExtractStories(Para(Del(DelText(new string('x', 1_000_001)))),
+            DocxStoryFixture.Part("header", Para(Del(DelText(Pnr)))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMovedPersonnummerAfterADeletionPastItsRoom_ReachesTheScan()
+    {
+        // The rejected reading of the first group fills its room; the written reading of the second has its own.
+        var result = ExtractStories(Para(Del(DelText(new string('x', 1_000_001)))) + Para(MovedFrom(Kept(Pnr))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxDeletionAfterTheLastParagraph_ReachesTheScan()
+    {
+        var result = ExtractStories(AnnaBody + Del(DelText(Pnr)));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxDeletedTextBoxsSecondParagraph_ReachesTheScan()
+    {
+        // The first paragraph's end is a line end in every reading, so the second starts inside the open deletion.
+        var result = ExtractStories(Para(Del(TextBoxRun(Para(Kept("a")), Para(Kept(Pnr))))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMovedPersonnummerBeforeTheCharacterCap_ReachesTheScan()
+    {
+        var result = ExtractStories(Para(MovedFrom(Kept(Pnr)), Kept(new string('A', 1_000_000))));
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxHeaderPastTheByteBudget_AddsNoneOfItsChangedText()
+    {
+        // The fourth header's changed paragraph is read before the budget runs out in its filler.
+        var filler = new string(' ', 3_900_000);
+        var headers = Enumerable.Range(1, 3)
+            .Select(i => DocxStoryFixture.Part("header", Para(Kept("Rad " + i)) + filler))
+            .Append(DocxStoryFixture.Part("header", Para(Del(DelText(Pnr))) + filler))
+            .ToArray();
+
+        var result = ExtractStories(Para(Kept(Pnr)) + filler, headers);
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> DocumentsWithoutTrackedChanges() => ["a header's number", "a text box", "breaks and tabs"];
+
+    [Theory]
+    [MemberData(nameof(DocumentsWithoutTrackedChanges))]
+    public void Extract_DocxWithoutTrackedChanges_HasNoRevisionText(string shape)
+    {
+        var result = shape switch
+        {
+            "a header's number" => ExtractStories(AnnaBody, DocxStoryFixture.Paragraph("header", Pnr)),
+            "a text box" => ExtractStories(Para(TextBoxRun(Para(Kept(Pnr))))),
+            "breaks and tabs" => ExtractStories(Para(Kept("Anna"), "<w:r><w:br/><w:tab/></w:r>", Kept(Pnr))),
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        result.RevisionText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxWithOnlyFormattingChanges_HasNoRevisionText()
+    {
+        var result = ExtractStories(Para(
+            "<w:pPr><w:pPrChange w:id=\"7\" w:author=\"a\"><w:pPr/></w:pPrChange></w:pPr>",
+            "<w:r><w:rPr><w:b/><w:rPrChange w:id=\"8\" w:author=\"a\"><w:rPr/></w:rPrChange></w:rPr><w:t>811218-9876</w:t></w:r>"));
+
+        result.RawText.ShouldBe("811218-9876");
+        result.RevisionText.ShouldBeEmpty();
+    }
+
+    public static TheoryData<string> RejectedReadingJoins() => ["kept head, deleted tail", "inserted mark before tab stops"];
+
+    [Theory]
+    [MemberData(nameof(RejectedReadingJoins))]
+    public void Extract_DocxChangeOnlyTheRejectedReadingUndoes_IsItsRevisionText(string shape)
+    {
+        var body = shape == "kept head, deleted tail"
+            ? Para(Kept("811218-"), Del(DelText("9876")))
+            : MarkedPara(InsertedMark, Kept("8112")) + TabStopPara(Kept("18-9876"));
+
+        ExtractStories(body).RevisionText.ShouldBe("811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxHeaderPastTheByteBudget_RollsBackItsRevisionText()
+    {
+        var filler = new string(' ', 3_900_000);
+        var headers = Enumerable.Range(1, 4)
+            .Select(i => DocxStoryFixture.Part("header", Para(Del(DelText("Rad " + i))) + filler))
+            .ToArray();
+
+        var result = ExtractStories(Para(Kept(Pnr)) + filler, headers);
+
+        result.RevisionText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void Extract_DocxDeletionLongerThanARoom_IsCutAtTheRoom()
+    {
+        var result = ExtractStories(Para(Del(DelText(new string('x', 2_000_000)))));
+
+        result.RevisionText.Length.ShouldBe(1_000_000);
+    }
+
     private static bool IsInline(string form) => form is "vml inline" or "drawing inline";
 
     // A text box holding one paragraph, as the run content of the paragraph that anchors it.
@@ -1143,8 +1612,7 @@ public class PdfPigOpenXmlCvTextExtractorTests
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
-    // The import's flag path: ImportResumeCommandHandler scans ScanText, and a document with no other story scans its
-    // RawText alone. The profile it passes there is pinned by
+    // The import's flag path: ImportResumeCommandHandler scans ScanText. The profile it passes there is pinned by
     // PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
     private static int FlagCount(CvExtractionResult result) => FlagCount(result.ScanText);
 

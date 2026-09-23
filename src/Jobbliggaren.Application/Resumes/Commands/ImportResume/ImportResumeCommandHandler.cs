@@ -19,7 +19,7 @@ namespace Jobbliggaren.Application.Resumes.Commands.ImportResume;
 /// <summary>
 /// F4-8 import/parse orchestration (thin handler — the Infrastructure ports do the
 /// heavy lifting). Flow (ADR 0074): resolve file kind (MIME + magic bytes) → extract →
-/// normalize a transient scan-copy → run the personnummer guard on the RAW text BEFORE
+/// normalize a transient scan-copy → run the personnummer guard on the extracted text BEFORE
 /// persist (Invariant 1) → segment → derive an SSYK proposal (F4-3, user confirms
 /// later) → construct the aggregate → capture the original file as a Form C-sealed
 /// <see cref="ResumeFile"/> when the body scan is clean OR the user acknowledged the

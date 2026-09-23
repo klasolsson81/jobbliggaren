@@ -5,8 +5,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Parsing;
 
 /// <summary>
 /// #1810 — a DOCX built with the OpenXml SDK: a main story and any of Word's other stories, each
-/// given as its part's whole XML. Headers and footers are referenced from the section as Word
-/// writes them, cycling default, first and even.
+/// given as its part's whole XML. Headers and footers are referenced from the section, cycling
+/// default, first and even.
 /// </summary>
 internal static class DocxStoryFixture
 {

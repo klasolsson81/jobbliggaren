@@ -20,8 +20,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Commands.ImportResume;
 
 // Fas 4 STEG 8 (F4-8, ADR 0074) — the import/parse orchestration handler. THIN: the
 // Infrastructure ports (ICvTextExtractor, IResumeSegmenter, IOccupationCodeDeriver) do
-// the heavy lifting and are NSubstitute-mocked. The handler's own logic under test:
-// the file-format gate, the personnummer guard call-site (scan on the RAW text BEFORE
+// the heavy lifting. The handler's own logic under test:
+// the file-format gate, the personnummer guard call-site (scan on the extracted text BEFORE
 // persist), the extraction→Failed-confidence fallback, the SSYK call-site (only when a
 // title exists), and the response mapping. The PERSISTED RawText is the ORIGINAL
 // extracted text — never the personnummer-normalized scan-copy.

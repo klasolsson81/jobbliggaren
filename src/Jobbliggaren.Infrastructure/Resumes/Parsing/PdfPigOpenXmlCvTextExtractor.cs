@@ -271,7 +271,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         AppendSeparator(builder);
                         break;
 
-                    // #1801: a text box is read as its own lines, never onto the line that anchors it.
                     case XmlNodeType.Element
                         when reader.LocalName == "txbxContent" && reader.NamespaceURI == WordprocessingMainNamespace:
                         if (builder.Length > 0 && builder[^1] != '\n')
@@ -285,8 +284,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         break;
 
                     case XmlNodeType.Element
-                        when reader.LocalName is "pict" or "object" && reader.NamespaceURI == WordprocessingMainNamespace
-                            && !reader.IsEmptyElement:
+                        when reader.LocalName is "pict" or "object" && reader.NamespaceURI == WordprocessingMainNamespace:
                         vmlShapeDepth = reader.Depth + 1;
                         break;
 
@@ -336,16 +334,16 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
     // writes mso-position-horizontal: absolute, which floats nothing.
     private static bool IsAbsolutelyPositioned(string? style)
     {
-        if (string.IsNullOrEmpty(style))
-            return false;
-
-        foreach (var declaration in style.Split(';'))
+        var rest = style.AsSpan();
+        while (!rest.IsEmpty)
         {
-            var colon = declaration.IndexOf(':');
-            if (colon < 0)
-                continue;
+            var end = rest.IndexOf(';');
+            var declaration = end < 0 ? rest : rest[..end];
+            rest = end < 0 ? [] : rest[(end + 1)..];
 
-            if (declaration[..colon].Trim().Equals("position", StringComparison.OrdinalIgnoreCase)
+            var colon = declaration.IndexOf(':');
+            if (colon >= 0
+                && declaration[..colon].Trim().Equals("position", StringComparison.OrdinalIgnoreCase)
                 && declaration[(colon + 1)..].Trim().Equals("absolute", StringComparison.OrdinalIgnoreCase))
                 return true;
         }

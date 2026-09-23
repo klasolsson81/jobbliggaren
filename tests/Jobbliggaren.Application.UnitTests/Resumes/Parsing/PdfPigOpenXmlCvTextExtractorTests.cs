@@ -761,6 +761,320 @@ public class PdfPigOpenXmlCvTextExtractorTests
         withObject.ShouldBe(without);
     }
 
+    // #1810 — Word's other stories reach the personnummer scan through AuxiliaryText, and never RawText.
+    private const string AnnaBody = "<w:p><w:r><w:t>Anna Andersson</w:t></w:r></w:p>";
+
+    public static TheoryData<string> OtherStories() => DocxStoryFixture.Stories();
+
+    [Theory]
+    [MemberData(nameof(OtherStories))]
+    public void Extract_DocxPersonnummerOnlyInAnotherStory_ReachesTheScanButNotRawText(string story)
+    {
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Paragraph(story, "811218-9876"));
+
+        result.Status.ShouldBe(CvExtractionStatus.Extracted);
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> HeaderForms() => ["table cell", "content control", "field result", "text box"];
+
+    [Theory]
+    [MemberData(nameof(HeaderForms))]
+    public void Extract_DocxPersonnummerInAHeaderForm_ReachesTheScan(string form)
+    {
+        var content = form switch
+        {
+            "table cell" => "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>811218-9876</w:t></w:r></w:p></w:tc></w:tr></w:tbl>",
+            "content control" => "<w:sdt><w:sdtContent><w:p><w:r><w:t>811218-9876</w:t></w:r></w:p></w:sdtContent></w:sdt>",
+            "field result" => "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>811218-9876</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+            "text box" => "<w:p><w:r>" + TextBox("drawing anchor", "811218-9876") + "</w:r></w:p>",
+            _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),
+        };
+
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Part("header", content));
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxThreeHeaderVariants_AreEachRead()
+    {
+        var result = ExtractStories(AnnaBody,
+            DocxStoryFixture.Paragraph("header", "Kontakt"),
+            DocxStoryFixture.Paragraph("header", "Utvecklare"),
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.AuxiliaryText.Split('\n').ShouldBe(["Kontakt", "Utvecklare", "811218-9876"], ignoreOrder: true);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxOtherStories_StartOnALineAfterTheMainText()
+    {
+        // The main text ends in a phone number's digits, and the header starts with the number.
+        var result = ExtractStories("<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r></w:p>",
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.ScanText.ShouldBe("Tel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxStoryEndingOutsideAParagraph_StillEndsItsLine()
+    {
+        // #1806's form: run content outside a paragraph, the one way a story's text ends without a line end.
+        var result = ExtractStories(AnnaBody,
+            DocxStoryFixture.Part("footer",
+                "<w:ins w:id=\"1\" w:author=\"a\"><w:r><w:t>Tel 070-12 34 567</w:t></w:r></w:ins>"),
+            DocxStoryFixture.Paragraph("footnote", "811218-9876"));
+
+        result.AuxiliaryText.ShouldBe("Tel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxMainTextAtTheCharacterCap_StillScansTheOtherStories()
+    {
+        var result = ExtractStories("<w:p><w:r><w:t>" + new string('A', 1_000_001) + "</w:t></w:r></w:p>",
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.RawText.Length.ShouldBe(1_000_000);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxHeaderWithTwoRelationships_IsReadOnce()
+    {
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [("rId1", "header", "header1.xml"), ("rId2", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipsThatResolveToNoPart_SkipOnlyThemselves()
+    {
+        // A part the package does not hold, and an absolute target, which is no part at all.
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [("rId1", "header", "header9.xml"), ("rId2", "header", "https://example.se/header.xml"),
+                ("rId3", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxExternalStoryRelationship_IsNeverRead()
+    {
+        // The target names a part the package holds, which an external relationship must never reach.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\" TargetMode=\"External\"/>");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody, relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipsOfOtherTypes_AreNeitherReadNorCounted()
+    {
+        // Every file Word writes relates its main part to parts that are no story; 64 images before a header.
+        var images = Enumerable.Range(1, 64).ToArray();
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [.. images.Select(i => ("rIdI" + i, "image", "media/image" + i + ".png")), ("rIdH", "header", "header1.xml")],
+            [.. images.Select(i => ("image", "media/image" + i + ".png", "PNG")),
+                ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>"))]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipPartPastTheByteBudget_IsReadAfterTheMainText_AndListsNothing()
+    {
+        // Comments of three-byte characters: 11.7 MB in the main part and 5.4 MB in the relationship part stay under
+        // the reader's character ceiling and together pass the document's byte budget.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\"/><!--" + new string('\u20AC', 1_800_000) + "-->");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody + "<!--" + new string('\u20AC', 3_900_000) + "-->", relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxListingThatFailsAfterAStory_ListsNothing()
+    {
+        // The relationship part lists a header, then passes the reader's character ceiling.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\"/><!--" + new string('x', 4_000_001) + "-->");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody, relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxStoryRelationshipToTheMainPart_ReadsTheMainTextOnce()
+    {
+        var docx = BuildDocxWithRelationships(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", [("rId1", "header", "document.xml")]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.ShouldBeEmpty();
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipsTheReaderRejects_CostTheMainTextNothing()
+    {
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>")
+            .Replace("<Relationships ", "<!DOCTYPE Relationships [<!ENTITY x \"y\">]><Relationships ");
+        var docx = BuildDocxWithRelationshipsXml("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", relationships);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(1024, 1)]
+    [InlineData(1025, 0)]
+    public void Extract_DocxStoryRelationshipPastTheRelationshipBound_IsNotRead(int position, int flags)
+    {
+        var links = Enumerable.Range(1, position - 1).Select(i => ("rIdL" + i, "hyperlink", "https://example.se/" + i));
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [.. links, ("rIdH", "header", "header1.xml")],
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(flags);
+    }
+
+    [Fact]
+    public void Extract_DocxWithTenThousandHeaders_ListsAtMostSixtyFour_AndKeepsTheMainText()
+    {
+        var headers = Enumerable.Range(1, 10_000).ToArray();
+        var docx = BuildDocxWithRelationships(
+            "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>",
+            [.. headers.Select(i => ("rId" + i, "header", "header" + i + ".xml"))],
+            [.. headers.Select(i => ("header", "header" + i + ".xml",
+                DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>Rubrik " + i + "</w:t></w:r></w:p>")))]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.Split('\n').Length.ShouldBe(64);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxWithAnEmptyMainStory_StaysEmptyAndKeepsTheOtherStories()
+    {
+        var result = ExtractStories("<w:p/>", DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.Status.ShouldBe(CvExtractionStatus.Empty);
+        result.RawText.ShouldBeEmpty();
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxStoryTheReaderRejects_AddsNothing_AndTheNextStoryIsRead()
+    {
+        // The hardened reader refuses a DTD here as it does in the main part; the footer after it is still read.
+        const string body = "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>";
+        var rejected = "<!DOCTYPE w:hdr [<!ENTITY x \"y\">]>" +
+            DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>&x;</w:t></w:r></w:p>");
+
+        var withIt = ExtractStories(body, ("header", rejected), DocxStoryFixture.Paragraph("footer", "Kontakt"));
+        var without = ExtractStories(body);
+
+        withIt.RawText.ShouldBe(without.RawText);
+        withIt.AuxiliaryText.ShouldBe("Kontakt");
+        FlagCount(withIt).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxPartsPastTheByteBudget_AddNothing_AndTheMainPartCountsTowardsIt()
+    {
+        // Each part stays under the reader's character ceiling; the main part and four headers together pass the
+        // document's byte budget, so the fourth header is the one that does not fit.
+        var filler = new string(' ', 3_900_000);
+        var headers = Enumerable.Range(1, 4)
+            .Select(i => DocxStoryFixture.Part("header", "<w:p><w:r><w:t>Rad " + i + "</w:t></w:r></w:p>" + filler))
+            .ToArray();
+
+        var result = ExtractStories("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>" + filler, headers);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3"], ignoreOrder: true);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxWithMoreStoriesThanTheCap_ReadsSixtyFour()
+    {
+        var headers = Enumerable.Range(1, 65).Select(i => DocxStoryFixture.Paragraph("header", "Rubrik " + i)).ToArray();
+
+        var result = ExtractStories(AnnaBody, headers);
+
+        result.AuxiliaryText.Split('\n').Length.ShouldBe(64);
+    }
+
+    [Fact]
+    public void Extract_DocxTextBoxInAlternateContentInAHeader_ReachesTheScan()
+    {
+        // Both branches are read today (#1801), so the oracle holds whether one or both are.
+        var box = "<w:p><w:r><mc:AlternateContent>" +
+            "<mc:Choice Requires=\"wps\">" + TextBox("drawing anchor", "811218-9876") + "</mc:Choice>" +
+            "<mc:Fallback>" + TextBox("vml floating", "811218-9876") + "</mc:Fallback>" +
+            "</mc:AlternateContent></w:r></w:p>";
+
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Part("header", box));
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.ScanText.Split('\n').Where(line => line.Contains("811218")).ShouldAllBe(line => line == "811218-9876");
+        var occurrences = result.ScanText.Split("811218-9876").Length - 1;
+        occurrences.ShouldBeGreaterThanOrEqualTo(1);
+        FlagCount(result).ShouldBe(occurrences);
+    }
+
     private static bool IsInline(string form) => form is "vml inline" or "drawing inline";
 
     // A text box holding one paragraph, as the run content of the paragraph that anchors it.
@@ -829,11 +1143,17 @@ public class PdfPigOpenXmlCvTextExtractorTests
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
-    // The import's flag path as ImportResumeCommandHandler composes it. The profile it passes there is
-    // pinned by PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
-    private static int FlagCount(string rawText) =>
+    // The import's flag path: ImportResumeCommandHandler scans ScanText, and a document with no other story scans its
+    // RawText alone. The profile it passes there is pinned by
+    // PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
+    private static int FlagCount(CvExtractionResult result) => FlagCount(result.ScanText);
+
+    private static int FlagCount(string scanText) =>
         PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
-            rawText, PersonnummerGapProfile.ExtractedDocumentText)).Count;
+            scanText, PersonnummerGapProfile.ExtractedDocumentText)).Count;
+
+    private CvExtractionResult ExtractStories(string bodyXml, params (string Story, string PartXml)[] parts) =>
+        _sut.Extract(DocxStoryFixture.Build(bodyXml, parts), CvFileKind.Docx, CancellationToken.None);
 
     private static byte[] BuildDocxFromParagraphs(params Paragraph[] paragraphs)
     {
@@ -862,6 +1182,59 @@ public class PdfPigOpenXmlCvTextExtractorTests
         "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" " +
         "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">" +
         "<w:body>" + body + "</w:body></w:document>";
+
+    // A package whose main part's relationships are written by hand: the SDK refuses two relationships to one part,
+    // and a relationship to a part the package does not hold.
+    private static byte[] BuildDocxWithRelationships(
+        string bodyXml, (string Id, string Kind, string Target)[] relationships, params (string Kind, string Target, string Xml)[] parts) =>
+        BuildDocxWithRelationshipsXml(bodyXml,
+            RelationshipsXml(string.Concat(relationships.Select(r =>
+                "<Relationship Id=\"" + r.Id + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/" +
+                r.Kind + "\" Target=\"" + r.Target + "\"" + (r.Kind == "hyperlink" ? " TargetMode=\"External\"" : "") + "/>"))),
+            parts);
+
+    private static string RelationshipsXml(string elements) =>
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + elements + "</Relationships>";
+
+    private static byte[] BuildDocxWithRelationshipsXml(
+        string bodyXml, string documentRelationshipsXml, params (string Kind, string Target, string Xml)[] parts)
+    {
+        var overrides = string.Concat(parts.Select(part =>
+            "<Override PartName=\"/word/" + part.Target + "\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml." +
+            part.Kind + "+xml\"/>"));
+        var contentTypes =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
+            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
+            "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
+            overrides + "</Types>";
+        const string rootRelationships =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" " +
+            "Target=\"word/document.xml\"/></Relationships>";
+
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            Write(archive, "[Content_Types].xml", contentTypes);
+            Write(archive, "_rels/.rels", rootRelationships);
+            Write(archive, "word/_rels/document.xml.rels", documentRelationshipsXml);
+            Write(archive, "word/document.xml", DocumentXml(bodyXml));
+            foreach (var (_, target, xml) in parts)
+                Write(archive, "word/" + target, xml);
+        }
+
+        return ms.ToArray();
+
+        static void Write(ZipArchive archive, string name, string content)
+        {
+            using var stream = archive.CreateEntry(name).Open();
+            var bytes = Encoding.UTF8.GetBytes(content);
+            stream.Write(bytes, 0, bytes.Length);
+        }
+    }
 
     // Builds a minimal, VALID OPC/DOCX package (the three required parts) with a
     // caller-supplied word/document.xml — so a crafted document.xml (e.g. a DTD payload)

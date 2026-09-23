@@ -14,7 +14,7 @@ en mejlad begäran (§4.3). Flödet har två faser:
 
 | Fas | När | Vad | Vem |
 |---|---|---|---|
-| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API, eller en operatör (§4.3) |
+| **Soft-delete** | Direkt vid `POST /me/delete` | `DeletedAt` sätts på `JobSeeker` + alla `Application` + alla `Resume`. Audit-rad `Account.Deleted` skrivs. Sessioner invalideras. | Användaren via API |
 | **Hard-delete** | Daily 04:00 UTC, efter 30 dagar | Cascade hard-delete (FK CASCADE). Audit-rader anonymiseras. ApplicationUser raderas från Identity. | `HardDeleteAccountsJob` (Hangfire) |
 
 **Restore-fönster:** 30 dagar mellan soft-delete och hard-delete. Inom
@@ -363,42 +363,42 @@ EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
 
 Självbetjäningen på `/mina-sidor` kräver en kod till kontots adress. När ingen kod går att få — mejl
 kan inte levereras, eller dygnsgränsen för koder är nådd — hänvisar sidan till
-kontakt@jobbliggaren.se, och begäran landar här. Proceduren ger samma utfall som självbetjäningen:
-kontot soft-deletas, sessionerna stängs och 30-dagarsfönstret för återställning börjar löpa.
+kontakt@jobbliggaren.se, och begäran landar här.
 
-**Verifiering.** Svara på begäran till kontots registrerade adress och radera först när svaret kommer
-därifrån. Det är samma bevis som koden ger: kontroll över inkorgen. En avsändaradress ensam bevisar
-ingenting. **Går det inte att verifiera: radera inte** (Art. 11.2, Art. 12.6), som i §4.2.
+**Verifiering.** En avsändaradress ensam bevisar ingenting. **Går det inte att verifiera: radera inte**
+(Art. 11.2, Art. 12.6), som i §4.2.
 
 **Steg 1 — identifiera raden.**
 
 ```sql
+\prompt 'Adress: ' adress
 SELECT js.id AS job_seeker_id, js.user_id, js.deleted_at
 FROM identity."AspNetUsers" u
 JOIN public.job_seekers js ON js.user_id = u.id
-WHERE u.normalized_email = upper('<adress>');
+WHERE u.normalized_email = upper(:'adress');
 ```
 
 Är `deleted_at` redan satt är kontot redan raderat och klockan går; gå direkt till svaret nedan.
 
-**Steg 2 — sätt raderingstriggern.** Samma form som §4.2, med Identity-grinden omvänd: raden måste
-ha en Identity-user, så ett felklistrat id kan aldrig starta klockan på en reverse-orphan här.
+**Steg 2 — sätt raderingstriggern.**
 
 ```sql
 UPDATE job_seekers SET deleted_at = NOW()
 WHERE id = '<jobSeekerId>'::uuid AND deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u WHERE u.id = job_seekers.user_id);
+  AND EXISTS (SELECT 1 FROM identity."AspNetUsers" u
+              WHERE u.id = job_seekers.user_id AND u.normalized_email = upper(:'adress'))
+RETURNING user_id;
 ```
 
 `NOW()` och inte en backdatering: självbetjäningen ger 30 dagars återställning, och den som mejlar
 får samma. `HardDeleteAccountsJob` raderar kontot vid första passet efter fönstret (§2.3).
 
-**Steg 3 — plantera tombsten**, efter steg 2 som API:t gör efter sin commit (§2.1). Den stänger
-läs-vägen för varje session kontot har kvar:
+**Steg 3 — plantera tombsten** för det `user_id` som steg 2 returnerade, efter steg 2 som API:t gör
+efter sin commit (§2.1). Den stänger läs-vägen för varje session kontot har kvar:
 
 ```
-SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
-EXISTS jobbliggaren:user:<userId>:deleted   -- ska ge 1
+docker exec jobbliggaren-redis redis-cli SET jobbliggaren:user:<userId>:deleted 1 EX 2592000
+docker exec jobbliggaren-redis redis-cli EXISTS jobbliggaren:user:<userId>:deleted   # ska ge 1
 ```
 
 **Svaret och posten.** Svara den registrerade att kontot är raderat och att det kan återställas i 30

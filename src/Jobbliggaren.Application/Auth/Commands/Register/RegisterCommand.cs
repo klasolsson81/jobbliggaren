@@ -14,6 +14,5 @@ namespace Jobbliggaren.Application.Auth.Commands.Register;
 public sealed record RegisterCommand(
     string? Email,
     string? Password,
-    string? DisplayName,
     bool AcceptTerms,
     bool RememberMe = false) : ICommand<Result<RegisterOutcome>>;

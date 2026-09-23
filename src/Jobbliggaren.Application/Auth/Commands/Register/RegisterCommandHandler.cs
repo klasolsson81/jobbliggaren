@@ -36,21 +36,6 @@ public sealed partial class RegisterCommandHandler(
                 AuthErrorCodes.RegistrationsClosed, AuthErrorCodes.RegistrationsClosedMessage));
         }
 
-        // #1117: the display-name personnummer refusal is evaluated HERE, before CreateUserAsync,
-        // for the same reason the kill-switch above is — and it is the same rule, not a second
-        // copy of it: JobSeeker.Register runs this identical method, so the aggregate stays the
-        // authority and stays fail-closed for every other caller. What is decided here is ORDER.
-        // Evaluated only at Register(), the refusal sits AFTER the duplicate-address branch below,
-        // which swallows a taken address into the uniform 202 — so one and the same request would
-        // answer 202 for a taken address and 400 for a fresh one, re-opening exactly the
-        // existence-dependent status oracle #714 closed. Run before CreateUserAsync it reads no
-        // account state at all, so the response cannot vary with the address; it also leaves
-        // nothing behind, so the refusal stops producing an Identity user for DeleteUserAsync to
-        // compensate and the #508 orphan sweep to collect.
-        var displayNameResult = JobSeeker.ValidateDisplayName(command.DisplayName);
-        if (displayNameResult.IsFailure)
-            return Result.Failure<RegisterOutcome>(displayNameResult.Error);
-
         var requireConfirmation = authOptions.Value.RequireEmailConfirmation;
 
         var createResult = await userAccountService.CreateUserAsync(
@@ -114,7 +99,7 @@ public sealed partial class RegisterCommandHandler(
         // published versions at the clock's now. It is read from the clock a second time inside
         // Register for CreatedAt — two facts, so two reads, and not coupled to save one.
         var seekerResult = JobSeeker.Register(
-            userId, command.DisplayName, TermsAcceptance.AcceptCurrent(clock), clock);
+            userId, displayName: null, TermsAcceptance.AcceptCurrent(clock), clock);
         if (seekerResult.IsFailure)
         {
             await userAccountService.DeleteUserAsync(userId, cancellationToken);

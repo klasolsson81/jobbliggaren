@@ -115,14 +115,6 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
     //
     // The invariant is FORWARD-ONLY: EF materializes an existing row through the private
     // constructor, bypassing this method, so a row written before it landed still loads.
-    //
-    // PUBLIC so a caller that must refuse BEFORE it can construct the aggregate can run the same
-    // rule from its one home — not a second home for it. RegisterCommandHandler is that caller:
-    // it creates the Identity user first, so evaluating the refusal only at Register() would make
-    // the response vary with whether the address already exists (#714's status oracle). Calling
-    // this earlier is an ORDERING requirement, not a duplicated invariant — Register() still runs
-    // it for every name that is given, so the aggregate stays fail-closed on the personnummer scan
-    // and the length cap for every other caller. An ABSENT name is admitted there (ADR 0142 D7).
     public static Result<string> ValidateDisplayName(string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))

@@ -88,7 +88,7 @@ public sealed class LayoutCorpusReportTests
     /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
     /// nothing.</para>
     /// </summary>
-    private const string BaseCommit = "e13bf991";
+    private const string BaseCommit = "3643526e";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()
@@ -152,14 +152,14 @@ public sealed class LayoutCorpusReportTests
             + "so pin P5's non-difference claim is noise rather than a measurement.");
 
         // Production-touching assert (d), argued here. TWO causes, and the FIRST is the one a
-        // reader will actually hit: the ladder has no arm for the reason the handler returned, so
-        // it cannot place the block. That is reachable by a product change — a new
+        // reader will actually hit: the ladder has no arm for the block the handler returned, so
+        // it cannot place it. That is reachable by a product change — a new
         // AutoPromoteBlockReason reddens this — and red is the right answer, because the
         // alternative is what shipped before: the artifact narrating an unmapped token as a
         // handler fault while §0 reported the instrument healthy. It does not block its own
         // remedy: the remedy is one arm in GateLadder, in this same suite.
         observations.Where(o => !GateLadder.IsWellFormed(o.Gates)).ShouldBeEmpty(
-            "INSTRUMENT: a gate ladder is not well-formed. Either (1) it has no arm for the reason "
+            "INSTRUMENT: a gate ladder is not well-formed. Either (1) it has no arm for the block "
             + "the handler returned — most likely a new AutoPromoteBlockReason — or (2) it reports "
             + "a rung as passed after one that was never evaluated, which is impossible.");
 

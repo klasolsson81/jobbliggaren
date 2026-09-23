@@ -72,10 +72,10 @@ describe("resumeContentDtoSchema", () => {
     expect(resumeContentDtoSchema.safeParse(broken).success).toBe(false);
   });
 
-  // Declared unreachable until #1741's backend change: no path in src/ writes a CV without a
-  // name today (Resume.ValidateContent refuses a blank one). The reader tolerates null first,
-  // so a revert of the writer cannot strand the CVs it wrote. A null parses; an absent key is
-  // still refused by the test above.
+  // The actor: auto-promote composes the CV with no name (AutoPromoteContentMapper, #1741), so a
+  // canonical CV's personalInfo.fullName arrives as null. Pinned over the wire by
+  // GetParsedResumeEndpointTests.Import_for_an_account_without_a_name_promotes_and_the_canonical_review_misses_no_name.
+  // A null parses; an absent key is still refused by the test above.
   it("accepts a null personalInfo.fullName", () => {
     const nameless = {
       ...validContent,

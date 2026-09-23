@@ -202,8 +202,17 @@ public class B1LeadInFailArmTests
         // The asset-side pin (CvConventionsProviderTests) can only catch the asset drifting; without
         // this one the rule side could be renamed freely. Mutation-verified: changing this label used
         // to leave all 17806 tests green.
+        // An all-empty contact is what the segmenter reports as NotFound
+        // (HeadingDrivenResumeSegmenter.ContactConfidence), and B1 reads the detected sections.
         var b1 = await B1Async(Resume(
-            contact: new ParsedContact(null, null, null, null), rawText: RecommendedOrder));
+            contact: new ParsedContact(null, null, null, null),
+            rawText: RecommendedOrder,
+            confidence: ParseConfidence.FromSections(
+            [
+                new SectionConfidence(
+                    ParsedSectionKind.Contact, SectionConfidenceLevel.NotFound, ["no contact fields detected"]),
+                new SectionConfidence(ParsedSectionKind.Experience, SectionConfidenceLevel.Confident, ["1 post"]),
+            ])));
 
         b1.Verdict.ShouldBe(CriterionVerdict.Warn);
 

@@ -22,9 +22,8 @@ namespace Jobbliggaren.QA.Corpus.Layout.Generation;
 /// silently measures a fiction, which is why <c>ByteProof</c> asserts the serialization form from
 /// <c>word/document.xml</c> rather than trusting this comment.</para>
 ///
-/// <para><b>2. A Word table is BYTE-INVISIBLE to the extractor.</b> The DOCX branch handles
-/// exactly three node conditions — <c>w:t</c> Element, <c>w:t</c> EndElement, and <c>w:p</c>
-/// EndElement. There is no handling of <c>w:tbl</c>, <c>w:tr</c>, <c>w:tc</c> or <c>w:br</c>. A
+/// <para><b>2. A Word table is BYTE-INVISIBLE to the extractor.</b> There is no handling of
+/// <c>w:tbl</c>, <c>w:tr</c> or <c>w:tc</c>. A
 /// table and a flat paragraph sequence in the same order therefore produce identical text. So
 /// "table-based Word template" cannot be a DEFINING mechanic here, and an ordering assertion over
 /// the extracted text would restate this file rather than measure the product. The corpus covers

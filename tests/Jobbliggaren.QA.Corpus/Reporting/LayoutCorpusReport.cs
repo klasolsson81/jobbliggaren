@@ -261,7 +261,7 @@ public static class LayoutCorpusReport
 
         L();
         L("**Twin comparisons** — the only honest sentence this corpus can emit about tables. The");
-        L("DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a");
+        L("DOCX extractor has no `w:tbl`/`w:tr`/`w:tc` handling, so a");
         L("table and a flat paragraph sequence in the same order should produce identical text. An");
         L("ordering assertion would restate our own writer; equal digests are a fact about the");
         L("extractor.");
@@ -487,8 +487,8 @@ public static class LayoutCorpusReport
         L();
         L("- **No genuine vendor export.** The CTO's class (d) is answered PARTIALLY: the mechanic");
         L("  is reproduced, the vendor claim is not made.");
-        L("- **Table-ness is invisible to the DOCX extractor** (it handles `w:t` and `w:p` only —");
-        L("  no `w:tbl`/`w:tr`/`w:tc`), so class (c) is answered as a container fact with its");
+        L("- **Table-ness is invisible to the DOCX extractor** (it has no");
+        L("  `w:tbl`/`w:tr`/`w:tc` handling), so class (c) is answered as a container fact with its");
         L("  invisibility shipped as a measurement, not as a distinct extraction mechanic.");
         L("- **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`");
         L("  branch of the import handler's segment conditional is unexercised.");

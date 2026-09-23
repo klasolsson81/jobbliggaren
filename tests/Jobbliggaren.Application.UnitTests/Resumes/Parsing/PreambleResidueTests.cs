@@ -994,7 +994,7 @@ public class PreambleResidueTests
     public void Segment_HeadinglessParagraphHardCut_NeverMintsAPersonnummerTheWholeTextLacks(
         int proseLength, string run)
     {
-        // Premise: a DOCX paragraph is ONE extracted line (the extractor breaks only at </w:p>), so a
+        // Premise: a DOCX paragraph without a line break in it is ONE extracted line, so a
         // headingless CV whose first paragraph passes the cap reaches the hard cut. The cap falls
         // inside a digit run the scan of the whole text rejects on its trailing-digit boundary. The
         // carried prefix must not hold a personnummer the scan of the whole text did not: the

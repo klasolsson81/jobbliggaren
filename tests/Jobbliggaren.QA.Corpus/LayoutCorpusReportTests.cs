@@ -88,7 +88,7 @@ public sealed class LayoutCorpusReportTests
     /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
     /// nothing.</para>
     /// </summary>
-    private const string BaseCommit = "b637b691";
+    private const string BaseCommit = "e13bf991";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

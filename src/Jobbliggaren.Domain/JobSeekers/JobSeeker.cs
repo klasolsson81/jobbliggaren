@@ -174,17 +174,6 @@ public sealed class JobSeeker : AggregateRoot<JobSeekerId>
         return Result.Success(jobSeeker);
     }
 
-    public Result UpdateDisplayName(string? displayName, IDateTimeProvider clock)
-    {
-        var nameResult = ValidateDisplayName(displayName);
-        if (nameResult.IsFailure)
-            return Result.Failure(nameResult.Error);
-
-        DisplayName = nameResult.Value;
-        UpdatedAt = clock.UtcNow;
-        return Result.Success();
-    }
-
     public void UpdatePreferences(Preferences preferences, IDateTimeProvider clock)
     {
         Preferences = preferences;

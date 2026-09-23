@@ -6,6 +6,7 @@
     "ansokningar": "My applications",
     "foretag": "Companies",
     "cv": "CV",
+    "minaSidor": "My pages",
     "brandHome": "Jobbliggaren, start page"
   },
   "header": {
@@ -23,8 +24,7 @@
     "empty": "No new notifications."
   },
   "userMenu": {
-    "ariaLabel": "User menu",
-    "installningar": "Settings",
+    "signedInAs": "Logged in as",
     "senasteSokningar": "Recent searches",
     "sparadeAnnonser": "Saved job ads",
     "minaMatchningar": "My matches",
@@ -37,7 +37,6 @@
     "navAriaLabel": "Menu",
     "close": "Close",
     "closeAriaLabel": "Close menu",
-    "installningar": "Settings",
     "granskning": "Audit log"
   },
   "modal": {

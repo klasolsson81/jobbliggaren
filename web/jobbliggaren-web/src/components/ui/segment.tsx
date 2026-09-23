@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 /**
  * Segment — radiogroup-stil "tab-pill" som primärt används för 2–3 alternativ
- * (Tema, Språk i Inställningar). Civic-utility-stil per HANDOVER §5.1/§5.2.
+ * (Språk på Mina sidor). Civic-utility-stil per HANDOVER §5.1/§5.2.
  *
  * Aktiv option får navy-800-fyll + vit text i båda lägena (matchar primary-
  * knappens "aldrig inverterad"-regel). Disabled-option har opacity 0.55 +

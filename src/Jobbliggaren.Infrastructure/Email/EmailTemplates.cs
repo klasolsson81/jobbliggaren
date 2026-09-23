@@ -75,7 +75,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var matchesLink = $"{trimmed}/matchningar";
-        var settingsLink = $"{trimmed}/installningar";
+        var settingsLink = $"{trimmed}/mina-sidor";
 
         var items = new StringBuilder();
         var htmlItems = new List<string>();
@@ -168,7 +168,7 @@ internal static partial class EmailTemplates
     {
         var trimmed = baseUrl.TrimEnd('/');
         var jobsLink = $"{trimmed}/jobb";
-        var settingsLink = $"{trimmed}/installningar";
+        var settingsLink = $"{trimmed}/mina-sidor";
         var companiesLink = $"{trimmed}/foretag";
 
         var items = new StringBuilder();

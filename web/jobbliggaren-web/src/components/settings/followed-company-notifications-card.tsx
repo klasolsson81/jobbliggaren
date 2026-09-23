@@ -27,7 +27,7 @@ interface FollowedCompanyNotificationsCardProps {
 
 /**
  * Bevakning F4 (#803) / CTO RF-12=12C — kort för notiser om företag du följer
- * på /installningar. Den KANONISKA Art. 7(3)-withdrawal-ytan för e-postkanalen:
+ * på /mina-sidor. Den KANONISKA Art. 7(3)-withdrawal-ytan för e-postkanalen:
  * innan det här kortet fanns hade flaggan ingen UI alls (en "mörk räl"), vilket
  * är vad kortet stänger — därför lanseringskritiskt, inte polish.
  *

@@ -35,6 +35,9 @@ export const V3_NATIVE_ROUTES = [
   "/ny-ansokan",
   // #515 — /foretag aligned to the jp-pagehero standard (was legacy /sparade-style by mistake).
   "/foretag",
+  // #1740 — a new route that was rebuilt: the transitional container's allowance ended there
+  // (design-reviewer Major 5).
+  "/mina-sidor",
 ] as const;
 
 /** True when `pathname` is (or is under) a v3-native route. */

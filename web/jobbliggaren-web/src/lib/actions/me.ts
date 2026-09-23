@@ -7,7 +7,6 @@ import {
   deleteSessionCookie,
   getServerSession,
   getSessionId,
-  setSessionCookie,
 } from "@/lib/auth/session";
 import { authedFetch } from "@/lib/http/authed-fetch";
 import { readProblemTitle } from "@/lib/http/problem";
@@ -17,7 +16,6 @@ import {
   updateNotificationConsent,
 } from "@/lib/api/me";
 import {
-  makeChangePasswordSchema,
   makeChangeEmailSchema,
   makeDeleteMyAccountSchema,
   type DeleteMyAccountInput,
@@ -29,15 +27,11 @@ import {
   type UpdateFollowedCompanyNotificationConsentInput,
 } from "./me-schemas";
 import { mapActionError } from "./_action-error";
-import type {
-  ActionResult,
-  FieldScopedActionResult,
-  RefusableActionResult,
-} from "./_action-result";
+import type { ActionResult, RefusableActionResult } from "./_action-result";
 
 export async function updateMyProfileAction(
   input: UpdateMyProfileInput
-): Promise<FieldScopedActionResult> {
+): Promise<ActionResult> {
   const ts = await getTranslations("settings");
   const te = await getTranslations("errors");
   const sessionId = await getSessionId();
@@ -59,24 +53,6 @@ export async function updateMyProfileAction(
       body: JSON.stringify(parsed.data),
     });
 
-    if (res.status === 400) {
-      // #1117 — the personnummer refusal is an AGGREGATE invariant, so the Zod schema above
-      // (length only) can never catch it, and mapActionError discriminates on status alone and
-      // would render the generic "could not update" for a refusal the user can act on. Same
-      // exact-whitelist discipline as the Auth.PwnedPassword arm: the machine code is compared,
-      // never rendered, and the backend `detail` is not read.
-      const title = await readProblemTitle(res);
-      return title === "JobSeeker.DisplayNamePersonnummerMustBeRemoved"
-        ? {
-            success: false,
-            error: ts("account.errors.displayNamePersonnummer"),
-            // Names the ONE input this belongs to so the card can mark it invalid and move
-            // focus there. Absent on every other failure, which is what "not a field error"
-            // means to the consumer.
-            field: "displayName" as const,
-          }
-        : { success: false, error: ts("account.errors.invalidInput") };
-    }
     if (!res.ok) {
       return {
         success: false,
@@ -90,7 +66,7 @@ export async function updateMyProfileAction(
     };
   }
 
-  revalidatePath("/installningar");
+  revalidatePath("/mina-sidor");
   return { success: true };
 }
 
@@ -106,7 +82,7 @@ export async function updateMyProfileAction(
  * GDPR: ett opt-in är samtycke (Art. 6(1)(a)/7), ett opt-out drar tillbaka det
  * (Art. 7(3)) — Domänen äger consent-stämplingen; denna action är ren transport.
  * Idempotent full-replace; kadensen skickas alltid med (meningsfull endast när
- * `enabled`, men wire bär den oavsett). Revaliderar `/installningar` så kortet
+ * `enabled`, men wire bär den oavsett). Revaliderar `/mina-sidor` så kortet
  * speglar det sparade läget.
  */
 export async function updateNotificationConsentAction(
@@ -127,7 +103,7 @@ export async function updateNotificationConsentAction(
   const result = await updateNotificationConsent(parsed.data);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/installningar");
+      revalidatePath("/mina-sidor");
       return { success: true };
     case "unauthorized":
       return {
@@ -157,7 +133,7 @@ export async function updateNotificationConsentAction(
  * background-match notifications (ADR 0087 D2) and is written by
  * `updateNotificationConsentAction`. After 7C the in-app follow-rail is
  * unaffected by this flag (Art. 6(1)(b) service); this gates the EMAIL channel
- * only. Revalidates `/installningar` so the card mirrors the saved state.
+ * only. Revalidates `/mina-sidor` so the card mirrors the saved state.
  */
 export async function updateFollowedCompanyNotificationConsentAction(
   input: UpdateFollowedCompanyNotificationConsentInput
@@ -178,7 +154,7 @@ export async function updateFollowedCompanyNotificationConsentAction(
   const result = await updateFollowedCompanyNotificationConsent(parsed.data);
   switch (result.kind) {
     case "ok":
-      revalidatePath("/installningar");
+      revalidatePath("/mina-sidor");
       return { success: true };
     case "unauthorized":
       return {
@@ -291,94 +267,12 @@ export async function deleteAccountAction(
 }
 
 /**
- * #678 — self-service change-password + C6. The current password travels with the
- * operation and is re-authenticated server-side (wrong -> 401, empty/weak -> 400).
- * On success the backend logs the user out on every OTHER device and re-issues THIS
- * session, returning `{ sessionId, persistent }`; we re-set the `__Host-` cookie to
- * the new id (ADR 0018 — the backend sets no cookies), preserving persistence, so
- * the current device stays logged in. STAY-ON-PAGE: returns `{ success: true }`
- * (no redirect) so the card can show a confirmation. PII (either password) is NEVER
- * logged on any path.
- */
-export async function changePasswordAction(
-  currentPassword: string,
-  newPassword: string
-): Promise<ActionResult> {
-  const ts = await getTranslations("settings");
-  const te = await getTranslations("errors");
-  const t = await getTranslations("validation");
-
-  const parsed = makeChangePasswordSchema(t).safeParse({ currentPassword, newPassword });
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? ts("account.errors.invalidInput"),
-    };
-  }
-
-  const sessionId = await getSessionId();
-  if (!sessionId)
-    return { success: false, error: ts("account.errors.notLoggedIn") };
-
-  let reissued: { sessionId?: unknown; persistent?: unknown };
-  try {
-    const res = await authedFetch(sessionId, `/api/v1/auth/change-password`, {
-      method: "POST",
-      body: JSON.stringify({
-        currentPassword: parsed.data.currentPassword,
-        newPassword: parsed.data.newPassword,
-      }),
-    });
-
-    if (res.status === 401) {
-      return { success: false, error: ts("account.errors.wrongPassword") };
-    }
-    if (res.status === 400) {
-      // #616 — a breached new password is the one 400 the client-side Zod schema can never
-      // catch (it only knows length), so NIST SP 800-63B "provide the reason" requires
-      // recognizing the machine code and rendering its localized copy. Only the whitelisted
-      // code changes the message; backend text is never rendered.
-      const title = await readProblemTitle(res);
-      return {
-        success: false,
-        error:
-          title === AUTH_ERROR_CODES.PwnedPassword
-            ? ts("account.errors.passwordBreached")
-            : ts("account.errors.invalidInput"),
-      };
-    }
-    if (!res.ok) {
-      return {
-        success: false,
-        error: mapActionError(res, ts("account.errors.changePasswordFailed"), te),
-      };
-    }
-    // res.json() is `any`; narrow to unknown-typed fields and guard each below (§4).
-    reissued = (await res.json()) as { sessionId?: unknown; persistent?: unknown };
-  } catch {
-    return { success: false, error: ts("account.errors.network") };
-  }
-
-  // C6 re-issue: re-set the cookie to the new session id so this device stays logged
-  // in. Missing/invalid id is a can't-happen on 200; if it ever occurs the stale
-  // cookie fail-safes to a logout on the next request (the password already changed).
-  if (typeof reissued.sessionId === "string" && reissued.sessionId.length > 0) {
-    await setSessionCookie(reissued.sessionId, reissued.persistent === true);
-  }
-
-  // No revalidatePath: a password change alters nothing server-rendered on
-  // /installningar (unlike updateMyProfileAction). Stay-on-page — the card shows its
-  // own confirmation and the cookie is already re-set for the next navigation.
-  return { success: true };
-}
-
-/**
  * #679 — self-service change-email (request step). The current password travels
  * with the operation and is re-authenticated server-side (wrong -> 401, empty
  * current / malformed email -> 400, address already taken -> 409). On success the
  * backend returns 202 and emails a confirmation link to the NEW address; the email
- * is NOT changed at this point and NO session is touched — so, unlike
- * changePasswordAction, there is no cookie to re-issue and no session-body to read.
+ * is NOT changed at this point and NO session is touched, so there is no cookie to
+ * re-issue and no session-body to read.
  * STAY-ON-PAGE: returns `{ success: true }` (no redirect) so the card can confirm
  * that a link was sent. PII (the password, the new email) is NEVER logged on any
  * path.
@@ -473,6 +367,6 @@ export async function changeEmailAction(
     return { success: false, error: ts("account.errors.network") };
   }
 
-  // No revalidatePath: nothing server-rendered on /installningar changes now.
+  // No revalidatePath: nothing server-rendered on /mina-sidor changes now.
   return { success: true };
 }

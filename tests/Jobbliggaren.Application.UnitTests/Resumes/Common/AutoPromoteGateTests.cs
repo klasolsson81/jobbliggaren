@@ -176,8 +176,8 @@ public class AutoPromoteGateTests
         // did not see must be the display name.
         //
         // The elimination holds only while the parse scan and the composed scan agree about
-        // parse-derived text. If they ever diverged, the FE would tell a user "Filen är däremot
-        // ren" about a file that is not, and send her to Inställningar — the loop this PR
+        // parse-derived text. If they ever diverged, the FE would tell a user her file is clean
+        // when it is not, and send her to kontakt@ about her account name — the loop this PR
         // exists to close, inverted. This pins the direction that matters: a personnummer
         // sitting in a SCANNED parse field is the FILE's, and the Tier-1 flag claims it first.
         var parsed = BuildParsed(

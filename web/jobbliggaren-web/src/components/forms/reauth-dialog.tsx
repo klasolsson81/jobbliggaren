@@ -58,8 +58,7 @@ export interface ReAuthDialogProps {
    * control never resolves back here.
    *
    * Typed against `RefusableActionResult` so a `refused` failure can reach `onRefused`.
-   * A plain `ActionResult`-returning action is assignable (the flag is optional), which
-   * is why the two consumers that do not use it need no change.
+   * A plain `ActionResult`-returning action is assignable (the flag is optional).
    */
   action: (password: string) => Promise<RefusableActionResult>;
   /** Extra fields rendered next to the password (e.g. delete's confirm-email). */
@@ -67,20 +66,19 @@ export interface ReAuthDialogProps {
   /**
    * Where `children` render relative to the password field. `"before"` (default)
    * keeps delete's confirm-email-then-password order; `"after"` puts the password
-   * first so change-password reads current -> new -> confirm.
+   * first.
    */
   childrenPosition?: "before" | "after";
   /**
    * Overrides the password field label. Defaults to the shared "Lösenord"; a
-   * consumer whose re-auth field is the *current* password (change-password)
-   * passes "Nuvarande lösenord" for clarity.
+   * consumer whose re-auth field is the *current* password passes "Nuvarande
+   * lösenord" for clarity.
    */
   passwordLabel?: string;
   /**
    * Disambiguates the password field's show/hide toggle accessible name when the
-   * form has multiple password fields (change-password injects new + confirm via
-   * `children`). Passed to <PasswordInput fieldName>. Omitted → the bare toggle
-   * label (unchanged for delete, which has one password field).
+   * form has multiple password fields. Passed to <PasswordInput fieldName>. Omitted →
+   * the bare toggle label (unchanged for delete, which has one password field).
    */
   passwordFieldName?: string;
   /**
@@ -101,12 +99,11 @@ export interface ReAuthDialogProps {
    */
   onOpenChange?: (open: boolean) => void;
   /**
-   * Invoked when the action resolves `{ success: true }` — the STAY-ON-PAGE path
-   * (change-password). ReAuthDialog resets its password field, clears the error,
-   * and closes before calling this, so the consumer just clears its own injected
-   * state and surfaces a confirmation. When omitted, the legacy contract holds:
-   * the action is expected to redirect on success (delete), so control never
-   * returns here and nothing is called.
+   * Invoked when the action resolves `{ success: true }` — the STAY-ON-PAGE path.
+   * ReAuthDialog resets its password field, clears the error, and closes before
+   * calling this, so the consumer just clears its own injected state and surfaces a
+   * confirmation. When omitted, the legacy contract holds: the action is expected to
+   * redirect on success (delete), so control never returns here and nothing is called.
    */
   onSuccess?: () => void;
   /**
@@ -117,7 +114,7 @@ export interface ReAuthDialogProps {
    * something wrong" for a state that is neither the user's fault nor retryable.
    *
    * When omitted, a `refused` failure is rendered as an ordinary server error — the
-   * pre-existing behaviour, which is what the other two consumers still get.
+   * pre-existing behaviour.
    */
   onRefused?: (message: string) => void;
 }
@@ -208,10 +205,9 @@ export function ReAuthDialog({
         setServerError(result.error);
         return;
       }
-      // Stay-on-page success (e.g. change-password): reset, close, and notify the
-      // consumer so it can clear its injected fields and show a confirmation. Without
-      // onSuccess the legacy contract holds — the action redirected and control never
-      // reaches here (delete).
+      // Stay-on-page success: reset, close, and notify the consumer so it can clear its
+      // injected fields and show a confirmation. Without onSuccess the legacy contract
+      // holds — the action redirected and control never reaches here (delete).
       if (onSuccess) {
         reset();
         setServerError(null);

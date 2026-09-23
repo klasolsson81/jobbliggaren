@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CODE_INPUT_ID } from "@/components/auth/code-form";
 import type { ResendState } from "@/lib/auth/challenge-action-state";
 import { resendCode } from "@/lib/auth/challenge-actions";
+import { useCountdown } from "@/lib/hooks/use-countdown";
 
 // Client because it holds the action's state (`useActionState`) and counts the cooldown down.
 //
@@ -37,23 +38,8 @@ export function ResendCodeButton({
 }) {
   const t = useTranslations("pages");
   const [state, formAction, isPending] = useActionState<ResendState, FormData>(resendCode, null);
-  const [cooldown, setCooldown] = useState(initialCooldownSeconds);
-
-  // Reset during render when the challenge changes, not in an effect: the new count must be on
-  // screen in the same paint as the new challenge.
-  const [countedFor, setCountedFor] = useState(sentAt);
-  if (countedFor !== sentAt) {
-    setCountedFor(sentAt);
-    setCooldown(initialCooldownSeconds);
-  }
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const id = setInterval(() => {
-      setCooldown((seconds) => (seconds <= 1 ? 0 : seconds - 1));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [cooldown]);
+  // A new `sentAt` is a new challenge, so the count starts again in the same paint.
+  const cooldown = useCountdown(initialCooldownSeconds, sentAt);
 
   // The button stays disabled for the whole cooldown, so focus cannot return to it. The field is
   // the user's next act, on both arms: a resend after a dead code brings it back.

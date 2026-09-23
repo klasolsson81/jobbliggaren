@@ -12,7 +12,7 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// invariants so a future edit cannot silently regress them.
 ///
 /// The single load-bearing GDPR invariant: the settings/unsubscribe link
-/// (<c>{baseUrl}/installningar</c>, Art. 7(3) — withdrawal must be as easy as giving consent)
+/// (<c>{baseUrl}/mina-sidor</c>, Art. 7(3) — withdrawal must be as easy as giving consent)
 /// is ALWAYS present in EVERY rendered body, for both kinds, regardless of item count. The
 /// body must never carry PII (a recipient address, a personnummer, a score) — only public
 /// ad fields + grade labels.
@@ -43,7 +43,7 @@ public class EmailTemplatesMatchNotificationTests
 
         var email = EmailTemplates.MatchNotification(BaseUrl, content);
 
-        email.PlainTextBody.ShouldContain($"{BaseUrl}/installningar");
+        email.PlainTextBody.ShouldContain($"{BaseUrl}/mina-sidor");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class EmailTemplatesMatchNotificationTests
 
         var email = EmailTemplates.MatchNotification(BaseUrl, content);
 
-        email.PlainTextBody.ShouldContain($"{BaseUrl}/installningar");
+        email.PlainTextBody.ShouldContain($"{BaseUrl}/mina-sidor");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class EmailTemplatesMatchNotificationTests
 
         var email = EmailTemplates.MatchNotification(BaseUrl, content);
 
-        email.PlainTextBody.ShouldContain($"{BaseUrl}/installningar");
+        email.PlainTextBody.ShouldContain($"{BaseUrl}/mina-sidor");
     }
 
     [Theory]
@@ -74,8 +74,8 @@ public class EmailTemplatesMatchNotificationTests
     {
         var email = EmailTemplates.MatchNotification(baseUrl, Direct(Item()));
 
-        email.PlainTextBody.ShouldContain("https://jobbliggaren.se/installningar");
-        email.PlainTextBody.ShouldNotContain("se//installningar");
+        email.PlainTextBody.ShouldContain("https://jobbliggaren.se/mina-sidor");
+        email.PlainTextBody.ShouldNotContain("se//mina-sidor");
     }
 
     // --- The /matchningar deep link ---

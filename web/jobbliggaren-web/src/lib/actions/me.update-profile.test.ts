@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// #1117 — updateMyProfileAction's 400 handling. The personnummer refusal is an AGGREGATE
-// invariant, so it can reach this action in exactly one shape: a ProblemDetails `title`. The
-// client-side Zod schema knows only length and can never catch it, and mapActionError
-// discriminates on status alone — so without the whitelisted arm the user is told "could not
-// update the profile" for a refusal that names precisely what to change. The translator mock
-// returns the key verbatim, so assertions check the resolved message key.
+// updateMyProfileAction — the language write behind the Visning card. A Server Action is a public
+// endpoint: any signed-in client can post it any argument, so the tests below call it the way such
+// a client can, not only the way the card does. The translator mock returns the key verbatim, so
+// assertions check the resolved message key.
 
 const { getSessionIdMock, authedFetchMock } = vi.hoisted(() => ({
   getSessionIdMock: vi.fn(async () => "sess-current" as string | null),
@@ -20,7 +18,6 @@ vi.mock("next-intl/server", () => ({
 }));
 vi.mock("@/lib/auth/session", () => ({
   getSessionId: getSessionIdMock,
-  setSessionCookie: vi.fn(),
   deleteSessionCookie: vi.fn(),
   getServerSession: vi.fn(),
 }));
@@ -32,90 +29,58 @@ vi.mock("@/lib/api/me", () => ({
 
 import { updateMyProfileAction } from "./me";
 
-function fakeResponse(status: number, body?: unknown): Response {
+type ProfileInput = Parameters<typeof updateMyProfileAction>[0];
+
+function fakeResponse(status: number, body?: unknown) {
   return {
     status,
     ok: status >= 200 && status < 300,
-    json: async () => body,
-  } as unknown as Response;
+    json: vi.fn(async () => body),
+  };
 }
 
-describe("updateMyProfileAction 400 handling", () => {
+describe("updateMyProfileAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionIdMock.mockResolvedValue("sess-current");
   });
 
-  it("maps the display-name personnummer refusal to copy that names what to change", async () => {
-    authedFetchMock.mockResolvedValue(
-      fakeResponse(400, { title: "JobSeeker.DisplayNamePersonnummerMustBeRemoved" }),
-    );
-
-    const result = await updateMyProfileAction({ displayName: "Anna 811218-9876", language: "sv" });
-
-    expect(result).toEqual({
-      success: false,
-      error: "account.errors.displayNamePersonnummer",
-      // Names the input, so the card can mark exactly that control invalid and focus it.
-      field: "displayName",
-    });
-  });
-
-  it("does not render an unknown ProblemDetails title — falls back to generic copy", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(400, { title: "JobSeeker.SomethingElse" }));
-
-    const result = await updateMyProfileAction({ displayName: "Anna Andersson", language: "sv" });
-
-    expect(result).toEqual({ success: false, error: "account.errors.invalidInput" });
-  });
-
-  it("falls back to generic copy when the 400 body is not JSON at all", async () => {
-    // readProblemTitle resolves a non-JSON body to null rather than throwing, so a reverse
-    // proxy's own 400 must not take the whitelisted arm.
-    authedFetchMock.mockResolvedValue({
-      status: 400,
-      ok: false,
-      json: async () => {
-        throw new Error("not json");
-      },
-    } as unknown as Response);
-
-    const result = await updateMyProfileAction({ displayName: "Anna Andersson", language: "sv" });
-
-    expect(result).toEqual({ success: false, error: "account.errors.invalidInput" });
-  });
-
-  it("does NOT name a field on a non-field failure", async () => {
-    // The discriminator is only meaningful if its absence is pinned too: without this, stamping
-    // every failure would pass the positive test above while marking the name input invalid for
-    // a network fault the user cannot fix by editing it.
-    authedFetchMock.mockRejectedValue(new Error("network down"));
-
-    const result = await updateMyProfileAction({
-      displayName: "Anna Andersson",
-      language: "sv",
-    });
-
-    expect(result).toEqual({ success: false, error: "account.errors.network" });
-    expect(result).not.toHaveProperty("field");
-  });
-
-  it("does NOT name a field for an unknown 400 title", async () => {
-    authedFetchMock.mockResolvedValue(fakeResponse(400, { title: "JobSeeker.SomethingElse" }));
-
-    const result = await updateMyProfileAction({
-      displayName: "Anna Andersson",
-      language: "sv",
-    });
-
-    expect(result).not.toHaveProperty("field");
-  });
-
-  it("passes a successful update through unchanged", async () => {
+  it("sends the language and never a display name", async () => {
+    // No page writes the account name since #1740, so neither does the action behind the page: a
+    // name posted anyway is stripped by the schema, not forwarded to PATCH /me/profile.
     authedFetchMock.mockResolvedValue(fakeResponse(200));
 
-    const result = await updateMyProfileAction({ displayName: "Anna Andersson", language: "sv" });
+    const result = await updateMyProfileAction({
+      language: "en",
+      displayName: "Anna Andersson",
+    } as unknown as ProfileInput);
 
     expect(result).toEqual({ success: true });
+    expect(authedFetchMock).toHaveBeenCalledTimes(1);
+    const [, path, init] = authedFetchMock.mock.calls[0]! as [string, string, RequestInit];
+    expect(path).toBe("/api/v1/me/profile");
+    expect(JSON.parse(init.body as string)).toEqual({ language: "en" });
+  });
+
+  it("refuses a payload without a language before anything is sent", async () => {
+    const result = await updateMyProfileAction({} as unknown as ProfileInput);
+
+    expect(result).toEqual({ success: false, error: "profile.languageInvalid" });
+    expect(authedFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("answers a failed write with the generic copy and never reads the body", async () => {
+    // The 503 the API writes when the session store is down (Program.cs, StoreUnavailableException).
+    // Every authenticated route can answer it, and its body is backend text, which never reaches
+    // the UI (mapActionError, TD-10).
+    const res = fakeResponse(503, {
+      error: "Tjänsten är inte tillgänglig just nu. Försök igen om en stund.",
+    });
+    authedFetchMock.mockResolvedValue(res);
+
+    const result = await updateMyProfileAction({ language: "sv" });
+
+    expect(result).toEqual({ success: false, error: "account.errors.updateFailed" });
+    expect(res.json).not.toHaveBeenCalled();
   });
 });

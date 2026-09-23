@@ -374,8 +374,8 @@ internal static partial class EmailTemplates
             Subject: "Din bekräftelsekod till Jobbliggaren",
             PlainTextBody: $"""
                 Någon som är inloggad på ditt konto på Jobbliggaren vill göra en ändring
-                som kräver att du bekräftar att det är du: radera kontot, byta e-postadress
-                eller byta lösenord.
+                som kräver att du bekräftar att det är du: radera kontot eller byta
+                e-postadress.
 
                 Din bekräftelsekod är:
                 {code}
@@ -396,8 +396,7 @@ internal static partial class EmailTemplates
                 preheader: $"Koden gäller i {minutes} minuter.",
                 body: EmailHtml.P(
                         "Någon som är inloggad på ditt konto på Jobbliggaren vill göra en ändring som "
-                        + "kräver att du bekräftar att det är du: radera kontot, byta e-postadress eller "
-                        + "byta lösenord.")
+                        + "kräver att du bekräftar att det är du: radera kontot eller byta e-postadress.")
                     + EmailHtml.P("Din bekräftelsekod är:")
                     + EmailHtml.P(code)
                     + EmailHtml.P(

@@ -17,7 +17,7 @@
     "matchningar": "Matchningarna läses in…",
     "sparade": "Sparade jobb läses in…",
     "sokningar": "Sökningarna läses in…",
-    "installningar": "Inställningarna läses in…",
+    "minaSidor": "Mina sidor läses in…",
     "nyAnsokan": "Ny ansökan läses in…"
   },
   "ansokningar": {
@@ -126,8 +126,7 @@
         "ParseNotConfident": "Filen behöver innehålla text som går att markera. Är den en bild, ett skannat eller lösenordsskyddat dokument sparar du om den som PDF eller Word och laddar upp igen.",
         "IncompleteContent": "En eller flera poster i filen är ofullständiga. Kontrollera att varje anställning har arbetsgivare och titel, och varje utbildning har lärosäte och examen. Komplettera dem och ladda upp filen igen.",
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
-        "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer. Filen är däremot ren. Ändra det under Inställningar och ladda upp filen igen.",
-        "settingsCta": "Gå till Inställningar",
+        "PersonnummerInAccountName": "Namnet på ditt konto innehåller ett personnummer, men filen är ren. Namnet går inte att ändra i tjänsten just nu. Mejla <mail>kontakt@jobbliggaren.se</mail> så hjälper vi dig.",
         "clearedKicker": "Inga hinder i filen",
         "clearedTitle": "Inget i filen hindrar den",
         "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
@@ -550,7 +549,7 @@
     "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Inställningar (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar",
@@ -558,14 +557,13 @@
       "title": "Mina matchningar"
     }
   },
-  "installningar": {
-    "title": "Inställningar",
-    "lede": "Hantera dina kontouppgifter och inställningar.",
-    "profileNotCreated": "Din profil är inte skapad ännu. Fyll i uppgifterna nedan för att komma igång.",
-    "rateLimited": "För många förfrågningar. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
-    "profileLoadError": "Profilen kunde inte hämtas just nu. Försök ladda om sidan om en stund.",
+  "minaSidor": {
+    "title": "Mina sidor",
+    "lede": "Här hanterar du ditt konto, dina notiser och vilka jobb du söker.",
+    "rateLimited": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in, eftersom det kom för många förfrågningar på kort tid. Försök ladda om sidan om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "profileLoadError": "Dina matchningsval, notiser och ditt språkval kunde inte läsas in just nu. Försök ladda om sidan om en stund.",
     "meta": {
-      "title": "Inställningar"
+      "title": "Mina sidor"
     }
   },
   "auth": {

@@ -73,7 +73,7 @@ interface OccupationSectionProps {
    * (welcome-flödet). När satt läses CV-förslaget ur den staging-artefakten
    * (`occupation_proposals`, ingen DEK/CV-PII) i stället för ur det promotade
    * `Resume`:ts `latestRole` — en ny användare har ännu inget promotat Resume.
-   * Utelämnat (dialog/`/cv`/`/installningar`) → faller tillbaka på latestRole-vägen.
+   * Utelämnat (dialog/`/cv`/`/mina-sidor`) → faller tillbaka på latestRole-vägen.
    */
   readonly parsedResumeId?: string;
   /**

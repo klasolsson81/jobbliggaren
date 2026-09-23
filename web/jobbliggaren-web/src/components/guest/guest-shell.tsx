@@ -68,7 +68,7 @@ export function GuestShell({ children }: { children: ReactNode }) {
         <span className="jp-header__spacer" />
 
         <div className="jp-header__actions">
-          {/* Guests cannot reach Installningar; the rule and its derivation live
+          {/* Guests cannot reach Mina sidor; the rule and its derivation live
               in language-switcher.tsx's docblock. */}
           <LanguageSwitcher />
           {/* One control: `/logga-in` is both doors (ADR 0142), and the demo banner

@@ -40,6 +40,13 @@ describe("ChangeEmailCard", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("states the account's current address", () => {
+    render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);
+    expect(
+      screen.getByText(`Din e-postadress är ${CURRENT_EMAIL}.`),
+    ).toBeInTheDocument();
+  });
+
   it("keeps submit disabled until the new email is valid, different, and the password is present", async () => {
     const user = userEvent.setup();
     render(<ChangeEmailCard currentEmail={CURRENT_EMAIL} />);

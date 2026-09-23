@@ -230,7 +230,9 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         var text = Unwrapped(rendered.PlainTextBody);
         text.ShouldContain("ditt konto");
-        text.ShouldContain("radera kontot, byta e-postadress eller byta lösenord");
+        text.ShouldContain("radera kontot eller byta e-postadress.");
+        text.ShouldNotContain("lösenord");
+        rendered.HtmlBody.ShouldNotContain("lösenord");
         text.ShouldContain(EmailTemplates.ContactAddress);
         text.ShouldNotContain("artikel 6.1");
         text.ShouldNotContain("Personuppgiftsansvarig");

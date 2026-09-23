@@ -166,8 +166,8 @@ internal static class AutoPromoteGate
             // so if this guard fires and the parse's own scan did not, the number is in the
             // account display name, which is the one text this composition adds. Reporting it
             // as PersonnummerPresent sent the user to search a clean file: a mis-reported
-            // verdict (CLAUDE.md §5) and a loop with no exit, because the fix is under
-            // Inställningar and nothing said so.
+            // verdict (CLAUDE.md §5) and a loop with no exit, because the fix is not in the file
+            // and nothing said so.
             // Null even though `guard.Error.Code` exists (`Resume.PersonnummerMustBeRemoved`) —
             // and the reason is the asymmetry the whole field exists for. THIS token is already
             // 1:1 with that code: reaching this rung IS that refusal, so carrying it would add a

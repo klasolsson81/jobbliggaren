@@ -104,7 +104,7 @@
 > ./Jobbliggaren.QA.Corpus.exe -class "Jobbliggaren.QA.Corpus.LayoutCorpusReportTests"
 > ```
 >
-> Base commit: `b637b691`.
+> Base commit: `e13bf991`.
 > Deterministic; NO AI/LLM anywhere in the measured chain (ADR 0071).
 
 ## Claim discipline (ADR 0109 §4)
@@ -540,7 +540,7 @@ reader's inference, never an emitted ratio.
 | 24 | `docx-irreducible-unattributed-experience` | `C6EF355B8C7E` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
-DOCX extractor handles `w:t` and `w:p` only, with no `w:tbl`/`w:tr`/`w:tc` handling, so a
+DOCX extractor has no `w:tbl`/`w:tr`/`w:tc` handling, so a
 table and a flat paragraph sequence in the same order should produce identical text. An
 ordering assertion would restate our own writer; equal digests are a fact about the
 extractor.
@@ -1050,12 +1050,12 @@ permitted to differ is the detected language.
 
 - **No genuine vendor export.** The CTO's class (d) is answered PARTIALLY: the mechanic
   is reproduced, the vendor claim is not made.
-- **Table-ness is invisible to the DOCX extractor** (it handles `w:t` and `w:p` only —
-  no `w:tbl`/`w:tr`/`w:tc`), so class (c) is answered as a container fact with its
+- **Table-ness is invisible to the DOCX extractor** (it has no
+  `w:tbl`/`w:tr`/`w:tc` handling), so class (c) is answered as a container fact with its
   invisibility shipped as a measurement, not as a distinct extraction mechanic.
 - **Scanned / `NoTextLayer` documents are absent**, so the `ParseConfidence.Failed`
   branch of the import handler's segment conditional is unexercised.
-- **Entry boundaries still need a blank paragraph, and nothing here recovers them.**
+- **Entry boundaries still need a blank line, and nothing here recovers them.**
   `SplitEntries` splits on blank lines only, so a DOCX that authors none yields ONE entry
   per block. That is why the `-no-blanks` rows report 1 of 5 employments — a document
   fact, not a header-order fact, which #1060 β-1's role-first control arm separated. Not

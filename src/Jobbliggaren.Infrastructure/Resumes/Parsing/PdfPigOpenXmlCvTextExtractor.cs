@@ -196,9 +196,14 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             using var cappedStream = new ByteCappedReadStream(partStream, MaxDecompressedMainPartBytes);
             using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
 
+            const string DrawingNamespace = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+            const string VmlNamespace = "urn:schemas-microsoft-com:vml";
+
             var builder = new StringBuilder();
             var insideText = false;
             var insideTabStops = 0;
+            // The depth of the shape a w:pict or w:object holds; its style says whether it floats.
+            var vmlShapeDepth = -1;
 
             while (reader.Read())
             {
@@ -262,9 +267,32 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     case XmlNodeType.Element
                         when reader.LocalName is "tab" or "ptab" or "sym"
                             && reader.NamespaceURI == WordprocessingMainNamespace
-                            && insideTabStops == 0
-                            && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]):
-                        builder.Append(' ');
+                            && insideTabStops == 0:
+                        AppendSeparator(builder);
+                        break;
+
+                    case XmlNodeType.Element
+                        when reader.LocalName == "txbxContent" && reader.NamespaceURI == WordprocessingMainNamespace:
+                        if (builder.Length > 0 && builder[^1] != '\n')
+                            builder.Append('\n');
+                        break;
+
+                    // #1801: an inline object separates its neighbours; an anchored one floats and adds nothing.
+                    case XmlNodeType.Element
+                        when reader.LocalName == "inline" && reader.NamespaceURI == DrawingNamespace:
+                        AppendSeparator(builder);
+                        break;
+
+                    case XmlNodeType.Element
+                        when reader.LocalName is "pict" or "object" && reader.NamespaceURI == WordprocessingMainNamespace:
+                        vmlShapeDepth = reader.Depth + 1;
+                        break;
+
+                    case XmlNodeType.Element
+                        when reader.NamespaceURI == VmlNamespace && reader.Depth == vmlShapeDepth
+                            && reader.LocalName != "shapetype":
+                        if (!IsAbsolutelyPositioned(reader.GetAttribute("style")))
+                            AppendSeparator(builder);
                         break;
                 }
 
@@ -293,6 +321,34 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         return text.Length == 0
             ? new CvExtractionResult(string.Empty, CvExtractionStatus.Empty)
             : new CvExtractionResult(text, CvExtractionStatus.Extracted);
+    }
+
+    // One space between neighbours, never a second one and never at the start of a line.
+    private static void AppendSeparator(StringBuilder builder)
+    {
+        if (builder.Length > 0 && !char.IsWhiteSpace(builder[^1]))
+            builder.Append(' ');
+    }
+
+    // A VML shape floats when its CSS declares position: absolute. The declaration is parsed, because Word also
+    // writes mso-position-horizontal: absolute, which floats nothing.
+    private static bool IsAbsolutelyPositioned(string? style)
+    {
+        var rest = style.AsSpan();
+        while (!rest.IsEmpty)
+        {
+            var end = rest.IndexOf(';');
+            var declaration = end < 0 ? rest : rest[..end];
+            rest = end < 0 ? [] : rest[(end + 1)..];
+
+            var colon = declaration.IndexOf(':');
+            if (colon >= 0
+                && declaration[..colon].Trim().Equals("position", StringComparison.OrdinalIgnoreCase)
+                && declaration[(colon + 1)..].Trim().Equals("absolute", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     // #268 SEC-1: sum the OPC package's DECLARED uncompressed entry sizes (read from the

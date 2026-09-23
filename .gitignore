@@ -179,3 +179,6 @@ loadtest-reports/
 # #1115 — the SNI-sok page cache the alias generator fetches into. The committed JSON asset
 # is the source of truth; this is 6 MB of scraped HTML that any run can rebuild.
 tools/sni-aliases/.cache/
+
+.redis-dev/
+.redis-dev.staging-*/

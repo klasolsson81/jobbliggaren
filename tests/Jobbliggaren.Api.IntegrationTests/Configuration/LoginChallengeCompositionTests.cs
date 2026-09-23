@@ -28,7 +28,7 @@ public sealed class LoginChallengeCompositionTests
     private static Dictionary<string, string?> DurableOnly() => new()
     {
         ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
-        ["ConnectionStrings:Redis"] = "localhost:6379",
+        ["ConnectionStrings:Redis"] = "localhost:6379,user=api-persistent,password=synthetic",
     };
 
     private static IConfiguration Build(Dictionary<string, string?> values) =>
@@ -37,7 +37,7 @@ public sealed class LoginChallengeCompositionTests
     private static IConfiguration ApiConfiguration()
     {
         var values = DurableOnly();
-        values[VolatileRedisKey] = "localhost:6381";
+        values[VolatileRedisKey] = "localhost:6381,user=api-volatile,password=synthetic";
         return Build(values);
     }
 

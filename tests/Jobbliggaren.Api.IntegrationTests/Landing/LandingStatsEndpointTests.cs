@@ -2,8 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Landing.Common;
-using Microsoft.Extensions.Caching.Distributed;
+using Jobbliggaren.Infrastructure.Landing;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
@@ -40,14 +41,9 @@ public class LandingStatsEndpointTests(ApiFactory factory)
         // "vi vet inte" vara JSON null — inte 0, inte ett golv.
         var ct = TestContext.Current.CancellationToken;
 
-        // Rensa Redis-nyckeln explicit så vi vet att vi testar cache-miss-banan.
-        // IDistributedCache.InstanceName ("jobbliggaren:") prefix:as automatiskt —
-        // skicka enbart logiska nyckeln som RedisLandingStatsCache använder
-        // (annars blir nyckeln dubbel-prefixad "jobbliggaren:jobbliggaren:..." och
-        // raderingen blir no-op när en annan test-ordning lämnar kvar värde).
-        using var scope = _factory.Services.CreateScope();
-        var cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
-        await cache.RemoveAsync("landing:stats:v1", ct);
+        // Expiry removes the Worker's published value; the API role deliberately cannot delete it.
+        await _factory.RedisBoundary.PersistentAdmin.GetDatabase()
+            .KeyExpireAsync("jobbliggaren:landing:stats:v1", TimeSpan.Zero);
 
         var response = await _client.GetAsync("/api/v1/landing/stats", ct);
 
@@ -75,7 +71,8 @@ public class LandingStatsEndpointTests(ApiFactory factory)
         // Simulera Worker-write till cache. Hela handler-mekaniken är cache-only —
         // ingen DB-träff sker i request-loopen oavsett vad som ligger i DB:n.
         using var scope = _factory.Services.CreateScope();
-        var landingCache = scope.ServiceProvider.GetRequiredService<ILandingStatsCache>();
+        using var workerCache = RedisBoundaryFixture.Cache(_factory.RedisBoundary.Worker);
+        var landingCache = new RedisLandingStatsCache(workerCache);
         var refreshedAt = new DateTimeOffset(2026, 5, 23, 12, 0, 0, TimeSpan.Zero);
         var stats = new LandingStatsDto(
             ActiveCount: 12_345,

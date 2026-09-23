@@ -23,10 +23,10 @@ public sealed class VolatileRedisConnectionTests : IAsyncDisposable
     private async Task<string> ReachableAsync()
     {
         await _redis.StartAsync(Ct);
-        return $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000";
+        return $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000,asyncTimeout=1000";
     }
 
-    public async ValueTask DisposeAsync() => await _redis.DisposeAsync();
+    public async ValueTask DisposeAsync() => await VolatileRedisContainer.DisposeAsync(_redis);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

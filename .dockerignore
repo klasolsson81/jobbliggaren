@@ -73,3 +73,6 @@ logs/
 
 # Husky — finns inte i image
 .husky/
+
+**/.redis-dev/
+**/.redis-dev.staging-*/

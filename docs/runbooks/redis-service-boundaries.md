@@ -1,9 +1,9 @@
 # Redis service boundaries
 
-Status: preparatory contract for #1759, following [ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md).
-The templates and tests are not mounted by either production or development
-Compose. They add no application startup requirement. Integration follows the
-explicit #1735 `1a-store` handoff; environment acceptance remains open.
+Status: PR2 integration for #1759, following [ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md)
+and the explicit #1735 handoff. Production and development Compose mount the
+policies. Both application hosts require authenticated, role-specific connections
+and successful startup probes. Live cutover and environment acceptance remain open.
 
 ## Contract and ownership
 
@@ -73,6 +73,12 @@ boundary.
 | RedisLoginChallengeStore / API volatile | `auth/challenge/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Challenge address index / API volatile | `auth/challenge-by-address/v1/*` | SET with GET and expiry |
 | RedisRateBudget / API volatile | `budget/{scope}/v1/*` | INCR, EXPIRE with NX |
+| API startup validator / API persistent + API volatile | none | PING |
+| API persistent readiness / API persistent | none | PING on the cache/session multiplexer |
+| API volatile readiness / API volatile | none | PING through VolatileRedisConnection |
+| Worker startup + socket readiness / Worker persistent | none | PING on the publishing multiplexer |
+| Container health / health-persistent + health-volatile | none | PING |
+| Host operator / operator-persistent + operator-volatile | no initial key grant | INFO, CONFIG GET, ACL LIST/DRYRUN/SETUSER/DELUSER, CLIENT KILL |
 
 The five persistent cooldown scopes are `resend-confirm`, `account-exists`,
 `change-email-target`, `change-email-user` and `password-reset`.
@@ -112,7 +118,11 @@ persistent connection secrets. The existing directory shared by API and Worker
 must not contain API Redis credentials. Web and Caddy receive no Redis secrets.
 Redis-only mounts contain the effective ACL and that store's health credential.
 The fixture's administrative identity is appended only in test memory and never
-appears in a deployment template. Operator credentials are independently managed.
+appears in a deployment template. Operator credentials are independently managed. The operator template grants
+administrative ACL mutation: it can grant itself data access. It is host-only,
+not a read-only identity. Never mount its password into an application or Redis
+service. After a runtime revocation, update the reviewed policy file as well;
+otherwise a restart would restore the old grant.
 
 Reuse whole-connection-string `_FILE` loading, with exact expected usernames
 `api-persistent`, `worker-persistent` and `api-volatile`. Before integration,
@@ -140,9 +150,18 @@ Application readiness uses the real API connections to both stores and the real
 Worker persistent connection. PING proves authenticated availability; it does
 not attest the ACL. Permission removal can leave PING green, which a test
 demonstrates. Authorization is covered separately by adapter tests and the
-mandatory effective-policy preflight below. PR2 must test the composed startup
-and readiness endpoints, rather than treating these direct-connection fixtures
-as host startup evidence.
+mandatory effective-policy preflight below. API startup, cache and persistent
+readiness share one multiplexer; Worker publication and readiness do likewise.
+The RedisCache force-reconnect switch is refused because it would replace/dispose
+that shared connection. A timed-out PING remains outstanding until completion;
+subsequent probes refuse rather than queue work or reuse its late result.
+
+Worker health invokes `dotnet Jobbliggaren.Worker.dll --readiness-probe`. This
+configuration-free mode contacts the running process over a private Unix socket
+under `/tmp/jobbliggaren-worker`, sends one byte and half-closes, and requires one
+healthy byte followed by EOF within four seconds. The running host checks its
+started/stopping state and its own persistent multiplexer. A Redis-only sidecar
+probe or a timestamp file would not establish that the Worker is responding.
 
 ## Isolated verification
 
@@ -265,3 +284,53 @@ independent markers or prevent replay of a valid old payload.
 No session cryptography is implemented by this contract. #1759 stays open until
 the composed implementation, application retesting (#1769) and the required
 environment verification satisfy its acceptance criteria.
+
+## Provisioning and recovery
+
+`sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --redis`
+provisions a complete set under `/run/jobbliggaren/redis` on tmpfs. Run it only
+inside the separately approved operation. Supply seven independently generated
+32-byte random credentials encoded as 64 hexadecimal characters through protected
+terminal input, backed by the approved escrow. Never pass them as arguments or
+environment values. The helper renders hashes, records measured readers, stages
+all files, and publishes the complete directory atomically. A repeated invocation
+verifies the existing set and preserves credentials; it does not rotate them.
+
+`--check` on `jobbliggaren-redis-secrets.sh` verifies paths, ownership, modes,
+complete-set consistency and exact rendered policy without Docker. The existing
+secrets-present timer calls it. Reconcile also checks incoming API/Worker readers
+using their verified digests and both Redis images using local immutable image
+IDs before any `compose up`. Reader drift requires re-owning the existing files
+under the shared reconcile lock, never replacing credentials to repair ownership.
+
+Missing credential binds have `create_host_path: false`: a failed early start
+must not manufacture a partial set. After tmpfs loss, restore the same credentials
+from escrow, validate, and recreate the affected API/Worker/Redis containers during
+the approved recovery. An atomic parent rename does not refresh existing directory
+bind mounts. Do not treat `restart` as a substitute for recreation.
+
+For an empty hierarchy left by a previous short-bind manifest, stop and remove
+only those four affected containers under the approved recovery and reconcile
+lock. Inspect the exact `/run/jobbliggaren/redis` children. Remove each expected
+empty service directory with `rmdir`, then the empty root with `rmdir`; either
+command must fail if any file remains. Never recursively delete a nonempty or
+partially injected set. Reinject, validate and recreate mounts. The isolated
+provisioning test covers this empty-skeleton recovery and refuses nonempty partial
+sets. Preserve PostgreSQL, persistent Redis data and application keyring volumes.
+
+Before admitting traffic, the host operator verifies `INFO persistence` reports
+`aof_enabled:0`, `CONFIG GET appendonly` reports `no`, and `CONFIG GET save` is
+empty on volatile Redis. Inspect its read-only root, `/data` tmpfs, absence of a
+writable persistent mount and disabled swap as separate controls. Application and
+health identities cannot run INFO or CONFIG. Read the operator password from its
+host-only file through protected stdin to a network-scoped ephemeral Redis CLI;
+never expose it in `docker exec` arguments, Docker environment or public reports.
+Compare the effective `ACL LIST` against the rendered policy before traffic,
+then perform the dry-runs below and the real application flow checks. PING alone
+does not attest authorization.
+
+The integration intentionally refuses the previous anonymous Compose connection
+configuration. Before publishing a release that hourly reconciliation can select,
+record the new-image/previous-Compose result and obtain a separate GO for the
+reviewed image/configuration pin and cutover order. Keep #1759 open through the
+live acceptance and the coordinated #1760/#1767 checks.

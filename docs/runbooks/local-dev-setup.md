@@ -73,6 +73,11 @@ git check-ignore -v .env
 
 ### 2.2 Starta default-profile (dev)
 
+Before the first Redis start, run `pwsh scripts/prepare-dev-redis.ps1` from the
+repository root. Preserve the generated, gitignored `.redis-dev` directory.
+Repeated generation refuses; deleting it is credential rotation, not a restart.
+Only the stack owner recreates existing development Redis containers for this cutover.
+
 ```bash
 docker compose up -d
 ```
@@ -81,7 +86,7 @@ Fyra containrar startar (namn/portar per `docker-compose.yml`):
 - `jobbliggaren-postgres-dev` på `5435` (db: `jobbliggaren`, user: `jobbliggaren`)
 - `jobbliggaren-redis-dev` på `6379`
 - `jobbliggaren-redis-volatile-dev` på `6381` — en Redis utan persistens (ingen AOF, ingen RDB, ingen
-  volym, `/data` på tmpfs), byggd för inloggningsutmaningens nycklar (ADR 0142 D1)
+  datavolym, `/data` på tmpfs), byggd för inloggningsutmaningens nycklar (ADR 0142 D1)
 - `jobbliggaren-seq` på `5341` (UI + API) och `5342` (ingestion)
 
 ### 2.3 Verifiera
@@ -95,12 +100,12 @@ docker exec jobbliggaren-postgres-dev psql -U jobbliggaren -d jobbliggaren -tAc 
 # → PostgreSQL 18.3 ...
 
 # Redis
-docker exec jobbliggaren-redis-dev redis-cli ping
-# → PONG
+docker exec jobbliggaren-redis-dev sh /usr/local/bin/redis-healthcheck health-persistent /run/redis-policy/health-password
+# → exit 0 (the health script does not print credentials or a reply)
 
 # Redis utan persistens
-docker exec jobbliggaren-redis-volatile-dev redis-cli ping
-# → PONG
+docker exec jobbliggaren-redis-volatile-dev sh /usr/local/bin/redis-healthcheck health-volatile /run/redis-policy/health-password
+# → exit 0 (the health script does not print credentials or a reply)
 
 # Seq UI
 curl -I http://localhost:5341
@@ -126,11 +131,14 @@ openssl rand -base64 32   # → CompanyWatchPseudonymization:PepperBase64
 openssl rand -base64 32   # → CvReviewFingerprintPseudonymization:PepperBase64
 ```
 
-**`ConnectionStrings:VolatileRedis` (#1735) krävs av API:t vid start men hör INTE hemma i
-`appsettings.Local.json`.** Värdet ligger i `appsettings.Development.json` (`localhost:6381`,
-containern `jobbliggaren-redis-volatile-dev`). `Program.cs` lägger `appsettings.Local.json` EFTER
-miljövariablerna, så ett värde där skulle skriva över den instans varje testvärd pekar sig själv mot.
-Worker:n behöver ingen sådan nyckel.
+Both hosts require an authenticated persistent Redis connection. API additionally
+requires the volatile store. After generating `.redis-dev`, export absolute `_FILE`
+paths per process: API reads `api-persistent/connection` and `api-volatile/connection`;
+Worker reads only `worker-persistent/connection`. The two variables are
+`ConnectionStrings__Redis_FILE` and `ConnectionStrings__VolatileRedis_FILE`.
+The file provider is last and overrides JSON/environment values. Missing, empty,
+unreadable or malformed files refuse startup; anonymous endpoint placeholders in
+Development settings are insufficient. Never place Redis passwords in tracked JSON.
 
 `appsettings.Local.json` är gitignored — committa aldrig. Mallen (`.example`) är spårad och är
 källan till sanning för *vilka* lokala nycklar som krävs; hamnar en ny obligatorisk
@@ -226,7 +234,7 @@ om efteråt, så containern finns inte.
 
 ```bash
 docker compose up -d
-docker exec jobbliggaren-redis-volatile-dev redis-cli ping   # → PONG
+docker exec jobbliggaren-redis-volatile-dev sh /usr/local/bin/redis-healthcheck health-volatile /run/redis-policy/health-password   # → exit 0 (the health script does not print credentials or a reply)
 ```
 
 ### 6.2 Docker Desktop inte igång
@@ -338,9 +346,9 @@ Alla tre startas av CC som bakgrundsprocesser.
    **ingen** `appsettings.Local.json`. Ge därför den fulla connection-stringen via
    env-var-override (`ConnectionStrings__Postgres`), byggd från `.env`:s
    `POSTGRES_PASSWORD_DEV`. Utan den → DB-auth-fel.
-2. **Worker kräver `ConnectionStrings__Redis`** (ADR 0064 — RefreshLandingStatsJob).
-   API:t har Redis i appsettings; Worker:n får den bara via env. Startfel
-   `ConnectionStrings:Redis saknas` = denna glömd.
+2. **Use the correct Redis identity for each host.** API requires `api-persistent`
+   and `api-volatile`; Worker requires `worker-persistent`. Export the generated
+   absolute `_FILE` paths for each process as shown below. Do not share the API value.
 3. **FE kräver `BACKEND_URL`.** FE:ns server-side-actions + `getLandingStats`
    (`src/lib/api/landing.ts`) läser `process.env.BACKEND_URL`. Det finns **ingen**
    `.env.local`. Startar du `pnpm dev` UTAN `BACKEND_URL=http://localhost:5049` →
@@ -380,12 +388,9 @@ Alla tre startas av CC som bakgrundsprocesser.
    `CvReviewFingerprintPseudonymization`) via env, **lästa ur API:ts `appsettings.Local.json`
    så de MATCHAR** (olika nycklar ⇒ API och Worker kan inte läsa varandras
    krypterade/pseudonymiserade data).
-6. **API:t vägrar starta utan `ConnectionStrings:VolatileRedis` (#1735).** I `Development` kommer
-   värdet ur `appsettings.Development.json`, så startblocket nedan exporterar inget. Kör du API:t i
-   en ANNAN miljö lokalt måste du exportera `ConnectionStrings__VolatileRedis="localhost:6381"`
-   själv; felet heter `ConnectionStrings:VolatileRedis is missing`. Worker:n läser aldrig nyckeln.
-   Containern måste dessutom vara uppe — se §6.1b för hur det ser ut när den inte är det.
-
+6. **Both Redis startup probes must pass before API serves requests.** Worker checks
+   its persistent connection before starting jobs. Check the ACL-protected containers
+   and the process-specific secret-file paths when startup refuses.
 ### Portar (matchar `docker-compose.yml`)
 
 | Tjänst | Port | Not |
@@ -403,7 +408,7 @@ Alla tre startas av CC som bakgrundsprocesser.
 #          + src/Jobbliggaren.Api/appsettings.Local.json ifylld (fälla 4 + .example-mallen).
 PW=$(grep -E '^POSTGRES_PASSWORD_DEV=' .env | cut -d= -f2-)
 export ConnectionStrings__Postgres="Host=localhost;Port=5435;Database=jobbliggaren;Username=jobbliggaren;Password=$PW"
-export ConnectionStrings__Redis="localhost:6379"
+REDIS_FILES=$(pwd -W)/.redis-dev  # Git Bash on Windows; use $(pwd) on Linux
 export ASPNETCORE_ENVIRONMENT=Development
 export DOTNET_ENVIRONMENT=Development                 # Worker är generic host (fälla 5)
 
@@ -427,7 +432,10 @@ export CompanyWatchPseudonymization__PepperBase64=$(python -c "import json;print
 export CvReviewFingerprintPseudonymization__PepperBase64=$(python -c "import json;print(json.load(open('src/Jobbliggaren.Api/appsettings.Local.json'))['CvReviewFingerprintPseudonymization']['PepperBase64'])")
 
 # 3. API FÖRST (bakgrund) → invänta /api/ready=200 → sedan Worker + FE (bakgrund).
+ConnectionStrings__Redis_FILE="$REDIS_FILES/api-persistent/connection" \
+ConnectionStrings__VolatileRedis_FILE="$REDIS_FILES/api-volatile/connection" \
 dotnet run --project src/Jobbliggaren.Api --launch-profile http --no-build   # → http://localhost:5049
+ConnectionStrings__Redis_FILE="$REDIS_FILES/worker-persistent/connection" \
 dotnet run --project src/Jobbliggaren.Worker --no-build                      # Hangfire, ingen HTTP-yta
 cd web/jobbliggaren-web && BACKEND_URL=http://localhost:5049 pnpm dev        # → http://localhost:3000 (fälla 3)
 ```

@@ -45,7 +45,7 @@ public class VolatileRedisIsolationTests
             .ToList();
 
     [Fact]
-    public void VolatileRedisConnection_IsConstructorInjected_OnlyByTheTwoStoresAndItsHealthCheck()
+    public void VolatileRedisConnection_IsConstructorInjected_OnlyByRegisteredStoresAndAvailabilityChecks()
     {
         var consumers = OwnedAssemblies
             .SelectMany(a => a.GetTypes())
@@ -59,6 +59,7 @@ public class VolatileRedisIsolationTests
             typeof(RedisLoginChallengeStore).FullName!,
             typeof(RedisRateBudget).FullName!,
             typeof(VolatileRedisHealthCheck).FullName!,
+            typeof(ApiRedisStartupValidator).FullName!,
         ];
 
         consumers.ShouldBe(expected, ignoreOrder: true,

@@ -223,7 +223,8 @@ builder.Services.AddHsts(o =>
 // every request on that store, so one log per window and store is enough for the #1172 alarm.
 builder.Services.AddSingleton<StoreUnavailableLog>();
 
-var app = builder.Build();
+await using var app = builder.Build();
+await app.Services.RequireApiRedisReadyAsync();
 
 // ADR 0083 Amendment 2026-08-03 — announce the auth-flow posture once per process. Read through
 // IOptions so the values are the ones the handler will actually see (PostConfigure wins over config
@@ -497,6 +498,6 @@ if (devTools.EnableResetMyData)
 if (devTools.EnableResetMyData && !app.Environment.IsDevelopment())
     DevToolsLog.AnnounceResetMyDataEnabledOutsideDevelopment(app.Logger);
 
-app.Run();
+await app.RunAsync();
 
 public partial class Program;

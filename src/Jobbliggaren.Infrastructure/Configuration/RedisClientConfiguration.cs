@@ -44,6 +44,11 @@ internal static class RedisClientConfiguration
         options.TieBreaker = "";
         options.AllowAdmin = false;
         options.AbortOnConnectFail = false;
+        options.ConnectRetry = 0;
+        options.ConnectTimeout = 2000;
+        options.AsyncTimeout = 1500;
+        options.SyncTimeout = 1500;
+        options.BacklogPolicy = BacklogPolicy.FailFast;
         options.IncludeDetailInExceptions = false;
         options.IncludePerformanceCountersInExceptions = false;
         options.CommandMap = CommandMap.Create(

@@ -16,6 +16,7 @@ using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.CompanyRegister;
 using Jobbliggaren.Infrastructure.CompanyRegister.Scb;
+using Jobbliggaren.Infrastructure.Configuration;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
@@ -645,7 +646,7 @@ public static class DependencyInjection
     /// <para>
     /// IDistributedCache förutsätts registrerad av anroparen (Api via
     /// <see cref="AddIdentityAndSessions"/>; Worker via direkt
-    /// <c>AddStackExchangeRedisCache</c> i <c>Program.cs</c>).
+    /// <c>AddWorkerRedisConnection</c> i <c>Program.cs</c>).
     /// </para>
     /// </summary>
     public static IServiceCollection AddLandingStats(this IServiceCollection services)
@@ -1671,10 +1672,6 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException(
                 "ConnectionStrings:Postgres saknas i konfiguration.");
 
-        var redisConnectionString = configuration.GetConnectionString("Redis")
-            ?? throw new InvalidOperationException(
-                "ConnectionStrings:Redis saknas i konfiguration.");
-
         // #1735 — no fallback to ConnectionStrings:Redis, in any environment: the refusal is what keeps the
         // login challenge's keys off the persisted instance, not rollout discipline. IsNullOrWhiteSpace
         // rather than `??`: compose renders an unset variable as "", which `??` lets through.
@@ -1762,20 +1759,7 @@ public static class DependencyInjection
 
         services.AddBreachedPasswordCheck(configuration);
 
-        services.AddStackExchangeRedisCache(opts =>
-        {
-            opts.Configuration = redisConnectionString;
-            opts.InstanceName = "jobbliggaren:";
-        });
-
-        // IConnectionMultiplexer registreras separat så RedisSessionStore kan
-        // använda Redis SET-kommandon (SADD/SREM/SMEMBERS) för secondary user-
-        // sessions-index — krävs för InvalidateAllForUserAsync vid kontoradering
-        // (ADR 0024 D4 + ADR 0017 deferred-not stängd här). IDistributedCache
-        // stödjer bara key-value, inte SET. Singleton — lazy connect, fungerar
-        // även om Redis är ner vid app-start.
-        services.AddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(redisConnectionString));
+        services.AddApiRedisConnections(configuration);
 
         // #746 — bind + validate at startup: SessionStoreOptionsValidator caps SlideThreshold to
         // [0.0, 0.25] (a bad throttle value must fail the boot, not silently widen the Art.17
@@ -1824,10 +1808,6 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddScoped<ICooldownGate, RedisCooldownGate>();
-
-        // #1735 (ADR 0142 D1) — the connection to the non-persisted Redis instance. A concrete type, never
-        // a second IConnectionMultiplexer: see VolatileRedisConnection. The container disposes it.
-        services.AddSingleton(_ => new VolatileRedisConnection(volatileRedisConnectionString));
 
         // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
         // and the code budget). Api-only: it runs in the request path and on the volatile connection above,

@@ -114,17 +114,13 @@ public sealed class ColdStartKeyRecoveryTests : IDisposable
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task ColdStart_EmptyFileWithStaleFallback_DoesNotProveRecoveryAsync(string material)
+    public void ColdStart_EmptyFileWithStaleFallback_RefusesProvider(string material)
     {
-        // An incomplete operator write leaves a blank file; the source skips it, retaining fallback config.
-        var owner = JobSeekerId.New();
-        var written = await Provider(NewKey(), Generation).CreateDataKeyAsync(owner, CancellationToken.None);
-        CryptographicOperations.ZeroMemory(written.PlaintextDek);
+        // An incomplete operator write leaves a blank file, which must mask stale fallback material.
         var configuration = Restore(new Dictionary<string, string?> { [MasterKey] = material, [MasterId] = Generation },
             new Dictionary<string, string?> { [MasterKey] = NewKey() });
-        new FieldEncryptionOptionsValidator().Validate(null, Bind(configuration)).Succeeded.ShouldBeTrue();
-        await Should.ThrowAsync<CryptographicException>(() =>
-            Provider(configuration).UnwrapDataKeyAsync(owner, written.WrappedDek, CancellationToken.None));
+        new FieldEncryptionOptionsValidator().Validate(null, Bind(configuration)).Failed.ShouldBeTrue();
+        Should.Throw<CryptographicException>(() => Provider(configuration));
     }
 
     [Theory]

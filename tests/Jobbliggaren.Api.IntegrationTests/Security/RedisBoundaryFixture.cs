@@ -36,7 +36,7 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
 
     public RedisBoundaryFixture()
     {
-        foreach (var user in new[] { ApiPersistent, WorkerPersistent, ApiVolatile, Admin, "health-persistent", "health-volatile" })
+        foreach (var user in new[] { ApiPersistent, WorkerPersistent, ApiVolatile, Admin, "health-persistent", "health-volatile", "operator-persistent", "operator-volatile" })
             _passwords.Add(user, NewPassword());
 
         Persistent = BuildStore("persistent", persisted: true);
@@ -119,6 +119,10 @@ public sealed class RedisBoundaryFixture : IAsyncLifetime
             policy = policy.Replace("{{" + user.ToUpperInvariant().Replace('-', '_') + "_SHA256}}", Hash(password), StringComparison.Ordinal);
         if (policy.Contains("{{", StringComparison.Ordinal))
             throw new InvalidOperationException("Unresolved ACL credential placeholder.");
+
+        policy += "\n" + Resource("operator.acl.template")
+            .Replace("{{STORE}}", kind, StringComparison.Ordinal)
+            .Replace("{{OPERATOR_SHA256}}", Hash(_passwords["operator-" + kind]), StringComparison.Ordinal);
 
         // The control connection exists only in this fixture, never in the deployment policy.
         policy += $"\nuser {Admin} reset on #{Hash(_passwords[Admin])} ~* &* +@all\n";

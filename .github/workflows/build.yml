@@ -479,6 +479,12 @@ jobs:
       # Vad sviten INTE mäter, och det står i dess huvud: att artefakten går att DEKRYPTERA.
       # Lådan har medvetet ingen privat nyckel, så varken den eller den här sviten kan avgöra
       # det — det är restore-drillens påstående (#197 PR-2 + runbooken).
+      - name: Resolved Redis Compose contracts
+        run: python3 .github/scripts/redis-compose-contract.test.py
+
+      - name: Redis secret provisioning (isolated Linux tmpfs)
+        run: docker run --rm --network none --tmpfs /run -v "$GITHUB_WORKSPACE:/repo:ro" python:3.12-slim python /repo/deploy/systemd/jobbliggaren-redis-secrets.test.py
+
       - name: jobbliggaren-backup (fixturer)
         run: bash deploy/systemd/jobbliggaren-backup.test.sh
 

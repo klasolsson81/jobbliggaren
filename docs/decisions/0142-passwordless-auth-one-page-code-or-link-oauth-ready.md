@@ -390,7 +390,7 @@ registration is closed; that reading was taken 2026-09-21 and re-taken at this P
 2026-09-22T00:23:31Z: 2 rows in `AspNetUsers`, 2 the controller's; `Auth__RegistrationsOpen=false`, 1 line. No
 data subject meets the
 window, so it is a non-finding: no §9.6 (3) acceptance, no Klas grant, no signature. The three Playwright
-tests of the delete flow are `test.fixme` naming #1740.
+tests of the delete flow were `test.fixme` naming #1740 until 3b's PR B (Amendment 2026-09-23 (6)).
 
 **Change-email proves both inboxes (PR 4).** Three authenticated routes. `POST /auth/change-email` redeems a
 re-authentication grant in the behavior, as before; the handler then runs, each gate spent only when the one before
@@ -1237,7 +1237,8 @@ while `DARK_MODE_ENABLED` is `false`.
   `role="status"`) and **starts in that cooldown**, with a static line beside it, *"En ny kod
   ersätter den förra. Skriv in koden från det senaste mejlet."* "Byt e-postadress" is a submit
   styled as a text link, last: a GET cannot clear the typed address from the device. The primary
-  is "Bekräfta koden". **The page never states what the system did, only what the user should do.**
+  is "Bekräfta koden". **The login page never states what the system did, only what the user should do**;
+  the re-authentication bullet below says where a page may.
   Resting copy: *"Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer
   du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller
   i 15 minuter."* with the hint *"Kommer inget mejl inom några minuter kan du skicka en ny kod,
@@ -1295,6 +1296,13 @@ form that moves it into a short-lived cookie was not chosen);
   `.jp-avatar` removed after a measured consumer count; the popup follows the bell's
   `aria-haspopup="dialog"` pattern, is `role="dialog"` named by the same label and described by its head;
   drawer and menu re-pointed to `/mina-sidor` with one label (as delivered: Amendment 2026-09-22 (5)).
+- **Re-authentication by code** (design D1/D2, part 3b): the dialog only re-authenticates, by a code to
+  the account's own address, and closes; change-email's second code, to the new address, is taken in the
+  card, and delete-account reuses the dialog (Klas 2026-09-22). **A page may state a send only
+  where three facts hold:** the 2xx follows an awaited send, every branch that sends nothing answers a
+  visible refusal, and the address shown is the recipient. `POST /auth/reauth` and `POST /auth/change-email`
+  meet all three, so *"Vi har skickat en sexsiffrig kod till {email}"* is true there; `POST /auth/challenge`
+  meets none, which is why the login code step never says it (Amendment 2026-09-23 (6)).
 - **Copy:** every string in `messages/sv/` **and** `messages/en/` in the same PR (ADR 0137); retired
   keys deleted in the PR that removes their last consumer, never orphaned; 5a deletes those part 2
   orphaned (Amendment 2026-09-22 (5)); no em-dash, no literal `...`; English says "log in"
@@ -1450,6 +1458,56 @@ this part, and no measurement can show that no inbox still holds one (`security-
 `/installningar` and `/mig` answer 308 to `/mina-sidor` with no removal trigger, pinned in
 `retired-routes.test.ts`. `NotificationMailLinksLandOnServedRoutesTests` joins the two stacks: every link the
 two notification mails build must be served by a page under `src/app/(app)/` (security Minor 7).
+
+#### Amendment 2026-09-23 (6) (#1740, part 3b, PR B) — re-authentication by code for delete and change-email, and the corrections above
+
+*Decided in (5)'s form round (`docs/reviews/2026-09-22-1740-form-{design,security,cto}.md`).* The sentences in
+Amendment 2026-09-21 (4) and this section that B made false were corrected in place; this block records why.
+3a's declared window closes at this PR's deploy.
+
+**The form as delivered.** `ReAuthCodeDialog` asks for a code to the account's own address, takes it, and hands
+the consumer's operation the proof. It holds the challenge in the component that renders the dialog and stays
+mounted, so a close and a re-open inside the code's lifetime land on the code step. Delete-account adds the typed
+address to the request step. Change-email checks the new address when "Fortsätt" is pressed, before the dialog
+opens, then takes the change code in the card, with "Börja om" as the way back: a new change code needs a new
+re-authentication, so the card has no resend.
+
+**Custody** (`security-auditor` S1). No Server Action takes a grant or a session id as an argument, and none
+returns one: each verifies its code and performs its operation in one request, through a verify helper that is
+`server-only` in a module without `"use server"` (a test reads the module). A challenge id lives only in the
+state of the component that asked for it, never in a URL, a DOM attribute, storage or an error string, and is
+dropped after a verify that answered 200, on a 410, after the code's lifetime and on unmount. `next dev` prints
+every Server Action call with its arguments unless `logging.serverFunctions` is off; it is, and pinned (S6).
+
+**The re-issue** (S2). The change-email confirm sets the session cookie only from a strictly parsed 200, with both
+of its values; a 200 that does not parse sets nothing and is an unknown outcome.
+**What the proxy does to it, measured** 2026-09-23 with the rotation forced
+(`Session:Persistent:RotationInterval` 20 s): Next 16.3.3 sends the proxy's rotated id and the re-issued one on
+the confirm's response, in that order, and the browser keeps the last, which is live; the rotated one is dead,
+because the confirm ends every session. The reading that the action's cookie replaces the proxy's did not hold;
+its feared consequence did not follow, because the order puts the live id last. `change-email.spec.ts` pins the
+order where the environment forces rotation (`E2E_ROTATION_INTERVAL_SECONDS`) and skips elsewhere.
+
+**Three outcome classes after the operation's request** (Minor 3). A documented refusal says the operation was
+not done, and that the code is spent; a 5xx, a transport failure or an unreadable 2xx claims nothing and offers a
+reload; done is done. Every refusal after a verify that answered 200 says the code is spent, and no other message
+does. The change-email request has no unknown class: the address can only change at the confirm, so every failure
+there is "not done". Among its 409s only `EmailTaken` and `ChangeEmailTargetBudgetExhausted` are compared; every
+other 409 takes the neutral copy, so no producer of the shared 409 can be told apart (S3).
+
+**Two comparisons fold, and part 2's rule does not reach them.** Delete's typed confirmation and change-email's
+same-address check compare in one form (`trim`, NFC, lower-case), in the browser and in the action. The typed
+confirmation proves no identity, the code does (S4), so a loose match costs nothing, while a missed one would lock
+an account out of Art. 17. The same-address check only refuses before a code is spent, and what an address is
+stays the backend's. Part 2's rule keeps a fold out of the login's resend comparison, where an over-match would
+decide which challenge a spelling reaches (Amendment 2026-09-21 (3)); neither comparison here reaches anything but
+the caller's own account.
+
+**DoD 8** (`security-auditor` S5). No new personal data: the flow writes nothing new on the server (its records,
+grants and budgets are 3a's and registered), and the client state lives in the tab's memory.
+No new logging. Retention unchanged. No DPIA. The deletion notice rides the login flow cookie's `notice`
+phase with its name only, for its 120 seconds; the cookie policy says so and `cookies.updated` moved, while the
+privacy policy and its version did not.
 
 ## Processing register and DoD 8
 

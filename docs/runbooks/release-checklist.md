@@ -2243,27 +2243,18 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       fortsätter köra; en operatör som ser jobb-loggar rulla vidare ska inte läsa det som att
       spärren inte slog till. Det är en teknisk spärr mot en osäker **kombination** — den
       ersätter inte den här grinden, som är juridisk, och den säger ingenting om (a) eller (b).
-      - **(a) `settings.json` påstår ett utskick som inte sker.** Fyra publicerade strängar
-        (`:218`, `:220`, `:224`, `:229`) säger att en bekräftelselänk skickas eller har skickats,
-        medan `NullEmailSender` var den levande defaulten när villkoret skrevs.
+      - **(a) `settings.json` påstår ett utskick som inte sker.** Fram till #1740 sade fyra
+        publicerade strängar (`:218`, `:220`, `:224`, `:229`) att en bekräftelselänk skickas eller
+        har skickats, medan `NullEmailSender` var den levande defaulten när villkoret skrevs.
         **Kriteriet, utskrivet, eftersom uppräkningen ensam får nästa läsare att räkna fel åt andra
-        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — tre utlovar den i
-        presens, en påstår den fullbordad. Ett grepp på verbstammen — mönstret
-        `skickar|skickat|skicka\b|sänder|sent|send|sending`, skiftlägesokänsligt, över alla
-        strängvärden under `account.changeEmail` i `messages/{sv,en}/settings.json` — ger **sex**
-        träffar per språk, men de två extra är `submit` ("Skicka bekräftelselänk",
-        imperativ som namnger den handling användaren begär) och `pending` ("Skickar…", som beskriver
-        en pågående request). **Ingen av de två falsifieras av ett svalt utskick**, och båda förblir
-        sanna under förhandsavslaget. Verbstammen är alltså en proxy för kriteriet och överskattar
-        det: skillnaden ligger i talakten, inte i ordet. *(Mätt 2026-08-09 under #1087; issuens egen
-        tabell placerade dessutom `success` på `:226`, vilket är `submit` — den här raden har haft
-        rätt uppsättning sedan tidigare.)* **Villkoret, triggern och upphörandet
+        hållet:** en yta hör hit om den **påstår en leverans som sakförhållande** — av de fyra
+        utlovade tre den i presens, och en påstod den fullbordad. **Villkoret, triggern och upphörandet
         står oförändrade; bara mekanismmeningen är omskriven, för att den blev falsk 2026-08-09
         (#1087, PR i samma ändring som denna rad).**
         Vad #1087 ändrade: `ChangeEmailCommandHandler` skickar inte längre ogrindat — porten bär
         `IEmailSender.CanDeliver`, handlern vägrar i förväg med **503**
         (`Auth.EmailDeliveryUnavailable`), ingen token mintas, och nedkylningsfönstret konsumeras
-        inte. `:229` (`success`) är därmed **onåbar** när leverans är omöjlig. **Ingen
+        inte. `:229` (`success`) var därmed **onåbar** när leverans var omöjlig. **Ingen
         `User.EmailChangeRequested`-rad skrivs — men läs varför rätt:** den gamla raden var **sann**
         (en begäran gjordes); det falska var 202:an och flödet den antydde. Raden försvinner för att
         flödet aldrig startar, inte för att den var ett falskt protokoll (security-auditor
@@ -2272,25 +2263,22 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         **Användarytan är STÄNGD sedan 2026-08-10 (B-ii).** Tillståndet som stängdes: en 503 föll
         igenom till det generiska `changeEmailFailed`, så användaren fick ingen förklaring, inte
         veta att adressen var oförändrad, och submit-knappen levde kvar för ett omförsök som inte
-        kan lyckas. `changeEmailAction` bär nu en 503-arm som returnerar ett `refused`-resultat, och
-        kortet ersätter sig självt med en `role="status"`-panel utan trigger — affordansen tas bort,
-        inte bara texten. Armen diskriminerar på ProblemDetails-**titeln**, aldrig på statusen
+        kan lyckas. B-ii gav `changeEmailAction` en 503-arm som returnerade ett `refused`-resultat,
+        och kortet ersatte sig självt med en `role="status"`-panel utan trigger — affordansen togs
+        bort, inte bara texten. Armen diskriminerade på ProblemDetails-**titeln**, aldrig på statusen
         ensam (grinden är konjunktiv: status 503 OCH exakt titel):
         rutten har minst två andra 503-producenter (`SessionStoreUnavailableException` via Redis,
         vars body saknar `title`-nyckeln, samt en omvänd proxy, vars body inte är JSON alls) — en
         statusbaserad arm skriver
-        "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**. **Båda
-        kontrafaktumen är pinnade** (`me.change-email.test.ts`: Redis-bodyn `Program.cs` faktiskt
-        skriver, främmande titel, icke-JSON-proxy, samt en 409 som bär vår egen titel och inte får
-        fyra). Ingen användare kunde nå tillståndet före flippen, vilket är varför det var ett
+        "e-post är inte aktiverat" mitt under ett driftavbrott och **maskerar incidenten**.
+        Ingen användare kunde nå tillståndet före flippen, vilket är varför det var ett
         grindvillkor och inte en defekt i drift.
-        **Löftestexten renderas inte i det vägrade läget** — strängarna `:218`/`:220`/`:224` är
-        **orörda** i `settings.json`, så villkor (a) är oförändrat; det är villkorad rendering i ett
-        läge, inte en uppmjukning av copy (Klas-beslut 2026-08-10). Den nya nyckeln ligger under
-        `account.errors`, utanför verbstams-greppets skop, så **sexsiffran nedan är oförändrad**.
-        **Vad #1087 INTE ändrade, och därför upphör villkoret inte:** `:218`, `:220` och `:224`
-        publiceras fortfarande före handlingen och utlovar ett utskick som defaultkonfigurationen
-        inte kan göra. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
+        **Löftestexten renderades inte i det vägrade läget** — B-ii lämnade strängarna
+        `:218`/`:220`/`:224` **orörda** i `settings.json`, så villkor (a) var oförändrat; det var
+        villkorad rendering i ett läge, inte en uppmjukning av copy (Klas-beslut 2026-08-10).
+        **Vad #1087 INTE ändrade, och därför upphörde villkoret inte:** `:218`, `:220` och `:224`
+        publicerades före handlingen och utlovade ett utskick som defaultkonfigurationen inte kunde
+        göra, fram till #1740. Villkoret upphör vid **en riktig `Email:Provider`** — samma upphörande som
         stycket ovan redan namnger — aldrig vid att #1087 mergats.
         **Registerkedjan hör till samma trigger, och den tekniska halvan är STÄNGD sedan
         2026-08-09** ([PR #1282](https://github.com/klasolsson81/jobbliggaren/pull/1282), D1).

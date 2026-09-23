@@ -68,7 +68,7 @@ const outcomePhase = z.strictObject({
 
 const noticePhase = z.strictObject({
   phase: z.literal("notice"),
-  notice: z.enum(["grantUnusable", "codeExpired"]),
+  notice: z.enum(["grantUnusable", "codeExpired", "accountDeleted"]),
 });
 
 export const loginFlowSchema = z.discriminatedUnion("phase", [

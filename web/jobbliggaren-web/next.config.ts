@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
   // Remove the `X-Powered-By: Next.js` fingerprint (information disclosure).
   poweredByHeader: false,
 
+  // `next dev` prints every Server Action call with its arguments unless this is off, and the
+  // arguments carry sign-in and re-authentication codes (security-auditor, #1740 S6).
+  logging: {
+    serverFunctions: false,
+  },
+
   // The FE container (#196): emit `.next/standalone` with a self-contained
   // `server.js` and only the traced runtime dependencies, so the image does not
   // ship the whole `node_modules`. The trace root comes from `turbopack.root`

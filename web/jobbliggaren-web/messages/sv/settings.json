@@ -161,51 +161,79 @@
   },
   "account": {
     "invalidInput": "Ogiltiga uppgifter.",
+    "reload": "Ladda om sidan",
     "danger": {
-      "title": "Farligt område",
-      "description": "Du kan radera ditt konto permanent. Åtgärden går inte att ångra och loggar ut dig från alla enheter."
+      "title": "Radera ditt konto",
+      "description": "Du kan radera ditt konto och allt du har sparat. I 30 dagar efteråt kan du få det återställt."
     },
     "delete": {
-      "trigger": "Radera konto permanent",
-      "title": "Radera konto permanent",
-      "description": "Den här åtgärden går inte att ångra. Ditt konto och all kopplad data raderas. Du loggas ut direkt efter att raderingen slutförts.",
+      "trigger": "Radera konto",
+      "title": "Radera ditt konto",
+      "description": "Ditt konto och allt du har sparat raderas, och du loggas ut på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla kontakt@jobbliggaren.se. Därefter raderas det slutgiltigt och går inte att få tillbaka.",
       "confirmEmailLabel": "Skriv din e-postadress för att bekräfta",
-      "expected": "Förväntad: {email}",
+      "expected": "Din e-postadress är {email}.",
+      "confirmMismatch": "Skriv din e-postadress som den står under fältet.",
       "cancel": "Avbryt",
       "deleting": "Raderar…",
-      "submit": "Radera mitt konto"
+      "submit": "Radera mitt konto",
+      "mailOff": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Vill du radera ditt konto kan du mejla <mail>kontakt@jobbliggaren.se</mail>.",
+      "failed": "Kontot raderades inte.",
+      "outcomeUnknown": "Vi kan inte se om kontot raderades. Ladda om sidan.",
+      "contactRoute": "Du kan också mejla <mail>kontakt@jobbliggaren.se</mail> och be oss radera kontot."
     },
     "reauth": {
-      "passwordLabel": "Lösenord"
+      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}. Du skriver in koden i nästa steg.",
+      "send": "Skicka kod",
+      "sending": "Skickar…",
+      "sent": "Vi har skickat en sexsiffrig kod till {email}. Koden gäller i 15 minuter.",
+      "hint": "Kommer inget mejl inom några minuter kan du skicka en ny kod.",
+      "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Skicka en ny kod och försök igen.",
+      "resendReceipt": "Vi har skickat en ny kod. Skriv in koden från det senaste mejlet.",
+      "cooldown": "En kod begärdes nyss för ditt konto. Vänta en minut och försök igen.",
+      "budgetExhausted": "Ditt konto har nått gränsen för hur många koder som kan skickas per dygn. Vänta ett dygn och försök igen.",
+      "unavailable": "Det går inte att skicka någon kod just nu. Försök igen om några minuter.",
+      "verifyUnavailable": "Det går inte att kontrollera koden just nu. Försök igen om några minuter.",
+      "codeSpent": "Koden du skrev in är förbrukad, så du behöver en ny kod när du försöker igen.",
+      "notLoggedIn": "Du är inte inloggad längre. Logga in igen och börja om.",
+      "toLogin": "Logga in"
     },
     "changeEmail": {
       "title": "Byt e-postadress",
       "current": "Din e-postadress är {email}.",
-      "description": "Byt e-postadressen som är knuten till ditt konto. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken.",
-      "trigger": "Byt e-postadress",
-      "dialogDescription": "Ange ditt nuvarande lösenord och din nya e-postadress. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken, och då loggas du ut från alla enheter.",
-      "currentPasswordLabel": "Nuvarande lösenord",
-      "currentPasswordFieldName": "nuvarande lösenord",
+      "description": "Du bekräftar bytet med två koder: en till din nuvarande adress och en till den nya. Adressen byts när du har skrivit in båda, och då loggas du ut på alla andra enheter.",
       "newEmailLabel": "Ny e-postadress",
-      "newEmailHint": "Formatet är namn@domän.se. Vi skickar bekräftelselänken hit.",
-      "sameEmail": "Den nya adressen måste skilja sig från din nuvarande.",
-      "submit": "Skicka bekräftelselänk",
-      "pending": "Skickar…",
+      "newEmailHint": "Formatet är namn@domän.se.",
+      "newEmailRequired": "Skriv in den nya e-postadressen.",
+      "invalidEmail": "Kontrollera den nya e-postadressen. Den ska ha formatet namn@domän.se.",
+      "sameEmail": "Den nya adressen är samma som din nuvarande. Skriv in en annan adress.",
+      "continue": "Fortsätt",
       "cancel": "Avbryt",
-      "success": "Vi har skickat en bekräftelselänk till din nya adress. Öppna länken för att slutföra bytet."
+      "dialogDescription": "Du byter till {newEmail}. När du har bekräftat att det är du skickar vi en kod till den nya adressen.",
+      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Skriv in den här för att byta adress. Koden gäller i 15 minuter.",
+      "codeLabel": "Kod till den nya adressen",
+      "codeHint": "Titta även i skräpposten. Kommer inget mejl inom några minuter kan du börja om och kontrollera adressen.",
+      "wrongCode": "Koden stämmer inte. Använd koden från mejlet till den nya adressen och kontrollera siffrorna.",
+      "lastAttempt": "Ett försök kvar. Sedan behöver du börja om.",
+      "confirm": "Byt adress",
+      "confirming": "Byter…",
+      "startOver": "Börja om",
+      "deadCode": "Koden går inte att använda längre. Börja om för att få nya koder.",
+      "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Börja om för att få nya koder.",
+      "success": "Adressen är bytt, och du loggar in med {newEmail} från och med nu. Du är utloggad på alla andra enheter.",
+      "unusable": "Den nya e-postadressen går inte att använda. Kontrollera den eller skriv in en annan.",
+      "notDone": "Bytet genomfördes inte, och din adress är oförändrad.",
+      "incomplete": "Bytet kunde inte slutföras, och din adress är oförändrad. Vänta en stund.",
+      "outcomeUnknown": "Vi kan inte se om adressen byttes. Ladda om sidan."
     },
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
       "updateFailed": "Kunde inte uppdatera profilen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
-      "emailMismatch": "E-postadressen matchar inte ditt konto.",
-      "wrongPassword": "Lösenordet är felaktigt.",
-      "deleteFailed": "Kunde inte radera kontot.",
-      "emailTaken": "E-postadressen används redan av ett annat konto.",
-      "changeEmailFailed": "Kunde inte byta e-postadress.",
+      "emailTaken": "E-postadressen används redan av ett annat konto. Skriv in en annan adress.",
       "changeEmailCooldown": "Det går inte att begära ett adressbyte just nu. Försök igen senare.",
-      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon bekräftelselänk. Din adress är oförändrad. Försök igen senare."
+      "changeEmailTargetBudget": "Du har nått gränsen för hur många nya adresser du kan byta till per dygn. Vänta ett dygn och försök igen.",
+      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon kod. Din adress är oförändrad. Försök igen senare."
     }
   }
 }

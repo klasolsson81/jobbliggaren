@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { DeadCodePanel } from "./dead-code-panel";
 import { LoginFlowNotice } from "./login-flow-notice";
 import { LoginOutcomePanel } from "./login-outcome-panel";
@@ -91,6 +91,19 @@ describe("LoginFlowNotice", () => {
     expect(panel).toHaveTextContent(body);
     expect(panel).toHaveTextContent("Skriv in din e-postadress nedan och börja om.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(panel).toHaveFocus());
+  });
+
+  it("says the account is deleted, with the restore route as a mail link, and takes focus", async () => {
+    render(<LoginFlowNotice notice="accountDeleted" />);
+
+    const panel = screen.getByRole("status");
+    expect(screen.getByRole("heading", { level: 2, name: "Ditt konto är raderat" })).toBeInTheDocument();
+    expect(panel).toHaveTextContent("I 30 dagar kan du få kontot återställt");
+    expect(within(panel).getByRole("link", { name: "kontakt@jobbliggaren.se" })).toHaveAttribute(
+      "href",
+      "mailto:kontakt@jobbliggaren.se"
+    );
     await waitFor(() => expect(panel).toHaveFocus());
   });
 });

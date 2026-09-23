@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { useTranslations } from "next-intl";
+import { challengeIdInputSchema, codeInputSchema } from "@/lib/auth/challenge-schemas";
 import { digestCadenceSchema } from "@/lib/dto/me";
 
 // next-intl translator scoped to the `validation` namespace (see
@@ -9,41 +10,18 @@ import { digestCadenceSchema } from "@/lib/dto/me";
 export type ValidationTranslator = ReturnType<typeof useTranslations<"validation">>;
 
 /**
- * TD-28 — defense-in-depth typed-confirmation + re-auth innan DELETE /me.
- * Typed-confirmation = användarens egen e-postadress (matchar GitHub/Stripe-
- * mönstret; högre friktion än ett magiskt ord).
- *
- * Schemat validerar struktur — e-post-matchning mot inloggad användare sker
- * i `deleteAccountAction` så validation-feedback kan visas inline i modalen.
+ * #1740 — the typed address of delete-account. Friction against the user's own mistake, never proof of
+ * identity (the code is), so it carries no format rule at all: `z.email()` refused addresses the backend
+ * admits (`björn@…`, #1781) and locked those accounts out of deleting themselves. The action compares it
+ * with the SESSION's address before anything is spent (#822).
  */
-export function makeDeleteMyAccountSchema(t: ValidationTranslator) {
-  return z.object({
-    confirmEmail: z.email(t("profile.confirmEmailInvalid")),
-    password: z.string().min(1, t("profile.passwordRequired")),
-  });
-}
+export const deleteConfirmationSchema = z.string().trim().min(1).max(256);
 
-export type DeleteMyAccountInput = z.infer<
-  ReturnType<typeof makeDeleteMyAccountSchema>
->;
-
-/**
- * #679 — change-email. Client-side structural check (the backend is the last
- * barrier). `currentPassword` is the re-auth credential: presence only (a length
- * rule on a re-auth field could reject/echo a supplied credential). `newEmail`
- * is a syntactic email check only; the new/different-from-current guard is a
- * CARD-level `canSubmit` gate (client friction), so it is not part of this schema.
- */
-export function makeChangeEmailSchema(t: ValidationTranslator) {
-  return z.object({
-    currentPassword: z.string().min(1, t("profile.passwordRequired")),
-    newEmail: z.email(t("profile.confirmEmailInvalid")),
-  });
-}
-
-export type ChangeEmailInput = z.infer<
-  ReturnType<typeof makeChangeEmailSchema>
->;
+/** A code and the challenge it answers, as a Server Action receives them from the dialog. */
+export const codeProofSchema = z.object({
+  challengeId: challengeIdInputSchema,
+  code: codeInputSchema,
+});
 
 // The language is the only field /mina-sidor writes through this action, so it is required: a
 // payload without it would PATCH nothing and the card would still stamp "Sparat".

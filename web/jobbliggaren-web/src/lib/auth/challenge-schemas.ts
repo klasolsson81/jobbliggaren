@@ -17,6 +17,9 @@ export const codeInputSchema = z
   .trim()
   .regex(/^[0-9]{6}$/);
 
+/** A bound challenge's id, re-authentication's and change-email's; the backend validators' bound (64). */
+export const challengeIdInputSchema = z.string().min(1).max(64);
+
 /** The bound is the backend validator's (`ConsumeLoginLinkCommandValidator`, 128). */
 export const linkTokenInputSchema = z.string().trim().min(1).max(128);
 

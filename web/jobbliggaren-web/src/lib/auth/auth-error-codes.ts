@@ -12,9 +12,14 @@
  */
 export const AUTH_ERROR_CODES = {
   PwnedPassword: "Auth.PwnedPassword",
-  ChangeEmailCooldown: "Auth.ChangeEmailCooldown",
   RegistrationsClosed: "Auth.RegistrationsClosed",
   EmailDeliveryUnavailable: "Auth.EmailDeliveryUnavailable",
   LoginCodeWrongLastAttempt: "Auth.LoginCodeWrongLastAttempt",
   LoginCodeBurned: "Auth.LoginCodeBurned",
+  LoginCodeWrong: "Auth.LoginCodeWrong",
+  ReauthCooldown: "Auth.ReauthCooldown",
+  ReauthCodeBudgetExhausted: "Auth.ReauthCodeBudgetExhausted",
+  EmailTaken: "Auth.EmailTaken",
+  ChangeEmailTargetBudgetExhausted: "Auth.ChangeEmailTargetBudgetExhausted",
+  EmailChangeIncomplete: "Auth.EmailChangeIncomplete",
 } as const;

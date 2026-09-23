@@ -234,27 +234,9 @@ describe("registerAction 400 handling (#616 breached password, #1117 display-nam
     });
   });
 
-  it("maps the #1117 display-name refusal to copy that names what to change", async () => {
-    // The aggregate invariant answers with a ProblemDetails title, NOT the FluentValidation
-    // errors-dictionary, so without its own arm this refusal reads as "registration failed"
-    // and the user is told nothing about the name they typed.
-    parseResponseMock.mockResolvedValue({
-      title: "JobSeeker.DisplayNamePersonnummerMustBeRemoved",
-    });
-
-    const result = await registerAction(null, form());
-
-    expect(result).toEqual({
-      error: "auth.actions.displayNamePersonnummer",
-      // Names the input so RegisterForm can mark it invalid and move focus there.
-      field: "displayName",
-      values: REGISTER_ECHO,
-    });
-  });
-
   it("does NOT name a field for an unknown ProblemDetails title", async () => {
-    // The absence is the half that matters: stamping every failure would mark the name input
-    // invalid for causes the user cannot fix by editing the name.
+    // The absence is the half that matters: stamping every failure would mark an input invalid
+    // for causes the user cannot fix by editing it.
     parseResponseMock.mockResolvedValue({ title: "Auth.SomethingElse" });
 
     const result = await registerAction(null, form());
@@ -454,7 +436,6 @@ describe("the failure echo never carries a password", () => {
   it("omits it from every registerAction failure state", async () => {
     const arms: { status?: number; body?: unknown; throws?: boolean }[] = [
       { status: 400, body: { title: "Auth.PwnedPassword" } },
-      { status: 400, body: { title: "JobSeeker.DisplayNamePersonnummerMustBeRemoved" } },
       { status: 400, body: { errors: { Password: ["För kort."] } } },
       { status: 500 },
       { status: 503, body: {} },

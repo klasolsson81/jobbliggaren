@@ -612,7 +612,6 @@
       "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
       "serverUnreachable": "Kunde inte nå servern. Försök igen.",
       "registrationFailed": "Registreringen misslyckades.",
-      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Skriv namnet utan personnummer och försök igen.",
       "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
       "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "emailNotConfirmed": "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",

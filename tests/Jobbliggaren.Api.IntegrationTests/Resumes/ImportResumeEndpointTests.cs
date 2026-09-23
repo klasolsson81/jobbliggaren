@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
@@ -212,7 +211,7 @@ public class ImportResumeEndpointTests(ApiFactory factory)
     }
 
     // #1741 — Word writes Shift+Enter as <w:br/> and a tab as <w:tab/> inside the run. The
-    // personnummer is followed by a phone number, and a Swedish phone number starts with a digit.
+    // personnummer is followed by a phone number.
     [Theory]
     [InlineData("line break")]
     [InlineData("tab")]
@@ -233,20 +232,17 @@ public class ImportResumeEndpointTests(ApiFactory factory)
 
     private static byte[] ContactBlockDocx(string separator)
     {
-        OpenXmlElement Separator() => separator == "tab" ? new TabChar() : new Break();
-
-        using var stream = new MemoryStream();
-        using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        OpenXmlElement Separator() => separator switch
         {
-            var mainPart = document.AddMainDocumentPart();
-            mainPart.Document = new Document(new Body(new Paragraph(new Run(
-                new Text("Anna Andersson"), Separator(),
-                new Text(ValidPersonnummer), Separator(),
-                new Text("070-123 45 67")))));
-            mainPart.Document.Save();
-        }
+            "line break" => new Break(),
+            "tab" => new TabChar(),
+            _ => throw new ArgumentOutOfRangeException(nameof(separator), separator, null),
+        };
 
-        return stream.ToArray();
+        return CvDocxFixtures.BuildDocx(new Paragraph(new Run(
+            new Text("Anna Andersson"), Separator(),
+            new Text(ValidPersonnummer), Separator(),
+            new Text("070-123 45 67"))));
     }
 
     [Fact]

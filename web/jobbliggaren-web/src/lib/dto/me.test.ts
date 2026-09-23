@@ -81,10 +81,19 @@ describe("jobSeekerProfileSchema", () => {
     if (result.success) expect(result.data.displayName).toBeNull();
   });
 
-  it("still rejects a profile whose display name is missing altogether", () => {
+  it("accepts a profile without the display-name key", () => {
+    // #1741 PR B drops the key from the backend. Two images can run skewed on the box
+    // (independent build cells), so this reader has to be live before the key goes.
     const withoutName: Partial<typeof valid> = { ...valid };
     delete withoutName.displayName;
-    expect(jobSeekerProfileSchema.safeParse(withoutName).success).toBe(false);
+    const result = jobSeekerProfileSchema.safeParse(withoutName);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.displayName).toBeUndefined();
+  });
+
+  it("accepts a profile that still carries a display name", () => {
+    // The other direction of the same skew: a backend that has not yet dropped the key.
+    expect(jobSeekerProfileSchema.safeParse({ ...valid, displayName: "Anna" }).success).toBe(true);
   });
 
   it("accepts a stated experienceYears integer", () => {

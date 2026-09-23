@@ -9,8 +9,8 @@ namespace Jobbliggaren.Application.UnitTests.Resumes.Review;
 
 /// <summary>
 /// B3 "Kontaktuppgifter kompletta" on both arms (#1741, ADR 0142 D7). The canonical arm grades no
-/// name: the account holds none and auto-promote takes none into the CV, so a name is neither
-/// missed nor claimed there. The staging arm grades the file's own contact name as before.
+/// name: auto-promote takes none into the CV, so a name is neither missed nor claimed there. The
+/// staging arm grades the file's own contact name as before.
 /// </summary>
 public class B3ContactRuleTests
 {
@@ -24,7 +24,6 @@ public class B3ContactRuleTests
             await NewEngine().ReviewAsync(context, RenderProfile.Ats, TestContext.Current.CancellationToken),
             "B3");
 
-    // What auto-promote builds since #1741: the parse's contact fields and no name.
     private static CvReviewContext Canonical(PersonalInfo personalInfo)
     {
         var content = new ResumeContent(
@@ -63,6 +62,16 @@ public class B3ContactRuleTests
 
         b3.Verdict.ShouldBe(CriterionVerdict.Warn);
         Observation(b3).ShouldBe("Kontaktsektion hittad; saknar ort.");
+    }
+
+    [Fact]
+    public async Task B3_ShouldNameOnlyWhatIsMissing_OnACanonicalCvWithNoContactFields()
+    {
+        // The PersonalInfo AutoPromoteContentMapper writes from a parse that found no contact fields.
+        var b3 = await B3Async(Canonical(new PersonalInfo(null, null, null, null)));
+
+        b3.Verdict.ShouldBe(CriterionVerdict.Fail);
+        Observation(b3).ShouldBe("Saknar e-post och telefon.");
     }
 
     [Fact]

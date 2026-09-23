@@ -200,24 +200,24 @@ internal sealed class B3ContactRule : ICriterionRule
         }
 
         // Fail-signal: "Saknar e-post/telefon".
-        if (hardMissing.Count > 0)
+        if (contact is null || hardMissing.Count > 0)
         {
             return CvCriterionVerdict.Assessed("B3", category, CriterionVerdict.Fail,
                 ReviewText.Cite(ReviewText.Structural(
-                    $"Kontaktsektion hittad; saknar {string.Join(" och ", hardMissing)}.")));
+                    $"Saknar {string.Join(" och ", hardMissing)}.")));
         }
 
-        // The canonical arm grades no name: the account holds none and the CV takes none from it
-        // (ADR 0142 D7), so a name is neither missed nor claimed there.
+        // The canonical arm grades no name: the CV takes none from the account (ADR 0142 D7), so a
+        // name is neither missed nor claimed there.
         var canonical = context.Source == CvReviewSourceKind.Canonical;
 
         var softMissing = new List<string>();
-        if (!canonical && string.IsNullOrWhiteSpace(contact!.FullName))
+        if (!canonical && string.IsNullOrWhiteSpace(contact.FullName))
         {
             softMissing.Add("namn");
         }
 
-        if (string.IsNullOrWhiteSpace(contact!.Location))
+        if (string.IsNullOrWhiteSpace(contact.Location))
         {
             softMissing.Add("ort");
         }

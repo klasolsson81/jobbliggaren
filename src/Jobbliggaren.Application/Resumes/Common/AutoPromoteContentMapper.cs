@@ -13,8 +13,8 @@ namespace Jobbliggaren.Application.Resumes.Common;
 ///
 /// <para>Pure projection, three bound policies, zero synthesis (ADR 0071/CLAUDE.md §5):</para>
 /// <list type="bullet">
-/// <item><b>Name:</b> none. The account holds no name (ADR 0142 D7) and the parsed
-/// <c>Contact.FullName</c> is never used (Klas-bound 2026-07-16).</item>
+/// <item><b>Name:</b> none (ADR 0142 D7), and the parsed <c>Contact.FullName</c> is never used
+/// (Klas-bound 2026-07-16).</item>
 /// <item><b>Dates:</b> the parse carries only loose period strings, so structured dates are
 /// honestly absent (null/null) and the verbatim <c>Period</c> rides <c>RawPeriod</c>
 /// UNTRUNCATED — an over-long period is for the buildability gate to reject, not for this

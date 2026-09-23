@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Xml.Linq;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -42,24 +43,8 @@ public class PdfPigOpenXmlCvTextExtractorTests
     static PdfPigOpenXmlCvTextExtractorTests() =>
         QuestPDF.Settings.License = LicenseType.Community;
 
-    private static byte[] BuildDocx(params string[] paragraphs)
-    {
-        using var stream = new MemoryStream();
-        using (var document = WordprocessingDocument.Create(
-            stream, WordprocessingDocumentType.Document))
-        {
-            var mainPart = document.AddMainDocumentPart();
-            var body = new Body();
-            foreach (var text in paragraphs)
-                body.AppendChild(new Paragraph(new Run(new Text(text))));
-            // Fully qualified: `Document` is ambiguous once QuestPDF.Fluent is in scope (same
-            // resolution PdfPigCvLayoutAnalyzerTests:99 uses).
-            mainPart.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(body);
-            mainPart.Document.Save();
-        }
-
-        return stream.ToArray();
-    }
+    private static byte[] BuildDocx(params string[] paragraphs) =>
+        BuildDocxFromParagraphs([.. paragraphs.Select(text => new Paragraph(new Run(new Text(text))))]);
 
     // ---- PDF fixtures (#1060 PR E) ------------------------------------------------------
     // A REAL single-column Swedish CV, rendered with QuestPDF. The employers are the markers
@@ -505,7 +490,7 @@ public class PdfPigOpenXmlCvTextExtractorTests
 
     // #1741 — Word writes Shift+Enter as <w:br/> and a tab as <w:tab/> inside the run (ECMA-376
     // §17.3.3.1, §17.3.3.32). A line break and a carriage return end a line as a paragraph does; a tab,
-    // a positioned tab and a symbol separate their neighbours with one space.
+    // a positioned tab and a symbol separate their neighbours.
     public static TheoryData<string> LineBreaks() => ["br", "br page", "br column", "cr"];
 
     [Theory]
@@ -568,25 +553,13 @@ public class PdfPigOpenXmlCvTextExtractorTests
         FlagCount(result.RawText).ShouldBe(0);
     }
 
-    [Fact]
-    public void Extract_DocxTabAtTheStartOfALine_YieldsNothing()
+    [Theory]
+    [MemberData(nameof(Separators))]
+    public void Extract_DocxSeparatorAtTheStartOfALine_YieldsNothing(string separator)
     {
         var bytes = BuildDocxFromParagraphs(
-            new Paragraph(new Run(new TabChar(), new Text("Rad ett"))),
-            new Paragraph(new Run(new TabChar(), new Text("Rad två"))));
-
-        _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None).RawText.ShouldBe("Rad ett\nRad två");
-    }
-
-    [Fact]
-    public void Extract_DocxTabStopDefinitions_YieldNothing()
-    {
-        // <w:tabs> in the paragraph properties defines tab stops under the run tab's local name.
-        var bytes = BuildDocxFromParagraphs(
-            new Paragraph(new Run(new Text("Rad ett"))),
-            new Paragraph(
-                new ParagraphProperties(new Tabs(new TabStop { Val = TabStopValues.Left, Position = 4536 })),
-                new Run(new Text("Rad två"))));
+            new Paragraph(new Run(RunElement(separator), new Text("Rad ett"))),
+            new Paragraph(new Run(RunElement(separator), new Text("Rad två"))));
 
         _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None).RawText.ShouldBe("Rad ett\nRad två");
     }
@@ -594,22 +567,26 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [Fact]
     public void Extract_DocxEmptyTabStopList_LeavesTheRunTabAfterItASeparator()
     {
-        // new Tabs() serialises as the self-closing <w:tabs/>, which has no end element.
-        var doc = DocumentXml(
-            "<w:p><w:pPr><w:tabs/></w:pPr>" +
-            "<w:r><w:t>070-123 45 67</w:t><w:tab/><w:t>811218-9876</w:t></w:r></w:p>");
+        var bytes = BuildDocxFromParagraphs(new Paragraph(
+            new ParagraphProperties(new Tabs()),
+            new Run(new Text("070-123 45 67"), new TabChar(), new Text("811218-9876"))));
 
-        var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
-
-        result.RawText.ShouldBe("070-123 45 67 811218-9876");
+        // A self-closing element has no end element.
+        MainDocumentXml(bytes).ShouldContain("<w:tabs />");
+        _sut.Extract(bytes, CvFileKind.Docx, CancellationToken.None).RawText.ShouldBe("070-123 45 67 811218-9876");
     }
 
     [Fact]
     public void Extract_DocxBreakAndTabWithEndElements_YieldOneCharacterEach()
     {
+        // An empty element may be written with an end tag (XML 1.0 §3.1); System.Xml.Linq writes it so.
+        var br = new XElement(WordMain + "br", string.Empty).ToString(SaveOptions.DisableFormatting);
+        var tab = new XElement(WordMain + "tab", string.Empty).ToString(SaveOptions.DisableFormatting);
+        br.ShouldEndWith("></br>");
+        tab.ShouldEndWith("></tab>");
         var doc = DocumentXml(
-            "<w:p><w:r><w:t>Rad ett</w:t><w:br></w:br><w:t>070-123 45 67</w:t>" +
-            "<w:tab></w:tab><w:t>811218-9876</w:t></w:r></w:p>");
+            "<w:p><w:r><w:t>Rad ett</w:t>" + br + "<w:t>070-123 45 67</w:t>" +
+            tab + "<w:t>811218-9876</w:t></w:r></w:p>");
 
         var result = _sut.Extract(BuildMinimalOpcWithDocumentXml(doc), CvFileKind.Docx, CancellationToken.None);
 
@@ -628,7 +605,7 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
-    public void Extract_DocxTextBox_TabStopsYieldNothing_RunTabsYieldASpace()
+    public void Extract_DocxTextBox_RunTabAfterItsTabStopsYieldsASpace()
     {
         // A text box is run content of the paragraph that anchors it, so its own paragraphs, tab-stop
         // definitions included, sit inside an open <w:r>. This is its VML form.
@@ -662,6 +639,33 @@ public class PdfPigOpenXmlCvTextExtractorTests
         withTabStops.RawText.ShouldBe(without.RawText);
     }
 
+    public static TheoryData<string> BreaksBesideALineEnd() => ["two breaks in a run", "a break closing a paragraph"];
+
+    [Theory]
+    [MemberData(nameof(BreaksBesideALineEnd))]
+    public void Extract_DocxBreakBesideAnotherLineEnd_YieldsABlankLine(string shape)
+    {
+        Paragraph[] paragraphs = shape switch
+        {
+            "two breaks in a run" => [new Paragraph(new Run(new Text("A"), new Break(), new Break(), new Text("B")))],
+            "a break closing a paragraph" =>
+                [new Paragraph(new Run(new Text("A"), new Break())), new Paragraph(new Run(new Text("B")))],
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null),
+        };
+
+        _sut.Extract(BuildDocxFromParagraphs(paragraphs), CvFileKind.Docx, CancellationToken.None)
+            .RawText.ShouldBe("A\n\nB");
+    }
+
+    private static readonly XNamespace WordMain = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    private static string MainDocumentXml(byte[] docx)
+    {
+        using var archive = new ZipArchive(new MemoryStream(docx), ZipArchiveMode.Read);
+        using var reader = new StreamReader(archive.GetEntry("word/document.xml")!.Open());
+        return reader.ReadToEnd();
+    }
+
     private static OpenXmlElement RunElement(string name) => name switch
     {
         "br" => new Break(),
@@ -692,6 +696,8 @@ public class PdfPigOpenXmlCvTextExtractorTests
             stream, WordprocessingDocumentType.Document))
         {
             var mainPart = document.AddMainDocumentPart();
+            // Fully qualified: `Document` is ambiguous once QuestPDF.Fluent is in scope (same
+            // resolution PdfPigCvLayoutAnalyzerTests:99 uses).
             mainPart.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(new Body(paragraphs));
             mainPart.Document.Save();
         }

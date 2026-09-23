@@ -418,11 +418,10 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             .Trim();
     }
 
-    // #1803: four readings of a story. R is RawText or AuxiliaryText: every tracked change accepted, with a separator
-    // where accepting removes a line end or a run's w:t, so R never joins neighbours that the runs as written keep
-    // apart. H reads every run as written, leaves deleted text out, and ends a line at every paragraph end and break.
-    // A accepts every change and puts nothing where a line end was removed. O rejects every insertion and keeps every
-    // deletion. A tracked change is a container or a mark; none of its attributes is read.
+    // #1803: four readings of a story. R is RawText or AuxiliaryText: R never joins neighbours that the runs as
+    // written keep apart. H reads every run as written, leaves deleted text out, and ends a line at every paragraph
+    // end and break. A accepts every change. O rejects every insertion and keeps every deletion. A tracked change is
+    // a container or a mark; none of its attributes is read.
     private enum Emission { Nothing, Text, Separator, LineEnd, OwnLine }
 
     private enum StoryEvent { Text, DeletedText, ParagraphEnd, Break, Separator, TextBoxStart }
@@ -477,6 +476,14 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         private int _groupStart;
         private bool _groupChanged;
 
+        // As the base read it: a text node is run text while a w:t is open, whatever element it sits in.
+        private bool _insideText;
+        private bool _insideDeletedText;
+        private StoryEvent? _textKind;
+
+        // A separator R owes a removed line end, written only before what follows on the same line.
+        private bool _separatorPending;
+
         public void Read(XmlReader reader, CancellationToken cancellationToken)
         {
             StartGroup();
@@ -496,8 +503,8 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         break;
 
                     case XmlNodeType.Text or XmlNodeType.SignificantWhitespace or XmlNodeType.Whitespace
-                        when _frames.Count > 0 && _frames[^1] is Frame.Text or Frame.DeletedText:
-                        Apply(_frames[^1] == Frame.Text ? StoryEvent.Text : StoryEvent.DeletedText, default, reader.Value);
+                        when _textKind is { } textKind:
+                        Apply(textKind, default, reader.Value);
                         break;
                 }
 
@@ -539,9 +546,13 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         break;
                     case "t":
                         frame = Frame.Text;
+                        _insideText = !reader.IsEmptyElement;
+                        _textKind = _insideText ? StoryEvent.Text : _insideDeletedText ? StoryEvent.DeletedText : null;
                         break;
                     case "delText":
                         frame = Frame.DeletedText;
+                        _insideDeletedText = !reader.IsEmptyElement;
+                        _textKind = _insideDeletedText ? StoryEvent.DeletedText : _insideText ? StoryEvent.Text : null;
                         _groupChanged = true;
                         break;
                     // <w:tabs> defines tab stops under the run tab's local name.
@@ -575,7 +586,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         break;
                 }
             }
-            // #1801: an inline object separates its neighbours; an anchored one floats and adds nothing.
+            // #1801: an inline object raises a separator; an anchored one floats and raises nothing.
             else if (reader.NamespaceURI == DrawingNamespace && reader.LocalName == "inline")
             {
                 Apply(StoryEvent.Separator);
@@ -690,6 +701,14 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 case Frame.TabStops:
                     _tabStops--;
                     break;
+                case Frame.Text:
+                    _insideText = false;
+                    _textKind = _insideDeletedText ? StoryEvent.DeletedText : null;
+                    break;
+                case Frame.DeletedText:
+                    _insideDeletedText = false;
+                    _textKind = _insideText ? StoryEvent.Text : null;
+                    break;
             }
         }
 
@@ -703,18 +722,18 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 added--;
         }
 
-        private void Apply(StoryEvent storyEvent, Marks mark = default, string? text = null)
+        private void Apply(StoryEvent storyEvent, Marks mark = default, string text = "")
         {
             var emissions = EmissionsFor(storyEvent, mark);
             if (emissions.EndsGroup)
             {
                 EndGroup();
-                Write(accepted, emissions.R, text, MaxOutputChars);
+                WriteAccepted(storyEvent, emissions.R, text);
                 StartGroup();
                 return;
             }
 
-            Write(accepted, emissions.R, text, MaxOutputChars);
+            WriteAccepted(storyEvent, emissions.R, text);
             Write(_written, emissions.H, text, revision.WrittenSpace);
             Write(_joined, emissions.A, text, revision.ChangedSpace);
             Write(_rejected, emissions.O, text, revision.ChangedSpace);
@@ -737,7 +756,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     added ? Emission.Nothing : Emission.Text),
                 StoryEvent.DeletedText => new(Emission.Nothing, Emission.Nothing, Emission.Nothing, Emission.Text),
                 StoryEvent.ParagraphEnd => new(
-                    mark.Removed ? Emission.Separator : Emission.LineEnd,
+                    mark.Removed || runRemoved ? Emission.Separator : Emission.LineEnd,
                     Emission.LineEnd,
                     mark.Removed ? Emission.Nothing : Emission.LineEnd,
                     mark.Added ? Emission.Nothing : Emission.LineEnd),
@@ -760,8 +779,31 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             };
         }
 
+        // A removed line end costs R no more than the line end H writes there: its separator waits, and a line end or a
+        // line start that comes first drops it.
+        private void WriteAccepted(StoryEvent storyEvent, Emission emission, string text)
+        {
+            if (emission == Emission.Separator && storyEvent is StoryEvent.ParagraphEnd or StoryEvent.Break or StoryEvent.TextBoxStart)
+            {
+                _separatorPending = true;
+                return;
+            }
+
+            if (emission is Emission.LineEnd or Emission.OwnLine)
+            {
+                _separatorPending = false;
+            }
+            else if (_separatorPending && emission is Emission.Text or Emission.Separator)
+            {
+                _separatorPending = false;
+                Write(accepted, Emission.Separator, string.Empty, MaxOutputChars);
+            }
+
+            Write(accepted, emission, text, MaxOutputChars);
+        }
+
         // #268 SEC-1: nothing is appended past the limit, so a single oversized node is truncated, never appended whole.
-        private static void Write(StringBuilder builder, Emission emission, string? text, int limit)
+        private static void Write(StringBuilder builder, Emission emission, string text, int limit)
         {
             if (builder.Length >= limit)
                 return;
@@ -769,7 +811,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             switch (emission)
             {
                 case Emission.Text:
-                    builder.Append(text.AsSpan(0, Math.Min(text!.Length, limit - builder.Length)));
+                    builder.Append(text.AsSpan(0, Math.Min(text.Length, limit - builder.Length)));
                     break;
                 case Emission.Separator:
                     AppendSeparator(builder);
@@ -816,7 +858,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                 }
             }
 
-            bool IsNew(string reading) => !string.IsNullOrWhiteSpace(reading) && !added.Contains(reading);
+            bool IsNew(string reading) => !added.Contains(reading);
         }
     }
 

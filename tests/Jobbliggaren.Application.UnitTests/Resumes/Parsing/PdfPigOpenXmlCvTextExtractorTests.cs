@@ -1076,10 +1076,9 @@ public class PdfPigOpenXmlCvTextExtractorTests
         FlagCount(result).ShouldBe(occurrences);
     }
 
-    // #1803 — tracked changes. RawText and AuxiliaryText read each story with every change accepted, a separator
-    // standing where accepting removes a line end. The scan also reads each group a change touches as its runs are
-    // written, accepted with nothing at a removed line end, and rejected.
-    public static TheoryData<string> DeletionStories() => ["main", "header", "footer", "footnote", "endnote", "comment"];
+    // #1803 — tracked changes. The scan also reads each group a change touches as its runs are written, accepted,
+    // and rejected.
+    public static TheoryData<string> DeletionStories() => DocxStoryFixture.MainAndStories();
 
     [Theory]
     [MemberData(nameof(DeletionStories))]
@@ -1097,8 +1096,8 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     public static TheoryData<string> PartlyDeletedShapes() =>
-        ["kept head", "kept tail", "two runs in one deletion", "two deletions", "a proofing mark between",
-            "a bookmark between", "a comment range between"];
+        ["kept head", "kept tail", "two runs in one deletion", "two deletions", "two deletions by two authors",
+            "a proofing mark between", "a bookmark between", "a comment range between"];
 
     [Theory]
     [MemberData(nameof(PartlyDeletedShapes))]
@@ -1110,6 +1109,8 @@ public class PdfPigOpenXmlCvTextExtractorTests
             "kept tail" => (Para(Del(DelText("811218-")), Kept("9876")), "9876"),
             "two runs in one deletion" => (Para(Del(DelText("811218-"), DelText("9876"))), ""),
             "two deletions" => (Para(Del(DelText("811218-")), Del(DelText("9876"))), ""),
+            "two deletions by two authors" =>
+                (Para(DelBy("11", "Anna", DelText("811218-")), DelBy("12", "Bo", DelText("9876"))), ""),
             "a proofing mark between" =>
                 (Para(Del(DelText("811218")), "<w:proofErr w:type=\"spellStart\"/>", Del(DelText("-9876"))), ""),
             "a bookmark between" =>
@@ -1452,7 +1453,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [Fact]
     public void Extract_DocxDeletedTextBoxsSecondParagraph_ReachesTheScan()
     {
-        // The first paragraph's end is a line end in every reading, so the second starts inside the open deletion.
         var result = ExtractStories(Para(Del(TextBoxRun(Para(Kept("a")), Para(Kept(Pnr))))));
 
         FlagCount(result).ShouldBe(1);
@@ -1533,7 +1533,7 @@ public class PdfPigOpenXmlCvTextExtractorTests
 
         var result = ExtractStories(Para(Kept(Pnr)) + filler, headers);
 
-        result.RevisionText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3"], ignoreOrder: true);
+        result.RevisionText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3"]);
     }
 
     [Fact]
@@ -1544,21 +1544,96 @@ public class PdfPigOpenXmlCvTextExtractorTests
         result.RevisionText.Length.ShouldBe(1_000_000);
     }
 
-    public static TheoryData<string> InsertedTableParts() => ["row", "cell"];
+    public static TheoryData<string> InsertedTableParts() => ["row", "row with an end-tag mark", "cell"];
 
     [Theory]
     [MemberData(nameof(InsertedTableParts))]
     public void Extract_DocxInsertedTablePart_IsLeftOutOfTheRejectedReading(string part)
     {
         var content = Para(Kept("a"), Del(DelText("b")));
-        var row = part == "row"
-            ? "<w:tr><w:trPr>" + InsertedMark + "</w:trPr><w:tc>" + content + "</w:tc></w:tr>"
-            : "<w:tr><w:tc><w:tcPr><w:cellIns w:id=\"94\" w:author=\"Granskare\"/></w:tcPr>" + content + "</w:tc></w:tr>";
+        var row = part switch
+        {
+            "row" => "<w:tr><w:trPr>" + InsertedMark + "</w:trPr><w:tc>" + content + "</w:tc></w:tr>",
+            "row with an end-tag mark" => "<w:tr><w:trPr>" + InsertedMarkWithEndTag + "</w:trPr><w:tc>" + content + "</w:tc></w:tr>",
+            "cell" => "<w:tr><w:tc><w:tcPr><w:cellIns w:id=\"94\" w:author=\"Granskare\"/></w:tcPr>" + content + "</w:tc></w:tr>",
+            _ => throw new ArgumentOutOfRangeException(nameof(part), part, null),
+        };
 
         var result = ExtractStories("<w:tbl>" + row + "</w:tbl>");
 
         result.RawText.ShouldBe("a");
         result.RevisionText.ShouldBe("b");
+    }
+
+    public static TheoryData<string> LineStartsAfterARemovedLineEnd() => ["a text box", "the next story"];
+
+    [Theory]
+    [MemberData(nameof(LineStartsAfterARemovedLineEnd))]
+    public void Extract_DocxRemovedLineEndBeforeALineStart_CostsRawTextNoMoreThanTheLineEnd(string lineStart)
+    {
+        // A removed line end that a line start follows must cost RawText no more than the line end it replaces, or
+        // the character cap falls before the number at the end, which the base still read.
+        var result = lineStart == "a text box"
+            ? ExtractStories(string.Concat(Enumerable.Repeat(
+                    MarkedPara(DeletedMark, Kept("x")) + Para("<w:r><w:txbxContent/></w:r>"), 100))
+                + Para(Kept(new string('A', 999_679))) + Para(Kept(Pnr)))
+            : ExtractStories(AnnaBody, [.. Enumerable.Repeat(DocxStoryFixture.Part("header", MarkedPara(DeletedMark, Kept("x"))), 63),
+                DocxStoryFixture.Part("header", Para(Kept(new string('A', 999_862))) + Para(Kept(Pnr)))]);
+
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRunTextAfterAnElementInsideItsTextElement_IsStillRead()
+    {
+        // Not schema-valid, but the reader accepts it, and the text on both sides of the element is run text.
+        var result = ExtractStories(Para("<w:r><w:t>8112<w:x>18</w:x>-9876</w:t></w:r>"));
+
+        result.RawText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> FormsWithoutAPinOfTheirOwn() =>
+        ["moved-to mark", "moved-to text over a deletion", "inserted mark with an end tag", "deleted mark after a break"];
+
+    [Theory]
+    [MemberData(nameof(FormsWithoutAPinOfTheirOwn))]
+    public void Extract_DocxRevisionForm_ReachesTheScan(string form)
+    {
+        var body = form switch
+        {
+            "moved-to mark" => MarkedPara(MovedToMark, Kept("811218-")) + Para(Kept("9876")),
+            "moved-to text over a deletion" => Para(Kept("811218-"), MovedTo(Kept("0000")), Del(DelText("9876"))),
+            "inserted mark with an end tag" => MarkedPara(InsertedMarkWithEndTag, Kept("811218-")) + Para(Kept("9876")),
+            // The break ends a group inside the paragraph, so the next group starts under the paragraph's deleted mark.
+            "deleted mark after a break" =>
+                MarkedPara(DeletedMark, Kept("Tel"), "<w:r><w:br/></w:r>", Kept("8112")) + Para(Kept("18-9876")),
+            _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),
+        };
+
+        FlagCount(ExtractStories(body)).ShouldBe(1);
+    }
+
+    public static TheoryData<string> PartsTheAcceptedReadingKeeps() => ["deleted cell", "moved range without a container"];
+
+    [Theory]
+    [MemberData(nameof(PartsTheAcceptedReadingKeeps))]
+    public void Extract_DocxDeletedCellOrMovedRange_StaysInRawText(string form)
+    {
+        var body = form == "deleted cell"
+            ? "<w:tbl><w:tr><w:tc><w:tcPr><w:cellDel w:id=\"97\" w:author=\"Granskare\"/></w:tcPr>" + Para(Kept(Pnr)) +
+                "</w:tc></w:tr></w:tbl>"
+            : Para("<w:moveFromRangeStart w:id=\"3\" w:name=\"flytt\"/>", Kept(Pnr), "<w:moveFromRangeEnd w:id=\"3\"/>");
+
+        ExtractStories(body).RawText.ShouldBe("811218-9876");
+    }
+
+    [Fact]
+    public void Extract_DocxDeletedTextBoxBetweenWords_LeavesNoLineInRawText()
+    {
+        var result = ExtractStories(Para(Kept("Anna"), Del(TextBoxRun(Para(Kept("x")), Para(Kept("y")))), Kept("Andersson")));
+
+        result.RawText.ShouldBe("Anna Andersson");
     }
 
     private static bool IsInline(string form) => form is "vml inline" or "drawing inline";

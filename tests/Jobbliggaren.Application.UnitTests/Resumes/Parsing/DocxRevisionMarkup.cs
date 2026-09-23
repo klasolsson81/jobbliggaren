@@ -20,6 +20,10 @@ internal static class DocxRevisionMarkup
 
     public const string MovedMark = "<w:moveFrom w:id=\"93\"" + Stamp + "/>";
 
+    public const string MovedToMark = "<w:moveTo w:id=\"95\"" + Stamp + "/>";
+
+    public const string InsertedMarkWithEndTag = "<w:ins w:id=\"96\"" + Stamp + "></w:ins>";
+
     public static string Para(params string[] content) => "<w:p>" + string.Concat(content) + "</w:p>";
 
     /// <summary>A paragraph whose mark carries <paramref name="marker"/> in its run properties.</summary>
@@ -35,6 +39,10 @@ internal static class DocxRevisionMarkup
     public static string DelText(string text) => "<w:r><w:delText xml:space=\"preserve\">" + text + "</w:delText></w:r>";
 
     public static string Del(params string[] runs) => "<w:del w:id=\"1\"" + Stamp + ">" + string.Concat(runs) + "</w:del>";
+
+    /// <summary>A deletion with a revision id and an author of its own.</summary>
+    public static string DelBy(string id, string author, params string[] runs) =>
+        "<w:del w:id=\"" + id + "\" w:author=\"" + author + "\" w:date=\"2026-09-22T10:00:00Z\">" + string.Concat(runs) + "</w:del>";
 
     public static string Ins(params string[] runs) => "<w:ins w:id=\"2\"" + Stamp + ">" + string.Concat(runs) + "</w:ins>";
 

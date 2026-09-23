@@ -975,7 +975,7 @@ public class ImportResumeCommandHandlerTests
 
     private const string AnnaParagraph = "<w:p><w:r><w:t>Anna Andersson</w:t></w:r></w:p>";
 
-    public static TheoryData<string> DeletionStories() => ["main", "header", "footer", "footnote", "endnote", "comment"];
+    public static TheoryData<string> DeletionStories() => DocxStoryFixture.MainAndStories();
 
     [Theory]
     [MemberData(nameof(DeletionStories))]

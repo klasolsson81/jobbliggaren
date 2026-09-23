@@ -148,7 +148,7 @@ internal static class OpenXmlCvRenderer
 
             void Line(string text) => body.AppendChild(new Paragraph(new Run(new Text(text))));
 
-            // The ONLY authoring form that produces a blank line — see the class remarks.
+            // The blank-paragraph form that produces a blank line — see the class remarks.
             void Blank()
             {
                 if (blankSeparators)

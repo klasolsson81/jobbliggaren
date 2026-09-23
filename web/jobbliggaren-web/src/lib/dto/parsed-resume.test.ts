@@ -502,7 +502,7 @@ describe("parsedResumeDetailDtoSchema.blockReason (#1060)", () => {
   });
 
   it("skiljer personnummer i FILEN från personnummer i KONTOTS visningsnamn", () => {
-    // CTO-bind D2. De två kräver olika åtgärd (redigera filen respektive Inställningar), så
+    // CTO-bind D2. De två kräver olika åtgärd (redigera filen respektive mejla kontakt@), så
     // de är två tokens och inte en token plus en FE-gissning på `personnummer.found` — den
     // gissningen vore sann om filskanningen och falsk om sitt ämne.
     for (const reason of ["PersonnummerPresent", "PersonnummerInAccountName"] as const) {

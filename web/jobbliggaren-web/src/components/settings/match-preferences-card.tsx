@@ -34,7 +34,7 @@ import { PreferenceChip } from "./preference-chip";
 
 // #748: the dialog's static import chain (dialog + OccupationSection +
 // SkillSection + RegionMunicipalityCascade + CV-upload/suggest wiring, ~2.5k
-// lines of client code) is code-split out of the /installningar route bundle
+// lines of client code) is code-split out of the /mina-sidor route bundle
 // and fetched on first open. `ssr: false` is deliberate: the dialog only ever
 // renders client-side after a click (gated behind `dialogRequested`), and it
 // gives next/dynamic its OWN Suspense boundary (fallback null) so a first-open

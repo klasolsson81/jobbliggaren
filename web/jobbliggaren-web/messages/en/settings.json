@@ -1,13 +1,4 @@
 {
-  "personalInfo": {
-    "title": "Personal details",
-    "nameLabel": "Name",
-    "emailLabel": "Email address",
-    "emailHint": "The email address is tied to your account. You can change it under Change email address.",
-    "saving": "Saving…",
-    "save": "Save changes",
-    "saved": "Saved."
-  },
   "display": {
     "title": "Display",
     "themeLabel": "Theme",
@@ -169,14 +160,6 @@
     }
   },
   "account": {
-    "displayNameLabel": "Display name",
-    "displayNameHint": "The name shown in the app and on your applications.",
-    "languageLabel": "Language",
-    "languageSwedish": "Svenska",
-    "languageEnglish": "English",
-    "saving": "Saving…",
-    "saveProfile": "Save profile",
-    "savedAt": "Saved {time}.",
     "invalidInput": "Invalid details.",
     "danger": {
       "title": "Danger zone",
@@ -195,26 +178,9 @@
     "reauth": {
       "passwordLabel": "Password"
     },
-    "changePassword": {
-      "title": "Change password",
-      "description": "Choose a new password. Changing it logs you out on all other devices.",
-      "trigger": "Change password",
-      "dialogDescription": "Enter your current password and choose a new one. You are logged out on all other devices but stay logged in here.",
-      "currentPasswordLabel": "Current password",
-      "currentPasswordFieldName": "current password",
-      "newPasswordLabel": "New password",
-      "newPasswordFieldName": "new password",
-      "newPasswordHint": "At least 12 characters.",
-      "confirmPasswordLabel": "Confirm new password",
-      "confirmPasswordFieldName": "confirm new password",
-      "passwordsDontMatch": "The passwords do not match.",
-      "submit": "Change password",
-      "pending": "Changing…",
-      "cancel": "Cancel",
-      "success": "Your password has been changed. You are still logged in here but logged out on all other devices."
-    },
     "changeEmail": {
       "title": "Change email address",
+      "current": "Your email address is {email}.",
       "description": "Change the email address tied to your account. We send a confirmation link to the new address. The address changes only after you open the link.",
       "trigger": "Change email address",
       "dialogDescription": "Enter your current password and your new email address. We send a confirmation link to the new address. The address changes only after you open the link, and you are then logged out on all devices.",
@@ -231,14 +197,11 @@
     "errors": {
       "notLoggedIn": "You are not logged in.",
       "invalidInput": "Invalid details.",
-      "displayNamePersonnummer": "Your name cannot contain a personal identity number. Your change was not saved. Enter the name without it and save again.",
       "updateFailed": "Could not update the profile.",
       "network": "Could not reach the server. Check your network connection.",
       "emailMismatch": "The email address does not match your account.",
       "wrongPassword": "The password is incorrect.",
-      "passwordBreached": "This password has appeared in known data breaches. Choose a different password.",
       "deleteFailed": "Could not delete the account.",
-      "changePasswordFailed": "Could not change the password.",
       "emailTaken": "The email address is already used by another account.",
       "changeEmailFailed": "Could not change the email address.",
       "changeEmailCooldown": "An email change cannot be requested right now. Try again later.",

@@ -79,13 +79,11 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // F6 Prompt 2 (ADR 0057) — /mig → /installningar permanent redirect.
-  // Status 308 (permanent + method-preserving) så bokmärken och externa
-  // länkar mot gamla routen pekas korrekt utan att tappa POST/PUT-metod.
-  // Next.js `permanent: true` ⇔ HTTP 308.
-  //
-  // `/registrera` → `/logga-in` (ADR 0142): one page logs in and creates an account, so the old
-  // URL survives only as this shim for bookmarks and old mail. Nothing in `src/` points at it.
+  // Retired routes, each a permanent (308, method-preserving) shim for bookmarks and mail already
+  // sent, never a routing layer: nothing in `src/` points at them (`retired-routes.test.ts`).
+  // `/registrera` → `/logga-in` (ADR 0142): one page logs in and creates an account.
+  // `/installningar` → `/mina-sidor` (#1740, ADR 0142 D7), and `/mig`, which ADR 0057 had pointed at
+  // `/installningar`, straight to the new route: a shim never answers with another shim.
   async redirects() {
     return [
       {
@@ -94,13 +92,23 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: "/installningar",
+        destination: "/mina-sidor",
+        permanent: true,
+      },
+      {
+        source: "/installningar/:path*",
+        destination: "/mina-sidor/:path*",
+        permanent: true,
+      },
+      {
         source: "/mig",
-        destination: "/installningar",
+        destination: "/mina-sidor",
         permanent: true,
       },
       {
         source: "/mig/:path*",
-        destination: "/installningar/:path*",
+        destination: "/mina-sidor/:path*",
         permanent: true,
       },
     ];

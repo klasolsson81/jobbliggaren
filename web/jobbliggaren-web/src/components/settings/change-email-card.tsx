@@ -1,15 +1,14 @@
 "use client";
 
-// #679 — change-email card. Mirrors <ChangePasswordCard> (#678): the generic
-// <ReAuthDialog> owns the CURRENT password (its re-auth field, rendered first via
-// childrenPosition="after"), the shell, RHF/useTransition, the server-error line and
-// reset-on-close. This card owns only the single NEW-email field (injected via
-// `children`), the valid-and-different submit gate (`canSubmit`, client friction
-// only), the action binding, and the stay-on-page confirmation (`onSuccess`).
+// #679 — change-email card. The generic <ReAuthDialog> owns the CURRENT password (its
+// re-auth field, rendered first via childrenPosition="after"), the shell,
+// RHF/useTransition, the server-error line and reset-on-close. This card owns only the
+// single NEW-email field (injected via `children`), the valid-and-different submit gate
+// (`canSubmit`, client friction only), the action binding, and the stay-on-page
+// confirmation (`onSuccess`).
 //
-// Unlike change-password there is NO done-state: the address swaps only after the
-// emailed link is opened, so the confirmation says a link was SENT, not that the
-// email was changed.
+// There is NO done-state: the address swaps only after the emailed link is opened, so
+// the confirmation says a link was SENT, not that the email was changed.
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -58,7 +57,7 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   // Surface WHY submit is gated (a11y): when the entered address matches the current
   // one it is a valid email but the same account, so the same-different gate below
   // silently blocks submit. Only complain once the field has content, so we don't nag
-  // mid-typing. Mirrors ChangePasswordCard's confirm-mismatch region.
+  // mid-typing.
   const isSameEmail =
     newEmail.trim().length > 0 &&
     newEmail.trim().toLowerCase() === currentEmail.trim().toLowerCase();
@@ -86,7 +85,7 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
     return (
       <section className="jp-card">
         {/* Focus lands on the wrapper, not the message, so the heading is read with it:
-            /installningar is a page of stacked cards, and the message alone gives a
+            /mina-sidor is a page of stacked cards, and the message alone gives a
             screen-reader user no anchor to which one it belongs to. role="status" stays on the <p>
             alone — nested live regions double-announce. No focus:outline-none here: the
             global *:focus-visible rule paints a token-borne ring, which a keyboard user
@@ -108,7 +107,12 @@ export function ChangeEmailCard({ currentEmail }: ChangeEmailCardProps) {
   return (
     <section className="jp-card">
       <h2 className="jp-card__title">{ts("account.changeEmail.title")}</h2>
-      <p className="text-body-sm text-text-primary">
+      {/* The page's one statement of the account's address, since the name card that also
+          showed it is gone (#1740). */}
+      <p className="text-body-sm text-text-primary [overflow-wrap:anywhere]">
+        {ts("account.changeEmail.current", { email: currentEmail })}
+      </p>
+      <p className="mt-2 text-body-sm text-text-primary">
         {ts("account.changeEmail.description")}
       </p>
       {/* Persistent live region: the container is always in the DOM and the text is

@@ -17,7 +17,7 @@ export default async function AppNotFound() {
   return (
     // jp-container jp-page assumes every notFound() caller is a v3-native route
     // (/cv, /jobb, /ansokningar — AppShell skips its transitional container there).
-    // If a NON-v3-native route (/installningar, /matchningar, …) ever calls
+    // If a NON-v3-native route (/matchningar, /sparade, …) ever calls
     // notFound(), this boundary double-wraps (shell container + this one) —
     // re-evaluate the wrap then (design-reviewer Minor, PR 2b).
     <div className="jp-container jp-page flex flex-col gap-4">

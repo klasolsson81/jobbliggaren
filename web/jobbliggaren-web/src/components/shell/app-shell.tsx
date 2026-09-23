@@ -15,9 +15,9 @@ import {
   LogOut,
   Menu,
   ScrollText,
-  Settings,
   ShieldCheck,
   Target,
+  UserRound,
   X,
 } from "lucide-react";
 import { logoutAction } from "@/lib/auth/actions";
@@ -37,7 +37,6 @@ import { onPlainNav } from "@/lib/nav/modified-click";
  *
  * Tema-logik finns INTE här — `.jp-header` är vit i båda teman via
  * CSS-scopad override (`[data-theme="dark"] .jp-header`, ADR 0052 Beslut 6).
- * Theme/lang-toggles flyttade till Inställningar + landing-footer (HANDOVER §0.7).
  */
 
 type NavLabelKey = "oversikt" | "jobb" | "ansokningar" | "foretag" | "cv";
@@ -72,16 +71,6 @@ function isActive(pathname: string, href: string): boolean {
 // one of these prefixes must own a width container, because these routes opt out of
 // .jp-shell-transitional-container — is now held by v3-native-routes.test.ts. It was
 // undetectable while the list lived in this client component, and two pages had drifted.
-
-function initials(email: string): string {
-  const local = email.split("@")[0] ?? email;
-  const parts = local.split(/[._-]+/).filter(Boolean);
-  const chars =
-    parts.length >= 2 && parts[0] && parts[1]
-      ? parts[0].charAt(0) + parts[1].charAt(0)
-      : local.slice(0, 2);
-  return chars.toUpperCase();
-}
 
 function NotificationsBell() {
   const t = useTranslations("common");
@@ -130,38 +119,44 @@ function UserMenu({ email, isAdmin }: { email: string; isAdmin: boolean }) {
   // dismissable hook and by all seven links below.
   const close = () => setOpen(false);
   const ref = useDismissable(open, close, triggerRef);
-  const local = email.split("@")[0] ?? email;
+  const headId = useId();
 
+  // ADR 0142 "Page form", "Mina sidor" (design M6): a neutral account icon named "Mina sidor", never
+  // the address's initials. The popup is a dialog, the one role `aria-haspopup="dialog"` promises;
+  // `menu` would promise arrow-key navigation it does not have. Its name is the shared label, so a
+  // visible title would print "Mina sidor" twice above the item of the same name; the head, which
+  // says who is logged in, describes it.
   return (
     <div className="relative">
       <button
         ref={triggerRef}
         type="button"
-        className="jp-avatar"
-        aria-label={t("userMenu.ariaLabel")}
+        className="jp-icon-btn"
+        aria-label={t("nav.minaSidor")}
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         onClick={() => setOpen((v) => !v)}
       >
-        {initials(email)}
+        <UserRound size={18} aria-hidden="true" />
       </button>
       {open && (
         <div
           ref={ref}
-          role="group"
-          aria-label={t("userMenu.ariaLabel")}
+          role="dialog"
+          aria-label={t("nav.minaSidor")}
+          aria-describedby={headId}
           className="jp-usermenu"
         >
-          <div className="jp-usermenu__head">
-            <div className="jp-usermenu__name">{local}</div>
+          <div id={headId} className="jp-usermenu__head">
+            <div>{t("userMenu.signedInAs")}</div>
             <div className="jp-usermenu__email">{email}</div>
           </div>
           <Link
-            href="/installningar"
+            href="/mina-sidor"
             className="jp-usermenu__item"
             onClick={(e) => onPlainNav(e, close)}
           >
-            <Settings size={16} aria-hidden="true" /> {t("userMenu.installningar")}
+            <UserRound size={16} aria-hidden="true" /> {t("nav.minaSidor")}
           </Link>
           <Link
             href="/sokningar"
@@ -343,12 +338,12 @@ function Drawer({
             );
           })}
           <Link
-            href="/installningar"
+            href="/mina-sidor"
             className="jp-drawer__item"
-            aria-current={isActive(pathname, "/installningar") ? "page" : undefined}
+            aria-current={isActive(pathname, "/mina-sidor") ? "page" : undefined}
             onClick={(e) => onPlainNav(e, handleNav)}
           >
-            <Settings size={18} aria-hidden="true" /> {t("drawer.installningar")}
+            <UserRound size={18} aria-hidden="true" /> {t("nav.minaSidor")}
           </Link>
           {isAdmin && (
             <Link

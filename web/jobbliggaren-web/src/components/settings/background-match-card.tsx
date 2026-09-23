@@ -34,7 +34,7 @@ interface BackgroundMatchCardProps {
 }
 
 /**
- * ADR 0080 Vag 4 PR-6 — kort för bakgrundsmatchnings-notiser på /installningar.
+ * ADR 0080 Vag 4 PR-6 — kort för bakgrundsmatchnings-notiser på /mina-sidor.
  *
  * En PASSIV inställnings-affordans (aldrig en banner/nag): användaren väljer
  * själv att slå PÅ bakgrundsmatchning (opt-in, default OFF — GDPR Art. 6(1)(a)/

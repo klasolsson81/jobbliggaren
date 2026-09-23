@@ -6,7 +6,7 @@ interface DeleteAccountSectionProps {
 }
 
 /**
- * "Farligt område"-section för /mig — separator-pattern (banking/GitHub-mönster)
+ * "Farligt område"-section för /mina-sidor — separator-pattern (banking/GitHub-mönster)
  * som signalerar gravitet utan att gömma funktionen. Modal-trigger är client
  * component; resten av sektionen är server-renderad text. `useTranslations`
  * resolverar synkront i en sync server component (next-intl v4).

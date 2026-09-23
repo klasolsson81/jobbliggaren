@@ -517,7 +517,7 @@ while a given name still runs `ValidateDisplayName` inside the aggregate, makes 
 still refuses an absent name, so the password path and `UpdateDisplayName` are unchanged. Everything in the
 paragraph above stays 4a's. Until 4a, an account without a name cannot promote an imported CV: the gate
 answers `IncompleteContent`, and the only copy the user is shown for it tells her to complete the entries
-in the file and upload it again, while the file is clean and the fix is under Inställningar. 4a closes
+in the file and upload it again, while the file is clean. 4a closes
 that; it is a #734 launch condition, written into #734's table (row 7, 2026-09-21) and into #1741.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
@@ -1171,7 +1171,8 @@ provider would reintroduce exactly the property that was rejected.
 
 ## Page form
 
-Bound by `design-reviewer`, and re-bound by her in part 2's form round (Amendment 2026-09-21 (3));
+Bound by `design-reviewer`, and re-bound by her in part 2's form round (Amendment 2026-09-21 (3)) and in
+3b's (Amendment 2026-09-22 (5));
 part 2 renders every state below before a design verdict (AGENTS.md §8 point 4), in light only
 while `DARK_MODE_ENABLED` is `false`.
 
@@ -1180,7 +1181,8 @@ while `DARK_MODE_ENABLED` is `false`.
   `/logga-in/kod` "Ange koden" · `/logga-in/villkor` "Skapa ditt konto" · `/logga-in/lank` "Logga in
   på Jobbliggaren", or "Du är redan inloggad" on the arm shown when the browser already holds a
   session. `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
-  kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`.
+  kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
+  permanent (`retired-routes.test.ts`; why, in Amendment 2026-09-22 (5)).
 - **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list
   (now):** h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress. Du behöver
   inget lösenord."*) → email field + hints (incl. the Art. 13 line) → **Fortsätt** (the only
@@ -1257,9 +1259,11 @@ form that moves it into a short-lived cookie was not chosen);
   with `<UserRound size={18} aria-hidden>` in `currentColor`; no tinted circle; `aria-label` "Mina
   sidor"; `jp-usermenu__name` (the email's local part shown as a name) removed; `initials()` deleted;
   `.jp-avatar` removed after a measured consumer count; the popup follows the bell's
-  `aria-haspopup="dialog"` pattern; drawer and menu re-pointed to `/mina-sidor` with one label.
+  `aria-haspopup="dialog"` pattern, is `role="dialog"` named by the same label and described by its head;
+  drawer and menu re-pointed to `/mina-sidor` with one label (as delivered: Amendment 2026-09-22 (5)).
 - **Copy:** every string in `messages/sv/` **and** `messages/en/` in the same PR (ADR 0137); retired
-  keys deleted in 5a, not orphaned; no em-dash, no literal `...`; English says "log in"
+  keys deleted in the PR that removes their last consumer, never orphaned; 5a deletes those part 2
+  orphaned (Amendment 2026-09-22 (5)); no em-dash, no literal `...`; English says "log in"
   throughout, the register the catalogue already had. `landing.auth.free`/`fine` are not on
   `/logga-in`: the zone above its primary belongs to the D4 disclosure on the steps that create a
   session, and `fine` moved to the landing account card beside `free`. ≤ 768 px: primary and
@@ -1345,6 +1349,74 @@ an account can be created from it, which bound the first caller of `POST /auth/c
 policy lists `__Host-jobbliggaren_login`, the first cookie here that holds a personal datum, and lost
 three statements this part made false.
 
+#### Amendment 2026-09-22 (5) (#1740, part 3b, PR A) — Mina sidor replaces Inställningar, and the corrections above
+
+*Decided before code in one form round: `design-reviewer` and `security-auditor` in parallel, then
+`senior-cto-advisor` (`docs/reviews/2026-09-22-1740-form-{design,security,cto}.md`).* The
+sentences in D7, this section and "Implementation status" that the round contradicted were corrected in place;
+this block records why. PR B adds its own block.
+
+**Klas's ruling, and two PRs in a binding order.** Asked by the session that opened 3b, Klas chose on
+2026-09-22; the choice is his, and the wording is the asking session's, as recorded in its handover: *"The
+dialog is a **pure re-authentication step** — the code to the CURRENT address — and then it closes. The
+change-email **card** takes the second code (to the NEW address) in its own inline step. Delete-account reuses the
+same dialog unchanged. **Rejected:** one dialog carrying all steps as a three-step wizard."* `senior-cto-advisor`
+split 3b in two, one change-reason each: **A**, "Mina sidor replaces Inställningar" (the route and its 308s,
+the shell, the page, the copy), then **B**, "Re-authentication by code: delete and change-email", built on A
+and opened only after A has merged. A 308 that every mail already sent depends on must not ride in a squash
+that a custody defect might revert. 3a's declared window (D5, Amendment 2026-09-21 (4)) runs through A and
+closes at B's deploy: until then `/mina-sidor` carries the delete and change-email controls of the password
+era, and both answer 400.
+
+**Password-era code goes in the PR that removes its last consumer** (C1). "Deleted in 5a" was the schedule
+written for part 2's keys; "not orphaned" is the invariant, and 3b removes the last consumers. A deletes the
+name card and the password card with what only they used: the change-password action, its schema and test,
+the display-name arm of the profile action with `FieldScopedActionResult`, and their keys. B deletes the
+password dialog, the password-era change-email keys and `errors.wrongPassword`. #1740's comment that 5a
+deletes the dialog is superseded; its "do not build on it" stands. 5a keeps what part 2 orphaned and the
+password surfaces still live, among them the backend's `/auth/change-password`.
+
+**Nothing changes the account name until 4a: a declared non-finding** (C2). `PersonnummerInAccountName`
+sends the user to kontakt@, as a mail link inside its sentence and with no button, since a button to
+`/mina-sidor` would promise a fix the page does not have (`design-reviewer`: a Blocker if shipped;
+`security-auditor`: a false Art. 16 instruction). A nameless account's `IncompleteContent` (D7) has no fix the
+user can apply either. The window runs from A's deploy until 4a and is a non-finding, not an acceptance: no
+§9.6 (3), no Klas grant, no signature. No data subject meets it. The name arm needs a name written before
+#1117, and the nameless case needs a new account while registration is closed (#734 row 7 holds the flip
+until 4a). **The reading**, read-only on the box, counted and never printed (`psql -tA` over stdin in the
+postgres container; the api container's environment through `docker inspect`), 2026-09-22T22:23:36Z:
+`identity."AspNetUsers"` 2 rows, 2 of them the controller's own inbox or a plus-alias of it; `job_seekers`
+2; `Auth__RegistrationsOpen=false`, 1 line and the only `Auth__RegistrationsOpen` line (22:23:26Z). This block
+is the reading's home. A row that is not the controller's would have stopped A and returned C2 to
+`security-auditor`.
+
+**The shell as delivered** (M6, `design-reviewer` D3). The trigger is a `.jp-icon-btn` with `UserRound`,
+named by `common.nav.minaSidor` ("Mina sidor", "My pages"), with `aria-haspopup="dialog"`. On ≤ 768 px the
+header's icon buttons are 44 × 44, an edit to the unlayered rule, so the bell and the drawer trigger grew
+with it (Blocker 1). The popup is `role="dialog"`, the only role that matches its trigger, named by the same
+key and described by its head: "Inloggad som" and the address, sans at 14 px in `--jp-ink-1`, the address
+semibold and wrapping (Major 4). One key serves the trigger, the popup's name, the popup item and the drawer
+item, as `nav.foretag` does; `userMenu.ariaLabel`, `userMenu.installningar` and `drawer.installningar` are
+retired. English is "My pages", one concept in both catalogues.
+
+**The page as delivered** (Majors 3 and 5, D4). `/mina-sidor` is V3-native: a `jp-pagehero` with title and
+lede and no aside, the grid in `jp-container jp-page`, and `PageHeroSkeleton` while it loads. A new route that
+is rebuilt is where the transitional container's allowance ends, as #515 did for `/foretag`. Column 1 is
+Matchning, Matchningsnotiser and Notiser om företag du följer; column 2 is Visning, Byt e-postadress,
+Sekretess och data and Logga ut. The three account cards read only the session's address and render on every
+profile branch, and the branch's sentence takes the place of the cards that read the profile. There is no
+branch for a missing profile: `getMyProfile` reads without `includeNotFound`, so the backend's 404 arrives as
+`error`, and the branch design gave copy for could never render (measured in the rendered round). It was
+deleted, per design's rule for an unreachable branch. For that 404 the error sentence advises a reload that
+cannot help. Since part 2 no login
+opens a session for one (`LoginProofOutcome`).
+
+**The 308s are permanent.** The notification mails' Art. 7(3) withdrawal link was `/installningar` until
+this part, and no measurement can show that no inbox still holds one (`security-auditor` S5). So
+`/installningar` and `/mig` answer 308 to `/mina-sidor` with no removal trigger, pinned in
+`retired-routes.test.ts`. `NotificationMailLinksLandOnServedRoutesTests` joins the two stacks: every link the
+two notification mails build must be served by a page under `src/app/(app)/` (security Minor 7).
+
 ## Processing register and DoD 8
 
 In the same PR as 1a, `docs/runbooks/gdpr-processing-register.md` "Behandling: Användarkonto och
@@ -1409,7 +1481,9 @@ boot-gate change, the edge-scrub pin, the register, then **1a-store** in two (#1
 `redis-volatile` compose, then the stores' move onto it; Amendment 2026-09-19 (2)) → **1c** #1737, preceded by the address repair (Amendment 2026-09-21), the open-registration arm (the
 new-account code mail and its budget-exhausted mail, `consentRequired` + grant), `complete`,
 the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs → **2** #1738 the single page, 308s, copy, `setSessionCookie(id,
-true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes (PR 4; the mailed link and `/bekrafta-epost` retired) → **3b** #1740 Mina sidor →
+true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes (PR 4; the mailed link and `/bekrafta-epost` retired) → **3b** #1740 in two PRs, the order binding
+(Amendment 2026-09-22 (5)): Mina sidor replaces Inställningar, then re-authentication by code for delete and
+change-email →
 **4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

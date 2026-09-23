@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
+import { mailLink, TEXT_LINK } from "@/components/auth/mail-link";
 import type { LoginFlowOutcome } from "@/lib/auth/login-flow";
 import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 import { formatDate } from "@/lib/i18n/format";
@@ -18,18 +18,6 @@ import { formatDate } from "@/lib/i18n/format";
 // `role="status"` announces a CHANGE to a region that already exists, and this one mounts already
 // filled, which NVDA and JAWS routinely miss. The focus move is what delivers it
 // (`RegisterForm.tsx` has the long form of this).
-
-const TEXT_LINK = "text-brand-700 underline underline-offset-2";
-
-/** The address has one home, the message itself: the link reads it out of the `<mail>` chunk. */
-function mailLink(chunks: ReactNode) {
-  const address = Array.isArray(chunks) ? chunks.join("") : String(chunks);
-  return (
-    <a href={`mailto:${address}`} className={TEXT_LINK}>
-      {chunks}
-    </a>
-  );
-}
 
 export function LoginOutcomePanel({ result }: { result: LoginFlowOutcome }) {
   const t = useTranslations("pages");

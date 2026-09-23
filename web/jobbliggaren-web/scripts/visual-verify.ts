@@ -596,7 +596,7 @@ async function main(): Promise<void> {
         { path: "/sokningar", name: "sokningar-lista", auth: true },
         { path: "/ansokningar", name: "ansokningar-lista", auth: true },
         { path: "/ansokningar/ny", name: "ansokningar-ny", auth: true },
-        { path: "/installningar", name: "installningar", auth: true },
+        { path: "/mina-sidor", name: "mina-sidor", auth: true },
         { path: "/cv", name: "cv-lista", auth: true },
         ...(appFixtures?.jobAdLinked
           ? [

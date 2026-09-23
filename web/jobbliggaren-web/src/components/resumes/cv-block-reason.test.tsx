@@ -21,20 +21,19 @@ describe("CvBlockReason", () => {
     expect(screen.getByText(/ladda upp den igen/i)).toBeInTheDocument();
   });
 
-  it("sends the ACCOUNT-NAME case to Inställningar, and says the file is clean", () => {
-    // The design/security Blocker. The file has nothing in it on this path, so
-    // PersonnummerWarning renders nothing and ParseSummary shows zero findings — telling the
-    // user to remove a number from her file is advice that cannot work, and a loop with no
-    // exit. The token is separate for exactly this reason (CTO-bind D2), and the control has
-    // to be next to the instruction (ADR 0047), not three screens away.
+  it("sends the ACCOUNT-NAME case to kontakt@, and says the file is clean", () => {
+    // The design/security Blocker of #1060: the file has nothing in it on this path, so
+    // telling the user to remove a number from her file is advice that cannot work. Since #1740
+    // the name cannot be changed in the service at all until part 4a, so a button to Mina sidor
+    // would promise a fix the page does not have (design-reviewer: a Blocker if it ships). The
+    // control is the mail link inside the sentence (ADR 0047), and no other link is offered.
     render(<CvBlockReason reason="PersonnummerInAccountName" />);
 
     expect(screen.getByText(/Namnet på ditt konto innehåller ett personnummer/i)).toBeInTheDocument();
-    expect(screen.getByText(/Filen är däremot ren/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Inställningar/ })).toHaveAttribute(
-      "href",
-      "/installningar",
-    );
+    expect(screen.getByText(/men filen är ren/i)).toBeInTheDocument();
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "mailto:kontakt@jobbliggaren.se");
     // It must NOT tell her to edit the file.
     expect(screen.queryByText(/Ta bort det ur filen/i)).not.toBeInTheDocument();
   });

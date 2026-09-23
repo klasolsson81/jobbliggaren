@@ -1,13 +1,4 @@
 {
-  "personalInfo": {
-    "title": "Personuppgifter",
-    "nameLabel": "Namn",
-    "emailLabel": "E-postadress",
-    "emailHint": "E-postadressen är knuten till ditt konto. Du kan byta den under Byt e-postadress.",
-    "saving": "Sparar…",
-    "save": "Spara ändringar",
-    "saved": "Sparat."
-  },
   "display": {
     "title": "Visning",
     "themeLabel": "Tema",
@@ -169,14 +160,6 @@
     }
   },
   "account": {
-    "displayNameLabel": "Visningsnamn",
-    "displayNameHint": "Namnet som visas i appen och på dina ansökningar.",
-    "languageLabel": "Språk",
-    "languageSwedish": "Svenska",
-    "languageEnglish": "Engelska",
-    "saving": "Sparar…",
-    "saveProfile": "Spara profil",
-    "savedAt": "Sparat {time}.",
     "invalidInput": "Ogiltiga uppgifter.",
     "danger": {
       "title": "Farligt område",
@@ -195,26 +178,9 @@
     "reauth": {
       "passwordLabel": "Lösenord"
     },
-    "changePassword": {
-      "title": "Byt lösenord",
-      "description": "Välj ett nytt lösenord. När du byter loggas du ut från alla andra enheter.",
-      "trigger": "Byt lösenord",
-      "dialogDescription": "Ange ditt nuvarande lösenord och välj ett nytt. Du loggas ut från alla andra enheter men förblir inloggad här.",
-      "currentPasswordLabel": "Nuvarande lösenord",
-      "currentPasswordFieldName": "nuvarande lösenord",
-      "newPasswordLabel": "Nytt lösenord",
-      "newPasswordFieldName": "nytt lösenord",
-      "newPasswordHint": "Minst 12 tecken.",
-      "confirmPasswordLabel": "Bekräfta nytt lösenord",
-      "confirmPasswordFieldName": "bekräfta nytt lösenord",
-      "passwordsDontMatch": "Lösenorden matchar inte.",
-      "submit": "Byt lösenord",
-      "pending": "Byter…",
-      "cancel": "Avbryt",
-      "success": "Lösenordet är ändrat. Du är fortfarande inloggad här men utloggad från alla andra enheter."
-    },
     "changeEmail": {
       "title": "Byt e-postadress",
+      "current": "Din e-postadress är {email}.",
       "description": "Byt e-postadressen som är knuten till ditt konto. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken.",
       "trigger": "Byt e-postadress",
       "dialogDescription": "Ange ditt nuvarande lösenord och din nya e-postadress. Vi skickar en bekräftelselänk till den nya adressen. Adressen byts först när du öppnat länken, och då loggas du ut från alla enheter.",
@@ -231,14 +197,11 @@
     "errors": {
       "notLoggedIn": "Du är inte inloggad.",
       "invalidInput": "Ogiltiga uppgifter.",
-      "displayNamePersonnummer": "Namnet får inte innehålla ett personnummer. Ändringen sparades inte. Skriv namnet utan personnummer och spara igen.",
       "updateFailed": "Kunde inte uppdatera profilen.",
       "network": "Kunde inte nå servern. Kontrollera din nätverksanslutning.",
       "emailMismatch": "E-postadressen matchar inte ditt konto.",
       "wrongPassword": "Lösenordet är felaktigt.",
-      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
       "deleteFailed": "Kunde inte radera kontot.",
-      "changePasswordFailed": "Kunde inte byta lösenord.",
       "emailTaken": "E-postadressen används redan av ett annat konto.",
       "changeEmailFailed": "Kunde inte byta e-postadress.",
       "changeEmailCooldown": "Det går inte att begära ett adressbyte just nu. Försök igen senare.",

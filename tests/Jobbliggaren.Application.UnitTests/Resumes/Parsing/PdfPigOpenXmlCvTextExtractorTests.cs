@@ -908,7 +908,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [Fact]
     public void Extract_DocxRelationshipsTheReaderRejects_CostTheMainTextNothing()
     {
-        // The package opens (the SDK reads this part without refusing the DTD); the hardened reader refuses it.
         var relationships = RelationshipsXml(
             "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>")
             .Replace("<Relationships ", "<!DOCTYPE Relationships [<!ENTITY x \"y\">]><Relationships ");

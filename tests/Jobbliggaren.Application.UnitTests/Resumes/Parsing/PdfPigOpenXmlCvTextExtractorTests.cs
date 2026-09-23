@@ -893,6 +893,56 @@ public class PdfPigOpenXmlCvTextExtractorTests
     }
 
     [Fact]
+    public void Extract_DocxRelationshipsOfOtherTypes_AreNeitherReadNorCounted()
+    {
+        // Every file Word writes relates its main part to parts that are no story; 64 images before a header.
+        var images = Enumerable.Range(1, 64).ToArray();
+        var docx = BuildDocxWithRelationships(
+            AnnaBody,
+            [.. images.Select(i => ("rIdI" + i, "image", "media/image" + i + ".png")), ("rIdH", "header", "header1.xml")],
+            [.. images.Select(i => ("image", "media/image" + i + ".png", "PNG")),
+                ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>"))]);
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxRelationshipPartPastTheByteBudget_IsReadAfterTheMainText_AndListsNothing()
+    {
+        // Comments of three-byte characters: 11.7 MB in the main part and 5.4 MB in the relationship part stay under
+        // the reader's character ceiling and together pass the document's byte budget.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\"/><!--" + new string('\u20AC', 1_800_000) + "-->");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody + "<!--" + new string('\u20AC', 3_900_000) + "-->", relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Extract_DocxListingThatFailsAfterAStory_ListsNothing()
+    {
+        // The relationship part lists a header, then passes the reader's character ceiling.
+        var relationships = RelationshipsXml(
+            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+            "Target=\"header1.xml\"/><!--" + new string('x', 4_000_001) + "-->");
+        var docx = BuildDocxWithRelationshipsXml(AnnaBody, relationships,
+            ("header", "header1.xml", DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>")));
+
+        var result = _sut.Extract(docx, CvFileKind.Docx, CancellationToken.None);
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Extract_DocxStoryRelationshipToTheMainPart_ReadsTheMainTextOnce()
     {
         var docx = BuildDocxWithRelationships(

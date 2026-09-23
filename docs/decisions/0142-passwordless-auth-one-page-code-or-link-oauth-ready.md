@@ -515,8 +515,7 @@ after 1c, so the epic's own order could not be built. 1c's second PR therefore m
 `job_seekers.display_name` nullable (migration `DisplayNameNullable`), lets `Register` store an absent name
 while a given name still runs `ValidateDisplayName` inside the aggregate, makes the event's and
 `JobSeekerProfileDto`'s name nullable, and makes the FE profile read tolerate `null`. At 1c `ValidateDisplayName`
-still refused an absent name, so the password path and `UpdateDisplayName` were unchanged; 4a's PR B removed
-all three (Amendment 2026-09-23 (7)). Everything in the
+still refused an absent name, so the password path and `UpdateDisplayName` were unchanged. Everything in the
 paragraph above stays 4a's. Until 4a, an account without a name cannot promote an imported CV: the gate
 answers `IncompleteContent`, and the only copy the user is shown for it tells her to complete the entries
 in the file and upload it again, while the file is clean. 4a closes
@@ -573,9 +572,9 @@ reads nor shows one. The `/oversikt` kicker is removed rather than rewritten to 
 a mono, uppercase, 11 px address fails WCAG 1.4.10 at 320 px and the 14 px floor, and the shell's Mina sidor
 popup already shows it). The frontend's `PersonnummerInAccountName` left with it (point 1 above). The
 personnummer scan on the name left in the same commit as the last writer, never before it (`security-auditor`).
-The `DisplayName` property and its EF row stay until 4b drops the column:
-`JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate` pins that nothing writes it, and the one test seam
-that writes a legacy name (`tests/Shared/LegacyAccountName.cs`) names that pin and the retired actors. The
+The `DisplayName` property and its EF row stay until 4b drops the column, and the one test seam that writes a
+legacy name (`tests/Shared/LegacyAccountName.cs`) names `JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate`
+and the retired actors. The
 password path's frontend (`RegisterForm`, `registerAction`) stays until 5a (C1) and sends a key the endpoint
 ignores.
 
@@ -600,7 +599,7 @@ drop after 90 days. A soft-deleted CV keeps its content until the account is del
 
 **From B's deploy to 4b: a declared non-finding, not an acceptance** (no §9.6 (3), no Klas grant, no
 signature). (a) No writer of `job_seekers.display_name` exists after B, whatever the #734 flip does. (b) **The
-reading**, taken fresh at the end of B's content, read-only, counted and never printed, 2026-09-23T14:56:57Z:
+reading**, taken fresh at the end of B's content, read-only, counted and never printed, 2026-09-23T16:26:27Z:
 `identity."AspNetUsers"` 2 rows, both the controller's; `job_seekers` 2, both named; 0 named rows whose
 account is not the controller's; `Auth__RegistrationsOpen=false`, 1 line and the only one. This block is its
 home. (c) Any non-null `display_name` whose account is not the controller's stops B and returns this entry to
@@ -608,7 +607,7 @@ home. (c) Any non-null `display_name` whose account is not the controller's stop
 method nulls it, since that would add a writer in the PR that removes the last one. C2 (Amendment 2026-09-22
 (5)) was about the CV gate reading the name; it closes at B's deploy as written.
 
-**DoD 8.** No new personal data: B removes the name's collection, write, read and display. No new logging.
+**DoD 8.** No new personal data: B removes the name's collection, write and display. No new logging.
 Retention unchanged until 4b drops the column. No DPIA.
 
 **The 4b gate** (Klas, 2026-09-23): B counts as measured live when Klas himself has checked /oversikt and

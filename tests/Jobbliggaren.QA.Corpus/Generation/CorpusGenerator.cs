@@ -342,10 +342,9 @@ public sealed class CorpusGenerator(CorpusConfig? config = null)
 
     // ── Shared helpers ───────────────────────────────────────────────────
 
-    /// <summary>Concatenates every user-bearing field so the personnummer guard scans a
-    /// BROADER surface than the import handler (which scans only <c>extraction.RawText</c>) —
-    /// the wider scan guarantees a fake pnr is caught wherever the generator places it
-    /// (raw text or any structured field). The scan/normalise chain itself is identical to
+    /// <summary>Concatenates every user-bearing field so the personnummer guard scans all of
+    /// them: a fake pnr is caught wherever the generator places it (raw text or any structured
+    /// field). The scan/normalise chain itself is identical to
     /// <c>ImportResumeCommandHandler</c> (Normalize → Scan → FromMatches); the outcome stays
     /// PII-safe (Found/Count/Kinds only).</summary>
     private static string CollectFreeText(ParsedResumeContent content, string rawText)

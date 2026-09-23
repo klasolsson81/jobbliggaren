@@ -76,10 +76,10 @@ public sealed class ImportResumeCommandHandler(
         //     criteria (B2/D9/E2) verdict honestly. NEVER reads CV text (that is `extraction`).
         var layoutMetrics = layoutAnalyzer.Analyze(command.FileBytes, kind, cancellationToken);
 
-        // 2. Personnummer guard on the RAW text BEFORE persist (Invariant 1). The
-        //    normalizer bridges spaced/OCR-gapped forms on a transient scan-copy only;
-        //    the persisted raw text is the original, un-normalized extraction.
-        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.RawText, PersonnummerGapProfile.ExtractedDocumentText);
+        // 2. Personnummer guard on the extracted text, a DOCX's other stories included, BEFORE
+        //    persist (Invariant 1). The normalizer bridges spaced/OCR-gapped forms on a transient
+        //    scan-copy only; the persisted raw text is the original, un-normalized extraction.
+        var scanCopy = PersonnummerTextNormalizer.Normalize(extraction.ScanText, PersonnummerGapProfile.ExtractedDocumentText);
         var personnummerMatches = PersonnummerScanner.Scan(scanCopy);
 
         // 2a. Defense-in-depth (#426, ADR 0074 Invariant 1): the CV FILENAME is a second

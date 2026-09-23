@@ -89,7 +89,7 @@ public class PnrConsentCaptureEncryptionTests(WorkerTestFixture fixture)
 
         var extractor = Substitute.For<ICvTextExtractor>();
         extractor.Extract(Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CvFileKind>(), Arg.Any<CancellationToken>())
-            .Returns(new CvExtractionResult(rawText, CvExtractionStatus.Extracted));
+            .Returns(new CvExtractionResult(rawText, CvExtractionStatus.Extracted, string.Empty));
 
         var layoutAnalyzer = Substitute.For<ICvLayoutAnalyzer>();
         layoutAnalyzer.Analyze(

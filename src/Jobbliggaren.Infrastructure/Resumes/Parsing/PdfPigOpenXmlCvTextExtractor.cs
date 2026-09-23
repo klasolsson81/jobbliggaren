@@ -73,13 +73,13 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         cancellationToken.ThrowIfCancellationRequested();
 
         if (file.IsEmpty)
-            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
         return kind switch
         {
             CvFileKind.Pdf => ExtractPdf(file, cancellationToken),
             CvFileKind.Docx => ExtractDocx(file, cancellationToken),
-            _ => new CvExtractionResult(string.Empty, CvExtractionStatus.Empty),
+            _ => new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty),
         };
     }
 
@@ -130,10 +130,10 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                     string.Empty,
                     document.NumberOfPages > 0
                         ? CvExtractionStatus.NoTextLayer
-                        : CvExtractionStatus.Empty);
+                        : CvExtractionStatus.Empty, string.Empty);
             }
 
-            return new CvExtractionResult(text, CvExtractionStatus.Extracted);
+            return new CvExtractionResult(text, CvExtractionStatus.Extracted, string.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -145,9 +145,16 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         {
             // Encrypted/corrupt/malformed PDF — never surface the library exception or
             // any file content; route to manual fallback (OQ5).
-            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
         }
     }
+
+    // #1810: one budget for the bytes every part of a DOCX inflates, so the number of parts cannot multiply
+    // MaxDecompressedMainPartBytes. The main part is read first and may use all of it.
+    private const long MaxDecompressedDocumentBytes = 16L * 1024 * 1024;
+
+    // #1810: ten sections with six header and footer variants each, plus footnotes, endnotes and comments, is 63.
+    private const int MaxOtherStories = 64;
 
     private static CvExtractionResult ExtractDocx(ReadOnlyMemory<byte> file, CancellationToken cancellationToken)
     {
@@ -160,7 +167,7 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             // honest bomb without inflating a single byte (defence-in-depth; the declared size
             // can be lied about, so it is NOT the authoritative bound — the byte-cap below is).
             if (DeclaredUncompressedBytesExceed(bytes, MaxUncompressedBytes))
-                return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+                return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
             // #272 SEC-1: resolve the OPC main-part path via the SDK's relationship
             // resolution (the main part is NOT guaranteed to be "word/document.xml" — it is
@@ -170,14 +177,16 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             // materialize a crafted oversized part before any cap applies. We read only the
             // Uri here and stream the bytes ourselves below.
             string mainPartPath;
+            IReadOnlyList<string> otherStoryPaths;
             using (var packageStream = new MemoryStream(bytes, writable: false))
             using (var document = WordprocessingDocument.Open(packageStream, isEditable: false))
             {
                 var mainPart = document.MainDocumentPart;
                 if (mainPart is null)
-                    return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+                    return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
-                mainPartPath = Uri.UnescapeDataString(mainPart.Uri.OriginalString).TrimStart('/');
+                mainPartPath = EntryName(mainPart);
+                otherStoryPaths = OtherStoryPaths(mainPart, mainPartPath);
             }
 
             // #272 SEC-1: stream the main part's bytes directly via ZipArchive in READ mode —
@@ -190,117 +199,18 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
             var entry = archive.GetEntry(mainPartPath);
             if (entry is null)
-                return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+                return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
 
-            using var partStream = entry.Open();
-            using var cappedStream = new ByteCappedReadStream(partStream, MaxDecompressedMainPartBytes);
-            using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
-
-            const string DrawingNamespace = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
-            const string VmlNamespace = "urn:schemas-microsoft-com:vml";
-
-            var builder = new StringBuilder();
-            var insideText = false;
-            var insideTabStops = 0;
-            // The depth of the shape a w:pict or w:object holds; its style says whether it floats.
-            var vmlShapeDepth = -1;
-
-            while (reader.Read())
+            var budget = new ByteBudget(MaxDecompressedDocumentBytes);
+            var mainStory = new StringBuilder();
+            using (var partStream = entry.Open())
+            using (var cappedStream = new ByteCappedReadStream(partStream, budget, MaxDecompressedMainPartBytes))
+            using (var reader = XmlReader.Create(cappedStream, HardenedXmlSettings))
             {
-                // #272 SEC-2: cancellable per node.
-                cancellationToken.ThrowIfCancellationRequested();
-
-                switch (reader.NodeType)
-                {
-                    case XmlNodeType.Element
-                        when reader.LocalName == "t" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        // <w:t> carries the run text; an empty element has no content node.
-                        insideText = !reader.IsEmptyElement;
-                        break;
-
-                    case XmlNodeType.EndElement
-                        when reader.LocalName == "t" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        insideText = false;
-                        break;
-
-                    case XmlNodeType.Text or XmlNodeType.SignificantWhitespace or XmlNodeType.Whitespace
-                        when insideText:
-                        // #268 SEC-1: bound the appended text to the remaining char budget so a
-                        // single oversized node is truncated, never appended whole.
-                        var node = reader.Value;
-                        var remaining = MaxOutputChars - builder.Length;
-                        if (node.Length >= remaining)
-                        {
-                            builder.Append(node.AsSpan(0, remaining));
-                            return Finalize(builder);
-                        }
-
-                        builder.Append(node);
-                        break;
-
-                    case XmlNodeType.EndElement
-                        when reader.LocalName == "p" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        builder.Append('\n');
-                        break;
-
-                    // #1741: a line break of any type (Shift+Enter in Word) and a carriage return end a
-                    // line as a paragraph does.
-                    case XmlNodeType.Element
-                        when reader.LocalName is "br" or "cr" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        builder.Append('\n');
-                        break;
-
-                    // <w:tabs> defines tab stops under the run tab's local name. The self-closing form has
-                    // no end element, so only the open form is counted.
-                    case XmlNodeType.Element
-                        when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace
-                            && !reader.IsEmptyElement:
-                        insideTabStops++;
-                        break;
-
-                    case XmlNodeType.EndElement
-                        when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        insideTabStops--;
-                        break;
-
-                    // #1741: a tab, a positioned tab and a symbol separate their neighbours.
-                    case XmlNodeType.Element
-                        when reader.LocalName is "tab" or "ptab" or "sym"
-                            && reader.NamespaceURI == WordprocessingMainNamespace
-                            && insideTabStops == 0:
-                        AppendSeparator(builder);
-                        break;
-
-                    case XmlNodeType.Element
-                        when reader.LocalName == "txbxContent" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        if (builder.Length > 0 && builder[^1] != '\n')
-                            builder.Append('\n');
-                        break;
-
-                    // #1801: an inline object separates its neighbours; an anchored one floats and adds nothing.
-                    case XmlNodeType.Element
-                        when reader.LocalName == "inline" && reader.NamespaceURI == DrawingNamespace:
-                        AppendSeparator(builder);
-                        break;
-
-                    case XmlNodeType.Element
-                        when reader.LocalName is "pict" or "object" && reader.NamespaceURI == WordprocessingMainNamespace:
-                        vmlShapeDepth = reader.Depth + 1;
-                        break;
-
-                    case XmlNodeType.Element
-                        when reader.NamespaceURI == VmlNamespace && reader.Depth == vmlShapeDepth
-                            && reader.LocalName != "shapetype":
-                        if (!IsAbsolutelyPositioned(reader.GetAttribute("style")))
-                            AppendSeparator(builder);
-                        break;
-                }
-
-                if (builder.Length >= MaxOutputChars)
-                    break;
+                ReadStory(reader, mainStory, cancellationToken);
             }
 
-            return Finalize(builder);
+            return Finalize(mainStory, ReadOtherStories(archive, otherStoryPaths, budget, cancellationToken));
         }
         catch (OperationCanceledException)
         {
@@ -311,17 +221,195 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         {
             // Not a valid OPC package / corrupt DOCX / XML-bomb (DTD rejected) / byte-cap
             // exceeded — fail soft. Never logs the exception or any file content (CLAUDE.md §5).
-            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty);
+            return new CvExtractionResult(string.Empty, CvExtractionStatus.Empty, string.Empty);
         }
     }
 
-    private static CvExtractionResult Finalize(StringBuilder builder)
+    // #1810: Word's stories outside the main one, headers and footers first. Only each part's Uri is read, as for
+    // the main part. A package whose parts cannot be listed adds no story and keeps its main text.
+    private static IReadOnlyList<string> OtherStoryPaths(MainDocumentPart mainPart, string mainPartPath)
     {
-        var text = Normalize(builder.ToString());
-        return text.Length == 0
-            ? new CvExtractionResult(string.Empty, CvExtractionStatus.Empty)
-            : new CvExtractionResult(text, CvExtractionStatus.Extracted);
+        try
+        {
+            IEnumerable<OpenXmlPart?> parts =
+            [
+                .. mainPart.HeaderParts,
+                .. mainPart.FooterParts,
+                mainPart.FootnotesPart,
+                mainPart.EndnotesPart,
+                mainPart.WordprocessingCommentsPart,
+            ];
+
+            return [.. parts
+                .OfType<OpenXmlPart>()
+                .Select(EntryName)
+                .Where(path => !path.Equals(mainPartPath, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(MaxOtherStories)];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
     }
+
+    // #1810: the other stories are read for the personnummer scan alone, under the byte budget the main part left
+    // and a character cap of their own. A story the reader rejects adds nothing and costs the main text nothing.
+    private static StringBuilder ReadOtherStories(
+        ZipArchive archive, IReadOnlyList<string> paths, ByteBudget budget, CancellationToken cancellationToken)
+    {
+        var builder = new StringBuilder();
+        foreach (var path in paths)
+        {
+            if (builder.Length >= MaxOutputChars)
+                break;
+
+            var start = builder.Length;
+            try
+            {
+                var entry = archive.GetEntry(path);
+                if (entry is null)
+                    continue;
+
+                StartOwnLine(builder);
+                using var partStream = entry.Open();
+                using var cappedStream = new ByteCappedReadStream(partStream, budget);
+                using var reader = XmlReader.Create(cappedStream, HardenedXmlSettings);
+                ReadStory(reader, builder, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                builder.Length = start;
+            }
+        }
+
+        return builder;
+    }
+
+    // #1810: one node loop reads every story.
+    private static void ReadStory(XmlReader reader, StringBuilder builder, CancellationToken cancellationToken)
+    {
+        const string DrawingNamespace = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+        const string VmlNamespace = "urn:schemas-microsoft-com:vml";
+
+        var insideText = false;
+        var insideTabStops = 0;
+        // The depth of the shape a w:pict or w:object holds; its style says whether it floats.
+        var vmlShapeDepth = -1;
+
+        while (reader.Read())
+        {
+            // #272 SEC-2: cancellable per node.
+            cancellationToken.ThrowIfCancellationRequested();
+
+            switch (reader.NodeType)
+            {
+                case XmlNodeType.Element
+                    when reader.LocalName == "t" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    // <w:t> carries the run text; an empty element has no content node.
+                    insideText = !reader.IsEmptyElement;
+                    break;
+
+                case XmlNodeType.EndElement
+                    when reader.LocalName == "t" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    insideText = false;
+                    break;
+
+                case XmlNodeType.Text or XmlNodeType.SignificantWhitespace or XmlNodeType.Whitespace
+                    when insideText:
+                    // #268 SEC-1: bound the appended text to the remaining char budget so a
+                    // single oversized node is truncated, never appended whole.
+                    var node = reader.Value;
+                    var remaining = MaxOutputChars - builder.Length;
+                    if (node.Length >= remaining)
+                    {
+                        builder.Append(node.AsSpan(0, remaining));
+                        return;
+                    }
+
+                    builder.Append(node);
+                    break;
+
+                case XmlNodeType.EndElement
+                    when reader.LocalName == "p" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    builder.Append('\n');
+                    break;
+
+                // #1741: a line break of any type (Shift+Enter in Word) and a carriage return end a
+                // line as a paragraph does.
+                case XmlNodeType.Element
+                    when reader.LocalName is "br" or "cr" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    builder.Append('\n');
+                    break;
+
+                // <w:tabs> defines tab stops under the run tab's local name. The self-closing form has
+                // no end element, so only the open form is counted.
+                case XmlNodeType.Element
+                    when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace
+                        && !reader.IsEmptyElement:
+                    insideTabStops++;
+                    break;
+
+                case XmlNodeType.EndElement
+                    when reader.LocalName == "tabs" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    insideTabStops--;
+                    break;
+
+                // #1741: a tab, a positioned tab and a symbol separate their neighbours.
+                case XmlNodeType.Element
+                    when reader.LocalName is "tab" or "ptab" or "sym"
+                        && reader.NamespaceURI == WordprocessingMainNamespace
+                        && insideTabStops == 0:
+                    AppendSeparator(builder);
+                    break;
+
+                case XmlNodeType.Element
+                    when reader.LocalName == "txbxContent" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    StartOwnLine(builder);
+                    break;
+
+                // #1801: an inline object separates its neighbours; an anchored one floats and adds nothing.
+                case XmlNodeType.Element
+                    when reader.LocalName == "inline" && reader.NamespaceURI == DrawingNamespace:
+                    AppendSeparator(builder);
+                    break;
+
+                case XmlNodeType.Element
+                    when reader.LocalName is "pict" or "object" && reader.NamespaceURI == WordprocessingMainNamespace:
+                    vmlShapeDepth = reader.Depth + 1;
+                    break;
+
+                case XmlNodeType.Element
+                    when reader.NamespaceURI == VmlNamespace && reader.Depth == vmlShapeDepth
+                        && reader.LocalName != "shapetype":
+                    if (!IsAbsolutelyPositioned(reader.GetAttribute("style")))
+                        AppendSeparator(builder);
+                    break;
+            }
+
+            if (builder.Length >= MaxOutputChars)
+                return;
+        }
+    }
+
+    private static CvExtractionResult Finalize(StringBuilder mainStory, StringBuilder otherStories)
+    {
+        var text = Normalize(mainStory.ToString());
+        return new CvExtractionResult(
+            text,
+            text.Length == 0 ? CvExtractionStatus.Empty : CvExtractionStatus.Extracted,
+            Normalize(otherStories.ToString()));
+    }
+
+    // A text box, and each story after the first, starts its own line.
+    private static void StartOwnLine(StringBuilder builder)
+    {
+        if (builder.Length > 0 && builder[^1] != '\n')
+            builder.Append('\n');
+    }
+
+    private static string EntryName(OpenXmlPart part) =>
+        Uri.UnescapeDataString(part.Uri.OriginalString).TrimStart('/');
 
     // One space between neighbours, never a second one and never at the start of a line.
     private static void AppendSeparator(StringBuilder builder)
@@ -385,20 +473,34 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             .Trim();
     }
 
-    // #272 SEC-1: a read-only stream wrapper that hard-caps the total decompressed bytes
-    // read from the underlying DeflateStream. Throws once the cap is crossed so the
-    // surrounding catch fails soft to Empty (the "lying" zip bomb is bounded DURING
-    // inflation, not after materialization). Never surfaces file content in the message.
-    private sealed class ByteCappedReadStream(Stream inner, long cap) : Stream
+    // #1810: what all the parts of one document may inflate together. A part that fails is still charged.
+    private sealed class ByteBudget(long bytes)
+    {
+        private long _remaining = bytes;
+
+        public void Charge(int n)
+        {
+            _remaining -= n;
+            if (_remaining < 0)
+                throw new InvalidDataException("Decompressed DOCX parts exceeded the document's byte budget.");
+        }
+    }
+
+    // #272 SEC-1: a read-only stream wrapper that hard-caps the decompressed bytes read from
+    // the underlying DeflateStream and charges them to the document's budget (#1810). It
+    // throws once either is crossed, so the "lying" zip bomb is bounded DURING inflation,
+    // not after materialization. Never surfaces file content in the message.
+    private sealed class ByteCappedReadStream(Stream inner, ByteBudget budget, long cap = long.MaxValue) : Stream
     {
         private long _read;
 
         private int Account(int n)
         {
             _read += n;
+            budget.Charge(n);
             if (_read > cap)
                 throw new InvalidDataException(
-                    "Decompressed DOCX main part exceeded the allowed byte ceiling.");
+                    "Decompressed DOCX part exceeded the allowed byte ceiling.");
             return n;
         }
 

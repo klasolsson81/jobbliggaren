@@ -761,6 +761,143 @@ public class PdfPigOpenXmlCvTextExtractorTests
         withObject.ShouldBe(without);
     }
 
+    // #1810 — Word's other stories reach the personnummer scan through AuxiliaryText, and never RawText.
+    private const string AnnaBody = "<w:p><w:r><w:t>Anna Andersson</w:t></w:r></w:p>";
+
+    public static TheoryData<string> OtherStories() => DocxStoryFixture.Stories();
+
+    [Theory]
+    [MemberData(nameof(OtherStories))]
+    public void Extract_DocxPersonnummerOnlyInAnotherStory_ReachesTheScanButNotRawText(string story)
+    {
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Paragraph(story, "811218-9876"));
+
+        result.Status.ShouldBe(CvExtractionStatus.Extracted);
+        result.RawText.ShouldBe("Anna Andersson");
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    public static TheoryData<string> HeaderForms() => ["table cell", "content control", "field result", "text box"];
+
+    [Theory]
+    [MemberData(nameof(HeaderForms))]
+    public void Extract_DocxPersonnummerInAHeaderForm_ReachesTheScan(string form)
+    {
+        var content = form switch
+        {
+            "table cell" => "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>811218-9876</w:t></w:r></w:p></w:tc></w:tr></w:tbl>",
+            "content control" => "<w:sdt><w:sdtContent><w:p><w:r><w:t>811218-9876</w:t></w:r></w:p></w:sdtContent></w:sdt>",
+            "field result" => "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>811218-9876</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+            "text box" => "<w:p><w:r>" + TextBox("drawing anchor", "811218-9876") + "</w:r></w:p>",
+            _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),
+        };
+
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Part("header", content));
+
+        result.RawText.ShouldBe("Anna Andersson");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxThreeHeaderVariants_AreEachRead()
+    {
+        // The section references them as Word writes them: default, first and even.
+        var result = ExtractStories(AnnaBody,
+            DocxStoryFixture.Paragraph("header", "Kontakt"),
+            DocxStoryFixture.Paragraph("header", "Utvecklare"),
+            DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.AuxiliaryText.Split('\n').ShouldBe(["Kontakt", "Utvecklare", "811218-9876"], ignoreOrder: true);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxOtherStories_StartOnALineOfTheirOwn()
+    {
+        // The main text and the footer end in a phone number's digits, and the story after each starts with the number.
+        var result = ExtractStories("<w:p><w:r><w:t>Tel 070-12 34 567</w:t></w:r></w:p>",
+            DocxStoryFixture.Paragraph("header", "811218-9876"),
+            DocxStoryFixture.Paragraph("footer", "Tel 070-12 34 567"),
+            DocxStoryFixture.Paragraph("footnote", "811218-9876"));
+
+        result.ScanText.ShouldBe("Tel 070-12 34 567\n811218-9876\nTel 070-12 34 567\n811218-9876");
+        FlagCount(result).ShouldBe(2);
+    }
+
+    [Fact]
+    public void Extract_DocxWithAnEmptyMainStory_StaysEmptyAndKeepsTheOtherStories()
+    {
+        var result = ExtractStories("<w:p/>", DocxStoryFixture.Paragraph("header", "811218-9876"));
+
+        result.Status.ShouldBe(CvExtractionStatus.Empty);
+        result.RawText.ShouldBeEmpty();
+        result.AuxiliaryText.ShouldBe("811218-9876");
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxStoryTheReaderRejects_CostsTheMainTextNothing()
+    {
+        // The hardened reader refuses a DTD here as it does in the main part; the footer after it is still read.
+        const string body = "<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>";
+        var rejected = "<!DOCTYPE w:hdr [<!ENTITY x \"y\">]>" +
+            DocxStoryFixture.Xml("header", "<w:p><w:r><w:t>&x;</w:t></w:r></w:p>");
+
+        var withIt = ExtractStories(body, ("header", rejected), DocxStoryFixture.Paragraph("footer", "Kontakt"));
+        var without = ExtractStories(body);
+
+        withIt.RawText.ShouldBe(without.RawText);
+        withIt.AuxiliaryText.ShouldBe("Kontakt");
+        FlagCount(withIt).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxStoriesPastTheByteBudget_CostTheMainTextNothing()
+    {
+        // Each header stays under the reader's character ceiling; together they pass the document's byte budget.
+        var filler = new string(' ', 3_900_000);
+        var headers = Enumerable.Range(1, 5)
+            .Select(i => DocxStoryFixture.Part("header", "<w:p><w:r><w:t>Rad " + i + "</w:t></w:r></w:p>" + filler))
+            .ToArray();
+
+        var result = ExtractStories("<w:p><w:r><w:t>811218-9876</w:t></w:r></w:p>", headers);
+
+        result.RawText.ShouldBe("811218-9876");
+        result.AuxiliaryText.Split('\n').ShouldBe(["Rad 1", "Rad 2", "Rad 3", "Rad 4"], ignoreOrder: true);
+        FlagCount(result).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Extract_DocxWithMoreStoriesThanTheCap_ReadsSixtyFour()
+    {
+        var headers = Enumerable.Range(1, 65).Select(i => DocxStoryFixture.Paragraph("header", "Rubrik " + i)).ToArray();
+
+        var result = ExtractStories(AnnaBody, headers);
+
+        result.AuxiliaryText.Split('\n').Length.ShouldBe(64);
+    }
+
+    [Fact]
+    public void Extract_DocxTextBoxInAlternateContentInAHeader_ReachesTheScan()
+    {
+        // Both branches are read today (#1801), so the oracle holds whether one or both are.
+        var box = "<w:p><w:r><mc:AlternateContent>" +
+            "<mc:Choice Requires=\"wps\">" + TextBox("drawing anchor", "811218-9876") + "</mc:Choice>" +
+            "<mc:Fallback>" + TextBox("vml floating", "811218-9876") + "</mc:Fallback>" +
+            "</mc:AlternateContent></w:r></w:p>";
+
+        var result = ExtractStories(AnnaBody, DocxStoryFixture.Part("header", box));
+
+        result.RawText.ShouldBe("Anna Andersson");
+        result.ScanText.Split('\n').Where(line => line.Contains("811218")).ShouldAllBe(line => line == "811218-9876");
+        var occurrences = result.ScanText.Split("811218-9876").Length - 1;
+        occurrences.ShouldBeGreaterThanOrEqualTo(1);
+        FlagCount(result).ShouldBe(occurrences);
+    }
+
     private static bool IsInline(string form) => form is "vml inline" or "drawing inline";
 
     // A text box holding one paragraph, as the run content of the paragraph that anchors it.
@@ -829,11 +966,17 @@ public class PdfPigOpenXmlCvTextExtractorTests
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 
-    // The import's flag path as ImportResumeCommandHandler composes it. The profile it passes there is
-    // pinned by PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
-    private static int FlagCount(string rawText) =>
+    // The import's flag path: ImportResumeCommandHandler scans ScanText, and a document with no other story scans its
+    // RawText alone. The profile it passes there is pinned by
+    // PersonnummerGapProfileCallSiteTests.Every_production_call_site_passes_the_profile_its_text_kind_requires.
+    private static int FlagCount(CvExtractionResult result) => FlagCount(result.ScanText);
+
+    private static int FlagCount(string scanText) =>
         PersonnummerScanner.Scan(PersonnummerTextNormalizer.Normalize(
-            rawText, PersonnummerGapProfile.ExtractedDocumentText)).Count;
+            scanText, PersonnummerGapProfile.ExtractedDocumentText)).Count;
+
+    private CvExtractionResult ExtractStories(string bodyXml, params (string Story, string PartXml)[] parts) =>
+        _sut.Extract(DocxStoryFixture.Build(bodyXml, parts), CvFileKind.Docx, CancellationToken.None);
 
     private static byte[] BuildDocxFromParagraphs(params Paragraph[] paragraphs)
     {

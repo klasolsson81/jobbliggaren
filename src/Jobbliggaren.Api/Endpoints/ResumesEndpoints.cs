@@ -128,7 +128,7 @@ public static class ResumesEndpoints
 
             // The CV LABEL (#1060) — not the person's name. The upload form sends this only
             // when the user typed one; absent/blank → the AutoPromote handler generates a
-            // non-PII default. The person's name in the content is always JobSeeker.DisplayName.
+            // non-PII default.
             var nameOverride = form["name"].ToString();
             if (string.IsNullOrWhiteSpace(nameOverride))
                 nameOverride = null;

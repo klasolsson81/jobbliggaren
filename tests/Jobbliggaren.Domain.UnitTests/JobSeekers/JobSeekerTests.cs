@@ -247,9 +247,8 @@ public class JobSeekerTests
     // ---------------------------------------------------------------
     // #1117 (CLAUDE.md §5 — the highest-priority PII rule): the aggregate REFUSES a
     // personnummer-shaped display name on BOTH write paths (Register / UpdateDisplayName).
-    // DisplayName is a plaintext, unencrypted column that surfaces on screen, in the profile
-    // DTO, and — via PersonalInfo.FullName on the promote path — in the PDF header the user
-    // sends to employers. Same invariant, same flag chain (Normalize -> Scan) and same
+    // DisplayName is a plaintext, unencrypted column that surfaces on screen and in the profile
+    // DTO. Same invariant, same flag chain (Normalize -> Scan) and same
     // date+Luhn authority as Resume.ValidateName, whose written justification applies
     // verbatim here. This is also the pin the seams that seed a legacy display name name:
     // the CURRENT writers cannot produce the shape, so a fixture carrying one is asserting

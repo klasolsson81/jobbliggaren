@@ -520,6 +520,40 @@ answers `IncompleteContent`, and the only copy the user is shown for it tells he
 in the file and upload it again, while the file is clean. 4a closes
 that; it is a #734 launch condition, written into #734's table (row 7, 2026-09-21) and into #1741.
 
+#### Amendment 2026-09-22 (#1741, part 4a) — the CV half, and how 4a ships
+
+4a ships in seven PRs (`senior-cto-advisor`, #1741's form round; the ruling is #1741 comment 5783718789, and its
+follow-ups added DX and DX2):
+**A0** the frontend's read schema accepts an absent name, merged first so that a revert of the writer cannot
+leave the CVs it wrote unreadable; **V1** the preamble's hard cut never ends inside a digit run; **DX** a DOCX line
+break ends a line and a tab separates its neighbours, a Major security-auditor found in V1's review, merged
+before A; **DX2** (#1801) a DOCX text box starts its own line and an inline object separates its neighbours, a
+Major security-auditor found in DX's review, merged before A; **A** the CV half
+below, merged once V1 is merged and A0 is live; **RP** the verbatim period strings join the personnummer guard's
+field list, independent of the rest; **B** the account half, after 3b (#1740). No part of 4a carries a migration:
+the CV content is the encrypted `content_enc` shadow, and `display_name` has been nullable since 1c's second PR.
+
+The CV half, as delivered:
+
+1. **The token is retired in two steps.** The backend member `AutoPromoteBlockReason.PersonnummerInAccountName`
+   is deleted in A. The frontend's zod member and its copy follow in B, since they sit in 3b's
+   files, so between A and B the frontend accepts a superset of what the backend sends (the
+   `UnclassifiedPreamble` precedent).
+2. **The DQ6 guard stays, and a hit reports `PersonnummerPresent`.** D7's "unreachable" applies to the token,
+   not to the guard: the gate runs today's scanner over a parse whose stored scan outcome is the import-time one,
+   so a widened scanner can flag an older parse. Every `CreateFromParsed` caller must also call the guard (the
+   architecture tripwire).
+3. **V1 is closed at its source, as a precondition of A.** The preamble's hard cut at `MaxPreambleChars` could
+   end inside a digit run that the whole-text scan had rejected, and leave a personnummer in the carrier that the
+   import scan never saw. With point 2, that would have reported a personnummer the file does not hold as one.
+4. **The review stops grading a name on the canonical arm.** B3 neither misses nor claims a name there. B1 reads
+   the contact section each arm detected (the linearizer's on the canonical arm, the parse's contact confidence
+   on the staging arm) instead of `FullName || Email`.
+
+**#734 row 7 is met by A** (Klas, 2026-09-22: "Uppfylld efter PR A"), measured live by a NEW import from an
+account without a name, since auto-promote runs only in the import request. The 4b gate below still covers all
+of 4a, B included.
+
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
 `POST /auth/oauth/{p}/start` and `POST /auth/oauth/{p}/callback {code, state}` exchange via
@@ -1542,7 +1576,9 @@ the three `UserAccountService` gates (#1777; Amendment 2026-09-20), in five PRs 
 true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four PRs (Amendment 2026-09-21 (4)): the address-swap write order (#1790), the purpose-bound challenge substrate (#1793), re-authentication as a grant (PR 3; `/auth/verify` retired), change-email with two codes (PR 4; the mailed link and `/bekrafta-epost` retired) → **3b** #1740 in two PRs, the order binding
 (Amendment 2026-09-22 (5)): Mina sidor replaces Inställningar, then re-authentication by code for delete and
 change-email →
-**4a** #1741 `Resume.FullName` optional (the display name is nullable since 1c's second PR, D7) → **4b** #1742 (opens only after 4a
+**4a** #1741 in seven PRs (Amendment 2026-09-22, #1741): A0 the tolerant reader → V1 the preamble cut → DX and DX2
+the DOCX line model → A `Resume.FullName` optional, the CV half → B the account half, after 3b; RP beside them → **4b** #1742
+(opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
 `dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
@@ -1550,8 +1586,8 @@ nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
-**Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4a → 4b → 5b. `Persistence` context:
-1b, 1c-expand (`DisplayNameNullable`), 4a, 4b. `Identity` context: 6d (two `DropColumn` + `DropIndex
+**Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
+1b, 1c-expand (`DisplayNameNullable`), 4b. 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
 ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 

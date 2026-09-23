@@ -144,21 +144,6 @@ public class CreateResumeCommandHandlerTests
         result.Error.Code.ShouldBe("Resume.NameRequired");
     }
 
-    [Fact]
-    public async Task Handle_WithEmptyFullName_ReturnsResumeFullNameRequiredFailure()
-    {
-        var db = TestAppDbContextFactory.Create();
-        await SeedJobSeekerAsync(db, _userId);
-
-        var handler = new CreateResumeCommandHandler(db, _currentUser, FakeDateTimeProvider.Default, _reconciler);
-        var command = new CreateResumeCommand("Mitt CV", "   ");
-
-        var result = await handler.Handle(command, CancellationToken.None);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe("Resume.FullNameRequired");
-    }
-
     // Fas 4b PR-8.1 call-site pin (#657): on success the handler runs exactly one review reconcile for
     // the newly created resume, with NO auto-resolve set. RED until the handler calls the reconciler.
     [Fact]

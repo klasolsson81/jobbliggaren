@@ -110,6 +110,6 @@ public sealed record ResumeContent
         Preamble = preamble;
     }
 
-    public static ResumeContent Empty(string fullName) =>
+    public static ResumeContent Empty(string? fullName) =>
         new(new PersonalInfo(fullName, null, null, null));
 }

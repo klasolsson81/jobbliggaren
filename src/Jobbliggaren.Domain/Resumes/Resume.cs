@@ -178,11 +178,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         if (nameCheck.IsFailure)
             return Result.Failure<Resume>(nameCheck.Error);
 
-        if (string.IsNullOrWhiteSpace(fullName))
-            return Result.Failure<Resume>(
-                DomainError.Validation("Resume.FullNameRequired", "Fullständigt namn krävs för initial Master-version."));
-
-        if (fullName.Length > 200)
+        if (fullName is { Length: > 200 })
             return Result.Failure<Resume>(
                 DomainError.Validation("Resume.FullNameTooLong", "Fullständigt namn får vara max 200 tecken."));
 
@@ -192,7 +188,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
         // handoff's "mall"-CV ("Börja från profilen"). Immutable thereafter.
         var resume = new Resume(id, jobSeekerId, nameCheck.Value, ResumeSourceOrigin.Template, now);
 
-        var initialContent = ResumeContent.Empty(fullName.Trim());
+        var initialContent = ResumeContent.Empty(string.IsNullOrWhiteSpace(fullName) ? null : fullName.Trim());
         var master = ResumeVersion.CreateMaster(initialContent, clock);
         resume._versions.Add(master);
         resume.ApplyDenormalizedProjection(initialContent);
@@ -672,11 +668,7 @@ public sealed class Resume : AggregateRoot<ResumeId>
             return Result.Failure(DomainError.Validation(
                 "Resume.ContentRequired", "Innehåll krävs."));
 
-        if (string.IsNullOrWhiteSpace(content.PersonalInfo.FullName))
-            return Result.Failure(DomainError.Validation(
-                "Resume.FullNameRequired", "Fullständigt namn krävs."));
-
-        if (content.PersonalInfo.FullName.Length > 200)
+        if (content.PersonalInfo.FullName is { Length: > 200 })
             return Result.Failure(DomainError.Validation(
                 "Resume.FullNameTooLong", "Fullständigt namn får vara max 200 tecken."));
 

@@ -46,7 +46,7 @@ namespace Jobbliggaren.Application.Resumes.Queries.GetParsedResume;
 /// runs the personnummer scan over it and builds a canonical <c>Resume</c> that is discarded —
 /// two in-memory content graphs and one regex sweep over a few kilobytes of CV text, on a
 /// request that already pays an AES-GCM decrypt of that same content. No I/O and no second
-/// round-trip: <c>DisplayName</c> joins the owner projection that was already running.</para>
+/// round-trip.</para>
 /// </summary>
 public sealed class GetParsedResumeQueryHandler(
     IAppDbContext db,
@@ -61,13 +61,10 @@ public sealed class GetParsedResumeQueryHandler(
         if (!currentUser.UserId.HasValue)
             return null;
 
-        // One projection resolves both the owner scope and the gate's person-name input
-        // (JobSeeker.DisplayName — parity AutoPromoteParsedResumeCommandHandler); one column
-        // more on the round-trip that was already happening, no second query.
         var owner = await db.JobSeekers
             .AsNoTracking()
             .Where(js => js.UserId == currentUser.UserId.Value)
-            .Select(js => new { js.Id, js.DisplayName })
+            .Select(js => new { js.Id })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (owner is null || owner.Id == default)
@@ -113,7 +110,7 @@ public sealed class GetParsedResumeQueryHandler(
         // silent gap would become a loud lie.
         var label = ResumeLabelResolver.Resolve(nameOverride: null, clock);
         var blockReason = AutoPromoteGate
-            .Evaluate(resume, owner.DisplayName ?? string.Empty, label, jobSeekerId, clock)
+            .Evaluate(resume, label, jobSeekerId, clock)
             .BlockReason;
 
         return resume.ToDetailDto(blockReason);

@@ -1571,8 +1571,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [MemberData(nameof(LineStartsAfterARemovedLineEnd))]
     public void Extract_DocxRemovedLineEndBeforeALineStart_CostsRawTextNoMoreThanTheLineEnd(string lineStart)
     {
-        // A removed line end that a line start follows must cost RawText no more than the line end it replaces, or
-        // the character cap falls before the number at the end, which the base still read.
         var result = lineStart == "a text box"
             ? ExtractStories(string.Concat(Enumerable.Repeat(
                     MarkedPara(DeletedMark, Kept("x")) + Para("<w:r><w:txbxContent/></w:r>"), 100))
@@ -1586,7 +1584,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
     [Fact]
     public void Extract_DocxRunTextAfterAnElementInsideItsTextElement_IsStillRead()
     {
-        // Not schema-valid, but the reader accepts it, and the text on both sides of the element is run text.
         var result = ExtractStories(Para("<w:r><w:t>8112<w:x>18</w:x>-9876</w:t></w:r>"));
 
         result.RawText.ShouldBe("811218-9876");
@@ -1605,7 +1602,6 @@ public class PdfPigOpenXmlCvTextExtractorTests
             "moved-to mark" => MarkedPara(MovedToMark, Kept("811218-")) + Para(Kept("9876")),
             "moved-to text over a deletion" => Para(Kept("811218-"), MovedTo(Kept("0000")), Del(DelText("9876"))),
             "inserted mark with an end tag" => MarkedPara(InsertedMarkWithEndTag, Kept("811218-")) + Para(Kept("9876")),
-            // The break ends a group inside the paragraph, so the next group starts under the paragraph's deleted mark.
             "deleted mark after a break" =>
                 MarkedPara(DeletedMark, Kept("Tel"), "<w:r><w:br/></w:r>", Kept("8112")) + Para(Kept("18-9876")),
             _ => throw new ArgumentOutOfRangeException(nameof(form), form, null),

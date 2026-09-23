@@ -476,12 +476,10 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
         private int _groupStart;
         private bool _groupChanged;
 
-        // As the base read it: a text node is run text while a w:t is open, whatever element it sits in.
         private bool _insideText;
         private bool _insideDeletedText;
         private StoryEvent? _textKind;
 
-        // A separator R owes a removed line end, written only before what follows on the same line.
         private bool _separatorPending;
 
         public void Read(XmlReader reader, CancellationToken cancellationToken)
@@ -586,7 +584,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
                         break;
                 }
             }
-            // #1801: an inline object raises a separator; an anchored one floats and raises nothing.
             else if (reader.NamespaceURI == DrawingNamespace && reader.LocalName == "inline")
             {
                 Apply(StoryEvent.Separator);
@@ -779,8 +776,6 @@ internal sealed class PdfPigOpenXmlCvTextExtractor : ICvTextExtractor
             };
         }
 
-        // A removed line end costs R no more than the line end H writes there: its separator waits, and a line end or a
-        // line start that comes first drops it.
         private void WriteAccepted(StoryEvent storyEvent, Emission emission, string text)
         {
             if (emission == Emission.Separator && storyEvent is StoryEvent.ParagraphEnd or StoryEvent.Break or StoryEvent.TextBoxStart)

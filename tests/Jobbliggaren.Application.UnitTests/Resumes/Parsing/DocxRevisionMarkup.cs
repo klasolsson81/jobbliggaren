@@ -40,7 +40,6 @@ internal static class DocxRevisionMarkup
 
     public static string Del(params string[] runs) => "<w:del w:id=\"1\"" + Stamp + ">" + string.Concat(runs) + "</w:del>";
 
-    /// <summary>A deletion with a revision id and an author of its own.</summary>
     public static string DelBy(string id, string author, params string[] runs) =>
         "<w:del w:id=\"" + id + "\" w:author=\"" + author + "\" w:date=\"2026-09-22T10:00:00Z\">" + string.Concat(runs) + "</w:del>";
 

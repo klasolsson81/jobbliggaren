@@ -27,7 +27,6 @@ internal static class DocxStoryFixture
 
     public static TheoryData<string> Stories() => [.. Names];
 
-    /// <summary>The main story, then each of the other stories.</summary>
     public static TheoryData<string> MainAndStories() => ["main", .. Names];
 
     public static byte[] Build(string bodyXml, params (string Story, string PartXml)[] parts)

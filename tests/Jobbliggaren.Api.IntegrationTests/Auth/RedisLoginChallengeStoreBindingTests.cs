@@ -31,7 +31,7 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _redis.StartAsync();
-        var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000";
+        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _store = Store(_keyring);
@@ -42,7 +42,7 @@ public sealed class RedisLoginChallengeStoreBindingTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await _redis.DisposeAsync();
+        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private RedisLoginChallengeStore Store(IDataProtectionProvider keyring) =>

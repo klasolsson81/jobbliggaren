@@ -25,7 +25,7 @@ public sealed class RedisRegistrationClaimTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _redis.StartAsync();
-        var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=1000";
+        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _claim = new RedisRegistrationClaim(_connection);
@@ -36,7 +36,7 @@ public sealed class RedisRegistrationClaimTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await _redis.DisposeAsync();
+        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

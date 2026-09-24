@@ -65,7 +65,7 @@ internal static partial class EmailTemplates
                 preheader: $"Koden och länken gäller i {minutes} minuter.",
                 body: EmailHtml.P("Någon har begärt att logga in på ditt konto på Jobbliggaren.")
                     + EmailHtml.P("Din inloggningskod är:")
-                    + EmailHtml.P(code)
+                    + EmailHtml.Code(code)
                     + EmailHtml.P(
                         "Skriv in koden på sidan där du begärde den. Du kan också logga in genom att "
                         + $"öppna länken nedan. Koden och länken gäller i {minutes} minuter och kan bara "
@@ -277,7 +277,7 @@ internal static partial class EmailTemplates
                         + "Jobbliggaren. Det finns inget konto för adressen ännu. Med koden nedan kan du "
                         + "skapa ett.")
                     + EmailHtml.P("Din kod är:")
-                    + EmailHtml.P(code)
+                    + EmailHtml.Code(code)
                     + EmailHtml.P(
                         $"Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och "
                         + "kan bara användas en gång. Sedan får du godkänna användarvillkoren, och först då "
@@ -398,7 +398,7 @@ internal static partial class EmailTemplates
                         "Någon som är inloggad på ditt konto på Jobbliggaren vill göra en ändring som "
                         + "kräver att du bekräftar att det är du: radera kontot eller byta e-postadress.")
                     + EmailHtml.P("Din bekräftelsekod är:")
-                    + EmailHtml.P(code)
+                    + EmailHtml.Code(code)
                     + EmailHtml.P(
                         $"Skriv in koden på sidan där du begärde den. Koden gäller i {minutes} minuter och "
                         + "kan bara användas en gång. Mejlet innehåller ingen länk.")
@@ -475,7 +475,7 @@ internal static partial class EmailTemplates
                         "Någon har begärt att byta e-postadress på ett Jobbliggaren-konto till den här adressen.")
                     + EmailHtml.P("Om det var du, bekräfta att adressen är din med koden nedan.")
                     + EmailHtml.P("Din kod är:")
-                    + EmailHtml.P(code)
+                    + EmailHtml.Code(code)
                     + EmailHtml.P(
                         $"Skriv in koden på sidan där du begärde bytet. Koden gäller i {minutes} minuter och kan "
                         + "bara användas en gång. Mejlet innehåller ingen länk.")

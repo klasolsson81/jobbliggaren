@@ -12,8 +12,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 ///
 /// <para>
 /// <b>Two parts of one message (#183, 2026-08-12).</b> Every template renders both halves of a
-/// <c>multipart/alternative</c> mail: <c>PlainTextBody</c> is unchanged from before this change and
-/// remains the fallback, and <c>HtmlBody</c> renders the SAME copy through
+/// <c>multipart/alternative</c> mail: <c>PlainTextBody</c> remains the fallback, and <c>HtmlBody</c>
+/// renders the SAME copy through
 /// <see cref="EmailHtml"/>. They live in the same method on purpose — a template whose two parts
 /// are edited in separate files drifts, and a divergence here is not cosmetic: the Art. 30 entry's
 /// Datakategori is written against the message content, so an HTML part carrying a data field the
@@ -24,7 +24,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <b>What the HTML part carries beyond the text part, exhaustively</b> — the list is kept complete
 /// because the Art. 30 Datakategori argument rests on it, and an earlier version of it was measured
 /// short by two reviewers: the <c>&lt;title&gt;</c>, the preheader, the visible <c>&lt;h1&gt;</c>,
-/// the wordmark set as text in the footer, and one footer line saying the service is free. The first
+/// the wordmark set as text in the footer, and the tagline under it. The first
 /// three repeat the subject or a sentence already in the body; NONE of the five is a personal data
 /// field, which is the test that matters. Raw URLs become labelled links. The sign-off is rendered by
 /// <c>EmailHtml.SignOff</c> and keeps BOTH of the text part's lines ("Vänliga hälsningar," /

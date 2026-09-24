@@ -16,6 +16,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
     private const string Token = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"; // gitleaks:allow
+    private const string SampleCode = "042917";
 
     private static readonly LoginLinkToken Link = LoginLinkToken.FromRaw(Token);
 
@@ -39,7 +40,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
-    private static LoginChallengeEmail.AddressChangeCode AddressChange() => new(LoginCode.FromRaw("042917"));
+    private static LoginChallengeEmail.AddressChangeCode AddressChange() => new(LoginCode.FromRaw(SampleCode));
 
     private static readonly Regex Tag = new("<[^>]*>", RegexOptions.CultureInvariant);
 
@@ -83,7 +84,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Fact]
-    public void NewAccountCode_carries_the_code_once_and_no_link()
+    public void NewAccountCode_carries_no_link()
     {
         var rendered = Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")));
 
@@ -92,11 +93,50 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.HtmlBody.ShouldNotContain("token=");
+    }
 
-        // Once in each body, so never in the preheader, which an inbox and a lock screen preview.
-        rendered.Subject.ShouldNotContain("042917");
-        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
-        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
+    private static List<string> CodeBearingVariantNames() =>
+        [.. OneOfEach
+            .Where(entry => entry.Value.GetType().GetProperties().Any(property => property.PropertyType == typeof(LoginCode)))
+            .Select(entry => entry.Key)
+            .Order(StringComparer.Ordinal)];
+
+    public static TheoryData<string> CodeBearingVariants()
+    {
+        var data = new TheoryData<string>();
+        foreach (var name in CodeBearingVariantNames())
+            data.Add(name);
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(CodeBearingVariants))]
+    public void Every_code_bearing_variant_shows_the_code_once_in_each_part_and_in_html_at_the_code_rung(string variant)
+    {
+        var rendered = Render(OneOfEach[variant]);
+
+        // Once in each body and the HTML occurrence is the rung's own paragraph, so the preheader, the <title>
+        // and the h1, which an inbox and a lock screen preview, cannot carry it (#1737 condition 22).
+        rendered.Subject.ShouldNotContain(SampleCode);
+        rendered.PlainTextBody.Split(SampleCode).Length.ShouldBe(2);
+        rendered.HtmlBody.Split(SampleCode).Length.ShouldBe(2);
+        rendered.HtmlBody.ShouldContain(EmailHtml.Code(SampleCode).ToString());
+    }
+
+    [Fact]
+    public void The_code_bearing_variants_are_exactly_the_variants_whose_mail_carries_the_code()
+    {
+        // Found by the property, so a variant added later is not left out of the theory above; checked here
+        // against what the mails actually render, so the lookup cannot go blind and leave the theory empty.
+        var byProperty = CodeBearingVariantNames();
+        var byRendering = OneOfEach
+            .Where(entry => Render(entry.Value).PlainTextBody.Contains(SampleCode, StringComparison.Ordinal))
+            .Select(entry => entry.Key)
+            .Order(StringComparer.Ordinal);
+
+        byProperty.ShouldBe(byRendering);
+        byProperty.ShouldContain(nameof(LoginChallengeEmail.CodeAndLink));
     }
 
     [Theory]
@@ -211,7 +251,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Fact]
-    public void ReauthenticationCode_carries_the_code_once_no_link_no_art_14_notice_and_the_way_back()
+    public void ReauthenticationCode_carries_no_link_no_art_14_notice_and_the_way_back()
     {
         // #1739 — to the account holder's own address, which the account already holds: no Art. 14 block (the
         // recipient is not class (3)), no link (a link yields a session, never a re-authentication), and the
@@ -223,10 +263,6 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.HtmlBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldContain("ingen länk");
-
-        rendered.Subject.ShouldNotContain("042917");
-        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
-        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
 
         var text = Unwrapped(rendered.PlainTextBody);
         text.ShouldContain("ditt konto");
@@ -240,7 +276,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     }
 
     [Fact]
-    public void AddressChangeCode_carries_the_code_once_and_no_link()
+    public void AddressChangeCode_carries_no_link()
     {
         var rendered = Render(AddressChange());
 
@@ -249,10 +285,6 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.HtmlBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldContain("Mejlet innehåller ingen länk.");
-
-        rendered.Subject.ShouldNotContain("042917");
-        rendered.PlainTextBody.Split("042917").Length.ShouldBe(2);
-        rendered.HtmlBody.Split("042917").Length.ShouldBe(2);
     }
 
     [Fact]
@@ -350,13 +382,13 @@ public sealed class EmailTemplatesLoginChallengeTests
 
     private static readonly Dictionary<string, LoginChallengeEmail> OneOfEach = new()
     {
-        [nameof(LoginChallengeEmail.CodeAndLink)] = new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), Link),
+        [nameof(LoginChallengeEmail.CodeAndLink)] = new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw(SampleCode), Link),
         [nameof(LoginChallengeEmail.LinkOnly)] = new LoginChallengeEmail.LinkOnly(Link),
         [nameof(LoginChallengeEmail.RegistrationClosed)] = new LoginChallengeEmail.RegistrationClosed(),
         [nameof(LoginChallengeEmail.PendingDeletion)] = new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19)),
-        [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")),
+        [nameof(LoginChallengeEmail.NewAccountCode)] = new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(SampleCode)),
         [nameof(LoginChallengeEmail.NewAccountCodeLimitReached)] = new LoginChallengeEmail.NewAccountCodeLimitReached(),
-        [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")),
+        [nameof(LoginChallengeEmail.ReauthenticationCode)] = new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw(SampleCode)),
         [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(),
     };
 

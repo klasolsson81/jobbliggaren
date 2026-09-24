@@ -43,7 +43,5 @@
          Linked rather than duplicated for the reason its own docblock gives: a hand-written copy
          of the grants would be a second truth that drifts silently. -->
     <Compile Include="..\Shared\TestDatabaseProvisioner.cs" Link="Shared\TestDatabaseProvisioner.cs" />
-    <!-- #1741 PR B - the seam that writes a legacy account name, one home for its provenance. -->
-    <Compile Include="..\Shared\LegacyAccountName.cs" Link="Shared\LegacyAccountName.cs" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,3 @@
-using Jobbliggaren.Domain.Common;
-using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
@@ -22,8 +20,15 @@ namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 /// exists (must raise, and leave the schema and the row exactly as they were), removes that row the
 /// way an operator would, and rolls back again (must succeed, with no default, and the surviving
 /// name unchanged). The column is read out of <c>information_schema</c> at each stop rather than
-/// inferred from the migration file, and the nameless row is written by
-/// <see cref="JobSeeker.Register"/>, which is also what proves EF can persist an absent name at head.
+/// inferred from the migration file.
+/// </para>
+///
+/// <para>
+/// The journey stops at <see cref="ThisMigration"/>, never at the assembly's head: from #1742 on the
+/// model no longer maps the column, and a later migration drops it. So both rows are written with raw
+/// SQL in the shape the table holds at this migration. The nameless row is the state
+/// <c>JobSeeker.Register</c> has written since #1737. The named row is the state every writer before
+/// #1741 PR B (<c>d8959385</c>) left behind; none of them exists any more.
 /// </para>
 ///
 /// <para>
@@ -96,13 +101,13 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
     /// Reads the name as the table holds it, distinguishing SQL NULL from every string value —
     /// including the empty one, which is what a scaffolded backfill would have left behind.
     /// </summary>
-    private async Task<(bool Found, string? Name)> ReadDisplayNameAsync(JobSeekerId id, CancellationToken ct)
+    private async Task<(bool Found, string? Name)> ReadDisplayNameAsync(Guid id, CancellationToken ct)
     {
         await using var conn = new NpgsqlConnection(_appConnectionString);
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             $"SELECT {DisplayNameColumn} FROM job_seekers WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id.Value);
+        cmd.Parameters.AddWithValue("id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return (false, null);
@@ -111,35 +116,37 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Registers a seeker through <see cref="JobSeeker.Register"/> and saves it with
-    /// <see cref="AppDbContext"/>, the write path production uses. A named row is written through
-    /// <c>LegacyAccountName</c>, which names the retired actor that wrote one. The options are the
-    /// migration-time ones this fixture already holds;
-    /// <c>job_seekers</c> has no field-encrypted property, so the interceptors the running hosts add
-    /// have nothing to do on this write.
+    /// A row in the shape the table holds at <see cref="ThisMigration"/>. The NOT NULL set there is
+    /// id, user_id, preferences and created_at; match_preferences carries a column default, and the
+    /// three terms columns stay NULL together, which their CHECK admits.
     /// </summary>
-    private async Task<JobSeekerId> RegisterSeekerAsync(string? displayName, CancellationToken ct)
+    private async Task<Guid> InsertSeekerAsync(string? displayName, CancellationToken ct)
     {
-        var clock = new FixedClock(new DateTimeOffset(2026, 9, 21, 9, 0, 0, TimeSpan.Zero));
-        var seeker = JobSeeker
-            .Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock)
-            .Value;
+        var id = Guid.NewGuid();
 
-        await using var db = NewAppContext();
-        db.JobSeekers.Add(seeker);
-        if (displayName is not null)
-            LegacyAccountName.Write(db, seeker, displayName);
-        await db.SaveChangesAsync(ct);
+        await using var conn = new NpgsqlConnection(_appConnectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO job_seekers (id, user_id, display_name, preferences, created_at)
+            VALUES (@id, @user_id, @name, '{"Language":"sv"}'::jsonb, now())
+            """,
+            conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("user_id", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("name", (object?)displayName ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
 
-        return seeker.Id;
+        return id;
     }
 
-    private async Task DeleteSeekerAsync(JobSeekerId id, CancellationToken ct)
+    private async Task DeleteSeekerAsync(Guid id, CancellationToken ct)
     {
-        await using var db = NewAppContext();
-        var seeker = await db.JobSeekers.SingleAsync(js => js.Id == id, ct);
-        db.JobSeekers.Remove(seeker);
-        await db.SaveChangesAsync(ct);
+        await using var conn = new NpgsqlConnection(_appConnectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand("DELETE FROM job_seekers WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        (await cmd.ExecuteNonQueryAsync(ct)).ShouldBe(1);
     }
 
     [Fact]
@@ -152,20 +159,20 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         assembly.ShouldContain(ThisMigration);
         assembly.ShouldContain(PreviousMigration);
 
-        // --- 1. Head: the column is nullable, unchanged in type and width, and carries no default.
-        await db.Database.MigrateAsync(ct);
+        // --- 1. At this migration: the column is nullable, unchanged in type and width, and carries
+        // no default.
+        await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
-        var atHead = await ReadDisplayNameColumnAsync(ct);
-        atHead.ShouldNotBeNull();
-        atHead.IsNullable.ShouldBeTrue();
-        atHead.DataType.ShouldBe("character varying");
-        atHead.MaxLength.ShouldBe(200);
-        atHead.Default.ShouldBeNull("a default would hand every future insert a name nobody typed");
+        var atThisMigration = await ReadDisplayNameColumnAsync(ct);
+        atThisMigration.ShouldNotBeNull();
+        atThisMigration.IsNullable.ShouldBeTrue();
+        atThisMigration.DataType.ShouldBe("character varying");
+        atThisMigration.MaxLength.ShouldBe(200);
+        atThisMigration.Default.ShouldBeNull("a default would hand every future insert a name nobody typed");
 
-        // --- 2. Two rows at head. The nameless one is the state the Up
-        // exists for, and its SaveChanges is the proof that EF persists an absent name here.
-        var namedId = await RegisterSeekerAsync(SurvivingName, ct);
-        var namelessId = await RegisterSeekerAsync(null, ct);
+        // --- 2. Two rows. The nameless one is the state the Up exists for.
+        var namedId = await InsertSeekerAsync(SurvivingName, ct);
+        var namelessId = await InsertSeekerAsync(null, ct);
 
         (await ReadDisplayNameAsync(namelessId, ct)).ShouldBe((true, null));
         (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
@@ -206,19 +213,14 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
 
         // --- 5. Forward again on the populated table: the shape a re-deploy runs.
-        await db.Database.MigrateAsync(ct);
+        await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
-        var backAtHead = await ReadDisplayNameColumnAsync(ct);
-        backAtHead.ShouldNotBeNull();
-        backAtHead.IsNullable.ShouldBeTrue();
-        backAtHead.MaxLength.ShouldBe(200);
-        backAtHead.Default.ShouldBeNull();
-        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+        var backAtThisMigration = await ReadDisplayNameColumnAsync(ct);
+        backAtThisMigration.ShouldNotBeNull();
+        backAtThisMigration.IsNullable.ShouldBeTrue();
+        backAtThisMigration.MaxLength.ShouldBe(200);
+        backAtThisMigration.Default.ShouldBeNull();
+        (await db.Database.GetAppliedMigrationsAsync(ct)).Last().ShouldBe(ThisMigration);
         (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
-    }
-
-    private sealed class FixedClock(DateTimeOffset utcNow) : IDateTimeProvider
-    {
-        public DateTimeOffset UtcNow { get; } = utcNow;
     }
 }

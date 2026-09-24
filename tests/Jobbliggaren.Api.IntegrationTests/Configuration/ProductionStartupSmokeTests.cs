@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
@@ -15,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shouldly;
 using Testcontainers.PostgreSql;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
@@ -29,10 +29,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly RedisBoundaryFixture _redisBoundary = new();
 
     private string _postgresCs = string.Empty;
     private string _redisCs = string.Empty;
+    private RedisTestEnvironment? _redisEnvironment;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -64,12 +65,6 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
                     npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity");
                 }));
 
-            services.RemoveAll<IDistributedCache>();
-            services.AddStackExchangeRedisCache(opts =>
-            {
-                opts.Configuration = _redisCs;
-                opts.InstanceName = "jobbliggaren:";
-            });
 
             // N-2 hardening (2026-05-11): prod-seedrar (IdempotentAdminRoleSeeder
             // + ADR 0043 TaxonomySnapshotSeeder) bubblar 42P01 i Production-env
@@ -83,10 +78,10 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
 
     public async ValueTask InitializeAsync()
     {
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+        await Task.WhenAll(_postgres.StartAsync(), _redisBoundary.InitializeAsync().AsTask());
 
         _postgresCs = _postgres.GetConnectionString();
-        _redisCs = _redis.GetConnectionString();
+        _redisCs = _redisBoundary.OptionsFor(_redisBoundary.Persistent, RedisBoundaryFixture.ApiPersistent).ToString(true);
 
         // ASPNETCORE_ENVIRONMENT sätts FÖRE Services-access. UseEnvironment() i
         // ConfigureWebHost är otillräckligt för minimal API. Production-mode
@@ -104,10 +99,7 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // ConfigureServices, men AddInfrastructure läser CS:erna direkt vid registrerings-
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redisCs);
-        // One container behind both keys: this host asserts nothing about which instance a key lands on.
-        // VolatileRedisPlacementTests does, on ApiFactory's two containers.
-        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, _redisCs);
+        _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
         // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
         // systemiskt av TestSecrets-module-init (process-env-var) före boot.
@@ -125,10 +117,9 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
-        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
-        Environment.SetEnvironmentVariable(VolatileRedisContainer.ConnectionStringVariable, null);
+        _redisEnvironment?.Dispose();
 
-        await Task.WhenAll(_postgres.StopAsync(), _redis.StopAsync());
+        await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

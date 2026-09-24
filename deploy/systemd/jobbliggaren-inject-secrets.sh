@@ -311,6 +311,10 @@ scaleway_credentials_required() {
 # NEITHER MAY TOUCH DOCKER. Both run at boot, when dockerd may not be up; they stat files and
 # read deploy/.env, and nothing else. The file-name arrays stay in this one file so that adding
 # a secret remains the whole change on the host side, for either destination.
+if [[ "${1:-}" == "--redis" ]]; then
+  [[ $# -eq 1 ]] || die "use --redis on its own"
+  exec bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --inject
+fi
 if [[ "${1:-}" == "--check" ]]; then
   # Same guard, and the same spelling, as the --check-host branch below and as
   # jobbliggaren-backup.sh's --check. Measured 2026-08-13 in debian:trixie-slim against the state
@@ -661,6 +665,9 @@ if [[ "${1:-}" == "--check" ]]; then
 
   if [[ $missing -ne 0 || $api_refuses -ne 0 || $expiring -ne 0 || $posture -ne 0 ]]; then
     exit 1
+  fi
+  if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
+    bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check || exit 1
   fi
   log "all secrets present in ${SECRETS_DIR}"
   exit 0

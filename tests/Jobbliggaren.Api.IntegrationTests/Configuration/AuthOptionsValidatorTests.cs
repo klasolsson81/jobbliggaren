@@ -201,8 +201,8 @@ public class AuthOptionsValidatorTests
                     // modules, Redis by AddIdentityAndSessions alone. One dictionary for all three
                     // tests, so the only difference between them is which method is called.
                     ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
-                    ["ConnectionStrings:Redis"] = "localhost:6379",
-                    [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381",
+                    ["ConnectionStrings:Redis"] = "localhost:6379,user=api-persistent,password=synthetic",
+                    [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381,user=api-volatile,password=synthetic",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RegistrationsOpen)}"] = "true",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RequireEmailConfirmation)}"] = "true",
                 })

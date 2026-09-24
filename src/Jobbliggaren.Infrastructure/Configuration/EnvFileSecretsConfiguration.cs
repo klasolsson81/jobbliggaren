@@ -42,7 +42,7 @@ namespace Jobbliggaren.Infrastructure.Configuration;
 /// <b>Failure modes, one owner each.</b> A <c>_FILE</c> variable pointing at an unreadable path
 /// throws here, at configuration build, naming the variable and the path and NEVER the content
 /// (CLAUDE.md §5 — no secret material in logs or exception messages). An empty or
-/// whitespace-only file contributes nothing, so the existing options validators keep sole
+/// whitespace-only file overrides earlier values with an empty value, so the options validators keep sole
 /// ownership of "this secret is missing" — one error, one owner.
 /// </para>
 ///
@@ -132,7 +132,7 @@ internal sealed class EnvFileSecretsConfigurationProvider(
     /// <para>
     /// <b>What the trim is and is not for.</b> It is write hygiene plus the empty-file
     /// discriminator: a secret mount or a shell redirect commonly leaves a trailing newline, and
-    /// trimming lets a whitespace-only file mean "absent" so the options validators keep sole
+    /// trimming keeps a whitespace-only file empty so the options validators keep sole
     /// ownership of "this secret is missing". It is <em>not</em> load-bearing for correctness of
     /// the values themselves — measured 2026-08-09, every one of the four crypto values is
     /// consumed through <c>Convert.FromBase64String</c>, which ignores whitespace, so a stray
@@ -142,15 +142,8 @@ internal sealed class EnvFileSecretsConfigurationProvider(
     /// </para>
     ///
     /// <para>
-    /// <b>This reader and <c>AddKeyPerFile</c> are not on a single permissiveness axis</b>, and an
-    /// earlier version of this comment claimed they were. Measured against 10.0.0: the package does
-    /// not trim, and it treats a whitespace-only file as PRESENT — so for that input the package is
-    /// the more permissive of the two, the opposite of what was written here. It also sweeps the
-    /// directory rather than following pointers, so it would read files this reader never opens.
-    /// The narrower claim that does hold: <b>for the five production files both sources bind the
-    /// same values</b>, because the four secrets are consumed through
-    /// <c>Convert.FromBase64String</c> (whitespace-ignoring, measured) and an empty file fails the
-    /// same validator either way.
+    /// Empty files contribute an empty value, masking every lower-priority source. The consumer's
+    /// validator owns the refusal; a stale environment value cannot replace an empty file.
     /// </para>
     /// </summary>
     internal static Dictionary<string, string?> Resolve(
@@ -182,11 +175,16 @@ internal sealed class EnvFileSecretsConfigurationProvider(
                 continue;
             }
 
-            // An unset or blank pointer is "not configured", not an error: it lets a compose
-            // file carry the variable while an environment that does not use files leaves it
-            // empty.
+            var configurationKey = name[..^FileSuffix.Length]
+                .Replace(SectionSeparator, ConfigurationPath.KeyDelimiter, StringComparison.Ordinal);
+            var requiredRedisFile = configurationKey.Equals("ConnectionStrings:Redis", StringComparison.OrdinalIgnoreCase)
+                || configurationKey.Equals("ConnectionStrings:VolatileRedis", StringComparison.OrdinalIgnoreCase);
+
+            // Optional file pointers may be blank; a declared Redis file may never fall back.
             if (string.IsNullOrWhiteSpace(path))
             {
+                if (requiredRedisFile)
+                    throw new InvalidOperationException($"Secret file pointer for '{configurationKey}' is empty.");
                 continue;
             }
 
@@ -209,16 +207,6 @@ internal sealed class EnvFileSecretsConfigurationProvider(
             }
 
             var value = content.Trim();
-            if (value.Length == 0)
-            {
-                // The options validator owns "missing secret" — do not duplicate that verdict.
-                continue;
-            }
-
-            // Same normalisation the framework's own environment-variable provider uses, and
-            // the one AddKeyPerFile expects: the double underscore is the section delimiter.
-            var configurationKey = name[..^FileSuffix.Length]
-                .Replace(SectionSeparator, ConfigurationPath.KeyDelimiter, StringComparison.Ordinal);
 
             // Two variables differing only in case resolve to one key. For ordinary
             // configuration last-wins is framework parity; for a secret it would be a silent

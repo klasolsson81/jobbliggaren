@@ -32,14 +32,14 @@ public sealed class VolatileRedisPersistenceProbeTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync() => await _redis.StartAsync();
 
-    public async ValueTask DisposeAsync() => await _redis.DisposeAsync();
+    public async ValueTask DisposeAsync() => await VolatileRedisContainer.DisposeAsync(_redis);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     // redis-cli inside the container, not the application's client: StackExchange.Redis refuses CONFIG
-    // without allowAdmin, and the actor this probe plays is any peer on the network, not the Api.
+    // without allowAdmin, and the fixture operator has explicit administrative authority; application ACL refusal is tested separately.
     private Task<ExecResult> CliAsync(params string[] arguments) =>
-        _redis.ExecAsync(["redis-cli", .. arguments], Ct);
+        _redis.ExecAsync(["sh", "-c", "exec redis-cli -e --user fixture-admin --askpass \"$@\" < /test/admin-password", "sh", .. arguments], Ct);
 
     private Task<ExecResult> ShellAsync(string script) => _redis.ExecAsync(["sh", "-c", script], Ct);
 
@@ -70,7 +70,7 @@ public sealed class VolatileRedisPersistenceProbeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task With_the_append_only_file_switched_on_by_a_peer_the_payload_reaches_only_the_tmpfs()
+    public async Task With_the_append_only_file_switched_on_by_the_fixture_operator_the_payload_reaches_only_the_tmpfs()
     {
         (await CliAsync("CONFIG", "SET", "appendonly", "yes")).Stdout.Trim().ShouldBe("OK");
         var marker = await WriteAMarkerAndOutliveItAsync();

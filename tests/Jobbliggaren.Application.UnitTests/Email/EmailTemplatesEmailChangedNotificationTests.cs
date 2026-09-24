@@ -110,6 +110,18 @@ public class EmailTemplatesEmailChangedNotificationTests
             .Subject.ShouldBe("Din e-postadress har ändrats");
 
     [Fact]
+    public void EmailChangedNotification_ShouldCarryTheDetectionLineAsOneWholeParagraphOfBothParts()
+    {
+        const string DetectionLine =
+            "Om du inte känner igen ändringen kan någon annan ha fått tillgång till ditt konto. Hör av dig till oss "
+            + "så hjälper vi dig: " + EmailTemplates.ContactAddress;
+        var rendered = EmailTemplates.EmailChangedNotification();
+
+        MailText.PlainParagraphs(rendered.PlainTextBody).ShouldContain(DetectionLine);
+        MailText.HtmlParagraphs(rendered.HtmlBody).ShouldContain(DetectionLine);
+    }
+
+    [Fact]
     public void EmailChangedNotification_ShouldNotContainExclamationOrEmDash()
     {
         var rendered = EmailTemplates.EmailChangedNotification();

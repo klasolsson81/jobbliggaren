@@ -11,7 +11,7 @@ namespace Jobbliggaren.Migrate.UnitTests;
 ///
 /// <para>
 /// Three layers, and each test below names the one it holds. <c>--save ""</c> and <c>--appendonly no</c>
-/// write nothing by themselves, but both are runtime-mutable — any client on the network can
+/// write nothing by themselves, but both are runtime-mutable — an explicitly privileged fixture operator can
 /// <c>CONFIG SET appendonly yes</c> (measured on Redis 8.6.5 and 8.10.1, 2026-09-19) — so the MOUNT is what makes a
 /// disk unreachable: <c>/data</c> is Redis's only write path, and it is a sized tmpfs under a read-only
 /// root. The deploy stack adds a cgroup limit the flood cannot reach before Redis's own refusal.
@@ -63,12 +63,12 @@ public class DeployComposeVolatileRedisTests
             DeployFile, DeployService,
             [
                 "image", "container_name", "command", "read_only", "tmpfs", "mem_limit", "memswap_limit",
-                "healthcheck", "security_opt", "logging", "restart", "networks",
+                "healthcheck", "security_opt", "logging", "restart", "networks", "volumes",
             ]
         },
         {
             DevFile, DevService,
-            ["image", "container_name", "command", "read_only", "tmpfs", "ports", "healthcheck", "restart"]
+            ["image", "container_name", "command", "read_only", "tmpfs", "ports", "healthcheck", "restart", "volumes", "networks"]
         },
     };
 
@@ -93,15 +93,17 @@ public class DeployComposeVolatileRedisTests
 
     [Theory]
     [MemberData(nameof(BothStacksWithDurableSibling))]
-    public void Instance_DeclaresNoVolume_WhereItsDurableSiblingDoes(string file, string service, string durable)
+    public void Instance_DeclaresOnlyReadOnlyPolicyBinds_WhileItsDurableSiblingPersistsData(string file, string service, string durable)
     {
         var compose = new ComposeFile(file);
 
-        ComposeFile.ListUnder(compose.ServiceBlock(service), "volumes").ShouldBeEmpty();
-        ComposeFile.Setting(compose.ServiceBlock(service), "volumes").ShouldBeNull();
+        var mounts = ComposeFile.ListUnder(compose.ServiceBlock(service), "volumes");
+        mounts.ShouldNotBeEmpty();
+        mounts.ShouldAllBe(mount => mount.EndsWith(":ro", StringComparison.Ordinal) || mount == "type: bind");
+        mounts.ShouldNotContain(mount => mount.Contains(":/data", StringComparison.Ordinal));
 
         // The control the absence is measured against: the same reader, on the service that DOES persist,
-        // finds its volume. A reader that found nothing anywhere would pass the two lines above.
+        // finds its writable data volume.
         ComposeFile.ListUnder(compose.ServiceBlock(durable), "volumes")
             .ShouldContain(v => v.EndsWith(":/data", StringComparison.Ordinal));
     }
@@ -112,7 +114,7 @@ public class DeployComposeVolatileRedisTests
     {
         var block = new ComposeFile(file).ServiceBlock(service);
 
-        ComposeFile.Setting(block, "read_only").ShouldBe("true");
+        ComposeFile.ServiceSetting(block, "read_only").ShouldBe("true");
 
         // An explicit size: without one, a switched-on AOF grows until the cgroup kills the container.
         var mount = ComposeFile.ListUnder(block, "tmpfs").ShouldHaveSingleItem();
@@ -180,13 +182,16 @@ public class DeployComposeVolatileRedisTests
     }
 
     [Fact]
-    public void Api_IsPointedAtTheVolatileInstance_ByLiteralValue_AndWaitsForIt()
+    public void Api_UsesTheDedicatedVolatileSecretFile_AndWaitsForItsInstance()
     {
         // The VALUE, not only the key's presence: a key that resolved to the durable instance would defeat
         // this one silently, and string equality at boot cannot catch it (`redis:6379,abortConnect=false`).
         var api = Deploy.ServiceBlock("api").ToList();
 
-        ComposeFile.Setting(api, KeyVariable).ShouldBe($"\"{DeployService}:6379\"");
+        ComposeFile.Setting(api, KeyVariable).ShouldBeNull();
+        ComposeFile.Setting(api, KeyVariable + "_FILE").ShouldBe("/run/redis-volatile/connection");
+        api.ShouldContain(line => line.Trim() == "source: /run/jobbliggaren/redis/api-volatile");
+        api.ShouldContain(line => line.Trim() == "target: /run/redis-volatile");
 
         var dependency = api.FindIndex(l => l.Trim() == $"{DeployService}:");
         dependency.ShouldBeGreaterThan(-1, "the api service does not depend on the volatile instance");
@@ -201,11 +206,12 @@ public class DeployComposeVolatileRedisTests
         var worker = Deploy.ServiceBlock("worker");
 
         ComposeFile.Setting(worker, KeyVariable).ShouldBeNull();
+        ComposeFile.Setting(worker, KeyVariable + "_FILE").ShouldBeNull();
         worker.ShouldNotContain(l => l.Trim() == $"{DeployService}:");
         Deploy.Preamble.ShouldNotContain(l => l.Contains($"{KeyVariable}:", StringComparison.Ordinal));
 
         // The control: the same read finds the durable instance's key where x-app-connections declares it.
-        Deploy.Preamble.ShouldContain(l => l.Contains("ConnectionStrings__Redis:", StringComparison.Ordinal));
+        ComposeFile.Setting(Deploy.ServiceBlock("api"), "ConnectionStrings__Redis_FILE").ShouldBe("/run/redis-persistent/connection");
     }
 
     [Fact]

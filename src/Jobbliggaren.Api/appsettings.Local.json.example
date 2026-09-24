@@ -8,10 +8,11 @@
   "//6": "Secrets here are STABLE and SHARED: the same FieldEncryption key and AuditPseudonymization",
   "//7": "pepper must be used by the API and the Worker, and must not change against a dev DB that",
   "//8": "already holds data encrypted/pseudonymized under them (see runbook local-dev-setup.md §7).",
-  "//9": "ConnectionStrings:VolatileRedis (#1735) is required by the API at boot and is NOT set here:",
-  "//10": "it ships in appsettings.Development.json (localhost:6381, the redis-volatile-dev container).",
-  "//11": "Program.cs adds this file AFTER the environment variables, so a value here would override the",
-  "//12": "instance every test host points itself at. The Worker needs no such key.",
+  "//9": "Redis requires separate generated credentials. Run pwsh scripts/prepare-dev-redis.ps1 once.",
+  "//10": "API: ConnectionStrings__Redis_FILE=<repo>/.redis-dev/api-persistent/connection and",
+  "//11": "ConnectionStrings__VolatileRedis_FILE=<repo>/.redis-dev/api-volatile/connection.",
+  "//12": "Worker: ConnectionStrings__Redis_FILE=<repo>/.redis-dev/worker-persistent/connection.",
+  "//13": "Export absolute paths per process; never copy Redis passwords into this template.",
 
   "FieldEncryption": {
     "//": "PII field encryption (ADR 0066, AES-256-GCM). Provider ALREADY defaults to Local, so the",

@@ -355,7 +355,7 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
               leadingDescriptionId={codeStepId}
               inputRef={codeRef}
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onValueChange={setCode}
             />
             {slot}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

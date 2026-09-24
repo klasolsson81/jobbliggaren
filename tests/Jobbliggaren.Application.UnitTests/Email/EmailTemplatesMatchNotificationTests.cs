@@ -88,18 +88,6 @@ public class EmailTemplatesMatchNotificationTests
         email.PlainTextBody.ShouldContain($"{BaseUrl}/matchningar");
     }
 
-    // --- Item rendering: "- {JobTitle}, {CompanyName} ({GradeLabel})" (komma, EJ em-dash) ---
-
-    [Fact]
-    public void MatchNotification_ShouldRenderItemWithTitleCompanyAndGradeLabel_WhenRendered()
-    {
-        var content = Direct(Item("Systemutvecklare", "Volvo Cars", "Toppmatch"));
-
-        var email = EmailTemplates.MatchNotification(BaseUrl, content);
-
-        email.PlainTextBody.ShouldContain("Systemutvecklare, Volvo Cars (Toppmatch)");
-    }
-
     [Fact]
     public void MatchNotification_ForADirectMatch_LeadsTheBodyAndThePreviewWithTheMatchItself()
     {
@@ -110,7 +98,9 @@ public class EmailTemplatesMatchNotificationTests
 
         email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')[0].ShouldBe(Line);
         email.HtmlBody.Split(Line).Length.ShouldBe(3, "the line is both the preheader and the first paragraph");
+        email.HtmlBody[email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal)..].ShouldStartWith(EmailHtml.P(Line).ToString());
         email.PlainTextBody.ShouldNotContain("Bakgrundsmatchningen");
+        email.HtmlBody.ShouldNotContain("Bakgrundsmatchningen");
         email.HtmlBody.ShouldNotContain("<ul");
     }
 

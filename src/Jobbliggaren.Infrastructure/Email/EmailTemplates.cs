@@ -310,8 +310,10 @@ internal static partial class EmailTemplates
         // simplification: this template stopped carrying a site link on 2026-08-12 when the help-centre
         // route became the contact address, so a parameter kept "in case" would be dead weight that
         // reads as a link the mail does not have.
+        const string subject = "Din e-postadress har ändrats";
+
         return new EmailContent(
-            Subject: "Din e-postadress har ändrats",
+            Subject: subject,
             PlainTextBody: $"""
                 Om det var du som gjorde ändringen behöver du inte göra något.
 
@@ -323,7 +325,7 @@ internal static partial class EmailTemplates
                 Jobbliggaren
                 """,
             HtmlBody: EmailHtml.Document(
-                title: "Din e-postadress har ändrats",
+                title: subject,
                 preheader: "Om det var du som gjorde ändringen behöver du inte göra något.",
                 body: EmailHtml.P("Om det var du som gjorde ändringen behöver du inte göra något.")
                     + EmailHtml.LinkParagraph(

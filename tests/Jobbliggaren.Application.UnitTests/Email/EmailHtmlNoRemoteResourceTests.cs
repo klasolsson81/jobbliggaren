@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
@@ -278,6 +279,20 @@ public class EmailHtmlNoRemoteResourceTests
             .ToHashSet(StringComparer.Ordinal)
             .ShouldBe(templateMethods, ignoreOrder: true,
                 "every EmailTemplates method must have at least one fixture case here");
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void EmailHtml_ForEveryTemplate_TitleAndHeadingRepeatTheSubject(string name)
+    {
+        var content = Case(name);
+
+        Inner("title").ShouldBe(content.Subject);
+        Inner("h1").ShouldBe(content.Subject);
+
+        string Inner(string tag) => WebUtility.HtmlDecode(Regex.Match(
+            content.HtmlBody, $"<{tag}[^>]*>(.*?)</{tag}>", RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Groups[1].Value);
     }
 
     // ---------- the filter disclosure must appear in BOTH parts, or in neither ----------

@@ -29,13 +29,13 @@ public sealed class EmailTemplatesLoginChallengeTests
 
     private static EmailTemplates.EmailContent RenderVariant(string variant) => variant switch
     {
-        "code-and-link" => Render(new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), Link)),
+        "code-and-link" => Render(new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw(SampleCode), Link)),
         "link-only" => Render(new LoginChallengeEmail.LinkOnly(Link)),
         "registration-closed" => Render(new LoginChallengeEmail.RegistrationClosed()),
         "pending-deletion" => Render(new LoginChallengeEmail.PendingDeletion(new DateOnly(2026, 10, 19))),
-        "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))),
+        "new-account-code" => Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(SampleCode))),
         "new-account-code-limit-reached" => Render(new LoginChallengeEmail.NewAccountCodeLimitReached()),
-        "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917"))),
+        "reauthentication-code" => Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw(SampleCode))),
         "address-change-code" => Render(AddressChange()),
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
@@ -45,17 +45,25 @@ public sealed class EmailTemplatesLoginChallengeTests
     private static readonly Regex Tag = new("<[^>]*>", RegexOptions.CultureInvariant);
 
     [Fact]
-    public void CodeAndLink_carries_the_code_and_the_login_link_with_the_token_as_its_only_parameter()
+    public void CodeAndLink_carries_the_login_link_with_the_token_as_its_only_parameter()
     {
-        var rendered = Render(new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), Link));
-
-        rendered.PlainTextBody.ShouldContain("042917");
-        rendered.HtmlBody.ShouldContain("042917");
+        var rendered = Render(new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw(SampleCode), Link));
 
         // The link stands alone on its line, so nothing follows the token. Lines are compared rather than
         // "\n" matched: a raw string literal renders the line endings of its source file.
         rendered.PlainTextBody.Split('\n').Select(line => line.TrimEnd('\r'))
             .ShouldContain($"{BaseUrl}/logga-in/lank?token={Token}");
+    }
+
+    [Theory]
+    [InlineData("code-and-link")]
+    [InlineData("link-only")]
+    public void A_login_mail_tells_a_recipient_who_did_not_ask_that_nothing_is_needed(string variant)
+    {
+        var rendered = RenderVariant(variant);
+
+        MailText.PlainParagraphs(rendered.PlainTextBody).ShouldContain("Om det inte var du behöver du inte göra något.");
+        MailText.HtmlParagraphs(rendered.HtmlBody).ShouldContain("Om det inte var du behöver du inte göra något.");
     }
 
     [Fact]
@@ -66,7 +74,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldContain($"{BaseUrl}/logga-in/lank?token={Token}");
         rendered.PlainTextBody.ShouldContain("ingen kod");
         rendered.PlainTextBody.ShouldNotMatch("[0-9]{6}");
-        rendered.HtmlBody.ShouldNotMatch("[0-9]{6}");
+        rendered.HtmlBody.ShouldNotMatch("(?<!#)[0-9]{6}");
     }
 
     [Theory]
@@ -80,13 +88,13 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.PlainTextBody.ShouldNotMatch("[0-9]{6}");
-        rendered.HtmlBody.ShouldNotMatch("[0-9]{6}");
+        rendered.HtmlBody.ShouldNotMatch("(?<!#)[0-9]{6}");
     }
 
     [Fact]
     public void NewAccountCode_carries_no_link()
     {
-        var rendered = Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917")));
+        var rendered = Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(SampleCode)));
 
         // A magic link is for an existing account only (ADR 0142 D1), and "Koden finns bara i det här
         // meddelandet" is true only while that holds.
@@ -121,7 +129,16 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.Subject.ShouldNotContain(SampleCode);
         rendered.PlainTextBody.Split(SampleCode).Length.ShouldBe(2);
         rendered.HtmlBody.Split(SampleCode).Length.ShouldBe(2);
-        rendered.HtmlBody.ShouldContain(EmailHtml.Code(SampleCode).ToString());
+        rendered.HtmlBody.ShouldContain(
+            EmailHtml.P(MailText.PlainParagraphs(rendered.PlainTextBody)[0]).ToString()
+            + EmailHtml.Code(SampleCode).ToString());
+    }
+
+    [Theory]
+    [MemberData(nameof(CodeBearingVariants))]
+    public void Every_code_bearing_variant_opens_its_plain_part_with_a_paragraph_that_is_not_the_code(string variant)
+    {
+        var rendered = Render(OneOfEach[variant]);
 
         // The plain part has no preheader, so its first paragraph is what a client building its snippet from
         // text/plain shows first (ADR 0144 D4 row 16, #1825).
@@ -171,14 +188,9 @@ public sealed class EmailTemplatesLoginChallengeTests
     [Fact]
     public void NewAccountCode_states_a_retention_that_depends_on_whether_the_account_is_created()
     {
-        var text = Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody);
+        var text = Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(SampleCode))).PlainTextBody);
 
-        text.ShouldContain("högst 15 minuter medan koden gäller");
-        text.ShouldContain("högst 10 minuter till");
-        text.ShouldContain("högst ett dygn");
-        text.ShouldContain(
-            "Skapar du kontot sparas adressen så länge kontot finns, annars finns den inte kvar hos oss efter "
-            + "tiderna ovan.");
+        text.ShouldContain(SignedBlock["new-account-retention"]);
 
         // The closed mail's unconditional sentence is false for a recipient who goes on to create the account.
         text.ShouldNotContain("Därefter finns den inte kvar hos oss");
@@ -193,12 +205,9 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         text.ShouldContain("Mejlet innehåller ingen kod");
         text.ShouldContain("Försök igen om ett dygn.");
-        text.ShouldContain("högst 15 minuter");
-        text.ShouldContain("högst ett dygn");
 
         // True here and false in NewAccountCode: without a code there is no grant and no account.
-        text.ShouldContain(
-            "Därefter finns den inte kvar hos oss, eftersom inget konto kan skapas med det här meddelandet.");
+        text.ShouldContain(SignedBlock["limit-reached-retention"]);
     }
 
     [Fact]
@@ -213,7 +222,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         limit.ShouldContain(basis);
 
         // The code-bearing mail's purpose is wider, so it must not claim "bara".
-        Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw("042917"))).PlainTextBody)
+        Unwrapped(Render(new LoginChallengeEmail.NewAccountCode(LoginCode.FromRaw(SampleCode))).PlainTextBody)
             .ShouldNotContain(basis);
     }
 
@@ -263,7 +272,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         // recipient is not class (3)), no link (a link yields a session, never a re-authentication), and the
         // contact address for the case where it was not the holder who asked, since no self-service
         // logout-everywhere exists for a passwordless account.
-        var rendered = Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw("042917")));
+        var rendered = Render(new LoginChallengeEmail.ReauthenticationCode(LoginCode.FromRaw(SampleCode)));
 
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
@@ -335,66 +344,79 @@ public sealed class EmailTemplatesLoginChallengeTests
         ["reauth-detection"] =
             "Om det inte var du är någon annan inloggad på ditt konto. Ändringen kan inte göras utan koden. Skriv "
             + "till oss så hjälper vi dig: " + EmailTemplates.ContactAddress,
-    };
-
-    public static TheoryData<string, string> SignedBlocks() => new()
-    {
-        { "registration-closed", "no-credential-basis" },
-        { "registration-closed", "registration-closed-retention" },
-        { "registration-closed", "controller-and-rights" },
-        { "registration-closed", "complaint" },
-        { "new-account-code-limit-reached", "no-credential-basis" },
-        { "new-account-code-limit-reached", "limit-reached-retention" },
-        { "new-account-code-limit-reached", "controller-and-rights" },
-        { "new-account-code-limit-reached", "complaint" },
-        { "new-account-code", "new-account-ground" },
-        { "new-account-code", "new-account-retention" },
-        { "new-account-code", "controller-and-rights" },
-        { "new-account-code", "complaint" },
-        { "reauthentication-code", "reauth-opening" },
-        { "reauthentication-code", "reauth-detection" },
-    };
-
-    [Theory]
-    [MemberData(nameof(SignedBlocks))]
-    public void Every_signed_block_stands_word_for_word_in_both_parts(string variant, string block)
-    {
-        var rendered = RenderVariant(variant);
-
-        Unwrapped(rendered.PlainTextBody).ShouldContain(SignedBlock[block]);
-        Unwrapped(Tag.Replace(rendered.HtmlBody, " ")).ShouldContain(SignedBlock[block]);
-    }
-
-    [Fact]
-    public void AddressChangeCode_carries_the_whole_art_14_notice_word_for_word_in_both_parts()
-    {
-        // Recipient class (3), and the notice is not conditioned on anything: at send time nobody knows whether
-        // the recipient is the account holder or a stranger. Pinned whole in both parts, because the two are
-        // hand-maintained copies and drift is the failure mode.
-        var rendered = Render(AddressChange());
-
-        const string sourceAndBasis =
+        ["address-change-ground"] =
             "Adressen har vi fått från en användare som angav den för bytet. Vi berättar inte vem det är, "
             + "eftersom det skulle vara en uppgift om en annan person. Adressen används för att skicka det här "
             + "meddelandet, för att begränsa hur många meddelanden som kan skickas till den, för att kontrollera "
             + "att den som äger adressen godkänner bytet, och som kontots nya adress om bytet slutförs. Grunden är "
             + "berättigat intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto utan att den "
-            + "som äger den bekräftar det.";
-        const string ignoring =
-            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot.";
-        const string retentionAndProcessor =
+            + "som äger den bekräftar det.",
+        ["address-change-ignoring"] =
+            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot.",
+        ["address-change-retention"] =
             "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller, och i högst 10 minuter till om du "
             + "använder koden. Avtryck av adressen sparas i högst ett dygn. Slutförs bytet sparas adressen så länge "
-            + "kontot finns, annars finns den inte kvar hos oss efter tiderna ovan. " + SignedProcessor;
+            + "kontot finns, annars finns den inte kvar hos oss efter tiderna ovan. " + SignedProcessor,
+        ["pending-deletion-restore"] =
+            "Kontot raderas permanent tidigast 2026-10-19. Fram till dess kan du få det återställt genom att skriva "
+            + "till oss: " + EmailTemplates.ContactAddress,
+    };
+
+    private static readonly Dictionary<string, string[]> SignedOrder = new()
+    {
+        ["registration-closed"] =
+            ["no-credential-basis", "registration-closed-retention", "controller-and-rights", "complaint"],
+        ["new-account-code-limit-reached"] =
+            ["no-credential-basis", "limit-reached-retention", "controller-and-rights", "complaint"],
+        ["new-account-code"] = ["new-account-ground", "new-account-retention", "controller-and-rights", "complaint"],
+        ["address-change-code"] =
+        [
+            "address-change-ground", "address-change-ignoring", "address-change-retention", "controller-and-rights",
+            "complaint",
+        ],
+        ["reauthentication-code"] = ["reauth-opening", "reauth-detection"],
+        ["pending-deletion"] = ["pending-deletion-restore"],
+    };
+
+    public static TheoryData<string> SignedVariants()
+    {
+        var data = new TheoryData<string>();
+        foreach (var variant in SignedOrder.Keys)
+            data.Add(variant);
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(SignedVariants))]
+    public void Every_signed_block_is_one_whole_paragraph_of_both_parts_in_its_signed_order(string variant)
+    {
+        var rendered = RenderVariant(variant);
+
+        foreach (var paragraphs in new[]
+                 {
+                     MailText.PlainParagraphs(rendered.PlainTextBody), MailText.HtmlParagraphs(rendered.HtmlBody),
+                 })
+        {
+            var previous = -1;
+            foreach (var block in SignedOrder[variant])
+            {
+                paragraphs.Count(paragraph => paragraph == SignedBlock[block]).ShouldBe(1, $"{variant}: {block}");
+
+                var position = paragraphs.IndexOf(SignedBlock[block]);
+                position.ShouldBeGreaterThan(previous, $"{variant}: {block} is out of its signed order");
+                previous = position;
+            }
+        }
+    }
+
+    [Fact]
+    public void AddressChangeCode_names_no_account_and_reads_its_durations_from_the_policy()
+    {
+        var rendered = Render(AddressChange());
 
         foreach (var part in new[] { Unwrapped(rendered.PlainTextBody), Unwrapped(Tag.Replace(rendered.HtmlBody, " ")) })
         {
-            part.ShouldContain(sourceAndBasis);
-            part.ShouldContain(ignoring);
-            part.ShouldContain(retentionAndProcessor);
-            part.ShouldContain(SignedControllerAndRights);
-            part.ShouldContain(SignedComplaint);
-
             // The address sits protected while the code and the grant live, so "vi sparar den inte" is false here.
             part.ShouldNotContain("sparar den inte");
             part.ShouldNotContain("ditt konto");
@@ -459,9 +481,7 @@ public sealed class EmailTemplatesLoginChallengeTests
         [nameof(LoginChallengeEmail.AddressChangeCode)] = AddressChange(),
     };
 
-    // The plain body is hard-wrapped; a sentence is asserted on its words, not on where a line breaks.
-    private static string Unwrapped(string body) =>
-        string.Join(' ', body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    private static string Unwrapped(string body) => MailText.Unwrapped(body);
 
     [Theory]
     [MemberData(nameof(Variants))]

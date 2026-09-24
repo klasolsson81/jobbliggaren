@@ -16,7 +16,7 @@ public sealed class EmailFooterTaglineMirrorsBrandTaglineTests
     {
         var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
 
-        html.ShouldContain(EmailHtml.Tagline);
+        html.ShouldContain($"font-size:14px;line-height:1.5;color:{EmailHtml.Ink};\">{EmailHtml.Tagline}</div>");
         html.ShouldNotContain("gratis");
     }
 

@@ -171,8 +171,8 @@ internal static class EmailHtml
         $"margin:0 0 14px 0;font-family:{FontStack};font-size:16px;line-height:1.55;color:{Ink};";
 
     /// <summary>
-    /// The code rung, DESIGN.md §11.5 point 3: 28px/700/1.2 in the ink value, letter-spacing 0.08em,
-    /// and <c>tabular-nums</c> because the digits are read and typed (DESIGN.md §4).
+    /// The code rung, DESIGN.md §11.5 point 3; <c>tabular-nums</c> because the digits are read and typed
+    /// (DESIGN.md §4).
     /// </summary>
     private const string CodeStyle =
         $"margin:0 0 18px 0;font-family:{FontStack};font-size:28px;line-height:1.2;font-weight:700;"

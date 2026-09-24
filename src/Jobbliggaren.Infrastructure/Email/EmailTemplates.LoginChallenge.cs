@@ -77,6 +77,7 @@ internal static partial class EmailTemplates
     {
         var link = LoginLink(baseUrl, content.Link);
         var minutes = ChallengeMinutes();
+        var recentWindow = CodeBudgetWindow().JustPassed;
 
         return new EmailContent(
             Subject: "Logga in på Jobbliggaren",
@@ -84,7 +85,7 @@ internal static partial class EmailTemplates
                 Någon har begärt att logga in på ditt konto.
 
                 Mejlet innehåller ingen kod, eftersom fler koder har begärts för din adress
-                det senaste dygnet än vi skickar.
+                {recentWindow} än vi skickar.
 
                 Länken gäller i {minutes} minuter.
 
@@ -102,7 +103,7 @@ internal static partial class EmailTemplates
                 body: EmailHtml.P("Någon har begärt att logga in på ditt konto.")
                     + EmailHtml.P(
                         "Mejlet innehåller ingen kod, eftersom fler koder har begärts för din adress "
-                        + "det senaste dygnet än vi skickar.")
+                        + $"{recentWindow} än vi skickar.")
                     + EmailHtml.P($"Länken gäller i {minutes} minuter.")
                     + EmailHtml.Button(link, "Logga in")
                     + EmailHtml.P("Om det inte var du behöver du inte göra något.")

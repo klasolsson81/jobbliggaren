@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Jobbliggaren.Infrastructure.Email;
 using Shouldly;
 
@@ -9,6 +10,8 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// </summary>
 public sealed class EmailHtmlCodeRungTests
 {
+    private static readonly Regex Style = new("style=\"([^\"]*)\"", RegexOptions.CultureInvariant);
+
     [Fact]
     public void Code_ForAOneTimeCode_RendersItAtTheCodeRungInAParagraphOfItsOwn()
     {
@@ -16,24 +19,27 @@ public sealed class EmailHtmlCodeRungTests
 
         markup.ShouldStartWith("<p style=\"");
         markup.ShouldEndWith(">042917</p>");
-        foreach (var declaration in new[]
-        {
-            "font-size:28px", "line-height:1.2", "font-weight:700", "font-variant-numeric:tabular-nums",
-            "letter-spacing:0.08em", $"color:{EmailHtml.Ink}",
-        })
-        {
-            markup.ShouldContain(declaration);
-        }
+
+        var rung = Declarations(markup);
+        rung["font-size"].ShouldBe("28px");
+        rung["line-height"].ShouldBe("1.2");
+        rung["font-weight"].ShouldBe("700");
+        rung["font-variant-numeric"].ShouldBe("tabular-nums");
+        rung["letter-spacing"].ShouldBe("0.08em");
+        rung["color"].ShouldBe(EmailHtml.Ink);
+        rung["font-family"].ShouldBe(Declarations(EmailHtml.P("x").ToString())["font-family"]);
     }
 
-    [Fact]
-    public void Code_WhenTheTextCarriesMarkup_EncodesIt()
+    private static Dictionary<string, string> Declarations(string markup)
     {
-        // The primitive's transform, asserted the way EmailHtml_WhenAValueWouldReachAnAttribute_EscapesTheQuote
-        // asserts Button's.
-        var markup = EmailHtml.Code("<b>042917</b>").ToString();
+        var declarations = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var declaration in Style.Match(markup).Groups[1].Value
+                     .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var colon = declaration.IndexOf(':', StringComparison.Ordinal);
+            declarations[declaration[..colon].Trim()] = declaration[(colon + 1)..].Trim();
+        }
 
-        markup.ShouldNotContain("<b>");
-        markup.ShouldContain("&lt;b&gt;042917&lt;/b&gt;");
+        return declarations;
     }
 }

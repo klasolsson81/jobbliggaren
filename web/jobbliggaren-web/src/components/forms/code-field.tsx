@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -8,7 +10,7 @@ const SLOTS = Array.from({ length: CODE_LENGTH }, (_, index) => index);
 // With JavaScript off the slots never fill, so the real input is drawn as a plain field. The
 // library's own fallback hard-codes black and white and follows the system's dark mode.
 const NO_SCRIPT_CSS =
-  "[data-input-otp]{background-color:var(--jp-surface-primary)!important;color:var(--jp-text-primary)!important;caret-color:var(--jp-text-primary)!important;border:1px solid var(--jp-border-input)!important;border-radius:var(--jp-r-md)!important;letter-spacing:.25em!important;text-align:center!important;width:100%!important}";
+  "[data-input-otp]{background-color:var(--jp-surface-primary)!important;color:var(--jp-text-primary)!important;caret-color:var(--jp-text-primary)!important;border:1px solid var(--jp-border-input)!important;border-radius:var(--jp-r-md)!important;letter-spacing:.25em!important;text-align:center!important;width:100%!important;font-family:var(--jp-font-sans)!important;font-variant-numeric:tabular-nums!important}[data-input-otp]:focus-visible{outline:2px solid var(--jp-focus)!important;outline-offset:2px!important}";
 
 // A code copied out of a mail can carry whitespace, and a pasted value that fails the digit pattern
 // is refused whole.
@@ -69,34 +71,36 @@ export function CodeField({
       <label htmlFor={id} className="text-label font-medium text-text-primary">
         {label}
       </label>
-      <InputOTP
-        ref={inputRef}
-        id={id}
-        name={name}
-        maxLength={CODE_LENGTH}
-        pattern={REGEXP_ONLY_DIGITS}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pasteTransformer={stripWhitespace}
-        noScriptCSSFallback={NO_SCRIPT_CSS}
-        required
-        aria-required="true"
-        aria-invalid={invalid ? true : undefined}
-        aria-describedby={[leadingDescriptionId, hintId, invalid ? errorId : null]
-          .filter(Boolean)
-          .join(" ")}
-        value={controlled ? value : typed}
-        onChange={(next: string) => {
-          if (!controlled) setTyped(next);
-          onValueChange?.(next);
-        }}
-      >
-        <InputOTPGroup aria-hidden="true">
-          {SLOTS.map((index) => (
-            <InputOTPSlot key={index} index={index} invalid={invalid} />
-          ))}
-        </InputOTPGroup>
-      </InputOTP>
+      <div>
+        <InputOTP
+          ref={inputRef}
+          id={id}
+          name={name}
+          maxLength={CODE_LENGTH}
+          pattern={REGEXP_ONLY_DIGITS}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pasteTransformer={stripWhitespace}
+          noScriptCSSFallback={NO_SCRIPT_CSS}
+          required
+          aria-required="true"
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={[leadingDescriptionId, hintId, invalid ? errorId : null]
+            .filter(Boolean)
+            .join(" ")}
+          value={controlled ? value : typed}
+          onChange={(next: string) => {
+            if (!controlled) setTyped(next);
+            onValueChange?.(next);
+          }}
+        >
+          <InputOTPGroup aria-hidden="true">
+            {SLOTS.map((index) => (
+              <InputOTPSlot key={index} index={index} invalid={invalid} />
+            ))}
+          </InputOTPGroup>
+        </InputOTP>
+      </div>
       <p id={hintId} className="text-body-sm text-text-primary">
         {hint}
       </p>

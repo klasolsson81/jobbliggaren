@@ -51,7 +51,7 @@ function InputOTPSlot({
       data-slot="input-otp-slot"
       data-active={isActive}
       className={cn(
-        "relative flex size-11 items-center justify-center border-y border-r border-border-input bg-surface-primary text-h2 font-semibold text-text-primary tabular-nums transition-colors duration-75 first:rounded-l-md first:border-l last:rounded-r-md data-[active=true]:z-10 data-[active=true]:outline-2 data-[active=true]:outline-offset-2 data-[active=true]:outline-(--jp-focus)",
+        "relative flex size-11 items-center justify-center border-y border-r border-border-input bg-surface-primary text-(length:--text-h2) font-semibold text-text-primary tabular-nums transition-colors duration-75 first:rounded-l-md first:border-l last:rounded-r-md data-[active=true]:z-10 data-[active=true]:outline-2 data-[active=true]:outline-offset-2 data-[active=true]:outline-(--jp-focus)",
         invalid && "border-destructive",
         className
       )}
@@ -60,7 +60,7 @@ function InputOTPSlot({
       {char}
       {hasFakeCaret && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-5 w-px animate-caret-blink bg-text-primary motion-reduce:animate-none" />
+          <div className="h-5 w-px animate-caret-blink bg-text-primary motion-reduce:animate-none forced-colors:bg-[CanvasText]" />
         </div>
       )}
     </div>

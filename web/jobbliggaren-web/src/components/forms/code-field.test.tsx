@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToStaticMarkup } from "react-dom/server";
 import { CodeField } from "./code-field";
 
 const LABEL = "Sexsiffrig kod";
@@ -56,6 +57,29 @@ describe("CodeField", () => {
 
     expect(screen.getByLabelText(LABEL)).toHaveValue("123456");
     expect(slots(container).map((slot) => slot.textContent)).toEqual(["1", "2", "3", "4", "5", "6"]);
+  });
+
+  // jsdom has no cascade: this pins the class contract, and the 20px was measured in a browser
+  // (the same division as `ui/dialog.textrank.test.tsx`, #1601). `cn` reads `text-h2` as a colour
+  // and drops it beside `text-text-primary`, so the size has to sit in the font-size group.
+  it("sizes the digits in the font-size group, where the colour class cannot drop it", () => {
+    const { container } = renderField(false);
+
+    for (const slot of slots(container)) {
+      expect(slot.getAttribute("class")).toMatch(/text-\(length:--text-h2\)/);
+    }
+  });
+
+  it("draws the field for a browser without JavaScript in the tokens, the sans face and the focus ring", () => {
+    const html = renderToStaticMarkup(
+      <CodeField id="c" hintId="c-hint" label={LABEL} hint={HINT} invalid={false} errorId="c-error" />
+    );
+    const noscript = html.slice(html.indexOf("<noscript>"), html.indexOf("</noscript>"));
+
+    expect(noscript).toContain("var(--jp-surface-primary)");
+    expect(noscript).toContain("var(--jp-font-sans)");
+    expect(noscript).toContain("[data-input-otp]:focus-visible{outline:2px solid var(--jp-focus)");
+    expect(noscript).not.toContain("prefers-color-scheme");
   });
 
   it("takes digits only", async () => {

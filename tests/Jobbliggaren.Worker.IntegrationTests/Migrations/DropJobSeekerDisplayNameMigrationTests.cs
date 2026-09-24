@@ -199,10 +199,6 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
         (await ReadUserIdAsync(namedId, ct)).ShouldBe(namedUserId);
         (await ReadUserIdAsync(namelessId, ct)).ShouldBe(namelessUserId);
 
-        // --- 3. Down to the previous migration: the column reappears with its pre-drop shape, but
-        // restores SHAPE only — both rows, including the one that had a name, come back NULL. This is
-        // the fact the class doc and the migration's own docblock make: the drop is the erasure, and
-        // its Down cannot undo that.
         await db.GetService<IMigrator>().MigrateAsync(PreviousMigration, ct);
 
         var restoredColumn = await ReadDisplayNameColumnAsync(ct);

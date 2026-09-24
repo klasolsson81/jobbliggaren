@@ -153,27 +153,29 @@ both pair a colored dot with a text label by design; do not strip the label.
 
 ## 5. Form accessibility
 
-Every form input must have all of the following:
+Every form input has the label, the ARIA wiring and the error row below. The help
+row exists only when the field would otherwise reject what a first-time user types
+(DESIGN.md §8 rule 3): an email field has none.
 
 ```tsx
 <FormItem>
-  <FormLabel htmlFor="email">
-    E-post <span aria-hidden="true" className="text-danger-600">*</span>
+  <FormLabel htmlFor="orgnr">
+    Organisationsnummer <span aria-hidden="true" className="text-danger-600">*</span>
   </FormLabel>
   <Input
-    id="email"
-    type="email"
+    id="orgnr"
+    inputMode="numeric"
     required
     aria-required="true"
-    aria-invalid={!!errors.email}
-    aria-describedby="email-help email-error"
+    aria-invalid={!!errors.orgnr}
+    aria-describedby={errors.orgnr ? "orgnr-help orgnr-error" : "orgnr-help"}
   />
-  <p id="email-help" className="text-body-sm text-text-secondary">
-    Vi använder aldrig din e-post för reklam.
+  <p id="orgnr-help" className="text-body-sm text-text-primary">
+    Tio siffror.
   </p>
-  {errors.email && (
-    <p id="email-error" role="alert" className="text-body-sm text-danger-700">
-      {errors.email.message}
+  {errors.orgnr && (
+    <p id="orgnr-error" role="alert" className="text-body-sm text-danger-700">
+      {errors.orgnr.message}
     </p>
   )}
 </FormItem>
@@ -183,7 +185,7 @@ Requirements:
 - `<label>` associated via `htmlFor` + `id`, or `aria-label` if label is not visible
 - `aria-required="true"` on required fields (in addition to `required`)
 - `aria-invalid` set dynamically based on error state
-- `aria-describedby` links both help text and error message (space-separated IDs)
+- `aria-describedby` links every rendered description row (format help, the Art. 13 line) and, while shown, the error message (space-separated IDs)
 - Error message appears as text — never only as a red border
 - Error message uses `role="alert"` so screen readers announce it immediately
 - On submit failure: focus moves to first error field

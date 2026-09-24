@@ -267,7 +267,6 @@ Always `rounded-pill` — explicit exception to the radius ceiling (AGENTS.md §
 Inline feedback blocks for non-transient messages.
 
 **Use for:**
-- Empty states with a concrete next step
 - Non-blocking warnings (outdated data, missing profile section)
 - Informational notices (feature preview, beta notice)
 
@@ -335,7 +334,7 @@ security-auditor's signature.
 
 ```tsx
 <p className="text-body-sm text-text-primary">
-  Du har inga aktiva ansökningar. <Link href="/jobb">Visa jobb</Link>
+  Du har inga aktiva ansökningar. <Link href="/jobb" className="underline underline-offset-2">Visa jobb</Link>
 </p>
 ```
 

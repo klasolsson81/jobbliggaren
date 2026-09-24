@@ -143,8 +143,7 @@ Konventioner och var formaterarna bor → `references/locale-formatting.md`
 ### 1. Empty states
 
 Struktur: konstatering + konkret nästa steg, en gång var: högst två korta meningar,
-och nästa steg får vara en knapp i stället för en mening. Som Alert: titel + åtgärd,
-ingen beskrivning som upprepar titeln (DESIGN.md §8; formen i
+och nästa steg får vara en knapp i stället för en mening (DESIGN.md §8; formen i
 `jobbpilot-design-components` → Empty state). Aldrig bara konstatering.
 
 | Situation | ✅ Ja | ❌ Nej |

@@ -146,7 +146,7 @@ EOF
       `code.expired`, `code.burned` — never state or presume that a code or link was sent;
       name no cause the uniform answer hides; show no address except `code.youEntered`,
       and never inside a sentence about mail (ADR 0142 Page form + Amendment 2026-09-21 (3);
-      #1779 Minor 1; Art. 5(1)(a), 12(1)). `code.codeHint` is not bound.
+      #1779 Minor 1; #1738 B; Art. 5(1)(a), 12(1)). `code.codeHint` is not bound.
    4. `pages.auth.passwordless.consent.termsLabel`, `consent.privacySibling` — the
       acceptance covers the terms and only them; the privacy policy is a sibling sentence,
       never inside the acceptance; from part 6a this is the collection notice on the OAuth
@@ -167,14 +167,13 @@ EOF
       branches, never behind help; the floor "minst" stays (#824 PR 4, #858, #1003;
       Art. 5(1)(a)/(d)).
    10. `jobads.ui.detail.recruiterNoticeLink`, `applications.ui.preservedAd.recruiterNoticeLink`
-      — the link, shown with the contact block (#842 CTO rebind R5; Art. 14(5)(b)).
+      — the link, shown with the contact block (#842 CTO rebind R5, #842 PR 4; Art. 14(5)(b)).
    11. `pages.sokningar.lede` — the retention sentence and the policy reference; may move
       into the ?-help (ADR 0060 says "hjälptext"), never be struck (ADR 0060 mechanics
       note 6; Art. 13(1)(c)/(2)(a)).
    12. `settings.account.delete.{description,mailOff,contactRoute}`,
-      `settings.notice.accountDeleted.body` — the 30-day window in which a deletion is
-      notified; the kontakt@ address where self-service ends (#1740 form round;
-      Art. 12(2)–(3), 17).
+      `pages.auth.passwordless.notice.accountDeleted.body` — the 30-day window; the
+      kontakt@ address where self-service ends (#1740 form round; Art. 12(2)–(3), 17).
    13. `LoginRegistrationClosed`, `LoginNewAccountCode`, `LoginNewAccountCodeLimitReached`
       and `LoginAddressChangeCode` in `EmailTemplates.LoginChallenge.cs` — the whole
       class-(3) notice: the ground paragraph (`NoCredentialBasis*`, NewAccountCode's own
@@ -190,7 +189,7 @@ EOF
       igen ändringen …"), `PasswordChangedNotice` while the template exists — the
       detection channel (ADR 0142 D5, #679 CTO bind 4, #1740 Minor 5; Art. 32(1)).
    16. the subject and preheader of every code-bearing template — the code never appears
-      there (#1737 condition 22, pinned by `EmailTemplatesLoginChallengeTests`; Art. 32(1)).
+      there (#1737 condition 22; Art. 32(1)).
    Not bound, strikable without her signature: `code.codeHint`; in `resting` the sentence
    "Kontrollera inkorgen och skräpposten", and "Koden gäller i 15 minuter" (if kept it must
    match `ChallengeTtl`); `entry.lede`; `entry.emailHint`; the opening sentence of the
@@ -261,14 +260,6 @@ reviewer grades against it.
   the i18n hotspot and waits on #1742.
 - Rule 7 names the class; Decision 4 is `security-auditor`'s confirmed set of 2026-09-24,
   and #1824 and #1825 are graded against it.
-- Named skips: the password-era examples in the copy skill ("Kontrollera e-post och
-  lösenord", "Lösenordet måste vara minst 12 tecken"), in `microcopy-library.md` ("Minst
-  12 tecken.") and in the a11y references (`wcag-criteria.md`, `screen-reader-testing.md`)
-  are #1743's to retire, listed there; the tokens skill's tertiary tier still names hints
-  (`jobbpilot-design-tokens/SKILL.md`, `references/tokens-full.md`) while DESIGN.md §4 and
-  every shipped hint use `text-text-primary` — carried as a checklist line in #1824; the
-  stale table in `docs/runbooks/frontend-visual-verification.md` rides a later session's
-  own PR, and the `visual-verify.ts` defect (`/ansokningar/ny`, password login) is #1830.
 
 ## Implementation and acceptance
 

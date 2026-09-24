@@ -90,8 +90,6 @@ Utöver de i SKILL.md (konstatering + åtgärd, inget mer — DESIGN.md §8):
 
 | Yta | Titel | Åtgärd |
 |---|---|---|
-| Notifikationslista | "Inga notifikationer" | (ingen) |
-| Aktivitetslogg | "Ingen aktivitet" | (ingen) |
 | Sökresultat (0 träffar) | "Inga träffar" | "Prova ett annat sökord." |
 | Intervjuer (tom) | "Inga bokade intervjuer" | "Lägg till en under ansökan." |
 | Inkorgen (Gmail ej kopplad) | "Gmail inte kopplat" | Knappen "Koppla Gmail" |

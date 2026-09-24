@@ -115,7 +115,7 @@ export default async function ApplicationsPage({
       <Suspense fallback={<ApplicationTableSkeleton />}>
         {result.items.length === 0 ? (
           <p className="text-body-sm text-text-primary">
-            Du har inga aktiva ansökningar. <Link href="/jobb">Visa jobb</Link>
+            Du har inga aktiva ansökningar. <Link href="/jobb" className="underline underline-offset-2">Visa jobb</Link>
           </p>
         ) : (
           <>

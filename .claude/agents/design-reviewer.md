@@ -64,6 +64,11 @@ skip link on navigation pages.
 no "Hoppsan/Oj då"; dates "14 apr 2026" or "2026-04-14"; time 24h "14:32";
 currency "33 456 kr" (non-breaking space); empty states give a concrete next
 step; error messages name cause + action. Always propose the corrected text.
+**Density (DESIGN.md §8 Copy-täthet, seven rules; ADR 0144):** a sentence the
+h1/label/button already says, a second lede, a hint for a self-evident format
+(email), a reassurance sentence, or an inline explanation the ?-help pattern
+(#1003) owns is a **Major**, not polish; legally load-bearing lines stay in their
+signed form. For excess, the corrected text is the deletion.
 
 **5. Task-completion / flow comprehension (ADR 0047).** Not aesthetics: "can
 the task be completed without guessing?" Walk the interaction path — static
@@ -72,15 +77,17 @@ first-time user completes the core task without guessing; system status
 visible and anchored to the present state (no status/action mixing);
 irreversible actions consequence-communicated BEFORE the action; separate
 tasks/forms not visually fused; section separation for same-type blocks.
-Propose the concrete restructuring, don't just flag.
+Propose the concrete restructuring, don't just flag. Where deleting a sentence
+under DESIGN.md §8 would leave the task a guess, the finding is a shorter sentence
+or a better label/button — never the guess: ADR 0047 is the floor, §8 the ceiling.
 
 ## Severity
 
 | Severity | Definition | Merge? |
 |---|---|---|
 | **Blocker** | A11y fail, AI-design, hardcoded colors, task not completable without guessing, irreversible action without pre-action consequence | Block |
-| **Major** | Copy violations, status/action mixing, fused forms, weak composition | Block |
-| **Minor** | Spacing fine-tuning, micro-copy polish | Allow |
+| **Major** | Copy violations including excess copy (DESIGN.md §8), status/action mixing, fused forms, weak composition | Block |
+| **Minor** | Spacing fine-tuning, micro-copy polish (wording, never volume) | Allow |
 | **Praise** | Reinforce good patterns | — |
 
 ## Edge cases

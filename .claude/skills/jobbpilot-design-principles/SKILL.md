@@ -108,8 +108,10 @@ hairlines — inte inramade i lådor.
 Varje pixel ska bära information.
 - **Förbjudet:** ikoner som "smyckar" varje rad; tooltips på allt;
   illustrationer på tom-states; achievement-badges; auto-genererade avatarer
-  (initialer är okej).
-- **Korrekt:** tom-state är en mening centrerad text i tertiary färg; ikoner
+  (initialer är okej); text som förklarar det självklara, lugnande meningar
+  och en andra ledtext (copy-täthet, DESIGN.md §8).
+- **Korrekt:** tom-state är en konstatering plus ett nästa steg och inget mer
+  (`jobbpilot-design-copy` §1); ikoner
   finns där de signalerar handling (sök, kalender, dismiss); stats-kort tas
   bort när siffran redan står i tabellen nedanför.
 
@@ -214,6 +216,7 @@ accessible, and built to be trusted — not admired.
 - ✗ Animerade hand-emojis, raketer, glitter
 - ✗ Hype-språk ("Lås upp din potential")
 - ✗ Konstgjord brådska ("3 personer tittar på detta jobb just nu!")
+- ✗ Förklaring av det självklara, lugnande meningar, en andra ledtext (DESIGN.md §8)
 
 ### Komponenter
 - ✗ Onödiga tooltips på allt
@@ -238,7 +241,7 @@ Innan en PR lämnas, gå igenom:
 2. ✓ Är komponenten en variant av en befintlig pattern eller en ny art? Om ny — motivera först.
 3. ✓ Finns drop-shadow eller gradient i designen? Ta bort.
 4. ✓ Är ikoner faktiskt nyttiga, eller dekorativa? Ta bort dekorativa.
-5. ✓ Är tonen saklig — inga AI-fraser, inga uppmaningar?
+5. ✓ Är tonen saklig — inga AI-fraser, inga uppmaningar, inget som h1/etikett/knapp redan säger (DESIGN.md §8)?
 6. ✓ Är tabeller flat (`.jp-table--flat`) och rader hairline-separerade?
 7. ✓ Renderar layouten korrekt i både light och dark mode? Toggla och kolla.
 8. ✓ Är språket konsekvent svenska, med engelsk översättning för landingpage?

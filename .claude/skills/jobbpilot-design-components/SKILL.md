@@ -145,9 +145,9 @@ vara **rena à la Platsbanken** — tomt fält, ingen grå exempeltext i rutan.
 Gäller hela appen (auth, sök/filter, dialoger, CV-/ansöknings-/admin-formulär).
 
 - **Default = ingen `placeholder` alls.** Ta bort den.
-- Behöver fältet ett exempel eller formathjälp (e-postsyntax, concept-id-format,
-  vad ett fritextfält ska innehålla): lägg det som **hjälptext (hint) under
-  input-rutan** — `text-body-sm text-text-secondary`, kopplad via
+- Bara när formatet inte är självklart (organisationsnummer, concept-id, datum i
+  fritext; aldrig e-postadressens syntax, DESIGN.md §8) får fältet en **hjälptext
+  (hint) under input-rutan** — `text-body-sm text-text-secondary`, kopplad via
   `aria-describedby` (a11y-skillens form-mönster). Label kvarstår alltid ovanför.
 - **Hint-placering:** default är **under** fältet (codebase-konventionen:
   label → input → hint/fel i samma scan-rytm). **Ovanför** är tillåtet endast
@@ -167,8 +167,8 @@ Gäller hela appen (auth, sök/filter, dialoger, CV-/ansöknings-/admin-formulä
   felmeddelandet beskrivnings-prioritet (se `jobbpilot-design-a11y` §5).
 
 ADR 0038:s tidigare formulering om kvarhållna auth-format-placeholders
-(`din.email@exempel.se`) är **upphävd** av denna regel — e-postsyntax flyttad
-till hint under fältet ("Formatet är namn@domän.se").
+(`din.email@exempel.se`) är **upphävd** av denna regel, och e-postfältet får
+ingen ersättande hint: syntaxen är självklar (DESIGN.md §8).
 
 ### Form (shadcn Form wrapper)
 
@@ -326,16 +326,16 @@ carries information — a real wait — never decoration.
 ```tsx
 <Alert>
   <AlertTitle>Inga ansökningar</AlertTitle>
-  <AlertDescription>
-    Du har inga aktiva ansökningar. Hitta jobb som passar din profil under Jobb.
-  </AlertDescription>
   <Button asChild variant="primary" className="mt-3">
     <Link href="/jobb">Visa jobb</Link>
   </Button>
 </Alert>
 ```
 
-Always: brief title + explanation + concrete next action. Never just "Tomt här."
+Always: one statement and one concrete next action, once each. Inline in a table
+or list: statement + next step in at most two short sentences
+(`jobbpilot-design-copy` §1). As an Alert: title + action, no description that
+repeats the title (DESIGN.md §8). Never just "Tomt här."
 
 ### Confirmation dialog
 

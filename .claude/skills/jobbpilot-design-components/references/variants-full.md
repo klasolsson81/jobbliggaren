@@ -77,10 +77,10 @@ Civic spec — **two ratified systems, name which** (ADR 0052 Amendment 2026-07-
 shadcn `Input` height **44px** (no size prop; `SelectTrigger` sm 36) per ADR 0038;
 `.jp-input` height **48px** per HANDOVER-v3 §5.2 via ADR 0052 (its `sm` 40 is ratified but UNIMPLEMENTED — no such class).
 `border-radius: 6px` (`var(--jp-r-md)`),
-`bg-surface-primary` (white in light), font 16px. Beskrivande
-placeholder-exempel i sök-/filterfält tas bort — label ovanför och hint
-nedanför bär informationen. Auth-formulärens format-placeholders
-(`din.email@exempel.se`) behålls (syntaxmönster med stark label-kontext).
+`bg-surface-primary` (white in light), font 16px. Ingen
+placeholder-text i något fält (ADR 0038 amendment 2026-05-17) — label ovanför
+och, bara när formatet inte är självklart, hint nedanför bär informationen
+(DESIGN.md §8).
 
 ### States
 
@@ -109,6 +109,8 @@ font-size: text-body-sm (14px)
 margin-top: mt-1 (4px)
 color: text-text-secondary
 ```
+
+Only when the format is not self-evident (DESIGN.md §8); an email field has none.
 
 ---
 

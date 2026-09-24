@@ -38,6 +38,28 @@ inte "en möjlighet väntar".
 
 ---
 
+## Copy-täthet (DESIGN.md §8)
+
+"Direkt" ovan är en riktlinje; regeln bor i DESIGN.md §8 (sju punkter, Klas-direktiv
+2026-09-24, ADR 0144) och `design-reviewer` graderar överskott som Major. Här är formerna.
+
+| Yta | ✅ Ja | ❌ Nej |
+|---|---|---|
+| Formulärsida där h1 + etikett + knapp räcker | h1 "Byt e-postadress" · etikett "Ny e-postadress" · knapp "Skicka kod", ingen ledtext | + "Skriv in den nya adressen så skickar vi en kod dit." |
+| Formulärsida där EN ledtext behövs | "Vi skickar en kod till din e-postadress." (och hellre knappen "Skicka kod" i stället för "Fortsätt", så att ledtexten kan strykas) | "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord." |
+| Formathjälp, självklart format | E-postfält: ingen hint | "Adressen ska innehålla @ och en domän." |
+| Formathjälp, icke självklart format | Organisationsnummer: "Tio siffror, med eller utan bindestreck." | Ingen hint (användaren gissar om bindestrecket) |
+| Nästa steg | Knappen "Skicka ny kod", ingen mening om vad som händer sedan | "Klicka på Fortsätt för att gå vidare till nästa steg." |
+| Förklaring av en vy | ?-hjälp/expander-mönstret (#1003) | Ett inledande stycke ovanför listan som förklarar vyn |
+| Lugnande | (inget) | "Vi skickar aldrig reklam." |
+| Rättsligt bärande | Art. 13-raden under e-postfältet står kvar, kortad bara med security-auditors signatur | Raden struken, eller gömd bakom en länk |
+
+Tystnad är ett utfall, inte ett tomrum: en yta utan mening är tom först när en
+uppgift inte går att slutföra utan att gissa (ADR 0047). Då är fyndet en kortare
+mening eller en bättre etikett/knapp, aldrig gissningen.
+
+---
+
 ## Forbidden patterns
 
 Never use:
@@ -121,7 +143,10 @@ Konventioner och var formaterarna bor → `references/locale-formatting.md`
 
 ### 1. Empty states
 
-Struktur: konstatering + konkret nästa steg. Aldrig bara konstatering.
+Struktur: konstatering + konkret nästa steg, en gång var: högst två korta meningar,
+och nästa steg får vara en knapp i stället för en mening. Som Alert: titel + åtgärd,
+ingen beskrivning som upprepar titeln (DESIGN.md §8; formen i
+`jobbpilot-design-components` → Empty state). Aldrig bara konstatering.
 
 | Situation | ✅ Ja | ❌ Nej |
 |---|---|---|
@@ -303,16 +328,21 @@ Acceptabla generiska (när kontexten är otvetydig):
 
 **Klas hård designregel 2026-05-17 (förstärker ADR 0038):** Inga input-fält
 har exempel-/instruktions-text i `placeholder`. Fälten är rena à la
-Platsbanken. Exempel/format flyttas till **hjälptext (hint) under fältet** i
+Platsbanken. Formathjälp, bara när formatet inte är självklart (DESIGN.md §8),
+blir **hjälptext (hint) under fältet** i
 `text-text-secondary`, kopplad via `aria-describedby`. Label kvarstår ovanför.
 
 ```tsx
-// ✅ Korrekt — rent fält, exempel som hint under
-<label htmlFor="email">E-post</label>
-<Input id="email" aria-describedby="email-hint" />
-<p id="email-hint" className="text-body-sm text-text-secondary">
-  Formatet är namn@domän.se
+// ✅ Korrekt — rent fält, hint bara när formatet inte är självklart (DESIGN.md §8)
+<label htmlFor="orgnr">Organisationsnummer</label>
+<Input id="orgnr" inputMode="numeric" aria-describedby="orgnr-hint" />
+<p id="orgnr-hint" className="text-body-sm text-text-secondary">
+  Tio siffror, med eller utan bindestreck.
 </p>
+
+// ✅ Korrekt — e-postfält utan hint (syntaxen är självklar)
+<label htmlFor="email">E-postadress</label>
+<Input id="email" type="email" autoComplete="email" />
 
 // ❌ Fel — exempeltext i rutan
 <Input placeholder="du@exempel.se" />

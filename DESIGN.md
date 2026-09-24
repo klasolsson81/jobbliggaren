@@ -291,7 +291,13 @@ copyn ligger i `EmailTemplates.cs` bredvid textdelen den speglar. Ingen annan yt
    främmande klient. Skalan är: rubrik **22px/700** i `--jp-navy-800`-värdet, brödtext **16px/1.55**,
    sidfot **14px** (golvet, aldrig under). Ordmärket i sidfoten är **16px/700 utan negativ tracking** —
    det får aldrig väga tyngre än brödtexten, eftersom "ingen grå text" tar bort färg som hierarki-axel
-   och då måste storlek och vikt bära den ensamma.
+   och då måste storlek och vikt bära den ensamma. Engångskoden i ett kodmejl är ett eget steg,
+   **28px/700/1.2** med `tabular-nums` och letter-spacing 0.08em i ink-värdet, i ett eget stycke: koden
+   är mejlets ärende och väger därför avsiktligt tyngre än rubriken, och den är ingen brödtext, så §4:s
+   förbud mot letter-spacing i brödtext når den inte (Klas-direktiv 2026-09-24, #1825). Sidfotens rad
+   under ordmärket är taglinen "Den svenska jobbansökningshanteraren" (§11) i sidfotens 14px och
+   ink-värdet, inte §11:s 12px/500/`--jp-ink-2`, och den ersätter prisraden (Klas-direktiv 2026-09-24,
+   #1825).
 
 **Dessutom, och utan avsteg:** tabellayout och inline-CSS (inget `<style>`-block alls), max 600px,
 ingen flexbox/grid, `color-scheme: light` — mejlet är avsiktligt ljust i båda teman, vilket är rätt

@@ -158,7 +158,7 @@ exact org.nr, per array element — shape-validated, never taxonomy-resolved, #1
 `snapshot_url` (retained, Art. 17(3)(e)), `applications.manual_company` /
 `manual_title` / `manual_url`, `company_watch_criteria.label`,
 `company_watches.organization_number` + `company_watches.filter`,
-`job_seekers.display_name` + `match_preferences` + `preferences` (whose
+`job_seekers.match_preferences` + `preferences` (whose
 `Language` the model reports as a second key over the same bytes), the CV's
 plaintext metadata (`parsed_resumes.source_file_name`, `resume_files.file_name`,
 `resumes.name` / `latest_role` / `top_skills` — reported as `resumeMetadata`),
@@ -367,7 +367,7 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | `applications.manual_company`, `manual_title`, `manual_url` (manually tracked applications) | ⚠️ **Not automatically — a HUMAN erases it** | A user may have pasted or typed a recruiter's name/contact into these fields when tracking an application she found outside Platsbanken. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)) — but a system does not silently rewrite a person's private record of her own job hunt. Reported; a human handles it with that user. *(URL can carry a name: `linkedin.com/in/magnus-fagerberg`, company contact page, etc.)* |
 | `company_watch_criteria.label` (nickname for a watch predicate) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month** | A user might name a watch *"IT jobb med Magnus"*. Unlike `saved_searches`, the label is **optional and nullable** — the criterion is its codes (industry + municipality), and the label is just a UI nickname. **`UpdateLabel(null)` is always constructible and lossless.** We report the count; a human nulls the label with zero complexity. Same mechanism as `saved_searches`: report, human decides. *(This column was found by enforcing the cascade registry at the EF model level; it is why the guard breaks the build.)*  |
 | `company_watches.organization_number`, `company_watches.filter` (who a user follows, and how she narrows it) | ⚠️ **Not automatically — a HUMAN erases it, inside the Art. 12(3) month, with the affected user in the loop** | **NEITHER remedy here is free, and they differ.** `organization_number` IS the follow key: it is the key of the partial unique index on `(user_id, organization_number)` and a `TargetType = Employer` watch requires it, so it cannot be nulled — the only remedy is deleting the whole watch, which destroys a deliberate configuration of ANOTHER user. That is stronger than `saved_searches`, so she is asked, not overridden. For an *enskild firma* this column IS her personnummer, held as a keyed HMAC token (ADR 0090 D5); the dry run matches the identifier against BOTH its tokenised and its plaintext form, because the plaintext→token backfill is a one-off manual job and nothing guarantees it ran. `filter` is a per-watch `WatchFilterSpec` validated on SHAPE only — no path resolves a concept-id against the taxonomy, so `Karlsson` and a ten-digit org.nr both persist. Its remedy IS constructible (`ClearFilter()`) but is **not lossless**: she stops narrowing and starts receiving every ad from that employer. *(Both columns were excluded WHOLESALE until #1435, on a ground naming a validator that gates count and shape and never existence.)* |
-| `job_seekers.display_name`, `match_preferences`, `preferences` (a user's own profile row) | ⚠️ **Not automatically — a HUMAN erases it, with the account holder in the loop** | `display_name` is plaintext `varchar(200)`. `match_preferences` holds six lists of shape-validated tokens with no taxonomy lookup on any path. `preferences` is a jsonb container whose `Language` field has **no server-side validation at all**; the search names no key, so a member added to the container is searched the day it lands. ⚠️ **This surface over-matches on a common name** — a user who merely shares the requester's name is counted. The count names nobody; do not write the reply as though a match here were a finding about her. |
+| `job_seekers.match_preferences`, `preferences` (a user's own profile row) | ⚠️ **Not automatically — a HUMAN erases it, with the account holder in the loop** | `match_preferences` holds six lists of shape-validated tokens with no taxonomy lookup on any path. `preferences` is a jsonb container whose `Language` field has **no server-side validation at all**; the search names no key, so a member added to the container is searched the day it lands. |
 | `applications.cover_letter`, `application_notes.content`, `follow_ups.note`, `parsed_resumes.raw_text` / `parsed_content_enc`, `resume_versions.content_enc`, `resume_files.content` (**the CV, all three stored shapes**) | ⚠️ **NOT SEARCHED** — disclosed in response | A user may well have written *"Ringde Magnus Fagerberg"* in her own note — or named the recruiter she wrote to in her CV. That is the recruiter's personal data, and her right reaches it (6(1)(f) → Art. 21(1)). **But we cannot search it.** These seven columns are encrypted at rest under per-user keys (Forms A, B and C — the uploaded CV file included). A `LIKE` search would require decryption of every row under every user's key — feasible for a handful of Art. 17 requests per year but not feasible via a background job. **We hold it, we cannot scan it, and we say so explicitly in the reply.** Erase via a human, if the subject and affected user both consent. |
 | `applications.snapshot_contacts` (the frozen recruiter contact block, #842 Tier A) | ✅ **Yes**, surgically | ITS OWN surface (`ApplicationSnapshotContacts`), never folded into the body columns below — one surface, one disposition, one honest Matched−Erased meaning (T2 CTO 2026-07-16). The contact block is HER data whose follow-up purpose is spent at the erasure request; 17(3)(e) retains the applicant's aktivitetsrapport spine, not the recruiter's phone number. `Application.EraseAdSnapshotContacts()` removes ONLY the contacts and leaves the applicant's record intact — durable by construction, the funnel never rewrites a snapshot. |
 | `applications.snapshot_company` / `snapshot_title` / `snapshot_description` / `snapshot_url` | ❌ **No** | The applicant's frozen record of an ad she applied to (ADR 0086 exists precisely so it outlives the ad). **And the ground is STRONGER for the company name than for the body:** a Swedish jobseeker must file an *aktivitetsrapport* to Arbetsförmedlingen **naming the employer**. The company name is the **spine** of her own legal record; the ad body is its colour. Ground: Art. 17(3)(e). **Klas's to affirm — STOPP-3, still open.** We **search and report** all four — `snapshot_url` included, a URL path carries names — precisely because we do not erase them: *a legal ground asserted over a population we never counted is a ground asserted over a silence.* |
@@ -375,11 +375,9 @@ claim to have erased what we have not erased. That is #842, applied to ourselves
 | Backups / WAL / PITR | ⚠️ **Unstated** | An `UPDATE` does not remove the old row version from disk until `VACUUM`, and copies remain in WAL and backups. **Do not make any statement to the data subject about backups.** The retention window is not yet decided (**STOPP-4**). Do not invent one. |
 
 **If `matched.savedSearches > 0`, `matched.companyWatchCriteria > 0`,
-`matched.companyWatchFollows > 0`, `matched.manualAdEntries > 0` OR
-`matched.resumeMetadata > 0`, the reply must disclose it — template B2.
-`matched.jobSeekerProfiles > 0` has its OWN template (B5) and must never be sent
-as B2: that surface is a user's own profile, so a hit is most often another
-person with a similar name, and B2 would call it hers. If `matched.applicationSnapshots > 0`, the reply must
+`matched.companyWatchFollows > 0`, `matched.manualAdEntries > 0`,
+`matched.resumeMetadata > 0` OR `matched.jobSeekerProfiles > 0`, the reply must disclose it — template B2.
+If `matched.applicationSnapshots > 0`, the reply must
 disclose the Art. 17(3)(e) retention — template B3.** A matched surface the reply
 never mentions is a search whose result never reached her; the gate lists every
 human-handled surface, and `resumeMetadata` was dropped on the floor here for one
@@ -387,7 +385,7 @@ round (round-5 B5-3.4).
 
 ---
 
-## 4. Reply templates (Klas-approved 2026-07-14 — he sends)
+## 4. Reply templates (Klas-approved 2026-07-14 — he sends; B5 retired into B2 by Klas 2026-09-24)
 
 Swedish, "du", no exclamation marks, no emoji, no em-dash (CLAUDE.md §10).
 **Never claim more than was actually done.** Do not add sentences about backups
@@ -429,7 +427,7 @@ outcome, so every reply names what we could not look at):
 **B2. Addition — any human-handled surface matched
 (`matched.savedSearches > 0` OR `matched.manualAdEntries > 0` OR
 `matched.companyWatchCriteria > 0` OR `matched.companyWatchFollows > 0` OR
-`matched.resumeMetadata > 0`).** Append:
+`matched.resumeMetadata > 0` OR `matched.jobSeekerProfiles > 0`).** Append:
 
 > Dina uppgifter förekommer också i innehåll som användare själva har skrivit
 > eller valt, till exempel en sparad sökning, en bevakning av ett företag, en
@@ -461,17 +459,6 @@ bound by T2 CTO 2026-07-16, wording rides Klas).** Append:
 > annonsen. De kontaktuppgifterna är borttagna ur kopiorna. Själva annonstexten i
 > användarnas kopior behåller vi med stöd av artikel 17.3 e i
 > dataskyddsförordningen, som en del av deras eget underlag.
-
-**B5. Addition — `matched.jobSeekerProfiles > 0`.** This surface is a user's OWN
-profile row (display name, stated match preferences, locale). A hit is most often
-**another person with a similar name**, not her data. **Never send
-B2 for this** — it would call the hit hers. Append:
-
-> Det du har uppgett förekommer också i en eller flera användares egna
-> profiluppgifter, till exempel ett visningsnamn. Oftast är det en annan person
-> med ett liknande namn, och då rör det inte dig. Vi går igenom träffarna
-> manuellt tillsammans med berörda användare, och hör av oss om något av det
-> visar sig gälla dig.
 
 **C. `NoMatchInSearchableSurfaces`.** Says what we searched — and never claims
 we searched what we cannot read (the mandatory closing carries that half):

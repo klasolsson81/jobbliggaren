@@ -653,7 +653,7 @@ v5.4.0, not re-measured):
 3. Klas has given the merge GO for the irreversible migration.
 
 **Rollback.** From U on, a pin to an older tag makes `migrate` refuse (exit 3, `vps-deploy-stack.md` §3a),
-unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses.
+unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses. From D on, the override cannot bring back code older than U: its model selects the dropped column (above). U's tag with the override is the only rollback by tag, and on it the recruiter-erasure search fails with 42703.
 
 **Klas answered two questions from the round on 2026-09-24.** He chose from AskUserQuestion options, and each
 question was quoted to him verbatim first.
@@ -665,7 +665,7 @@ question was quoted to him verbatim first.
    holdet är hävt eller avskrivet?" Klas: "4b får ingå i releasen". The hold was not active when he
    answered.
 
-**DoD 8.** No new personal data: 4b removes a stored category. No new logging. The name's retention in `job_seekers` ends when the migration runs; dead row versions and WAL are not claimed erased, and nothing is said about backups (STOPP-4). Legacy CVs keep the name in their encrypted content (Amendment (7)). No DPIA.
+**DoD 8.** No new personal data: 4b removes a stored category. No new logging. Row versions and WAL are not claimed erased, and nothing is said about backups (STOPP-4). Legacy CVs keep the name in their encrypted content (Amendment (7)). No DPIA.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
@@ -1692,7 +1692,7 @@ true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four
 change-email →
 **4a** #1741 in eight PRs (Amendment 2026-09-22, #1741): A0 the tolerant reader → V1 the preamble cut → DX and DX2
 the DOCX line model → A `Resume.FullName` optional, the CV half → B0 the profile read's tolerant reader → B the
-account half, after 3b; RP beside them → **4b** #1742
+account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 2026-09-24 (8)): U the unmap → D the drop
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on

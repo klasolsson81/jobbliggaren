@@ -20,15 +20,15 @@ namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 /// column and any value in it are still physically present) — one written by the retired name-writing
 /// path, one with no name at all, mirroring the two-row shape
 /// <see cref="DisplayNameNullableMigrationTests"/> already exercises one migration earlier — migrates
-/// forward across the drop, back again, one migration further back still, and forward again, reading
+/// forward across the drop, back again, further back still, and forward again, reading
 /// every fact out of the catalog rather than inferring it from the migration file.
 /// </para>
 ///
 /// <para>
 /// The interesting half is what the Down does NOT restore. It re-adds the column with the pre-drop
 /// shape, but every row it restores comes back <c>NULL</c> — including the row that had a name before
-/// the drop. That is what makes the next migration further back, <c>DisplayNameNullable</c>'s own
-/// guarded Down, refuse: its guard counts nameless rows, and after this migration's Down every seeded
+/// the drop. That is what makes <c>DisplayNameNullable</c>'s own
+/// guarded Down refuse: its guard counts nameless rows, and after this migration's Down every seeded
 /// row is nameless, whether it started out that way or not.
 /// </para>
 ///
@@ -43,11 +43,10 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
 {
     private const string ThisMigration = "20260924203855_DropJobSeekerDisplayName";
     private const string PreviousMigration = "20260924182548_UnmapJobSeekerDisplayName";
-    private const string TwoMigrationsBack = "20260917153605_AddTermsAcceptanceToJobSeeker";
+    private const string BeforeDisplayNameNullable = "20260917153605_AddTermsAcceptanceToJobSeeker";
 
     private const string DisplayNameColumn = "display_name";
 
-    /// <summary>Non-ASCII on purpose: a backfill, truncation or re-encode shows up in the round trip.</summary>
     private const string SurvivingName = "Björn Håkansson-Ek";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
@@ -139,20 +138,7 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
     /// </summary>
     private async Task<(Guid Id, Guid UserId)> InsertNamedSeekerAsync(CancellationToken ct)
     {
-        var id = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-
-        await using var conn = new NpgsqlConnection(_appConnectionString);
-        await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand(
-            """
-            INSERT INTO job_seekers (id, user_id, display_name, preferences, created_at)
-            VALUES (@id, @user_id, NULL, '{"Language":"sv"}'::jsonb, now())
-            """,
-            conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("user_id", userId);
-        await cmd.ExecuteNonQueryAsync(ct);
+        var (id, userId) = await InsertNamelessSeekerAsync(ct);
 
         await using var db = NewAppContext();
         await LegacyAccountName.WriteAsync(db, id, SurvivingName, ct);
@@ -193,7 +179,7 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
         var assembly = db.Database.GetMigrations().ToList();
         assembly.ShouldContain(ThisMigration);
         assembly.ShouldContain(PreviousMigration);
-        assembly.ShouldContain(TwoMigrationsBack);
+        assembly.ShouldContain(BeforeDisplayNameNullable);
 
         // --- 1. Stop one short of this migration, and seed two rows in the shape the table held
         // there: one written by the retired name-writing path, one with no name at all.
@@ -230,11 +216,11 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
         (await ReadDisplayNameAsync(namedId, ct)).ShouldBeNull("the Down restores shape, never data");
         (await ReadDisplayNameAsync(namelessId, ct)).ShouldBeNull();
 
-        // --- 4. One migration further back: DisplayNameNullable's own guarded Down refuses, because
+        // --- 4. Further back: DisplayNameNullable's own guarded Down refuses, because
         // every row is now nameless — the row that originally had a name included. The message's count
         // is both seeded rows, not one.
         var refusal = await Should.ThrowAsync<PostgresException>(() =>
-            db.GetService<IMigrator>().MigrateAsync(TwoMigrationsBack, ct));
+            db.GetService<IMigrator>().MigrateAsync(BeforeDisplayNameNullable, ct));
 
         refusal.SqlState.ShouldBe(PostgresErrorCodes.RaiseException);
         refusal.MessageText.ShouldContain("DisplayNameNullable Down");
@@ -258,7 +244,7 @@ public sealed class DropJobSeekerDisplayNameMigrationTests : IAsyncLifetime
         var appliedAfterRefusal = await db.Database.GetAppliedMigrationsAsync(ct);
         appliedAfterRefusal.ShouldNotContain(PreviousMigration);
         appliedAfterRefusal.ShouldContain("20260920232535_DisplayNameNullable");
-        appliedAfterRefusal.ShouldContain(TwoMigrationsBack);
+        appliedAfterRefusal.ShouldContain(BeforeDisplayNameNullable);
         appliedAfterRefusal.ShouldNotContain(ThisMigration);
 
         // --- 5. Forward again, on the populated table: the shape a re-deploy runs.

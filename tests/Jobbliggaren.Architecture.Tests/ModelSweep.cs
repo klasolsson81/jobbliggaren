@@ -289,9 +289,6 @@ internal static class ModelSweep
         return columns;
     }
 
-    /// <summary>
-    /// Every text-bearing column among the given entities, grouped by table.
-    /// </summary>
     /// <remarks>
     /// Several entity types can map to ONE table (an owned type is the usual case), so columns
     /// ACCUMULATE per table rather than replacing each other.

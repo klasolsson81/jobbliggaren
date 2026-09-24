@@ -10,12 +10,8 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>The drop is the erasure, so no data step precedes it.</b> Nothing in <c>src/</c> reads the
-    /// column.
-    /// </para>
-    /// <para>
-    /// <b>No dependent object.</b> <c>DROP COLUMN</c> takes dependent indexes, constraints, defaults
-    /// and triggers with it silently, so they were measured first: read-only on the box
+    /// <b>No dependent object.</b> <c>DROP COLUMN</c> takes dependent indexes, constraints and
+    /// defaults with it silently, so they were measured first: read-only on the box
     /// 2026-09-23T22:23Z (<c>pg_indexes</c>, <c>pg_constraint</c>, <c>pg_trigger</c>,
     /// <c>pg_depend</c>→<c>pg_rewrite</c>) and in the migration history, nothing depends on it.
     /// </para>

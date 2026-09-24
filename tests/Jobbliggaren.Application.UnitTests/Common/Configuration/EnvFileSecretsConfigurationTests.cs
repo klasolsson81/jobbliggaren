@@ -69,7 +69,7 @@ public class EnvFileSecretsConfigurationTests
     }
 
     [Fact]
-    public void EmptyFile_ContributesNothing_SoTheValidatorOwnsTheVerdict()
+    public void EmptyFile_ContributesEmptyValue_SoTheValidatorOwnsTheVerdict()
     {
         // One error, one owner: "this secret is missing" belongs to
         // FieldEncryptionOptionsValidator, which already fails startup in ALL environments.
@@ -77,7 +77,7 @@ public class EnvFileSecretsConfigurationTests
             [Env("FieldEncryption__LocalMasterKeyBase64_FILE", "/run/app-secrets/master")],
             _ => "   \n");
 
-        data.ShouldBeEmpty();
+        data.ShouldContainKeyAndValue("FieldEncryption:LocalMasterKeyBase64", string.Empty);
     }
 
     [Fact]

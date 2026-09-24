@@ -59,21 +59,30 @@ services:
   redis-dev:
     image: redis:8.10-alpine
     container_name: jobbliggaren-redis-dev
+    command: ["redis-server", "--aclfile", "/run/redis-policy/users.acl"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - jobbliggaren_redis_dev_data:/data
+      - type: bind
+        source: ${JBL_DEV_REDIS_ROOT:-./.redis-dev}/persistent
+        target: /run/redis-policy
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./deploy/redis/healthcheck.sh:/usr/local/bin/redis-healthcheck:ro
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "/usr/local/bin/redis-healthcheck", "health-persistent", "/run/redis-policy/health-password"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
     restart: unless-stopped
+    networks: [redis-persistent-dev]
 
   redis-volatile-dev:
     # The dev counterpart of the deploy stack's `redis-volatile` (deploy/docker-compose.yml is the
-    # original and explains the form): a Redis nothing can persist from. No `volumes:` key on purpose,
+    # original and explains the form): a Redis with only read-only policy binds,
     # and /data is a tmpfs under a read-only root, because the two flags are runtime-mutable and the
     # mount is not. The deploy service's memory limits are left out here: they answer a hostile peer on
     # a shared host, which a developer's machine does not have.
@@ -82,6 +91,8 @@ services:
     container_name: jobbliggaren-redis-volatile-dev
     command:
       - redis-server
+      - --aclfile
+      - /run/redis-policy/users.acl
       - --save
       - ""
       - --appendonly
@@ -90,18 +101,27 @@ services:
       - 64mb
       - --maxmemory-policy
       - noeviction
+    volumes:
+      - type: bind
+        source: ${JBL_DEV_REDIS_ROOT:-./.redis-dev}/volatile
+        target: /run/redis-policy
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./deploy/redis/healthcheck.sh:/usr/local/bin/redis-healthcheck:ro
     read_only: true
     tmpfs:
       - /data:size=16m
     ports:
       - "127.0.0.1:6381:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "sh", "/usr/local/bin/redis-healthcheck", "health-volatile", "/run/redis-policy/health-password"]
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 5s
     restart: unless-stopped
+    networks: [redis-volatile-dev]
 
   seq:
     image: datalust/seq:latest
@@ -192,3 +212,9 @@ volumes:
   jobbliggaren_seq_data:
   jobbliggaren_postgres_test_data:
   jobbliggaren_redis_test_data:
+
+networks:
+  redis-persistent-dev:
+    driver: bridge
+  redis-volatile-dev:
+    driver: bridge

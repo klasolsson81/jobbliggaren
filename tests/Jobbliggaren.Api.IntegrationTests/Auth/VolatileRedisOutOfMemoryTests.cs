@@ -39,7 +39,7 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _redis.StartAsync();
-        var connectionString = $"{_redis.GetConnectionString()},connectTimeout=1000,syncTimeout=5000";
+        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=5000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _budget = new RedisRateBudget(_connection);
@@ -52,7 +52,7 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await _redis.DisposeAsync();
+        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

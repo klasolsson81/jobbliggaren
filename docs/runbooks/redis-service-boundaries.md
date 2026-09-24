@@ -1,9 +1,15 @@
 # Redis service boundaries
 
-Status: preparatory contract for #1759, following [ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md).
-The templates and tests are not mounted by either production or development
-Compose. They add no application startup requirement. Integration follows the
-explicit #1735 `1a-store` handoff; environment acceptance remains open.
+Status: PR2 integration for #1759, following [ADR 0143](../decisions/0143-redis-network-and-service-identity-boundaries.md)
+and the explicit #1735 handoff. Production and development Compose mount the
+policies. Both application hosts require authenticated, role-specific connections
+and successful startup probes. Live cutover and environment acceptance remain open.
+
+Development runs API and Worker on the host. Its two Redis instances use separate
+ordinary bridges with ports published only on `127.0.0.1`, retaining development
+egress. Production uses internal bridges without published Redis ports. Both
+environments use the same role-specific ACL policies. Development peers may reach
+Redis by container IP; ACLs enforce Redis authorization.
 
 ## Contract and ownership
 
@@ -27,7 +33,7 @@ Change the contract and its tests together when adding a consumer.
 | API | Seq | Application logs |
 | Worker | Seq | Job logs |
 
-Each row becomes its own internal bridge. Caddy, API and Worker each have a
+In production Compose, each row becomes its own internal bridge. Caddy, API and Worker each have a
 separate egress bridge with no other application members. Web, Caddy,
 PostgreSQL, both migration services and Seq have no direct Redis path. Worker
 has no volatile path. Redis instances have no common bridge.
@@ -77,6 +83,13 @@ boundary.
 | RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
 | RedisRateBudget / API volatile | `budget/{scope}/v1/*` | INCR, EXPIRE with NX |
+| API startup validator / API persistent + API volatile | none | PING |
+| API persistent readiness / API persistent | none | PING on the cache/session multiplexer |
+| API volatile readiness / API volatile | none | PING through VolatileRedisConnection |
+| Worker startup + socket readiness / Worker persistent | none | PING on the publishing multiplexer |
+| Container health / health-persistent + health-volatile | none | PING |
+| Host operator / operator-persistent + operator-volatile | administrative inspection and identity maintenance | INFO, CONFIG GET, ACL LIST/DRYRUN/SETUSER/DELUSER, CLIENT KILL |
+| Account maintenance / operator-persistent only | `user:*:deleted`; `user:*:sessions`, `session:*` | tombstone SET/EXISTS/DEL; session index and exact session DEL |
 
 The three persistent cooldown scopes are `resend-confirm`, `account-exists`
 and `password-reset`.
@@ -126,7 +139,11 @@ persistent connection secrets. The existing directory shared by API and Worker
 must not contain API Redis credentials. Web and Caddy receive no Redis secrets.
 Redis-only mounts contain the effective ACL and that store's health credential.
 The fixture's administrative identity is appended only in test memory and never
-appears in a deployment template. Operator credentials are independently managed.
+appears in a deployment template. Operator credentials are independently managed. The store-specific operator templates grant
+administrative ACL mutation: each operator can grant itself data access. It is host-only,
+not a read-only identity. Never mount its password into an application or Redis
+service. After a runtime revocation, update the reviewed policy file as well;
+otherwise a restart would restore the old grant.
 
 Reuse whole-connection-string `_FILE` loading, with exact expected usernames
 `api-persistent`, `worker-persistent` and `api-volatile`. Before integration,
@@ -154,9 +171,18 @@ Application readiness uses the real API connections to both stores and the real
 Worker persistent connection. PING proves authenticated availability; it does
 not attest the ACL. Permission removal can leave PING green, which a test
 demonstrates. Authorization is covered separately by adapter tests and the
-mandatory effective-policy preflight below. PR2 must test the composed startup
-and readiness endpoints, rather than treating these direct-connection fixtures
-as host startup evidence.
+mandatory effective-policy preflight below. API startup, cache and persistent
+readiness share one multiplexer; Worker publication and readiness do likewise.
+The RedisCache force-reconnect switch is refused because it would replace/dispose
+that shared connection. A timed-out PING remains outstanding until completion;
+subsequent probes refuse rather than queue work or reuse its late result.
+
+Worker health invokes `dotnet Jobbliggaren.Worker.dll --readiness-probe`. This
+configuration-free mode contacts the running process over a private Unix socket
+under `/tmp/jobbliggaren-worker`, sends one byte and half-closes, and requires one
+healthy byte followed by EOF within four seconds. The running host checks its
+started/stopping state and its own persistent multiplexer. A Redis-only sidecar
+probe or a timestamp file would not establish that the Worker is responding.
 
 ## Isolated verification
 
@@ -281,3 +307,73 @@ independent markers or prevent replay of a valid old payload.
 No session cryptography is implemented by this contract. #1759 stays open until
 the composed implementation, application retesting (#1769) and the required
 environment verification satisfy its acceptance criteria.
+
+## Provisioning and recovery
+
+`sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --redis`
+provisions a complete set under `/run/jobbliggaren/redis` on tmpfs. Run it only
+inside the separately approved operation. Supply seven independently generated
+32-byte random credentials encoded as 64 hexadecimal characters through protected
+terminal input, backed by the approved escrow. Never pass them as arguments or
+environment values. The helper renders hashes, records measured readers, stages
+all files, and publishes the complete directory atomically. A repeated invocation
+verifies the existing set and preserves credentials; it does not rotate them.
+
+`--check` on `jobbliggaren-redis-secrets.sh` verifies paths, ownership, modes,
+complete-set consistency and exact rendered policy without Docker. The existing
+secrets-present timer calls it. Reconcile also checks incoming API/Worker readers
+using their verified digests and both Redis images using local immutable image
+IDs before any `compose up`. Reader drift requires re-owning the existing files
+under the shared reconcile lock, never replacing credentials to repair ownership.
+
+Missing credential binds have `create_host_path: false`: a failed early start
+must not manufacture a partial set. After tmpfs loss, restore the same credentials
+from escrow, validate, and recreate the affected API/Worker/Redis containers during
+the approved recovery. An atomic parent rename does not refresh existing directory
+bind mounts. Do not treat `restart` as a substitute for recreation.
+
+For an empty hierarchy left by a previous short-bind manifest, stop and remove
+only those four affected containers under the approved recovery and reconcile
+lock. Inspect the exact `/run/jobbliggaren/redis` children. Remove each expected
+empty service directory with `rmdir`, then the empty root with `rmdir`; either
+command must fail if any file remains. Never recursively delete a nonempty or
+partially injected set. Reinject, validate and recreate mounts. The isolated
+provisioning test covers this empty-skeleton recovery and refuses nonempty partial
+sets. Preserve PostgreSQL, persistent Redis data and application keyring volumes.
+
+Before admitting traffic, the host operator verifies `INFO persistence` reports
+`aof_enabled:0`, `CONFIG GET appendonly` reports `no`, and `CONFIG GET save` is
+empty on volatile Redis. Inspect its read-only root, `/data` tmpfs, absence of a
+writable persistent mount and disabled swap as separate controls. Application and
+health identities cannot run INFO or CONFIG. Read the operator password from its
+host-only file through protected stdin to a network-scoped ephemeral Redis CLI;
+never expose it in `docker exec` arguments, Docker environment or public reports.
+Compare the effective `ACL LIST` against the rendered policy before traffic,
+then perform the dry-runs above and the real application flow checks. PING alone
+does not attest authorization.
+
+The integration intentionally refuses the previous anonymous Compose connection
+configuration. Before publishing a release that hourly reconciliation can select,
+record the new-image/previous-Compose result and obtain a separate GO for the
+reviewed image/configuration pin and cutover order. Keep #1759 open through the
+live acceptance and the coordinated #1760/#1767 checks.
+
+
+## Account maintenance consumer
+
+`jobbliggaren-redis-account.sh` owns the fixed host operations `mark-deleted`,
+`check-deleted`, `clear-deleted`, `delete-session-index` and `delete-known-session`.
+The persistent operator template includes separate tombstone and delete-only session
+selectors; the volatile operator has no initial data grants. Provisioning, local
+credential generation and the isolated fixture render the same store-specific files.
+Unknown stores and unresolved placeholders are refused.
+
+[Account deletion](account-deletion.md#redis-operator-preflight) owns identity
+verification, SQL ordering, the explicit effective TTL preflight and the private
+operation record. The helper constructs lowercase account keys and accepts only an
+exact canonical hashed session key already tied to that account by the operator.
+It cannot infer ownership from a hash. It does not accept wildcard operations,
+read session contents or discover keys. Its CLI runs ephemerally in the inspected
+persistent Redis container's network namespace, receives the password only on
+stdin, and rejects failed authentication or unexpected responses. No live command
+is authorized by adding this consumer contract.

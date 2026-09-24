@@ -37,6 +37,9 @@ internal sealed class ComposeFile(string relativePath)
         return settings.Where(l => Indent(l) == indent).Select(l => l.Trim().Split(':', 2)[0]).ToList();
     }
 
+    public static string? ServiceSetting(IReadOnlyList<string> block, string key) =>
+        Setting(block.Where(line => Indent(line) == 4).ToArray(), key);
+
     /// <summary>The value of the one <c>key: value</c> line in the block, or null when the key is absent.</summary>
     public static string? Setting(IReadOnlyList<string> block, string key)
     {
@@ -63,7 +66,8 @@ internal sealed class ComposeFile(string relativePath)
         return lines
             .Skip(at + 1)
             .Where(l => !IsComment(l) && !string.IsNullOrWhiteSpace(l))
-            .TakeWhile(l => Indent(l) > keyIndent && l.TrimStart().StartsWith("- ", StringComparison.Ordinal))
+            .TakeWhile(l => Indent(l) > keyIndent)
+            .Where(l => Indent(l) == keyIndent + 2 && l.TrimStart().StartsWith("- ", StringComparison.Ordinal))
             .Select(l => l.TrimStart()[2..].Trim())
             .ToList();
     }

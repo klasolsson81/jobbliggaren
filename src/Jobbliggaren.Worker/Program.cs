@@ -15,14 +15,19 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+if (args is ["--readiness-probe"])
+{
+    Environment.ExitCode = await WorkerReadinessSocketService.ProbeAsync();
+    return;
+}
+
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 // #198 / ADR 0050 gate B-1 — secrets arrive as FILES on a RAM-backed mount, never as container
 // environment values (Docker persists those to disk in its own container state). LAST source,
-// deliberately: on the box the file is the authority. Inert in dev — with no *_FILE variables
-// set it contributes zero keys, so appsettings.Local.json keeps working unchanged.
+// deliberately: on the box the file is the authority. Development also uses role-specific Redis files; other local options remain in appsettings.Local.json.
 builder.Configuration.AddEnvFileSecrets();
 
 // TD-104 / STEG 6 — persistent strukturerad logg-sink (MEL → Seq, config-gated på
@@ -166,23 +171,8 @@ builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.BackfillJobAdRequirements
 // (paritet ExpireJobAdsWorker per ADR 0023 delbeslut 2).
 builder.Services.AddScoped<Jobbliggaren.Worker.Hosting.RefreshLandingStatsWorker>();
 
-// ADR 0064 Variant B — Redis IDistributedCache krävs av RedisLandingStatsCache.
-// Worker delar inte AddIdentityAndSessions-stacken med Api (HTTP-fri Worker
-// per ADR 0023), så Redis-cache wiras explicit här. Bara IDistributedCache —
-// IConnectionMultiplexer (SADD/SREM-API:t för session-store) behövs ej i Worker.
-// Fail-loud-paritet med Api Infrastructure/DependencyInjection.cs:438-440 —
-// localhost:6379-fallback skulle masquera config-bortfall i Fargate-task som
-// faller silent var 5:e min (incident 2026-05-24, dotnet-architect-dom
-// agentId a9446dac40e8fef02).
-var workerRedisConnectionString = builder.Configuration.GetConnectionString("Redis")
-    ?? throw new InvalidOperationException(
-        "ConnectionStrings:Redis saknas i Worker-konfiguration. ADR 0064 kräver " +
-        "Redis-cache-yta för RefreshLandingStatsJob. Verifiera task-def secrets-block.");
-builder.Services.AddStackExchangeRedisCache(opts =>
-{
-    opts.Configuration = workerRedisConnectionString;
-    opts.InstanceName = "jobbliggaren:";
-});
+// The publishing cache and process readiness share the Worker identity and connection.
+builder.Services.AddWorkerRedisConnection(builder.Configuration);
 builder.Services.AddLandingStats();
 
 // Fas 4 STEG 2 (F4-2) — delad lokal svensk NLP-tier (stemmer/analyzer/spell-check).
@@ -311,5 +301,8 @@ builder.Services.AddHostedService<Jobbliggaren.Worker.Hosting.WorkerMemoryTrendS
 // Recurring-jobs registreras vid host-start.
 builder.Services.AddHostedService<RecurringJobRegistrar>();
 
-var host = builder.Build();
-host.Run();
+builder.Services.AddHostedService<WorkerReadinessSocketService>();
+
+using var host = builder.Build();
+await host.Services.RequireWorkerRedisReadyAsync();
+await host.RunAsync();

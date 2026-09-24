@@ -62,20 +62,11 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d jobbliggaren"
           --health-interval 5s --health-timeout 3s --health-retries 15
-      redis:
-        image: redis:8-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 3s --health-retries 15
-
     env:
+      POSTGRES_PASSWORD_DEV: "unused-compose-render"
+      POSTGRES_PASSWORD_TEST: "unused-compose-render"
+      SEQ_ADMIN_PASSWORD_DEV: "unused-compose-render"
       ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=jobbliggaren;Username=postgres;Password=postgres"
-      ConnectionStrings__Redis: "localhost:6379"
-      # #1735 - the SAME service container behind both keys. `services:` cannot set a command, so a
-      # non-persisted second instance is not expressible here. This job asserts nothing about which
-      # instance a key lands on; VolatileRedisPlacementTests does, on two containers.
-      ConnectionStrings__VolatileRedis: "localhost:6379"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://localhost:5049"
       Auth__RequireEmailConfirmation: "true" # launch-representative (confirmed-login seam covers loginAs)
@@ -106,6 +97,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Generate isolated Redis identities
+        shell: pwsh
+        run: |
+          ./scripts/prepare-dev-redis.ps1
+          "ConnectionStrings__Redis_FILE=$env:GITHUB_WORKSPACE/.redis-dev/api-persistent/connection" >> $env:GITHUB_ENV
+          "ConnectionStrings__VolatileRedis_FILE=$env:GITHUB_WORKSPACE/.redis-dev/api-volatile/connection" >> $env:GITHUB_ENV
+
+      - name: Start both ACL-protected Redis stores
+        run: |
+          docker compose up -d --wait redis-dev redis-volatile-dev
+          python3 scripts/verify-dev-redis-connectivity.py
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -207,6 +210,10 @@ jobs:
       - name: Run E2E (Playwright serves the production build)
         working-directory: web/jobbliggaren-web
         run: pnpm test:e2e
+
+      - name: Remove isolated Redis stores
+        if: always()
+        run: docker compose rm -sf redis-dev redis-volatile-dev
 
       - name: Upload Playwright report
         if: always()

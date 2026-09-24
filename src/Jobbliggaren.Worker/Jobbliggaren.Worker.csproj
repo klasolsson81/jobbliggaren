@@ -22,4 +22,7 @@
     <ProjectReference Include="..\Jobbliggaren.Domain\Jobbliggaren.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Jobbliggaren.Worker.IntegrationTests" />
+  </ItemGroup>
 </Project>

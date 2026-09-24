@@ -710,9 +710,8 @@ is `jobbliggaren-api`; the Worker does not share that keyring.
    path. It writes sequentially and skips existing files: an aborted run can leave a partial
    set. Preserve verified entries and diagnose the missing category before resuming.
 6. Run `--check` and, when the host-only category is in scope, `--check-host`. They answer
-   different sets. A missing or unreadable `_FILE` target refuses configuration loading;
-   an empty file contributes no value and can leave an older lower-precedence value in
-   force. Verify the configuration sources, not just file presence. Do not interpret either
+   different sets. A missing or unreadable `_FILE` target refuses configuration loading.
+   Verify the configuration sources, not just file presence. Do not interpret either
    detector or options validation as proof that the key bytes match stored data.
 7. Start a fresh test process/provider with no surviving DEK cache. Decrypt synthetic text
    and binary content written before recovery, reproduce all three pepper-derived values,

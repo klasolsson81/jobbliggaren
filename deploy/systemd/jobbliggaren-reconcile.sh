@@ -118,6 +118,7 @@ skipped=0
 # Captured inside the loop and ONLY after this image has verified, so the secrets gate below can
 # never be the thing that executes an image the box just refused (#1295).
 api_digest=""
+worker_digest=""
 for image in "${images[@]}"; do
   case "$image" in
   "$OURS_PREFIX"*) ;;
@@ -179,6 +180,7 @@ for image in "${images[@]}"; do
   # to that truncation does not silently leave api_digest empty.
   case "$image" in
   "${OURS_PREFIX}api:"* | "${OURS_PREFIX}api@"*) api_digest="${digests[0]}" ;;
+  "${OURS_PREFIX}worker:"* | "${OURS_PREFIX}worker@"*) worker_digest="${digests[0]}" ;;
   esac
 done
 
@@ -317,6 +319,12 @@ else
   log "injected secrets are readable by the incoming image (uid $want_uid, gid $want_gid)"
 fi
 
+if grep -q 'ConnectionStrings__Redis_FILE:' "$COMPOSE_FILE"; then
+  bash /opt/jobbliggaren/deploy/systemd/jobbliggaren-redis-secrets.sh --check-images "$api_digest" "$worker_digest" || {
+    log "REFUSING: Redis credential mounts do not match the incoming readers; nothing is applied."
+    exit 1
+  }
+fi
 log "verified $verified image(s), skipped $skipped upstream; applying"
 
 # `--pull never` COMPLETES THE TOCTOU ARGUMENT. Verification ran against the digests already

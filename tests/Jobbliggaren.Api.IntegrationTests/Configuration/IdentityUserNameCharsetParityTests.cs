@@ -20,8 +20,8 @@ public class IdentityUserNameCharsetParityTests
             {
                 // Read at registration time, and absence throws.
                 ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
-                ["ConnectionStrings:Redis"] = "localhost:6379",
-                [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381",
+                ["ConnectionStrings:Redis"] = "localhost:6379,user=api-persistent,password=configuration-only",
+                [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381,user=api-volatile,password=configuration-only",
             })
             .Build();
 

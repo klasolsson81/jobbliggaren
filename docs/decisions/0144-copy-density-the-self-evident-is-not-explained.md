@@ -293,3 +293,22 @@ reviewer grades against it.
 - `input-otp` 1.5.0 read 2026-09-24: npm, github.com/guilhermerodz/input-otp and
   ui.shadcn.com/docs/components/input-otp — one real `<input>` with
   `autocomplete="one-time-code"`, visual slots drawn on top.
+
+## Amendment 2026-09-24 — #1825: the mail rows as signed
+
+`security-auditor` signed the shortened mail texts in #1825's pre-code form round on
+2026-09-24 (her report, `docs/reviews/2026-09-24-1825-form-security.md`, local-only, like
+the #1829 report Decision 4 cites); the shortenings remove words and no element, and the
+texts themselves live in the templates, each changed block pinned word for word in both
+parts of its mail. Four elements join Decision 4's set:
+
+- Row 12: and in `LoginPendingDeletion`, the earliest permanent-deletion date and the
+  restore route via kontakt@
+- Row 13: and AddressChangeCode's line to a recipient who did not ask ('Bortser du från
+  meddelandet ändras ingenting: adressen kopplas aldrig till kontot.'), the counterpart
+  of condition 20's last sentence
+- Row 15: `EmailChangedNotification` (its subject/h1, since #1825 the only statement of
+  the event, and 'Om du inte känner igen ändringen …')
+- Row 16: the subject and preheader of every code-bearing template, and the first
+  paragraph of its plain part — the code never appears there (#1737 condition 22;
+  #1825; Art. 32(1))

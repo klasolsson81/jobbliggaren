@@ -88,16 +88,20 @@ public class EmailTemplatesMatchNotificationTests
         email.PlainTextBody.ShouldContain($"{BaseUrl}/matchningar");
     }
 
-    // --- Item rendering: "- {JobTitle}, {CompanyName} ({GradeLabel})" (komma, EJ em-dash) ---
-
     [Fact]
-    public void MatchNotification_ShouldRenderItemWithTitleCompanyAndGradeLabel_WhenRendered()
+    public void MatchNotification_ForADirectMatch_LeadsTheBodyAndThePreviewWithTheMatchItself()
     {
-        var content = Direct(Item("Systemutvecklare", "Volvo Cars", "Toppmatch"));
+        // A direct mail carries one match (BackgroundMatchingJob), so the match is its first line and its
+        // preheader, with no intro repeating the subject (design-reviewer, #1825 form round, Major 3).
+        const string Line = "Systemutvecklare, Volvo Cars (Toppmatch)";
+        var email = EmailTemplates.MatchNotification(BaseUrl, Direct(Item("Systemutvecklare", "Volvo Cars", "Toppmatch")));
 
-        var email = EmailTemplates.MatchNotification(BaseUrl, content);
-
-        email.PlainTextBody.ShouldContain("- Systemutvecklare, Volvo Cars (Toppmatch)");
+        email.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')[0].ShouldBe(Line);
+        email.HtmlBody.Split(Line).Length.ShouldBe(3, "the line is both the preheader and the first paragraph");
+        email.HtmlBody[email.HtmlBody.IndexOf("<p ", StringComparison.Ordinal)..].ShouldStartWith(EmailHtml.P(Line).ToString());
+        email.PlainTextBody.ShouldNotContain("Bakgrundsmatchningen");
+        email.HtmlBody.ShouldNotContain("Bakgrundsmatchningen");
+        email.HtmlBody.ShouldNotContain("<ul");
     }
 
     [Fact]
@@ -175,7 +179,7 @@ public class EmailTemplatesMatchNotificationTests
 
         var email = EmailTemplates.MatchNotification(BaseUrl, content);
 
-        email.PlainTextBody.ShouldContain("en ny matchning");
+        email.PlainTextBody.ShouldContain("En ny matchning sedan sist:");
         email.PlainTextBody.ShouldNotContain("1 nya matchningar");
     }
 

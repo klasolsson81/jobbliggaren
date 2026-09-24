@@ -107,7 +107,7 @@ public class EmailTemplatesFollowedCompanyNotificationTests
         var email = EmailTemplates.FollowedCompanyNotification(
             BaseUrl, Content(1, DigestCadence.Weekly, Item()));
 
-        email.PlainTextBody.ShouldContain("en ny annons");
+        email.PlainTextBody.ShouldContain("En ny annons sedan sist:");
     }
 
     [Fact]

@@ -7,12 +7,6 @@ namespace Jobbliggaren.Domain.JobSeekers;
 public sealed class JobSeeker : AggregateRoot<JobSeekerId>
 {
     public Guid UserId { get; private set; }
-
-    /// <summary>
-    /// The account has no name (ADR 0142 D7), and nothing in the aggregate writes this. It is
-    /// mapped only until 4b (#1742) drops the column: rows written before #1741 PR B can carry one.
-    /// </summary>
-    public string? DisplayName { get; }
     public Preferences Preferences { get; private set; } = null!;
 
     /// <summary>

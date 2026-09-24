@@ -98,12 +98,11 @@ internal static class CvChainProbe
     ];
 
     internal static async Task<CvChainObservation> RunAsync(
-        string fileName, string contentType, byte[] bytes, string accountDisplayName,
-        CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, CancellationToken ct)
     {
         try
         {
-            return await RunCoreAsync(fileName, contentType, bytes, accountDisplayName, ct);
+            return await RunCoreAsync(fileName, contentType, bytes, ct);
         }
         catch (Exception ex)
         {
@@ -124,19 +123,14 @@ internal static class CvChainProbe
     }
 
     private static async Task<CvChainObservation> RunCoreAsync(
-        string fileName, string contentType, byte[] bytes, string accountDisplayName,
-        CancellationToken ct)
+        string fileName, string contentType, byte[] bytes, CancellationToken ct)
     {
         var userId = Guid.NewGuid();
         var clock = FixedClock.Default;
         await using var db = CorpusAppDbContextFactory.Create();
 
-        // The account display name is a CASE input, not a fixed constant. The aggregate stores no
-        // name (ADR 0142 D7), so the case's own name is written straight to the column through
-        // LegacyAccountName, which names the retired actor that wrote such a row.
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
-        LegacyAccountName.Write(db, seeker, accountDisplayName);
         await db.SaveChangesAsync(ct);
 
         var currentUser = Substitute.For<ICurrentUser>();

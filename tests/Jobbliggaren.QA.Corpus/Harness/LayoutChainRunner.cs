@@ -173,8 +173,7 @@ internal static partial class LayoutChainRunner
                 $"INSTRUMENT: the byte-proof reader threw {ex.GetType().Name} for '{c.Id}'";
         }
 
-        var o = await CvChainProbe.RunAsync(
-            c.FileName, c.ContentType, bytes, c.AccountDisplayName, ct);
+        var o = await CvChainProbe.RunAsync(c.FileName, c.ContentType, bytes, ct);
         // The fourth argument is what stops a case whose bytes were already wrong, and which then
         // crashed, from being published under "byte proofs held" with its message discarded.
         //

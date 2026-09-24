@@ -386,10 +386,8 @@ non-empty `user_data_keys` is what will make it testable.
 **Write it on a surface that actually crosses the DEK path.** The encrypted set is
 `Application.CoverLetter`, `ApplicationNote.Content`, `FollowUp.Note` and the CV fields
 (`ParsedResume.RawText`/`Content`, `ResumeVersion.Content`) — `EncryptedFieldRegistry` is the
-authority. **A profile field is not among them**: `JobSeeker` has no encrypted column, so
-writing a display name leaves `user_data_keys` unchanged and would either look like a broken DEK
-path or tick this row on nothing. Use a cover letter on `/ansokningar`, or a CV import on
-`/cv`.
+authority. **A profile field is not among them**: `JobSeeker` has no encrypted column. Use a
+cover letter on `/ansokningar`, or a CV import on `/cv`.
 
 Then read it back on a fresh page load.
 Record what you ran and what it returned — the row is stamped from that. ⚠ **A page load and an

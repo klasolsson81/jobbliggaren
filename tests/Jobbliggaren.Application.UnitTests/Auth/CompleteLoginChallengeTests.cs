@@ -209,7 +209,6 @@ public sealed class CompleteLoginChallengeTests
 
         var profile = await _db.JobSeekers.AsNoTracking().SingleAsync(Ct);
         profile.UserId.ShouldBe(_userId);
-        profile.DisplayName.ShouldBeNull();
         profile.TermsAcceptance.ShouldBe(TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default));
         await _accounts.DidNotReceiveWithAnyArgs().DeleteAsync(default, Ct);
     }

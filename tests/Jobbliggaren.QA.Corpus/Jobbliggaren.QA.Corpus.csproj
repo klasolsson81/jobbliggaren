@@ -56,8 +56,6 @@
          seam through which the domain code behind IncompleteContent can be observed. Linked,
          never copied (CTO constraint 2). -->
     <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
-    <!-- #1741 PR B - the seam that writes a legacy account name, one home for its provenance. -->
-    <Compile Include="..\Shared\LegacyAccountName.cs" Link="Shared\LegacyAccountName.cs" />
   </ItemGroup>
 
   <ItemGroup>

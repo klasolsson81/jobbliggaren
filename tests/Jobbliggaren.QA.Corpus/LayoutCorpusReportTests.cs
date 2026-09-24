@@ -6,24 +6,11 @@ using Shouldly;
 namespace Jobbliggaren.QA.Corpus;
 
 /// <summary>
-/// PR K (#1060) — the layout fitness corpus. It authors 21 CV documents as real PDF and DOCX
+/// PR K (#1060) — the layout fitness corpus. It authors CV documents as real PDF and DOCX
 /// BYTES and drives each of them through the product's own chain: <c>CvFileSignature</c> →
 /// <c>ImportResumeCommandHandler</c> (extract, personnummer scan, segment, <c>ParsedResume.Create</c>)
 /// → <c>AutoPromoteParsedResumeCommandHandler</c> (five gates, DQ6 among them, the internal content
 /// mapper, <c>Resume.CreateFromParsed</c>). No database server, no container, no network.
-///
-/// <para>Both numerals above were wrong and were corrected 2026-07-28. What follows is the
-/// MEASUREMENT rather than a characterisation of it, because two reviewers and I each produced a
-/// different characterisation from the same history and all three were wrong somewhere:</para>
-/// <code>
-/// 980a00d4  16 cases  "sixteen"   &lt;- true when written
-/// ccda80d0  17 cases  "sixteen"   &lt;- went false inside PR K's OWN review round
-/// d9e0af7f  17 cases  "sixteen"   &lt;- shipped false
-/// 7a5496fe  21 cases  "sixteen"   &lt;- PR E drifted it further
-/// </code>
-/// <para>"six gates" is the simpler kind: true until PR B retired the preamble gate. A numeral
-/// beside a catalog anyone can count needs no such archaeology, which is why the count is now a
-/// digit — and why this paragraph states four measurements instead of one adjective.</para>
 ///
 /// <para><b>The material difference from the existing corpus.</b> <c>CorpusGenerator</c> starts
 /// DOWNSTREAM of the segmenter — it calls <c>ParsedResume.Create</c> with pre-built content and
@@ -88,7 +75,7 @@ public sealed class LayoutCorpusReportTests
     /// preceding PR (the predicate promotion) correctly did NOT bump, having regenerated
     /// nothing.</para>
     /// </summary>
-    private const string BaseCommit = "3643526e";
+    private const string BaseCommit = "26963715";
 
     [Fact]
     public async Task LayoutCorpus_FromBytes_EmitsReport()

@@ -104,7 +104,6 @@ public class LoginChallengeCompleteTests(ApiFactory factory)
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var profile = await db.JobSeekers.AsNoTracking().SingleAsync(js => js.UserId == user.Id, Ct);
-        profile.DisplayName.ShouldBeNull();
         profile.TermsAcceptance.ShouldNotBeNull();
         profile.TermsAcceptance.TermsVersion.ShouldBe(TermsAcceptance.CurrentTermsVersion);
 

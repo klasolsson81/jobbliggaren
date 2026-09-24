@@ -2,7 +2,6 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -49,7 +48,7 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
     private static readonly FakeDateTimeProvider SeedClock =
         new(new DateTimeOffset(2026, 9, 17, 14, 14, 33, TimeSpan.Zero));
 
-    private async Task<JobSeeker> SeedSeekerAsync(string displayName, CancellationToken ct)
+    private async Task<JobSeeker> SeedSeekerAsync(CancellationToken ct)
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -57,7 +56,6 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
             .Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(SeedClock), SeedClock)
             .Value;
         db.JobSeekers.Add(seeker);
-        LegacyAccountName.Write(db, seeker, displayName);
         await db.SaveChangesAsync(ct);
         return seeker;
     }
@@ -98,7 +96,7 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
     public async Task PreMigrationRow_WithAllThreeTermsColumnsNull_LoadsAsNoAcceptance()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seeker = await SeedSeekerAsync("Pre-migration Row", ct);
+        var seeker = await SeedSeekerAsync(ct);
 
         // The shape of a row written before AddTermsAcceptanceToJobSeeker: the columns exist and are
         // NULL because the migration added them nullable to an already-populated table.
@@ -116,7 +114,7 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
         // so an unstamped legacy account can still sign in, be read and be soft-deleted. A required
         // navigation would have thrown here instead.
         var ct = TestContext.Current.CancellationToken;
-        var seeker = await SeedSeekerAsync("Legacy Loads Fine", ct);
+        var seeker = await SeedSeekerAsync(ct);
         await NullTermsColumnsAsync(seeker.Id.Value, ct);
 
         using var scope = Factory.Services.CreateScope();
@@ -124,7 +122,6 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
         var reloaded = await db.JobSeekers.SingleAsync(js => js.Id == seeker.Id, ct);
 
         reloaded.TermsAcceptance.ShouldBeNull();
-        reloaded.DisplayName.ShouldBe("Legacy Loads Fine");
         reloaded.UserId.ShouldBe(seeker.UserId);
         reloaded.Preferences.Language.ShouldBe("sv");
     }
@@ -136,7 +133,7 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
         // navigation comes back non-null and carries exactly what was stamped. Without this, a
         // mapping that read every row as "no acceptance" would pass both NULL tests.
         var ct = TestContext.Current.CancellationToken;
-        var seeker = await SeedSeekerAsync("Stamped Row", ct);
+        var seeker = await SeedSeekerAsync(ct);
         var stamped = seeker.TermsAcceptance.ShouldNotBeNull();
 
         var reloaded = await ReloadTermsAcceptanceAsync(seeker.Id, ct);
@@ -156,7 +153,7 @@ public sealed class TermsAcceptanceBackcompatTests(ApiFactory factory)
         // a state the aggregate has no reading for, so Postgres refuses to hold one (security-auditor,
         // PR #1751). Reached by raw SQL because no path in src/ writes a partial stamp.
         var ct = TestContext.Current.CancellationToken;
-        var seeker = await SeedSeekerAsync("Half Stamped", ct);
+        var seeker = await SeedSeekerAsync(ct);
 
         var refusal = await Should.ThrowAsync<PostgresException>(() =>
             ExecuteAsync("UPDATE job_seekers SET terms_version = NULL WHERE id = @id", seeker.Id.Value, ct));

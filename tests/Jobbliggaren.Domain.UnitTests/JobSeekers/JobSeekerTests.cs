@@ -289,33 +289,24 @@ public class JobSeekerTests
     [Fact]
     public void DisplayName_HasNoWritePathOnTheAggregate()
     {
-        // ADR 0142 D7 (#1741 PR B): the account has no name. The column stays until 4b (#1742), so the
-        // property does too, but nothing writes it. This is the pin that the test seams writing a
-        // legacy name (tests/Shared/LegacyAccountName.cs) name: the current writer cannot produce the
-        // state, so a fixture carrying a name asserts about a row a retired actor wrote.
+        // ADR 0142 D7: the account has no name, and from #1742 on the model does not map the column.
+        // This is the pin the test seam writing a legacy name (tests/Shared/LegacyAccountName.cs) names:
+        // no current writer can produce the state, so a fixture carrying a name asserts about a row a
+        // retired actor wrote.
         //
-        // (1) A setter of any accessibility. Without one, only a constructor can assign the property.
-        typeof(JobSeeker).GetProperty(nameof(JobSeeker.DisplayName))!.SetMethod.ShouldBeNull();
-
-        // (2) The factory taking a name again, required or optional: its parameters are exactly these.
+        // (1) The factory taking a name again, required or optional: its parameters are exactly these.
         typeof(JobSeeker)
             .GetMethod(nameof(JobSeeker.Register), BindingFlags.Public | BindingFlags.Static)!
             .GetParameters()
             .Select(p => p.ParameterType)
             .ShouldBe([typeof(Guid), typeof(TermsAcceptance), typeof(IDateTimeProvider)]);
 
-        // (3) Any other public member that names it: an `UpdateDisplayName`, a validator, a length cap.
-        // The property's own accessors are special names and excluded.
+        // (2) Any public member that names it: a property, an `UpdateDisplayName`, a validator, a
+        // length cap.
         typeof(JobSeeker)
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
-            .Where(m => m is not MethodInfo { IsSpecialName: true }
-                && m.Name != nameof(JobSeeker.DisplayName)
-                && m.Name.Contains("DisplayName", StringComparison.Ordinal))
+            .Where(m => m.Name.Contains("DisplayName", StringComparison.Ordinal))
             .Select(m => m.Name)
             .ShouldBeEmpty();
-
-        // (4) And the one writer left stores none.
-        JobSeeker.Register(ValidUserId, TermsAcceptance.AcceptCurrent(Clock), Clock).Value
-            .DisplayName.ShouldBeNull();
     }
 }

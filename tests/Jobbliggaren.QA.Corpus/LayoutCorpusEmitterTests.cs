@@ -100,10 +100,10 @@ public sealed class LayoutCorpusEmitterTests
 
     /// <summary>
     /// The highest-priority PII control in this PR, measured rather than promised. One case authors
-    /// a synthetic personnummer in the CV body, so the personnummer gate fires, and one in the
-    /// account display name; the report must say where they were authored without ever carrying
-    /// either value. Asserted over the WHOLE lexicon list, because that list is what every existing
-    /// leak sweep in this project enumerates — a value added there is covered here for free.
+    /// a synthetic personnummer in the CV body, so the personnummer gate fires; the report must say
+    /// that one was authored without ever carrying the value. Asserted over the WHOLE lexicon list,
+    /// because that list is what every existing leak sweep in this project enumerates — a value
+    /// added there is covered here for free.
     /// </summary>
     [Fact]
     public void Report_NeverRendersASynthethicPersonnummer()
@@ -116,7 +116,6 @@ public sealed class LayoutCorpusEmitterTests
                 {
                     SyntheticPersonnummer = SwedishCorpusLexicon.FakePersonnummer[0],
                 },
-                AccountDisplayName = "Konto Kontosson " + SwedishCorpusLexicon.FakePersonnummer[1],
             },
         };
 
@@ -520,35 +519,23 @@ public sealed class LayoutCorpusEmitterTests
         markdown.ShouldContain("**byte proofs held:** `case-crashed`, `case-alpha`");
     }
 
-    /// <summary>The `(false, true)` arm of the authored-personnummer column: a CLEAN body whose
-    /// ACCOUNT name carries one, the shape of `pdf-clean-body-pnr-in-account-name`. The value itself
-    /// is never printed; the arm says only that one was authored and where.</summary>
     [Fact]
-    public void Report_ForACleanBodyWithAPersonnummerInTheAccountName_SaysWhereItWasAuthored()
+    public void Report_ForACleanBody_SaysNoPersonnummerWasAuthored()
     {
-        var clean = Observation("case-account-pnr");
+        var clean = Observation("case-clean-body");
         var markdown = LayoutCorpusReport.Build(Data() with
         {
             Cases =
             [
                 clean with
                 {
-                    Case = clean.Case with
-                    {
-                        Model = CvModel.Swedish with { SyntheticPersonnummer = null },
-                        AccountDisplayName = "Konto Kontosson "
-                            + SwedishCorpusLexicon.FakePersonnummer[1],
-                    },
+                    Case = clean.Case with { Model = CvModel.Swedish with { SyntheticPersonnummer = null } },
                 },
             ],
         });
 
         var (header, row) = TableRow(markdown, "| Case | Confidence overall | ");
-        Cell(header, row, "pnr authored (body / account)")
-            .ShouldBe("account name (synthetic, not printed)");
-
-        foreach (var pnr in SwedishCorpusLexicon.FakePersonnummer)
-            markdown.ShouldNotContain(pnr);
+        Cell(header, row, "pnr authored").ShouldBe("none");
     }
 
     private static int Cells(string row) => row.Split('|').Length;

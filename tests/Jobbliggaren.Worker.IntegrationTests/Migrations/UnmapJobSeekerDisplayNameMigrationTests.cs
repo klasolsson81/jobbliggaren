@@ -10,42 +10,37 @@ using Testcontainers.PostgreSql;
 namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 
 /// <summary>
-/// #1737 (epic #1732 part 1c, ADR 0142 D7) — <c>20260920232535_DisplayNameNullable</c> applies and
-/// REVERSES against a real Postgres, as the app role, on a populated table.
+/// #1742 (epic #1732 part 4b, PR U) — <c>20260924182548_UnmapJobSeekerDisplayName</c> applies and
+/// reverses against a real Postgres, as the app role, on a table that still physically carries
+/// <c>display_name</c>.
 ///
 /// <para>
-/// The <c>Down</c> is the half worth a journey. EF's scaffold for this reversal backfills every NULL
-/// with <c>''</c> and leaves a column default behind, so this one refuses instead. The journey
-/// therefore rolls back WHILE a nameless row
-/// exists (must raise, and leave the schema and the row exactly as they were), removes that row the
-/// way an operator would, and rolls back again (must succeed, with no default, and the surviving
-/// name unchanged). The column is read out of <c>information_schema</c> at each stop rather than
-/// inferred from the migration file.
+/// This migration's <c>Up</c>/<c>Down</c> are both empty (Parallel Change — see the migration's own
+/// docblock): from here on the model no longer maps the column, but the column itself, and any name
+/// already stored in it, must survive untouched. The journey therefore seeds a row with a name in the
+/// shape the table held before #1741 PR B (<c>d8959385</c>) — the last writer of that column, now
+/// retired — migrates forward across this migration, migrates back, and forward again, asserting at
+/// every stop that the column's shape AND the row's value are exactly what they were before this
+/// migration ran.
 /// </para>
 ///
 /// <para>
-/// The journey stops at <see cref="ThisMigration"/>, never at the assembly's head: from #1742 on the
-/// model no longer maps the column, and a later migration drops it. So both rows are written with raw
-/// SQL in the shape the table holds at this migration. The nameless row is the state
-/// <c>JobSeeker.Register</c> has written since #1737. The named row is the state every writer before
-/// #1741 PR B (<c>d8959385</c>) left behind; none of them exists any more.
-/// </para>
-///
-/// <para>
-/// Own container, one journey method — the <see cref="AddTermsAcceptanceToJobSeekerMigrationTests"/>
+/// The journey stops at <see cref="ThisMigration"/>, never at the assembly's head, so this test stays
+/// meaningful once #1742 adds the migration that drops the column. Own container, one journey method — the
+/// <see cref="Jobbliggaren.Worker.IntegrationTests.Migrations.DisplayNameNullableMigrationTests"/>
 /// form: xunit news a class instance per test method, so one method is one container, and
 /// <see cref="TestDatabaseProvisioner"/> provisions the database so the migration runs as the role
 /// production migrates with.
 /// </para>
 /// </summary>
-public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
+public sealed class UnmapJobSeekerDisplayNameMigrationTests : IAsyncLifetime
 {
-    private const string ThisMigration = "20260920232535_DisplayNameNullable";
-    private const string PreviousMigration = "20260917153605_AddTermsAcceptanceToJobSeeker";
+    private const string ThisMigration = "20260924182548_UnmapJobSeekerDisplayName";
+    private const string PreviousMigration = "20260920232535_DisplayNameNullable";
 
     private const string DisplayNameColumn = "display_name";
 
-    /// <summary>Non-ASCII on purpose: a backfill or a re-encode shows up in the round trip.</summary>
+    /// <summary>Non-ASCII on purpose: a backfill, truncation or re-encode shows up in the round trip.</summary>
     private const string SurvivingName = "Åsa Öberg-Lindqvist";
 
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
@@ -98,8 +93,7 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Reads the name as the table holds it, distinguishing SQL NULL from every string value —
-    /// including the empty one, which is what a scaffolded backfill would have left behind.
+    /// Reads the name as the table holds it, distinguishing SQL NULL from every string value.
     /// </summary>
     private async Task<(bool Found, string? Name)> ReadDisplayNameAsync(Guid id, CancellationToken ct)
     {
@@ -116,11 +110,11 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A row in the shape the table holds at <see cref="ThisMigration"/>. The NOT NULL set there is
-    /// id, user_id, preferences and created_at; match_preferences carries a column default, and the
-    /// three terms columns stay NULL together, which their CHECK admits.
+    /// A named row in the shape the table held before #1741 PR B (<c>d8959385</c>) retired the last
+    /// writer of <c>display_name</c> — raw SQL because, from this migration on, no writer in
+    /// <c>src/</c> can produce this shape any more.
     /// </summary>
-    private async Task<Guid> InsertSeekerAsync(string? displayName, CancellationToken ct)
+    private async Task<Guid> InsertNamedSeekerAsync(CancellationToken ct)
     {
         var id = Guid.NewGuid();
 
@@ -136,26 +130,14 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         cmd.Parameters.AddWithValue("user_id", Guid.NewGuid());
         await cmd.ExecuteNonQueryAsync(ct);
 
-        if (displayName is not null)
-        {
-            await using var db = NewAppContext();
-            await LegacyAccountName.WriteAsync(db, id, displayName, ct);
-        }
+        await using var db = NewAppContext();
+        await LegacyAccountName.WriteAsync(db, id, SurvivingName, ct);
 
         return id;
     }
 
-    private async Task DeleteSeekerAsync(Guid id, CancellationToken ct)
-    {
-        await using var conn = new NpgsqlConnection(_appConnectionString);
-        await conn.OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand("DELETE FROM job_seekers WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        (await cmd.ExecuteNonQueryAsync(ct)).ShouldBe(1);
-    }
-
     [Fact]
-    public async Task DisplayNameNullable_AdmitsANamelessRow_AndItsDownRefusesToInventAName_BeforeReversingCleanly()
+    public async Task UnmapJobSeekerDisplayName_LeavesTheColumnAndItsValueUntouched_AcrossUpAndDown()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = NewAppContext();
@@ -164,8 +146,14 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         assembly.ShouldContain(ThisMigration);
         assembly.ShouldContain(PreviousMigration);
 
-        // --- 1. At this migration: the column is nullable, unchanged in type and width, and carries
-        // no default.
+        // --- 1. Stop one short of this migration, and seed a named row in the shape the table held
+        // before #1741 PR B.
+        await db.GetService<IMigrator>().MigrateAsync(PreviousMigration, ct);
+        var namedId = await InsertNamedSeekerAsync(ct);
+        (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
+
+        // --- 2. Forward across this migration: Up() is empty, so the column and the row's value must
+        // be exactly what they were.
         await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
         var atThisMigration = await ReadDisplayNameColumnAsync(ct);
@@ -173,56 +161,28 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         atThisMigration.IsNullable.ShouldBeTrue();
         atThisMigration.DataType.ShouldBe("character varying");
         atThisMigration.MaxLength.ShouldBe(200);
-        atThisMigration.Default.ShouldBeNull("a default would hand every future insert a name nobody typed");
-
-        // --- 2. Two rows. The nameless one is the state the Up exists for.
-        var namedId = await InsertSeekerAsync(SurvivingName, ct);
-        var namelessId = await InsertSeekerAsync(null, ct);
-
-        (await ReadDisplayNameAsync(namelessId, ct)).ShouldBe((true, null));
+        atThisMigration.Default.ShouldBeNull();
         (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
 
-        // --- 3. Rollback while that row exists: the Down refuses, by its own guard rather than by
-        // Postgres rejecting the NOT NULL, and the count in the message is what tells the two apart.
-        var refusal = await Should.ThrowAsync<PostgresException>(() =>
-            db.GetService<IMigrator>().MigrateAsync(PreviousMigration, ct));
-
-        refusal.SqlState.ShouldBe(PostgresErrorCodes.RaiseException);
-        refusal.MessageText.ShouldContain("DisplayNameNullable Down");
-        refusal.MessageText.ShouldContain("1 job_seekers row(s) have no display_name");
-
-        // The refusal left nothing half-done: schema, row and history entry are all where they were
-        // before the attempt. Nothing above would have noticed a Down that failed partway instead.
-        var afterRefusal = await ReadDisplayNameColumnAsync(ct);
-        afterRefusal.ShouldNotBeNull();
-        afterRefusal.IsNullable.ShouldBeTrue();
-        afterRefusal.Default.ShouldBeNull();
-        (await ReadDisplayNameAsync(namelessId, ct)).ShouldBe((true, null));
-        (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldContain(ThisMigration);
-
-        // --- 4. The operator's way out, which the message asks for: resolve the row, then retry.
-        await DeleteSeekerAsync(namelessId, ct);
+        // --- 3. Back to the previous migration: Down() is equally empty, so the same holds in reverse.
         await db.GetService<IMigrator>().MigrateAsync(PreviousMigration, ct);
 
         var atPrevious = await ReadDisplayNameColumnAsync(ct);
         atPrevious.ShouldNotBeNull();
-        atPrevious.IsNullable.ShouldBeFalse();
+        atPrevious.IsNullable.ShouldBeTrue();
         atPrevious.DataType.ShouldBe("character varying");
         atPrevious.MaxLength.ShouldBe(200);
-        atPrevious.Default.ShouldBeNull(
-            "a default here would let an insert without a name silently become ''");
+        atPrevious.Default.ShouldBeNull();
+        (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
         (await db.Database.GetAppliedMigrationsAsync(ct)).ShouldNotContain(ThisMigration);
 
-        // The EFFECT on the row that stayed, not the column's shape: no backfill reached a name that
-        // was already there. Every catalog read above passes with or without one.
-        (await ReadDisplayNameAsync(namedId, ct)).ShouldBe((true, SurvivingName));
-
-        // --- 5. Forward again on the populated table: the shape a re-deploy runs.
+        // --- 4. Forward again: the shape a re-deploy runs, still unchanged.
         await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
         var backAtThisMigration = await ReadDisplayNameColumnAsync(ct);
         backAtThisMigration.ShouldNotBeNull();
         backAtThisMigration.IsNullable.ShouldBeTrue();
+        backAtThisMigration.DataType.ShouldBe("character varying");
         backAtThisMigration.MaxLength.ShouldBe(200);
         backAtThisMigration.Default.ShouldBeNull();
         (await db.Database.GetAppliedMigrationsAsync(ct)).Last().ShouldBe(ThisMigration);

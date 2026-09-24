@@ -49,9 +49,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     // tests' positive cases). Must NOT appear in the clean fixtures below.
     private const string ValidPersonnummer = "811218-9876";
 
-    /// <summary>The account holder's display name.</summary>
-    private const string AccountName = "Anna Kontosson";
-
     /// <summary>The name the FILE claims — must never reach the canonical CV.</summary>
     private const string ParsedContactName = "Fil Namnsson";
 
@@ -120,15 +117,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         ParsedResumeContent? content = null,
         ParseConfidence? confidence = null,
         PersonnummerScanOutcome? pnr = null,
-        string? displayName = AccountName,
         string sourceFileName = "anna-cv.pdf")
     {
-        // A null name is the state the aggregate produces. A given name is written to the column
-        // through LegacyAccountName, which names the retired actor that wrote such a row.
         var seeker = JobSeeker.Register(userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value;
         db.JobSeekers.Add(seeker);
-        if (displayName is not null)
-            LegacyAccountName.Write(db, seeker, displayName);
         var parsed = BuildParsed(seeker.Id, content, confidence, pnr, sourceFileName);
         db.ParsedResumes.Add(parsed);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -233,12 +225,11 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The canonical CV carries no person's name (ADR 0142 D7): not the account holder's, even
-    /// when the account has one, and never the name the FILE claims. If this goes red, a name
-    /// has found its way back into the content.
+    /// The canonical CV carries no person's name (ADR 0142 D7): never the name the FILE claims. If
+    /// this goes red, a name has found its way back into the content.
     /// </summary>
     [Fact]
-    public async Task Handle_ContentCarriesNoPersonName_EvenWhenTheAccountHasOne()
+    public async Task Handle_ContentCarriesNoPersonName_NotEvenTheOneTheFileClaims()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
@@ -252,11 +243,10 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// With no user-typed label the CV gets a GENERATED, non-PII name — not the account name
-    /// and not the file name (CTO-bind D5-REBIND-2). The account name would put the person's
-    /// name back into the plaintext column for every user who never edits it; the file name
-    /// was refused for `Resume` by ADR 0096 D-B (PII-near) and would additionally outlive the
-    /// staging-retention rule written for `SourceFileName`.
+    /// With no user-typed label the CV gets a GENERATED, non-PII name — not the file name
+    /// (CTO-bind D5-REBIND-2). The file name was refused for `Resume` by ADR 0096 D-B
+    /// (PII-near) and would additionally outlive the staging-retention rule written for
+    /// `SourceFileName`.
     /// </summary>
     [Fact]
     public async Task Handle_NoNameOverride_GeneratesANonPersonalDatedLabel()
@@ -271,7 +261,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         var resume = db.Resumes.Local.ShouldHaveSingleItem();
         resume.Name.ShouldBe(
             $"Importerat CV {FakeDateTimeProvider.Default.UtcNow:yyyy-MM-dd}");
-        resume.Name.ShouldNotBe(AccountName);
         resume.Name.ShouldNotContain("anna-cv"); // never the file name either
     }
 
@@ -502,23 +491,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
     }
 
-    /// <summary>An owner with no display name, as the passwordless consent step registers one
-    /// (ADR 0142 D7), is promoted: the CV requires no name.</summary>
-    [Fact]
-    public async Task Handle_OwnerWithNoDisplayName_Promotes()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var (parsed, _) = await SeedOwnedAsync(db, _userId, displayName: null);
-
-        var result = await CreateSut(db).Handle(
-            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
-        db.Resumes.Local.ShouldHaveSingleItem()
-            .MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
-    }
-
     /// <summary>
     /// The STRUCTURED-PROPERTY pin for <c>{BlockDetail}</c> (#1060 D3(β) PR 2). It lives here
     /// rather than in <c>StructuredPropertyNameContractTests</c> because this is where the
@@ -602,26 +574,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
-    }
-
-    /// <summary>
-    /// A row written before #1117 can still hold a personnummer in the account name (the seam
-    /// names that actor). The name never reaches the CV, so it no longer blocks a clean file.
-    /// </summary>
-    [Fact]
-    public async Task Handle_PnrInALegacyAccountName_DoesNotBlock_TheNameNeverReachesTheCv()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var (parsed, _) = await SeedOwnedAsync(
-            db, _userId, displayName: $"Anna {ValidPersonnummer}");
-
-        var result = await CreateSut(db).Handle(
-            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
-        db.Resumes.Local.ShouldHaveSingleItem()
-            .MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     // ===============================================================

@@ -40,13 +40,7 @@ public sealed record LayoutCase(
     /// paired control — which renders the KNOWN one — read "no" unconditionally and could not
     /// fall, and the contamination sweep reported a finding for a heading the document never
     /// contained.</summary>
-    string? ProjectHeadingRendered = null,
-
-    /// <summary>The account holder's display name this case registers. It is a case input so the
-    /// corpus can pin that no account name reaches the CV (ADR 0142 D7). The probe writes it to the
-    /// column directly (<c>CvChainProbe</c>, through <c>LegacyAccountName</c>, which names the
-    /// actor).</summary>
-    string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
+    string? ProjectHeadingRendered = null);
 
 /// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
 /// control. The count is deliberately NOT written here: two revisions of this comment carried a
@@ -57,9 +51,6 @@ public static class LayoutCaseCatalog
     private const string Pdf = "application/pdf";
     private const string Docx =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-    /// <summary>Deliberately not a person's real-looking name and never a personnummer.</summary>
-    internal const string DefaultAccountName = "Konto Kontosson";
 
     /// <summary>The synthetic Luhn-valid personnummer, taken from the corpus's OWN lexicon rather
     /// than re-declared here. That list is what every existing PII-leak sweep in this project
@@ -291,20 +282,6 @@ public static class LayoutCaseCatalog
             "no vertical gutter of 15 pt or more exists",
             SpikeMeasuredExtractSegment: false),
 
-        // ADR 0142 D7's pin: a personnummer in the ACCOUNT display name never reaches the CV, so
-        // this case's verdict is its sibling's. Such a name is a state of rows written before
-        // #1117, and the probe writes the column directly.
-        new("pdf-clean-body-pnr-in-account-name",
-            "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
-            "gate axis — no account name reaches the composed DTO (ADR 0142 D7)",
-            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
-            p => p.RequireNoVerticalGutter(15),
-            "no vertical gutter of 15 pt or more exists",
-            SpikeMeasuredExtractSegment: false,
-            OneVariableStepFrom: "pdf-single-column-sv",
-            ProjectHeadingRendered: UnknownProjectHeading,
-            AccountDisplayName: "Konto Kontosson " + SyntheticPersonnummer),
-
         new("docx-table-label-first-no-blanks",
             "Word table, period cell before role cell, no blank paragraphs",
             "(c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible",
@@ -399,7 +376,7 @@ public static class LayoutCaseCatalog
         // #1060 beta-1's COST arm. Every other arm writes its field-bearing line role-before-
         // marker, so the shape where the two slots come out SWAPPED was invisible to every row.
         // beta-1 moved that population from an honest block to a promote, and an accepted cost that
-        // is published nowhere is a laundered one. One variable from row 20: within-line order.
+        // is published nowhere is a laundered one. One variable: within-line order.
         new("docx-company-first-header",
             "the field-bearing line written COMPANY-first — the shape whose slots come out swapped",
             "(c) table-based Word template — the arm that publishes beta-1's cost",
@@ -478,7 +455,7 @@ public static class LayoutCaseCatalog
                 // $"{Role} - {Marker}" in ONE node), so the only way a separator can reach this
                 // XML beside the freelance role is from inside the Role LITERAL. That is the
                 // mutation this proof exists to catch — a fixture edit fusing an employer into the
-                // role would turn the arm from irreducible into fused, and row 24 would leave
+                // role would turn the arm from irreducible into fused, and it would leave
                 // Blocked while §0 still reported the instrument healthy.
                 //
                 // ALL NINE separators, not just " - ": SplitTitleOrganization tries " — " and

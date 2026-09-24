@@ -1642,7 +1642,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.JobSeekers.AsNoTracking().Select(js => js.DisplayName).SingleAsync(ct))
+        (await db.Database.SqlQuery<string>($"SELECT display_name AS \"Value\" FROM job_seekers")
+                .SingleAsync(ct))
             .ShouldBe("Konsult åt Vendela Hjorthén");
     }
 
@@ -1984,7 +1985,9 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.JobSeekers.AsNoTracking().CountAsync(js => js.DisplayName == "Vendela Hjorthén", ct))
+        (await db.Database.SqlQuery<int>(
+                    $"SELECT count(*)::int AS \"Value\" FROM job_seekers WHERE display_name = {"Vendela Hjorthén"}")
+                .SingleAsync(ct))
             .ShouldBe(2);
     }
 
@@ -2507,8 +2510,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 
         var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
-        LegacyAccountName.Write(db, seeker, displayName);
         await db.SaveChangesAsync(ct);
+        await LegacyAccountName.WriteAsync(db, seeker.Id.Value, displayName, ct);
         return seeker.Id;
     }
 

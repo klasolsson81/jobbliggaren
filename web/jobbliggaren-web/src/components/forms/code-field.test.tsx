@@ -81,6 +81,8 @@ describe("CodeField", () => {
     expect(noscript).toContain("var(--jp-surface-primary)");
     expect(noscript).toContain("var(--jp-font-sans)");
     expect(noscript).toContain("[data-input-otp]:focus-visible{outline:2px solid var(--jp-focus)");
+    expect(noscript).toContain("forced-color-adjust:auto!important");
+    expect(noscript).toContain("[data-input-otp][aria-invalid=true]{border-color:var(--jp-danger-600)!important}");
     expect(noscript).not.toContain("prefers-color-scheme");
   });
 

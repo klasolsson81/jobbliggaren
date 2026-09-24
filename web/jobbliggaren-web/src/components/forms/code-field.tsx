@@ -1,5 +1,7 @@
 "use client";
 
+// Client because it holds the typed value and listens for its form's reset.
+
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -10,14 +12,14 @@ const SLOTS = Array.from({ length: CODE_LENGTH }, (_, index) => index);
 // With JavaScript off the slots never fill, so the real input is drawn as a plain field. The
 // library's own fallback hard-codes black and white and follows the system's dark mode.
 const NO_SCRIPT_CSS =
-  "[data-input-otp]{background-color:var(--jp-surface-primary)!important;color:var(--jp-text-primary)!important;caret-color:var(--jp-text-primary)!important;border:1px solid var(--jp-border-input)!important;border-radius:var(--jp-r-md)!important;letter-spacing:.25em!important;text-align:center!important;width:100%!important;font-family:var(--jp-font-sans)!important;font-variant-numeric:tabular-nums!important}[data-input-otp]:focus-visible{outline:2px solid var(--jp-focus)!important;outline-offset:2px!important}";
+  "[data-input-otp]{background-color:var(--jp-surface-primary)!important;color:var(--jp-text-primary)!important;caret-color:var(--jp-text-primary)!important;border:1px solid var(--jp-border-input)!important;border-radius:var(--jp-r-md)!important;letter-spacing:.25em!important;text-align:center!important;width:100%!important;font-family:var(--jp-font-sans)!important;font-variant-numeric:tabular-nums!important;forced-color-adjust:auto!important}[data-input-otp]:focus-visible{outline:2px solid var(--jp-focus)!important;outline-offset:2px!important}[data-input-otp][aria-invalid=true]{border-color:var(--jp-danger-600)!important}";
 
 // A code copied out of a mail can carry whitespace, and a pasted value that fails the digit pattern
 // is refused whole.
 const stripWhitespace = (text: string) => text.replace(/\s/g, "");
 
 // The six-digit code field, in the shape ADR 0142's "Page form" binds as amended for #1826: ONE real
-// input carrying the label, the value and the one tab stop, with six boxes drawn over it; a visible
+// input carrying the label, the value and the one tab stop, with six boxes drawn behind it; a visible
 // label, `one-time-code` so the platform's autofill fills it, numeric input mode, no placeholder. Every
 // code the product asks for is typed here.
 //

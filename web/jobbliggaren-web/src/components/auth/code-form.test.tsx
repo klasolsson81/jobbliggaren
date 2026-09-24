@@ -19,7 +19,7 @@ describe("CodeForm", () => {
     verifyCodeMock.mockResolvedValue(null);
   });
 
-  it("is ONE one-time-code input under the six boxes", () => {
+  it("is ONE one-time-code input over the six boxes", () => {
     render(<CodeForm />);
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);

@@ -1621,7 +1621,7 @@ No new logging. Retention unchanged. No DPIA. The deletion notice rides the logi
 phase with its name only, for its 120 seconds; the cookie policy says so and `cookies.updated` moved, while the
 privacy policy and its version did not.
 
-#### Amendment 2026-09-24 (9) (#1826, part 4 of epic #1822) — six boxes over one real input
+#### Amendment 2026-09-24 (9) (#1826, part 4 of epic #1822) — six boxes behind one real input
 
 *Decided by Klas Olsson; the form graded as built, before the PR, by `design-reviewer` and `dotnet-architect`
 (`docs/reviews/2026-09-24-1826-form-{design,architect}.md`).* The "Code step" bullet in "Page form" was corrected in
@@ -1637,9 +1637,9 @@ file.]
 
 **M3's four grounds, measured against the built field.** M3 forbade six boxes because a label cannot pair with six
 fields, paste breaks, a screen reader reads six nameless text boxes, and the DOM order becomes six tab stops for one
-value. Measured 2026-09-24 on the production build, all four hold: `input-otp` draws the boxes as `aria-hidden`
-elements under ONE real `<input>`, which carries the label, the value, `autocomplete="one-time-code"`, the paste and
-the only tab stop. What Klas overruled is the visual clause alone.
+value. Measured 2026-09-24 on the production build, the built field keeps all four properties M3 protected:
+`input-otp` draws the boxes as `aria-hidden` elements behind ONE real `<input>`, which carries the label, the value,
+`autocomplete="one-time-code"`, the paste and the only tab stop. What Klas overruled is the visual clause alone.
 
 **Where the library differs from a plain input.**
 - Its `pattern` is a RegExp tested against the whole value and written to the attribute, so `"[0-9]*"` would filter

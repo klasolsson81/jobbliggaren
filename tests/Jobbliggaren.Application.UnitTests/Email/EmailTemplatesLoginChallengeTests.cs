@@ -64,8 +64,9 @@ public sealed class EmailTemplatesLoginChallengeTests
         var rendered = Render(new LoginChallengeEmail.LinkOnly(Link));
 
         rendered.PlainTextBody.ShouldContain($"{BaseUrl}/logga-in/lank?token={Token}");
-        rendered.PlainTextBody.ShouldNotContain("inloggningskod är");
         rendered.PlainTextBody.ShouldContain("ingen kod");
+        rendered.PlainTextBody.ShouldNotMatch("[0-9]{6}");
+        rendered.HtmlBody.ShouldNotMatch("[0-9]{6}");
     }
 
     [Theory]
@@ -78,7 +79,6 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
-        rendered.PlainTextBody.ShouldNotContain("inloggningskod är");
         rendered.PlainTextBody.ShouldNotMatch("[0-9]{6}");
         rendered.HtmlBody.ShouldNotMatch("[0-9]{6}");
     }
@@ -122,6 +122,12 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.Split(SampleCode).Length.ShouldBe(2);
         rendered.HtmlBody.Split(SampleCode).Length.ShouldBe(2);
         rendered.HtmlBody.ShouldContain(EmailHtml.Code(SampleCode).ToString());
+
+        // The plain part has no preheader, so its first paragraph is what a client building its snippet from
+        // text/plain shows first (ADR 0144 D4 row 16, #1825).
+        var firstParagraph = rendered.PlainTextBody.Replace("\r\n", "\n", StringComparison.Ordinal).Split("\n\n")[0];
+        firstParagraph.ShouldNotBeNullOrWhiteSpace();
+        firstParagraph.ShouldNotContain(SampleCode);
     }
 
     [Fact]
@@ -170,8 +176,9 @@ public sealed class EmailTemplatesLoginChallengeTests
         text.ShouldContain("högst 15 minuter medan koden gäller");
         text.ShouldContain("högst 10 minuter till");
         text.ShouldContain("högst ett dygn");
-        text.ShouldContain("Skapar du kontot blir adressen kontots adress och sparas så länge kontot finns.");
-        text.ShouldContain("Skapar du inget konto finns adressen inte kvar hos oss efter tiderna ovan.");
+        text.ShouldContain(
+            "Skapar du kontot sparas adressen så länge kontot finns, annars finns den inte kvar hos oss efter "
+            + "tiderna ovan.");
 
         // The closed mail's unconditional sentence is false for a recipient who goes on to create the account.
         text.ShouldNotContain("Därefter finns den inte kvar hos oss");
@@ -191,8 +198,7 @@ public sealed class EmailTemplatesLoginChallengeTests
 
         // True here and false in NewAccountCode: without a code there is no grant and no account.
         text.ShouldContain(
-            "Därefter finns den inte kvar hos oss. Det här meddelandet innehåller ingen kod, så inget konto kan "
-            + "skapas med det.");
+            "Därefter finns den inte kvar hos oss, eftersom inget konto kan skapas med det här meddelandet.");
     }
 
     [Fact]
@@ -262,7 +268,6 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.HtmlBody.ShouldNotContain("token=");
-        rendered.PlainTextBody.ShouldContain("ingen länk");
 
         var text = Unwrapped(rendered.PlainTextBody);
         text.ShouldContain("ditt konto");
@@ -284,7 +289,80 @@ public sealed class EmailTemplatesLoginChallengeTests
         rendered.PlainTextBody.ShouldNotContain("/logga-in/lank");
         rendered.PlainTextBody.ShouldNotContain("token=");
         rendered.HtmlBody.ShouldNotContain("token=");
-        rendered.PlainTextBody.ShouldContain("Mejlet innehåller ingen länk.");
+    }
+
+    // The bound blocks as security-auditor signed them in #1825's form round (DESIGN.md §8 rule 7, ADR 0144 D4).
+    // Each is asserted word for word in both parts, because the two are hand-maintained copies.
+    private const string SignedProcessor =
+        "E-posten levereras av Scaleway SAS i Frankrike, som i personuppgiftsbiträdesavtalet har åtagit sig att "
+        + "behandla den inom EU.";
+
+    private const string SignedControllerAndRights =
+        "Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren. Du har rätt att invända mot "
+        + "behandlingen och att begära information, rättelse, radering eller begränsning. Skriv till oss: "
+        + EmailTemplates.ContactAddress;
+
+    private const string SignedComplaint = "Du kan också klaga hos Integritetsskyddsmyndigheten, imy.se.";
+
+    private static readonly Dictionary<string, string> SignedBlock = new()
+    {
+        ["no-credential-basis"] =
+            "Adressen har angetts på vår inloggningssida, av dig eller av någon annan. Den används bara för att "
+            + "skicka det här meddelandet och för att begränsa hur många meddelanden som kan skickas till den. Angav "
+            + "du den själv är grunden att vi vidtar en åtgärd du har begärt (artikel 6.1 b), annars berättigat "
+            + "intresse (artikel 6.1 f): den som äger en adress ska få veta att den har använts hos oss.",
+        ["registration-closed-retention"] =
+            "Vi sparar adressen skyddad i högst 15 minuter och ett avtryck av den i högst ett dygn. Därefter finns "
+            + "den inte kvar hos oss. " + SignedProcessor,
+        ["limit-reached-retention"] =
+            "Vi sparar adressen skyddad i högst 15 minuter och ett avtryck av den i högst ett dygn. Därefter finns "
+            + "den inte kvar hos oss, eftersom inget konto kan skapas med det här meddelandet. " + SignedProcessor,
+        ["new-account-ground"] =
+            "Adressen har angetts på vår inloggningssida, av dig eller av någon annan. Den används för att skicka "
+            + "det här meddelandet, för att begränsa hur många meddelanden som kan skickas till den, och för att "
+            + "skapa kontot om du väljer att göra det. Angav du den själv är grunden att vi vidtar åtgärder på din "
+            + "begäran innan ett avtal ingås (artikel 6.1 b), annars berättigat intresse (artikel 6.1 f): den som "
+            + "äger en adress ska få veta att den har använts hos oss. Koden finns bara i det här meddelandet, så "
+            + "ingen annan kan skapa ett konto med adressen. Angav du inte adressen själv behöver du inte göra något.",
+        ["new-account-retention"] =
+            "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller, och i högst 10 minuter till om du "
+            + "använder koden. Ett avtryck av adressen sparas i högst ett dygn. Skapar du kontot sparas adressen så "
+            + "länge kontot finns, annars finns den inte kvar hos oss efter tiderna ovan. " + SignedProcessor,
+        ["controller-and-rights"] = SignedControllerAndRights,
+        ["complaint"] = SignedComplaint,
+        ["reauth-opening"] =
+            "Någon som är inloggad på ditt konto vill göra en ändring: radera kontot eller byta e-postadress.",
+        ["reauth-detection"] =
+            "Om det inte var du är någon annan inloggad på ditt konto. Ändringen kan inte göras utan koden. Skriv "
+            + "till oss så hjälper vi dig: " + EmailTemplates.ContactAddress,
+    };
+
+    public static TheoryData<string, string> SignedBlocks() => new()
+    {
+        { "registration-closed", "no-credential-basis" },
+        { "registration-closed", "registration-closed-retention" },
+        { "registration-closed", "controller-and-rights" },
+        { "registration-closed", "complaint" },
+        { "new-account-code-limit-reached", "no-credential-basis" },
+        { "new-account-code-limit-reached", "limit-reached-retention" },
+        { "new-account-code-limit-reached", "controller-and-rights" },
+        { "new-account-code-limit-reached", "complaint" },
+        { "new-account-code", "new-account-ground" },
+        { "new-account-code", "new-account-retention" },
+        { "new-account-code", "controller-and-rights" },
+        { "new-account-code", "complaint" },
+        { "reauthentication-code", "reauth-opening" },
+        { "reauthentication-code", "reauth-detection" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SignedBlocks))]
+    public void Every_signed_block_stands_word_for_word_in_both_parts(string variant, string block)
+    {
+        var rendered = RenderVariant(variant);
+
+        Unwrapped(rendered.PlainTextBody).ShouldContain(SignedBlock[block]);
+        Unwrapped(Tag.Replace(rendered.HtmlBody, " ")).ShouldContain(SignedBlock[block]);
     }
 
     [Fact]
@@ -292,8 +370,7 @@ public sealed class EmailTemplatesLoginChallengeTests
     {
         // Recipient class (3), and the notice is not conditioned on anything: at send time nobody knows whether
         // the recipient is the account holder or a stranger. Pinned whole in both parts, because the two are
-        // hand-maintained copies and drift is the failure mode; the rights paragraph is pinned up to its address
-        // tail, the one place the parts differ by design.
+        // hand-maintained copies and drift is the failure mode.
         var rendered = Render(AddressChange());
 
         const string sourceAndBasis =
@@ -304,29 +381,19 @@ public sealed class EmailTemplatesLoginChallengeTests
             + "berättigat intresse (artikel 6.1 f): en adress ska inte kunna kopplas till ett konto utan att den "
             + "som äger den bekräftar det.";
         const string ignoring =
-            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot. Koden slutar gälla "
-            + "efter 15 minuter.";
+            "Bortser du från meddelandet ändras ingenting: adressen kopplas aldrig till kontot.";
         const string retentionAndProcessor =
-            "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller. Använder du koden sparas den i "
-            + "högst 10 minuter till, medan bytet slutförs. Avtryck av adressen sparas i högst ett dygn för "
-            + "att begränsa hur många meddelanden som kan skickas till den. Slutförs bytet blir adressen kontots "
-            + "adress och sparas så länge kontot finns. Slutförs det inte finns adressen inte kvar hos oss efter "
-            + "tiderna ovan. E-posten levereras av Scaleway SAS i Frankrike, som behandlar meddelandet för att "
-            + "kunna leverera det. I personuppgiftsbiträdesavtalet har leverantören åtagit sig att behandlingen "
-            + "sker inom EU.";
+            "Vi sparar adressen skyddad i högst 15 minuter medan koden gäller, och i högst 10 minuter till om du "
+            + "använder koden. Avtryck av adressen sparas i högst ett dygn. Slutförs bytet sparas adressen så länge "
+            + "kontot finns, annars finns den inte kvar hos oss efter tiderna ovan. " + SignedProcessor;
 
         foreach (var part in new[] { Unwrapped(rendered.PlainTextBody), Unwrapped(Tag.Replace(rendered.HtmlBody, " ")) })
         {
             part.ShouldContain(sourceAndBasis);
             part.ShouldContain(ignoring);
             part.ShouldContain(retentionAndProcessor);
-            part.ShouldContain("Personuppgiftsansvarig är Klas Olsson, privatperson, som driver Jobbliggaren.");
-            part.ShouldContain(
-                "Du har rätt att invända mot behandlingen och att begära information, rättelse, radering eller "
-                + "begränsning. Skriv till oss:");
-            part.ShouldContain(
-                "Är du inte nöjd med hur vi behandlar dina uppgifter kan du lämna klagomål till "
-                + "Integritetsskyddsmyndigheten, imy.se.");
+            part.ShouldContain(SignedControllerAndRights);
+            part.ShouldContain(SignedComplaint);
 
             // The address sits protected while the code and the grant live, so "vi sparar den inte" is false here.
             part.ShouldNotContain("sparar den inte");

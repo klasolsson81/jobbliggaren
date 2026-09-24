@@ -77,36 +77,34 @@ internal static partial class EmailTemplates
         var matchesLink = $"{trimmed}/matchningar";
         var settingsLink = $"{trimmed}/mina-sidor";
 
+        // A direct mail's one match is its first line; a digest leads with the count and lists the matches.
+        var direct = content.Kind == MatchNotificationKind.Direct;
+
         var items = new StringBuilder();
         var htmlItems = new List<string>();
         foreach (var item in content.Items)
         {
             // Komma-separator (INTE em-dash) — em-dash är förbjudet i svensk UI-copy
             // (feedback_no_em_dash_in_ui_copy; e-postkroppen är användarvänd copy).
-            items.AppendLine(CultureInfo.InvariantCulture,
-                $"- {item.JobTitle}, {item.CompanyName} ({item.GradeLabel})");
-            htmlItems.Add($"{item.JobTitle}, {item.CompanyName} ({item.GradeLabel})");
+            var line = $"{item.JobTitle}, {item.CompanyName} ({item.GradeLabel})";
+            items.AppendLine(direct ? line : "- " + line);
+            htmlItems.Add(line);
         }
         var remaining = content.TotalCount - content.Items.Count;
         var andMore = remaining > 0
             ? $"\noch {remaining} till.\n"
             : string.Empty;
 
-        var countPhrase = content.TotalCount == 1
-            ? "en ny matchning"
-            : $"{content.TotalCount} nya matchningar";
-        var (subject, intro) = content.Kind == MatchNotificationKind.Direct
-            ? ("Ny toppmatchning på Jobbliggaren",
-               "Bakgrundsmatchningen har hittat en ny toppmatchning åt dig:")
-            : ("Din sammanfattning av nya matchningar",
-               $"Bakgrundsmatchningen har hittat {countPhrase} sedan sist:");
+        var subject = direct ? "Ny toppmatchning på Jobbliggaren" : "Din sammanfattning av nya matchningar";
+        var intro = content.TotalCount == 1
+            ? "En ny matchning sedan sist:"
+            : $"{content.TotalCount} nya matchningar sedan sist:";
+        var lead = direct ? string.Empty : $"{intro}\n\n";
 
         return new EmailContent(
             Subject: subject,
             PlainTextBody: $"""
-                {intro}
-
-                {items.ToString().TrimEnd()}
+                {lead}{items.ToString().TrimEnd()}
                 {andMore}
                 Öppna dina matchningar:
                 {matchesLink}
@@ -121,12 +119,12 @@ internal static partial class EmailTemplates
                 """,
             HtmlBody: EmailHtml.Document(
                 title: subject,
-                // The intro carries the count, so the inbox preview answers "how many" before the
-                // mail is opened — Klas-krav "informationen först", applied one level earlier than
-                // the body.
-                preheader: intro,
-                body: EmailHtml.P(intro)
-                    + EmailHtml.List(htmlItems)
+                // The body's first line is also the inbox preview: the match itself in a direct mail,
+                // the count in a digest (Klas-krav "informationen först").
+                preheader: direct ? string.Join(" ", htmlItems) : intro,
+                body: (direct
+                        ? htmlItems.Aggregate(Markup.Empty, (markup, line) => markup + EmailHtml.P(line))
+                        : EmailHtml.P(intro) + EmailHtml.List(htmlItems))
                     + (remaining > 0 ? EmailHtml.P($"och {remaining} till.") : Markup.Empty)
                     + EmailHtml.Button(matchesLink, "Öppna dina matchningar")
                     + EmailHtml.LinkParagraph(
@@ -186,12 +184,10 @@ internal static partial class EmailTemplates
             ? $"\noch {remaining} till.\n"
             : string.Empty;
 
-        var countPhrase = content.TotalCount == 1
-            ? "en ny annons"
-            : $"{content.TotalCount} nya annonser";
-
         var filterDisclosure = BuildFilterDisclosure(content.FilterSummary, companiesLink);
-        var intro = $"Företag du följer har publicerat {countPhrase} sedan sist:";
+        var intro = content.TotalCount == 1
+            ? "En ny annons sedan sist:"
+            : $"{content.TotalCount} nya annonser sedan sist:";
 
         return new EmailContent(
             Subject: "Nya annonser från företag du följer",
@@ -317,9 +313,6 @@ internal static partial class EmailTemplates
         return new EmailContent(
             Subject: "Din e-postadress har ändrats",
             PlainTextBody: $"""
-                E-postadressen som är kopplad till ditt konto på Jobbliggaren har ändrats
-                till en annan adress.
-
                 Om det var du som gjorde ändringen behöver du inte göra något.
 
                 Om du inte känner igen ändringen kan någon annan ha fått tillgång till ditt
@@ -332,10 +325,7 @@ internal static partial class EmailTemplates
             HtmlBody: EmailHtml.Document(
                 title: "Din e-postadress har ändrats",
                 preheader: "Om det var du som gjorde ändringen behöver du inte göra något.",
-                body: EmailHtml.P(
-                        "E-postadressen som är kopplad till ditt konto på Jobbliggaren har ändrats "
-                        + "till en annan adress.")
-                    + EmailHtml.P("Om det var du som gjorde ändringen behöver du inte göra något.")
+                body: EmailHtml.P("Om det var du som gjorde ändringen behöver du inte göra något.")
                     + EmailHtml.LinkParagraph(
                         "Om du inte känner igen ändringen kan någon annan ha fått tillgång till "
                         + "ditt konto. Hör av dig till oss så hjälper vi dig:",

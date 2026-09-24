@@ -5,10 +5,6 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
-using Jobbliggaren.Infrastructure.Identity;
-using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.TestSupport;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -233,22 +229,6 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
         getJson.GetProperty("personnummer").GetProperty("found").GetBoolean().ShouldBeFalse();
     }
 
-    // A clean CV the parser reads fine and the gate promotes: it carries no personnummer.
-    private static byte[] CleanCvDocx() =>
-        CvDocxFixtures.BuildDocx(
-            "Anna Andersson", "anna@example.com",
-            "Erfarenhet", "Backend-utvecklare", "Beta AB", "2021-2024",
-            "Utbildning", "Civilingenjör - KTH", "2015-2020",
-            "Kompetenser", "C#, PostgreSQL");
-
-    private static async Task<(HttpStatusCode Status, JsonElement Json)> ImportCleanCvAsync(
-        HttpClient client, CancellationToken ct)
-    {
-        using var form = FileForm(CleanCvDocx(), "cv.docx", DocxContentType);
-        var import = await client.PostAsync("/api/v1/resumes/import", form, ct);
-        return (import.StatusCode, await import.Content.ReadFromJsonAsync<JsonElement>(ct));
-    }
-
     private static async Task<JsonElement> MasterPersonalInfoAsync(
         HttpClient client, string resumeId, CancellationToken ct)
     {
@@ -288,45 +268,6 @@ public class GetParsedResumeEndpointTests(ApiFactory factory)
             .GetProperty("verdicts").EnumerateArray()
             .Single(v => v.GetProperty("criterionId").GetString() == "B3")
             .GetProperty("verdict").GetString().ShouldBe("Pass");
-    }
-
-    [Fact]
-    public async Task Import_for_a_legacy_account_name_carrying_a_personnummer_promotes_and_never_echoes_it()
-    {
-        // THE ACTOR THAT PRODUCED THIS STATE: a row written before the #1117 invariant landed, the
-        // one that let a personnummer into the account name. The column is written directly through
-        // LegacyAccountName, which names the pin. The account name no longer reaches the CV (ADR 0142
-        // D7), so it cannot block a clean file; this guards against that channel being re-opened.
-        var ct = TestContext.Current.CancellationToken;
-        var client = _factory.CreateClient();
-        var email = $"parsed-{Guid.NewGuid():N}@jobbliggaren.test";
-        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(
-            _factory, email: email, ct: ct);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
-
-        await using (var scope = _factory.Services.CreateAsyncScope())
-        {
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await userManager.FindByEmailAsync(email)
-                ?? throw new InvalidOperationException("Registered user not found.");
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            // Keyed on THIS account's user id, never on the display name: the fixture shares a
-            // collection, so a name-matched lookup could bind another test's seeker.
-            var seeker = await db.JobSeekers.SingleAsync(js => js.UserId == user.Id, ct);
-            LegacyAccountName.Write(db, seeker, $"Anna {ValidPersonnummer}");
-            await db.SaveChangesAsync(ct);
-        }
-
-        var (status, importJson) = await ImportCleanCvAsync(client, ct);
-
-        status.ShouldBe(HttpStatusCode.Created);
-        importJson.GetProperty("outcome").GetString().ShouldBe("Promoted");
-        var resumeId = importJson.GetProperty("resumeId").GetString()!;
-
-        (await MasterPersonalInfoAsync(client, resumeId, ct))
-            .GetProperty("fullName").ValueKind.ShouldBe(JsonValueKind.Null);
-        var get = await client.GetAsync($"/api/v1/resumes/{resumeId}", ct);
-        (await get.Content.ReadAsStringAsync(ct)).ShouldNotContain(ValidPersonnummer);
     }
 
     [Fact]

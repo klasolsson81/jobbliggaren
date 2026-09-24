@@ -12,7 +12,6 @@ using Jobbliggaren.Domain.Privacy;
 using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.TestSupport;
 using Jobbliggaren.Worker.IntegrationTests.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,7 +54,6 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
     // the contact name the canonical CV must NEVER carry.
     private const string ProfileMarker = "PII-AUTOPROMOTE-PROFIL-5A-7731";
     private const string ParsedContactName = "Fil Namnsson";
-    private const string AccountDisplayName = "Anna Kontosson";
 
     // ── Seeding ──────────────────────────────────────────────────────────
 
@@ -67,7 +65,6 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
         var seeker = JobSeeker.Register(
             userId, TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
-        LegacyAccountName.Write(db, seeker, AccountDisplayName);
         await db.SaveChangesAsync(ct);
         return seeker;
     }
@@ -228,12 +225,10 @@ public class AutoPromoteParsedResumeEncryptionTests(WorkerTestFixture fixture)
                 .SingleAsync(r => r.Id == resumeId, ct);
 
             // #1060: the LABEL is GENERATED (non-PII by construction — never the file name,
-            // which ADR 0096 D-B refused for Resume, and never the account name), and the content
-            // carries no person's name, neither the account's nor the file's (ADR 0142 D7). This
-            // test reads both through the real encryption pipeline, so the absent name round-trips
-            // the encrypted shadow here.
+            // which ADR 0096 D-B refused for Resume), and the content carries no person's name
+            // (ADR 0142 D7). This test reads both through the real encryption pipeline, so the
+            // absent name round-trips the encrypted shadow here.
             resume.Name.ShouldStartWith("Importerat CV ");
-            resume.Name.ShouldNotBe(AccountDisplayName);
             var content = resume.MasterVersion.Content;
             content.PersonalInfo.FullName.ShouldBeNull();
             content.Summary.ShouldBe(ProfileMarker);

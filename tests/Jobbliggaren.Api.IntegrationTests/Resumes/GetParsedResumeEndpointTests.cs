@@ -5,8 +5,6 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Resumes.Common;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;

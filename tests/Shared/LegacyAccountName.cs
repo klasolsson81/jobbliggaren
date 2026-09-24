@@ -8,9 +8,7 @@ namespace Jobbliggaren.TestSupport;
 /// No path in <c>src/</c> writes that column since #1741 PR B (ADR 0142 D7), and from #1742 on the
 /// model does not map it; the pin is <c>JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate</c>.
 /// A test that needs a named account therefore asserts about a row a RETIRED actor wrote:
-/// <c>JobSeeker.Register</c> with a name, or <c>UpdateDisplayName</c>, both before #1741 PR B. Only a
-/// test with a live reader of the physical column uses it, the recruiter-erasure search, until
-/// #1742 drops the column.
+/// <c>JobSeeker.Register</c> with a name, or <c>UpdateDisplayName</c>, both before #1741 PR B.
 /// </para>
 /// </summary>
 public static class LegacyAccountName

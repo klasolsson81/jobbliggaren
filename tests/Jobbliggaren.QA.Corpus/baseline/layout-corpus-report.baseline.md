@@ -1148,7 +1148,7 @@ any particular follow-up ships**; it belongs to whatever work first authors such
 per-entry routing (β-3) is the consumer that would. Written that way deliberately: a PR that is
 permitted not to exist cannot be the carrier of an obligation this file creates.
 
-**What β-1 did publish is its own cost.** Row 23 `docx-company-first-header` is the only arm whose
+**What β-1 did publish is its own cost.** `docx-company-first-header` is the only arm whose
 field-bearing line is written company-first, and it is the shape β-1 moved from an honest block to
 a promote with the two slots swapped. It prints **`PromotedFaithful`** — because
 `LayoutChainRunner.Decide` reads entry COUNTS — while every one of its eight markers prints

@@ -376,7 +376,7 @@ public static class LayoutCaseCatalog
         // #1060 beta-1's COST arm. Every other arm writes its field-bearing line role-before-
         // marker, so the shape where the two slots come out SWAPPED was invisible to every row.
         // beta-1 moved that population from an honest block to a promote, and an accepted cost that
-        // is published nowhere is a laundered one. One variable from row 20: within-line order.
+        // is published nowhere is a laundered one. One variable: within-line order.
         new("docx-company-first-header",
             "the field-bearing line written COMPANY-first — the shape whose slots come out swapped",
             "(c) table-based Word template — the arm that publishes beta-1's cost",
@@ -455,7 +455,7 @@ public static class LayoutCaseCatalog
                 // $"{Role} - {Marker}" in ONE node), so the only way a separator can reach this
                 // XML beside the freelance role is from inside the Role LITERAL. That is the
                 // mutation this proof exists to catch — a fixture edit fusing an employer into the
-                // role would turn the arm from irreducible into fused, and row 24 would leave
+                // role would turn the arm from irreducible into fused, and it would leave
                 // Blocked while §0 still reported the instrument healthy.
                 //
                 // ALL NINE separators, not just " - ": SplitTitleOrganization tries " — " and

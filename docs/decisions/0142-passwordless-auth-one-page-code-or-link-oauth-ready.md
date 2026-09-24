@@ -623,7 +623,7 @@ Retention unchanged until 4b drops the column. No DPIA.
 - **U** removes `JobSeeker.DisplayName` and its EF row through the migration `UnmapJobSeekerDisplayName`. Its
   `Up`/`Down` are empty, so the snapshot forgets a column that stays in the database.
 - **D** drops the column with a hand-written `DropColumn` (`DropJobSeekerDisplayName`). The recruiter-erasure
-  search over the column goes in the same PR, together with the privacy copy, the register and the runbooks:
+  search over the column goes in the same PR, together with the privacy copy and the runbooks:
   they describe the data, so they follow it.
 
 **Why two PRs: the release pipeline, not the column.**
@@ -659,7 +659,7 @@ unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses.
 question was quoted to him verbatim first.
 1. **B5.** `security-auditor` offered: "**(b)** B5 tas bort, och en träff i användarnas profiluppgifter
    besvaras med B2. B2:s text ändras inte." or "**(a)** B5 står kvar med bara de två osanna delarna
-   strukna". Klas: "(b) B5 bort, B2 svarar". D deletes B5 and routes `matched.jobSeekerProfiles > 0` to B2.
+   strukna …". Klas: "(b) B5 bort, B2 svarar". D deletes B5 and routes `matched.jobSeekerProfiles > 0` to B2.
 2. **#1759's hold.** `dotnet-architect` asked: "Får 4b:s kolumndrop, som inte går att backa med en tagg, ingå
    i den release som din fortsättnings-GO för #1759-holdet deployar? Eller ska 4b vänta med merge tills
    holdet är hävt eller avskrivet?" Klas: "4b får ingå i releasen". The hold was not active when he

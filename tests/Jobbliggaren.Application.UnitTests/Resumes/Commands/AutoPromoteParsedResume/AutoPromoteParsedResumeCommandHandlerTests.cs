@@ -225,12 +225,11 @@ public class AutoPromoteParsedResumeCommandHandlerTests
     }
 
     /// <summary>
-    /// The canonical CV carries no person's name (ADR 0142 D7): not the account holder's, even
-    /// when the account has one, and never the name the FILE claims. If this goes red, a name
-    /// has found its way back into the content.
+    /// The canonical CV carries no person's name (ADR 0142 D7): never the name the FILE claims. If
+    /// this goes red, a name has found its way back into the content.
     /// </summary>
     [Fact]
-    public async Task Handle_ContentCarriesNoPersonName_EvenWhenTheAccountHasOne()
+    public async Task Handle_ContentCarriesNoPersonName_NotEvenTheOneTheFileClaims()
     {
         var db = TestAppDbContextFactory.Create();
         var (parsed, _) = await SeedOwnedAsync(db, _userId);
@@ -490,23 +489,6 @@ public class AutoPromoteParsedResumeCommandHandlerTests
             Command(parsed.Id.Value), TestContext.Current.CancellationToken);
 
         await AssertLeftPendingAsync(db, result, parsed, AutoPromoteBlockReason.IncompleteContent);
-    }
-
-    /// <summary>An owner with no display name, as the passwordless consent step registers one
-    /// (ADR 0142 D7), is promoted: the CV requires no name.</summary>
-    [Fact]
-    public async Task Handle_OwnerWithNoDisplayName_Promotes()
-    {
-        var db = TestAppDbContextFactory.Create();
-        var (parsed, _) = await SeedOwnedAsync(db, _userId);
-
-        var result = await CreateSut(db).Handle(
-            Command(parsed.Id.Value), TestContext.Current.CancellationToken);
-
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBeOfType<AutoPromoteOutcome.Promoted>();
-        db.Resumes.Local.ShouldHaveSingleItem()
-            .MasterVersion.Content.PersonalInfo.FullName.ShouldBeNull();
     }
 
     /// <summary>

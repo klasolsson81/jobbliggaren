@@ -129,13 +129,18 @@ public sealed class DisplayNameNullableMigrationTests : IAsyncLifetime
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO job_seekers (id, user_id, display_name, preferences, created_at)
-            VALUES (@id, @user_id, @name, '{"Language":"sv"}'::jsonb, now())
+            VALUES (@id, @user_id, NULL, '{"Language":"sv"}'::jsonb, now())
             """,
             conn);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("user_id", Guid.NewGuid());
-        cmd.Parameters.AddWithValue("name", (object?)displayName ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
+
+        if (displayName is not null)
+        {
+            await using var db = NewAppContext();
+            await LegacyAccountName.WriteAsync(db, id, displayName, ct);
+        }
 
         return id;
     }

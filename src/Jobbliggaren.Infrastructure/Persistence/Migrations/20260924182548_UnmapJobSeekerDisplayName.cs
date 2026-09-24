@@ -16,8 +16,7 @@ namespace Jobbliggaren.Infrastructure.Persistence.Migrations
     /// physical table until the drop migration. This is the unmap step of a Parallel Change: each
     /// image is published in its own matrix cell and nothing checks that the box runs one commit's
     /// images (#1238), so a migrate that dropped the column could run beside an api or worker that
-    /// still selects it. With the mapping gone one deploy earlier, both skews are safe. ADR 0142
-    /// records the decision.
+    /// still selects it. ADR 0142 records the decision.
     /// </para>
     /// <para>
     /// <b>Rolling back.</b> Pinning an image tag older than this migration makes <c>migrate</c> refuse

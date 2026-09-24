@@ -519,6 +519,25 @@ public sealed class LayoutCorpusEmitterTests
         markdown.ShouldContain("**byte proofs held:** `case-crashed`, `case-alpha`");
     }
 
+    [Fact]
+    public void Report_ForACleanBody_SaysNoPersonnummerWasAuthored()
+    {
+        var clean = Observation("case-clean-body");
+        var markdown = LayoutCorpusReport.Build(Data() with
+        {
+            Cases =
+            [
+                clean with
+                {
+                    Case = clean.Case with { Model = CvModel.Swedish with { SyntheticPersonnummer = null } },
+                },
+            ],
+        });
+
+        var (header, row) = TableRow(markdown, "| Case | Confidence overall | ");
+        Cell(header, row, "pnr authored").ShouldBe("none");
+    }
+
     private static int Cells(string row) => row.Split('|').Length;
 
     /// <summary>A table's header and its first data row, located by the header's opening text. The

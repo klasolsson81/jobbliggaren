@@ -19,7 +19,7 @@ describe("CodeForm", () => {
     verifyCodeMock.mockResolvedValue(null);
   });
 
-  it("is ONE one-time-code field, never six boxes", () => {
+  it("is ONE one-time-code input over the six boxes", () => {
     render(<CodeForm />);
 
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
@@ -27,7 +27,7 @@ describe("CodeForm", () => {
     expect(field).toHaveAttribute("autocomplete", "one-time-code");
     expect(field).toHaveAttribute("inputmode", "numeric");
     expect(field).toHaveAttribute("maxlength", "6");
-    expect(field).toHaveAttribute("pattern", "[0-9]*");
+    expect(field).toHaveAttribute("pattern", "^\\d+$");
     expect(field).not.toHaveAttribute("placeholder");
     expect(field).toHaveAccessibleDescription(
       "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress."
@@ -70,6 +70,20 @@ describe("CodeForm", () => {
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toContain(alert.id);
     await waitFor(() => expect(field).toHaveFocus());
+  });
+
+  it("empties the field after a miss, boxes included, so the code is typed again", async () => {
+    verifyCodeMock.mockResolvedValue({ error: WRONG, channel: "field" });
+    const user = userEvent.setup();
+    const { container } = render(<CodeForm />);
+
+    await user.type(screen.getByLabelText("Sexsiffrig kod"), "000000");
+    await user.click(screen.getByRole("button", { name: "Bekräfta koden" }));
+    await screen.findByRole("alert");
+
+    await waitFor(() => expect(screen.getByLabelText("Sexsiffrig kod")).toHaveValue(""));
+    const boxes = container.querySelectorAll('[data-slot="input-otp-slot"]');
+    expect(Array.from(boxes).map((box) => box.textContent).join("")).toBe("");
   });
 
   it("warns before the last attempt, in the same alert so it is announced once", async () => {

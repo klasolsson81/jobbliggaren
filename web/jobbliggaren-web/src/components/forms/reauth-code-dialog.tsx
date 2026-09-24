@@ -467,7 +467,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 leadingDescriptionId={sentLineId}
                 inputRef={codeRef}
                 value={code}
-                onChange={(event) => setCode(event.target.value)}
+                onValueChange={setCode}
               />
             ) : (
               <div ref={panelRef} tabIndex={-1} role="status" aria-live="polite">

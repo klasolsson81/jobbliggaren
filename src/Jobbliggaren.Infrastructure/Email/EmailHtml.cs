@@ -114,6 +114,9 @@ internal readonly record struct Markup(string Value)
 /// <c>PasswordChangedNotice</c> lost its own later the same day: its route is deliberately an inline
 /// link, since a button there shouts at everyone who performed the reset themselves. <c>mso-padding-alt</c> is the accepted form and needs no VML.
 /// <c>border-radius</c> is ignored in Word too and buttons degrade to square, which is acceptable.
+/// The card is fluid up to 600px, so a phone lays it out at its own width instead of shrinking a
+/// fixed one; Word ignores <c>max-width</c>, so a 600px table inside <c>&lt;!--[if mso]&gt;</c>
+/// comments holds the width there (design-reviewer, #1825's form round, 2026-09-24).
 /// </para>
 ///
 /// <para>
@@ -188,11 +191,11 @@ internal static class EmailHtml
     /// <summary>
     /// Zero-width filler after the preheader. Without it Gmail runs the preview text straight into
     /// the first visible line, which here is the <c>&lt;h1&gt;</c> — identical to the subject — so
-    /// the inbox preview repeats the subject back at itself (design-reviewer Minor 3, 2026-08-12).
+    /// the inbox preview repeats the subject back at itself (design-reviewer Minor 3, 2026-08-12). It is
+    /// long enough for a wide desktop preview too, because what follows the h1 in a code mail is the
+    /// code (security-auditor, #1825, Minor 1).
     /// </summary>
-    private const string PreheaderFiller =
-        "&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;"
-        + "&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;";
+    internal static readonly string PreheaderFiller = string.Concat(Enumerable.Repeat("&#847;&zwnj;&nbsp;", 90));
 
     /// <summary>
     /// Wraps a rendered body in the shell.
@@ -225,7 +228,8 @@ internal static class EmailHtml
         <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:{Canvas};">{Encode(preheader)}{PreheaderFiller}</div>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{Canvas}" style="background-color:{Canvas};">
         <tr><td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="{Surface}" style="width:600px;max-width:600px;background-color:{Surface};border:1px solid {Border};border-radius:6px;">
+        <!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{Surface}" style="width:100%;max-width:600px;margin:0 auto;background-color:{Surface};border:1px solid {Border};border-radius:6px;">
         <tr><td height="4" bgcolor="{Accent}" style="height:4px;line-height:4px;font-size:4px;background-color:{Accent};">&nbsp;</td></tr>
         <tr><td style="padding:28px 32px 0 32px;">
         <h1 style="margin:0 0 16px 0;font-family:{FontStack};font-size:22px;line-height:1.3;font-weight:700;color:{Heading};">{Encode(title)}</h1>
@@ -241,6 +245,7 @@ internal static class EmailHtml
         <div style="margin:4px 0 0 0;font-family:{FontStack};font-size:14px;line-height:1.5;color:{Ink};">{Encode(Tagline)}</div>
         </td></tr>
         </table>
+        <!--[if mso]></td></tr></table><![endif]-->
         </td></tr>
         </table>
         </body>

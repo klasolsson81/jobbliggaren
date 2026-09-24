@@ -404,6 +404,27 @@ public class EmailHtmlNoRemoteResourceTests
     }
 
     [Fact]
+    public void EmailHtml_TheCard_IsFluidUpToItsMaximumWidthAndGivesWordAFixedOne()
+    {
+        var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
+
+        html.ShouldContain("style=\"width:100%;max-width:600px;");
+        html.ShouldNotMatch("(?<!max-)width:600px");
+        html.ShouldContain("<!--[if mso]><table role=\"presentation\" width=\"600\"");
+        html.ShouldContain("<!--[if mso]></td></tr></table><![endif]-->");
+    }
+
+    [Fact]
+    public void EmailHtml_ThePreheader_IsFollowedByTheWholeFiller()
+    {
+        var html = EmailHtml.Document("Rubrik", "Förhandsvisning", Markup.Empty);
+
+        html.ShouldContain("Förhandsvisning" + EmailHtml.PreheaderFiller + "</div>");
+        Regex.Count(EmailHtml.PreheaderFiller, Regex.Escape("&#847;&zwnj;&nbsp;")).ShouldBeGreaterThanOrEqualTo(
+            90, "a shorter filler lets the h1 and the body after it, a code mail's code included, into a desktop preview");
+    }
+
+    [Fact]
     public void EmailHtml_WhenAValueWouldReachAnAttribute_EscapesTheQuote()
     {
         // Asserts the PRIMITIVE's transform, not a claim about any mail: no production path puts

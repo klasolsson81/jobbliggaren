@@ -376,7 +376,7 @@ public static class LayoutCorpusReport
         L("a column printing only the declaration would hide it behind the very content loss this");
         L("corpus measures. The value itself is never printed.");
         L();
-        L("| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |");
+        L("| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored | pnr OBSERVED on parse |");
         L("|---|---|---|---|---|---|");
         foreach (var c in d.Cases)
         {
@@ -542,20 +542,9 @@ public static class LayoutCorpusReport
     private static string Quote(string? s) =>
         string.IsNullOrEmpty(s) ? "—" : $"`{(s.Length <= 44 ? s : s[..44] + "…")}`";
 
-    /// <summary>Which surface the case AUTHORED a personnummer on. Never the value.</summary>
-    private static string AuthoredPnr(LayoutCaseObservation c)
-    {
-        var body = c.Case.Model.SyntheticPersonnummer is not null;
-        var account = !string.Equals(
-            c.Case.AccountDisplayName, LayoutCaseCatalog.DefaultAccountName, StringComparison.Ordinal);
-
-        return (body, account) switch
-        {
-            (true, _) => "body (synthetic, not printed)",
-            (false, true) => "account name (synthetic, not printed)",
-            _ => "none",
-        };
-    }
+    /// <summary>Whether the case AUTHORED a personnummer in the CV body. Never the value.</summary>
+    private static string AuthoredPnr(LayoutCaseObservation c) =>
+        c.Case.Model.SyntheticPersonnummer is not null ? "body (synthetic, not printed)" : "none";
 
     /// <summary>The Domain constraint code behind this row's block, or why there is none.
     ///

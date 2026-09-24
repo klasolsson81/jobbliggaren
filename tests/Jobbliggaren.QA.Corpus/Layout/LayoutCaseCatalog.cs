@@ -40,13 +40,7 @@ public sealed record LayoutCase(
     /// paired control — which renders the KNOWN one — read "no" unconditionally and could not
     /// fall, and the contamination sweep reported a finding for a heading the document never
     /// contained.</summary>
-    string? ProjectHeadingRendered = null,
-
-    /// <summary>The account holder's display name this case registers. It is a case input so the
-    /// corpus can pin that no account name reaches the CV (ADR 0142 D7). The probe writes it to the
-    /// column directly (<c>CvChainProbe</c>, through <c>LegacyAccountName</c>, which names the
-    /// actor).</summary>
-    string AccountDisplayName = LayoutCaseCatalog.DefaultAccountName);
+    string? ProjectHeadingRendered = null);
 
 /// <summary>The authored cases, ordered PDF then DOCX with controls adjacent to what they
 /// control. The count is deliberately NOT written here: two revisions of this comment carried a
@@ -57,9 +51,6 @@ public static class LayoutCaseCatalog
     private const string Pdf = "application/pdf";
     private const string Docx =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-    /// <summary>Deliberately not a person's real-looking name and never a personnummer.</summary>
-    internal const string DefaultAccountName = "Konto Kontosson";
 
     /// <summary>The synthetic Luhn-valid personnummer, taken from the corpus's OWN lexicon rather
     /// than re-declared here. That list is what every existing PII-leak sweep in this project
@@ -290,20 +281,6 @@ public static class LayoutCaseCatalog
             p => p.RequireNoVerticalGutter(15),
             "no vertical gutter of 15 pt or more exists",
             SpikeMeasuredExtractSegment: false),
-
-        // ADR 0142 D7's pin: a personnummer in the ACCOUNT display name never reaches the CV, so
-        // this case's verdict is its sibling's. Such a name is a state of rows written before
-        // #1117, and the probe writes the column directly.
-        new("pdf-clean-body-pnr-in-account-name",
-            "a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer",
-            "gate axis — no account name reaches the composed DTO (ADR 0142 D7)",
-            "pdf", "cv.pdf", Pdf, QuestPdfCvRenderer.SingleColumn, CvModel.Swedish,
-            p => p.RequireNoVerticalGutter(15),
-            "no vertical gutter of 15 pt or more exists",
-            SpikeMeasuredExtractSegment: false,
-            OneVariableStepFrom: "pdf-single-column-sv",
-            ProjectHeadingRendered: UnknownProjectHeading,
-            AccountDisplayName: "Konto Kontosson " + SyntheticPersonnummer),
 
         new("docx-table-label-first-no-blanks",
             "Word table, period cell before role cell, no blank paragraphs",

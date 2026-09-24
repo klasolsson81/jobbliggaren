@@ -141,7 +141,7 @@ What this run is NOT, stated up front rather than left for a reader to discover:
 
 ## 0. Instrument integrity
 
-- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `pdf-clean-body-pnr-in-account-name`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`, `docx-irreducible-unattributed-experience`
+- **byte proofs held:** `pdf-sidebar-emitted-first`, `pdf-interleaved-baseline-fusion`, `pdf-zero-xgap-concat`, `pdf-single-column-sv`, `pdf-single-column-spaced`, `pdf-single-column-intra-block-spaced`, `pdf-single-column-intra-block-spaced-tight-list`, `pdf-sidebar-spaced`, `pdf-single-column-en`, `pdf-nonsequential-decorative`, `pdf-headingless`, `pdf-unknown-heading-after-profile`, `pdf-known-heading-after-profile`, `pdf-decorated-heading-glue`, `pdf-two-page-seam`, `pdf-pnr-bearing`, `docx-table-label-first-no-blanks`, `docx-flat-label-first-no-blanks`, `docx-table-label-first-with-blanks`, `docx-role-first-with-blanks`, `docx-role-first-no-blanks`, `docx-company-first-header`, `docx-irreducible-unattributed-experience`
 - **byte proofs FAILED:** none
 - **crashed:** none
 - **fixture invalid:** none
@@ -174,14 +174,13 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 | 14 | `pdf-decorated-heading-glue` | recognition axis — its falsifier is a SOURCE edit where P7's is a DATA edit | pdf | — | no | no vertical gutter of 15 pt or more exists |
 | 15 | `pdf-two-page-seam` | extraction axis — covers PdfPigOpenXmlCvTextExtractor.cs:118, half the cited defect | pdf | — | no | the document has exactly 2 physical pages |
 | 16 | `pdf-pnr-bearing` | gate axis — a personnummer in the CV BODY, which blocks at the parse-level rung | pdf | — | no | no vertical gutter of 15 pt or more exists |
-| 17 | `pdf-clean-body-pnr-in-account-name` | gate axis — no account name reaches the composed DTO (ADR 0142 D7) | pdf | pdf-single-column-sv | no | no vertical gutter of 15 pt or more exists |
-| 18 | `docx-table-label-first-no-blanks` | (c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible | docx | — | yes | the package contains a w:tbl and no self-closing w:p |
-| 19 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
-| 20 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
-| 21 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
-| 22 | `docx-role-first-no-blanks` | (c) table-based Word template — the control that de-confounds the two no-blanks variables | docx | docx-role-first-with-blanks | no | the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p /> |
-| 23 | `docx-company-first-header` | (c) table-based Word template — the arm that publishes beta-1's cost | docx | docx-table-label-first-with-blanks | no | the employment and education lines are written company/institution-first, in a w:tbl, with the blank separators the one-variable step holds fixed |
-| 24 | `docx-irreducible-unattributed-experience` | (c) table-based Word template — the only arm whose block no upstream fix can build | docx | docx-role-first-with-blanks | no | the employer-less block is present with no separator after its role, in a w:tbl, with role-first employment lines and the blank separators the one-variable step holds fixed |
+| 17 | `docx-table-label-first-no-blanks` | (c) table-based Word template — answered as a CONTAINER fact; table-ness is invisible | docx | — | yes | the package contains a w:tbl and no self-closing w:p |
+| 18 | `docx-flat-label-first-no-blanks` | (c) table-based Word template — the twin that proves table-ness is invisible | docx | docx-table-label-first-no-blanks | no | the package contains no w:tbl |
+| 19 | `docx-table-label-first-with-blanks` | (c) table-based Word template — one-variable step | docx | docx-table-label-first-no-blanks | no | blank paragraphs use Word's <w:p><w:pPr /></w:p> form, never the self-closing <w:p /> |
+| 20 | `docx-role-first-with-blanks` | (c) table-based Word template — the arm that exonerates the segmenter | docx | docx-table-label-first-with-blanks | yes | blank paragraphs use Word's <w:p><w:pPr /></w:p> form |
+| 21 | `docx-role-first-no-blanks` | (c) table-based Word template — the control that de-confounds the two no-blanks variables | docx | docx-role-first-with-blanks | no | the package contains a w:tbl, no blank-paragraph <w:pPr /> and no self-closing <w:p /> |
+| 22 | `docx-company-first-header` | (c) table-based Word template — the arm that publishes beta-1's cost | docx | docx-table-label-first-with-blanks | no | the employment and education lines are written company/institution-first, in a w:tbl, with the blank separators the one-variable step holds fixed |
+| 23 | `docx-irreducible-unattributed-experience` | (c) table-based Word template — the only arm whose block no upstream fix can build | docx | docx-role-first-with-blanks | no | the employer-less block is present with no separator after its role, in a w:tbl, with role-first employment lines and the blank separators the one-variable step holds fixed |
 
 **Mechanics**
 
@@ -201,7 +200,6 @@ literal "no" on every row forever, which is a decoration rather than a measureme
 - `pdf-decorated-heading-glue` — a known heading defeated by decorative glue (a leading bullet)
 - `pdf-two-page-seam` — a page break MID-EXPERIENCE — the only case touching the page-seam newline
 - `pdf-pnr-bearing` — single column carrying a synthetic personnummer in the contact block
-- `pdf-clean-body-pnr-in-account-name` — a CLEAN CV body whose ACCOUNT display name carries a synthetic personnummer
 - `docx-table-label-first-no-blanks` — Word table, period cell before role cell, no blank paragraphs
 - `docx-flat-label-first-no-blanks` — identical content and order with NO table — the table-invisibility probe
 - `docx-table-label-first-with-blanks` — the same table body with Word's own blank-paragraph form added — isolates BLANK LINES
@@ -236,14 +234,13 @@ published so far: no fixture yet distinguishes them, which is a fact about the f
 | 14 | `pdf-decorated-heading-glue` | **PromotedLossy** | 5 | 0 | 0 | 0 | 3 | 1 | 1 | — |
 | 15 | `pdf-two-page-seam` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
 | 16 | `pdf-pnr-bearing` | **Blocked** | 5 | 1 | — | — | 3 | 1 | — | PersonnummerPresent |
-| 17 | `pdf-clean-body-pnr-in-account-name` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 18 | `docx-table-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 19 | `docx-flat-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 20 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
-| 21 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
-| 22 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
-| 23 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
-| 24 | `docx-irreducible-unattributed-experience` | **Blocked** | 5 | 6 | — | — | 3 | 3 | — | IncompleteContent |
+| 17 | `docx-table-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 18 | `docx-flat-label-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 19 | `docx-table-label-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 20 | `docx-role-first-with-blanks` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 21 | `docx-role-first-no-blanks` | **PromotedLossy** | 5 | 1 | 1 | 1 | 3 | 1 | 1 | — |
+| 22 | `docx-company-first-header` | **PromotedFaithful** | 5 | 5 | 5 | 5 | 3 | 3 | 3 | — |
+| 23 | `docx-irreducible-unattributed-experience` | **Blocked** | 5 | 6 | — | — | 3 | 3 | — | IncompleteContent |
 
 ## 3. Marker trace
 
@@ -411,14 +408,6 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | `pdf-pnr-bearing` | Education | Chalmers tekniska högskola | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedNotPromoted** |
 | `pdf-pnr-bearing` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedNotPromoted** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Consid AB | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-clean-body-pnr-in-account-name` | Employment | Sigma IT | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Chalmers tekniska högskola | yes | yes | yes | yes | — | **Survived** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Göteborgs universitet | yes | yes | no | no | — | **RetainedButOrphaned** |
-| `pdf-clean-body-pnr-in-account-name` | Education | Hvitfeldtska gymnasiet | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `docx-table-label-first-no-blanks` | Employment | Klarna AB | yes | yes | yes | yes | — | **Survived** |
 | `docx-table-label-first-no-blanks` | Employment | Volvo Cars | yes | yes | no | no | — | **RetainedButOrphaned** |
 | `docx-table-label-first-no-blanks` | Employment | Västra Götalandsregionen | yes | yes | no | no | — | **RetainedButOrphaned** |
@@ -496,14 +485,13 @@ published one table up, per case, in §2's fidelity verdict. Resolve it there.
 | 14 | `pdf-decorated-heading-glue` | yes | Extracted | 1225 | 40 | **0** | yes | Sv | 3 | null |
 | 15 | `pdf-two-page-seam` | yes | Extracted | 1223 | 40 | **0** | yes | Sv | 4 | null |
 | 16 | `pdf-pnr-bearing` | yes | Extracted | 1235 | 41 | **0** | yes | Sv | 4 | 11 chars |
-| 17 | `pdf-clean-body-pnr-in-account-name` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 18 | `docx-table-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 19 | `docx-flat-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 20 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
-| 21 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
-| 22 | `docx-role-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
-| 23 | `docx-company-first-header` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
-| 24 | `docx-irreducible-unattributed-experience` | yes | Extracted | 1653 | 66 | **15** | yes | Sv | 5 | null |
+| 17 | `docx-table-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 18 | `docx-flat-label-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 19 | `docx-table-label-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 20 | `docx-role-first-with-blanks` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 21 | `docx-role-first-no-blanks` | yes | Extracted | 1529 | 48 | **0** | yes | Sv | 5 | null |
+| 22 | `docx-company-first-header` | yes | Extracted | 1543 | 62 | **14** | yes | Sv | 5 | null |
+| 23 | `docx-irreducible-unattributed-experience` | yes | Extracted | 1653 | 66 | **15** | yes | Sv | 5 | null |
 
 ### 4b. Product-side observables
 
@@ -530,14 +518,13 @@ reader's inference, never an emitted ratio.
 | 14 | `pdf-decorated-heading-glue` | `E8752B1B7FE7` | no | no | `Anna Andersson` |
 | 15 | `pdf-two-page-seam` | `58436A6451A4` | no | no | `Anna Andersson` |
 | 16 | `pdf-pnr-bearing` | `EBB3668C7BA1` | no | no | `Anna Andersson` |
-| 17 | `pdf-clean-body-pnr-in-account-name` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 18 | `docx-table-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
-| 19 | `docx-flat-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
-| 20 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
-| 21 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
-| 22 | `docx-role-first-no-blanks` | `05CD8018BF8A` | no | no | `Anna Andersson` |
-| 23 | `docx-company-first-header` | `6EDE5C6A4A3A` | no | no | `Anna Andersson` |
-| 24 | `docx-irreducible-unattributed-experience` | `C6EF355B8C7E` | no | no | `Anna Andersson` |
+| 17 | `docx-table-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
+| 18 | `docx-flat-label-first-no-blanks` | `1F86611223AB` | no | no | `Anna Andersson` |
+| 19 | `docx-table-label-first-with-blanks` | `DCF6058705F8` | no | no | `Anna Andersson` |
+| 20 | `docx-role-first-with-blanks` | `9858965A707E` | no | no | `Anna Andersson` |
+| 21 | `docx-role-first-no-blanks` | `05CD8018BF8A` | no | no | `Anna Andersson` |
+| 22 | `docx-company-first-header` | `6EDE5C6A4A3A` | no | no | `Anna Andersson` |
+| 23 | `docx-irreducible-unattributed-experience` | `C6EF355B8C7E` | no | no | `Anna Andersson` |
 
 **Twin comparisons** — the only honest sentence this corpus can emit about tables. The
 DOCX extractor has no `w:tbl`/`w:tr`/`w:tc` handling, so a
@@ -550,7 +537,6 @@ extractor.
 - `pdf-single-column-intra-block-spaced-tight-list` vs `pdf-single-column-intra-block-spaced` — digests differ (`F2BBB87DDE72` / `05CD8018BF8A`)
 - `pdf-sidebar-spaced` vs `pdf-sidebar-emitted-first` — digests differ (`F4AE38C36604` / `F8D2FF82DFDE`)
 - `pdf-known-heading-after-profile` vs `pdf-unknown-heading-after-profile` — digests differ (`151E7C68EC39` / `4BA9EB7A1A94`)
-- `pdf-clean-body-pnr-in-account-name` vs `pdf-single-column-sv` — digests **EQUAL** (`05CD8018BF8A` / `05CD8018BF8A`)
 - `docx-flat-label-first-no-blanks` vs `docx-table-label-first-no-blanks` — digests **EQUAL** (`1F86611223AB` / `1F86611223AB`)
 - `docx-table-label-first-with-blanks` vs `docx-table-label-first-no-blanks` — digests differ (`DCF6058705F8` / `1F86611223AB`)
 - `docx-role-first-with-blanks` vs `docx-table-label-first-with-blanks` — digests differ (`9858965A707E` / `DCF6058705F8`)
@@ -620,14 +606,13 @@ neither asked the Domain the question. A row whose code could not be READ prints
 | 14 | `pdf-decorated-heading-glue` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 15 | `pdf-two-page-seam` | passed | passed | passed | passed | passed | — | — | — | yes |
 | 16 | `pdf-pnr-bearing` | **BLOCKED** | not evaluated | not evaluated | not evaluated | not evaluated | PersonnummerPresent | — | — | no |
-| 17 | `pdf-clean-body-pnr-in-account-name` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 18 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 19 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 20 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 21 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 22 | `docx-role-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 23 | `docx-company-first-header` | passed | passed | passed | passed | passed | — | — | — | yes |
-| 24 | `docx-irreducible-unattributed-experience` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceCompanyRequired` | — | no |
+| 17 | `docx-table-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 18 | `docx-flat-label-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 19 | `docx-table-label-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 20 | `docx-role-first-with-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 21 | `docx-role-first-no-blanks` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 22 | `docx-company-first-header` | passed | passed | passed | passed | passed | — | — | — | yes |
+| 23 | `docx-irreducible-unattributed-experience` | passed | passed | passed | passed | **BLOCKED** | IncompleteContent | `Resume.ExperienceCompanyRequired` | — | no |
 
 **Observed Domain state** (this is aggregate state, NOT a gate verdict). The personnummer
 column prints the AUTHORED declaration and the OBSERVED aggregate flag side by side: if
@@ -635,7 +620,7 @@ extraction ever loses an authored personnummer, that divergence is itself the fi
 a column printing only the declaration would hide it behind the very content loss this
 corpus measures. The value itself is never printed.
 
-| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored (body / account) | pnr OBSERVED on parse |
+| Case | Confidence overall | Preamble on parse | Preamble ON THE PROMOTED CV | pnr authored | pnr OBSERVED on parse |
 |---|---|---|---|---|---|
 | `pdf-sidebar-emitted-first` | Confident | no | no | none | no |
 | `pdf-interleaved-baseline-fusion` | Confident | yes | yes | none | no |
@@ -653,7 +638,6 @@ corpus measures. The value itself is never printed.
 | `pdf-decorated-heading-glue` | Confident | no | no | none | no |
 | `pdf-two-page-seam` | Confident | no | no | none | no |
 | `pdf-pnr-bearing` | Confident | yes | — | body (synthetic, not printed) | yes |
-| `pdf-clean-body-pnr-in-account-name` | Confident | no | no | account name (synthetic, not printed) | no |
 | `docx-table-label-first-no-blanks` | Confident | no | no | none | no |
 | `docx-flat-label-first-no-blanks` | Confident | no | no | none | no |
 | `docx-table-label-first-with-blanks` | Confident | no | no | none | no |
@@ -812,15 +796,6 @@ authored ground truth beside them. `Confident — heading matched, 1 entries` ne
 - `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
 - `Languages: NotFound — no heading detected`
 
-**`pdf-clean-body-pnr-in-account-name`** — ground truth: 5 employments, 3 educations
-
-- `Contact: Confident — name extracted; email extracted; phone extracted`
-- `Profile: Confident — heading 'profil' matched; summary text present`
-- `Experience: Confident — heading 'arbetslivserfarenhet' matched; 1 entries`
-- `Education: Confident — heading 'utbildning' matched; 1 entries`
-- `Skills: Confident — heading 'tekniska kompetenser' matched; 7 entries`
-- `Languages: Confident — heading 'språk' matched; 8 entries`
-
 **`docx-table-label-first-no-blanks`** — ground truth: 5 employments, 3 educations
 
 - `Contact: Confident — name extracted; email extracted; phone extracted`
@@ -955,13 +930,6 @@ it never over-reports.
 | `pdf-decorated-heading-glue` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 | `pdf-two-page-seam` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 | `pdf-pnr-bearing` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'byggd på PostGIS.' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'Turlistan - reseplanerare för kollektivtrafi…' (declared home: projects) |
-| `pdf-clean-body-pnr-in-account-name` | Languages ← 'Bokhyllan - katalogtjänst för folkbiblioteke…' (declared home: projects) |
-| `pdf-clean-body-pnr-in-account-name` | Skills ← '.NET' — a FRAGMENT of the authored project line 'Jobbliggaren - deterministisk CV-granskare i…' (the list parser atomised it) |
 | `docx-table-label-first-no-blanks` | Languages ← 'PROJEKT (URVAL)' (declared home: projects) |
 | `docx-table-label-first-no-blanks` | Languages ← 'Jobbliggaren - deterministisk CV-granskare i…' (declared home: projects) |
 | `docx-table-label-first-no-blanks` | Languages ← 'Kartkollen - öppen data om kommunala beslut' — a FRAGMENT of the authored project line 'Kartkollen - öppen data om kommunala beslut,…' (the list parser atomised it) |

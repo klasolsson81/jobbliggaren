@@ -572,9 +572,9 @@ reads nor shows one. The `/oversikt` kicker is removed rather than rewritten to 
 a mono, uppercase, 11 px address fails WCAG 1.4.10 at 320 px and the 14 px floor, and the shell's Mina sidor
 popup already shows it). The frontend's `PersonnummerInAccountName` left with it (point 1 above). The
 personnummer scan on the name left in the same commit as the last writer, never before it (`security-auditor`).
-The `DisplayName` property and its EF row stay until 4b drops the column, and the one test seam that writes a
-legacy name (`tests/Shared/LegacyAccountName.cs`) names `JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate`
-and the retired actors. The
+The `DisplayName` property and its EF row left in 4b's first PR, one deploy before the column (Amendment
+2026-09-24 (8)), and the one test seam that writes a legacy name (`tests/Shared/LegacyAccountName.cs`) names
+`JobSeekerTests.DisplayName_HasNoWritePathOnTheAggregate` and the retired actors. The
 password path's frontend (`RegisterForm`, `registerAction`) stays until 5a (C1) and sends a key the endpoint
 ignores.
 
@@ -612,6 +612,58 @@ Retention unchanged until 4b drops the column. No DPIA.
 
 **The 4b gate** (Klas, 2026-09-23): B counts as measured live when Klas himself has checked /oversikt and
 /mina-sidor behind basic_auth. The session's read of the box is necessary, not the gate.
+
+#### Amendment 2026-09-24 (8) (#1742, part 4b) — the drop ships as unmap, then drop
+
+*Decided in 4b's form round: `db-migration-writer`, `security-auditor` and `dotnet-architect`, then
+`senior-cto-advisor`. 4b opened on the gate above: Klas checked /oversikt on 2026-09-23 and /mina-sidor on
+2026-09-24 himself.*
+
+**4b is two PRs, a Parallel Change.**
+- **U** removes `JobSeeker.DisplayName` and its EF row through the migration `UnmapJobSeekerDisplayName`. Its
+  `Up`/`Down` are empty, so the snapshot forgets a column that stays in the database.
+- **D** drops the column with a hand-written `DropColumn` (`DropJobSeekerDisplayName`). The recruiter-erasure
+  search over the column goes in the same PR, together with the privacy copy, the register and the runbooks:
+  they describe the data, so they follow it.
+
+**Why two PRs: the release pipeline, not the column.**
+- `release-images.yml` publishes each image in its own matrix cell, and the box's reconcile does not check
+  that its images come from one commit (#1238).
+- So a new `migrate` beside an old api or worker is a reachable state. The old model would select the dropped
+  column: 42703 on every `JobSeeker` entity load, while `/api/ready` stays green.
+- After U, neither skew can fail a `JobSeeker` load. This is Amendment (7)'s B0 → B ruling applied to migrate
+  versus api/worker.
+
+**Rejected:**
+- One PR with a dispatch-and-verify window: it detects the mixed state and prevents nothing.
+- Pinning `IMAGE_TAG` on the box before the merge: a root operation standing in for a design step, on the lever
+  #1759's hold also uses.
+- Keeping the property mapped but inert (`PropertySaveBehavior.Ignore`): a mapped property is still selected.
+
+**Measured for the choice, 2026-09-24**, with a minimal fixture on local Docker Compose v5.5.1 (the box runs
+v5.4.0, not re-measured):
+- When every image changes, compose stops the old api before the new migrate starts.
+- When only migrate's image changes, the old api keeps running while migrate re-runs.
+
+**D merges only when all three hold:**
+1. api's and worker's `latest` digests equal their `sha-<X>` digests for an X at or after U's merge, with
+   attestation verified.
+2. U is measured live on the box, Klas's own /mina-sidor load included. This is waived while #1759's hold
+   is active; U and D then ride its release together.
+3. Klas has given the merge GO for the irreversible migration.
+
+**Rollback.** From U on, a pin to an older tag makes `migrate` refuse (exit 3, `vps-deploy-stack.md` §3a),
+unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses.
+
+**Klas answered two questions from the round on 2026-09-24.** He chose from AskUserQuestion options, and each
+question was quoted to him verbatim first.
+1. **B5.** `security-auditor` offered: "**(b)** B5 tas bort, och en träff i användarnas profiluppgifter
+   besvaras med B2. B2:s text ändras inte." or "**(a)** B5 står kvar med bara de två osanna delarna
+   strukna". Klas: "(b) B5 bort, B2 svarar". D deletes B5 and routes `matched.jobSeekerProfiles > 0` to B2.
+2. **#1759's hold.** `dotnet-architect` asked: "Får 4b:s kolumndrop, som inte går att backa med en tagg, ingå
+   i den release som din fortsättnings-GO för #1759-holdet deployar? Eller ska 4b vänta med merge tills
+   holdet är hävt eller avskrivet?" Klas: "4b får ingå i releasen". The hold was not active when he
+   answered.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 

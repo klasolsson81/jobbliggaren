@@ -1341,9 +1341,10 @@ while `DARK_MODE_ENABLED` is `false`.
   dimming (contrast ≥ 4.5:1 in both themes); `type="button"`. No provider mark while inactive: the
   row is the text "Fortsätt med {provider}" with a trailing "Kommer snart", its accessible name
   computed from that content, in the order Google, LinkedIn, GitHub.
-- **Code step** (design M3/M4): ONE `<input>` with a visible label "Sexsiffrig kod",
-  `autocomplete="one-time-code"`, `inputmode="numeric"`, `maxLength=6`, `pattern="[0-9]*"`,
-  `aria-describedby`, no placeholder; six boxes are forbidden. "Skicka ny kod" reuses
+- **Code step** (design M3/M4; the boxes Klas's, Amendment 2026-09-24 (9)): ONE `<input>` with a visible label
+  "Sexsiffrig kod", `autocomplete="one-time-code"`, `inputmode="numeric"`, `maxLength=6`, `pattern="^\d+$"`,
+  `aria-describedby`, no placeholder, drawn as six joined `aria-hidden` boxes that hold no name, value or tab stop
+  of their own. "Skicka ny kod" reuses
   `ResendConfirmationButton`'s form (disabled 60 s, countdown outside the live region, message in
   `role="status"`) and **starts in that cooldown**, with a static line beside it, *"En ny kod
   ersätter den förra. Skriv in koden från det senaste mejlet."* "Byt e-postadress" is a submit
@@ -1619,6 +1620,49 @@ grants and budgets are 3a's and registered), and the client state lives in the t
 No new logging. Retention unchanged. No DPIA. The deletion notice rides the login flow cookie's `notice`
 phase with its name only, for its 120 seconds; the cookie policy says so and `cookies.updated` moved, while the
 privacy policy and its version did not.
+
+#### Amendment 2026-09-24 (9) (#1826, part 4 of epic #1822) — six boxes over one real input
+
+*Decided by Klas Olsson; the form graded as built, before the PR, by `design-reviewer` and `dotnet-architect`
+(`docs/reviews/2026-09-24-1826-form-{design,architect}.md`).* The "Code step" bullet in "Page form" was corrected in
+place; this block records why.
+
+**Klas's answer.** Put to him 2026-09-24, verbatim: *"Kodfältet på /logga-in/kod: ett fält eller sex rutor?"* The
+options were *"Ett fält med kodutseende (Recommended)"*, described as *"Behåller ADR 0142 och a11y-Blockern. Stort,
+centrerat, brett teckenavstånd, numeriskt tangentbord. Ingen ny beroende."*, and *"Sex rutor, riv ADR-raden"*,
+described as *"Kräver att du river ADR 0142:569-571, ett nytt bibliotek (input-otp) utanför BUILD.md §3.1 och att
+design-reviewers a11y-Blocker överprövas av dig."* He chose **"Sex rutor, riv ADR-raden"**. [The line numbers refer
+to the copy the question was written from, where they held the "Code step" bullet; they do not point into this
+file.]
+
+**M3's four grounds, measured against the built field.** M3 forbade six boxes because a label cannot pair with six
+fields, paste breaks, a screen reader reads six nameless text boxes, and the DOM order becomes six tab stops for one
+value. Measured 2026-09-24 on the production build, all four hold: `input-otp` draws the boxes as `aria-hidden`
+elements under ONE real `<input>`, which carries the label, the value, `autocomplete="one-time-code"`, the paste and
+the only tab stop. What Klas overruled is the visual clause alone.
+
+**Where the library differs from a plain input.**
+- Its `pattern` is a RegExp tested against the whole value and written to the attribute, so `"[0-9]*"` would filter
+  nothing; the attribute is `^\d+$` and a non-digit is refused.
+- A paste is tested whole. Whitespace is stripped first; anything else refuses the whole paste without a message.
+  The mail sets the code alone on its line.
+- It keeps a value of its own that React's form reset after an action does not reach; the field clears on its
+  form's `reset`, as the input it replaces did.
+- With JavaScript off the boxes never fill, so the real input is drawn as a plain field in the token colours, in the
+  sans face, with the global focus ring. The library's own fallback hard-coded black and white.
+- Forced colours repainted the transparent input's text over the first box. The input opts out of colour forcing;
+  the boxes, their borders, the active box's outline and the caret take the system colours.
+
+**The visual form** (`design-reviewer`). Six joined boxes, each 44×44 at every width, outer corners `--jp-r-md`;
+digits 20px / 600 with `tabular-nums`; the active box carries the global focus ring's value (2px `--jp-focus`,
+offset 2px); while the field is invalid every box's border is `--jp-danger-600`, and the alert is unchanged; the
+caret stands still under reduced motion.
+
+**Light only.** `DARK_MODE_ENABLED` is `false`. The boxes sit outside the dark field rule in `globals.css`, so the
+day the flag is set they are rendered in dark and graded before that change merges, the error border included.
+
+**Order.** Klas ran this part before #1824 (the copy sweep) on 2026-09-24, while #1742 held the i18n hotspot. This
+part changes no string; the hint and its colour tier are #1824's.
 
 ## Processing register and DoD 8
 

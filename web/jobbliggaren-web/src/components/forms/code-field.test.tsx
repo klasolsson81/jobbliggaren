@@ -41,6 +41,8 @@ describe("CodeField", () => {
     expect(field).toHaveAttribute("pattern", "^\\d+$");
     expect(field).toBeRequired();
     expect(field).not.toHaveAttribute("placeholder");
+    // Class contract (see the size test below): forced colours would repaint its transparent text.
+    expect(field).toHaveClass("forced-color-adjust-none");
   });
 
   it("draws six boxes that screen readers skip, showing the digits the input holds", async () => {
@@ -125,6 +127,26 @@ describe("CodeField", () => {
     const field = screen.getByLabelText(LABEL);
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toBe("reauth-code-hint reauth-code-error");
+  });
+
+  it("marks every box while the field is invalid, and none while it is not", () => {
+    const { container, rerender } = renderField(false);
+    expect(slots(container).filter((slot) => slot.classList.contains("border-destructive"))).toHaveLength(0);
+
+    rerender(
+      <>
+        <CodeField
+          id="reauth-code"
+          hintId="reauth-code-hint"
+          label={LABEL}
+          hint={HINT}
+          invalid
+          errorId="reauth-code-error"
+        />
+        <p id="reauth-code-error">Koden stämmer inte.</p>
+      </>
+    );
+    expect(slots(container).filter((slot) => slot.classList.contains("border-destructive"))).toHaveLength(6);
   });
 
   it("takes its ids from the caller, so two fields on one page never share one", () => {

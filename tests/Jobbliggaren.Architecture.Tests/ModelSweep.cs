@@ -35,7 +35,13 @@ internal static class ModelSweep
     /// The app model alone — the Art. 17 cascade's reach, unchanged by the extraction.
     /// </summary>
     internal static Dictionary<string, List<string>> AppModelTextColumnsByTable() =>
-        TextColumnsByTable(AppModelEntities());
+        ColumnsByTable(AppModelEntities(), p => IsTextBearingStoreType(p.GetColumnType()));
+
+    /// <summary>
+    /// Every column the app model maps, whatever its store type.
+    /// </summary>
+    internal static Dictionary<string, List<string>> AppModelColumnsByTable() =>
+        ColumnsByTable(AppModelEntities(), _ => true);
 
     /// <summary>
     /// Both models — what a <c>pg_dump</c> actually carries.
@@ -49,7 +55,7 @@ internal static class ModelSweep
     /// <see cref="AssertNoCrossSchemaTableCollision"/>, which this method calls on every sweep.
     /// </remarks>
     internal static Dictionary<string, List<string>> AllModelsTextColumnsByTable() =>
-        TextColumnsByTable(AllEntities());
+        ColumnsByTable(AllEntities(), p => IsTextBearingStoreType(p.GetColumnType()));
 
     /// <summary>
     /// The union, with the key form's precondition asserted. <b>Every union sweep goes through
@@ -219,7 +225,7 @@ internal static class ModelSweep
     /// PROPERTY NAME against every entity in the sweep, with no check that the property is actually
     /// encrypted. A future UNencrypted property named <c>ContentEnc</c>, <c>ParsedContentEnc</c> or
     /// <c>SealedContent</c> is subtracted from the plaintext set in silence — and
-    /// <c>Every_classified_column_still_exists_in_a_model</c> would then instruct, in its own failure
+    /// <c>Every_listed_table_and_column_still_exists_in_a_model</c> would then instruct, in its own failure
     /// message, that the entry be DELETED. That is the one path where this blindness understates the
     /// exposure. It is unlikely (a new Form-B shadow is named for its own field, not one of these
     /// three) and it is deliberately not closed here: closing it means asking the registry whether a
@@ -290,7 +296,8 @@ internal static class ModelSweep
     /// Several entity types can map to ONE table (an owned type is the usual case), so columns
     /// ACCUMULATE per table rather than replacing each other.
     /// </remarks>
-    private static Dictionary<string, List<string>> TextColumnsByTable(IReadOnlyList<IEntityType> entities)
+    private static Dictionary<string, List<string>> ColumnsByTable(
+        IReadOnlyList<IEntityType> entities, Func<IProperty, bool> include)
     {
         var byTable = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
@@ -308,7 +315,7 @@ internal static class ModelSweep
 
             foreach (var property in entity.GetProperties())
             {
-                if (!IsTextBearingStoreType(property.GetColumnType()))
+                if (!include(property))
                     continue;
 
                 columns.Add(ColumnKey(entity, property));

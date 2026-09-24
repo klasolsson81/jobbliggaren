@@ -1625,26 +1625,23 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A display name naming her is matched, and her account name SURVIVES the destructive run. The
+    /// A match preference naming her is matched, and the profile SURVIVES the destructive run. The
     /// gap between Matched and Erased is the disclosure, not an omission.
-    /// <b>Mutation:</b> delete the <c>display_name</c> disjunct.
+    /// <b>Mutation:</b> make the handler erase the profile surface.
     /// </summary>
     [Fact]
-    public async Task A_DISPLAY_NAME_naming_her_is_matched_and_her_profile_SURVIVES()
+    public async Task A_MATCH_PREFERENCE_naming_her_is_matched_and_her_profile_SURVIVES()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
-        var response = await EraseAsync("Vendela Hjorthén", ct);
+        var response = await EraseAsync("Vendela-Hjorthen", ct);
 
         response.Matched.JobSeekerProfiles.ShouldBe(1);
         response.Erased.JobSeekerProfiles.ShouldBe(0);
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.Database.SqlQuery<string>($"SELECT display_name AS \"Value\" FROM job_seekers")
-                .SingleAsync(ct))
-            .ShouldBe("Konsult åt Vendela Hjorthén");
+        (await ReadMatchPreferencesAsync(seekerId, ct)).PreferredOccupationGroups
+            .ShouldBe(["Konsult-Vendela-Hjorthen"]);
     }
 
     /// <summary>
@@ -1657,7 +1654,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task MATCH_PREFERENCES_are_matched_on_that_column_ALONE()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1686,7 +1683,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task The_preferences_containers_unvalidated_LANGUAGE_is_matched_on_that_column_ALONE()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1738,9 +1735,10 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task Only_the_seeded_profile_is_counted_while_two_neutral_profiles_are_NOT()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Sökande Ett", ct);
-        var neutral = await SeedJobSeekerAsync("Sökande Två", ct);
+        var seeded = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seeded, "Konsult-Vendela-Hjorthen", ct);
+        await SeedJobSeekerAsync(ct);
+        var neutral = await SeedJobSeekerAsync(ct);
 
         // One neutral profile carries NON-EMPTY match preferences. All-empty lists serialise to
         // arrays with no string values, which jsonb_path_query skips — so with only empty ones a
@@ -1756,7 +1754,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+        var probe = await EraseAsync("Vendela-Hjorthen", ct, dryRun: true);
 
         probe.Matched.JobSeekerProfiles.ShouldBe(1);
     }
@@ -1812,8 +1810,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task An_identifier_that_is_only_a_jsonb_KEY_NAME_matches_no_profile()
     {
         var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Sökande", ct);
-        await SeedJobSeekerAsync("Annan Sökande", ct);
+        await SeedJobSeekerAsync(ct);
+        await SeedJobSeekerAsync(ct);
 
         var probe = await EraseAsync("Lang", ct, dryRun: true);
 
@@ -1867,7 +1865,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_WRITTEN_FORM_of_her_org_nr_reaches_shape_only_MATCH_PREFERENCES()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1942,7 +1940,8 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_SOFT_DELETED_profile_is_still_reported()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Konsult åt Vendela Hjorthén", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
+        await SetMatchPreferencesAsync(seekerId, "Konsult-Vendela-Hjorthen", ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -1954,41 +1953,12 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
             await db.SaveChangesAsync(ct);
         }
 
-        var probe = await EraseAsync("Vendela Hjorthén", ct, dryRun: true);
+        var response = await EraseAsync("Vendela-Hjorthen", ct);
 
-        probe.Matched.JobSeekerProfiles.ShouldBe(1);
-    }
-
-    /// <summary>
-    /// <b>This surface matches on a SHARED NAME, and the reply templates branch on that.</b> A
-    /// display name is the account holder's own name, so two users called what the requester is
-    /// called are two hits about neither of them. It is the whole reason `jobSeekerProfiles` has its
-    /// own reply template (B5) instead of triggering B2, which would call the hit hers — so the
-    /// property is measured here rather than asserted in a runbook only.
-    /// <b>Mutation:</b> make the profile query return DISTINCT users by some other key, or narrow
-    /// the display-name arm to an exact match.
-    /// </summary>
-    [Fact]
-    public async Task TWO_users_sharing_her_name_are_BOTH_counted_and_neither_is_erased()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Vendela Hjorthén", ct);
-        await SeedJobSeekerAsync("Sökande Utan Träff", ct);
-
-        var response = await EraseAsync("Vendela Hjorthén", ct);
-
-        response.Matched.JobSeekerProfiles.ShouldBe(2,
-            "both are reported. The count names nobody, and B5 is written so that reporting them "
-            + "claims nothing about either.");
+        response.Matched.JobSeekerProfiles.ShouldBe(1);
         response.Erased.JobSeekerProfiles.ShouldBe(0);
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        (await db.Database.SqlQuery<int>(
-                    $"SELECT count(*)::int AS \"Value\" FROM job_seekers WHERE display_name = {"Vendela Hjorthén"}")
-                .SingleAsync(ct))
-            .ShouldBe(2);
+        (await ReadMatchPreferencesAsync(seekerId, ct)).PreferredOccupationGroups
+            .ShouldBe(["Konsult-Vendela-Hjorthen"]);
     }
 
     /// <summary>
@@ -2003,7 +1973,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     public async Task A_jsonb_value_carrying_JSON_ESCAPED_characters_is_matched_on_its_DECODED_text()
     {
         var ct = TestContext.Current.CancellationToken;
-        var seekerId = await SeedJobSeekerAsync("Sökande", ct);
+        var seekerId = await SeedJobSeekerAsync(ct);
 
         using (var scope = _provider.CreateScope())
         {
@@ -2499,10 +2469,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await db.SaveChangesAsync(ct);
     }
 
-    // Every seeker carries a name, the neutral ones included: the display_name arm matches with
-    // LIKE, and a NULL never matches, so a nameless neutral would make the arm's negative control
-    // pass for any pattern.
-    private async Task<JobSeekerId> SeedJobSeekerAsync(string displayName, CancellationToken ct)
+    private async Task<JobSeekerId> SeedJobSeekerAsync(CancellationToken ct)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -2511,8 +2478,26 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var seeker = JobSeeker.Register(Guid.NewGuid(), TermsAcceptance.AcceptCurrent(clock), clock).Value;
         db.JobSeekers.Add(seeker);
         await db.SaveChangesAsync(ct);
-        await LegacyAccountName.WriteAsync(db, seeker.Id.Value, displayName, ct);
         return seeker.Id;
+    }
+
+    private async Task SetMatchPreferencesAsync(JobSeekerId seekerId, string occupationGroup, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>();
+        var seeker = await db.JobSeekers.IgnoreQueryFilters().SingleAsync(js => js.Id == seekerId, ct);
+
+        seeker.UpdateMatchPreferences(MatchPreferences.Create([occupationGroup], null, null).Value, clock);
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task<MatchPreferences> ReadMatchPreferencesAsync(JobSeekerId seekerId, CancellationToken ct)
+    {
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.JobSeekers.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(js => js.Id == seekerId, ct)).MatchPreferences;
     }
 
     private async Task<EraseRecruiterAdsResponse> EraseAsync(

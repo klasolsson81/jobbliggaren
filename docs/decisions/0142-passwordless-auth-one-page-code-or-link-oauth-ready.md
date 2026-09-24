@@ -665,6 +665,8 @@ question was quoted to him verbatim first.
    holdet är hävt eller avskrivet?" Klas: "4b får ingå i releasen". The hold was not active when he
    answered.
 
+**DoD 8.** No new personal data: 4b removes a stored category. No new logging. The name's retention in `job_seekers` ends when the migration runs; dead row versions and WAL are not claimed erased, and nothing is said about backups (STOPP-4). Legacy CVs keep the name in their encrypted content (Amendment (7)). No DPIA.
+
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
 `POST /auth/oauth/{p}/start` and `POST /auth/oauth/{p}/callback {code, state}` exchange via
@@ -1632,7 +1634,7 @@ keys it creates: the grant keys go in with 1c, the OAuth-state keys with 6a. The
 `Sessioner` bullet's "payload carries only non-PII" gains *"this holds for the session record, not the
 challenge record"*; a line records that the challenge record is practically unreachable for
 Art. 15/17 because it expires within the response time. **Copy follows data, never precedes it:**
-"lösenord (hash)" (`content-legal.json:32`) is struck in **5b**; "visningsnamn" leaves the purpose sentence in
+"lösenord (hash)" (`content-legal.json:33`) is struck in **5b**; "visningsnamn" leaves the purpose sentence in
 **4a's PR B**, with its purpose, and the stored-data sentence in **4b**, with the data (Amendment 2026-09-23 (7)); the
 register's "the operation carries a credential (the password)" in **3a**. **No DPIA is required**
 (Art. 35(3)(a)–(c) all negative: no systematic evaluation with legal effect, no large-scale special
@@ -1700,7 +1702,7 @@ columns are measured unused (`ApplicationUser.cs` + its configuration only; `Has
 so no Postgres enum to clean).
 
 **Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
-1b, 1c-expand (`DisplayNameNullable`), 4b. 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
+1b, 1c-expand (`DisplayNameNullable`), 4b (`UnmapJobSeekerDisplayName`, then `DropJobSeekerDisplayName`). 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
 ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 

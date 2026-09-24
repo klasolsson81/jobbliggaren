@@ -17,7 +17,8 @@ function InputOTP({
       data-slot="input-otp"
       containerClassName={cn("flex w-fit items-center", containerClassName)}
       spellCheck={false}
-      className={className}
+      // Forced colours would repaint the transparent input's text over the first box.
+      className={cn("forced-color-adjust-none", className)}
       {...props}
     />
   )

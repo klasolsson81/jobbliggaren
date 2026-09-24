@@ -55,18 +55,20 @@ Measured 2026-09-24 against `origin/main` at `23d38792`:
 - The two-sentence lede on `/logga-in` (`pages.auth.passwordless.entry.lede`) and the
   format hint row (`pages.auth.passwordless.entry.emailHint`) were bound by
   design-reviewer in the #1738 form round (`docs/reviews/2026-09-21-1738-form-design.md`
-  Q6, local-only; "A body sentence is required"), citing ADR 0047, and written into
+  Q6, local-only), citing ADR 0047, and written into
   ADR 0142's Page form. Neither was argued on its own merits; the hint was a reuse of
   the skill's example.
 - The Art. 13 line (`pages.auth.passwordless.entry.privacyHint`) is security-auditor's
   Major 8 (`docs/reviews/2026-09-17-auth-epic-security.md:117`): the notice moves with the
-  collection point, "ingen ny separat notis". Placement is free.
+  collection point, "ingen ny separat notis", under the email field.
 - The persistence disclosure (`pages.auth.passwordless.persistence`) is security-auditor's
   D4 point 2 ("kravet uppfylls om — och bara om — persistensen uppges där handlingen
   görs") and design-reviewer's Blocker B3: directly above the primary button on both
   session-creating steps, never behind a link. ADR 0142 D4 says "30 is the number the
   copy leads with" while its bound string leads with 180 — an inconsistency inside
-  ADR 0142 that the sweep's security round resolves.
+  ADR 0142. security-auditor resolved it on PR #1829: the string stands ("upp till 180
+  dagar" is the only single number true of every device), the subclause is true of the
+  cookie policy and false of the string, and #1824's ADR 0142 amendment strikes it.
 - The resting copy on `/logga-in/kod` (`pages.auth.passwordless.code.resting` and
   `codeHint`) is enumeration-safe by design: the page never states what the system did,
   only what the user should do, because the backend answers alike whether or not an
@@ -83,7 +85,7 @@ Measured 2026-09-24 against `origin/main` at `23d38792`:
 
 Measured 2026-09-24 at `23d38792` in `web/jobbliggaren-web/messages/sv`, namespaces
 outside `content-*`: 2 367 keys / 12 873 words, of which 304 explanatory-type keys
-(last key segment `hint|help|lede|intro|description|desc|note|explainer|explanation|info|body|p1-9|caption|subtitle|sub|tip|footnote|legend|helper`)
+(last key segment `hint|help|lede|intro|description|desc|note|explainer|explanation|info|body|p[1-9]|caption|subtitle|sub|tip|footnote|legend|helper`)
 / 4 176 words; `pages.auth.*` alone 153 keys / 987 words; the email format hint at
 5 sv + 5 en sites. Regenerate from `web/jobbliggaren-web`:
 
@@ -108,10 +110,11 @@ EOF
 
 ## Decision
 
-1. **DESIGN.md §8 carries the rule** "Copy-täthet: det självklara förklaras inte": seven
+1. **DESIGN.md §8 carries the rule** "Copy-täthet: det självklara förklaras inte":
    one-sentence, yes/no gradeable rules and the ADR 0047 tie-break (deleting a sentence
-   may never leave the task a guess; the finding is then a shorter sentence or a better
-   label/button). The rule text lives there and is not restated here.
+   may never leave the task a guess or hide an irreversible action's consequence; the
+   finding is then a shorter sentence or a better label/button). The rule text lives
+   there and is not restated here.
 2. **Carrier.** DESIGN.md is canonical (ADR 0003 Alt B: DESIGN.md owns philosophy and
    pedagogy, the skills own the detailed spec; `design-reviewer`'s authority is
    DESIGN.md). The four design skills carry examples and pointers, never restatements
@@ -124,29 +127,82 @@ EOF
    (design-reviewer #1738 form round Q6 points 2-3, 2026-09-21). Every other Page-form
    binding stands. The sweep (#1824) amends ADR 0142's Page form with the form as
    delivered and the corrections it makes.
-4. **Legally bound strings (DESIGN.md §8 rule 7)** — shortened only with
-   `security-auditor`'s signature, never deleted, and never re-argued in a PR body:
-   1. the Art. 13 line under the `/logga-in` email field
-      (`pages.auth.passwordless.entry.privacyHint`); placement at the collection point
-      is free;
-   2. the persistence disclosure on `/logga-in/kod` and `/logga-in/villkor`
-      (`pages.auth.passwordless.persistence`); stays directly above the primary
-      button, never behind a link; the 30-vs-180 inconsistency is hers to resolve;
-   3. the enumeration-safe resting copy on `/logga-in/kod`
-      (`pages.auth.passwordless.code.resting`, `code.codeHint`): it may be shortened
-      but must still never state what the system did;
-   4. the Art. 14 blocks in `EmailTemplates.LoginChallenge.cs` (`NoCredentialBasis*`,
-      `ControllerRightsAndComplaint*`, the retention sentences) in
-      `LoginRegistrationClosed`, `LoginNewAccountCode` and
-      `LoginNewAccountCodeLimitReached`;
-   5. the consent step's `pages.auth.passwordless.consent.termsLabel` and
-      `privacySibling` (ADR 0142 D6 version stamp) — added by this exploration, for
-      `security-auditor` to confirm in #1824.
-   The `content-*` namespaces (legal texts, FAQ, guides) are outside every sweep.
+4. **Legally bound strings (DESIGN.md §8 rule 7)** — shortened or moved only with
+   `security-auditor`'s signature, never deleted, and never re-argued in a PR body. The
+   class is rule 7's (consent and withdrawal under Art. 7, information under Art. 13 and
+   14, #1003's exception). The set below is her confirmation of 2026-09-24 on PR #1829
+   (`docs/reviews/2026-09-24-copy-density-security-auditor.md`, local-only), sv and en
+   alike; #1824 (catalogue strings) and #1825 (mail templates) are graded against it, and
+   later additions land as amendments here:
+   1. `pages.auth.passwordless.entry.privacyHint` — the whole line; visible without a
+      click; stays in the email field's `aria-describedby` (auth-epic Major 8 → ADR 0142
+      D6; Art. 13(1), 12(1)). It may stand anywhere in the collection form, under the
+      button included, on those two conditions; she signs such a move with one line in #1824.
+   2. `pages.auth.passwordless.persistence` — that one stays logged in on the device;
+      "upp till 180 dagar", never 30 alone; Logga ut on every page; directly above the
+      primary button in both steps (D4 point 2 + design B3; ePrivacy 5(3)/WP194). A
+      shortened string may add 30 as the inactivity limit but never lead with it.
+   3. `pages.auth.passwordless.code.resting` (the conditional clause), `code.resend.receipt`,
+      `code.expired`, `code.burned` — never state or presume that a code or link was sent;
+      name no cause the uniform answer hides; show no address except `code.youEntered`,
+      and never inside a sentence about mail (ADR 0142 Page form + Amendment 2026-09-21 (3);
+      #1779 Minor 1; Art. 5(1)(a), 12(1)). `code.codeHint` is not bound.
+   4. `pages.auth.passwordless.consent.termsLabel`, `consent.privacySibling` — the
+      acceptance covers the terms and only them; the privacy policy is a sibling sentence,
+      never inside the acceptance; from part 6a this is the collection notice on the OAuth
+      path (auth-epic Major 8 → D6 + Page form; Art. 6(1)(b), 13, 5(2)).
+   5. `pages.auth.passwordless.link.alreadyLoggedIn.body`, second sentence — says what
+      "fortsätt" does; no address (#1738 M-2 + Klas "(a) Två knappar"; Art. 32(1)).
+   6. `resumes.consent.*` — versioned consent; a material change bumps
+      `PnrConsentDialog.Version` in the same PR (CV-pivot 5b security bind B6; Art. 7(1)–(2),
+      87 + DSL 3:10). No test pins the copy to the version, so the bump is the sweep's duty.
+   7. `settings.backgroundMatch.intro` + `.toggleDescription` — what the consent covers,
+      and that it can be withdrawn, which only `intro` says (ADR 0080 flip gate 3;
+      Art. 7(2)–(3), 13(2)(c)).
+   8. `settings.followedCompanyNotifications.toggleDescription` — what the consent covers,
+      plus "Du kan dra tillbaka samtycket …" (ADR 0087; Art. 7(2)–(3)).
+   9. `jobads.applicationHistory.incompleteNote`, and the word "minst" in
+      `applicationHistory.applicationCount`, `ui.card.previousApplications` and
+      `ui.detail.previousApplications` — the notice is visible above the content in both
+      branches, never behind help; the floor "minst" stays (#824 PR 4, #858, #1003;
+      Art. 5(1)(a)/(d)).
+   10. `jobads.ui.detail.recruiterNoticeLink`, `applications.ui.preservedAd.recruiterNoticeLink`
+      — the link, shown with the contact block (#842 CTO rebind R5; Art. 14(5)(b)).
+   11. `pages.sokningar.lede` — the retention sentence and the policy reference; may move
+      into the ?-help (ADR 0060 says "hjälptext"), never be struck (ADR 0060 mechanics
+      note 6; Art. 13(1)(c)/(2)(a)).
+   12. `settings.account.delete.{description,mailOff,contactRoute}`,
+      `settings.notice.accountDeleted.body` — the 30-day window in which a deletion is
+      notified; the kontakt@ address where self-service ends (#1740 form round;
+      Art. 12(2)–(3), 17).
+   13. `LoginRegistrationClosed`, `LoginNewAccountCode`, `LoginNewAccountCodeLimitReached`
+      and `LoginAddressChangeCode` in `EmailTemplates.LoginChallenge.cs` — the whole
+      class-(3) notice: the ground paragraph (`NoCredentialBasis*`, NewAccountCode's own
+      paragraph per condition 20, AddressChangeCode's own paragraph with the 14(2)(f)
+      category sentence), the retention paragraph, `ProcessorPlain/Html` and
+      `ControllerRightsAndComplaint*` (#1735 Q20.2, #1737 B3 + conditions 19–21, #1739 Q8,
+      #1795; Art. 14(1)–(2)).
+   14. `MatchNotification`, `FollowedCompanyNotification` in `EmailTemplates.cs` — the
+      "Du får detta för att …" paragraph and the link to the settings (docblock
+      "OBLIGATORISK (GDPR Art. 7(3))"; #1740; Art. 7(3)).
+   15. `LoginReauthenticationCode` (what the code unlocks + "Om det inte var du är någon
+      annan inloggad … Skriv till oss"), `EmailChangedNotification` ("Om du inte känner
+      igen ändringen …"), `PasswordChangedNotice` while the template exists — the
+      detection channel (ADR 0142 D5, #679 CTO bind 4, #1740 Minor 5; Art. 32(1)).
+   16. the subject and preheader of every code-bearing template — the code never appears
+      there (#1737 condition 22, pinned by `EmailTemplatesLoginChallengeTests`; Art. 32(1)).
+   Not bound, strikable without her signature: `code.codeHint`; in `resting` the sentence
+   "Kontrollera inkorgen och skräpposten", and "Koden gäller i 15 minuter" (if kept it must
+   match `ChallengeTtl`); `entry.lede`; `entry.emailHint`; the opening sentence of the
+   class-(3) mails; and the free-standing "Om det inte var du behöver du inte göra något."
+   in the class-(1) mails and in `LoginRegistrationClosed`/`…LimitReached` — a reassurance
+   that §8 rule 6's carve-out and the Klas requirement in `EmailTemplates.cs` decide, not
+   she. The `content-*` namespaces need no row; the cookie policy's persistence sentence
+   lives there.
 5. **Three contradictions fixed in the same PR:** the empty state was defined three ways
    (principles: one sentence; copy: statement + next step; components: title +
    explanation + action) and is now one statement + one action, at most two short
-   sentences inline, title + action as an Alert; DESIGN.md §6 still allowed the auth
+   sentences, in the delivered inline form (never a `role="alert"` box); DESIGN.md §6 still allowed the auth
    format placeholder the ADR 0038 amendment abolished; the components skill's
    `references/variants-full.md` still said auth format placeholders "behålls".
 6. **Klas's three answers of 2026-09-24 (never re-ask):**
@@ -203,22 +259,25 @@ reviewer grades against it.
 
 - Every shipped surface is non-compliant until #1824 and #1825 land; the sweep touches
   the i18n hotspot and waits on #1742.
-- Rule 7's list must be confirmed by `security-auditor` in #1824 (item 5 is the
-  session's, not hers).
-- Three named skips remain: the password-era examples in the copy skill (:150/:154) and
-  `wcag-criteria.md:200` are #1743's to retire; the hint colour tier
-  (`text-text-secondary` in the skills vs `text-text-primary` shipped) is carried as a
-  checklist line in #1824; the stale route list in `scripts/visual-verify.ts` and the
-  stale table in `docs/runbooks/frontend-visual-verification.md` ride a later session's
-  own PR.
+- Rule 7 names the class; Decision 4 is `security-auditor`'s confirmed set of 2026-09-24,
+  and #1824 and #1825 are graded against it.
+- Named skips: the password-era examples in the copy skill ("Kontrollera e-post och
+  lösenord", "Lösenordet måste vara minst 12 tecken"), in `microcopy-library.md` ("Minst
+  12 tecken.") and in the a11y references (`wcag-criteria.md`, `screen-reader-testing.md`)
+  are #1743's to retire, listed there; the tokens skill's tertiary tier still names hints
+  (`jobbpilot-design-tokens/SKILL.md`, `references/tokens-full.md`) while DESIGN.md §4 and
+  every shipped hint use `text-text-primary` — carried as a checklist line in #1824; the
+  stale table in `docs/runbooks/frontend-visual-verification.md` rides a later session's
+  own PR, and the `visual-verify.ts` defect (`/ansokningar/ny`, password login) is #1830.
 
 ## Implementation and acceptance
 
 - PR for #1823: this ADR (promoted with `git add -f`; row in the index), DESIGN.md
   (§1.2 row, §6 placeholder sentence, §8 rule), the four design skills and
   `references/variants-full.md`, `design-reviewer.md`, `nextjs-ui-engineer.md`.
-- Acceptance: the old example strings grep to zero across `.claude/`, DESIGN.md and
-  this ADR (ADRs up to 0143 are immutable records); `design-reviewer.md` names
+- Acceptance: the old hint-example strings grep to zero across `.claude/`, DESIGN.md and
+  this ADR (ADRs up to 0143 are immutable records; `namn@exempel.se` is allowed in an
+  error-message example, never in a hint); `design-reviewer.md` names
   DESIGN.md §8 in area 4, area 5 and the Major row; the parity guard
   (`.github/scripts/codex-agent-parity-guard.sh`) passes unchanged, since a text edit
   needs no stub change; the delta is `.md` only, so DoD #4 (rendered states) does not

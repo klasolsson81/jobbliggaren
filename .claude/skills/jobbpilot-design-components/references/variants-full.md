@@ -78,9 +78,9 @@ shadcn `Input` height **44px** (no size prop; `SelectTrigger` sm 36) per ADR 003
 `.jp-input` height **48px** per HANDOVER-v3 §5.2 via ADR 0052 (its `sm` 40 is ratified but UNIMPLEMENTED — no such class).
 `border-radius: 6px` (`var(--jp-r-md)`),
 `bg-surface-primary` (white in light), font 16px. Ingen
-placeholder-text i något fält (ADR 0038 amendment 2026-05-17) — label ovanför
-och, bara när formatet inte är självklart, hint nedanför bär informationen
-(DESIGN.md §8).
+exempel-placeholder i något inmatningsfält (ADR 0038 amendment 2026-05-17) — label
+ovanför och, bara när fältet annars avvisar det användaren skriver, hint nedanför bär
+informationen (DESIGN.md §8 regel 3).
 
 ### States
 
@@ -107,10 +107,11 @@ Required indicator: asterisk `*` after label text in `text-danger-600`.
 ```
 font-size: text-body-sm (14px)
 margin-top: mt-1 (4px)
-color: text-text-secondary
+color: text-text-primary (DESIGN.md §4 — a hint is an instruction, not metadata)
 ```
 
-Only when the format is not self-evident (DESIGN.md §8); an email field has none.
+Only when the field would otherwise reject what a first-time user types (DESIGN.md §8
+rule 3); an email field has none.
 
 ---
 
@@ -400,7 +401,8 @@ border-top 1px border; border-bottom 1px border; border-radius 0
 field: flex column gap 6px; label 14px/500 text-secondary;
        hint mono 13px text-secondary (ADR 0038 — informationsbärande
        hint är aldrig tertiary). Inga beskrivande placeholder-exempel
-       i sök-/filterfält — label + hint bär informationen.
+       i sök-/filterfält — labeln bär informationen, hinten bara när
+       fältet annars avvisar det användaren skriver (DESIGN.md §8).
 ```
 
 ### `.jp-banner` (3px brand left border)

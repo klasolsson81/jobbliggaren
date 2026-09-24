@@ -71,9 +71,9 @@ domain components from primitives. No Material UI/Chakra/Mantine/Headless UI.
 
 React Hook Form + Zod 4 + shadcn `Form`-primitives. Swedish validation
 messages. Never large `useState` form state. **No placeholder example text in
-inputs** (hard Klas rule): the label carries the instruction; a hint only when the
-format is not self-evident, no lede the h1/label/button make redundant, no
-reassurance sentence (DESIGN.md §8).
+inputs** (hard Klas rule): the label carries the instruction. Copy density follows
+DESIGN.md §8, every rule — explanations behind `InfoDialog` (`.jp-labelhelp`), and
+rule 7's legally bound lines untouched without security-auditor's signature.
 
 ## TypeScript 6 strict
 

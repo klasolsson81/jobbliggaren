@@ -83,7 +83,6 @@ import { Suspense } from "react"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -115,15 +114,9 @@ export default async function ApplicationsPage({
 
       <Suspense fallback={<ApplicationTableSkeleton />}>
         {result.items.length === 0 ? (
-          <Alert>
-            <AlertTitle>Inga ansökningar</AlertTitle>
-            <AlertDescription>
-              Du har inga aktiva ansökningar. Hitta jobb som passar din profil under Jobb.
-            </AlertDescription>
-            <Button asChild variant="primary" className="mt-3">
-              <Link href="/jobb">Visa jobb</Link>
-            </Button>
-          </Alert>
+          <p className="text-body-sm text-text-primary">
+            Du har inga aktiva ansökningar. <Link href="/jobb">Visa jobb</Link>
+          </p>
         ) : (
           <>
             <p className="text-body-sm text-text-secondary mb-2">

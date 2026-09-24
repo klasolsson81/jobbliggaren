@@ -40,23 +40,22 @@ inte "en möjlighet väntar".
 
 ## Copy-täthet (DESIGN.md §8)
 
-"Direkt" ovan är en riktlinje; regeln bor i DESIGN.md §8 (sju punkter, Klas-direktiv
-2026-09-24, ADR 0144) och `design-reviewer` graderar överskott som Major. Här är formerna.
+"Direkt" ovan är en riktlinje; regeln bor i DESIGN.md §8 (Klas-direktiv 2026-09-24,
+ADR 0144) och graderas av `design-reviewer`. Här är formerna.
 
 | Yta | ✅ Ja | ❌ Nej |
 |---|---|---|
-| Formulärsida där h1 + etikett + knapp räcker | h1 "Byt e-postadress" · etikett "Ny e-postadress" · knapp "Skicka kod", ingen ledtext | + "Skriv in den nya adressen så skickar vi en kod dit." |
-| Formulärsida där EN ledtext behövs | "Vi skickar en kod till din e-postadress." (och hellre knappen "Skicka kod" i stället för "Fortsätt", så att ledtexten kan strykas) | "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord." |
-| Formathjälp, självklart format | E-postfält: ingen hint | "Adressen ska innehålla @ och en domän." |
-| Formathjälp, icke självklart format | Organisationsnummer: "Tio siffror, med eller utan bindestreck." | Ingen hint (användaren gissar om bindestrecket) |
+| Formulär där rubrik + etikett + knapp räcker | Titel "Byt namn på CV" · etikett "Namn" · knapp "Spara namn", ingen ledtext | + "Namnet visas i din CV-lista." (den levererade `resumes.rename.description`) |
+| Formulär där EN ledtext behövs | "Vi skickar en kod till din e-postadress." (det knappen "Fortsätt" inte säger) | "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord." |
+| Formathjälp, självklart format | E-postfält: ingen hint. Fel format besvaras i felet: "Skriv e-postadressen i rätt format, till exempel namn@exempel.se." | "Adressen ska innehålla @ och en domän." som hint |
+| Formathjälp, icke självklart format | Organisationsnummer: "Tio siffror." | Ingen hint (användaren skriver tolv siffror och får ett fel); "med eller utan bindestreck" (fältet tar emot båda, det sägs inte) |
 | Nästa steg | Knappen "Skicka ny kod", ingen mening om vad som händer sedan | "Klicka på Fortsätt för att gå vidare till nästa steg." |
-| Förklaring av en vy | ?-hjälp/expander-mönstret (#1003) | Ett inledande stycke ovanför listan som förklarar vyn |
+| Förklaring av en vy | ?-hjälp: `InfoDialog` + `.jp-labelhelp` (#408, #1003) | Ett inledande stycke ovanför listan som förklarar vyn |
 | Lugnande | (inget) | "Vi skickar aldrig reklam." |
-| Rättsligt bärande | Art. 13-raden under e-postfältet står kvar, kortad bara med security-auditors signatur | Raden struken, eller gömd bakom en länk |
+| Rättsligt bärande (regel 7) | Art. 13-raden under e-postfältet står kvar, kortad eller flyttad bara med security-auditors signatur; hennes bekräftade strängar i ADR 0144 | Raden struken, eller gömd bakom en länk eller ?-hjälp |
 
-Tystnad är ett utfall, inte ett tomrum: en yta utan mening är tom först när en
-uppgift inte går att slutföra utan att gissa (ADR 0047). Då är fyndet en kortare
-mening eller en bättre etikett/knapp, aldrig gissningen.
+Avvägningen mot ADR 0047 (en struken mening får aldrig lämna en gissning eller dölja en
+oåterkallelig handlings följd) står i DESIGN.md §8 och upprepas inte här.
 
 ---
 
@@ -175,7 +174,7 @@ Vad gick fel + vad ska göras. Aldrig vag.
 | Inloggning misslyckas | "Inloggningen misslyckades. Kontrollera e-post och lösenord." | "Hoppsan! Det blev fel." |
 | Nätverksfel | "Ingen anslutning. Kontrollera din nätverksanslutning." | "Något gick fel. Försök igen." |
 | Serverfel | "Ett fel uppstod. Försök igen om en stund eller kontakta support om problemet kvarstår." | "Error 500" |
-| Valideringsfel format | "E-postadressen har fel format." | "Ogiltigt värde" |
+| Valideringsfel format | "Skriv e-postadressen i rätt format, till exempel namn@exempel.se." | "Ogiltigt värde"; "E-postadressen har fel format." (orsak utan åtgärd) |
 | Valideringsfel krav | "Lösenordet måste vara minst 12 tecken." | "Lösenordet uppfyller inte kraven." |
 
 Aldrig:
@@ -328,16 +327,16 @@ Acceptabla generiska (när kontexten är otvetydig):
 
 **Klas hård designregel 2026-05-17 (förstärker ADR 0038):** Inga input-fält
 har exempel-/instruktions-text i `placeholder`. Fälten är rena à la
-Platsbanken. Formathjälp, bara när formatet inte är självklart (DESIGN.md §8),
-blir **hjälptext (hint) under fältet** i
-`text-text-secondary`, kopplad via `aria-describedby`. Label kvarstår ovanför.
+Platsbanken. Formathjälp, bara när fältet annars avvisar det användaren skriver (DESIGN.md
+§8 regel 3), blir **hjälptext (hint) under fältet** i
+`text-text-primary`, kopplad via `aria-describedby`. Label kvarstår ovanför.
 
 ```tsx
-// ✅ Korrekt — rent fält, hint bara när formatet inte är självklart (DESIGN.md §8)
+// ✅ Korrekt — rent fält, hint bara när fältet annars avvisar det användaren skriver (DESIGN.md §8)
 <label htmlFor="orgnr">Organisationsnummer</label>
 <Input id="orgnr" inputMode="numeric" aria-describedby="orgnr-hint" />
-<p id="orgnr-hint" className="text-body-sm text-text-secondary">
-  Tio siffror, med eller utan bindestreck.
+<p id="orgnr-hint" className="text-body-sm text-text-primary">
+  Tio siffror.
 </p>
 
 // ✅ Korrekt — e-postfält utan hint (syntaxen är självklar)

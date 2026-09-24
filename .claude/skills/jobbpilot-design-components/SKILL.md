@@ -145,9 +145,10 @@ vara **rena à la Platsbanken** — tomt fält, ingen grå exempeltext i rutan.
 Gäller hela appen (auth, sök/filter, dialoger, CV-/ansöknings-/admin-formulär).
 
 - **Default = ingen `placeholder` alls.** Ta bort den.
-- Bara när formatet inte är självklart (organisationsnummer, concept-id, datum i
-  fritext; aldrig e-postadressens syntax, DESIGN.md §8) får fältet en **hjälptext
-  (hint) under input-rutan** — `text-body-sm text-text-secondary`, kopplad via
+- Bara när fältet annars avvisar det en förstagångsanvändare skriver (organisationsnummer,
+  concept-id, datum i fritext; aldrig e-postadressens syntax, DESIGN.md §8 regel 3) får
+  fältet en **hjälptext (hint) under input-rutan** — `text-body-sm text-text-primary`
+  (DESIGN.md §4: en instruktion är innehåll, inte metadata), kopplad via
   `aria-describedby` (a11y-skillens form-mönster). Label kvarstår alltid ovanför.
 - **Hint-placering:** default är **under** fältet (codebase-konventionen:
   label → input → hint/fel i samma scan-rytm). **Ovanför** är tillåtet endast
@@ -321,21 +322,28 @@ carries information — a real wait — never decoration.
 
 ## Composition patterns
 
+### Help behind a "?" (`InfoDialog`)
+
+Explanations do not print inline (DESIGN.md §8 rule 5, #1003). The delivered form is
+`src/components/common/info-dialog.tsx` (#408) inside a `.jp-labelhelp` span next to the
+section label (`follow-ups-section.tsx`, `notes-section.tsx`): a HelpCircle trigger that
+opens an explainer dialog whose first paragraph is the dialog description. Legally
+load-bearing text (§8 rule 7) stays visible and never moves behind it without
+security-auditor's signature.
+
 ### Empty state
 
 ```tsx
-<Alert>
-  <AlertTitle>Inga ansökningar</AlertTitle>
-  <Button asChild variant="primary" className="mt-3">
-    <Link href="/jobb">Visa jobb</Link>
-  </Button>
-</Alert>
+<p className="text-body-sm text-text-primary">
+  Du har inga aktiva ansökningar. <Link href="/jobb">Visa jobb</Link>
+</p>
 ```
 
-Always: one statement and one concrete next action, once each. Inline in a table
-or list: statement + next step in at most two short sentences
-(`jobbpilot-design-copy` §1). As an Alert: title + action, no description that
-repeats the title (DESIGN.md §8). Never just "Tomt här."
+Always: one statement and one concrete next action, once each — at most two short
+sentences, or a statement plus a link/button (`jobbpilot-design-copy` §1). The
+delivered form is an inline `<p>` (`follow-ups-section.tsx`); an empty state is not a
+message, so never `role="alert"` (shadcn `Alert` sets it, and the repo has no
+`ui/alert.tsx`). Never just "Tomt här."
 
 ### Confirmation dialog
 

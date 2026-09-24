@@ -154,8 +154,8 @@ both pair a colored dot with a text label by design; do not strip the label.
 ## 5. Form accessibility
 
 Every form input has the label, the ARIA wiring and the error row below. The help
-row exists only when the format is not self-evident (DESIGN.md §8): an email field
-has none, and `aria-describedby` then names the error id alone.
+row exists only when the field would otherwise reject what a first-time user types
+(DESIGN.md §8 rule 3): an email field has none.
 
 ```tsx
 <FormItem>
@@ -168,10 +168,10 @@ has none, and `aria-describedby` then names the error id alone.
     required
     aria-required="true"
     aria-invalid={!!errors.orgnr}
-    aria-describedby="orgnr-help orgnr-error"
+    aria-describedby={errors.orgnr ? "orgnr-help orgnr-error" : "orgnr-help"}
   />
-  <p id="orgnr-help" className="text-body-sm text-text-secondary">
-    Tio siffror, med eller utan bindestreck.
+  <p id="orgnr-help" className="text-body-sm text-text-primary">
+    Tio siffror.
   </p>
   {errors.orgnr && (
     <p id="orgnr-error" role="alert" className="text-body-sm text-danger-700">
@@ -185,7 +185,7 @@ Requirements:
 - `<label>` associated via `htmlFor` + `id`, or `aria-label` if label is not visible
 - `aria-required="true"` on required fields (in addition to `required`)
 - `aria-invalid` set dynamically based on error state
-- `aria-describedby` links the help text (when present) and the error message (space-separated IDs)
+- `aria-describedby` links every rendered description row (format help, the Art. 13 line) and, while shown, the error message (space-separated IDs)
 - Error message appears as text — never only as a red border
 - Error message uses `role="alert"` so screen readers announce it immediately
 - On submit failure: focus moves to first error field

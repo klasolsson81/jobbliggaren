@@ -63,7 +63,7 @@ Du är redo. Spara intressanta jobb och följ upp ansökningar härifrån.
 | Inställning | Beskrivning |
 |---|---|
 | E-post | "Din inloggningsadress. Ändra kräver verifiering av den nya adressen." |
-| Lösenord | "Minst 12 tecken. Vi lagrar aldrig lösenord i klartext." |
+| Lösenord | "Minst 12 tecken." |
 | Avsluta konto | "Raderar all din data permanent inom 30 dagar. Kan inte ångras." |
 
 ### Notifikationer
@@ -86,15 +86,15 @@ Du är redo. Spara intressanta jobb och följ upp ansökningar härifrån.
 
 ## Tomma tillstånd — ytterligare
 
-Utöver de i SKILL.md:
+Utöver de i SKILL.md (konstatering + åtgärd, inget mer — DESIGN.md §8):
 
-| Yta | Titel | Beskrivning + åtgärd |
+| Yta | Titel | Åtgärd |
 |---|---|---|
-| Notifikationslista | "Inga notifikationer" | "Du är uppdaterad." |
-| Aktivitetslogg | "Ingen aktivitet" | "Händelser som statusändringar och skickade mejl visas här." |
-| Sökresultat (0 träffar) | "Inga träffar" | "Inga jobbannonser matchar '{query}'. Prova ett annat sökord." |
-| Intervjuer (tom) | "Inga bokade intervjuer" | "Schemalagda intervjuer visas här. Lägg till en under ansökan." |
-| Inkorgen (Gmail ej kopplad) | "Gmail inte kopplat" | "Koppla Gmail för att importera jobbrelaterade mejl. Koppla Gmail" |
+| Notifikationslista | "Inga notifikationer" | (ingen) |
+| Aktivitetslogg | "Ingen aktivitet" | (ingen) |
+| Sökresultat (0 träffar) | "Inga träffar" | "Prova ett annat sökord." |
+| Intervjuer (tom) | "Inga bokade intervjuer" | "Lägg till en under ansökan." |
+| Inkorgen (Gmail ej kopplad) | "Gmail inte kopplat" | Knappen "Koppla Gmail" |
 
 ---
 

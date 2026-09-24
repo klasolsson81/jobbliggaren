@@ -5,6 +5,12 @@ and the explicit #1735 handoff. Production and development Compose mount the
 policies. Both application hosts require authenticated, role-specific connections
 and successful startup probes. Live cutover and environment acceptance remain open.
 
+Development runs API and Worker on the host. Its two Redis instances use separate
+ordinary bridges with ports published only on `127.0.0.1`, retaining development
+egress. Production uses internal bridges without published Redis ports. Both
+environments use the same role-specific ACL policies. Development peers may reach
+Redis by container IP; ACLs enforce Redis authorization.
+
 ## Contract and ownership
 
 The executable sources are
@@ -27,7 +33,7 @@ Change the contract and its tests together when adding a consumer.
 | API | Seq | Application logs |
 | Worker | Seq | Job logs |
 
-Each row becomes its own internal bridge. Caddy, API and Worker each have a
+In production Compose, each row becomes its own internal bridge. Caddy, API and Worker each have a
 separate egress bridge with no other application members. Web, Caddy,
 PostgreSQL, both migration services and Seq have no direct Redis path. Worker
 has no volatile path. Redis instances have no common bridge.

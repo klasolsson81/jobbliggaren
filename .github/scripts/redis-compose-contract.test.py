@@ -47,4 +47,10 @@ for model, name in ((model, 'redis-volatile'), (render('docker-compose.yml'), 'r
     assert not policy.get('bind', {}).get('create_host_path', False)
     command = volatile['command']
     assert command[command.index('--save') + 1] == '' and command[command.index('--appendonly') + 1] == 'no'
+dev = render('docker-compose.yml')
+for service, network, port in (('redis-dev', 'redis-persistent-dev', 6379), ('redis-volatile-dev', 'redis-volatile-dev', 6381)):
+    assert set(dev['services'][service]['networks']) == {network}
+    assert dev['networks'][network].get('driver') == 'bridge' and not dev['networks'][network].get('internal', False)
+    bindings = dev['services'][service]['ports']
+    assert len(bindings) == 1 and bindings[0]['host_ip'] == '127.0.0.1' and int(bindings[0]['published']) == port and bindings[0]['target'] == 6379
 print('PASS resolved deploy/dev network, identity, mount, forwarding and readiness contracts')

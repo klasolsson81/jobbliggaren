@@ -21,12 +21,12 @@ function Probe {
 }
 try {
     & (Join-Path $PSScriptRoot 'prepare-dev-redis.ps1') -OutputDirectory $private | Out-Null
-    $connection = [IO.File]::ReadAllText((Join-Path $private 'worker-persistent/connection')).Replace('localhost:6379', 'redis:6379')
+    $connection = [IO.File]::ReadAllText((Join-Path $private 'worker-persistent/connection')).Replace('127.0.0.1:6379', 'redis:6379')
     [IO.File]::WriteAllText((Join-Path $private 'worker-persistent/connection'), $connection)
     foreach ($role in @('api-persistent', 'api-volatile')) {
         $endpoint = if ($role -eq 'api-volatile') { 'redis-volatile:6379' } else { 'redis:6379' }
         $path = Join-Path $private "$role/connection"
-        $value = [IO.File]::ReadAllText($path) -replace '^localhost:[0-9]+', $endpoint
+        $value = [IO.File]::ReadAllText($path) -replace '^127\.0\.0\.1:[0-9]+', $endpoint
         [IO.File]::WriteAllText($path, $value)
     }
     $key = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))

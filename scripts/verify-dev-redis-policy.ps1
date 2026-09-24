@@ -14,7 +14,7 @@ try {
         } else {
             $port = if ($role -eq 'api-volatile') { '6381' } else { '6379' }
             $connection = [IO.File]::ReadAllText((Join-Path $target "$role/connection"))
-            $prefix = "localhost:$port,user=$role,password="
+            $prefix = "127.0.0.1:$port,user=$role,password="
             if (-not $connection.StartsWith($prefix, [StringComparison]::Ordinal)) { throw 'Development role/endpoint differs.' }
             $passwords[$role] = $connection.Substring($prefix.Length)
         }

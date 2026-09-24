@@ -215,6 +215,6 @@ volumes:
 
 networks:
   redis-persistent-dev:
-    internal: true
+    driver: bridge
   redis-volatile-dev:
-    internal: true
+    driver: bridge

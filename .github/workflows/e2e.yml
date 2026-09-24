@@ -108,6 +108,7 @@ jobs:
       - name: Start both ACL-protected Redis stores
         run: |
           docker compose up -d --wait redis-dev redis-volatile-dev
+          python3 scripts/verify-dev-redis-connectivity.py
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6

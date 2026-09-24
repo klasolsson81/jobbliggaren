@@ -38,7 +38,7 @@ foreach ($store in @('persistent', 'volatile')) {
 }
 foreach ($role in @('api-persistent', 'api-volatile', 'worker-persistent')) {
     $port = if ($role -eq 'api-volatile') { 6381 } else { 6379 }
-    Write-PrivateFile "$role/connection" "localhost:$port,user=$role,password=$($passwords[$role])"
+    Write-PrivateFile "$role/connection" "127.0.0.1:$port,user=$role,password=$($passwords[$role])"
 }
 [IO.Directory]::Move($stage, $target)
 Write-Output "Created private development Redis files in $target. No service was started."

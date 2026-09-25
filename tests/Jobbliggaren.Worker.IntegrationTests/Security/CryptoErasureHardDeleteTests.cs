@@ -104,7 +104,7 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
 
             var email = $"ce-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "CryptoErasurePass123!"))
+            (await userManager.CreateAsync(user))
                 .Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
             userId = user.Id;
 
@@ -246,7 +246,7 @@ public class CryptoErasureHardDeleteTests(WorkerTestFixture fixture)
                 .GetRequiredService<UserManager<ApplicationUser>>();
             var email = $"ce-nokey-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "NoKeyPass123!"))
+            (await userManager.CreateAsync(user))
                 .Succeeded.ShouldBeTrue();
 
             // Registrera + soft-delete UTAN att någonsin skapa en DEK

@@ -343,7 +343,7 @@ public class FollowedCompanyDigestIntegrationTests(WorkerTestFixture fixture)
         {
             var email = $"follow-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "FollowPass123!")).Succeeded.ShouldBeTrue();
+            (await userManager.CreateAsync(user)).Succeeded.ShouldBeTrue();
             userId = user.Id;
         }
         else

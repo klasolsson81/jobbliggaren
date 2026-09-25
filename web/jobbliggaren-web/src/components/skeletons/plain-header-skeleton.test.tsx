@@ -18,6 +18,16 @@ describe("PlainHeaderSkeleton", () => {
     expect(container.querySelectorAll(".jp-skeleton").length).toBeGreaterThan(1);
   });
 
+  it("draws the title bar alone when lede is false", () => {
+    const header = (lede?: boolean) =>
+      render(<PlainHeaderSkeleton label="…" lede={lede} />).container.querySelector(
+        "[aria-hidden='true'] > div"
+      );
+    // Positive control: by default the header carries title + lede bars.
+    expect(header()?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
+    expect(header(false)?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
+  });
+
   it("renders bare by default (shell supplies the container)", () => {
     const { container } = render(<PlainHeaderSkeleton label="…" />);
     expect(container.querySelector(".jp-container")).toBeNull();

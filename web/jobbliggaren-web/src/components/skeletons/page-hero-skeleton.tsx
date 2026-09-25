@@ -22,7 +22,8 @@ import type { ReactElement } from "react";
  * **`title`/`lede` close it.** A pagehero title and lede are static translations, so a
  * fallback can render the REAL text and let the browser do the wrapping — then the band
  * cannot disagree with the page at any viewport. Where the copy is genuinely unknown at
- * fallback time the default bars stand in, and reserve one lede line.
+ * fallback time the default bars stand in, and reserve one lede line. `lede={null}` is a
+ * page that renders no lede, and reserves no line.
  *
  * Flat neutral grey `.jp-skeleton` blocks sized with Tailwind utilities, no
  * pulse/shimmer/glow (civic-utility, mirrors JobAdListSkeleton).
@@ -70,8 +71,11 @@ export function PageHeroSkeleton({
   kicker?: boolean;
   /** The page's real title. Given, it is rendered instead of the title bar. */
   title?: string;
-  /** The page's real lede. Given, it is rendered instead of the lede bar. */
-  lede?: string;
+  /**
+   * The page's real lede. Given, it is rendered instead of the lede bar; `null` where the page
+   * renders none.
+   */
+  lede?: string | null;
 }) {
   return (
     <section className="jp-pagehero" aria-hidden="true">
@@ -83,11 +87,10 @@ export function PageHeroSkeleton({
           ) : (
             <h1 className="jp-pagehero__title">{title}</h1>
           )}
-          {lede === undefined ? (
+          {lede === undefined && (
             <span className="jp-skeleton mt-2 block h-4 w-96 max-w-full" />
-          ) : (
-            <p className="jp-pagehero__lede">{lede}</p>
           )}
+          {typeof lede === "string" && <p className="jp-pagehero__lede">{lede}</p>}
         </div>
         {aside !== null && (
           <div

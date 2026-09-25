@@ -76,7 +76,7 @@ describe("CvBlockReason", () => {
     expect(
       screen.getByRole("heading", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vi hittar inget i filen som stoppar den/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ladda upp filen igen så prövas den på nytt/i)).toBeInTheDocument();
     // The unassessed channel is disclosed, not silently omitted.
     expect(
       screen.getByText(/namn du skriver själv kontrolleras först vid uppladdningen/i),

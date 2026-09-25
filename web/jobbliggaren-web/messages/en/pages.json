@@ -1,7 +1,7 @@
 {
   "common": {
     "rateLimitedTitle": "Too many requests",
-    "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds, plural, one {# second} other {# seconds}}.",
+    "rateLimitedBody": "Try again in {seconds, plural, one {# second} other {# seconds}}.",
     "errorBodyReload": "A technical error occurred. Try reloading the page in a moment.",
     "back": "Back"
   },
@@ -22,26 +22,21 @@
   },
   "ansokningar": {
     "title": "My applications",
-    "lede": "A pipeline of all your applications. Click a row for details.",
     "newApplication": "New application",
     "activityReport": "Activity report helper",
     "statistics": "Statistics",
     "loadErrorTitle": "Could not load applications",
     "emptyTitle": "No applications yet",
-    "emptyBody": "As soon as you register your first application, it appears here. Track status from draft to reply without losing a single application.",
     "emptyCreateFirst": "Create first application",
     "emptySearchFirst": "Search jobs first",
     "new": {
       "title": "New application",
-      "lede": "Add the job you are applying for. You can fill in the details later.",
       "titleLabel": "Job title",
       "companyLabel": "Company",
-      "urlLabel": "Job link",
-      "urlHint": "Optional. The link must start with http:// or https://.",
-      "expiresAtLabel": "Application deadline",
-      "expiresAtHint": "Optional. The date is shown as a reminder in the application list.",
-      "coverLetterLabel": "Cover letter",
-      "coverLetterHint": "Optional. You can add or edit it later.",
+      "urlLabel": "Job link (optional)",
+      "urlHint": "The link must start with http:// or https://.",
+      "expiresAtLabel": "Application deadline (optional)",
+      "coverLetterLabel": "Cover letter (optional)",
       "submit": "Create application",
       "submitting": "Saving…",
       "cancel": "Cancel",
@@ -67,12 +62,11 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Manage your CV variants. Import an existing CV for review. You always stay in control.",
+    "lede": "Import an existing CV for review.",
     "importCv": "Import CV",
     "newCv": "New CV",
     "loadErrorTitle": "Could not load CV",
     "emptyTitle": "No CVs yet",
-    "emptyBody": "Import your first CV to get started. You can have several variants (for example one for leadership and one for a technical role) and choose the right CV for each application.",
     "emptyCreateFirst": "Create first CV",
     "backLink": "Back to CV",
     "listHeading": "Saved CVs",
@@ -80,11 +74,11 @@
       "kicker": "Needs action",
       "imported": "Imported {when}",
       "heading": "Your CV has been read",
-      "body": "The file has been read but not saved as a CV. Open the review to see why.",
+      "body": "The file is not saved as a CV. The review shows why.",
       "cta": "Open the review",
       "discard": "Remove draft",
       "discardTitle": "Remove draft?",
-      "discardBody": "The draft is removed. You can import your CV again whenever you want.",
+      "discardBody": "You can import your CV again.",
       "discardConfirm": "Remove draft",
       "discardCancel": "Cancel",
       "relativeTime": {
@@ -95,8 +89,6 @@
     },
     "import": {
       "title": "Import CV",
-      "lede": "Upload your existing CV as a PDF or Word file. We read the contents and show a deterministic review with cited evidence. You stay in control. Your CV is not changed.",
-      "modalDescription": "Upload your existing CV as a PDF or Word file. We read the contents and show a review. Your CV is not changed.",
       "meta": {
         "title": "Import CV"
       }
@@ -114,11 +106,11 @@
     "review": {
       "beta": "Beta",
       "title": "Review imported CV",
-      "lede": "This is a deterministic review of your imported CV. Nothing has been changed in the file. The review only points out what you can improve, with cited evidence from your own text. The review is new and still being built. Criteria may be added and change.",
+      "lede": "The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
-      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV list.",
+      "errorBody": "A technical error occurred. Try reloading the page.",
       "nextStepTitle": "Next step",
-      "nextStepBody": "The review is read-only and changes nothing in your file. To improve your CV, update the file based on the findings and upload it again.",
+      "nextStepBody": "Update the file based on the findings and upload it again.",
       "nextStepCta": "Upload again",
       "loading": "Loading the review…",
       "blockReason": {
@@ -128,7 +120,7 @@
         "PersonnummerPresent": "The file contains a personal identity number. Remove it from the file and upload it again.",
         "clearedKicker": "No blockers in the file",
         "clearedTitle": "Nothing in the file blocks it",
-        "clearedBody": "We find nothing in the file that stops it. Upload it again and it will be checked afresh. A name you type yourself is only checked at upload."
+        "clearedBody": "Upload the file again and it will be checked afresh. A name you type yourself is only checked at upload."
       },
       "meta": {
         "title": "Review imported CV"
@@ -159,9 +151,9 @@
     "granska": {
       "beta": "Beta",
       "title": "Review of your CV",
-      "lede": "This is a deterministic review of your saved CV, with cited evidence from your own text. Nothing changes in your CV automatically. The review is new and still being built. Criteria may be added and change.",
+      "lede": "The review is new and still being built. Criteria may be added and change.",
       "loadErrorTitle": "Could not load the review",
-      "errorBody": "A technical error occurred. Try reloading the page or go back to the CV page.",
+      "errorBody": "A technical error occurred. Try reloading the page.",
       "loading": "Loading the review…",
       "meta": {
         "title": "CV review"
@@ -231,7 +223,7 @@
   },
   "jobb": {
     "title": "Search jobs",
-    "lede": "Search among active listings from Platsbanken. Filter and compare without losing a single listing.",
+    "lede": "Search among active listings from Platsbanken.",
     "resultsHeading": "Available jobs",
     "loading": "The job listing is loading…",
     "detail": {
@@ -246,7 +238,7 @@
   },
   "sokningar": {
     "title": "Recent searches",
-    "lede": "Searches you have run under Jobs. Click to run a search again, or remove one you do not need. We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
+    "lede": "We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy.",
     "loadErrorTitle": "Could not load recent searches",
     "meta": {
       "title": "Recent searches"
@@ -254,7 +246,6 @@
   },
   "sparade": {
     "title": "Saved listings",
-    "lede": "Listings you have saved to return to later. Open a listing to see details or remove the bookmark.",
     "loadErrorTitle": "Could not load saved listings",
     "meta": {
       "title": "Saved ads"
@@ -535,13 +526,12 @@
   },
   "matchningar": {
     "title": "My matches",
-    "lede": "Job ads that background matching has found for you, most recent first. Open an ad to read all of it.",
     "listLabel": "Your matches",
     "newBadge": "New",
     "newBadgeAriaLabel": "New match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
-    "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for. As soon as a job ad matches your profile it appears here.",
+    "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for.",
     "boundedNote": "Showing your {count} most recent matches.",
     "boundedLink": "Find more via the match filter in the job list",
     "loadErrorTitle": "Could not load your matches",

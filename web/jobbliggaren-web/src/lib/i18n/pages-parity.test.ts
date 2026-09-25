@@ -29,7 +29,6 @@ describe("pages i18n-paritet (sv ↔ en)", () => {
   it("matchningar-vyns nycklar finns i båda katalogerna (ADR 0080)", () => {
     const required = [
       "matchningar.title",
-      "matchningar.lede",
       "matchningar.listLabel",
       "matchningar.newBadge",
       "matchningar.newBadgeAriaLabel",
@@ -43,5 +42,14 @@ describe("pages i18n-paritet (sv ↔ en)", () => {
       expect(sv.has(path), `sv saknar ${path}`).toBe(true);
       expect(en.has(path), `en saknar ${path}`).toBe(true);
     }
+  });
+
+  it("sokningar.lede står hel i sv och en (ADR 0144 D4 rad 11: retention + policyhänvisning)", () => {
+    expect(svPages.sokningar.lede).toBe(
+      "Vi sparar dina 20 senaste sökningar, inklusive söktexten du skrev. Du kan läsa mer i integritetspolicyn."
+    );
+    expect(enPages.sokningar.lede).toBe(
+      "We keep your 20 most recent searches, including the search term you typed. You can read more in the privacy policy."
+    );
   });
 });

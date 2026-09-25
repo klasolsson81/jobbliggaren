@@ -121,6 +121,15 @@ describe("PageHeroSkeleton", () => {
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
   });
 
+  it("renders neither a lede bar nor a lede element when `lede` is null", () => {
+    const { container } = render(<PageHeroSkeleton title="Mina ansökningar" lede={null} aside={null} />);
+    const main = container.querySelector(".jp-pagehero__main");
+    // Positive first: the title is there, so this is not measuring an empty band.
+    expect(main?.querySelector("h1.jp-pagehero__title")?.textContent).toBe("Mina ansökningar");
+    expect(main?.querySelector("p.jp-pagehero__lede")).toBeNull();
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
+  });
+
   it("leaves no bar in __main once both title and lede are real", () => {
     const { container } = render(
       <PageHeroSkeleton title="Granskning av ditt CV" lede="En granskning." aside={null} />,

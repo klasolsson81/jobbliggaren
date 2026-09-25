@@ -4,7 +4,7 @@ import { PlainHeaderSkeleton } from "./plain-header-skeleton";
 
 describe("PlainHeaderSkeleton", () => {
   it("announces loading via a polite sr-only status region with the given label", () => {
-    render(<PlainHeaderSkeleton label="Matchningarna läses in…" />);
+    render(<PlainHeaderSkeleton label="Matchningarna läses in…" lede={false} />);
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveAttribute("aria-busy", "true");
@@ -12,31 +12,41 @@ describe("PlainHeaderSkeleton", () => {
   });
 
   it("renders a plain header (no jp-pagehero band) so a bandless page does not flash one", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" />);
+    const { container } = render(<PlainHeaderSkeleton label="…" lede />);
     expect(container.querySelector(".jp-pagehero")).toBeNull();
     // Title + lede placeholder bars are present.
     expect(container.querySelectorAll(".jp-skeleton").length).toBeGreaterThan(1);
   });
 
+  it("draws the title bar alone when lede is false", () => {
+    const header = (lede: boolean) =>
+      render(<PlainHeaderSkeleton label="…" lede={lede} />).container.querySelector(
+        "[aria-hidden='true'] > div"
+      );
+    // Positive control: the header carries title + lede bars.
+    expect(header(true)?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
+    expect(header(false)?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
+  });
+
   it("renders bare by default (shell supplies the container)", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" />);
+    const { container } = render(<PlainHeaderSkeleton label="…" lede={false} />);
     expect(container.querySelector(".jp-container")).toBeNull();
   });
 
   it("wraps in .jp-container.jp-page when contained (V3-native routes)", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" contained />);
+    const { container } = render(<PlainHeaderSkeleton label="…" contained lede={false} />);
     expect(container.querySelector(".jp-container.jp-page")).not.toBeNull();
   });
 
   it("hides the decorative shape from assistive tech", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" />);
+    const { container } = render(<PlainHeaderSkeleton label="…" lede={false} />);
     expect(
       container.querySelector("[aria-hidden='true']")
     ).not.toBeNull();
   });
 
   it("renders no global id (safe to render alongside the real page mid-swap)", () => {
-    const { container } = render(<PlainHeaderSkeleton label="…" />);
+    const { container } = render(<PlainHeaderSkeleton label="…" lede />);
     expect(container.querySelector("[id]")).toBeNull();
   });
 });

@@ -251,12 +251,12 @@ stamp. Byte-identical responses; no new oracle.
 
 Every passwordless login issues `Persistent` (30 d sliding / 180 d cap / 24 h rotation,
 `SessionStoreOptions.cs`); the cookie always carries Max-Age 180 d; the "Håll mig inloggad" checkbox
-goes. **The effective default for an inactive device is 30 days, not 180**, and 30 is the number the
-copy leads with. **The disclosure sits on BOTH steps that create a session** — `/logga-in/kod` (the
+goes. **The effective default for an inactive device is 30 days, not 180**. **The disclosure sits on
+BOTH steps that create a session** — `/logga-in/kod` (the
 only step an existing account sees) and `/logga-in/villkor` — directly above the primary button,
 `text-body-sm text-text-primary`, never in a footer and never behind a link (design B3):
-*"Du förblir inloggad på den här enheten i upp till 180 dagar. Du kan logga ut när du vill, Logga ut
-finns på varje inloggad sida."* Backend issues `Persistent` in 1a; `setSessionCookie(id, true)` and
+*"Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad
+sida."* Backend issues `Persistent` in 1a; `setSessionCookie(id, true)` and
 the cookie-policy copy (`content-legal.json:330`) land together in **part 2**, and 1a does not claim
 persistent-by-default is delivered (CTO's wording correction). The `Session` profile becomes dead and
 is retired in a later PR; `Legacy` untouched. Logout stays the shared-device remedy.
@@ -1394,8 +1394,8 @@ while `DARK_MODE_ENABLED` is `false`.
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
   permanent (`retired-routes.test.ts`; why, in Amendment 2026-09-22 (5)).
 - **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list
-  (now):** h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress. Du behöver
-  inget lösenord."*) → email field + hints (incl. the Art. 13 line) → **Fortsätt** (the only
+  (now):** h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress."*) → email
+  field + the Art. 13 line → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no
   "Eller" divider. **At least one provider live (6a):** provider buttons → divider "Eller fortsätt
   med e-post" → field → Fortsätt.
@@ -1412,14 +1412,13 @@ while `DARK_MODE_ENABLED` is `false`.
   of their own. "Skicka ny kod" reuses
   `ResendConfirmationButton`'s form (disabled 60 s, countdown outside the live region, message in
   `role="status"`) and **starts in that cooldown**, with a static line beside it, *"En ny kod
-  ersätter den förra. Skriv in koden från det senaste mejlet."* "Byt e-postadress" is a submit
+  ersätter den förra."* "Byt e-postadress" is a submit
   styled as a text link, last: a GET cannot clear the typed address from the device. The primary
   is "Bekräfta koden". **The login page never states what the system did, only what the user should do**;
   the re-authentication bullet below says where a page may.
-  Resting copy: *"Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer
-  du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller
-  i 15 minuter."* with the hint *"Kommer inget mejl inom några minuter kan du skicka en ny kod,
-  eller byta e-postadress."* The typed address is its own statement below the field group, *"Du
+  Resting copy: *"Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller
+  mejlet en kod skriver du in den här. Koden gäller i 15 minuter."* with the hint *"Titta även i
+  skräpposten."* The typed address is its own statement below the field group, *"Du
   angav {email}."*, never inside a sentence about a mail. A warning before the last attempt: *"Ett
   försök kvar. Sedan behöver du begära en ny kod."*
 - **The states**, channel discipline as `RegisterForm` delivers it — user-correctable →
@@ -1457,8 +1456,7 @@ form that moves it into a short-lived cookie was not chosen);
   exist). It is `same-origin` and not the other token pages' `no-referrer` because the two binds
   in this bullet contradict each other otherwise (Amendment 2026-09-21 (3)). When the browser
   already holds a session the page says what continuing does and asks for a choice between two
-  controls, naming no address. At rest: *"Du har öppnat en inloggningslänk från ditt mejl. Länken
-  gäller en gång och i 15 minuter."* and the button "Logga in"; expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
+  controls, naming no address. At rest: *"Länken gäller en gång och i 15 minuter."* and the button "Logga in"; expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
   inloggningssidan."* The link route answers the same outcome union as the code step (D3). Why a
   login token in a URL is accepted where #706's change-email token was
   not: 15 min against 24 h, single use, one record that burns code and link together, the Caddy
@@ -1478,7 +1476,7 @@ form that moves it into a short-lived cookie was not chosen);
   card, and delete-account reuses the dialog (Klas 2026-09-22). **A page may state a send only
   where three facts hold:** the 2xx follows an awaited send, every branch that sends nothing answers a
   visible refusal, and the address shown is the recipient. `POST /auth/reauth` and `POST /auth/change-email`
-  meet all three, so *"Vi har skickat en sexsiffrig kod till {email}"* is true there; `POST /auth/challenge`
+  meet all three, so *"Vi har skickat en kod till {email}"* is true there; `POST /auth/challenge`
   meets none, which is why the login code step never says it (Amendment 2026-09-23 (6)).
 - **Copy:** every string in `messages/sv/` **and** `messages/en/` in the same PR (ADR 0137); retired
   keys deleted in the PR that removes their last consumer, never orphaned; 5a deletes those part 2
@@ -1728,6 +1726,31 @@ day the flag is set they are rendered in dark and graded before that change merg
 
 **Order.** Klas ran this part before #1824 (the copy sweep) on 2026-09-24, while #1742 held the i18n hotspot. This
 part changes no string; the hint and its colour tier are #1824's.
+
+#### Amendment 2026-09-25 (10) (#1824, part 2 of epic #1822) — the page copy under DESIGN.md §8
+
+*Decided before code in one form round: `design-reviewer` and `security-auditor`
+(`docs/reviews/2026-09-25-1824-form-{design,security}.md`, local-only).* The sentences in D4 and "Page form" that
+the sweep changed were corrected in place; this block records why. ADR 0144 superseded the lede and the format
+hint for the density question only.
+
+**`/logga-in`.** The lede is one sentence. "Fortsätt" is neutral on purpose, since four of six mail variants
+carry no code, so heading, label and button do not say that the code comes by mail: the case in which DESIGN.md
+§8 rule 2 allows a lede (`design-reviewer`). The format hint is gone. A malformed address is answered in the
+field error, *"Skriv e-postadressen i rätt format, till exempel namn@exempel.se."*, and an empty field keeps
+*"Skriv in din e-postadress."*. The split reads only the typed string (`security-auditor`: it enumerates
+nothing).
+
+**The code step.** The resting copy lost its opening sentence and the word "sexsiffrig", which the label says. The
+hint is *"Titta även i skräpposten."*, the line change-email's code step carries: without it a mail filtered as
+spam costs a code before the page says where to look (`design-reviewer`).
+
+**D4.** Its "30 is the number the copy leads with" was true of the cookie policy and false of the bound string,
+which leads with 180 (`security-auditor` on PR #1829), so it is struck. The disclosure lost "Du kan logga ut när du
+vill,"; its three bound elements stand.
+
+**Signed.** `security-auditor` signed the shortened `persistence`, `code.resting` and `link.alreadyLoggedIn.body`,
+Swedish and English (ADR 0144 Amendment 2026-09-25).
 
 ## Processing register and DoD 8
 

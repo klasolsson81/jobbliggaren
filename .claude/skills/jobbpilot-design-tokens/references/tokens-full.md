@@ -58,8 +58,8 @@ F-städ-fas.
 | Token | Light | Dark | Tailwind class (alias) | Use |
 |---|---|---|---|---|
 | `--jp-ink-1` | `#0C1A2E` | `#F4F7FC` | `text-text-primary` | Brödtext, rubriker |
-| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | Lede, metadata, all informationsbärande sekundärtext |
-| `--jp-ink-3` | `#4F5D72` | `#8DA0BD` | `text-text-tertiary` | ~6.7:1 på vit — AA-säker (mörkad från `#7C8AA0`/3.5:1, issue #296). Demoterad metadata-tier (tider, hints, ids); placeholder = `--jp-placeholder` |
+| `--jp-ink-2` | `#455366` | `#C2CFE2` | `text-text-secondary` | ÄKTA metadata: timestamps, `<dt>`-etiketter, eyebrows, kvitton (#549 WS1: informationsbärande innehåll → ink-1) |
+| `--jp-ink-3` | `#4F5D72` | `#8DA0BD` | `text-text-tertiary` | ~6.7:1 på vit — AA-säker (mörkad från `#7C8AA0`/3.5:1, issue #296). Demoterad metadata-tier (tider, ids); placeholder = `--jp-placeholder` |
 | `--jp-ink-inverse` | `#FFFFFF` | `#0C1A2E` | `text-text-inverse` | Text på inverterad yta |
 | `--jp-placeholder` | `#626B78` | (tema-oberoende) | — | Placeholder — AA mot `#FFFFFF` (5.39:1) och `#F0F4FB` (4.89:1); input-fältet är ljust i båda teman |
 

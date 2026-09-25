@@ -189,15 +189,14 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
     renderList([{ ...legalEntity, matchingAdCount: null }]);
     expect(
       screen.getByText(
-        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom."
       )
     ).toBeInTheDocument();
     // Nudge-länken pekar på den kanoniska matchnings-setup-rutten.
     const cta = screen.getByRole("link", { name: "Ställ in matchning" });
     expect(cta).toHaveAttribute("href", "/mina-sidor#matchning");
     // Ingen numerisk matchande-räknare får renderas (varken "0 matchande" eller
-    // "Inga matchande annonser just nu"). Nudge-copyn innehåller ordet "matchande
-    // annonser" legitimt, så assertionen scopas till den numeriska räknar-formen.
+    // "Inga matchande annonser just nu").
     expect(screen.queryByText(/\d+ matchande annons/)).toBeNull();
     expect(screen.queryByText("Inga matchande annonser just nu")).toBeNull();
   });
@@ -224,14 +223,14 @@ describe("CompanyWatchList — matchande-annons-räknare + vy-toggle (#452)", ()
 
     expect(
       screen.getByText(
-        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom."
       )
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Alla annonser" }));
     expect(
       screen.queryByText(
-        "Du har inte angett vilka yrken du söker inom. Ställ in det för att se matchande annonser."
+        "Du har inte angett vilka yrken du söker inom."
       )
     ).toBeNull();
     expect(screen.getByText("3 aktiva annonser just nu")).toBeInTheDocument();
@@ -331,8 +330,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
   });
 
   it("DISTANS räknas som en egen ort — ett distans-only-filter är aldrig \"0 orter\"", () => {
-    // #551 PR-C. Distans är den tredje granulariteten på ort-axeln, och husets egen copy säger
-    // det ordagrant: "Räknas som en egen ort" (ortDistansHint). Innan axeln nådde räknaren gav
+    // #551 PR-C. Distans är den tredje granulariteten på ort-axeln. Innan axeln nådde räknaren gav
     // ett distans-only-filter "Filtrerat: 0 orter" — ett filter som finns, beskrivet som noll
     // orter, i just den rad som annars är hela signalen om att raden ÄR filtrerad.
     renderList([

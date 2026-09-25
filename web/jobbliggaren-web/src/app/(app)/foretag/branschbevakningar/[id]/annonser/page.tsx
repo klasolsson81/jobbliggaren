@@ -93,8 +93,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages.foretag.criteria");
-  // The nudge copy is /jobb's own ("…hur väl annonser matchar din profil"), never the follow
-  // dialog's "…för att se matchande annonser" — that one promises a set this page does not render.
+  // The nudge copy is /jobb's own, never the follow dialog's.
   const tMatch = await getTranslations("jobads.ui.match");
   const format = await getFormatter();
 
@@ -356,9 +355,6 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </div>
         ) : ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
-            <div className="jp-empty__title">
-              {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}
-            </div>
             <p className="jp-empty__body text-body-sm text-text-primary">
               {matchingCount !== null ? t("ads.matchingEmptyBody") : t("ads.emptyBody")}
             </p>

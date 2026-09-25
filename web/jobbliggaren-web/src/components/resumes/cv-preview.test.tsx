@@ -437,7 +437,7 @@ describe("<CvPreview /> (originalfilen — Klas-direktiv 2026-09-06)", () => {
     // ingen originalfil. Det är ett vanligt utfall och sägs som ett sådant.
     expect(
       await screen.findByText(
-        "Det här CV:t har ingen sparad originalfil. En fil finns bara för CV du importerat, och bara om den fick sparas vid importen."
+        "Det här CV:t har ingen sparad originalfil."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Ladda ner" })).not.toBeInTheDocument();

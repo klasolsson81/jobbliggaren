@@ -435,7 +435,9 @@ export function CvUploadForm({
         {showSpinner ? (
           <div className="jp-cvupload__pending" role="status" aria-live="polite">
             <BrandSpinner size={48} label={t("pendingLabel")} />
-            <p className="jp-cvupload__pending-text">{t("pendingText")}</p>
+            <p className="jp-cvupload__pending-text" aria-hidden="true">
+              {t("pendingText")}
+            </p>
           </div>
         ) : (
           <>

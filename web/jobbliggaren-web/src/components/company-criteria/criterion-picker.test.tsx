@@ -52,7 +52,6 @@ function renderPicker(
       onToggle={onToggle}
       onClear={onClear}
       filterLabel="Sök bransch"
-      filterHint="Skriv för att smalna av listan över branscher."
       groupAria="Branscher"
       // AXIS copy, host-supplied since #1146 — the fixture speaks the SNI axis,
       // matching `filterLabel`/`groupAria` above.
@@ -340,12 +339,15 @@ describe("CriterionPicker — optional heading and help (#999)", () => {
   });
 
   it("renders both for the dialog, which stacks two pickers and needs them", () => {
-    renderPicker({ heading: "Branscher", help: "Välj en eller flera branscher." });
+    renderPicker({
+      heading: "Branscher",
+      help: "Välj en hel avdelning, en huvudgrupp eller enskilda branscher.",
+    });
     expect(
       screen.getByRole("heading", { name: "Branscher" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Välj en eller flera branscher."),
+      screen.getByText("Välj en hel avdelning, en huvudgrupp eller enskilda branscher."),
     ).toBeInTheDocument();
   });
 

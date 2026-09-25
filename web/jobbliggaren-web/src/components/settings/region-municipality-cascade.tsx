@@ -92,7 +92,6 @@ export function RegionMunicipalityCascade({
   const reactId = useId();
   const panelId = `${idPrefix}-ort-picker-${reactId}`;
   const filterId = `${idPrefix}-ort-filter`;
-  const filterHelpId = `${idPrefix}-ort-filter-help`;
   const distansHelpId = `${idPrefix}-ort-distans-help`;
 
   // Lookups för dual-axis-normaliseringen (ort-selection.ts). Speglar
@@ -294,11 +293,7 @@ export function RegionMunicipalityCascade({
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 maxLength={80}
-                aria-describedby={filterHelpId}
               />
-              <p id={filterHelpId} className="text-body-sm text-text-primary">
-                {t("matchPrefs.cascade.filterHint")}
-              </p>
             </div>
 
             {hasDistansAxis && (

@@ -42,8 +42,7 @@ describe("StatusEditCard", () => {
     render(<StatusEditCard {...baseProps} currentStatus="Submitted" />);
 
     // "Skickad" = svensk etikett för Submitted. Nuvarande status visas EN
-    // gång som StatusPill bredvid "Nuvarande status:"-labeln (instruktions-
-    // raden upprepar etiketten i löptext, men det är inte en andra pill).
+    // gång som StatusPill bredvid "Nuvarande status:"-labeln.
     // Avgörande invariant: ingen radio-knapp med nuvarande status (Submitted
     // är inte i sin egen ALLOWED_TRANSITIONS-lista — ingen låst self-radio).
     const label = screen.getByText("Nuvarande status:");
@@ -57,7 +56,7 @@ describe("StatusEditCard", () => {
   it("renders the visible instruction line and links the radiogroup via aria-labelledby (L1)", () => {
     render(<StatusEditCard {...baseProps} currentStatus="Submitted" />);
 
-    const instruction = screen.getByText(/Välj ny status\. Nuvarande status är/);
+    const instruction = screen.getByText("Välj ny status.");
     expect(instruction).toBeVisible();
     const instructionId = instruction.getAttribute("id");
     expect(instructionId).toBeTruthy();

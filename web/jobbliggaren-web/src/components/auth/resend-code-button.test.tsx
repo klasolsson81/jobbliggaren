@@ -34,9 +34,7 @@ describe("ResendCodeButton", () => {
   it("says what a press costs, before the press and outside the live region", () => {
     render(<ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={0} primary={false} />);
 
-    const consequence = screen.getByText(
-      "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet."
-    );
+    const consequence = screen.getByText("En ny kod ersätter den förra.");
     expect(screen.getByRole("status")).not.toContainElement(consequence);
   });
 
@@ -135,9 +133,7 @@ describe("ResendCodeButton", () => {
     render(<ResendCodeButton sentAt={SENT_AT} initialCooldownSeconds={60} primary={false} />);
 
     const countdown = screen.getByText("Du kan skicka en ny kod om 60 sekunder.");
-    const consequence = screen.getByText(
-      "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet."
-    );
+    const consequence = screen.getByText("En ny kod ersätter den förra.");
     expect(
       countdown.compareDocumentPosition(consequence) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();

@@ -87,7 +87,7 @@ describe("BackgroundMatchCard — pre-fill + grundläge", () => {
     expect(weekly).toHaveAttribute("aria-checked", "false");
     // Aktiv hjälptext (inte den inaktiverade varianten).
     expect(
-      screen.getByText(/Gäller e-postsammanfattningen av starka matchningar/)
+      screen.getByText(/Gäller även notiserna om företag du följer/)
     ).toBeInTheDocument();
   });
 
@@ -101,7 +101,7 @@ describe("BackgroundMatchCard — pre-fill + grundläge", () => {
     expect(intro).toHaveTextContent(/matchningslista/);
   });
 
-  it("kadens-hjälptexten namnger BÅDA utskicken den styr (F3 gjorde den delad)", () => {
+  it("kadens-hjälptexten namnger notiserna om företag du följer (F3 gjorde kadensen delad)", () => {
     renderCard({ initialEnabled: true });
     expect(
       screen.getByText(/notiserna om företag du följer/)
@@ -120,7 +120,7 @@ describe("BackgroundMatchCard — den delade kadensen (bevakning F4)", () => {
       expect(r).not.toBeDisabled();
     }
     expect(
-      screen.getByText(/Gäller e-postsammanfattningen av starka matchningar/)
+      screen.getByText(/Gäller även notiserna om företag du följer/)
     ).toBeInTheDocument();
   });
 

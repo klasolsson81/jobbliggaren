@@ -28,22 +28,7 @@ describe("RouteModalShell", () => {
     );
   });
 
-  it("kopplar aria-describedby till en renderad beskrivning när description ges", () => {
-    render(
-      <RouteModalShell title="Importera CV" description="Ladda upp ditt CV.">
-        <div className="jp-modal__body">x</div>
-      </RouteModalShell>
-    );
-    const dialog = screen.getByRole("dialog");
-    const describedby = dialog.getAttribute("aria-describedby");
-    expect(describedby).toBeTruthy();
-    // Referensen får aldrig dangla — elementet måste finnas i DOM.
-    expect(document.getElementById(describedby!)).toHaveTextContent(
-      "Ladda upp ditt CV."
-    );
-  });
-
-  it("sätter INGEN aria-describedby när description saknas (ingen danglande referens)", () => {
+  it("sätter INGEN aria-describedby (ingen danglande referens)", () => {
     render(
       <RouteModalShell title="Nytt CV">
         <div className="jp-modal__body">x</div>

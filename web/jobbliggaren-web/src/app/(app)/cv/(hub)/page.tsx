@@ -35,8 +35,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * schema ingenting bär — samma klass av obelagt påstående som ADR 0112 valde
  * 404 framför 308 för att undvika. Huset har avgjort samma fråga två gånger
  * (mallbyggaren, Förbättra-lagret) och tog bort ingången båda gångerna.
- * Import är hubbens enda ingång i MVP:n. `cv.lede` och `cv.emptyBody` är
- * omskrivna i samma ändring: de lovade skapande i prosa. Nycklarna `cv.newCv`
+ * Import är hubbens enda ingång i MVP:n. `cv.lede` är
+ * omskriven i samma ändring: den lovade skapande i prosa. Nycklarna `cv.newCv`
  * och `cv.emptyCreateFirst` ligger kvar inerta (ADR 0112 §Mechanism 1).
  */
 export default async function CvListPage() {
@@ -193,7 +193,6 @@ export default async function CvListPage() {
         {sorted.length === 0 && pendingCv === null ? (
           <div className="jp-empty">
             <div className="jp-empty__title">{t("cv.emptyTitle")}</div>
-            <p className="jp-empty__body">{t("cv.emptyBody")}</p>
             <div className="jp-empty__actions">
               <Link href="/cv/importera" className="jp-btn jp-btn--primary">
                 <Upload size={14} aria-hidden="true" /> {t("cv.importCv")}

@@ -22,10 +22,6 @@ describe("CvBlockReason", () => {
   });
 
   it("explains a failed extraction as an ACTION, leaving the statement to ParseSummary", () => {
-    // ParseSummary renders `parse.overallFailed` on this same page, and the two must reconcile
-    // rather than contradict (ADR 0047). Until #1373 both ended on "fylla i uppgifterna för
-    // hand" — an instruction that pointed at /cv/ny, which has 404'd since #1061. Both now end
-    // on the one path the MVP actually has: correct the file and upload it again.
     render(<CvBlockReason reason="ParseNotConfident" />);
 
     expect(screen.getByText(/text som går att markera/i)).toBeInTheDocument();
@@ -76,7 +72,7 @@ describe("CvBlockReason", () => {
     expect(
       screen.getByRole("heading", { name: "Inget i filen hindrar den" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vi hittar inget i filen som stoppar den/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ladda upp filen igen så prövas den på nytt/i)).toBeInTheDocument();
     // The unassessed channel is disclosed, not silently omitted.
     expect(
       screen.getByText(/namn du skriver själv kontrolleras först vid uppladdningen/i),
@@ -84,8 +80,8 @@ describe("CvBlockReason", () => {
     // And the retired certifications must not come back.
     expect(screen.queryByText(/Klar att sparas/)).not.toBeInTheDocument();
     // "Inget hittat i filen" was my first kicker and it was also wrong: it is
-    // parse.overallFailed's own failure phrasing ("Vi kunde inte läsa någon användbar text
-    // ur filen"), rendered on the same page, inside a GREEN pill (design-reviewer round 2).
+    // the failure phrasing of the enums.overall.Failed pill ("Ingen text kunde läsas"),
+    // rendered on the same page, inside a GREEN pill (design-reviewer round 2).
     expect(screen.queryByText(/Inget hittat i filen/)).not.toBeInTheDocument();
     expect(screen.getByText("Inga hinder i filen")).toBeInTheDocument();
     expect(screen.queryByText(/uppfyller kraven/)).not.toBeInTheDocument();

@@ -32,10 +32,7 @@ export default async function InterceptedCvImportModal() {
   // tomt: lämnas det tomt genererar servern ett icke-PII-namn. Varken profilen eller
   // filnamnet används (#1060; ADR 0096 D-B).
   return (
-    <RouteModalShell
-      title={t("cv.import.title")}
-      description={t("cv.import.modalDescription")}
-    >
+    <RouteModalShell title={t("cv.import.title")}>
       <div className="jp-modal__body">
         <CvUploadForm />
       </div>

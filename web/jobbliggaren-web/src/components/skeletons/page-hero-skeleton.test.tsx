@@ -6,7 +6,7 @@ describe("PageHeroSkeleton", () => {
   it("reproduces the shared .jp-pagehero envelope so the swap does not shift", () => {
     // An aside is passed because the envelope's fourth element only exists when the page
     // has one — `aside={null}` is a page saying it renders none, and is pinned separately.
-    const { container } = render(<PageHeroSkeleton aside={<span />} />);
+    const { container } = render(<PageHeroSkeleton aside={<span />} lede={null} />);
     expect(container.querySelector(".jp-pagehero")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__inner")).not.toBeNull();
     expect(container.querySelector(".jp-pagehero__main")).not.toBeNull();
@@ -14,7 +14,7 @@ describe("PageHeroSkeleton", () => {
   });
 
   it("is decorative — the whole band is hidden from assistive tech", () => {
-    const { container } = render(<PageHeroSkeleton aside={null} />);
+    const { container } = render(<PageHeroSkeleton aside={null} lede={null} />);
     // Announcement is owned by the route loading.tsx (sr-only role=status);
     // the visual shape must not be read out as empty elements.
     expect(container.querySelector(".jp-pagehero")).toHaveAttribute(
@@ -27,31 +27,24 @@ describe("PageHeroSkeleton", () => {
     // An aside is passed so the sweep still reaches `__aside`: with `aside={null}` that
     // element is not in the tree at all, and the only component-owned node this could
     // catch an id on would drop out of the query. The caller's <span/> carries none.
-    const { container } = render(<PageHeroSkeleton aside={<span />} />);
+    const { container } = render(<PageHeroSkeleton aside={<span />} lede={null} />);
     expect(container.querySelector("[id]")).toBeNull();
   });
 
   it("adds a kicker overline bar above title + lede when kicker is set", () => {
-    const { container } = render(<PageHeroSkeleton kicker aside={null} />);
+    const { container } = render(<PageHeroSkeleton kicker lede="En granskning." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(3);
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
   });
 
   it("renders a custom aside when provided (e.g. Översikt's card block)", () => {
     const { container } = render(
-      <PageHeroSkeleton aside={<span data-testid="today-card" />} />
+      <PageHeroSkeleton aside={<span data-testid="today-card" />} lede={null} />
     );
     const aside = container.querySelector(".jp-pagehero__aside");
     expect(aside?.querySelector("[data-testid='today-card']")).not.toBeNull();
     // Nothing is appended beside it: the component contributes no bars of its own.
     expect(aside?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
-  });
-
-  it("reserves one lede line by default", () => {
-    const { container } = render(<PageHeroSkeleton aside={null} />);
-    const main = container.querySelector(".jp-pagehero__main");
-    // Title + one lede bar.
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(2);
   });
 
   /**
@@ -62,7 +55,7 @@ describe("PageHeroSkeleton", () => {
    * viewports, which is where a rendered check is least likely to look (#1385).
    */
   it("renders NO aside element when aside is null", () => {
-    const { container } = render(<PageHeroSkeleton aside={null} />);
+    const { container } = render(<PageHeroSkeleton aside={null} lede={null} />);
     // Positive first: the band and its main column are still there, so this is not
     // measuring a component that failed to render.
     expect(container.querySelector(".jp-pagehero__main")).not.toBeNull();
@@ -84,11 +77,11 @@ describe("PageHeroSkeleton", () => {
   it("rejects undefined, false and the empty string at compile time", () => {
     const reject = () => [
       // @ts-expect-error — undefined renders nothing but is not `null`
-      <PageHeroSkeleton key="u" aside={undefined} />,
+      <PageHeroSkeleton key="u" aside={undefined} lede={null} />,
       // @ts-expect-error — `items.length > 0 && <X/>` yields false, not null
-      <PageHeroSkeleton key="f" aside={false} />,
+      <PageHeroSkeleton key="f" aside={false} lede={null} />,
       // @ts-expect-error — the empty string renders nothing but is not `null`
-      <PageHeroSkeleton key="s" aside={""} />,
+      <PageHeroSkeleton key="s" aside={""} lede={null} />,
     ];
     expect(typeof reject).toBe("function");
   });
@@ -103,15 +96,15 @@ describe("PageHeroSkeleton", () => {
    * *as well* would put the band back where it started, and nothing else in the suite looks.
    */
   it("renders the real title element instead of the title bar when `title` is given", () => {
-    const { container } = render(<PageHeroSkeleton title="Importera CV" aside={null} />);
+    const { container } = render(<PageHeroSkeleton title="Importera CV" lede={null} aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     const title = main?.querySelector("h1.jp-pagehero__title");
     expect(title?.textContent).toBe("Importera CV");
-    // The bar it replaces is gone, not merely joined: only the lede bar is left.
-    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
+    // The bar it replaces is gone, not merely joined.
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 
-  it("renders the real lede element instead of the lede bars when `lede` is given", () => {
+  it("renders the real lede element when `lede` is given", () => {
     const { container } = render(<PageHeroSkeleton lede="Ladda upp ditt CV." aside={null} />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelector("p.jp-pagehero__lede")?.textContent).toBe(
@@ -119,6 +112,15 @@ describe("PageHeroSkeleton", () => {
     );
     // Only the title bar is left.
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(1);
+  });
+
+  it("renders neither a lede bar nor a lede element when `lede` is null", () => {
+    const { container } = render(<PageHeroSkeleton title="Mina ansökningar" lede={null} aside={null} />);
+    const main = container.querySelector(".jp-pagehero__main");
+    // Positive first: the title is there, so this is not measuring an empty band.
+    expect(main?.querySelector("h1.jp-pagehero__title")?.textContent).toBe("Mina ansökningar");
+    expect(main?.querySelector("p.jp-pagehero__lede")).toBeNull();
+    expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 
   it("leaves no bar in __main once both title and lede are real", () => {
@@ -142,14 +144,14 @@ describe("PageHeroSkeleton", () => {
    * visible from a test that looks for the modifier alone.
    */
   it("composes the stacked modifier onto the aside while keeping the base class", () => {
-    const { container } = render(<PageHeroSkeleton stacked aside={<span />} />);
+    const { container } = render(<PageHeroSkeleton stacked aside={<span />} lede={null} />);
     const aside = container.querySelector(".jp-pagehero__aside");
     expect(aside).not.toBeNull();
     expect(aside).toHaveClass("jp-pagehero__aside", "jp-pagehero__aside--stacked");
   });
 
   it("carries no modifier class when stacked is not set", () => {
-    const { container } = render(<PageHeroSkeleton aside={<span />} />);
+    const { container } = render(<PageHeroSkeleton aside={<span />} lede={null} />);
     // The negative half: the base class must not silently grow a modifier.
     expect(container.querySelector(".jp-pagehero__aside")?.className).toBe(
       "jp-pagehero__aside"

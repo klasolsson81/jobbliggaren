@@ -6,7 +6,7 @@
     "themeLight": "Ljust",
     "themeDark": "Mörkt",
     "languageLabel": "Språk",
-    "languageHint": "Påverkar hela appen direkt. Sparas på ditt konto.",
+    "languageHint": "Sparas på ditt konto.",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
     "savedAt": "Sparat {time}"
@@ -19,7 +19,7 @@
     "cadenceLabel": "Hur ofta vill du få sammanfattningen",
     "cadenceDaily": "Dagligen",
     "cadenceWeekly": "Veckovis",
-    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar och notiserna om företag du följer. Toppmatchningar skickas alltid direkt via e-post.",
+    "cadenceHint": "Gäller även notiserna om företag du följer.",
     "cadenceHintDisabled": "Slå på matchningsnotiser eller notiser om företag du följer för att välja hur ofta e-postsammanfattningen skickas.",
     "savedAt": "Sparat {time}",
     "errors": {
@@ -53,7 +53,6 @@
   },
   "logout": {
     "title": "Logga ut",
-    "description": "Avsluta denna session. Du kan logga in igen när som helst.",
     "action": "Logga ut"
   },
   "matchPrefs": {
@@ -83,7 +82,6 @@
       "selectedAria": "Valda orter",
       "addOrter": "Lägg till orter",
       "filterLabel": "Filtrera kommuner",
-      "filterHint": "Skriv för att smalna av kommunlistan, eller bläddra via län.",
       "noMatch": "Ingen kommun matchar filtret.",
       "regionColumn": "Län",
       "regionsUnavailable": "Länen kunde inte läsas in just nu.",
@@ -91,12 +89,11 @@
       "chooseRegion": "Välj ett län till vänster.",
       "municipalitiesUnavailable": "Inga kommuner kunde läsas in för det här länet.",
       "distans": "Distans",
-      "distansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
+      "distansHint": "Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "wholeRegion": "Hela {label}"
     },
     "dialog": {
       "title": "Lägg till i matchning",
-      "intro": "Sök och välj yrken, orter och anställningsformer. Valda visas överst i varje del. Ta bort med kryssikonen.",
       "saving": "Sparar…",
       "save": "Spara matchning",
       "cancel": "Avbryt"
@@ -104,7 +101,6 @@
     "occupation": {
       "addOccupations": "Lägg till yrken",
       "filterLabel": "Filtrera yrkesgrupper",
-      "filterHint": "Skriv för att smalna av listan, eller bläddra via yrkesområde.",
       "noMatch": "Ingen yrkesgrupp matchar filtret.",
       "occupationField": "Yrkesområde",
       "occupationGroups": "Yrkesgrupper",
@@ -117,14 +113,13 @@
       "cancelUpload": "Avbryt",
       "openImportInstead": "Öppna importsidan i stället",
       "noCvTitle": "Inget CV uppladdat",
-      "noCvBody": "Ladda upp ett CV så kan vi föreslå yrken utifrån din erfarenhet. Du väljer själv vilka förslag som tas med.",
       "uploadCv": "Ladda upp CV",
       "noRole": "Vi kunde inte läsa ett yrke ur ditt CV. Du kan välja yrken i listan i stället.",
       "unauthorized": "Du är inte inloggad. Logga in och försök igen.",
       "error": "Kunde inte läsa ditt CV just nu. Försök igen om en stund.",
       "yearsLabel": "År i yrket",
       "yearsAria": "År i yrket {label}",
-      "yearsHint": "Ungefär hur många år du arbetat i yrket. Frivilligt, och påverkar inte din matchningsgrad.",
+      "yearsHint": "Frivilligt, och påverkar inte din matchningsgrad.",
       "yearsWhatIsThis": "Om år i yrket",
       "reviewYearsValue": "{years} år",
       "reviewYearsEmpty": "År ej angivna"
@@ -132,8 +127,7 @@
     "skill": {
       "addSkill": "Lägg till kompetens",
       "searchLabel": "Sök kompetens",
-      "searchHint": "Skriv minst två tecken för att söka. Välj en kompetens i listan för att lägga till den.",
-      "searchPrompt": "Skriv för att söka bland kompetenser.",
+      "searchHint": "Skriv minst två tecken.",
       "searching": "Söker…",
       "noResults": "Ingen kompetens matchar din sökning.",
       "added": "Tillagd",
@@ -145,7 +139,6 @@
     },
     "experience": {
       "label": "Antal års erfarenhet",
-      "hint": "Ungefärligt antal år du arbetat inom ditt område. Frivilligt; lämna tomt om du inte vill ange det.",
       "reviewValue": "{years} år",
       "reviewEmpty": "Inget angivet"
     },
@@ -182,11 +175,10 @@
       "contactRoute": "Du kan också mejla <mail>kontakt@jobbliggaren.se</mail> och be oss radera kontot."
     },
     "reauth": {
-      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}. Du skriver in koden i nästa steg.",
+      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}.",
       "send": "Skicka kod",
       "sending": "Skickar…",
-      "sent": "Vi har skickat en sexsiffrig kod till {email}. Koden gäller i 15 minuter.",
-      "hint": "Kommer inget mejl inom några minuter kan du skicka en ny kod.",
+      "sent": "Vi har skickat en kod till {email}. Koden gäller i 15 minuter.",
       "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Skicka en ny kod och försök igen.",
       "resendReceipt": "Vi har skickat en ny kod. Skriv in koden från det senaste mejlet.",
       "cooldown": "En kod begärdes nyss för ditt konto. Vänta en minut och försök igen.",
@@ -200,18 +192,17 @@
     "changeEmail": {
       "title": "Byt e-postadress",
       "current": "Din e-postadress är {email}.",
-      "description": "Du bekräftar bytet med två koder: en till din nuvarande adress och en till den nya. Adressen byts när du har skrivit in båda, och då loggas du ut på alla andra enheter.",
+      "description": "Du bekräftar bytet med två koder, en till varje adress. När adressen är bytt loggas du ut på alla andra enheter.",
       "newEmailLabel": "Ny e-postadress",
-      "newEmailHint": "Formatet är namn@domän.se.",
       "newEmailRequired": "Skriv in den nya e-postadressen.",
-      "invalidEmail": "Kontrollera den nya e-postadressen. Den ska ha formatet namn@domän.se.",
+      "invalidEmail": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
       "sameEmail": "Den nya adressen är samma som din nuvarande. Skriv in en annan adress.",
       "continue": "Fortsätt",
       "cancel": "Avbryt",
-      "dialogDescription": "Du byter till {newEmail}. När du har bekräftat att det är du skickar vi en kod till den nya adressen.",
-      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Skriv in den här för att byta adress. Koden gäller i 15 minuter.",
+      "dialogDescription": "Du byter till {newEmail}.",
+      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Koden gäller i 15 minuter.",
       "codeLabel": "Kod till den nya adressen",
-      "codeHint": "Titta även i skräpposten. Kommer inget mejl inom några minuter kan du börja om och kontrollera adressen.",
+      "codeHint": "Titta även i skräpposten.",
       "wrongCode": "Koden stämmer inte. Använd koden från mejlet till den nya adressen och kontrollera siffrorna.",
       "lastAttempt": "Ett försök kvar. Sedan behöver du börja om.",
       "confirm": "Byt adress",

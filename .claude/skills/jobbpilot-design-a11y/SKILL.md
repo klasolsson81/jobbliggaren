@@ -224,7 +224,9 @@ only for critical errors that interrupt — never for routine updates.
 Every `<Dialog>` must have:
 - `role="dialog"` (shadcn Dialog adds automatically)
 - `aria-labelledby` pointing to `<DialogTitle>` id
-- `aria-describedby` pointing to `<DialogDescription>` id
+- `aria-describedby` pointing to `<DialogDescription>` id when the dialog carries
+  a lede; a dialog without one (DESIGN.md §8 rule 2) renders no
+  `<DialogDescription>`, and Radix then sets no `aria-describedby`
 - Focus trapped inside while open (shadcn handles)
 - Focus returns to trigger element on close (shadcn handles)
 - Escape key closes (shadcn handles)
@@ -282,8 +284,6 @@ Never:
 Running prose (the `.jp-attentionqueue` feed, paragraphs, lede) must be capped
 at **~68ch** `max-width` (WCAG 1.4.8 — line length aids low-vision and dyslexic
 readers and prevents lines stretching across wide screens).
-`.jp-attentionqueue__lede` already sets `max-width: 68ch`; mirror this for any
-new long-form text block.
 Tabular/ledger content is exempt — it is scanned, not read line-by-line.
 
 ---

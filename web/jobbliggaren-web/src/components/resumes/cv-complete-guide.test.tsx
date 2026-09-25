@@ -38,7 +38,6 @@ const PARSED_ID = "11111111-1111-4111-8111-111111111111";
 
 const CONFIDENCE: ParseConfidenceDto = {
   overall: "Confident",
-  requiresManualReview: false,
   fallback: "None",
   sections: [],
 };

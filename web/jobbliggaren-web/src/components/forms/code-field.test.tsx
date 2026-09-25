@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CodeField } from "./code-field";
 
 const LABEL = "Sexsiffrig kod";
-const HINT = "Kommer inget mejl inom några minuter kan du skicka en ny kod.";
+const HINT = "Titta även i skräpposten.";
 
 function renderField(invalid: boolean, onValueChange?: (value: string) => void) {
   return render(
@@ -129,6 +129,25 @@ describe("CodeField", () => {
     const field = screen.getByLabelText(LABEL);
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toBe("reauth-code-hint reauth-code-error");
+  });
+
+  it("draws no hint row without a hint, and is described by the message alone once it is invalid", () => {
+    const { container, rerender } = render(
+      <CodeField id="c" hintId="c-hint" label={LABEL} invalid={false} errorId="c-error" />
+    );
+
+    const field = screen.getByLabelText(LABEL);
+    expect(container.querySelector("p")).toBeNull();
+    expect(field).not.toHaveAttribute("aria-describedby");
+
+    rerender(
+      <>
+        <CodeField id="c" hintId="c-hint" label={LABEL} invalid errorId="c-error" />
+        <p id="c-error">Koden stämmer inte.</p>
+      </>
+    );
+    expect(field.getAttribute("aria-describedby")).toBe("c-error");
+    expect(field).toHaveAccessibleDescription("Koden stämmer inte.");
   });
 
   it("marks every box while the field is invalid, and none while it is not", () => {

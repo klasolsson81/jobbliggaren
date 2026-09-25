@@ -1,5 +1,5 @@
 /**
- * Skeleton for the `(app)` pages that use a plain `jp-h1` + `jp-lede` header
+ * Skeleton for the `(app)` pages that use a plain `jp-h1` header
  * (NOT the `jp-pagehero` gradient band): /matchningar, /sparade, /sokningar,
  * /ny-ansokan (#739 — finding
  * `p1-no-loading-tsx-any-primary-route`, P0).
@@ -13,15 +13,18 @@
  * `contained` wraps in `.jp-container.jp-page` for pages that own their width
  * (V3-native routes, e.g. /ny-ansokan); the default renders bare so the app-shell
  * transitional container supplies the width (matchningar/sparade/sokningar).
+ * `lede={false}` omits the lede bar for a page whose header has no `jp-lede`.
  * sr-only `role="status"` announces; decorative shapes
  * `aria-hidden`. Sync RSC, flat-grey `.jp-skeleton`, no animation.
  */
 export function PlainHeaderSkeleton({
   label,
   contained = false,
+  lede,
 }: {
   label: string;
   contained?: boolean;
+  lede: boolean;
 }) {
   const wrapperClass = contained
     ? "jp-container jp-page flex flex-col"
@@ -34,7 +37,7 @@ export function PlainHeaderSkeleton({
       <div className={wrapperClass} aria-hidden="true">
         <div>
           <span className="jp-skeleton block h-9 w-56 max-w-full" />
-          <span className="jp-skeleton mt-2 block h-5 w-96 max-w-full" />
+          {lede && <span className="jp-skeleton mt-2 block h-5 w-96 max-w-full" />}
         </div>
         <div className="mt-7 flex flex-col gap-4">
           {[0, 1, 2, 3].map((row) => (

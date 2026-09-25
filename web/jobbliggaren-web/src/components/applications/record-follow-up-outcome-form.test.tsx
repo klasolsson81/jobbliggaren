@@ -116,9 +116,7 @@ describe("RecordFollowUpOutcomeForm", () => {
 
     expect(
       screen.getByText(/Spara utfallet/)
-    ).toHaveTextContent(
-      "Spara utfallet Svar mottaget? Detta går inte att ändra efteråt."
-    );
+    ).toHaveTextContent(/^Spara utfallet Svar mottaget\?$/);
     expect(recordFollowUpOutcomeActionMock).not.toHaveBeenCalled();
   });
 

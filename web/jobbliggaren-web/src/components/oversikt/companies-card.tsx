@@ -46,7 +46,6 @@ export function CompaniesCard({ watches, newAdCount, span }: CompaniesCardProps)
     return (
       <OversiktCard id={ID} title={title} tone="follow" span={span} icon={Building2}>
         <p className="jp-ov-card__emptytitle">{t("companySummary.emptyTitle")}</p>
-        <p className="jp-ov-card__emptybody">{t("companySummary.emptyBody")}</p>
         <OversiktCardFoot>
           <Link className="jp-btn jp-btn--emphasis jp-ov-cta" href="/foretag/sok">
             {t("companySummary.emptyCta")}

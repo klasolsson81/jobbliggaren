@@ -193,7 +193,7 @@ describe("/cv — the pending card and the empty state are mutually exclusive", 
     render(await CvListPage());
 
     expect(
-      screen.getByText(/Öppna granskningen så ser du varför/),
+      screen.getByText(/Granskningen visar varför/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/innan du laddar upp den igen/)).not.toBeInTheDocument();
     // "vad som saknas" was my first rewrite and it was also wrong: the first gate evaluated is
@@ -260,7 +260,7 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
     ).not.toBeNull();
   });
 
-  it("promises creation in NO prose either, in the lede or the empty body", async () => {
+  it("promises creation in NO prose either, in the lede or the empty state", async () => {
     // Chrome and copy are two different homes for the same false promise. Deleting the buttons
     // while the lede still advertises "eller skapa ett nytt från grunden" ships a page that
     // says in prose what the same commit removed in chrome.
@@ -271,8 +271,12 @@ describe("/cv — the create-from-scratch affordances are gone (#1061)", () => {
 
     expect(screen.queryByText(/skapa ett nytt från grunden/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Skapa ditt första CV/i)).not.toBeInTheDocument();
-    // …and the replacement is present and true: import is how you get your first CV in.
-    expect(screen.getByText(/Importera ditt första CV/i)).toBeInTheDocument();
+    // …and the lede is present and true: import is how you get a CV in. The empty state
+    // carries no body prose at all; its import button is the next step.
+    expect(
+      screen.getByText("Importera ett befintligt CV för en granskning."),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".jp-empty__body")).toBeNull();
   });
 });
 

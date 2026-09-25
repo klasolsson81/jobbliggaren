@@ -38,7 +38,6 @@ export default async function SparadePage() {
     <div className="flex flex-col">
       <div>
         <h1 className="jp-h1">{t("sparade.title")}</h1>
-        <p className="jp-lede">{t("sparade.lede")}</p>
       </div>
 
       <div className="mt-7">{renderResult(result, t)}</div>

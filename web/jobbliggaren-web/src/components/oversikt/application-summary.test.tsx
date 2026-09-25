@@ -109,7 +109,7 @@ describe("ApplicationSummary", () => {
 
     expect(
       screen.getByText(
-        "Antalet ansökningar kunde inte hämtas. Uppdatera sidan för att försöka igen.",
+        "Antalet ansökningar kunde inte hämtas. Uppdatera sidan.",
       ),
     ).toBeInTheDocument();
     // Fabrikation: en degraderad hämtning får aldrig rendera en siffra.

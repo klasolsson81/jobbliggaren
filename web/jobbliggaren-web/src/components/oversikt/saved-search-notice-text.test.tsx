@@ -16,9 +16,11 @@ describe("SavedSearchNoticeText (#294 — lazy hit count)", () => {
       vi.fn(() => new Promise(() => {})),
     );
 
-    render(<SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />);
+    const { container } = render(
+      <SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />,
+    );
 
-    expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument();
+    expect(container.querySelector("[aria-live]")).toHaveTextContent(/^Remote \/ Distansjobb$/);
     expect(screen.getByText("Remote / Distansjobb")).toBeInTheDocument();
     // No fabricated count while loading.
     expect(screen.queryByText(/nya träffar/)).not.toBeInTheDocument();
@@ -57,12 +59,14 @@ describe("SavedSearchNoticeText (#294 — lazy hit count)", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />);
+    const { container } = render(
+      <SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />,
+    );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     // Even after the count resolves at 0, the honest no-count text stays.
     await waitFor(() =>
-      expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument(),
+      expect(container.querySelector("[aria-live]")).toHaveTextContent(/^Remote \/ Distansjobb$/),
     );
     expect(screen.queryByText(/nya träffar/)).not.toBeInTheDocument();
   });
@@ -79,11 +83,13 @@ describe("SavedSearchNoticeText (#294 — lazy hit count)", () => {
       ),
     );
 
-    render(<SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />);
+    const { container } = render(
+      <SavedSearchNoticeText searchId="s1" name="Remote / Distansjobb" />,
+    );
 
     // The resolved count is for a different id → this notice stays no-count.
     await waitFor(() =>
-      expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument(),
+      expect(container.querySelector("[aria-live]")).toHaveTextContent(/^Remote \/ Distansjobb$/),
     );
     expect(screen.queryByText(/9 nya träffar/)).not.toBeInTheDocument();
   });

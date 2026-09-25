@@ -30,7 +30,7 @@ describe("LinkLandingForm", () => {
     const { container } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
 
     expect(
-      screen.getByText("Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.")
+      screen.getByText("Länken gäller en gång och i 15 minuter.")
     ).toBeInTheDocument();
     expect(container.querySelector('input[type="hidden"][name="token"]')).toHaveValue("link-token");
 
@@ -55,7 +55,9 @@ describe("LinkLandingForm", () => {
       const { container } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={true} />);
 
       expect(
-        screen.getByText(/En inloggning är redan aktiv i den här webbläsaren\. Fortsätter du ersätts den/)
+        screen.getByText(
+          "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot."
+        )
       ).toBeInTheDocument();
       expect(container.textContent).not.toMatch(/@/);
 
@@ -93,7 +95,9 @@ describe("LinkLandingForm", () => {
       const heading = await screen.findByRole("heading", { level: 1, name: "Du är redan inloggad" });
       await waitFor(() => expect(heading).toHaveFocus());
       expect(
-        screen.getByText(/En inloggning är redan aktiv i den här webbläsaren\. Fortsätter du ersätts den/)
+        screen.getByText(
+          "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot."
+        )
       ).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Stanna kvar som inloggad" })).toHaveAttribute(
         "href",

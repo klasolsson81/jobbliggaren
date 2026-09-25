@@ -104,7 +104,6 @@ export function CompanySummary({
       <div className="jp-appsummary jp-appsummary--empty">
         {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
-        <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men inte solid: en-primär-per-skärm är redan spenderad, och i
             det här läget kan setup-kortet stå högre upp på samma sida. */}
         <Link className="jp-btn jp-btn--emphasis" href="/foretag/sok">

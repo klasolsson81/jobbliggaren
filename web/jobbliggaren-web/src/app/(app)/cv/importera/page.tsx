@@ -37,7 +37,6 @@ export default async function CvImportPage() {
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <h1 className="jp-pagehero__title">{t("cv.import.title")}</h1>
-            <p className="jp-pagehero__lede">{t("cv.import.lede")}</p>
           </div>
         </div>
       </section>

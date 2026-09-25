@@ -1,7 +1,7 @@
 {
   "saved": {
     "emptyTitle": "No saved ads",
-    "emptyBody": "Find an ad under Jobs and select <i>Save</i> in the ad detail. It is saved here.",
+    "emptyBody": "Find an ad under Jobs and select <i>Save</i> in the ad detail.",
     "listLabel": "Saved ads",
     "removed": "The ad has been removed",
     "saved": "Saved",
@@ -30,14 +30,14 @@
   "companyWatches": {
     "listLabel": "Followed companies",
     "emptyTitle": "You are not following any companies yet",
-    "emptyBody": "Open an ad under Jobs and select <i>Follow the company</i>. The company is collected here.",
+    "emptyBody": "Open an ad under Jobs and select <i>Follow the company</i>.",
     "unknownCompany": "The company name is not available",
     "orgNr": "Org. no. {orgNr}",
     "protectedIdentity": "Protected identity",
     "protectedIdentityHint": "The organisation number is hidden because it may be a personal identity number.",
     "activeAds": "{count, plural, =0 {No active ads right now} one {# active ad right now} other {# active ads right now}}",
     "matchingAds": "{count, plural, =0 {No matching ads right now} one {# matching ad right now} other {# matching ads right now}}",
-    "matchNudge": "You have not stated which occupations you are searching within. Set it up to see matching ads.",
+    "matchNudge": "You have not stated which occupations you are looking for.",
     "matchNudgeCta": "Set up matching",
     "adsLinkAria": "{label} at {company}",
     "adsNotLinkableUnknown": "There is no link to the ads here.",
@@ -52,17 +52,16 @@
       "open": "Filter",
       "openAria": "Filter ads from {company}",
       "dialogTitle": "Filter ads from {company}",
-      "dialogIntro": "Choose which new ads from this company you want notifications about. The filter applies to the notifications, in the app and by email. It does not change the numbers in the list.",
+      "dialogIntro": "Choose which new ads from this company you want notifications about. The filter applies to the notifications, in the app and by email.",
       "onlyMatchedLabel": "Only ads that match my profile",
-      "onlyMatchedHelp": "You get notifications only about ads that match the occupations, locations and skills you have stated under Matching.",
       "onlyMatchedHelpAria": "What counts as a matching ad",
       "onlyMatchedHelpTitle": "What counts as a matching ad",
       "onlyMatchedHelpBody1": "An ad counts as matching when it reaches the level Good or higher against your profile. That is the same level used under Jobs and in the number of matching ads here.",
       "onlyMatchedHelpBody2": "The level cannot be configured. You influence it by changing your choices under Matching.",
-      "onlyMatchedInert": "You have not stated which occupations you are looking for, so we cannot tell which ads match you. The filter is saved and takes effect once you have set up matching.",
+      "onlyMatchedInert": "You have not stated which occupations you are looking for. The filter is saved and takes effect once you have set up matching.",
       "onlyMatchedInertCta": "Set up matching",
       "ortHeading": "Locations in the ad",
-      "ortHelp": "The filter applies to the location in the ad, not the company's registered municipality. Choose regions or municipalities, or tick Remote. A region or municipality choice does not include ads without a location.",
+      "ortHelp": "A county or municipality choice does not include ads without a location.",
       "clearAll": "Remove the filter",
       "save": "Save filter",
       "saving": "Saving…",
@@ -180,7 +179,7 @@
     "list": {
       "ariaLabel": "Job ads",
       "emptyTitle": "No jobs found",
-      "emptyBody": "Adjust the filters or clear the search box to see more ads."
+      "emptyBody": "Adjust the filters or clear the search box."
     },
     "skeleton": {
       "searching": "Searching through ads…"
@@ -191,7 +190,7 @@
       "adId": "Ad ID",
       "description": "Ad description",
       "openAd": "Open the ad",
-      "appliedNotice": "You have marked this ad as applied. See it in",
+      "appliedNotice": "See the application in",
       "appliedNoticeLink": "My applications",
       "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer. The compilation may be incomplete.",
       "previousApplicationsLink": "View application history",
@@ -207,8 +206,8 @@
       "heading": "Match against your profile",
       "settingsCta": "Set up matching",
       "uploadCvCta": "Upload CV",
-      "noStatedOccupation": "You have not stated which occupations you are searching within. Set this to see how well ads match your profile.",
-      "uploadCvFoot": "Upload a CV to match on skills and requirements. It is required for a Strong match and a Top match.",
+      "noStatedOccupation": "You have not stated which occupations you are looking for.",
+      "uploadCvFoot": "A CV is required for a Strong match and a Top match.",
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
       "requested": "The ad asks for: {items}",
@@ -250,7 +249,7 @@
       },
       "notAssessedReason": {
         "titleSimilarity": "No role in your CV to compare.",
-        "skills": "No skills could be read from your CV. Upload a CV under Profile.",
+        "skills": "No skills could be read from your CV.",
         "default": "This part could not be assessed."
       },
       "matchCause": {
@@ -264,7 +263,7 @@
           "ssykOverlap": "The ad does not state an occupation."
         },
         "RemoteOverride": {
-          "regionFit": "The ad offers remote work and therefore matches regardless of location."
+          "regionFit": "The ad offers remote work."
         },
         "RegionContainsPreferredMunicipality": {
           "regionFit": "The ad states only a region, not a municipality. The region contains a municipality you picked."
@@ -334,7 +333,7 @@
       "sortRelevance": "Relevance",
       "sortPublishedDesc": "Date (newest)",
       "sortExpiresAsc": "Application date (deadline)",
-      "matchSortDisclosure": "Match sorting requires you to state which occupations you are searching within. The list is shown newest first until you have set this.",
+      "matchSortDisclosure": "Match sorting requires you to state which occupations you are looking for. Until then, the list is shown newest first.",
       "matchSortDisclosureLink": "Set up matching",
       "unknownCode": "Unknown code ({code})",
       "employerChip": "Employer {orgNr}",
@@ -343,7 +342,7 @@
     },
     "results": {
       "rateLimitedTitle": "Too many requests",
-      "rateLimitedBody": "You have made too many requests in a short time. Try again in {seconds} seconds.",
+      "rateLimitedBody": "Try again in {seconds, plural, one {# second} other {# seconds}}.",
       "errorTitle": "Could not load job ads",
       "errorBody": "A technical error occurred. Try reloading the page in a moment."
     },
@@ -370,7 +369,7 @@
       "ortRightTitle": "Municipalities",
       "ortSelectAll": "All of {label}",
       "ortDistans": "Remote",
-      "ortDistansHint": "Counts as a location of its own. Remote jobs are included regardless of which counties or municipalities you pick.",
+      "ortDistansHint": "Remote jobs are included regardless of which counties or municipalities you pick.",
       "ortEmpty": "Regions could not be loaded right now. You can search by search terms anyway.",
       "ortRightEmpty": "Select a region on the left.",
       "yrkeLeftTitle": "Occupational area",
@@ -383,7 +382,7 @@
     "typeahead": {
       "loading": "Fetching suggestions…",
       "suggestionCount": "{count} suggestions",
-      "rateLimited": "Too many searches in a short time. Suggestions are paused for a while. You can keep typing and searching anyway.",
+      "rateLimited": "Too many searches in a short time. Suggestions are paused for a while, but you can still search.",
       "listLabel": "Search suggestions",
       "employerAdCount": "{count, plural, one {# ad} other {# ads}}"
     },

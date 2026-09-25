@@ -272,9 +272,7 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
     const user = userEvent.setup();
     renderForm();
     const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
-    const hint = screen.getByText(
-      "Påverkar hela appen direkt. Sparas på ditt konto.",
-    );
+    const hint = screen.getByText("Sparas på ditt konto.");
 
     await user.click(screen.getByRole("radio", { name: "English" }));
 

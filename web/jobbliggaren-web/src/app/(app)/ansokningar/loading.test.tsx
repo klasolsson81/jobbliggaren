@@ -62,17 +62,15 @@ describe("/ansokningar loading fallback (#1467)", () => {
     expect(belowHero?.querySelector(".justify-end")).toBeNull();
   });
 
-  it("renders the page's real title and lede, so the browser wraps them identically", () => {
+  it("renders the page's real title and no lede, as the page does", () => {
     const { container } = render(<Loading />);
     const main = container.querySelector(".jp-pagehero__main");
     expect(main?.querySelector("h1.jp-pagehero__title")?.textContent).toBe(
       "Mina ansökningar"
     );
-    expect(main?.querySelector("p.jp-pagehero__lede")?.textContent).toBe(
-      "Pipeline över alla ansökningar. Klicka på en rad för detaljer."
-    );
-    // Both bars are replaced, not joined — a bar left beside the real text would put the
-    // band back where it started.
+    expect(main?.querySelector("p.jp-pagehero__lede")).toBeNull();
+    // No bar stands in for either — a bar left in __main would reserve a line the page
+    // does not have.
     expect(main?.querySelectorAll(".jp-skeleton")).toHaveLength(0);
   });
 

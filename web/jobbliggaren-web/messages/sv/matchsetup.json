@@ -30,31 +30,29 @@
   },
   "counter": {
     "label": "MATCHAR NU",
-    "unit": "annonser i Platsbanken. Uppdateras när du ändrar dina val."
+    "unit": "annonser i Platsbanken."
   },
   "stepcounter": "STEG {step} AV 6",
   "stepcounterDone": "KLART",
   "start": {
     "title": "Välkommen till Jobbliggaren",
-    "intro": "Ställ in din matchning så visar vi jobb som passar dig. Det tar någon minut och du kan ändra allt senare.",
+    "intro": "Ställ in din matchning så visar vi jobb som passar dig. Det tar någon minut.",
     "pitchTitle": "Vi matchar Platsbankens annonser mot din profil",
-    "pitchBody": "Berätta vad du söker: yrken, kompetenser och var du vill jobba. Vi lyfter fram annonser som passar och räknar nya matchningar varje dag.",
     "uploadTitle": "Ladda upp ditt CV så fyller vi i förslag åt dig",
-    "uploadBody": "PDF eller Word (DOCX), max 10 MB. Vi föreslår yrken och kompetenser utifrån innehållet. Ditt CV ändras inte.",
-    "noCv": "Inget CV till hands? <b>Fortsätt utan CV</b> och välj allt själv.",
+    "uploadBody": "Max 10 MB.",
+    "noCv": "<b>Fortsätt utan CV</b>",
     "cvDoneTitle": "CV inläst: {filename}",
     "cvSavedTitle": "CV sparat: {filename}",
-    "cvDoneBody": "Vi har fyllt i förslag på yrken och kompetenser i stegen. Förslagen sparas inte i ditt CV."
+    "cvDoneBody": "Vi har fyllt i förslag på yrken och kompetenser i stegen."
   },
   "yrken": {
-    "intro": "Välj de yrken du söker. Vi föreslår utifrån ditt CV, men du bestämmer vad som tas med.",
-    "introNoCv": "Välj de yrken du söker. Sök nedan och lägg till de som passar dig.",
+    "intro": "Välj de yrken du söker. Förslagen kommer från ditt CV.",
+    "introNoCv": "Välj de yrken du söker.",
     "selected": "VALDA YRKEN ({count})",
-    "empty": "<b>Inga yrken valda ännu.</b> Välj ur förslagen eller sök nedan.",
-    "emptyNoCv": "<b>Inga yrken valda ännu.</b> Sök efter yrke nedan för att lägga till."
+    "empty": "<b>Inga yrken valda ännu.</b>"
   },
   "komp": {
-    "intro": "Förslagen kommer från ditt CV. Ta bort det som inte stämmer och lägg till det som saknas.",
+    "intro": "Förslagen kommer från ditt CV.",
     "introNoCv": "Lägg till de kompetenser du vill matcha på. Färre men träffsäkra ger bättre matchning än många breda.",
     "selected": "VALDA KOMPETENSER ({count})",
     "clear": "Rensa alla",
@@ -62,18 +60,17 @@
     "restore": "Återställ förslagen"
   },
   "orter": {
-    "intro": "Välj de län eller kommuner du vill arbeta i, eller kryssa Distans. Lämna allt tomt för hela landet.",
+    "intro": "Välj de län eller kommuner du vill arbeta i, eller kryssa Distans.",
     "distans": "Distans",
     "selected": "VALDA ORTER ({count})",
     "empty": "<b>Inga orter valda.</b> Vi matchar i hela landet."
   },
   "former": {
-    "intro": "Välj de anställningsformer du är öppen för. Lämna tomt för alla.",
+    "intro": "Välj de anställningsformer du är öppen för.",
     "note": "<b>De flesta annonser ligger under Vanlig anställning.</b> Lämna tomt för att matcha alla."
   },
   "granska": {
     "title": "Granska och spara",
-    "intro": "Kontrollera dina val. Du kan ändra varje del härifrån.",
     "edit": "Ändra",
     "captionYrken": "YRKEN",
     "captionKompetenser": "KOMPETENSER",

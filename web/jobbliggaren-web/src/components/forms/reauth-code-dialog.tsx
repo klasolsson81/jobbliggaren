@@ -78,8 +78,8 @@ type ReAuthCodeDialogProps<T, C> = {
   variant?: "default" | "destructive";
   /** Fields the consumer asks for before a code is sent (delete's typed address). */
   requestFields?: ReactNode;
-  /** Appended to the code field's hint (plain text: the hint is read as a description). */
-  codeHintExtra?: ReactNode;
+  /** The code field's hint (plain text: the hint is read as a description). */
+  codeHint?: ReactNode;
   /** Appended to the daily-budget message: the way on when no more codes can be sent today. */
   terminalExtra?: ReactNode;
   action: (proof: CodeProof, context: C) => Promise<ReauthOutcome<T>>;
@@ -108,7 +108,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
   variant = "default",
   requestFields,
   onBeforeRequest,
-  codeHintExtra,
+  codeHint,
   terminalExtra,
   action,
   onHandOff,
@@ -343,13 +343,6 @@ export function ReAuthCodeDialog<T, C = undefined>({
     });
   }
 
-  const hint = (
-    <>
-      {t("account.reauth.hint")}
-      {codeHintExtra ? <> {codeHintExtra}</> : null}
-    </>
-  );
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -461,7 +454,7 @@ export function ReAuthCodeDialog<T, C = undefined>({
                 id={codeId}
                 hintId={hintId}
                 label={tp("auth.passwordless.code.codeLabel")}
-                hint={hint}
+                hint={codeHint}
                 invalid={message?.channel === "field"}
                 errorId={messageId}
                 leadingDescriptionId={sentLineId}

@@ -120,6 +120,7 @@ describe("SkillSection — sök-disclosure (search-as-you-type)", () => {
     await user.click(cta);
     expect(cta).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Sök kompetens")).toBeInTheDocument();
+    expect(document.getElementById("match-dialog-skill-skill-results")).toBeNull();
   });
 
   it("sök-fältet är ett vanligt sökfält, INTE en combobox (ingen falsk a11y-utfästelse)", async () => {

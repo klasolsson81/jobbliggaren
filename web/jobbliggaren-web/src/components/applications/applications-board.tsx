@@ -177,16 +177,11 @@ export function ApplicationsBoard({ groups, now, query }: ApplicationsBoardProps
               apps={buckets[status]}
               now={now}
               isOver={overStatus === status}
-              emptyText={
-                status === "Accepted"
-                  ? tUi("board.emptyAccepted")
-                  : tUi("board.emptyZone")
-              }
+              emptyText={tUi("board.emptyZone")}
               dropProps={dropProps(status)}
               cardProps={cardProps}
             />
           ))}
-          <p className="jp-board__ghosthint">{tUi("board.ghostHint")}</p>
         </div>
       </div>
     </div>

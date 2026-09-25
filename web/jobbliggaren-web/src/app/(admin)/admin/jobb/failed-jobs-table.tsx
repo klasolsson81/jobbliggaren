@@ -27,7 +27,6 @@ export function FailedJobsTable({ data, format }: FailedJobsTableProps) {
         role="status"
       >
         <p className="text-body font-medium">{t("failed.empty.title")}</p>
-        <p className="mt-1 text-body-sm">{t("failed.empty.body")}</p>
       </div>
     );
   }

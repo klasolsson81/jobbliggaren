@@ -50,7 +50,6 @@ export function ApplicationsCard({ pipeline }: ApplicationsCardProps) {
     return (
       <OversiktCard id={ID} title={title} tone="plain" span={4} icon={Inbox}>
         <p className="jp-ov-card__emptytitle">{t("summary.emptyTitle")}</p>
-        <p className="jp-ov-card__emptybody">{t("summary.emptyBody")}</p>
         <OversiktCardFoot>
           {/* Emphasised, not solid: the solid level belongs to a card whose number counts ads. */}
           <Link className="jp-btn jp-btn--emphasis jp-ov-cta" href="/ny-ansokan">

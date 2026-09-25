@@ -386,7 +386,6 @@ export function OversiktPage({
         <div className="jp-pagehero__inner">
           <div className="jp-pagehero__main">
             <h1 className="jp-pagehero__title">{t("hero.title")}</h1>
-            <p className="jp-pagehero__lede">{t("hero.lede")}</p>
           </div>
         </div>
       </section>

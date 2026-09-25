@@ -20,11 +20,11 @@
 export function PlainHeaderSkeleton({
   label,
   contained = false,
-  lede = true,
+  lede,
 }: {
   label: string;
   contained?: boolean;
-  lede?: boolean;
+  lede: boolean;
 }) {
   const wrapperClass = contained
     ? "jp-container jp-page flex flex-col"

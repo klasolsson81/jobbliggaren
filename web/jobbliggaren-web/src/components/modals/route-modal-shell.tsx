@@ -35,18 +35,11 @@ import { X } from "lucide-react";
 export function RouteModalShell({
   title,
   subtitle,
-  description,
   children,
 }: {
   title: string;
   /** Valfri rad under titeln i headern (t.ex. kort kontext). */
   subtitle?: string;
-  /**
-   * Valfri beskrivning som kopplas via aria-describedby. Sätts endast när
-   * den finns → ingen danglande referens (a11y: aria-describedby pekar bara
-   * på ett element som faktiskt renderas).
-   */
-  description?: string;
   children: React.ReactNode;
 }) {
   const t = useTranslations("common");
@@ -54,7 +47,6 @@ export function RouteModalShell({
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
-  const descId = useId();
 
   const close = () => router.back();
 
@@ -116,7 +108,6 @@ export function RouteModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
-        aria-describedby={description ? descId : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="jp-modal__head">
@@ -136,11 +127,6 @@ export function RouteModalShell({
             <X size={20} aria-hidden="true" />
           </button>
         </header>
-        {description ? (
-          <p id={descId} className="sr-only">
-            {description}
-          </p>
-        ) : null}
         {children}
       </div>
     </div>

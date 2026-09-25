@@ -9,5 +9,5 @@ import { PlainHeaderSkeleton } from "@/components/skeletons/plain-header-skeleto
  */
 export default function Loading() {
   const t = useTranslations("pages");
-  return <PlainHeaderSkeleton label={t("navLoading.sokningar")} />;
+  return <PlainHeaderSkeleton label={t("navLoading.sokningar")} lede />;
 }

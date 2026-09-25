@@ -83,7 +83,6 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
     expect(
       screen.getByRole("button", { name: "Flytta till Bekräftad" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Alla byten kan ångras.")).toBeNull();
     // §8.4: exakt 7 steg, nuvarande (Skickad) disabled med aria-current.
     const steps = container.querySelectorAll(".jp-steppicker__step");
     expect(steps).toHaveLength(7);

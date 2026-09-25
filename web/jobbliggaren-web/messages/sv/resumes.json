@@ -58,7 +58,7 @@
     "errorNoFile": "Välj en fil att importera.",
     "errorGeneric": "Något gick fel vid importen. Försök igen om en stund.",
     "errorUnauthorized": "Du är inte inloggad.",
-    "errorRateLimited": "För många uppladdningar. Vänta {seconds} sekunder och försök igen."
+    "errorRateLimited": "För många uppladdningar. Vänta {seconds, plural, one {# sekund} other {# sekunder}} och försök igen."
   },
   "consent": {
     "title": "Filen innehåller ett personnummer",
@@ -138,7 +138,7 @@
   },
   "preamble": {
     "title": "Text ovanför första rubriken",
-    "body": "Den står inte under en rubrik, så vi tolkar den inte som ett avsnitt.",
+    "body": "Vi tolkar den inte som ett avsnitt.",
     "useHint": "Vill du använda den? Ge den en rubrik i din fil, till exempel Profil, och ladda upp filen igen."
   },
   "profileToggle": {
@@ -159,7 +159,7 @@
     "statusRegionLabel": "Filens status",
     "readyBodyPdf": "Det här är filen du laddade upp, oförändrad.",
     "readyBodyDocx": "Word-filer kan inte visas i webbläsaren.",
-    "rateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+    "rateLimited": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "noOriginal": "Det här CV:t har ingen sparad originalfil.",
     "importCta": "Importera CV",
     "retry": "Försök igen",

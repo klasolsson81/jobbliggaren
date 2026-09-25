@@ -23,7 +23,7 @@ export default function Loading() {
       {/* aside={null}: no route this net covers renders an aside — the ones that land a
           pagehero render `__main` alone (#1490). It used to take a two-bar default, which
           reserved a whole `__aside` element none of them renders. lede={null}: nor a lede
-          (#1824), so the default bar would jump the page up on swap. */}
+          (#1824). */}
       <PageHeroSkeleton aside={null} lede={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">

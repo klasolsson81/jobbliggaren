@@ -2214,7 +2214,7 @@
 .jp-ov-card__emptybody {
   margin: 6px 0 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-ov-card__unavailable {
   margin: 12px 0 0;

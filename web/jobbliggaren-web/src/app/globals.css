@@ -1584,6 +1584,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
   color: var(--jp-hero-ink-soft); max-width: 60ch;
+  text-wrap: pretty;
 }
 .jp-pagehero__aside {
   flex: 0 0 auto; display: flex; align-items: center;
@@ -4651,6 +4652,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero__lede--plate {
   margin: 26px 0 0; font-size: var(--text-h3); line-height: 1.55;
   color: rgba(255, 255, 255, 0.94); max-width: 48ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  text-wrap: pretty;
 }
 .jp-land-hero__source {
   margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
@@ -4776,6 +4778,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   max-width: 60ch;
   margin: 8px 0 0;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.
@@ -5781,6 +5784,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: center;
   margin-top: 6px;
 }
+.jp-empty__title + .jp-empty__actions {
+  margin-top: 16px;
+}
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
    skiljs från den solida vita primärknappen utan en andra fylld yta.
@@ -5997,7 +6003,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 36ch;
   font-size: var(--text-ui);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* ── Granska-vyns fil-meta ───────────────────────── */
@@ -6637,7 +6643,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 68ch;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-atstext__body {
   margin: 0;
@@ -7769,7 +7775,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
   padding: 32px 16px;
   text-align: center;
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-apptable__footer {
   display: flex;

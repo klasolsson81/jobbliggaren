@@ -299,7 +299,7 @@
       "orgNrRefusedTitle": "The number cannot be searched",
       "orgNrRefusedBody": "It looks like a personal identity number. Sole traders are found via their job ads.",
       "orgNrRateLimitedTitle": "Too many searches",
-      "orgNrRateLimitedBody": "Wait {seconds} seconds and try again.",
+      "orgNrRateLimitedBody": "Wait {seconds, plural, one {# second} other {# seconds}} and try again.",
       "orgNrErrorTitle": "The search could not be completed",
       "orgNrErrorBody": "Try again in a moment.",
       "resultsHeading": "Companies in the register",
@@ -377,7 +377,7 @@
         "validationFailed": "Something in your selection is not valid. Check your choices and try again.",
         "maxPerUser": "You can have at most 20 watches. Remove a watch to create a new one.",
         "notFound": "The watch was not found. It may already have been removed.",
-        "rateLimited": "Too many attempts. Wait {seconds} seconds and try again.",
+        "rateLimited": "Too many attempts. Wait {seconds, plural, one {# second} other {# seconds}} and try again.",
         "invalidInput": "Choose at least one industry and one municipality."
       },
       "row": {

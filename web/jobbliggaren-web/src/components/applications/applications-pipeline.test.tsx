@@ -226,7 +226,6 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
     const toggle = within(section).getByRole("button", { name: /Nekad/ });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle.textContent).toBe("Nekad(1)");
-    expect(section).not.toHaveTextContent("Klicka för att visa");
   });
 
   it("'AVSLUT & VILANDE'-kicker före första terminala gruppen", () => {

@@ -79,7 +79,7 @@ describe("CompaniesCard", () => {
     expect(within(card()).queryByRole("link", { name: COPY.cards.companiesCtaAria })).toBeNull();
   });
 
-  it("one unlinkable watch removes every ad link and drops the CTA", () => {
+  it("one unlinkable watch removes every ad link, drops the CTA and says so once", () => {
     render(
       <CompaniesCard
         watches={ok([

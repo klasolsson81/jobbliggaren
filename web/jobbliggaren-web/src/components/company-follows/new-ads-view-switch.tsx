@@ -94,7 +94,7 @@ export function NewAdsViewSwitch({
             <div className="jp-empty__actions">
               <button
                 type="button"
-                className="jp-btn jp-btn--ghost"
+                className="jp-btn jp-btn--secondary"
                 onClick={() => setView("all")}
               >
                 {emptyAction}

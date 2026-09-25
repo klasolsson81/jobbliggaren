@@ -719,14 +719,13 @@ function CvSuggestMessage({
             {t("matchPrefs.occupation.noCvTitle")}
           </p>
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
-          <Button
+          <button
             type="button"
-            variant="outline"
-            className="mt-2.5"
+            className="jp-occpicker__cta mt-2.5"
             onClick={onOpenUpload}
           >
             {t("matchPrefs.occupation.uploadCv")}
-          </Button>
+          </button>
         </div>
       );
     case "noRole":

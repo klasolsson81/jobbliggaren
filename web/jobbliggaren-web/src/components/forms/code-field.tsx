@@ -39,7 +39,7 @@ export function CodeField({
   onValueChange,
 }: {
   id: string;
-  hintId?: string;
+  hintId: string;
   label: string;
   hint?: ReactNode;
   /** A line read before the hint, e.g. the step's "we have sent a code to …". */

@@ -299,7 +299,7 @@
       "orgNrRefusedTitle": "Numret kan inte sökas",
       "orgNrRefusedBody": "Det ser ut som ett personnummer. Enskilda firmor söker du fram via deras annonser.",
       "orgNrRateLimitedTitle": "För många sökningar",
-      "orgNrRateLimitedBody": "Vänta {seconds} sekunder och försök igen.",
+      "orgNrRateLimitedBody": "Vänta {seconds, plural, one {# sekund} other {# sekunder}} och försök igen.",
       "orgNrErrorTitle": "Sökningen kunde inte genomföras",
       "orgNrErrorBody": "Försök igen om en stund.",
       "resultsHeading": "Företag i registret",
@@ -377,7 +377,7 @@
         "validationFailed": "Något i urvalet stämmer inte. Kontrollera dina val och försök igen.",
         "maxPerUser": "Du kan ha högst 20 bevakningar. Ta bort en bevakning för att skapa en ny.",
         "notFound": "Bevakningen hittades inte. Den kan redan ha tagits bort.",
-        "rateLimited": "För många försök. Vänta {seconds} sekunder och försök igen.",
+        "rateLimited": "För många försök. Vänta {seconds, plural, one {# sekund} other {# sekunder}} och försök igen.",
         "invalidInput": "Välj minst en bransch och en kommun."
       },
       "row": {

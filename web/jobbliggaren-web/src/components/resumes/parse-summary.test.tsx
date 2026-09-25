@@ -10,7 +10,6 @@ import type {
 function confidence(overall: OverallConfidenceLevel): ParseConfidenceDto {
   return {
     overall,
-    requiresManualReview: overall !== "Confident",
     fallback: "None",
     sections: [],
   };

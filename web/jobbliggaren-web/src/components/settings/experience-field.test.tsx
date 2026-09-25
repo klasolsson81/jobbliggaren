@@ -37,7 +37,6 @@ describe("ExperienceField (STEG 3 / ADR 0079)", () => {
     // Inget placeholder-exempel (hård Klas-regel).
     expect(input).not.toHaveAttribute("placeholder");
     expect(input).not.toHaveAttribute("aria-describedby");
-    expect(screen.queryByText(/Ungefärligt antal år du arbetat/)).toBeNull();
   });
 
   it("ett angivet värde visas i fältet", () => {

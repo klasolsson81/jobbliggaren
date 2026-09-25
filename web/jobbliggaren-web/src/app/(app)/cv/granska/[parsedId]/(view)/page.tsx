@@ -130,6 +130,9 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
   // Granskningen degraderas civilt — bara "ok" ger en panel, övrigt → notis.
   const review: CvReviewDto | null =
     reviewResult.kind === "ok" ? reviewResult.data : null;
+  const hasFindings =
+    review !== null &&
+    review.verdicts.some((v) => v.verdict === "Fail" || v.verdict === "Warn");
 
   return (
     <>
@@ -214,9 +217,11 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
           >
             {t("cv.review.nextStepTitle")}
           </h2>
-          <p className="max-w-[68ch] text-body-sm text-text-primary">
-            {t("cv.review.nextStepBody")}
-          </p>
+          {hasFindings && (
+            <p className="max-w-[68ch] text-body-sm text-text-primary">
+              {t("cv.review.nextStepBody")}
+            </p>
+          )}
           <div>
             <Link href="/cv/importera" className="jp-btn jp-btn--secondary">
               {t("cv.review.nextStepCta")}

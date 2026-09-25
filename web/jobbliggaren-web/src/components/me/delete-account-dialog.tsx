@@ -90,7 +90,7 @@ export function DeleteAccountDialog({
         </div>
       }
       onBeforeRequest={confirm}
-      codeHintExtra={ts.rich("account.delete.contactRoute", { mail: mailText })}
+      codeHint={ts.rich("account.delete.contactRoute", { mail: mailText })}
       terminalExtra={ts.rich("account.delete.contactRoute", { mail: mailLink })}
       action={(proof, confirmed) => deleteAccountAction(confirmed, proof)}
       onHandOff={onHandOff}

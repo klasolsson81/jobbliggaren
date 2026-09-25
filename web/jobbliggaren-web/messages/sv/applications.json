@@ -280,7 +280,7 @@
       "optionResponded": "Svar mottaget",
       "optionNoResponse": "Inget svar",
       "save": "Spara utfall",
-      "confirmQuestion": "Spara utfallet <b>{outcome}</b>? Detta går inte att ändra efteråt.",
+      "confirmQuestion": "Spara utfallet <b>{outcome}</b>?",
       "savingOutcome": "Sparar…",
       "saveOutcome": "Spara {outcome}"
     },

@@ -280,7 +280,7 @@
       "optionResponded": "Reply received",
       "optionNoResponse": "No reply",
       "save": "Save outcome",
-      "confirmQuestion": "Save the outcome <b>{outcome}</b>? This cannot be changed afterwards.",
+      "confirmQuestion": "Save the outcome <b>{outcome}</b>?",
       "savingOutcome": "Saving…",
       "saveOutcome": "Save {outcome}"
     },

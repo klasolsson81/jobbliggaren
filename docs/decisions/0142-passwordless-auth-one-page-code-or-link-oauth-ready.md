@@ -1413,7 +1413,7 @@ form that moves it into a short-lived cookie was not chosen);
   card, and delete-account reuses the dialog (Klas 2026-09-22). **A page may state a send only
   where three facts hold:** the 2xx follows an awaited send, every branch that sends nothing answers a
   visible refusal, and the address shown is the recipient. `POST /auth/reauth` and `POST /auth/change-email`
-  meet all three, so *"Vi har skickat en sexsiffrig kod till {email}"* is true there; `POST /auth/challenge`
+  meet all three, so *"Vi har skickat en kod till {email}"* is true there; `POST /auth/challenge`
   meets none, which is why the login code step never says it (Amendment 2026-09-23 (6)).
 - **Copy:** every string in `messages/sv/` **and** `messages/en/` in the same PR (ADR 0137); retired
   keys deleted in the PR that removes their last consumer, never orphaned; 5a deletes those part 2

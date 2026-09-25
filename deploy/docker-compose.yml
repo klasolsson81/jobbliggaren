@@ -351,17 +351,14 @@ services:
       ConnectionStrings__Redis_FILE: /run/redis-persistent/connection
       ConnectionStrings__VolatileRedis_FILE: /run/redis-volatile/connection
       # Registration gate (#734). Absent knob renders `false` — AuthOptions' own default, and
-      # the posture the box has today: POST /auth/register answers 503, so no NEW account can
-      # be created. Both flags are passed, not just the gate: AuthOptionsValidator is the single
-      # home of which combinations are legal, and passing only the gate would leave the operator
-      # unable to satisfy a rule the boot enforces. Inline rather than a shared anchor because the worker
+      # the posture the box has today: POST /auth/challenge/complete answers 503, so no NEW account
+      # can be created. Inline rather than a shared anchor because the worker
       # consumes no Auth__* at all — every host-specific key in this file is already inline,
       # while x-app-email and x-app-seq are anchors precisely because both hosts read them.
       # The default is pinned by DeployComposeRegistrationGateTests, since an open default
       # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
-      Auth__RequireEmailConfirmation: ${AUTH_REQUIRE_EMAIL_CONFIRMATION:-false}
       # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
       # (docs/runbooks/release-checklist.md 2.7). Default pinned by
       # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an
@@ -378,7 +375,7 @@ services:
       # #1350 — where the Data-Protection keyring is persisted, matched by the writable volume
       # below. Unset means the framework default, i.e. the container's writable layer, which is
       # the defect: every recreate mints a fresh keyring and silently invalidates every
-      # outstanding activation, password-reset and change-email link. The Api reads the key name
+      # outstanding change-email link, login challenge and grant. The Api reads the key name
       # from DependencyInjection.DataProtectionKeyPathConfigKey; DeployComposeDataProtectionTests
       # pins that this value and the mount destination stay the same path.
       # NOT passed to `worker`: it mints and validates no DataProtector tokens and must not

@@ -7,8 +7,8 @@ public enum InboxProof
     AlreadyConfirmed,
 
     /// <summary>
-    /// The address was unconfirmed: it is now confirmed, the password is removed and the security stamp is
-    /// rotated, in one Identity write.
+    /// The address was unconfirmed: it is now confirmed and the security stamp is rotated, in one Identity
+    /// write.
     /// </summary>
     FirstProofRecorded,
 }

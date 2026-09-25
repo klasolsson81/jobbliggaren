@@ -61,12 +61,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>#1744 — the host's client id at Google, as the test adapter sends it.</summary>
     internal const string GoogleClientId = "test-client-id.apps.googleusercontent.com";
 
-    /// <summary>
-    /// #1744 — a derived host that sets this to <c>true</c> gets no scripted Google adapter, and nothing is removed
-    /// either, so its provider list is exactly what the Development composition registers.
-    /// </summary>
-    internal const string CompositionProvidersOnlySetting = "Tests:ExternalLogins:CompositionProvidersOnly";
-
     /// <summary>#1735 — puts the login challenge's Redis stores out of reach for a scope (the 503 rows).</summary>
     internal LoginChallengeFaults LoginChallengeFaults => _loginChallengeFaults;
 
@@ -113,6 +107,10 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // Program.cs läser ASPNETCORE_ENVIRONMENT INNAN denna callback körs.
         // Verklig env-override sker via env-var i InitializeAsync nedan.
         builder.UseEnvironment("Development");
+
+        // #1744 — a full Google client, as a developer's appsettings.Local.json carries one.
+        builder.UseSetting("Auth:OAuth:Google:ClientId", GoogleClientId);
+        builder.UseSetting("Auth:OAuth:Google:ClientSecret", "test-google-client-secret"); // gitleaks:allow
 
         // ADR 0066 (#802) — fält-krypteringen är Local-only. Provider läses via
         // configuration[...] vid DI-tid i AddPersistence, så det MÅSTE vara ett
@@ -227,15 +225,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
                 ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), _loginChallengeFaults));
 
-            // #1744 — the REAL Google adapter over ScriptedGoogle, last-wins like the sender above (#241). No
-            // production composition registers a provider before 6a PR G; this host does, so the spine can be
-            // driven end to end, and whatever a developer's appsettings.Local.json carries, no test reaches
-            // Google. The redirect base is the host's own Email:BaseUrl.
-            // The setting is read here, when the services are built, so a derived host's UseSetting has landed.
-            if (builder.GetSetting(CompositionProvidersOnlySetting) != "true")
-            {
-                services.RemoveAll<IExternalIdentityProvider>();
-                services.AddSingleton<IExternalIdentityProvider>(sp => new GoogleIdentityProvider(
+            // #1744 — the REAL Google adapter over ScriptedGoogle, handed to the handlers through RegisteredProviders
+            // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test
+            // reaches Google. The redirect base is the host's own Email:BaseUrl.
+            services.RemoveAll<RegisteredProviders>();
+            services.AddSingleton(sp => new RegisteredProviders(
+            [
+                new GoogleIdentityProvider(
                     new ScriptedGoogleClients(_google),
                     Options.Create(new GoogleOAuthOptions
                     {
@@ -243,8 +239,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                         ClientSecret = "test-google-client-secret", // gitleaks:allow
                     }),
                     new ExternalLoginCallbacks(new Uri(sp.GetRequiredService<IOptions<EmailOptions>>().Value.BaseUrl)),
-                    sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()));
-            }
+                    sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()),
+            ]));
 
             // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
             // base host must pin it OPEN or every new account would be refused before it is created.

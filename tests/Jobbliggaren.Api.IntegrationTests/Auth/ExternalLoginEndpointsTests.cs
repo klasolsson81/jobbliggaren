@@ -12,7 +12,6 @@ using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -119,8 +118,7 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     [Fact]
     public async Task The_providers_list_names_google_and_is_publicly_cacheable_for_five_minutes()
     {
-        // Acceptance: ["google"] when configured. This host registers the test adapter; the [] half is the
-        // production composition's (ExternalLoginCompositionTests, ProductionStartupSmokeTests).
+        // Acceptance: ["google"] when configured; the [] half is the inert rows'.
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -129,25 +127,15 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task No_provider_is_live_in_the_Development_composition_even_with_a_full_google_client()
+    public void No_provider_is_live_in_the_Development_composition_even_with_a_full_google_client()
     {
         // security-auditor S4, condition 1, the Development half: Program.cs reads appsettings.Local.json in every
-        // environment, and a developer's carries a Google client. This host keeps the composition's own provider
-        // list, so the ScriptedGoogle registration above is the only thing it drops.
-        await using var host = factory.WithWebHostBuilder(b => b
-            .UseSetting(ApiFactory.CompositionProvidersOnlySetting, "true")
-            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
-            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret"));
-        using var client = host.CreateClient();
+        // environment, and a developer's carries a Google client. So does this host's configuration; its scripted
+        // adapter reaches the handlers through RegisteredProviders alone, so these are the composition's own.
+        factory.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"]
+            .ShouldBe(ApiFactory.GoogleClientId);
 
-        // The control: the client reached the configuration, so the absences below are not a missing key's.
-        host.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
-
-        host.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
-        (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", Ct)).ShouldBe([]);
-        (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct))
-            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        ((FaultableOAuthStateStore)host.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
+        factory.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
     }
 
     [Fact]

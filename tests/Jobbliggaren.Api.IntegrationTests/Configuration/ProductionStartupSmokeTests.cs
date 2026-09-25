@@ -15,7 +15,6 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -83,6 +82,11 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
             // verifieras separat via *ProdBubbleTests + *.IsSchemaInitGracePeriod.
             // Delad SPOT (ADR 0043 defekt-triage #3).
             services.RemoveStartupSeeders();
+
+            // #1744 — counts the flows that reach the real state store; replaces no provider registration.
+            services.RemoveAll<IOAuthStateStore>();
+            services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
+                ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), new LoginChallengeFaults()));
         });
     }
 
@@ -109,6 +113,10 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // ConfigureServices, men AddInfrastructure läser CS:erna direkt vid registrerings-
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
+
+        // #1744 — a full Google client in the environment, as compose passes one on the box.
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", "configured-client-id");
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", "configured-client-secret");
         _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
         // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
@@ -127,6 +135,8 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", null);
         _redisEnvironment?.Dispose();
 
         await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
@@ -217,26 +227,16 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         // #1744, 6a PR S (security-auditor S4, condition 1): the spine ships inert. A full Google client in the
         // configuration registers no provider, the list is empty, and a start is not found, so no flow is minted.
         var ct = TestContext.Current.CancellationToken;
-        using var host = _factory.WithWebHostBuilder(b => b
-            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
-            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret")
-            // Counts what reaches the real store; replaces no provider registration.
-            .ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IOAuthStateStore>();
-                services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
-                    ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), new LoginChallengeFaults()));
-            }));
-        using var client = host.CreateClient();
+        using var client = _factory.CreateClient();
 
         // The control: the client reached the configuration, so the absences below are not a missing key's.
-        host.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
+        _factory.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
 
-        host.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        _factory.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
         (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", ct)).ShouldBe([]);
         (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        ((FaultableOAuthStateStore)host.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
+        ((FaultableOAuthStateStore)_factory.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
     }
 
     [Fact]

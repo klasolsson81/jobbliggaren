@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
@@ -19,10 +18,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// so it is measured on the adapter production registers, never on an in-memory copy. The attempt count is
 /// spelled out as a literal 3, so a change to the policy constant makes these go red.
 /// </summary>
-public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
+public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime, IClassFixture<SharedVolatileRedisFixture>
 {
     // The deploy stack's own `redis-volatile`, so the contract is measured on the configuration the box runs.
-    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+    private readonly SharedVolatileRedisFixture _redis;
     private readonly IDataProtectionProvider _keyring = new EphemeralDataProtectionProvider();
 
     // The test's OWN reader, beside the connection the store is given (see RedisRateBudgetTests).
@@ -30,10 +29,12 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
     private VolatileRedisConnection _connection = null!;
     private RedisLoginChallengeStore _store = null!;
 
+    public RedisLoginChallengeStoreTests(SharedVolatileRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
-        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
+        await _redis.FlushAsync();
+        var connectionString = $"{_redis.ConnectionString},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _store = Store(_keyring);
@@ -44,7 +45,6 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private RedisLoginChallengeStore Store(IDataProtectionProvider keyring) =>
@@ -425,10 +425,23 @@ public sealed class RedisLoginChallengeStoreTests : IAsyncLifetime
     [Fact]
     public async Task An_unreachable_redis_throws_the_store_unavailable_contract()
     {
-        await _redis.StopAsync(Ct);
+        // Its own container: stopping the shared one would fail every test after this in the class.
+        var redis = VolatileRedisContainer.FromDeployCompose();
+        await redis.StartAsync(Ct);
+        try
+        {
+            using var connection = new VolatileRedisConnection(
+                $"{VolatileRedisContainer.OperatorConnectionString(redis)},connectTimeout=1000,syncTimeout=1000");
+            var store = new RedisLoginChallengeStore(connection, _keyring, NullLogger<RedisLoginChallengeStore>.Instance);
+            await redis.StopAsync(Ct);
 
-        await Should.ThrowAsync<VolatileRedisUnavailableException>(
-            () => _store.ConsumeCodeAsync(ChallengeId.Generate(), LoginCode.FromRaw("123456"), Ct));
+            await Should.ThrowAsync<VolatileRedisUnavailableException>(
+                () => store.ConsumeCodeAsync(ChallengeId.Generate(), LoginCode.FromRaw("123456"), Ct));
+        }
+        finally
+        {
+            await VolatileRedisContainer.DisposeAsync(redis);
+        }
     }
 
     private static byte[] Base64UrlBytes(string raw) => System.Buffers.Text.Base64Url.DecodeFromChars(raw);

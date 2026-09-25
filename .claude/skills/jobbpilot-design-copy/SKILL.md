@@ -250,12 +250,6 @@ visar dem:
 
 Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
 
-**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
-(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
-(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
-skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
-stavningen i UI.
-
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte
 motsäga dem: *"Du får ingen svart låda som säger att du är en ”92-procentig
 matchning”"* (`content-matchning.json`) och *"Du får inget poäng mellan 0 och 100,

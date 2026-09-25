@@ -471,8 +471,8 @@ cd /opt/jobbliggaren/deploy
 **Preconditions, all five:**
 
 1. **Klas's GO for this run.** Not a standing grant.
-2. **One revision.** `migrate`, `api` and `worker` carry the same revision label X in `latest`.
-   Each digest verifies against its own repository's attestation
+2. **One revision.** For `migrate`, `api` and `worker` each, `latest` is the digest the registry's
+   `:sha-<X>` points to. Each digest verifies against its own repository's attestation
    (`deploy/systemd/verify-image-attestation.sh`, over that repository's RepoDigest, never
    `index 0`). X is on or after the commit that stopped mapping what the migration drops — for
    `20260917195454_DropAuthProviderColumns` that is `93a85abe`, which dropped the mapping and added
@@ -487,11 +487,28 @@ cd /opt/jobbliggaren/deploy
 4. **The migration's own pre-read.** For `DropAuthProviderColumns`:
    `select count(*) from identity."AspNetUsers" where provider <> 'Local' or provider_user_id is not null`
    must be 0.
-5. **Reversibility.** Every migration in the set has a `Down` that restores the state the pre-read
-   measured. A migration without one (5b's, which throws) is not run by this procedure until its
-   own PR adds a backup decision `security-auditor` has signed. **No dump is taken:**
-   `pg_dump -n identity` would be a second mechanism, and a plaintext copy of the very hashes 5b
-   exists to destroy. The `Down` script is the backup.
+
+   For 5b (`20260925172152_NullPasswordHashes`), two counts, recorded with the UTC time:
+
+   ```bash
+   docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+     "select count(*) from identity.\"AspNetUsers\";"
+   docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+     "select count(*) from identity.\"AspNetUsers\" where password_hash is not null;"
+   ```
+
+   Call them T and N. No value of N blocks the run: N = 0 only means nothing is left to null. In the same
+   visit, read who owns the accounts, by count and never by printing a row. Precondition 5 needs every one
+   to be the controller's.
+5. **Reversibility, or a signed decision that there is none.** Every migration in the set has a `Down` that
+   restores the state the pre-read measured, and for those the `Down` script is the backup. The one exception
+   is 5b (`20260925172152_NullPasswordHashes`), whose `Down` throws. Its backup decision, signed by `security-auditor` and recorded in
+   ADR 0142's Amendment for part 5b (#1857), is that **no copy of any kind is made for it** — no dump, no Netcup snapshot, no
+   copied table — because the hashes are what it exists to destroy. The decision holds only while every
+   account is the controller's (precondition 4's reading). If one is not, 5b does not run until
+   `security-auditor` signs again. 5b never shares a run: its GO names exactly `{20260925172152_NullPasswordHashes}`, so every
+   reversible migration before it has been applied and read back first. **No dump is taken for any
+   migration:** `pg_dump -n identity` would be a second mechanism and a plaintext copy of every address.
 
 **The run, inside the same shell:**
 
@@ -526,12 +543,29 @@ Expect `1`, `0`, `0`, and both containers `(healthy)`. **Never read
 `docker logs jobbliggaren-migrate`:** that is the `schema` oneshot from the last `up`. The run
 container is named `<project>-migrate-run-<id>` and is removed on exit (measured).
 
+For 5b:
+
+```bash
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from identity.\"__EFMigrationsHistory\" where migration_id = '20260925172152_NullPasswordHashes';"
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from identity.\"AspNetUsers\" where password_hash is not null;"
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from identity.\"AspNetUsers\";"
+docker ps --filter name=jobbliggaren-api --filter name=jobbliggaren-worker --format '{{.Names}} {{.Status}}'
+```
+
+Expect `1`, `0`, the T of the pre-read, and both containers `(healthy)`.
+
 **Rollback.**
 
 - **A failed apply:** the migration ran in a transaction and rolled back. Read back and stop.
 - **After a successful apply:** generate the `Down` script from a checkout at X —
   `dotnet ef migrations script <id> <predecessor> --context AppIdentityDbContext --project src/Jobbliggaren.Infrastructure`
   — apply it over stdin to the postgres container under the same lock, and read back in reverse.
+- **5b has no rollback after a successful apply, by decision** (ADR 0142, the Amendment for part 5b, #1857). Its `Down`
+  throws. Never generate, edit or apply a script for it, and never rebuild a pre-image by hand. A failed 5b
+  apply is the first bullet: read back, expect N unchanged, and stop.
 
 **The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
 body.

@@ -1199,6 +1199,69 @@ is untouched. 2, 3: no account is added. 4: no IdP. 5: code length, attempts and
 triggers, an address with an embedded CR LF (`a\r\nb@…`) and one with a trailing LF, are refused earlier by
 the predicate. No reachable trigger measured after R3; not verified unreachable.
 
+#### Amendment 2026-09-25 (10) (#1743, part 5a) — the teardown as delivered, and the corrections above
+
+*Decided in 5a's form round: `security-auditor`, `dotnet-architect` and `test-writer`, then `senior-cto-advisor`
+(`docs/reviews/2026-09-25-1743-form-{security-auditor,dotnet-architect,test-writer,cto}.md`).*
+
+**5a is two PRs, web first.** W (#1844) took every caller off the password routes; B deletes the routes and
+what stood behind them. The image cells have no fan-in (#1238), so an old web beside a new api is reachable,
+and web first makes that state a web with no caller. Either order fails closed.
+
+**Derived scope.** `POST /auth/register` is a password route too, so B deletes it with the other six (login,
+change-password, verify-email, resend-confirmation, forgot-password, reset-password) and with
+`/dev/confirm-email`. "No password symbol reachable" could not hold while `RegisterCommand.Password` existed;
+`NoPasswordSymbolTests` now scans Domain, Application, Api and Worker for one, with no exception list.
+
+**The seed seam.** `POST /api/v1/dev/accounts {email}` replaces `/auth/register` and `/dev/confirm-email` as
+the E2E suite's seeding path: a run seeds more accounts than the code flow sends to addresses without an
+account. It opens the account through `AccountRegistrar`, the writer `complete` uses, only for a reserved
+address. Its second gate is `IDevSeedableAddressPolicy`, registered in `AddDevOnlyTestingSupport`. It answers
+204 only when the login resolves the address to `Active`, and hands out no credential and sends no mail.
+
+**The boot gate.** `Auth:RequireEmailConfirmation` goes with its rule. `AuthOptionsValidator` keeps one rule:
+outside Development and Test, a sender that cannot deliver refuses the boot, whatever `RegistrationsOpen`
+says. `RegistrationGateLog` keeps EventIds 4300 and 4301 and drops the confirmation half of its line.
+
+**Retired EventIds, never reused:** 1002 `login_failed`, 1004 `account_locked_out`, 1005
+`email_confirmation_resent`, 1006 `password_reset_requested`, 4004 (the reset's failed session invalidation),
+4006 (the reset's failed `EmailConfirmed` write).
+
+**The re-auth 401 keeps its byte-identical form** and loses its "lösenord":
+`AuthErrorCodes.InvalidCredentialsMessage` is "Det gick inte att bekräfta att det är du."
+(`security-auditor`'s string).
+
+**Legal copy.** W moved the terms (:253) and `TermsAcceptance.CurrentTermsVersion` to 2026-09-25: D6's first
+terms bump. Only `AcceptCurrent` reads the constant, so nothing asks for re-acceptance, and both accounts are
+the controller's. The privacy line "lösenord (hash)" is struck in 5b: Klas chose "5b (Rekommenderat)" from an
+AskUserQuestion on 2026-09-25.
+
+**Corrections above.**
+- D9's *"it goes when the last literal goes"* is false. The pre-push scan (`gitleaks detect --source .`) reads
+  the history, where the literal stays: gitleaks 8.30.1 without the entry reports 53 `generic-api-key`
+  findings, measured 2026-09-25. The entry stays, and its description now says why.
+- Amendment 2026-09-17 (#1734)'s migration rule ran in B: the password bootstrap, `DefaultTestPassword` and
+  `LoginAndGetSessionIdAsync` are deleted, and `SessionBootstrapTests` pins the passwordless bootstrap only.
+  The box's two accounts still carry a hash until 5b, so the two proof tests about a legacy password account
+  keep running on a private seed in `LoginChallengeProofTests`. The seed writes the hash at runtime, names the
+  retired routes as its actors (AGENTS.md §5), and goes in 5b with `RemovePasswordAsync`.
+
+**The Identity `bootstrap` procedure** is `vps-deploy-stack.md` §3c (Klas, 2026-09-18). Running it on the box,
+which applies 6d, is a separate Klas GO.
+
+**DoD 8.** No new personal data. Four mails end, and their purposes with them: `EmailConfirmation`,
+`AccountExistsNotice`, `PasswordReset` and `PasswordChangedNotice`. The HIBP range lookup ends. The three
+`cd/*` cooldown keys end, and the persistent Redis ACL template drops their patterns. The emitters of
+`User.PasswordChanged`, `User.PasswordReset` and `User.EmailConfirmed` go with their operations; no reader
+switches on those event types, and existing rows keep their 90-day retention and their `user_id` anonymisation.
+`password_hash` is kept unchanged until 5b. No DPIA.
+
+**Lapse triggers, read for this change by security-auditor 2026-09-25: none fires.** 1: the compose default
+`${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged. 2, 3: no account is added; the seed
+seam exists only in Development. 4: no IdP. 5: code length, attempts and the mint budget are unchanged. 6: written
+as "5b lands"; 5a removes the fallback reversibly, the hashes stay, and 5b's PR re-measures. 7: the request path
+and its budget branch are untouched.
+
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)

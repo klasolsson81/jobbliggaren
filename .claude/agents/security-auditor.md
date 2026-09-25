@@ -348,8 +348,7 @@ rörde — §9.6:s carve-out finns för det.
 `/security-audit [PR]`, `/gdpr-check <feature>`, user asks "är detta säkert/
 GDPR-säkert". Auto: changes in `*Auth*`/`*Identity*`, persistence
 configurations, `appsettings*`/`.env`, new migrations or OAuth integrations, and
-the outbound integrations themselves — `Infrastructure/Email` (Scaleway),
-`Infrastructure/Security/BreachCheck` (HIBP), `JobSources`,
+the outbound integrations themselves — `Infrastructure/Email` (Scaleway), `JobSources`,
 `CompanyRegister`/`CompanyRegistry`, `Taxonomy`. (That list replaced a glob for
 `External/*`, a directory this repo does not have; the Resend audit reached you
 through the description's "external integrations", not through the path — which

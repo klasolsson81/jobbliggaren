@@ -2,8 +2,8 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test, expect, type Page } from "@playwright/test";
 import {
-  ensureConfirmedAccount,
-  ensureConfirmedTestUser,
+  seedAccount,
+  seedTestUser,
   takeLoginCode,
   testEmail,
 } from "./helpers/auth";
@@ -19,7 +19,7 @@ import {
  * again inside 60 seconds gets a challenge with no record. And exactly ONE test here creates an
  * account through the flow, because every new address spends a slot of the global 20-per-24-hour
  * cap on mails to addresses without an account. The other tests seed their account through the
- * API first (`helpers/auth.ts` says why that path keeps a password).
+ * API first (`helpers/auth.ts` says why).
  *
  * Not covered here, and it cannot be: a login link that WORKS. The seam hands out the code only,
  * never the link's token. `challenge-actions.test.ts` covers that arm; this spec covers the
@@ -69,7 +69,7 @@ test.describe("/logga-in — an address that has an account", () => {
     baseURL,
   }) => {
     const runId = uniqueRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
 
     await submitAddress(page, testEmail(runId));
 
@@ -128,7 +128,7 @@ test.describe("/logga-in — an address that has an account", () => {
     page,
   }) => {
     const runId = uniqueRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
 
     await submitAddress(page, testEmail(runId), "/logga-in?next=%2Fcv");
     const code = await takeLoginCode(testEmail(runId));
@@ -149,7 +149,7 @@ test.describe("/logga-in — an address that has an account", () => {
   }) => {
     // Seeded as an existing account, so it spends nothing of the cap on new addresses.
     const email = `björn-${uniqueRunId()}@e2e.jobbliggaren.test`;
-    await ensureConfirmedAccount(BACKEND_URL, email);
+    await seedAccount(BACKEND_URL, email);
 
     // With native validation on, Chromium stops this submit before it is sent: the HTML email
     // production is ASCII-only in the local part. The form is `noValidate` for that reason.

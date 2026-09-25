@@ -34,10 +34,10 @@ public class EmailSenderRecordingTests(ApiFactory factory)
         var recipient = $"recording-{Guid.NewGuid():N}@example.com";
 
         var sender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
-        await sender.SendPasswordChangedNoticeAsync(recipient, TestContext.Current.CancellationToken);
+        await sender.SendEmailChangedNotificationAsync(recipient, TestContext.Current.CancellationToken);
 
         sender.ShouldBeOfType<DevLoginCodeCapturingEmailSender>();
         _factory.Emails.Sent.ShouldContain(
-            new RecordedEmail(RecordedEmailKind.PasswordChangedNotice, recipient));
+            new RecordedEmail(RecordedEmailKind.EmailChangedNotification, recipient));
     }
 }

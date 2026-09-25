@@ -81,10 +81,10 @@ namespace Jobbliggaren.Application.UnitTests.Email;
 /// <c>MatchNotificationEmail(Direct, null, [item], 1)</c> is <c>BackgroundMatchingJob</c>
 /// line-for-line (including the grade label, which comes from
 /// <c>NotifiableMatchGrade.Top.ToSwedishLabel()</c> = "Toppmatch"); the digest/follow shapes are
-/// <c>DigestDispatchJob</c>'s; <c>EmailConfirmationEmail</c> is
-/// <c>RegisterCommandHandler</c>'s, with a Base64Url token
-/// (only <c>[A-Za-z0-9_-]</c>) because that is what
-/// <c>IUserAccountService.GenerateEmailConfirmationTokenAsync</c> returns.
+/// <c>DigestDispatchJob</c>'s; <c>LoginChallengeEmail.CodeAndLink</c> is
+/// <c>LoginChallengeIssuer</c>'s, with a six-digit code and a 43-character Base64Url link token
+/// (32 bytes, only <c>[A-Za-z0-9_-]</c>) because that is what
+/// <c>RedisLoginChallengeStore.PutAsync</c> mints.
 /// </para>
 ///
 /// <para>
@@ -112,18 +112,15 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     private const string SecretKey = "test-scaleway-secret-key";
 
     /// <summary>
-    /// Base64Url shape (only <c>[A-Za-z0-9_-]</c>) — what ASP.NET Identity's token provider emits
-    /// through <c>GenerateEmailConfirmationTokenAsync</c> and what the templates put in the link
-    /// unescaped. A bearer secret: opening the link activates or re-points the account.
+    /// The login link token's shape: 32 bytes as Base64Url, 43 characters of <c>[A-Za-z0-9_-]</c>,
+    /// which the template puts in the link unescaped. A bearer secret: opening the link logs in.
     /// </summary>
-    // Hardcoded TEST fixture, not a real token — no account it could activate exists. The
-    // `CfDJ8` prefix is deliberate (it is what ASP.NET Data Protection actually emits, so the
-    // fixture exercises the real shape), and it is also why the string's entropy trips the
-    // generic-api-key rule. Inline allow rather than a .gitleaksignore fingerprint, per that
-    // file's own header: a fingerprint re-breaks on every re-SHA. gitleaks:allow
-    private const string UrlSafeToken = "CfDJ8Nr-9xQvT0pLm2Zq_aB3cD4eF5gH6iJ7kL8mN9oP0qR"; // gitleaks:allow
+    // Hardcoded TEST fixture, not a real token — no challenge it could redeem exists. Inline allow
+    // rather than a .gitleaksignore fingerprint, per that file's own header: a fingerprint re-breaks
+    // on every re-SHA. gitleaks:allow
+    private const string UrlSafeToken = "BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSY"; // gitleaks:allow
 
-    private static readonly Guid UserId = new("6e6b1f3a-3c2d-4a8f-9b1e-7d0c5a2e4f11");
+    private const string Code = "042917";
 
     private static readonly Uri BaseAddress =
         new($"https://api.scaleway.com/transactional-email/v1alpha1/regions/{Region}/");
@@ -181,11 +178,13 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             Items: [new FollowedCompanyAdItem("Backend-utvecklare", "Acme AB")],
             TotalCount: 1);
 
-    private static EmailConfirmationEmail SampleConfirmationContent() =>
-        new(UserId, UrlSafeToken);
+    /// <summary>LoginChallengeIssuer's shape for an account within its code budget.</summary>
+    private static LoginChallengeEmail.CodeAndLink SampleLoginContent() =>
+        new(LoginCode.FromRaw(Code), LoginLinkToken.FromRaw(UrlSafeToken));
 
-    private static PasswordResetEmail SamplePasswordResetContent() =>
-        new(UserId, UrlSafeToken);
+    /// <summary>LoginChallengeIssuer's shape for an account whose code budget is spent.</summary>
+    private static LoginChallengeEmail.LinkOnly SampleLinkOnlyContent() =>
+        new(LoginLinkToken.FromRaw(UrlSafeToken));
 
     // ---------- helpers ----------
 
@@ -227,12 +226,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     // ---------- the request line ----------
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_PostsToTheRegionalEmailsEndpoint()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_PostsToTheRegionalEmailsEndpoint()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var request = CapturedRequest();
         request.Method.ShouldBe(HttpMethod.Post);
@@ -243,12 +242,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_AuthenticatesWithTheConfiguredSecretKey()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_AuthenticatesWithTheConfiguredSecretKey()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         // Without this header the API answers 401 and nothing is delivered — a failure mode that
         // looks like silence, not like an error, from anywhere except the log.
@@ -256,12 +255,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_ResolvesTheNamedClientTheRegistrationConfigures()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_ResolvesTheNamedClientTheRegistrationConfigures()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         // The name is the whole link between the sender and its configured base address + timeout.
         // A typo here resolves an UNCONFIGURED client — no base address at all — which fails as an
@@ -270,12 +269,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_SendsJsonWithAnExplicitUtf8Charset()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_SendsJsonWithAnExplicitUtf8Charset()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var contentType = CapturedRequest().ContentType.ShouldNotBeNull();
         contentType.MediaType.ShouldBe("application/json");
@@ -285,27 +284,25 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     // ---------- message composition ----------
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_ComposesFromDestinationSubjectAndBody()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_ComposesFromDestinationSubjectAndBody()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var payload = SentPayload();
         payload["from"]!["name"]!.GetValue<string>().ShouldBe(_options.FromName);
         payload["from"]!["email"]!.GetValue<string>().ShouldBe(_options.FromAddress);
         payload["to"]!.AsArray()[0]!["email"]!.GetValue<string>().ShouldBe(Recipient);
         payload["project_id"]!.GetValue<string>().ShouldBe(ProjectId);
-        SubjectSent().ShouldBe("Bekräfta din e-postadress");
-        // The activation link the EmailConfirmation template builds — dashed 'D' uid (#981) and the
-        // Base64Url token unescaped.
-        TextSent().ShouldContain(
-            $"{_options.BaseUrl}/bekrafta-konto?uid={UserId:D}&token={UrlSafeToken}");
+        SubjectSent().ShouldBe("Din inloggningskod till Jobbliggaren");
+        // The login link the LoginChallenge template builds — the Base64Url token unescaped.
+        TextSent().ShouldContain($"{_options.BaseUrl}/logga-in/lank?token={UrlSafeToken}");
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_RepliesToTheContactAddress()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_RepliesToTheContactAddress()
     {
         // The From stays no-reply@; the REPLY path must reach a human. Three security notices tell
         // people to get in touch, and Reply is what a recipient in that situation actually presses —
@@ -318,8 +315,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         // misspelled key would be accepted by the API and simply do nothing.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var headers = SentPayload()["additional_headers"]!.AsArray();
         headers.Count.ShouldBe(1);
@@ -328,12 +325,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_PutsExactlyOneRecipientAndNoCarbonCopy()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_PutsExactlyOneRecipientAndNoCarbonCopy()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var payload = SentPayload();
         payload["to"]!.AsArray().Count.ShouldBe(1);
@@ -345,12 +342,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_DoesNotEchoTheRecipientIntoSubjectOrBody()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_DoesNotEchoTheRecipientIntoSubjectOrBody()
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         SubjectSent().ShouldNotContain(Recipient);
         TextSent().ShouldNotContain(Recipient);
@@ -359,7 +356,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     // ---------- UTF-8 across the JSON round trip ----------
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_CarriesSwedishCharactersIntactInBothParts()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_CarriesSwedishCharactersIntactInBothParts()
     {
         // The real invariant, asserted where it can actually break: the bytes that left the adapter
         // are parsed back and compared to the Swedish originals. System.Text.Json escapes non-ASCII
@@ -367,34 +364,34 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         // exactly the property "UTF-8 everywhere, åäö must survive serialization" names.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLinkOnlyContent(), CancellationToken.None);
 
-        SubjectSent().ShouldBe("Bekräfta din e-postadress");
+        SubjectSent().ShouldBe("Logga in på Jobbliggaren");
         TextSent().ShouldContain("Vänliga hälsningar");
         HtmlSent().ShouldContain("Vänliga hälsningar");
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_CarriesNonAsciiInEveryFieldTheRoundTripCovers()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_CarriesNonAsciiInEveryFieldTheRoundTripCovers()
     {
         // The counterfactual that makes the round-trip fact above non-vacuous: an encoding assertion
         // only means something if the content it covers is outside ASCII. All three fields are — the
-        // subject is "Bekräfta …" and both bodies sign off "Vänliga hälsningar". If a template is
+        // subject is "Logga in på …" and both bodies sign off "Vänliga hälsningar". If a template is
         // ever rewritten to pure ASCII this fact fails FIRST, and that is the signal: the encoding
         // assertion has stopped proving anything, not that the copy is wrong.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLinkOnlyContent(), CancellationToken.None);
 
-        SubjectSent().ShouldContain("ä");
+        SubjectSent().ShouldContain("å");
         TextSent().ShouldContain("ä");
         HtmlSent().ShouldContain("ä");
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_PutsBothPartsInTheMessage()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_PutsBothPartsInTheMessage()
     {
         // The multipart/alternative contract at the seam where the request is actually built: a
         // client picks html and falls back to text, so BOTH must be present. A regression that
@@ -403,8 +400,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         // cannot observe.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         TextSent().ShouldNotBeNullOrWhiteSpace();
         HtmlSent().ShouldNotBeNullOrWhiteSpace();
@@ -412,7 +409,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_PutsNoRemoteResourceInTheHtmlItSends()
+    public async Task ScalewayEmailSender_SendsALoginChallenge_PutsNoRemoteResourceInTheHtmlItSends()
     {
         // GROUND 2 of the Art. 30 register's retention claim, asserted against the bytes that
         // actually leave this adapter rather than against a template rendered in isolation. The
@@ -426,8 +423,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         // bytes — which is why it survives the move off SES unchanged.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         RemoteResourceDetector
             .FindRemoteResources(HtmlSent(), _options.BaseUrl)
@@ -476,67 +473,9 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         TextSent().ShouldContain(EmailTemplates.ContactAddress);
         // CTO-bind #4 (#679): the security notice to the OLD address carries no token and no link
         // that grants anything.
-        TextSent().ShouldNotContain(UrlSafeToken);
+        TextSent().ShouldNotContain("/logga-in/lank");
+        TextSent().ShouldNotContain("token=");
         LoggedSurface().ShouldContain("EmailKind=email-changed-notification");
-    }
-
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAnEmailConfirmation_SelectsTheEmailConfirmationTemplate()
-    {
-        var sut = CreateSut();
-
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
-
-        SubjectSent().ShouldBe("Bekräfta din e-postadress");
-        TextSent().ShouldContain($"{_options.BaseUrl}/bekrafta-konto?uid={UserId:D}");
-        LoggedSurface().ShouldContain("EmailKind=email-confirmation");
-    }
-
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAnAccountExistsNotice_SelectsTheAccountExistsTemplate()
-    {
-        var sut = CreateSut();
-
-        await sut.SendAccountExistsNoticeAsync(Recipient, CancellationToken.None);
-
-        SubjectSent().ShouldBe("Din e-postadress är redan registrerad hos Jobbliggaren");
-        TextSent().ShouldContain($"{_options.BaseUrl}/logga-in");
-        // #714: the out-of-band notice to a TAKEN address grants nothing — no token, no reset link.
-        TextSent().ShouldNotContain(UrlSafeToken);
-        LoggedSurface().ShouldContain("EmailKind=account-exists-notice");
-    }
-
-    /// <summary>
-    /// #1171's password-reset mail. Uncovered by the predecessor suite, which claimed one fact per
-    /// port method while covering six of eight — the same growth-blindness class the HTML work
-    /// measured three times in one PR (#183, 2026-08-12).
-    /// </summary>
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAPasswordReset_SelectsThePasswordResetTemplate()
-    {
-        var sut = CreateSut();
-
-        await sut.SendPasswordResetAsync(
-            Recipient, SamplePasswordResetContent(), CancellationToken.None);
-
-        SubjectSent().ShouldBe("Återställ ditt lösenord");
-        TextSent().ShouldContain($"{_options.BaseUrl}/aterstall-losenord?uid={UserId:D}");
-        LoggedSurface().ShouldContain("EmailKind=password-reset");
-    }
-
-    /// <summary>#1171's password-changed security notice. Also uncovered before this suite.</summary>
-    [Fact]
-    public async Task ScalewayEmailSender_SendsAPasswordChangedNotice_SelectsThePasswordChangedTemplate()
-    {
-        var sut = CreateSut();
-
-        await sut.SendPasswordChangedNoticeAsync(Recipient, CancellationToken.None);
-
-        SubjectSent().ShouldBe("Ditt lösenord har ändrats");
-        // A security notice grants nothing: no token, no link that changes anything.
-        TextSent().ShouldNotContain(UrlSafeToken);
-        LoggedSurface().ShouldContain("EmailKind=password-changed-notice");
     }
 
     /// <summary>#1735's login-challenge mail, in its code-and-link variant.</summary>
@@ -546,15 +485,13 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await sut.SendLoginChallengeAsync(
-            Recipient,
-            new LoginChallengeEmail.CodeAndLink(LoginCode.FromRaw("042917"), LoginLinkToken.FromRaw(UrlSafeToken)),
-            CancellationToken.None);
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         SubjectSent().ShouldBe("Din inloggningskod till Jobbliggaren");
-        TextSent().ShouldContain("042917");
+        TextSent().ShouldContain(Code);
         TextSent().ShouldContain($"{_options.BaseUrl}/logga-in/lank?token={UrlSafeToken}");
         LoggedSurface().ShouldContain("EmailKind=login-challenge");
-        LoggedSurface().ShouldNotContain("042917");
+        LoggedSurface().ShouldNotContain(Code);
     }
 
     // ---------- CancellationToken propagation ----------
@@ -598,9 +535,9 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     }
 
     [Fact]
-    public Task ScalewayEmailSender_SendsAnEmailConfirmation_ForwardsTheCancellationTokenToTheTransport() =>
+    public Task ScalewayEmailSender_SendsALoginChallenge_ForwardsTheCancellationTokenToTheTransport() =>
         AssertCallerCancellationReachesTheTransport((sut, token) =>
-            sut.SendEmailConfirmationAsync(Recipient, SampleConfirmationContent(), token));
+            sut.SendLoginChallengeAsync(Recipient, SampleLoginContent(), token));
 
     [Fact]
     public Task ScalewayEmailSender_SendsAMatchNotification_ForwardsTheCancellationTokenToTheTransport() =>
@@ -622,12 +559,12 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             $$"""{"message":"invalid recipient","details":[{"field":"to","value":"{{Recipient}}"}]}""");
         var sut = CreateSut();
 
-        var act = async () => await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        var act = async () => await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var ex = await act.ShouldThrowAsync<EmailDeliveryException>();
 
-        ex.EmailKind.ShouldBe("email-confirmation");
+        ex.EmailKind.ShouldBe("login-challenge");
         ex.UnderlyingErrorType.ShouldBe(nameof(HttpRequestException));
 
         // InnerException is EMPTY on purpose: .NET's exception formatting walks the inner chain
@@ -651,8 +588,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await Should.ThrowAsync<EmailDeliveryException>(async () =>
-            await sut.SendEmailConfirmationAsync(
-                Recipient, SampleConfirmationContent(), CancellationToken.None));
+            await sut.SendLoginChallengeAsync(
+                Recipient, SampleLoginContent(), CancellationToken.None));
 
         _logger.Records.Count.ShouldBe(1);
         _logger.Latest.Level.ShouldBe(LogLevel.Error);
@@ -673,8 +610,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await Should.ThrowAsync<EmailDeliveryException>(async () =>
-            await sut.SendEmailConfirmationAsync(
-                Recipient, SampleConfirmationContent(), CancellationToken.None));
+            await sut.SendLoginChallengeAsync(
+                Recipient, SampleLoginContent(), CancellationToken.None));
 
         _logger.Latest.Properties.ShouldContain(p => p.Key == "HttpStatus" && Equals(p.Value, 0));
         _logger.Latest.Properties.ShouldContain(p =>
@@ -704,8 +641,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             new TimeoutException()));
         var sut = CreateSut();
 
-        var act = async () => await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        var act = async () => await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var ex = await act.ShouldThrowAsync<EmailDeliveryException>();
         ex.UnderlyingErrorType.ShouldBe(nameof(TaskCanceledException));
@@ -729,8 +666,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         _handler.ThrowOnSend(new TaskCanceledException("A task was canceled."));
         var sut = CreateSut();
 
-        var act = async () => await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), cts.Token);
+        var act = async () => await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), cts.Token);
 
         var ex = await act.ShouldThrowAsync<TaskCanceledException>();
 
@@ -790,8 +727,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
             new TimeoutException()));
         var sut = CreateSut();
 
-        var pending = sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), cts.Token);
+        var pending = sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), cts.Token);
         await _handler.Entered.Task.WaitAsync(
             TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await cts.CancelAsync();
@@ -850,8 +787,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         _handler.RespondWithUnreadableBody();
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         _logger.Latest.EventId.Id.ShouldBe(3005);
     }
@@ -866,8 +803,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await Should.ThrowAsync<EmailDeliveryException>(async () =>
-            await sut.SendEmailConfirmationAsync(
-                Recipient, SampleConfirmationContent(), CancellationToken.None));
+            await sut.SendLoginChallengeAsync(
+                Recipient, SampleLoginContent(), CancellationToken.None));
 
         _handler.Requests.Count.ShouldBe(1);
     }
@@ -882,14 +819,14 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         // artefact of an empty record list.
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         _logger.Records.Count.ShouldBe(1);
         _logger.Latest.Level.ShouldBe(LogLevel.Information);
         _logger.Latest.EventId.Id.ShouldBe(3005);
         _logger.Latest.Properties.ShouldContain(p =>
-            p.Key == "EmailKind" && Equals(p.Value, "email-confirmation"));
+            p.Key == "EmailKind" && Equals(p.Value, "login-challenge"));
     }
 
     [Fact]
@@ -897,8 +834,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
     {
         var sut = CreateSut();
 
-        await sut.SendEmailConfirmationAsync(
-            Recipient, SampleConfirmationContent(), CancellationToken.None);
+        await sut.SendLoginChallengeAsync(
+            Recipient, SampleLoginContent(), CancellationToken.None);
 
         var subject = SubjectSent();
         var text = TextSent();
@@ -906,7 +843,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
         logged.ShouldNotContain(Recipient);
         logged.ShouldNotContain(UrlSafeToken);
-        logged.ShouldNotContain(UserId.ToString());
+        logged.ShouldNotContain(Code);
         logged.ShouldNotContain(subject);
         logged.ShouldNotContain(text);
 
@@ -933,8 +870,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await Should.ThrowAsync<EmailDeliveryException>(async () =>
-            await sut.SendEmailConfirmationAsync(
-                Recipient, SampleConfirmationContent(), CancellationToken.None));
+            await sut.SendLoginChallengeAsync(
+                Recipient, SampleLoginContent(), CancellationToken.None));
 
         _logger.Records.Count.ShouldBe(1);
         _logger.Latest.Level.ShouldBe(LogLevel.Error);
@@ -952,8 +889,8 @@ public sealed class ScalewayEmailSenderTests : IDisposable
         var sut = CreateSut();
 
         await Should.ThrowAsync<EmailDeliveryException>(async () =>
-            await sut.SendEmailConfirmationAsync(
-                Recipient, SampleConfirmationContent(), CancellationToken.None));
+            await sut.SendLoginChallengeAsync(
+                Recipient, SampleLoginContent(), CancellationToken.None));
 
         var subject = SubjectSent();
         var text = TextSent();
@@ -961,7 +898,7 @@ public sealed class ScalewayEmailSenderTests : IDisposable
 
         logged.ShouldNotContain(Recipient);
         logged.ShouldNotContain(UrlSafeToken);
-        logged.ShouldNotContain(UserId.ToString());
+        logged.ShouldNotContain(Code);
         logged.ShouldNotContain(subject);
         logged.ShouldNotContain(text);
         logged.ShouldNotContain(SecretKey);

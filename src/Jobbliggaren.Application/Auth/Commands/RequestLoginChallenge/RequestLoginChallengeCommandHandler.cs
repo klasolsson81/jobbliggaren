@@ -27,7 +27,7 @@ public sealed class RequestLoginChallengeCommandHandler(
         RequestLoginChallengeCommand command, CancellationToken cancellationToken)
     {
         // 1. CAPABILITY, first, reading no input: the 503/202 split is then a property of the server's
-        // configuration and carries nothing about any address (the RequestPasswordReset precedent).
+        // configuration and carries nothing about any address.
         if (!emailSender.CanDeliver)
         {
             return Result.Failure<ChallengeId>(DomainError.Validation(

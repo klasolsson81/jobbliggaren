@@ -8,10 +8,9 @@
 #
 # It stands up the real stack — ephemeral Postgres + Redis service containers, the
 # .NET Api (migrated out-of-band via `dotnet ef`), and a Next.js PRODUCTION build — and
-# runs every e2e spec in ONE pass with the launch-representative flag ON
-# (Auth__RequireEmailConfirmation=true). The loginAs specs obtain a confirmed user via
-# the dev-only confirmed-login seam (POST /api/v1/dev/confirm-email, #796); auth.spec.ts
-# runs against an unconfirmed user. See docs/runbooks/e2e-ci.md.
+# runs every e2e spec in ONE pass. The specs seed their accounts through the dev-only seed
+# seam (POST /api/v1/dev/accounts) and log in through the code flow with the dev-only
+# login-code seam. See docs/runbooks/e2e-ci.md.
 #
 # The push/pull_request triggers are RESTORED (#813). They were pulled back to
 # workflow_dispatch-only in #814 because the suite was red and slow; both causes are fixed:
@@ -69,17 +68,15 @@ jobs:
       ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=jobbliggaren;Username=postgres;Password=postgres"
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://localhost:5049"
-      Auth__RequireEmailConfirmation: "true" # launch-representative (confirmed-login seam covers loginAs)
       Email__Provider: "Console" # no outbound mail in CI
       FieldEncryption__Provider: "Local"
       Seq__ServerUrl: "" # no Seq sink in CI
-      BACKEND_URL: "http://localhost:5049" # frontend (env.ts) + ensureTestUser/confirmTestUser
+      BACKEND_URL: "http://localhost:5049" # frontend (env.ts) + the seeding helpers
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
-      TEST_USER_PASSWORD: "E2eTestPass123!Dev"
-      # Relax rate limits for the suite — every spec registers/logs in from the same
-      # localhost IP in a burst, which trips the default AuthWrite limiter (429). Mirrors
-      # ApiFactory's integration-test overrides (10000 / 60s). These are the only limiters
-      # the e2e flows touch (register/login = AuthWrite/AuthLoose; list/me reads + writes).
+      # Relax rate limits for the suite — every spec logs in from the same localhost IP in a
+      # burst, which trips the default AuthWrite limiter (429). Mirrors ApiFactory's
+      # integration-test overrides (10000 / 60s). These are the only limiters the e2e flows
+      # touch (the login challenge = AuthWrite/AuthLoose; list/me reads + writes).
       RateLimiting__AuthWrite__PermitLimit: "10000"
       RateLimiting__AuthWrite__WindowSeconds: "60"
       RateLimiting__AuthLoose__PermitLimit: "10000"

@@ -515,15 +515,17 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 ### 6.2 Endpoints (grupperade per kontext)
 
 **Auth**
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/challenge`
+- `POST /api/v1/auth/challenge/verify`
+- `POST /api/v1/auth/link`
+- `POST /api/v1/auth/challenge/complete`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/reset-password`
-- `POST /api/v1/auth/verify-email`
-- `POST /api/v1/auth/oauth/google`
-- `POST /api/v1/auth/oauth/microsoft`
+- `POST /api/v1/auth/reauth`
+- `POST /api/v1/auth/reauth/verify`
+- `POST /api/v1/auth/change-email`
+- `POST /api/v1/auth/change-email/verify`
+- `POST /api/v1/auth/change-email/confirm`
 
 **Me / profil**
 - `GET /api/v1/me`
@@ -605,7 +607,6 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/admin/users/{id}`
 - `POST /api/v1/admin/users/{id}/suspend`
 - `POST /api/v1/admin/users/{id}/unsuspend`
-- `POST /api/v1/admin/users/{id}/reset-password`
 - `POST /api/v1/admin/users/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
@@ -1214,10 +1215,12 @@ Roles lagras i `user_roles` (Identity).
   token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
 - **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
   och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
+- **Inloggning** är en mejlad kod eller länk (ADR 0142); lösenordsvägarna togs bort i del 5a.
 - **Livslängder** (`SessionStoreOptions`, sanningskälla — inte dupliceras utan läsas där):
-  *Session* (vanlig inloggning) 24 h sliding / 24 h absolut, ingen rotation. *Persistent*
-  ("Håll mig inloggad") 30 d sliding / 180 d absolut / id-rotation var 24:e timme. Den gamla
-  §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
+  varje inloggning ger *Persistent*, 30 d sliding / 180 d absolut / id-rotation var 24:e timme.
+  *Session* (24 h sliding / 24 h absolut, ingen rotation) mintas bara när ett adressbyte bekräftas
+  och den aktuella sessionen inte går att läsa. *Legacy* är vad en session skriven före profilerna
+  avkodas till. Den gamla §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
 - **Backend sätter inga cookies** (ADR 0018). Next.js-proxyn äger `__Host-`-cookien och
   ersätter dess värde när svaret bär `{ rotated: true }`.
 

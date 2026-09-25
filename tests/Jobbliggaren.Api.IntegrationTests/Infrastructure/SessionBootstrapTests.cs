@@ -12,11 +12,11 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// ADR 0142 D9 amendment 2026-09-17 — the two session bootstraps in <see cref="AuthTestHelpers"/>
-/// reach no registration endpoint, and each produces its own account shape. Both run against the
-/// registrations-CLOSED host, whose <c>POST /api/v1/auth/register</c> refuses (the counterfactual is
-/// <see cref="Auth.RegistrationsClosedTests"/>), so a session that authenticates there was minted
-/// without that endpoint.
+/// ADR 0142 D9 amendment 2026-09-17 — the session bootstrap in <see cref="AuthTestHelpers"/> reaches no
+/// registration endpoint. It runs against the registrations-CLOSED host, whose
+/// <c>POST /api/v1/auth/challenge/complete</c> refuses a new account (the counterfactual is
+/// <see cref="Auth.LoginChallengeCompleteTests"/>), so a session that authenticates there was minted without
+/// that endpoint.
 /// </summary>
 [Collection("Api")]
 public sealed class SessionBootstrapTests(ApiFactory factory)
@@ -35,22 +35,6 @@ public sealed class SessionBootstrapTests(ApiFactory factory)
         user.PasswordHash.ShouldBeNull();
         user.EmailConfirmed.ShouldBeTrue();
         session.Lifetime.ShouldBe(SessionLifetime.Persistent);
-    }
-
-    [Fact]
-    public async Task RegisterWithPasswordAndGetSessionIdAsync_on_the_closed_host_mints_a_session_profile_session_for_an_unconfirmed_user_with_a_password()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var host = factory.GetRegistrationsClosedHost();
-        var email = $"bootstrap-password-{Guid.NewGuid():N}@example.se";
-
-        var sessionId = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(host, email, ct: ct);
-
-        await AssertAuthenticatesAsync(host, sessionId, ct);
-        var (user, session) = await ReadStateAsync(host, email, sessionId, ct);
-        user.PasswordHash.ShouldNotBeNull();
-        user.EmailConfirmed.ShouldBeFalse();
-        session.Lifetime.ShouldBe(SessionLifetime.Session);
     }
 
     private static async Task AssertAuthenticatesAsync(

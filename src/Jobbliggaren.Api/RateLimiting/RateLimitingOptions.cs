@@ -23,8 +23,7 @@ public sealed class RateLimitingOptions
     };
 
     /// <summary>
-    /// /auth/login + /auth/register — partitionerat per IP. Bromsar credential-
-    /// stuffing och registration-spam. 20/min är OWASP-kompatibel default som
+    /// Partitionerat per IP. Bromsar registration-spam. 20/min är OWASP-kompatibel default som
     /// rymmer CGN/NAT-användare (skolor, företagsnät, mobiloperatörer) utan att
     /// öppna brute-force-fönster. Revisit-trigger: prod-mätningar i Fas 1+.
     /// </summary>

@@ -42,7 +42,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
       2026-08-02, ADR 0121; parkerade poster ligger i #1172.)
 - [ ] **Migrations** — om EF Core-migration ingår: verifiera schema-mode-
       dispatch (ADR 0033) och DB-roll-separation (ADR 0034); Identity-schema-
-      ändring → manuell procedur (parkerad, #1172).
+      ändring → `bootstrap`-proceduren i `vps-deploy-stack.md` §3c.
 - [ ] **Kollations-version — ENDAST vid Postgres-image-bump eller major-uppgradering**
       (#884, **ADR 0110** — den tidigare pekaren till ADR 0109 var fel; 0109 är
       "The engine describes, the user classifies" och rör CV-lanen). Ett btree-index på
@@ -246,9 +246,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 > lika fullt — mottagar-adressen når en US-processor oavsett vilken mall som skickas.
 > Den tidigare avgränsningen "(bakgrundsmatchnings-notiser)" i den här blockquoten är
 > därför borttagen: den var ingen avgränsning, och ingenting annat i sektionen skopar
-> grinden till notis-vägen. (Prod-lansering
-> tvingar inte i sig flippen: `AuthOptions.RequireEmailConfirmation` defaultar
-> **false** och sätts `true` bara i `appsettings.Development.json`.)
+> grinden till notis-vägen.
 
 - [ ] **1. Tredjelands-grund** — **fem** led, per behandling-status (ägare: **den här punkten**;
       #183 STÄNGD 2026-09-06 på Klas-beslut, se stycket nedan).
@@ -1124,19 +1122,11 @@ REGISTRETS TÄCKNING, inte mallantalet, så bumpen konverterade ett sant påstå
 i en merge-blockerande grind — i den lugnande riktningen. Mätt 2026-08-10 av dotnet-architect och
 security-auditor oberoende.)*
 
-**FYRA**
-av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`),
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
-den gamla adressen finns), samt sedan #1171 `PasswordReset`
-(`RequestPasswordResetCommandHandler`) och `PasswordChangedNotice`
-(`ResetPasswordCommandHandler`) — **båda utan feature-villkor alls**, så en flipp gör dem levande
-vid första `/glomt-losenord`. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
-providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen, och
-`EmailChangeConfirmation` har en och listas ändå här.)* **Den senare går till den GAMLA adressen** — en annan
+den gamla adressen finns) är ogrindad. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
+providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen.)* **Den går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
-den första lämnar en mottagare oregistrerad. (`EmailConfirmation` är däremot grindad på `RequireEmailConfirmation`,
-`RegisterCommandHandler.cs:81`, som defaultar **false** — se blockquoten ovan. En
-prod-lansering tvingar alltså inte i sig grinden.)
+den första lämnar en mottagare oregistrerad.
 
 Det är samma lucka som den redan eskalerade frågan om kontot/autentiseringen (Art. 30(1)) —
 **och den luckan stängdes INTE av #1169**: den nya posten täcker e-postbehandlingen, inte kontot/autentiseringen som sådan.
@@ -2212,9 +2202,8 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       Den passerar **inte** §2.5: `Email:Provider` osatt (dokumenterad default) ger
       `NullEmailSender`, och e-postflippen kan ligga månader senare. Villkoren upphör
       alltså **strikt före** §2.5 någonsin läses (security-auditor 2026-07-26).
-      **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment kan flippen inte
-      ske utan `RequireEmailConfirmation=true` **och** en riktig `Email:Provider`, och båda
-      förutsättningarna ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
+      **Grinden bärs av #734, inte av den här sidan.** Efter ADR 0083 Amendment och ADR 0142 del 5a
+      kan flippen inte ske utan en riktig `Email:Provider`, och den förutsättningen ägs av **#734**. Villkoren (a) och (b) nedan ska därför stå som
       **blockerande acceptanskriterier på #734**. Kan flippen inte ske utan #734, och kan #734 inte
       stängas utan (a) och (b), då har triggern en läsare. Den här sektionen är protokollet; #734 är
       grinden. *(Raden namngav till 2026-08-09 även **#196** som medägare "där env-konfigurationen
@@ -2230,10 +2219,10 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
       spärren konvergerar alltså på ett enda arbetsmoment — något den gamla tagg-triggern aldrig
       åstadkom. **(b) gör det inte:** Art. 30-posten för konto/auth bärs av ingen annan
       mekanism.
-      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på två villkor utanför
-      Development/Test — `RegistrationsOpen` utan `RequireEmailConfirmation`, och en registrerad
-      avsändare som inte kan leverera (sedan 2026-08-09 med båda flaggorna på, sedan #1735
-      oavsett flaggorna, eftersom inloggningen själv är en kod per e-post). Allt som följer i den här noten gäller **båda** reglerna:
+      *Not:* `AuthOptionsValidator` vägrar numera boota **Api:n** på ett villkor utanför
+      Development/Test — en registrerad avsändare som inte kan leverera (sedan #1735 oavsett grinden,
+      eftersom inloggningen själv är en kod per e-post). Regeln om grinden utan e-postbekräftelse
+      föll med flaggan i ADR 0142 del 5a. Allt som följer i den här noten gäller regeln:
       garantin bärs av **den ivriga
       `IOptions<AuthOptions>`-läsningen** vid boot-announcement i `Program.cs`: den ligger
       bevisligen före `app.Run()` och därmed före att Kestrel binder socketen. `ValidateOnStart`
@@ -2288,12 +2277,11 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         `EmailConfirmed`, och återsändningen var lika tyst: **kontot skapades och blev permanent
         onåbart.** Det är strikt värre än (a):s ursprungliga fall — ett misslyckat adressbyte
         lämnar användaren där hon var.
-        Åtgärden landade som föreskriven: `AuthOptionsValidator` bär numera **två** vägransregler,
-        och den andra frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
+        Åtgärden landade som föreskriven: `AuthOptionsValidator` fick en andra vägransregel (sedan
+        ADR 0142 del 5a den enda), som frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
         att läsa om `Email:Provider`. Asymmetrin är löst som punkten krävde — regeln bor i
         validatorn, som binds i Api:ns identitetsmodul, och **inte** i `AddEmailSender`, den enda
-        sömmen båda hostarna delar; Worker:n binder samma `Auth`-sektion med ett rent `Configure`
-        och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
+        sömmen båda hostarna delar; Worker:n registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
         paritets-editen åt endera hållet landar rött.
         ⚠ **Detta stänger INTE punkt 5.5, och inte heller B-ii gör det.** Villkor (a) upphör
         först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerade då fortfarande
@@ -2395,16 +2383,16 @@ samma stycken men medvetet inte flippade dem).
 borttagning är ingens uppgift är ett verktyg som följer med till produktion.
 
 **Varför det är en grind och inte en städpunkt:** `reset-my-data` är en **destruktiv**
-operation, och `confirm-email` är en **oautentiserad** seam som tvångsbekräftar en
-e-postadress. `login-code` (#1735) lämnar ut inloggningskoden till en reserverad adress
+operation, och `accounts` (ADR 0142 del 5a) är en **oautentiserad** seam som öppnar ett konto
+för en reserverad adress. `login-code` (#1735) lämnar ut inloggningskoden till en reserverad adress
 utan brevlåda. Ingen av dem får finnas när riktiga användare gör det.
 
 ⛔ **KLAS-BESLUT 2026-09-06, och det gäller `reset-my-data` ensamt:** *"Ja den får vara kvar.
 Jag kommer säga till när CC ska ta bort den."* Rivningen nedan körs på Klas ord, inte på
 händelsen. Residualen under beslutet, mätt i koden av `security-auditor` 2026-09-06: en
 autentiserad, ägarskopad, irreversibel radering av användarens eget CV-/sök-/matchningsdata
-utan bekräftelsesteg, nåbar för en riktig användare. `confirm-email` omfattas inte — den är
-Development-grindad i två oberoende lager och onåbar på lådan. Härledning: ADR 0138 (lokal).
+utan bekräftelsesteg, nåbar för en riktig användare. `accounts` och `login-code` omfattas inte — de
+är Development-grindade i två oberoende lager och onåbara på lådan. Härledning: ADR 0138 (lokal).
 
 **Ordningen är inte godtycklig — stäng av först, riv sedan.** Ett avstängt verktyg är
 overksamt inom en omstart; en halvriven kodbas är inte.
@@ -2418,9 +2406,9 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - de två map-grindarna och boot-annonseringen i `src/Jobbliggaren.Api/Program.cs`
    - `src/Jobbliggaren.Api/Observability/DevToolsLog.cs`
    - `src/Jobbliggaren.Application/Dev/` (hela katalogen: `Configuration/DevToolsOptions.cs`,
-     `Commands/ResetMyData/`, `Commands/ConfirmEmail/`, `Commands/TakeLoginCode/`,
+     `Commands/ResetMyData/`, `Commands/SeedAccount/`, `Commands/TakeLoginCode/`,
      `Abstractions/`)
-   - `src/Jobbliggaren.Infrastructure/Auth/DevEmailConfirmer.cs` och
+   - `src/Jobbliggaren.Infrastructure/Auth/DevSeedableAddressPolicy.cs` och
      `src/Jobbliggaren.Infrastructure/Auth/DevLoginCodeCapture.cs`; att katalogen ovan rivs
      bryter bygget i båda, så de kan inte bli kvar
    - `DevToolsOptions`-bindningen i `src/Jobbliggaren.Infrastructure/DependencyInjection.cs`
@@ -2436,13 +2424,13 @@ overksamt inom en omstart; en halvriven kodbas är inte.
    - `dev.*`-nycklarna i `messages/{sv,en}/common.json`
    - `tests/Jobbliggaren.Application.UnitTests/Dev/`,
      `web/jobbliggaren-web/src/lib/env.test.ts`,
-     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevConfirmEmailEndpointTests.cs`,
+     `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevAccountSeedEndpointTests.cs`,
      `tests/Jobbliggaren.Api.IntegrationTests/Auth/DevLoginCodeEndpointTests.cs`,
      `tests/Jobbliggaren.Api.IntegrationTests/Configuration/DevLoginCodeCaptureCompositionTests.cs`,
      `tests/Jobbliggaren.Application.UnitTests/Auth/DevLoginCodeCaptureTests.cs`
    - `tests/Jobbliggaren.Api.IntegrationTests/Email/EmailSenderRecordingTests.cs` asserterar på
      `DevLoginCodeCapturingEmailSender` — återställ den till `RecordingEmailSender` i samma PR
-   - **Playwright-sviten kallar `confirm-email`** — den måste få en annan inloggningsväg
+   - **Playwright-sviten kallar `accounts` och `login-code`** — den måste få en annan inloggningsväg
      i samma PR, annars faller e2e-lanen. Detta är det ENDA steget som inte är ren
      strykning, och det är därför avstängningen i steg 1 kommer först.
 3. **Behåll grindtesterna tills koden är borta, riv dem sist.**

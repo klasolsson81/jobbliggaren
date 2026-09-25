@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -17,18 +18,11 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// ADR 0083 Amendment 2026-08-03 + senior-cto-advisor D1 (2026-08-09) + security-auditor Major 12
-/// (#1735) — the two conditions that must not boot outside Development/Test:
-/// <list type="number">
-/// <item>open WITHOUT email confirmation — legacy instant-login (an account bound to an address the
-/// registrant may not own) plus the acknowledged-deferred duplicate-enumeration oracle, on a public
-/// IP;</item>
-/// <item>a sender that cannot deliver, whatever the flags say.</item>
-/// </list>
+/// ADR 0083 Amendment 2026-08-03 + security-auditor Major 12 (#1735) + ADR 0142 D10 — the condition that
+/// must not boot outside Development/Test: a sender that cannot deliver, whatever the registration gate says.
 /// Prerequisites are owned by <c>docs/runbooks/registration-gate.md</c>.
 /// <para>
-/// The predicate is unit-tested exhaustively here rather than through a failing host: the Production
-/// smoke fixture exists to prove the host DOES boot, so a refusal case cannot live in it. What the
+/// The predicate is unit-tested exhaustively here. What the
 /// wiring tests buy is the half a predicate test cannot — that the validator is actually reachable
 /// where it must be and absent where it must not be, which is where this class of guard usually dies.
 /// </para>
@@ -36,9 +30,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 public class AuthOptionsValidatorTests
 {
     /// <summary>
-    /// A sender that delivers. Rule 2 keys on <see cref="IEmailSender.CanDeliver"/>, so every case
-    /// that is NOT about delivery has to hold it fixed at the value the real delivering adapters
-    /// emit; otherwise a rule-1 assertion could pass for rule 2's reason. That the Dev/Test default
+    /// A sender that delivers. The rule keys on <see cref="IEmailSender.CanDeliver"/>, so every case
+    /// that is NOT about delivery holds it fixed at the value the real delivering adapters
+    /// emit. That the Dev/Test default
     /// answers <see langword="true"/> is pinned elsewhere and not restated here —
     /// <c>AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver</c> owns that one
     /// clause; the Scaleway arm and the throwing arms have their own pins in the same file and in
@@ -69,48 +63,30 @@ public class AuthOptionsValidatorTests
         return new AuthOptionsValidator(env, emailSender ?? DeliveringSender());
     }
 
-    private static AuthOptions Options(bool open, bool confirm) =>
-        new() { RegistrationsOpen = open, RequireEmailConfirmation = confirm };
+    private static AuthOptions Options(bool open) => new() { RegistrationsOpen = open };
 
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    [InlineData("SomethingNobodyNamedYet")]
-    public void Open_without_email_confirmation_refuses_to_boot(string environmentName)
+    public static TheoryData<string, bool> EnvironmentsAndGateStates()
     {
         // Allowlist, not !IsProduction(): Staging and every unrecognised name must be covered, or the
         // guard exempts exactly the environments nobody thought about.
-        var result = ValidatorFor(environmentName).Validate(null, Options(open: true, confirm: false));
-
-        result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("registration-gate.md");
-        result.FailureMessage.ShouldContain(environmentName);
-        // Rule 1's remedy key, in ENV-VAR form with the double underscore: it appears in rule 1's message
-        // and nowhere else.
-        result.FailureMessage.ShouldContain("Auth__RequireEmailConfirmation=true");
-    }
-
-    public static TheoryData<string, bool, bool> EnvironmentsAndTheFlagPairsRuleOneAdmits()
-    {
-        var rows = new TheoryData<string, bool, bool>();
+        var rows = new TheoryData<string, bool>();
         foreach (var environmentName in new[] { "Production", "Staging", "SomethingNobodyNamedYet" })
         {
-            rows.Add(environmentName, false, false);
-            rows.Add(environmentName, false, true);
-            rows.Add(environmentName, true, true);
+            rows.Add(environmentName, false);
+            rows.Add(environmentName, true);
         }
 
         return rows;
     }
 
     [Theory]
-    [MemberData(nameof(EnvironmentsAndTheFlagPairsRuleOneAdmits))]
-    public void A_sender_that_cannot_deliver_refuses_to_boot_whatever_the_flags_say(
-        string environmentName, bool open, bool confirm)
+    [MemberData(nameof(EnvironmentsAndGateStates))]
+    public void A_sender_that_cannot_deliver_refuses_to_boot_whatever_the_gate_says(
+        string environmentName, bool open)
     {
-        // (false, false) is the committed default composition: Email:Provider unset, registration closed.
+        // A closed gate is the committed default composition: Email:Provider unset, registration closed.
         var result = ValidatorFor(environmentName, NonDeliveringSender())
-            .Validate(null, Options(open, confirm));
+            .Validate(null, Options(open));
 
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain(environmentName);
@@ -130,33 +106,23 @@ public class AuthOptionsValidatorTests
         // had degenerated into "Production always refuses" — which would take the whole host down
         // the day email goes live, i.e. the one day it must let the host boot.
         ValidatorFor("Production", NonDeliveringSender())
-            .Validate(null, Options(open: false, confirm: false))
+            .Validate(null, Options(open: false))
             .Failed.ShouldBeTrue();
 
         ValidatorFor("Production", DeliveringSender())
-            .Validate(null, Options(open: false, confirm: false))
+            .Validate(null, Options(open: false))
             .Succeeded.ShouldBeTrue();
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void Every_other_combination_boots_in_Production(bool open, bool confirm)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_delivering_sender_boots_in_Production_whatever_the_gate_says(bool open)
     {
-        // Rule 1 fires in ONE direction. The fail-safe default (both false, i.e. an absent Auth section)
-        // must boot clean with a delivering sender — a guard that also broke the safe state would have
-        // replaced one outage class with another. Every row's non-delivering half is the theory above.
-        ValidatorFor("Production").Validate(null, Options(open, confirm)).Succeeded.ShouldBeTrue();
-    }
-
-    [Theory]
-    [InlineData("Development")]
-    [InlineData("Test")]
-    public void The_dangerous_combination_is_exempt_in_Development_and_Test(string environmentName)
-    {
-        ValidatorFor(environmentName).Validate(null, Options(open: true, confirm: false))
-            .Succeeded.ShouldBeTrue();
+        // The fail-safe default (closed, i.e. an absent Auth section) must boot clean with a delivering
+        // sender — a guard that also broke the safe state would have replaced one outage class with
+        // another. Every row's non-delivering half is the theory above.
+        ValidatorFor("Production").Validate(null, Options(open)).Succeeded.ShouldBeTrue();
     }
 
     [Theory]
@@ -164,14 +130,14 @@ public class AuthOptionsValidatorTests
     [InlineData("Test")]
     public void The_stranding_combination_is_exempt_in_Development_and_Test(string environmentName)
     {
-        // Same allowlist, second rule. No composition produces the pair (Development,
+        // No composition produces the pair (Development,
         // non-delivering sender): AddEmailSender's Null fallback is gated on !Dev && !Test, the
         // Scaleway arm yields a sender that delivers or throws at registration, and every other value throws
         // (AddEmailSenderGateTests.AddEmailSender_InDevelopmentOrTest_CanDeliver measures it). The
         // pair is therefore declared unreachable, and what this pins is the predicate's ORDER: the
-        // allowlist short-circuits BEFORE rule 2, so swapping the two checks turns this red.
+        // allowlist short-circuits BEFORE the delivery check, so swapping the two checks turns this red.
         ValidatorFor(environmentName, NonDeliveringSender())
-            .Validate(null, Options(open: true, confirm: true))
+            .Validate(null, Options(open: true))
             .Succeeded.ShouldBeTrue();
     }
 
@@ -186,14 +152,14 @@ public class AuthOptionsValidatorTests
     /// composition method is called, so the two absences are a MEASUREMENT rather than two silences
     /// beside a differently-measured presence. Note what the shape does and does not catch: asserting
     /// on the registered <c>ServiceType</c> catches a validator placed in either seam, and the
-    /// dangerous flags are present so an inline <c>throw</c> in <c>AddEmailSender</c> — that file's own
+    /// gate is open so an inline <c>throw</c> in <c>AddEmailSender</c> — that file's own
     /// idiom in the Scaleway arm — would surface as an exception rather than as a failed assertion. A check
     /// that neither registers nor throws would pass.
     /// </para>
     /// </summary>
     public class TheWorkerIsNotSubjectToTheGate
     {
-        private static IConfiguration ConfigurationWithTheDangerousFlags() =>
+        private static IConfiguration ConfigurationWithTheGateOpen() =>
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -204,7 +170,6 @@ public class AuthOptionsValidatorTests
                     ["ConnectionStrings:Redis"] = "localhost:6379,user=api-persistent,password=synthetic",
                     [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] = "localhost:6381,user=api-volatile,password=synthetic",
                     [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RegistrationsOpen)}"] = "true",
-                    [$"{AuthOptions.SectionName}:{nameof(AuthOptions.RequireEmailConfirmation)}"] = "true",
                 })
                 .Build();
 
@@ -216,7 +181,7 @@ public class AuthOptionsValidatorTests
             // build where nothing anywhere registers the validator.
             var services = new ServiceCollection();
 
-            services.AddIdentityAndSessions(ConfigurationWithTheDangerousFlags());
+            services.AddIdentityAndSessions(ConfigurationWithTheGateOpen());
 
             services.ShouldContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -226,7 +191,7 @@ public class AuthOptionsValidatorTests
         {
             var services = new ServiceCollection();
 
-            services.AddCoreIdentityForWorker(ConfigurationWithTheDangerousFlags());
+            services.AddCoreIdentityForWorker(ConfigurationWithTheGateOpen());
 
             services.ShouldNotContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -240,7 +205,7 @@ public class AuthOptionsValidatorTests
             env.EnvironmentName.Returns("Production");
             var services = new ServiceCollection();
 
-            services.AddEmailSender(ConfigurationWithTheDangerousFlags(), env);
+            services.AddEmailSender(ConfigurationWithTheGateOpen(), env);
 
             services.ShouldNotContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -275,27 +240,22 @@ public class AuthOptionsValidatorTests
         {
             var client = factory.CreateRegistrationsClosedClient();
 
+            // The kill-switch is the complete handler's first statement, so a grant that was never issued
+            // reaches it: the same probe docs/runbooks/registration-gate.md runs.
             var response = await client.PostAsJsonAsync(
-                "/api/v1/auth/register",
-                new
-                {
-                    email = $"announce-{Guid.NewGuid()}@example.com",
-                    password = "T3stlosen123456",
-                    displayName = "Test User",
-                    acceptTerms = true,
-                },
+                "/api/v1/auth/challenge/complete",
+                new { grantToken = "probe", acceptTerms = true },
                 TestContext.Current.CancellationToken);
 
             response.StatusCode.ShouldBe(
                 HttpStatusCode.ServiceUnavailable, "this host holds the gate closed");
+            (await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken))
+                .GetProperty("title").GetString().ShouldBe(AuthErrorCodes.RegistrationsClosed);
 
             var announcement = factory.ClosedHostLogs.SingleOrDefault(l => l.EventId.Id == 4300);
             announcement.ShouldNotBeNull(
                 "the gate must announce itself once per process (EventId 4300)");
             announcement.Message.ShouldContain("CLOSED");
-            // Both flags, because an open gate WITHOUT email confirmation is the dangerous
-            // combination — announcing only the gate would reproduce this defect class one flag over.
-            announcement.Message.ShouldContain("email confirmation:");
         }
     }
 }

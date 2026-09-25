@@ -5,9 +5,7 @@ namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
 /// The drain of a <see cref="BoundedDispatchChannel{T}"/>: one scope per item, failures contained per item,
-/// and a shutdown that delivers what is already queued (#1171; ADR 0142 D2). Shared rather than copied
-/// because the drain's defect class — a cancelled send that unwinds the whole loop — failed only under the
-/// real mail provider, and a copy would not be covered by the test that pins it.
+/// and a shutdown that delivers what is already queued (#1171; ADR 0142 D2).
 /// </summary>
 internal abstract class BoundedDispatchService<T>(
     BoundedDispatchChannel<T> queue,

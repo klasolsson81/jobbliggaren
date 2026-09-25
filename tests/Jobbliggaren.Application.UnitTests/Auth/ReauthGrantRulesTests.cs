@@ -1,6 +1,5 @@
 using FluentValidation;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
-using Jobbliggaren.Application.Auth.Commands.ChangePassword;
 using Jobbliggaren.Application.Auth.Commands.DeleteAccount;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Validation;
@@ -16,16 +15,11 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 public sealed class ReauthGrantRulesTests
 {
     private const string Grant = "AAECAwQFBgcICQoLDA0ODw"; // gitleaks:allow
-    private static string TwelveChars => new('a', 12);
 
     public static TheoryData<string, Func<string?, IReauthenticatingRequest>, Func<IValidator>> Implementers() => new()
     {
         { nameof(DeleteAccountCommand), grant => new DeleteAccountCommand(grant), () => new DeleteAccountCommandValidator() },
         { nameof(ChangeEmailCommand), grant => new ChangeEmailCommand(grant, "ny@example.se"), () => new ChangeEmailCommandValidator() },
-        {
-            nameof(ChangePasswordCommand), grant => new ChangePasswordCommand(grant, "current-pw", TwelveChars),
-            () => new ChangePasswordCommandValidator()
-        },
     };
 
     private static FluentValidation.Results.ValidationResult Validate(IValidator validator, object command) =>
@@ -75,7 +69,7 @@ public sealed class ReauthGrantRulesTests
             .Where(t => t is { IsInterface: false, IsAbstract: false } && typeof(IReauthenticatingRequest).IsAssignableFrom(t))
             .Select(t => t.Name)
             .Order(StringComparer.Ordinal)
-            .ShouldBe([nameof(ChangeEmailCommand), nameof(ChangePasswordCommand), nameof(DeleteAccountCommand)]);
+            .ShouldBe([nameof(ChangeEmailCommand), nameof(DeleteAccountCommand)]);
     }
 
     [Fact]

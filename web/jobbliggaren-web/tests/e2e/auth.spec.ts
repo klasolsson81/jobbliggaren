@@ -52,7 +52,7 @@ async function serveMailWithLink(href: string): Promise<{ url: string; close: ()
 async function submitAddress(page: Page, email: string, path = "/logga-in"): Promise<void> {
   await page.goto(path);
   await page.getByLabel("E-postadress").fill(email);
-  // exact: the three provider rows are buttons named "Fortsätt med …" and match loosely.
+  // exact: every provider row is named "Fortsätt med …" and matches loosely.
   await page.getByRole("button", { name: "Fortsätt", exact: true }).click();
   await page.waitForURL("**/logga-in/kod");
 }

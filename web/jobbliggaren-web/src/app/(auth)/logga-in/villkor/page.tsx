@@ -40,7 +40,11 @@ export default async function LoggaInVillkorPage() {
       <div className="flex flex-col gap-3">
         <FocusHeading>{t("auth.passwordless.consent.title")}</FocusHeading>
         <p className="text-body text-text-primary">
-          {t("auth.passwordless.consent.identification")}
+          {flow.via
+            ? t("auth.passwordless.consent.identificationProvider", {
+                provider: t(`auth.passwordless.external.providerNames.${flow.via}`),
+              })
+            : t("auth.passwordless.consent.identification")}
         </p>
       </div>
       <ConsentForm />

@@ -12,8 +12,14 @@ import { nowEpochSeconds, readLoginFlow } from "@/lib/auth/login-flow-cookie";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("pages");
+  const flow = await readLoginFlow();
   return {
-    title: t("auth.passwordless.code.meta.title"),
+    title:
+      flow?.phase === "outcome" && flow.via
+        ? t("auth.passwordless.external.title", {
+            provider: t(`auth.passwordless.external.providerNames.${flow.via}`),
+          })
+        : t("auth.passwordless.code.meta.title"),
     robots: { index: false, follow: false },
   };
 }
@@ -42,7 +48,13 @@ export default async function LoggaInKodPage() {
   if (flow.phase === "outcome") {
     return (
       <div className="flex flex-col gap-8">
-        <FocusHeading>{t("auth.passwordless.code.title")}</FocusHeading>
+        <FocusHeading>
+          {flow.via
+            ? t("auth.passwordless.external.title", {
+                provider: t(`auth.passwordless.external.providerNames.${flow.via}`),
+              })
+            : t("auth.passwordless.code.title")}
+        </FocusHeading>
         <LoginOutcomePanel result={flow.result} />
       </div>
     );

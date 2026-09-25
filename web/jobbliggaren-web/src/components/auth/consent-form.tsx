@@ -30,6 +30,7 @@ export function ConsentForm() {
   const checkboxRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const errorId = useId();
+  const persistenceId = useId();
   const fieldInvalid = state?.channel === "field";
 
   useEffect(() => {
@@ -57,9 +58,16 @@ export function ConsentForm() {
         )}
 
         {/* This step creates a session too, so the disclosure sits above its primary as well (D4). */}
-        <p className="text-body-sm text-text-primary">{t("auth.passwordless.persistence")}</p>
+        <p id={persistenceId} className="text-body-sm text-text-primary">
+          {t("auth.passwordless.persistence")}
+        </p>
 
-        <Button type="submit" disabled={isPending} className="w-full max-md:h-11">
+        <Button
+          type="submit"
+          disabled={isPending}
+          aria-describedby={persistenceId}
+          className="w-full max-md:h-11"
+        >
           {isPending
             ? t("auth.passwordless.consent.submitting")
             : t("auth.passwordless.consent.submit")}

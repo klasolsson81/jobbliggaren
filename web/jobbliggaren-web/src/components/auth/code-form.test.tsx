@@ -40,6 +40,9 @@ describe("CodeForm", () => {
     const disclosure = screen.getByText(/Du förblir inloggad på den här enheten i upp till 180 dagar/);
     expect(disclosure.compareDocumentPosition(primary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector("form")?.lastElementChild).toBe(primary);
+    expect(primary).toHaveAccessibleDescription(
+      "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+    );
   });
 
   it("posts the typed code", async () => {

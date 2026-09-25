@@ -252,8 +252,8 @@ stamp. Byte-identical responses; no new oracle.
 Every passwordless login issues `Persistent` (30 d sliding / 180 d cap / 24 h rotation,
 `SessionStoreOptions.cs`); the cookie always carries Max-Age 180 d; the "Håll mig inloggad" checkbox
 goes. **The effective default for an inactive device is 30 days, not 180**. **The disclosure sits on
-BOTH steps that create a session** — `/logga-in/kod` (the
-only step an existing account sees) and `/logga-in/villkor` — directly above the primary button,
+every step that creates a session** — `/logga-in/kod`, `/logga-in/villkor` and the link landing
+`/logga-in/lank` — directly above the primary button,
 `text-body-sm text-text-primary`, never in a footer and never behind a link (design B3):
 *"Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad
 sida."* Backend issues `Persistent` in 1a; `setSessionCookie(id, true)` and
@@ -1456,7 +1456,7 @@ form that moves it into a short-lived cookie was not chosen);
   exist). It is `same-origin` and not the other token pages' `no-referrer` because the two binds
   in this bullet contradict each other otherwise (Amendment 2026-09-21 (3)). When the browser
   already holds a session the page says what continuing does and asks for a choice between two
-  controls, naming no address. At rest: *"Länken gäller en gång och i 15 minuter."* and the button "Logga in"; expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
+  controls, naming no address. The D4 disclosure sits directly above the primary on both arms. At rest: *"Länken gäller en gång och i 15 minuter."* and the button "Logga in"; expired and used share one sentence: *"Länken går inte att använda. Begär en ny kod på
   inloggningssidan."* The link route answers the same outcome union as the code step (D3). Why a
   login token in a URL is accepted where #706's change-email token was
   not: 15 min against 24 h, single use, one record that burns code and link together, the Caddy
@@ -1727,7 +1727,7 @@ day the flag is set they are rendered in dark and graded before that change merg
 **Order.** Klas ran this part before #1824 (the copy sweep) on 2026-09-24, while #1742 held the i18n hotspot. This
 part changes no string; the hint and its colour tier are #1824's.
 
-#### Amendment 2026-09-25 (10) (#1824, part 2 of epic #1822) — the page copy under DESIGN.md §8
+#### Amendment 2026-09-25 (11) (#1824, part 2 of epic #1822) — the page copy under DESIGN.md §8
 
 *Decided before code in one form round: `design-reviewer` and `security-auditor`
 (`docs/reviews/2026-09-25-1824-form-{design,security}.md`, local-only).* The sentences in D4 and "Page form" that
@@ -1751,6 +1751,22 @@ vill,"; its three bound elements stand.
 
 **Signed.** `security-auditor` signed the shortened `persistence`, `code.resting` and `link.alreadyLoggedIn.body`,
 Swedish and English (ADR 0144 Amendment 2026-09-25).
+
+#### Amendment 2026-09-25 (12) — the link landing states the persistence too
+
+*`security-auditor`, PR #1846 panel round 1 (`docs/reviews/2026-09-25-1824-security-auditor.md`, local-only): a
+Major on repo state since part 2, routed to its own PR.* The D4 sentence and the "Link landing" bullet above were
+corrected in place; this block records why.
+
+**The link landing creates a session.** `consumeLink` sets the session cookie persistent, and D3 never routes a link
+to the consent step, so for an existing account who opens the mailed link `/logga-in/lank` is where the session
+begins. D4's enumeration named two steps and called the code step "the only step an existing account sees"; D4's
+legal-basis point 2 holds the position only if the persistence is stated where the action is taken, which on this
+path is the link landing.
+
+**Delivered.** The existing `pages.auth.passwordless.persistence`, directly above the primary on both arms ("Logga in"
+and "Fortsätt och logga in"), in the code step's form; no new string. `link-landing-form.test.tsx` pins the placement
+on both arms.
 
 ## Processing register and DoD 8
 

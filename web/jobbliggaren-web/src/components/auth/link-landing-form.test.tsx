@@ -42,6 +42,25 @@ describe("LinkLandingForm", () => {
     expect(consumeLinkMock.mock.lastCall![1].has("replaceSession")).toBe(false);
   });
 
+  it.each([
+    [false, "Logga in"],
+    [true, "Fortsätt och logga in"],
+  ])(
+    "states the persistence directly above the primary (alreadyLoggedIn=%s): consuming the link opens a persistent session",
+    (alreadyLoggedIn, primary) => {
+      render(<LinkLandingForm token="link-token" alreadyLoggedIn={alreadyLoggedIn} />);
+
+      const disclosure = screen.getByText(
+        "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+      );
+      const buttons = disclosure.nextElementSibling;
+      expect(buttons?.querySelector("button")).toBe(screen.getByRole("button", { name: primary }));
+      expect(screen.getByRole("button", { name: primary })).toHaveAccessibleDescription(
+        disclosure.textContent ?? ""
+      );
+    }
+  );
+
   it("names the arm in the h1", () => {
     const { rerender } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
     expect(screen.getByRole("heading", { level: 1, name: "Logga in på Jobbliggaren" })).toBeInTheDocument();

@@ -64,7 +64,8 @@ jobs:
       matrix:
         include:
           # C# / .NET 10: build-mode MANUAL. Återbrukar build.yml:s kända-gröna
-          # build-recept (setup-dotnet@v6 + global.json + restore + build) för
+          # build-recept (setup-dotnet@v6 + global.json + restore + build, som
+          # `coverage`-jobbet kör genom scripts/coverage.sh) för
           # determinism — INTE autobuild. Skäl (senior-cto-advisor 2026-06-07,
           # agentId af8997b2f5987e1ee): Mediator.SourceGenerator emitterar
           # CQRS-dispatch/DI/pipeline-kod (inkl auth-pipeline) endast vid

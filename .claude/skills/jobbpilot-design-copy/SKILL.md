@@ -45,7 +45,7 @@ ADR 0144) och graderas av `design-reviewer`. Här är formerna.
 
 | Yta | ✅ Ja | ❌ Nej |
 |---|---|---|
-| Formulär där rubrik + etikett + knapp räcker | Titel "Byt namn på CV" · etikett "Namn" · knapp "Spara namn", ingen ledtext | + "Namnet visas i din CV-lista." (den levererade `resumes.rename.description`) |
+| Formulär där rubrik + etikett + knapp räcker | Titel "Byt namn på CV" · etikett "Namn" · knapp "Spara namn", ingen ledtext | + "Namnet visas i din CV-lista." |
 | Formulär där EN ledtext behövs | "Vi skickar en kod till din e-postadress." (det knappen "Fortsätt" inte säger) | "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord." |
 | Formathjälp, självklart format | E-postfält: ingen hint. Fel format besvaras i felet: "Skriv e-postadressen i rätt format, till exempel namn@exempel.se." | "Adressen ska innehålla @ och en domän." som hint |
 | Formathjälp, icke självklart format | Organisationsnummer: "Tio siffror." | Ingen hint (användaren skriver tolv siffror och får ett fel); "med eller utan bindestreck" (fältet tar emot båda, det sägs inte) |
@@ -229,6 +229,9 @@ anti-pattern, arkitekturtestad).
   (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
   "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
   enskilt krav, inte dimensionens omdöme.
+- **Ska-krav-raden** (`jobads.ui.match.mustHaveSummary`): fyra grenar, en per
+  utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
+  uttryckligen den affirmativa raden när annonsen inte angav några krav.
 - **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
   bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
   Toppskikt**.
@@ -247,7 +250,10 @@ visar dem:
 
 Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
 
-**Stavning: `ska-krav`.** ADR 0076:s prosa skriver "skallkrav" — följ inte den
+**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
+(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
+(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
+skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
 stavningen i UI.
 
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte

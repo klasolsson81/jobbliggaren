@@ -22,10 +22,6 @@ describe("CvBlockReason", () => {
   });
 
   it("explains a failed extraction as an ACTION, leaving the statement to ParseSummary", () => {
-    // ParseSummary renders `parse.overallFailed` on this same page, and the two must reconcile
-    // rather than contradict (ADR 0047). Until #1373 both ended on "fylla i uppgifterna för
-    // hand" — an instruction that pointed at /cv/ny, which has 404'd since #1061. Both now end
-    // on the one path the MVP actually has: correct the file and upload it again.
     render(<CvBlockReason reason="ParseNotConfident" />);
 
     expect(screen.getByText(/text som går att markera/i)).toBeInTheDocument();

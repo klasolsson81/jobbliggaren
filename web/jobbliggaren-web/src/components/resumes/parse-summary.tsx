@@ -5,7 +5,10 @@ import {
   sectionKindLabel,
   sectionLevelLabel,
 } from "@/lib/resumes/review-labels";
-import type { ParseConfidenceDto } from "@/lib/dto/parsed-resume";
+import type {
+  AutoPromoteBlockReason,
+  ParseConfidenceDto,
+} from "@/lib/dto/parsed-resume";
 
 /**
  * Parse-sammanfattning (F4-8/OQ5). RSC. Övergripande konfidens + per-sektions-
@@ -25,12 +28,19 @@ const OVERALL_EXPLANATION_KEY: Record<
 
 export function ParseSummary({
   confidence,
+  blockReason,
 }: {
   confidence: ParseConfidenceDto;
+  blockReason: AutoPromoteBlockReason | null;
 }) {
   const t = useTranslations("resumes");
   const tEnum = useTranslations("resumes.enums");
   const overall = overallConfidenceLabel(tEnum, confidence.overall);
+  const ledeKey =
+    confidence.overall === "Confident" ||
+    (confidence.overall === "Failed" && blockReason === "ParseNotConfident")
+      ? null
+      : OVERALL_EXPLANATION_KEY[confidence.overall];
 
   return (
     <section className="jp-parse-summary" aria-labelledby="parse-summary-title">
@@ -41,10 +51,8 @@ export function ParseSummary({
         <StatusPill tone={overall.tone}>{overall.label}</StatusPill>
       </div>
 
-      {confidence.overall !== "Confident" && (
-        <p className="jp-parse-summary__lede">
-          {t(OVERALL_EXPLANATION_KEY[confidence.overall])}
-        </p>
+      {ledeKey !== null && (
+        <p className="jp-parse-summary__lede">{t(ledeKey)}</p>
       )}
 
       {confidence.sections.length > 0 && (

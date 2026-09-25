@@ -5,7 +5,7 @@ import en from "../../../messages/en";
 /**
  * ADR 0144 Decision 4 (and its amendments): the legally bound catalogue strings, pinned
  * whole in both catalogues. DESIGN.md §8 rule 7 lets security-auditor alone shorten or
- * move them; a change here must carry her signature, so this file moves with it.
+ * move them.
  * `row` is the Decision 4 row.
  */
 const BOUND: ReadonlyArray<{ row: string; key: string; sv: string; en: string }> = [

@@ -284,8 +284,6 @@ Never:
 Running prose (the `.jp-attentionqueue` feed, paragraphs, lede) must be capped
 at **~68ch** `max-width` (WCAG 1.4.8 — line length aids low-vision and dyslexic
 readers and prevents lines stretching across wide screens).
-`.jp-attentionqueue__lede` already sets `max-width: 68ch`; mirror this for any
-new long-form text block.
 Tabular/ledger content is exempt — it is scanned, not read line-by-line.
 
 ---

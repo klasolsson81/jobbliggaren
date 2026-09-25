@@ -50,7 +50,7 @@ export function criteriaCardIsWide(
  * - ONE watch: its matching count as the big number, the watch's name and breadth beneath, the
  *   active-ad line from `CriterionAdLines`, and a solid info-blue CTA to the matching ads. Where
  *   the matching number is refused, not materialised or not assessed there is no number to carry
- *   — the ad lines state which, and the CTA is absent.
+ *   and the CTA is absent.
  * - TWO OR MORE: the card reflows to a full row with one ledger row per watch and NO sum.
  *   Criteria are predicates with no uniqueness constraint (`CompanyWatchCriterionConfiguration`
  *   declines a `UNIQUE(user_id, sni_codes, kommun_codes)` on purpose), so two may overlap and a
@@ -131,6 +131,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
           adviceStatedByCaller={false}
           actionOfferedByCaller={false}
           omitMatchingCount={counted !== null}
+          omitNotAssessedNudge
         />
         {counted !== null && counted > 0 && (
           <OversiktCardFoot>
@@ -186,6 +187,7 @@ export function CriteriaCard({ criteria, reference }: CriteriaCardProps) {
               variant="standalone"
               adviceStatedByCaller={true}
               actionOfferedByCaller={false}
+              omitNotAssessedNudge
             />
           </li>
         ))}

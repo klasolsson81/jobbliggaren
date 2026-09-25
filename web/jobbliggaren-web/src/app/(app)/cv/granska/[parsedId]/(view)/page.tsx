@@ -181,7 +181,10 @@ export default async function CvReviewPage({ params, searchParams }: Props) {
             den här säger hur många förekomster scannern hittade. */}
         <PersonnummerWarning personnummer={parsed.personnummer} />
 
-        <ParseSummary confidence={parsed.confidence} />
+        <ParseSummary
+          confidence={parsed.confidence}
+          blockReason={parsed.blockReason}
+        />
 
         <OccupationProposals proposals={parsed.occupationProposals} />
 

@@ -61,6 +61,10 @@ describe("safeRedirectPath", () => {
     expect(safeRedirectPath(raw)).toBe(DEFAULT_REDIRECT_PATH);
   });
 
+  it("falls back for a value the URL parser rejects", () => {
+    expect(safeRedirectPath("//[")).toBe(DEFAULT_REDIRECT_PATH);
+  });
+
   it("sends a passive landing that only normalises to one to the start page", () => {
     expect(safeRedirectPath("/./jobb")).toBe(DEFAULT_REDIRECT_PATH);
   });

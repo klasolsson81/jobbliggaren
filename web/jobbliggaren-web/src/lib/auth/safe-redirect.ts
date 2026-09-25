@@ -12,19 +12,39 @@ const HOME_REDIRECT_PATHS = new Set<string>(["/", "/jobb"]);
 
 export const DEFAULT_REDIRECT_PATH = "/oversikt";
 
+// Only ever used to parse against; the guard compares origins and emits path, query and fragment.
+const PARSE_BASE = new URL("https://jobbliggaren.invalid");
+
+const BACKSLASH = String.fromCharCode(92);
+
+function hasControlCharacterOrBackslash(raw: string): boolean {
+  for (const ch of raw) {
+    const code = ch.charCodeAt(0);
+    if (code < 0x20 || code === 0x7f || ch === BACKSLASH) return true;
+  }
+  return false;
+}
+
 /**
- * The post-login target. Only a same-site relative path passes: `//host` and `/\host` are
- * protocol-relative URLs a browser resolves off-site, so both fall back to the default.
+ * The post-login target: a path on this site, or the default. The value is parsed as a browser would
+ * parse it, and only a result on the site's own origin passes. A raw control character or backslash is
+ * refused before parsing, because the parser deletes tabs and newlines and reads a backslash as a slash,
+ * which is how a string beginning with one slash turns into another host.
  */
 export function safeRedirectPath(raw: string | null | undefined): string {
-  if (
-    raw &&
-    raw.startsWith("/") &&
-    !raw.startsWith("//") &&
-    !raw.startsWith("/\\") &&
-    !HOME_REDIRECT_PATHS.has(raw)
-  ) {
-    return raw;
+  if (!raw || !raw.startsWith("/") || hasControlCharacterOrBackslash(raw)) {
+    return DEFAULT_REDIRECT_PATH;
   }
-  return DEFAULT_REDIRECT_PATH;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw, PARSE_BASE);
+  } catch {
+    return DEFAULT_REDIRECT_PATH;
+  }
+
+  if (parsed.origin !== PARSE_BASE.origin) return DEFAULT_REDIRECT_PATH;
+
+  const target = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  return HOME_REDIRECT_PATHS.has(target) ? DEFAULT_REDIRECT_PATH : target;
 }

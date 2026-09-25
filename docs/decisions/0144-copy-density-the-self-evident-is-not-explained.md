@@ -312,3 +312,23 @@ parts of its mail. Four elements join Decision 4's set:
 - Row 16: the subject and preheader of every code-bearing template, and the first
   paragraph of its plain part — the code never appears there (#1737 condition 22;
   #1825; Art. 32(1))
+
+## Amendment 2026-09-25 — #1824: the catalogue rows as signed
+
+`security-auditor` ruled on the catalogue sweep in #1824's pre-code form round on 2026-09-25 (her report,
+`docs/reviews/2026-09-25-1824-form-security.md`, local-only). She signed the shortened texts of rows 2, 3, 5 and
+11, Swedish and English; each keeps every element its row lists. Three elements join Decision 4's set:
+
+- Row 8: and the first sentence of `settings.followedCompanyNotifications.intro` ('Nya annonser från företag du
+  följer visas alltid i appen, oavsett vad du väljer här.'), which separates the contract channel (the app) from
+  the consent channel (email); without it the toggle reads as governing every notice (Art. 4(11), 7(2))
+- Row 12: and `pages.auth.passwordless.outcome.pendingDeletion.body` with the `{date}` in its `title`, the
+  kontakt@ route and the permanent-deletion date, the in-app counterpart of `LoginPendingDeletion`'s elements
+  (Art. 12(2)–(3), 17)
+- Row 17: `pages.foretag.criteria.browse.source`, `pages.foretag.sok.source` and the SCB half of
+  `pages.foretag.criteria.ads.source`, the whole line; the ground is the DPIA measure C-D2/M-D2 (attribution on
+  every surface that shows SCB company data) and SCB's terms (ADR 0091), not Art. 14, since the register holds no
+  natural person; the Platsbanken half is not hers
+
+Every catalogue row of Decision 4 is pinned whole, sv and en, in
+`web/jobbliggaren-web/src/lib/i18n/legally-bound-copy.test.ts`, so a change to a bound string fails that test.

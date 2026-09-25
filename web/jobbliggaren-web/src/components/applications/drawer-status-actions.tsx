@@ -94,7 +94,7 @@ export function DrawerStatusActions({
       {/* §8.4 Stegväljare — 7 steg, även bakåt. */}
       <section aria-labelledby="jp-drawer-steps-label">
         <div className="jp-section-label" id="jp-drawer-steps-label">
-          {tUi("drawer.flowLabel")}
+          {tUi("drawer.flowLabel")}{" "}
           <span className="jp-section-label__hint">
             {tUi("drawer.flowHint")}
           </span>

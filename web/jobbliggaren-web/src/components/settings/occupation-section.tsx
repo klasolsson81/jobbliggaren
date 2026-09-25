@@ -721,7 +721,7 @@ function CvSuggestMessage({
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             className="mt-2.5"
             onClick={onOpenUpload}
           >

@@ -27,10 +27,12 @@ describe("MatchingCard", () => {
     expect(COPY.cards.matchingCtaAria.startsWith(COPY.cards.matchingCta)).toBe(true);
   });
 
-  it("a counted zero is a real answer: 0, the zero copy beneath, and an EMPHASISED way to the whole list — never the solid level", () => {
+  it("a counted zero is a real answer: 0 with no line beneath, and an EMPHASISED way to the whole list — never the solid level", () => {
     render(<MatchingCard matchCount={0} matchHref={HREF} hasStatedOccupation span={4} />);
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("0");
-    expect(within(card()).getByText(COPY.notices.matchTextZero)).toBeInTheDocument();
+    expect(text(card().querySelector(".jp-ov-num__unit"))).toBe("annonser matchar dina val");
+    expect(within(card()).queryByText(COPY.notices.matchTextZero)).toBeNull();
+    expect(card().querySelector(".jp-ov-sub")).toBeNull();
     expect(within(card()).queryByText(COPY.cards.matchingBasis)).toBeNull();
     // The facet-filtered list is empty by construction, so the solid CTA to it is gone.
     expect(within(card()).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
@@ -51,7 +53,7 @@ describe("MatchingCard", () => {
   it("no stated occupation: the setup callout takes the card, with the page's only settings link", () => {
     render(<MatchingCard matchCount={42} matchHref={HREF} hasStatedOccupation={false} span={4} />);
     expect(card().querySelector(".jp-ov-num")).toBeNull();
-    expect(within(card()).getByText(/Matchningen är inte klar/)).toBeInTheDocument();
+    expect(within(card()).getByText(COPY.notices.calloutText)).toBeInTheDocument();
     const cta = within(card()).getByRole("link", { name: /Ställ in matchning/ });
     expect(cta).toHaveAttribute("href", "/oversikt?matchsetup=1");
     expect(within(card()).getByText(COPY.notices.calloutHint)).toBeInTheDocument();

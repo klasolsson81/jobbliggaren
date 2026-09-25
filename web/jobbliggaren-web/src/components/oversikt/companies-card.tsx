@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Building2, EyeOff, Filter } from "lucide-react";
+import { Building2, Filter } from "lucide-react";
 import { summariseWatches } from "@/lib/company-watches/watch-summary";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
@@ -46,7 +46,6 @@ export function CompaniesCard({ watches, newAdCount, span }: CompaniesCardProps)
     return (
       <OversiktCard id={ID} title={title} tone="follow" span={span} icon={Building2}>
         <p className="jp-ov-card__emptytitle">{t("companySummary.emptyTitle")}</p>
-        <p className="jp-ov-card__emptybody">{t("companySummary.emptyBody")}</p>
         <OversiktCardFoot>
           <Link className="jp-btn jp-btn--emphasis jp-ov-cta" href="/foretag/sok">
             {t("companySummary.emptyCta")}
@@ -102,12 +101,6 @@ export function CompaniesCard({ watches, newAdCount, span }: CompaniesCardProps)
             ),
         })}
       </p>
-      {summary.explainMissingLinks && (
-        <p className="jp-transparency-note">
-          <EyeOff size={16} aria-hidden="true" />
-          <span>{t("companySummary.notLinkable")}</span>
-        </p>
-      )}
       {summary.filteredWatches > 0 && (
         <p className="jp-transparency-note">
           <Filter size={16} aria-hidden="true" />

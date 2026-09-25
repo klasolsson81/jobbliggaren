@@ -58,7 +58,6 @@ describe("summariseWatches", () => {
     expect(s.matchingAds).toBe(0);
     expect(s.activeAdsHref).toBeNull();
     expect(s.matchingAdsHref).toBeNull();
-    expect(s.explainMissingLinks).toBe(false);
   });
 
   it("links both sums to /jobb filtered to every employer when every watch is linkable", () => {
@@ -73,14 +72,13 @@ describe("summariseWatches", () => {
     expect(s.matchingAdsHref).toBe(
       buildCompanyJobsHref(["5566524301", "5592804784"], "matching"),
     );
-    expect(s.explainMissingLinks).toBe(false);
   });
 
   it.each([
     ["masked sole-prop", { organizationNumber: null, isProtectedIdentity: true }],
     ["brand group (no org.nr)", { organizationNumber: null }],
     ["short org.nr", { organizationNumber: "12345" }],
-  ] as const)("one %s watch removes BOTH links and owes the explanation", (_name, overrides) => {
+  ] as const)("one %s watch removes BOTH links", (_name, overrides) => {
     const s = summariseWatches(
       [
         watch({ id: "a", organizationNumber: "5566524301", activeAdCount: 3, matchingAdCount: 1 }),
@@ -91,18 +89,9 @@ describe("summariseWatches", () => {
     expect(s.activeAds).toBe(5);
     expect(s.activeAdsHref).toBeNull();
     expect(s.matchingAdsHref).toBeNull();
-    expect(s.explainMissingLinks).toBe(true);
   });
 
-  it("an unlinkable watch with no ads anywhere owes no explanation", () => {
-    const s = summariseWatches(
-      [watch({ organizationNumber: null, isProtectedIdentity: true, activeAdCount: 0 })],
-      true,
-    );
-    expect(s.explainMissingLinks).toBe(false);
-  });
-
-  it("a surface that cannot link renders no hrefs and owes no explanation", () => {
+  it("a surface that cannot link renders no hrefs", () => {
     const s = summariseWatches(
       [
         watch({ id: "a", organizationNumber: "5566524301", activeAdCount: 3, matchingAdCount: 1 }),
@@ -113,7 +102,6 @@ describe("summariseWatches", () => {
     expect(s.activeAds).toBe(5);
     expect(s.activeAdsHref).toBeNull();
     expect(s.matchingAdsHref).toBeNull();
-    expect(s.explainMissingLinks).toBe(false);
   });
 
   it("counts the watches that carry a notification filter", () => {
@@ -132,7 +120,6 @@ describe("summariseWatches", () => {
       filteredWatches: 0,
       activeAdsHref: null,
       matchingAdsHref: null,
-      explainMissingLinks: false,
     });
   });
 });

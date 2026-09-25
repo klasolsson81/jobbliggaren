@@ -211,7 +211,7 @@ function text(el: Element | null): string {
 beforeEach(() => window.localStorage.clear());
 
 describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
-  it("bär bara titel och ingress: ingen kicker, alltså varken ett namn eller en adress", () => {
+  it("bär bara titeln: ingen kicker och ingen ingress", () => {
     // The kicker said "Inloggad som" + the name or the address's local part. The account has no
     // name, and the shell's Mina sidor popup is where the address is shown.
     const { container } = renderOversikt(true);
@@ -219,8 +219,8 @@ describe("OversiktPage — heron (ADR 0142 D7, #1741 PR B)", () => {
     expect(hero).not.toBeNull();
     expect(hero!.querySelector(".jp-pagehero__kicker")).toBeNull();
     const main = hero!.querySelector<HTMLElement>(".jp-pagehero__main")!;
-    expect([...main.children].map((c) => c.tagName)).toEqual(["H1", "P"]);
-    expect(main.textContent).toBe(COPY.hero.title + COPY.hero.lede);
+    expect([...main.children].map((c) => c.tagName)).toEqual(["H1"]);
+    expect(main.textContent).toBe(COPY.hero.title);
   });
 });
 
@@ -333,10 +333,20 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     const { container } = renderOversikt(true, { matchCount: 42 });
 
     expect(bigNumber(COPY.cards.matching)).toBe("42");
-    expect(screen.getByText(/Det finns/, { selector: ".jp-ov-event__text" })).toBeInTheDocument();
+    expect(
+      text(screen.getByText(/annonser matchar dina val/, { selector: ".jp-ov-event__text" })),
+    ).toBe("42 annonser matchar dina val.");
     const pageText = container.textContent ?? "";
     expect(pageText).not.toContain("143");
     expect(pageText).not.toContain("Mjukvaru- och systemutvecklare");
+  });
+
+  it("count === 1 → notisen står i singular", () => {
+    renderOversikt(true, { matchCount: 1 });
+
+    expect(
+      text(screen.getByText(/annons matchar dina val/, { selector: ".jp-ov-event__text" })),
+    ).toBe("1 annons matchar dina val.");
   });
 
   it("kortets CTA och notisens CTA bär SAMMA länk: de sparade facetterna som hårda filter, INGA matchGrades (H2)", () => {
@@ -364,11 +374,12 @@ describe("OversiktPage — live match-count (ADR 0079 STEG 6)", () => {
     );
   });
 
-  it("count === 0 → 0 i kortet med nollcopyn och en betonad väg till hela listan; notisen INTE dold, dess länk kvar", () => {
+  it("count === 0 → 0 i kortet utan nollcopy och en betonad väg till hela listan; nollcopyn i notisen, som INTE är dold och behåller sin länk", () => {
     renderOversikt(true, { matchCount: 0 });
 
     expect(bigNumber(COPY.cards.matching)).toBe("0");
-    expect(screen.getAllByText(/inga annonser som matchar dina val just nu/).length).toBeGreaterThanOrEqual(2);
+    expect(within(card(COPY.cards.events)).getByText(COPY.notices.matchTextZero)).toBeInTheDocument();
+    expect(within(card(COPY.cards.matching)).queryByText(COPY.notices.matchTextZero)).toBeNull();
     expect(within(card(COPY.cards.matching)).queryByRole("link", { name: COPY.cards.matchingCtaAria })).toBeNull();
     expect(within(card(COPY.cards.matching)).getByRole("link", { name: COPY.cards.matchingCtaZero })).toHaveAttribute(
       "href",
@@ -490,7 +501,6 @@ describe("OversiktPage — senaste-sök-notis (#294, A′-relabel #726)", () => 
     const href = cta.getAttribute("href") ?? "";
     expect(href).toMatch(/^\/jobb\?/);
     expect(href).toContain("q=backend");
-    expect(screen.getByText(/Din senaste sökning:/)).toBeInTheDocument();
     expect(
       screen.getByText("Backend Stockholm", { selector: ".jp-ov-event__text b" }),
     ).toBeInTheDocument();

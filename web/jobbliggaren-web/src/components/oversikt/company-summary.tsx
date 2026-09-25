@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { summariseWatches } from "@/lib/company-watches/watch-summary";
-import { EyeOff, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
@@ -104,7 +104,6 @@ export function CompanySummary({
       <div className="jp-appsummary jp-appsummary--empty">
         {headingNode}
         <p className="jp-appsummary__emptytitle">{t("emptyTitle")}</p>
-        <p className="jp-appsummary__emptybody">{t("emptyBody")}</p>
         {/* Betonad men inte solid: en-primär-per-skärm är redan spenderad, och i
             det här läget kan setup-kortet stå högre upp på samma sida. */}
         <Link className="jp-btn jp-btn--emphasis" href="/foretag/sok">
@@ -183,13 +182,6 @@ export function CompanySummary({
               ariaLabel={tRule("onlyMatchedHelpAria")}
             />
           )}
-        </p>
-      )}
-
-      {summary.explainMissingLinks && (
-        <p className="jp-transparency-note">
-          <EyeOff size={16} aria-hidden="true" />
-          <span>{t("notLinkable")}</span>
         </p>
       )}
 

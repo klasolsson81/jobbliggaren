@@ -2204,7 +2204,7 @@
 /* Talet i sekundärraden är en länk i ink-1 (mockens form), inte accent: raden är prosa och
    understrykningen bär affordansen. */
 .jp-ov-sub .jp-countlink { color: var(--jp-ink-1); }
-/* Upplysningsraderna (saknad länk, notisfilter) i Bevakade företag-kortet: .jp-appsummary gav dem
+/* Upplysningsraden (notisfilter) i Bevakade företag-kortet: .jp-appsummary gav den
    blockets gap, kortet ger ingen — så raden bär sin egen marginal, kortets sekundärrads-mått, och
    body-sm så en upplysning inte väger tyngre än raden den kvalificerar (design-reviewer Major 2). */
 .jp-ov-card .jp-transparency-note {
@@ -2234,7 +2234,6 @@
   line-height: 1.5;
   color: var(--jp-ink-1);
 }
-.jp-ov-card__text b { font-weight: var(--jp-fw-bold); }
 .jp-ov-card__hint {
   margin: 8px 0 0;
   font-size: var(--text-micro);

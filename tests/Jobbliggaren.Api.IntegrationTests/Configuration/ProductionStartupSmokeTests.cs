@@ -153,6 +153,7 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     //     DevTools:EnableResetMyData is explicitly true (Klas-direktiv 2026-08-27). It is
     //     owner-scoped, authenticated, and refused a second time inside the handler.
     //   * /api/v1/dev/login-code (#1735) is mapped by the same method as confirm-email.
+    //   * /api/v1/dev/accounts (ADR 0142 part 5a) is mapped by the same method too, and opens an account.
     //
     // A 404 (not 401/405) proves the route does not exist; if a gate regressed, these
     // turn red before deploy.
@@ -183,6 +184,35 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
             ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task POST_dev_accounts_is_unmapped_in_Production_env_and_its_policy_is_not_registered()
+    {
+        // The seed seam opens an account without an inbox proof, so both gates are measured: the map (a 404
+        // for a reserved address, which the handler would otherwise answer 204) and the dev-only policy the
+        // handler cannot resolve without. The flag-on polarity of the map is the route-table test below.
+        var ct = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/dev/accounts",
+            new { email = "x@e2e.jobbliggaren.test" },
+            ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void IDevSeedableAddressPolicy_is_not_registered_in_Production_env_even_when_the_reset_flag_is_on()
+    {
+        using var host = _factory.WithWebHostBuilder(
+            b => b.UseSetting("DevTools:EnableResetMyData", "true"));
+        _ = host.CreateClient();
+
+        using var scope = host.Services.CreateScope();
+        scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
     }
 
     [Fact]

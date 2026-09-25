@@ -4,7 +4,9 @@ using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Shouldly;
@@ -16,8 +18,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// (<see cref="IInboxProofRecorder"/>) is reachable only from <see cref="PasswordlessSessionGrant"/>, the grant
 /// only from <see cref="LoginProofOutcome"/>, and that only from the two proof handlers and <c>complete</c>
 /// (#1737); the account lookup is reachable only from <see cref="LoginSubjectResolver"/>, and that only from
-/// the consumer, the outcome function and <c>complete</c>, never from the request path that mints a
-/// challenge (ADR 0142 D2). The scan covers every assembly that composes services,
+/// the consumer, the outcome function, <c>complete</c> and the Development seed seam, never from the request
+/// path that mints a challenge (ADR 0142 D2); and an account is opened only through <see cref="AccountRegistrar"/>,
+/// which only <c>complete</c> and the seed seam reach (ADR 0142 part 5a). The scan covers every assembly that composes services,
 /// the Api's included, and every constructor and method parameter of every type, compiler-generated ones
 /// included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
 /// a parameter; the source scan covers the write's port by name.
@@ -63,7 +66,7 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Only_the_resolver_reads_the_account_and_only_off_the_request_path()
+    public void Only_the_resolver_reads_the_account_and_never_on_the_path_that_mints_a_challenge()
     {
         ConsumersOf(typeof(ILoginAccountLookup)).ShouldBe([typeof(LoginSubjectResolver).FullName!]);
         ConsumersOf(typeof(LoginSubjectResolver)).ShouldBe(
@@ -71,6 +74,18 @@ public sealed class LoginProofChainTests
             typeof(CompleteLoginChallengeCommandHandler).FullName!,
             typeof(LoginChallengeIssuer).FullName!,
             typeof(LoginProofOutcome).FullName!,
+            typeof(DevSeedAccountCommandHandler).FullName!,
+        ]);
+    }
+
+    [Fact]
+    public void Only_complete_and_the_development_seed_seam_open_an_account_and_only_through_the_registrar()
+    {
+        ConsumersOf(typeof(IPasswordlessAccountCreator)).ShouldBe([typeof(AccountRegistrar).FullName!]);
+        ConsumersOf(typeof(AccountRegistrar)).ShouldBe(
+        [
+            typeof(CompleteLoginChallengeCommandHandler).FullName!,
+            typeof(DevSeedAccountCommandHandler).FullName!,
         ]);
     }
 

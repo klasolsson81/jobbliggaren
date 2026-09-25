@@ -113,6 +113,9 @@ public static class DependencyInjection
             services.AddScoped<
                 Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,
                 Auth.DevEmailConfirmer>();
+            services.AddSingleton<
+                Jobbliggaren.Application.Dev.Abstractions.IDevSeedableAddressPolicy,
+                Auth.DevSeedableAddressPolicy>();
             services.AddDevLoginCodeCapture();
         }
 
@@ -1859,6 +1862,7 @@ public static class DependencyInjection
         services.AddHostedService<LoginChallengeDispatchService>();
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
         services.AddScoped<IPasswordlessAccountCreator, UserAccountService>();
+        services.AddScoped<AccountRegistrar>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();

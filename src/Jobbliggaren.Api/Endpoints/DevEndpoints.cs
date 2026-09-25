@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Application.Dev.Commands.ConfirmEmail;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
+using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
 using Mediator;
 
@@ -69,6 +70,26 @@ public static class DevEndpoints
             var code = await mediator.Send(new DevTakeLoginCodeCommand(body.Email), ct);
             return code is null ? Results.NotFound() : Results.Ok(new { code });
         });
+
+        // DEV-ONLY — a login-capable account for a RESERVED address, opened by the writer `complete` uses (ADR
+        // 0142 part 5a), so the E2E suite seeds without spending the cap on mails to addresses without an
+        // account. 204 with no body: no session, no code, no user id. The same two gates as login-code: this
+        // map, and IDevSeedableAddressPolicy registered only in Development. REMOVE BEFORE LAUNCH.
+        group.MapPost("/accounts", async (
+            DevSeedAccountRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body?.Email))
+                return Results.BadRequest();
+
+            return await mediator.Send(new DevSeedAccountCommand(body.Email), ct) switch
+            {
+                DevSeedAccountOutcome.Ready => Results.NoContent(),
+                DevSeedAccountOutcome.NotReserved => Results.NotFound(),
+                _ => Results.Conflict(),
+            };
+        });
     }
 
     /// <summary>
@@ -103,4 +124,7 @@ public static class DevEndpoints
 
     /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/login-code</c> (#1735).</summary>
     public sealed record DevLoginCodeRequest(string? Email);
+
+    /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/accounts</c> (ADR 0142 part 5a).</summary>
+    public sealed record DevSeedAccountRequest(string? Email);
 }

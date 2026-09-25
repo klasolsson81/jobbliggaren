@@ -61,6 +61,23 @@ describe("safeRedirectPath", () => {
     expect(safeRedirectPath(raw)).toBe(DEFAULT_REDIRECT_PATH);
   });
 
+  // Removing dot segments can leave a path that begins with two slashes. The nested form survives one pass of
+  // the guard as a same-site path, and the login flow runs the guard twice (on submit, and on redirect).
+  const twoSlashesOnceNormalised = [
+    "/.//evil.example",
+    "/..//evil.example",
+    "/%2e//evil.example",
+    "/a/..//evil.example",
+    "/.//jobbliggaren.invalid//evil.example",
+  ];
+
+  it.each(twoSlashesOnceNormalised)("stays on the site's own origin for %s, once and twice", (raw) => {
+    const base = "https://jobbliggaren.se";
+    const once = safeRedirectPath(raw);
+    expect(new URL(once, base).origin).toBe(base);
+    expect(new URL(safeRedirectPath(once), base).origin).toBe(base);
+  });
+
   it("falls back for a value the URL parser rejects", () => {
     expect(safeRedirectPath("//[")).toBe(DEFAULT_REDIRECT_PATH);
   });

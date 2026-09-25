@@ -94,7 +94,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
 
   const t = await getTranslations("pages.foretag.criteria");
   // The nudge copy is /jobb's own ("…hur väl annonser matchar din profil"), never the follow
-  // dialog's "…för att se matchande annonser" — that one promises a set this page does not render.
+  // dialog's.
   const tMatch = await getTranslations("jobads.ui.match");
   const format = await getFormatter();
 

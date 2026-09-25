@@ -47,7 +47,8 @@ interface WatchFilterDialogProps {
  *
  * <b>Filtret gäller NOTISERNA, inte listans siffror.</b> Radens "aktiva annonser" / "matchande annonser"
  * är medvetet INTE filter-medvetna (RF-8): de svarar på "postar det här företaget annonser jag matchar?"
- * (ett följ-BESLUT), medan filtret svarar på "vilka av dem ska notifiera mig". Copy:n säger det.
+ * (ett följ-BESLUT), medan filtret svarar på "vilka av dem ska notifiera mig".
+ * `filter.scopeHelpBody2` säger det.
  *
  * <b>"Endast matchande" låses ALDRIG</b> — inte ens när användaren saknar matchningsprofil (CTO Q8-b).
  * Backend accepterar värdet och håller filtret INERT tills ett yrke anges, och 8C:s read-time-gradering
@@ -68,7 +69,6 @@ export function WatchFilterDialog({
   matchingNotAssessed,
 }: WatchFilterDialogProps) {
   const t = useTranslations("jobads.companyWatches.filter");
-  const hintId = useId();
   const inertNudgeId = useId();
 
   // Draften seedas från det persisterade filtret. `key` på dialogen (i raden) monterar om komponenten
@@ -159,12 +159,8 @@ export function WatchFilterDialog({
                   // inert nå en skärmläsar-användare via kontrollen själv. I forms-mode läses bara det
                   // tillgängliga namnet + beskrivningen: utan den här kopplingen hörs "kryssruta, ej
                   // markerad", användaren kryssar i, sparar, och får ett inert filter utan att någonsin
-                  // få veta varför. Det vore den tysta smalningen igen, ett lager ned. Hjälptexten
-                  // kopplas alltid; skälet bara när filtret faktiskt är inert (ingen dinglande
-                  // beskrivning för en användare som har profil).
-                  describedBy={
-                    matchingNotAssessed ? `${hintId} ${inertNudgeId}` : hintId
-                  }
+                  // få veta varför. Det vore den tysta smalningen igen, ett lager ned.
+                  describedBy={matchingNotAssessed ? inertNudgeId : undefined}
                 />
                 {/* InfoDialog som SYSKON till kontrollraden — aldrig som barn (ett klick på "?" får
                     inte toggla kontrollen). */}
@@ -174,9 +170,6 @@ export function WatchFilterDialog({
                   ariaLabel={t("onlyMatchedHelpAria")}
                 />
               </div>
-              <p id={hintId} className="jp-settings-field__hint">
-                {t("onlyMatchedHelp")}
-              </p>
               {matchingNotAssessed && (
                 // Ärligt not-assessed: filtret SPARAS men gäller inte förrän ett yrke angetts. Vi
                 // låser inte kontrollen — filtret aktiveras retroaktivt i samma stund profilen finns.

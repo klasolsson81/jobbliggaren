@@ -181,7 +181,7 @@ describe("ForetagSokSearchbar — filters commit live, the name still submits", 
   it("the unapplied line is about the NAME only — filters can no longer diverge", async () => {
     renderBar();
     const user = userEvent.setup();
-    const LINE = "Ändringen i namnfältet tillämpas när du väljer Sök företag.";
+    const LINE = "Ändringen tillämpas när du väljer Sök företag.";
 
     expect(screen.queryByText(LINE)).not.toBeInTheDocument();
 
@@ -535,7 +535,7 @@ describe("ForetagSokSearchbar — round-2 guarantees, pinned", () => {
     expect(described.split(" ")).toHaveLength(2);
     const unappliedId = described.split(" ")[1] ?? "";
     expect(document.getElementById(unappliedId)).toHaveTextContent(
-      "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+      "Ändringen tillämpas när du väljer Sök företag.",
     );
 
     await user.clear(field);
@@ -559,7 +559,7 @@ describe("ForetagSokSearchbar — round-2 guarantees, pinned", () => {
     expect(field.getAttribute("aria-describedby")).toBe(hintOnly);
     expect(
       screen.queryByText(
-        "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+        "Ändringen tillämpas när du väljer Sök företag.",
       ),
     ).not.toBeInTheDocument();
   });

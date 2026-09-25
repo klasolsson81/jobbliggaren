@@ -154,8 +154,7 @@ export function CompanyWatchRow({ item, mode, regions }: CompanyWatchRowProps) {
           {mode === "matching" &&
             (item.matchingAdCount === null ? (
               // Honest not-assessed: the user stated no occupation, so matching is undefined. Render a
-              // civic nudge to state occupations, never a false "0" (parity /jobb + /matchningar). Copy
-              // + link style mirror the JobAdMatchSection not-assessed signpost (SPOT, no drift).
+              // civic nudge to state occupations, never a false "0" (parity /jobb + /matchningar).
               <p className="jp-matchline">
                 {t("matchNudge")}{" "}
                 <Link href={MATCH_SETTINGS_HREF} className="jp-nudgelink">

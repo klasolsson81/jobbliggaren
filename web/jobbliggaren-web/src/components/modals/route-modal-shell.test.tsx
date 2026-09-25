@@ -28,7 +28,7 @@ describe("RouteModalShell", () => {
     );
   });
 
-  it("sätter INGEN aria-describedby när description saknas (ingen danglande referens)", () => {
+  it("sätter INGEN aria-describedby (ingen danglande referens)", () => {
     render(
       <RouteModalShell title="Nytt CV">
         <div className="jp-modal__body">x</div>

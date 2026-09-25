@@ -28,7 +28,7 @@ branch. Deploy sker via tag-push på `main`, aldrig via branch-merge.
 ## 2. Före tag (pre-flight)
 
 - [ ] **main-CI grön** — `gh run list --workflow build --limit 1` → `success`
-      (backend + frontend + coverage + ci alla gröna). Coverage-gaten
+      (frontend + coverage + ci alla gröna). Coverage-gaten
       (ADR 0044) får inte vara röd.
 - [ ] **Observe-only-signaler granskade** (ADR 0045) — `lighthouse` /
       `loadtest` / `audit`-jobben är observe-only och blockerar inte, men

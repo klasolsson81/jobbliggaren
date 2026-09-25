@@ -73,9 +73,7 @@ describe("ChangeEmailCard", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: "Byt e-postadress" })).toBeInTheDocument();
     expect(screen.getByText(`Din e-postadress är ${CURRENT}.`)).toBeInTheDocument();
-    expect(screen.getByLabelText("Ny e-postadress")).toHaveAccessibleDescription(
-      "Formatet är namn@domän.se."
-    );
+    expect(screen.getByLabelText("Ny e-postadress")).not.toHaveAccessibleDescription();
     expect(screen.getByRole("button", { name: "Fortsätt" })).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -87,7 +85,7 @@ describe("ChangeEmailCard", () => {
     [
       "a malformed address",
       "ny.exempel.se",
-      "Kontrollera den nya e-postadressen. Den ska ha formatet namn@domän.se.",
+      "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
     ],
     [
       "the current address in another case",
@@ -104,7 +102,7 @@ describe("ChangeEmailCard", () => {
     const field = screen.getByLabelText("Ny e-postadress");
     expect(screen.getByRole("alert")).toHaveTextContent(copy);
     expect(field).toHaveAttribute("aria-invalid", "true");
-    expect(field).toHaveAccessibleDescription(`Formatet är namn@domän.se. ${copy}`);
+    expect(field).toHaveAccessibleDescription(copy);
     await waitFor(() => expect(field).toHaveFocus());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(requestReauthCodeMock).not.toHaveBeenCalled();
@@ -134,8 +132,7 @@ describe("ChangeEmailCard", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(codeField).toHaveFocus());
     expect(codeField).toHaveAccessibleDescription(
-      `Vi har skickat en sexsiffrig kod till ${NEW}. Skriv in den här för att byta adress. Koden gäller i 15 minuter. ` +
-        "Titta även i skräpposten. Kommer inget mejl inom några minuter kan du börja om och kontrollera adressen."
+      `Vi har skickat en sexsiffrig kod till ${NEW}. Koden gäller i 15 minuter. Titta även i skräpposten.`
     );
     // The address is named here, never an input that looks editable.
     expect(screen.queryByLabelText("Ny e-postadress")).not.toBeInTheDocument();

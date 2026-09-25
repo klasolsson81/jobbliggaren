@@ -6,7 +6,7 @@
     "themeLight": "Ljust",
     "themeDark": "Mörkt",
     "languageLabel": "Språk",
-    "languageHint": "Påverkar hela appen direkt. Sparas på ditt konto.",
+    "languageHint": "Sparas på ditt konto.",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
     "savedAt": "Sparat {time}"
@@ -53,7 +53,6 @@
   },
   "logout": {
     "title": "Logga ut",
-    "description": "Avsluta denna session. Du kan logga in igen när som helst.",
     "action": "Logga ut"
   },
   "matchPrefs": {
@@ -182,11 +181,10 @@
       "contactRoute": "Du kan också mejla <mail>kontakt@jobbliggaren.se</mail> och be oss radera kontot."
     },
     "reauth": {
-      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}. Du skriver in koden i nästa steg.",
+      "request": "För att bekräfta att det är du skickar vi en sexsiffrig kod till {email}.",
       "send": "Skicka kod",
       "sending": "Skickar…",
-      "sent": "Vi har skickat en sexsiffrig kod till {email}. Koden gäller i 15 minuter.",
-      "hint": "Kommer inget mejl inom några minuter kan du skicka en ny kod.",
+      "sent": "Vi har skickat en kod till {email}. Koden gäller i 15 minuter.",
       "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Skicka en ny kod och försök igen.",
       "resendReceipt": "Vi har skickat en ny kod. Skriv in koden från det senaste mejlet.",
       "cooldown": "En kod begärdes nyss för ditt konto. Vänta en minut och försök igen.",
@@ -200,18 +198,17 @@
     "changeEmail": {
       "title": "Byt e-postadress",
       "current": "Din e-postadress är {email}.",
-      "description": "Du bekräftar bytet med två koder: en till din nuvarande adress och en till den nya. Adressen byts när du har skrivit in båda, och då loggas du ut på alla andra enheter.",
+      "description": "Du bekräftar bytet med två koder, en till varje adress. När adressen är bytt loggas du ut på alla andra enheter.",
       "newEmailLabel": "Ny e-postadress",
-      "newEmailHint": "Formatet är namn@domän.se.",
       "newEmailRequired": "Skriv in den nya e-postadressen.",
-      "invalidEmail": "Kontrollera den nya e-postadressen. Den ska ha formatet namn@domän.se.",
+      "invalidEmail": "Skriv den nya e-postadressen i rätt format, till exempel namn@exempel.se.",
       "sameEmail": "Den nya adressen är samma som din nuvarande. Skriv in en annan adress.",
       "continue": "Fortsätt",
       "cancel": "Avbryt",
-      "dialogDescription": "Du byter till {newEmail}. När du har bekräftat att det är du skickar vi en kod till den nya adressen.",
-      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Skriv in den här för att byta adress. Koden gäller i 15 minuter.",
+      "dialogDescription": "Du byter till {newEmail}.",
+      "codeStep": "Vi har skickat en sexsiffrig kod till {newEmail}. Koden gäller i 15 minuter.",
       "codeLabel": "Kod till den nya adressen",
-      "codeHint": "Titta även i skräpposten. Kommer inget mejl inom några minuter kan du börja om och kontrollera adressen.",
+      "codeHint": "Titta även i skräpposten.",
       "wrongCode": "Koden stämmer inte. Använd koden från mejlet till den nya adressen och kontrollera siffrorna.",
       "lastAttempt": "Ett försök kvar. Sedan behöver du börja om.",
       "confirm": "Byt adress",

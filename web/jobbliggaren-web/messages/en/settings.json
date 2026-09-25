@@ -6,7 +6,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "languageLabel": "Language",
-    "languageHint": "Affects the whole app immediately. Saved to your account.",
+    "languageHint": "Saved to your account.",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
     "savedAt": "Saved {time}"
@@ -53,7 +53,6 @@
   },
   "logout": {
     "title": "Log out",
-    "description": "End this session. You can log in again at any time.",
     "action": "Log out"
   },
   "matchPrefs": {
@@ -182,11 +181,10 @@
       "contactRoute": "You can also email <mail>kontakt@jobbliggaren.se</mail> and ask us to delete the account."
     },
     "reauth": {
-      "request": "To confirm that it is you, we send a six-digit code to {email}. You enter the code in the next step.",
+      "request": "To confirm that it is you, we send a six-digit code to {email}.",
       "send": "Send code",
       "sending": "Sending…",
-      "sent": "We have sent a six-digit code to {email}. The code is valid for 15 minutes.",
-      "hint": "If no email arrives within a few minutes, you can send a new code.",
+      "sent": "We have sent a code to {email}. The code is valid for 15 minutes.",
       "burned": "You have entered the wrong code three times, so the code can no longer be used. Send a new code and try again.",
       "resendReceipt": "We have sent a new code. Enter the code from the most recent email.",
       "cooldown": "A code was requested for your account a moment ago. Wait a minute and try again.",
@@ -200,18 +198,17 @@
     "changeEmail": {
       "title": "Change email address",
       "current": "Your email address is {email}.",
-      "description": "You confirm the change with two codes: one to your current address and one to the new one. The address changes once you have entered both, and you are then logged out on all other devices.",
+      "description": "You confirm the change with two codes, one to each address. Once the address has changed, you are logged out on all other devices.",
       "newEmailLabel": "New email address",
-      "newEmailHint": "The format is name@domain.se.",
       "newEmailRequired": "Enter the new email address.",
-      "invalidEmail": "Check the new email address. It should have the format name@domain.se.",
+      "invalidEmail": "Enter the new email address in the correct format, for example name@example.com.",
       "sameEmail": "The new address is the same as your current one. Enter a different address.",
       "continue": "Continue",
       "cancel": "Cancel",
-      "dialogDescription": "You are changing to {newEmail}. Once you have confirmed that it is you, we send a code to the new address.",
-      "codeStep": "We have sent a six-digit code to {newEmail}. Enter it here to change the address. The code is valid for 15 minutes.",
+      "dialogDescription": "You are changing to {newEmail}.",
+      "codeStep": "We have sent a six-digit code to {newEmail}. The code is valid for 15 minutes.",
       "codeLabel": "Code sent to the new address",
-      "codeHint": "Check your spam folder too. If no email arrives within a few minutes, you can start over and check the address.",
+      "codeHint": "Check your spam folder too.",
       "wrongCode": "The code is not correct. Use the code from the email to the new address and check the digits.",
       "lastAttempt": "One attempt left. After that you need to start over.",
       "confirm": "Change address",

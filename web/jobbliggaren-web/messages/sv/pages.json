@@ -573,11 +573,11 @@
           "title": "Logga in eller skapa konto"
         },
         "title": "Logga in eller skapa konto",
-        "lede": "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord.",
+        "lede": "Du loggar in med en kod som vi skickar till din e-postadress.",
         "emailLabel": "E-postadress",
-        "emailHint": "Formatet är namn@domän.se",
         "privacyHint": "Så behandlar vi din e-postadress: <privacy>integritetspolicyn</privacy>.",
         "emailRequired": "Skriv in din e-postadress.",
+        "emailInvalid": "Skriv e-postadressen i rätt format, till exempel namn@exempel.se.",
         "submit": "Fortsätt",
         "submitting": "Skickar…",
         "providersHeading": "Andra sätt att logga in",
@@ -593,9 +593,9 @@
           "title": "Ange koden"
         },
         "title": "Ange koden",
-        "resting": "Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller i 15 minuter.",
+        "resting": "Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en kod skriver du in den här. Koden gäller i 15 minuter.",
         "codeLabel": "Sexsiffrig kod",
-        "codeHint": "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress.",
+        "codeHint": "Titta även i skräpposten.",
         "submit": "Bekräfta koden",
         "submitting": "Bekräftar koden…",
         "wrongCode": "Koden stämmer inte. Kontrollera siffrorna och försök igen.",
@@ -607,7 +607,7 @@
         "resend": {
           "button": "Skicka ny kod",
           "sending": "Skickar…",
-          "consequence": "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet.",
+          "consequence": "En ny kod ersätter den förra.",
           "receipt": "Vi har tagit emot din begäran. Kontrollera inkorgen och skräpposten. Skriv in koden från det senaste mejlet.",
           "cooldownHint": "Du kan skicka en ny kod om {seconds, plural, one {# sekund} other {# sekunder}}."
         },
@@ -632,19 +632,19 @@
           "title": "Logga in på Jobbliggaren"
         },
         "title": "Logga in på Jobbliggaren",
-        "body": "Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.",
+        "body": "Länken gäller en gång och i 15 minuter.",
         "submit": "Logga in",
         "submitting": "Loggar in…",
         "unusable": "Länken går inte att använda. Begär en ny kod på inloggningssidan.",
         "toLogin": "Till inloggningssidan",
         "alreadyLoggedIn": {
           "title": "Du är redan inloggad",
-          "body": "En inloggning är redan aktiv i den här webbläsaren. Fortsätter du ersätts den av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
+          "body": "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
           "continue": "Fortsätt och logga in",
           "stay": "Stanna kvar som inloggad"
         }
       },
-      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Du kan logga ut när du vill, Logga ut finns på varje inloggad sida.",
+      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida.",
       "outcome": {
         "registrationClosed": {
           "title": "Registreringen är inte öppen ännu.",
@@ -662,11 +662,11 @@
       "notice": {
         "grantUnusable": {
           "title": "Registreringen slutfördes inte",
-          "body": "Det gick inte att slutföra registreringen. Skriv in din e-postadress nedan och börja om."
+          "body": "Skriv in din e-postadress nedan och börja om."
         },
         "codeExpired": {
           "title": "Inloggningen gick ut",
-          "body": "En inloggning gäller i 15 minuter, och den tiden har gått. Skriv in din e-postadress nedan och börja om."
+          "body": "En inloggning gäller i 15 minuter. Skriv in din e-postadress nedan och börja om."
         },
         "accountDeleted": {
           "title": "Ditt konto är raderat",

@@ -39,9 +39,9 @@ export function CodeField({
   onValueChange,
 }: {
   id: string;
-  hintId: string;
+  hintId?: string;
   label: string;
-  hint: ReactNode;
+  hint?: ReactNode;
   /** A line read before the hint, e.g. the step's "we have sent a code to …". */
   leadingDescriptionId?: string;
   /** The field carries a message the user can correct; `errorId` names it. */
@@ -87,9 +87,11 @@ export function CodeField({
           required
           aria-required="true"
           aria-invalid={invalid ? true : undefined}
-          aria-describedby={[leadingDescriptionId, hintId, invalid ? errorId : null]
-            .filter(Boolean)
-            .join(" ")}
+          aria-describedby={
+            [leadingDescriptionId, hint ? hintId : null, invalid ? errorId : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           value={controlled ? value : typed}
           onChange={(next: string) => {
             if (!controlled) setTyped(next);
@@ -103,9 +105,11 @@ export function CodeField({
           </InputOTPGroup>
         </InputOTP>
       </div>
-      <p id={hintId} className="text-body-sm text-text-primary">
-        {hint}
-      </p>
+      {hint ? (
+        <p id={hintId} className="text-body-sm text-text-primary">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

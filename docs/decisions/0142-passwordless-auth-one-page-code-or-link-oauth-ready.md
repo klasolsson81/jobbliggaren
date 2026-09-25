@@ -870,10 +870,7 @@ not indexed, so a link-only record never burns the live code challenge. **Named 
 to 8 records can be live for one address inside 15 minutes, at most one of them code-bearing — more
 single-use links exposed to scanners and forwarding, still under the reset path's rate.
 
-**The first inbox proof (security Q21/Q-S3).** For an account with `EmailConfirmed=false`, the first
-proof sets the flag, removes the password and rotates the stamp in one Identity write; a write that did
-not persist throws and nothing follows it; earlier sessions are revoked before the new one is created;
-and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
+**The first inbox proof (security Q21/Q-S3).** For an account with `EmailConfirmed=false`, the first proof sets the flag and rotates the stamp in one Identity write (until 5b the same write also removed the password); a write that did not persist throws and nothing follows it; earlier sessions are revoked before the new one is created; and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
 that write, and only the two proof handlers can reach the grant — pinned by reflection. **Residual (Minor):** a squatter's password on an account its
 owner already confirmed survives a code login until 5b. Nobody can be in that position while
 registration stays closed. **If the #734 flip happens before 5b, this becomes a Major at the flip.**
@@ -1262,6 +1259,63 @@ seam exists only in Development. 4: no IdP. 5: code length, attempts and the min
 as "5b lands"; 5a removes the fallback reversibly, the hashes stay, and 5b's PR re-measures. 7: the request path
 and its budget branch are untouched.
 
+#### Amendment 2026-09-25 (13) (#1857, part 5b) — the hashes nulled in one statement, and the corrections above
+
+*Decided in 5b's form round: `db-migration-writer`, `security-auditor`, `dotnet-architect` and `test-writer`, then
+`senior-cto-advisor` (`docs/reviews/2026-09-25-1857-form-{db-migration-writer,security-auditor,dotnet-architect,test-writer,cto}.md`;
+`security-auditor`'s report carries her signature on the backup decision and is promoted with this amendment).*
+
+**The migration.** `20260925172152_NullPasswordHashes`, in the Identity context, runs one statement inside EF's
+migration transaction:
+
+```sql
+UPDATE identity."AspNetUsers"
+SET password_hash = NULL,
+    security_stamp = gen_random_uuid()::text,
+    concurrency_stamp = gen_random_uuid()::text
+WHERE password_hash IS NOT NULL;
+```
+
+It touches only the rows that hold a hash, so a second run changes nothing. `concurrency_stamp` rotates with the hash
+because `UserStore.UpdateAsync` writes the whole row under a check on that column: a `UserManager` instance that loaded
+a row before the run and saves after it would otherwise write the old hash back, and with the rotation that save is
+refused as a concurrency failure. The statement is a bare `UPDATE`, not a `DO` block, because its row count is what
+the journey test reads to prove it is one statement. `Down` throws `NotSupportedException`, so no rollback script can
+be generated.
+
+**The backup decision for 5b's throwing `Down`** (`vps-deploy-stack.md` §3c precondition 5), **signed by security-auditor in 5b's form round, 2026-09-25** (`docs/reviews/2026-09-25-1857-form-security-auditor.md`): **no copy of any kind** — no dump, no Netcup snapshot, no copied table. No route has accepted a password since 5a PR B, so a restored hash is a credential nothing reads, and Klas's answer 3 is to delete it. A copy would keep, past its purpose, exactly what this part destroys (Art. 5(1)(c), (e)). The offsite backup has never run (#197). And the migration's only irreversible effect is the intended one: one `UPDATE` inside EF's migration transaction, built from the constant its test runs, alone in its §3c run, so a failed apply leaves nothing to restore. **The decision lapses if any account on the box is not the controller's when §3c runs**; 5b then waits for a new signature. Home of that check: §3c precondition 5. Reader: the operator running §3c.
+
+**The copy precedes the data by one interval, and misinforms no one.** The struck line reaches the box with the images, and §3c applies 5b later, on its own GO; precondition 2 forbids the reverse order. In between, the policy does not name the hashes the box still stores. Every account anyone else can create is born without one, and `NoPasswordSymbolTests` pins that nothing writes one, so the new text is true of every account except the controller's own (security-auditor, 5b's form round).
+
+**The recorder.** `IdentityInboxProofRecorder` confirms an unconfirmed address and rotates its stamp with
+`UpdateSecurityStampAsync`, one save. `RemovePasswordAsync` is gone, and so is the private legacy-password seed in
+`LoginChallengeProofTests`. The `FirstProofRecorded` branch stays, because rows the retired register left unconfirmed
+survive 5b.
+
+**`NoPasswordSymbolTests` scans Infrastructure.** In every assembly a type is judged by its outermost declaring type,
+and a migration, a model snapshot and a design-time context factory are outside the scope; a reference to a member of
+a type the module defines is judged as that type is. In Infrastructure every other member reference counts except one
+declared on `StackExchange.Redis.ConfigurationOptions`. Identity members are
+resolved so that their parameter names are read. This revises F3's per-assembly granularity.
+
+**Applying it.** The merge moves no data. Only `migrate bootstrap` applies an Identity migration, and only
+`vps-deploy-stack.md` §3c runs it, on Klas's GO for exactly this migration.
+
+**DoD 8.** No new personal data, processing, recipient or transfer, and no DPIA: nothing in Art. 35(3) changes. One stored item ends: every account's password verifier. The migration sets `password_hash` to NULL and rotates `security_stamp` and `concurrency_stamp` on the rows that held one; the column stays in the schema and nothing writes it (`NoPasswordSymbolTests`, Infrastructure now included). The old values stay in dead row versions until autovacuum reclaims them, and WAL is not claimed erased. No copy was made for the run, by the decision above; the offsite backup has never run (#197), so no backup of record holds a hash; whether a Netcup snapshot from before the run exists is not measured. The migration writes no `audit_log` row: §3c's run record, here and in the session log, is the trail of an operator's bulk change, and it outlives `audit_log`'s 90 days. The privacy line "lösenord (hash)" is struck in this PR, with `privacy.updated` and `CurrentPrivacyPolicyVersion` moved together to the merge day; the register's `password_hash` field follows the data, after the run.
+
+**Lapse trigger 6 fires in this part and is re-measured** (security-auditor, 5b's form round 2026-09-25; re-read against the final diff). The trigger reads "5b lands (no password fallback remains)". It names an event that happens once, so it is spent here and not re-armed; the acceptance lapses from now on triggers 1–5 and 7.
+- **The arithmetic is unchanged.** 5b touches neither code length, attempts per challenge, challenge TTL nor the mint budget, so 30 guesses per address per day, ≈ 0.003 % per day and 1.089 % per year under sustained attack stand as written above.
+- **"Mail is the only way in" did not start here.** It has held for every account since 5a PR B (`41a49394`) removed every route that accepts a password, measured live on 2026-09-25T16:51:37Z, and it holds until an IdP goes live (trigger 4). What 5b changes is reversibility: once §3c's read-back shows no row holding a hash, reverting 5a restores no way in, because no account has a password to present.
+- **Evicting a session won by a guessed code** (security-auditor's #1743 form-round m-2). The owner can end every session through a confirmed address change, which invalidates all and re-issues one, or through account deletion; logout ends the current session only. A password holder could also do it by changing or resetting the password until 5a; that path went with 5a and 5b does not bring it back. Otherwise the owner contacts the controller, as the terms say. No self-service "log out everywhere" is proposed, and none is a #734 gate: Klas declined the session list on 2026-09-20. m-2 stays a Minor.
+- **Bearer reading, re-taken for this part:** 2026-09-25T16:51:37Z: 2 accounts, all the controller's, by count; `Auth__RegistrationsOpen=false` in the running api container. Every consequence above is the controller's alone.
+
+**The acceptance continues for the product as it is today.** The other triggers, read for this part: 1: the compose default `${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged. 2, 3: no account is added; the migration updates existing rows only. 4: no IdP in this diff; if 6a (#1744) merges first, security-auditor re-reads triggers 4 and 6 against the merged base before this part's verdict. 5: code length, attempts and the mint budget are unchanged. 7: the request path and its budget branch are untouched; the recorder change sits after proof. No other acceptance in this ADR lapses: 5b opens nothing and adds no account.
+
+**Corrections above.** Amendment 2026-09-19's residual — *a squatter's password on an account its owner already confirmed survives a code login until 5b* — lost its harm when 5a PR B removed every route that accepts a password (measured live 2026-09-25T16:51:37Z). It is discharged, together with its *Major at the flip* clause, at 5b's §3c read-back on the box, and not by this merge: until the run, the box still holds the hashes.
+
+§3c precondition 2 read "carry the same revision label X". The images carry no `org.opencontainers.image.revision`
+label (measured on the box at gate 0(a), 2026-09-25), so it now reads the digest the registry's `:sha-<X>` points to.
+
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)
@@ -1369,7 +1423,7 @@ new measurement recorded in an amendment here:
    2026-09-19 (2) it also fires if a restart of `redis-volatile` becomes reachable by anything other
    than the operator. Since Amendment 2026-09-20 the global cap on mails to addresses without an account
    is one of its quantities: it is what bounds code-bearing records for new addresses.
-6. 5b lands (no password fallback remains).
+6. 5b lands (no password fallback remains). *(Fired and re-measured in Amendment (13); spent.)*
 7. D2's "the consumer always sends a mail" premise falls or the budget branch changes behaviour —
    the code-step resting copy (below) was written on that premise (design B2). It fell three times
    (#1756, #1779, #1783), and part 2 re-bound the copy so that it rests on no such premise
@@ -1798,7 +1852,7 @@ columns; the CV stops requiring a name the product never needed.
 (above). Three OAuth adapters are written and tested by hand (≈ 3 × 150 lines + contract tests)
 instead of configured. Two mails and two code entries for an email change. Eighteen PRs instead of
 fifteen. A new PII key class in Redis for ≤ 15 min, with the keyring as its confidentiality bound.
-The attempt budget is a measured acceptance with seven lapse triggers, not a permanent property.
+The attempt budget is a measured acceptance with seven lapse triggers, one of them spent (6, Amendment (13)), not a permanent property.
 
 ## Alternatives considered
 
@@ -1842,14 +1896,15 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
 (`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
 **Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
 1b, 1c-expand (`DisplayNameNullable`), 4b (`UnmapJobSeekerDisplayName`, then `DropJobSeekerDisplayName`). 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
-ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
+ix_asp_net_users_provider_provider_user_id`; applied on the box through `vps-deploy-stack.md` §3c on 2026-09-25,
+16:53:54–59Z, on Klas's GO, read back 1/0/0), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 
 The reports: `docs/reviews/2026-09-17-auth-epic-{cto,architect,security,design}.md`, promoted with

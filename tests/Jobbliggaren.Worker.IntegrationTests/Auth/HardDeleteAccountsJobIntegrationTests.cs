@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
+using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Security;
 using Jobbliggaren.Application.CompanyRegister.Abstractions;
 using Jobbliggaren.Domain.Auditing;
@@ -14,6 +16,7 @@ using Jobbliggaren.Domain.Resumes;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Domain.SavedJobAds;
 using Jobbliggaren.Domain.SavedSearches;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Worker.IntegrationTests.Common;
@@ -74,6 +77,37 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         auditEntry.UserId.ShouldBeNull("user_id ska anonymiseras");
         auditEntry.IpAddress.ShouldBeNull();
         auditEntry.UserAgent.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_RemovesTheAccountsExternalLogins()
+    {
+        // #1744 (security-auditor m-10, 6a form round): AspNetUserLogins holds the provider's identifier for the
+        // person, an Art. 4(1) identifier, and the FK cascade (ON DELETE CASCADE, InitialIdentity) is its only
+        // eraser. This pins the effect. In production the state is a link written by ExternalLoginLinker while the
+        // account was active, followed by DeleteAccount's soft delete; here the same writer links the soft-deleted
+        // seed, which leaves the same row.
+        var ct = TestContext.Current.CancellationToken;
+        var now = DateTimeOffset.UtcNow;
+        var (userId, _) = await SeedSoftDeletedAccountAsync(now.AddDays(-(RestoreWindowDays + 1)), ct);
+        var subject = ExternalSubject.TryCreate(Guid.NewGuid().ToString("N"))!.Value;
+
+        using (var seedScope = _fixture.Services.CreateScope())
+        {
+            var store = new IdentityExternalLoginStore(
+                seedScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                seedScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+            (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
+
+            // Precondition, or the absence below passes vacuously.
+            (await store.FindUserIdAsync(ExternalProviderKey.Google, subject, ct)).ShouldBe(userId);
+        }
+
+        await RunJobAsync(now, ct);
+
+        using var verifyScope = _fixture.Services.CreateScope();
+        var identity = verifyScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+        (await identity.UserLogins.AsNoTracking().CountAsync(l => l.UserId == userId, ct)).ShouldBe(0);
     }
 
     [Fact]

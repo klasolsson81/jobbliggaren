@@ -40,8 +40,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// </para>
 /// <para>
 /// <b>VALID for</b> the three notification call sites (<c>BackgroundMatchingJob</c>,
-/// <c>DigestDispatchJob</c> ×2) and for <c>RegisterCommandHandler</c>'s account-exists notice, which
-/// is informational and strands nobody by its absence.
+/// <c>DigestDispatchJob</c> ×2).
 /// </para>
 /// <para>
 /// <b>NOT a valid substitute for</b> — enumerated because each one is a real hazard, not a style
@@ -50,30 +49,6 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <item><c>ChangeEmailCommandHandler</c> — the address is swapped only when the emailed link is
 /// opened, so a dropped send is an unfinishable request. It now consults
 /// <see cref="CanDeliver"/> and refuses (503).</item>
-/// <item><c>RegisterCommandHandler</c>'s confirmation send, when
-/// <c>Auth:RequireEmailConfirmation</c> is on — the account is created, login is blocked by the
-/// <c>EmailConfirmed</c> gate, and the activation link exists nowhere, i.e. a permanently
-/// unreachable account. <b>CLOSED at composition time (senior-cto-advisor D1, 2026-08-09):</b>
-/// <c>AuthOptionsValidator</c> now refuses to boot outside Development/Test when the registered sender
-/// answers <see cref="CanDeliver"/> false — which is this class — and since #1735 whatever the flags say.
-/// The handler is unchanged and needs no <see cref="CanDeliver"/> branch of its own: the
-/// configuration that would strand a registrant no longer starts, so <b>for this producer</b> the
-/// state is unreachable rather than handled. What the guard does NOT cover, stated so the scope is
-/// not read wider than it is: (1) the allowlist
-/// exempts Development and <b>Test</b>, and a reachable <c>ASPNETCORE_ENVIRONMENT=Test</c> host
-/// strands registrants exactly as before — <c>release-checklist.md</c> §2.6 point 5.5 counts such a
-/// host as a production start and gates it legally, which the technical guard does not; (2) the
-/// guard reads a CAPABILITY, not a delivery probe, so a sender answering
-/// <see cref="CanDeliver"/> <see langword="true"/> that is nonetheless rejected downstream produces
-/// the same stranded account — <c>ScalewayEmailSender</c> answers <see langword="true"/>
-/// unconditionally, and the domain publishes DMARC <c>p=reject</c> without <c>rua=</c> (measured
-/// 2026-08-08, ADR 0124, cited in <c>AddEmailSender</c>'s Scaleway arm), so a From address outside
-/// the verified identity fails silently. Case 2 is owned by <c>release-checklist.md</c> §2.5 and
-/// <c>registration-gate.md</c>, never by this gate.</item>
-/// <item><c>ResendEmailConfirmationCommandHandler</c> — same stranding, and it must keep returning
-/// a uniform 202 for anti-enumeration reasons, so it cannot signal the failure to the caller at
-/// all. It no longer writes a <c>User.EmailConfirmationResent</c> audit row for a link that reached
-/// nobody.</item>
 /// <item><c>ConfirmEmailChangeCommandHandler</c>'s old-address notice — an OWASP ASVS V2.5 /
 /// NIST SP 800-63B breach-detection control. Deliberately NOT refused (that would fail a completed,
 /// legitimate change), so with this sender the control is silently off. <b>security-auditor ruled
@@ -82,17 +57,6 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// while this sender is registered no token can exist and the event the control detects cannot
 /// occur. Control and guarded flow go dark together, and both return when the provider is set —
 /// no checklist item, nothing to remember.</item>
-/// <item><c>RequestPasswordResetCommandHandler</c> (#1171) — the password changes only when the
-/// emailed link is opened, so a dropped send leaves someone who has already lost access with no way
-/// back in. It consults <see cref="CanDeliver"/> and refuses (503), like change-email. <b>The check
-/// is the handler's FIRST statement, and that position is the anti-enumeration property, not
-/// tidiness:</b> the surface is unauthenticated and answers a uniform 202, so a capability check
-/// placed after the account lookup would be reachable only when an account exists and the 503 would
-/// itself disclose existence.</item>
-/// <item><c>ResetPasswordCommand</c>'s password-changed notice (#1171) — the same OWASP ASVS V2.5 /
-/// NIST SP 800-63B breach-detection control as the old-address notice above, and closed by the same
-/// argument rather than by a new gate: no reset token can be minted while this sender is registered,
-/// so the event the control reports cannot occur. Control and guarded flow go dark together.</item>
 /// </list>
 /// </para>
 /// <para>
@@ -136,40 +100,6 @@ public sealed partial class NullEmailSender(ILogger<NullEmailSender> logger) : I
         CancellationToken cancellationToken)
     {
         LogSuppressedConsequential("email-changed-notification");
-        return Task.CompletedTask;
-    }
-
-    public Task SendEmailConfirmationAsync(
-        string toEmail,
-        EmailConfirmationEmail content,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressedConsequential("email-confirmation");
-        return Task.CompletedTask;
-    }
-
-    public Task SendAccountExistsNoticeAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressedConsequential("account-exists-notice");
-        return Task.CompletedTask;
-    }
-
-    public Task SendPasswordResetAsync(
-        string toEmail,
-        PasswordResetEmail content,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressedConsequential("password-reset");
-        return Task.CompletedTask;
-    }
-
-    public Task SendPasswordChangedNoticeAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        LogSuppressedConsequential("password-changed-notice");
         return Task.CompletedTask;
     }
 

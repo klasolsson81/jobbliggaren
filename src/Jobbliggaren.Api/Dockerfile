@@ -52,8 +52,8 @@ COPY --from=build /app/publish .
 # `touch: Permission denied` without this line; `drwxr-xr-x 2 app app` and a successful write with
 # it. The failure without it is invisible where anyone would look: the FileSystemXmlRepository
 # constructor only calls Directory.Create(), which is a no-op on an existing directory, so boot and
-# /api/ready are both green and the UnauthorizedAccessException lands on the FIRST key generation,
-# i.e. the first registration or password reset. `deploy/docker-compose.yml` mounts the volume here
+# /api/ready are both green and the UnauthorizedAccessException lands on the FIRST key generation.
+# `deploy/docker-compose.yml` mounts the volume here
 # and DeployComposeDataProtectionTests pins that this path and that mount stay the same string.
 RUN mkdir -p /keys && chown app:app /keys
 

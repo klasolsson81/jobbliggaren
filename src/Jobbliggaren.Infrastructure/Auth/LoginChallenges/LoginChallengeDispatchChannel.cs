@@ -6,7 +6,7 @@ namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 
 /// <summary>
 /// The bounded in-process queue behind <see cref="ILoginChallengeDispatcher"/> (#1735, ADR 0142 D2): its own
-/// instance with its own capacity and its own drop event, so a forgot-password flood cannot drop logins.
+/// instance with its own capacity and its own drop event.
 /// The code and the link are minted by the consumer, so no credential ever sits in the queue.
 /// </summary>
 internal sealed partial class LoginChallengeDispatchChannel

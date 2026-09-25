@@ -36,7 +36,7 @@ public sealed partial class LoginChallengeIssuer(
         // the cap would stop bounding them (security-auditor, 2026-09-20).
         var capAdmits = await CapAdmitsAsync(subject, ct);
 
-        // The account's OWN address, never the submitted spelling (the TryPreparePasswordResetAsync rule):
+        // The account's OWN address, never the submitted spelling:
         // Identity's lookup folds case, and with it a few non-ASCII letters, so the typed spelling can be
         // another inbox than the account's.
         var recipient = subject is LoginSubject.KnownAccount known ? known.AccountEmail : dispatch.Email;

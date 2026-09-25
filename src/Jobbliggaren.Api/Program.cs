@@ -226,26 +226,13 @@ builder.Services.AddSingleton<StoreUnavailableLog>();
 await using var app = builder.Build();
 await app.Services.RequireApiRedisReadyAsync();
 
-// ADR 0083 Amendment 2026-08-03 — announce the auth-flow posture once per process. Read through
-// IOptions so the values are the ones the handler will actually see (PostConfigure wins over config
-// binding, and both resolve the same singleton, so announcement and behaviour cannot diverge).
-//
-// BOTH flags, deliberately. An OPEN gate with email confirmation OFF is legacy instant-login — an
-// account minted with no proof the registrant owns the address — which is the posture #734 exists to
-// prevent, and announcing only the gate would reproduce this class of defect one flag over.
-var authFlags = app.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
-var emailConfirmationState = authFlags.RequireEmailConfirmation ? "REQUIRED" : "NOT REQUIRED";
-if (authFlags.RegistrationsOpen && !app.Environment.IsDevelopment())
-{
-    // Warning, not Information: an open gate outside Development is a security-posture statement and
-    // should be alertable rather than one Information line among a boot's dozens.
-    RegistrationGateLog.AnnounceOpenOutsideDevelopment(app.Logger, "OPEN", emailConfirmationState);
-}
-else
-{
-    RegistrationGateLog.Announce(
-        app.Logger, authFlags.RegistrationsOpen ? "OPEN" : "CLOSED", emailConfirmationState);
-}
+// ADR 0083 Amendment 2026-08-03 — announce the registration gate once per process. Read through IOptions so
+// the value is the one the handlers will actually see (PostConfigure wins over config binding, and both resolve
+// the same singleton, so announcement and behaviour cannot diverge).
+RegistrationGateLog.AnnounceGate(
+    app.Logger,
+    app.Services.GetRequiredService<IOptions<AuthOptions>>().Value.RegistrationsOpen,
+    app.Environment.IsDevelopment());
 
 app.Use(async (ctx, next) =>
 {
@@ -478,9 +465,9 @@ app.MapLandingEndpoints();
 // DEV-ONLY — remove before launch (Klas), with everything they gate
 // (docs/runbooks/release-checklist.md). TWO gates, deliberately not one.
 //
-// The token-free confirm-email seam is ENVIRONMENT-gated and nothing widens it: it force-
-// confirms an address without authentication, so it must be unreachable in every deployed
-// environment regardless of configuration.
+// The seed and login-code seams are ENVIRONMENT-gated and nothing widens them: unauthenticated, they
+// open an account and hand out a login code for a reserved address, so they must be unreachable in every
+// deployed environment regardless of configuration.
 if (app.Environment.IsDevelopment())
     app.MapDevEnvironmentOnlyEndpoints();
 

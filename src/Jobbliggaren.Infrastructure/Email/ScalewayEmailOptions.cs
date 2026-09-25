@@ -11,8 +11,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// options object is constructed by every sender and by every Console/Null test; hanging a
 /// provider's credentials on it would make a Scaleway concern reachable from arms that have none
 /// (ISP), and #220 already removed a dead <c>EmailOptions.AwsRegion</c> for exactly that shape.
-/// A provider-scoped section is the house idiom (<c>BreachCheckOptions</c>,
-/// <c>DigestDispatchOptions</c>). The reasoning is unchanged by the provider swap — it was never
+/// A provider-scoped section is the house idiom (<c>DigestDispatchOptions</c>). The reasoning is unchanged by the provider swap — it was never
 /// about which provider, only about which arms may see a credential.
 /// </para>
 /// <para>

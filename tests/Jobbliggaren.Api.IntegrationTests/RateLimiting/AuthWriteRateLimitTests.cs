@@ -1,11 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Application.Auth.LoginChallenges;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.RateLimiting;
 
 /// <summary>
-/// Verifierar att auth-write-policyn (login + register) faktiskt returnerar
+/// Verifierar att auth-write-policyn (här kodverifieringen) faktiskt returnerar
 /// 429 när PermitLimit överskrids (TD-21 Sec-Major-2). Använder
 /// <see cref="StrictRateLimitApiFactory"/> som inte höjer rate-limits via
 /// env-overlay — defaults gäller (20/min per IP).
@@ -23,11 +24,11 @@ public class AuthWriteRateLimitTests(StrictRateLimitApiFactory factory)
     // window återställs inte mellan tester). Hopslagna här eftersom båda asserts
     // gäller samma 429-trigger-pipeline.
     [Fact]
-    public async Task POST_login_with_repeated_failed_attempts_returns_429_with_RetryAfter()
+    public async Task POST_challenge_verify_with_repeated_attempts_returns_429_with_RetryAfter()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
-        var email = $"rl-{Guid.NewGuid()}@example.com";
+        var challengeId = ChallengeId.Generate().Reveal();
 
         var statusCodes = new List<HttpStatusCode>();
         HttpResponseMessage? rejected = null;
@@ -35,8 +36,8 @@ public class AuthWriteRateLimitTests(StrictRateLimitApiFactory factory)
         for (var i = 0; i < 30; i++)
         {
             var response = await client.PostAsJsonAsync(
-                "/api/v1/auth/login",
-                new { email, password = "wrong-password" },
+                "/api/v1/auth/challenge/verify",
+                new { challengeId, code = "000000" },
                 ct);
             statusCodes.Add(response.StatusCode);
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
@@ -46,10 +47,10 @@ public class AuthWriteRateLimitTests(StrictRateLimitApiFactory factory)
             }
         }
 
-        statusCodes[0].ShouldBe(HttpStatusCode.Unauthorized,
-            "första anropet ska vara 401 (fel password) innan rate-limit kickar in");
+        statusCodes[0].ShouldBe(HttpStatusCode.Gone,
+            "första anropet ska vara 410 (okänd utmaning) innan rate-limit kickar in");
         statusCodes.ShouldContain(HttpStatusCode.TooManyRequests,
-            "auth-write-policy ska blockera credential-stuffing efter PermitLimit");
+            "auth-write-policy ska blockera kodgissning efter PermitLimit");
         rejected.ShouldNotBeNull("429 ska triggas inom 30 anrop");
         rejected.Headers.RetryAfter.ShouldNotBeNull(
             "RFC 6585: 429-respons ska inkludera Retry-After-header");

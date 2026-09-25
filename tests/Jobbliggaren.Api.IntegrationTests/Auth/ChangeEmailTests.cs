@@ -94,7 +94,7 @@ public class ChangeEmailTests(ApiFactory factory)
         // Byte-identical to the shared InvalidCredentials 401 (AuthProblem): an unusable grant reveals nothing.
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
         json.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
-        json.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
+        json.GetProperty("detail").GetString().ShouldBe("Det gick inte att bekräfta att det är du.");
 
         _factory.Emails.LoginChallenges.ShouldNotContain(m => m.ToEmail == newEmail);
         (await RowAsync(email)).Email.ShouldBe(email);

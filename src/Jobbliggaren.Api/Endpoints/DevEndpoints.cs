@@ -1,5 +1,3 @@
-using Jobbliggaren.Application.Dev.Abstractions;
-using Jobbliggaren.Application.Dev.Commands.ConfirmEmail;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
 using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
@@ -15,8 +13,8 @@ namespace Jobbliggaren.Api.Endpoints;
 /// <para><b>The routes are mapped by two different methods, and that is the point.</b> The methods
 /// have different change-reasons — one is gated on the ENVIRONMENT and can never be reachable
 /// outside Development, the other on CONFIGURATION so it can be turned on for a deployed test box.
-/// Kept in one call behind one condition, the unauthenticated <c>confirm-email</c> seam would sit
-/// one <c>||</c> away from being re-armed in Production by an edit aimed at <c>reset-my-data</c>.</para>
+/// Kept in one call behind one condition, the unauthenticated <c>accounts</c> and <c>login-code</c> seams
+/// would sit one <c>||</c> away from being re-armed in Production by an edit aimed at <c>reset-my-data</c>.</para>
 /// </summary>
 public static class DevEndpoints
 {
@@ -33,32 +31,10 @@ public static class DevEndpoints
     {
         var group = app.MapGroup(GroupPrefix).WithTags("Dev");
 
-        // DEV-ONLY — token-free confirmed-login seam for the Playwright E2E suite (#796).
-        // Force-confirms a test account's email so the loginAs specs can obtain a login-
-        // capable user against a flag-ON backend (Auth:RequireEmailConfirmation=true)
-        // without a real out-of-band email round-trip. UNAUTHENTICATED by design: the
-        // caller has just registered and is login-gated (no session yet). Reachable ONLY
-        // in Development — this method is mapped under Program.cs's IsDevelopment() gate
-        // AND the IDevEmailConfirmer impl is DI-registered ONLY in Development (two
-        // independent structural gates). REMOVE BEFORE LAUNCH.
-        group.MapPost("/confirm-email", async (
-            ConfirmEmailDevRequest body,
-            IMediator mediator,
-            CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(body?.Email))
-                return Results.BadRequest();
-
-            var outcome = await mediator.Send(new ConfirmEmailDevCommand(body.Email), ct);
-            return outcome == DevEmailConfirmOutcome.Confirmed
-                ? Results.NoContent()
-                : Results.NotFound();
-        });
-
         // DEV-ONLY — the login code the last challenge mail to a RESERVED address carried (#1735, ADR 0142
         // D10), taken once, so a flow can sign in without a mailbox. The code alone signs nothing in: it is
-        // verified against the challenge id its requester holds. The same two gates as confirm-email: this
-        // map, and IDevLoginCodeReader registered only in Development. REMOVE BEFORE LAUNCH.
+        // verified against the challenge id its requester holds. Two gates: this map, and IDevLoginCodeReader
+        // registered only in Development. REMOVE BEFORE LAUNCH.
         group.MapPost("/login-code", async (
             DevLoginCodeRequest body,
             IMediator mediator,
@@ -118,9 +94,6 @@ public static class DevEndpoints
                     statusCode: 400);
         }).RequireAuthorization();
     }
-
-    /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/confirm-email</c> (#796).</summary>
-    public sealed record ConfirmEmailDevRequest(string? Email);
 
     /// <summary>DEV-ONLY request body for <c>POST /api/v1/dev/login-code</c> (#1735).</summary>
     public sealed record DevLoginCodeRequest(string? Email);

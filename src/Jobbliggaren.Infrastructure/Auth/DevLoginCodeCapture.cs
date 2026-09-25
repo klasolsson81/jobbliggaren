@@ -96,17 +96,4 @@ internal sealed class DevLoginCodeCapturingEmailSender(IEmailSender inner, DevLo
     public Task SendEmailChangedNotificationAsync(string toEmail, CancellationToken cancellationToken) =>
         inner.SendEmailChangedNotificationAsync(toEmail, cancellationToken);
 
-    public Task SendEmailConfirmationAsync(
-        string toEmail, EmailConfirmationEmail content, CancellationToken cancellationToken) =>
-        inner.SendEmailConfirmationAsync(toEmail, content, cancellationToken);
-
-    public Task SendAccountExistsNoticeAsync(string toEmail, CancellationToken cancellationToken) =>
-        inner.SendAccountExistsNoticeAsync(toEmail, cancellationToken);
-
-    public Task SendPasswordResetAsync(
-        string toEmail, PasswordResetEmail content, CancellationToken cancellationToken) =>
-        inner.SendPasswordResetAsync(toEmail, content, cancellationToken);
-
-    public Task SendPasswordChangedNoticeAsync(string toEmail, CancellationToken cancellationToken) =>
-        inner.SendPasswordChangedNoticeAsync(toEmail, cancellationToken);
 }

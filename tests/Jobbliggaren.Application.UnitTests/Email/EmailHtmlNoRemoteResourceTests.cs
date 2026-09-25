@@ -56,12 +56,6 @@ public class EmailHtmlNoRemoteResourceTests
 {
     private const string BaseUrl = "https://jobbliggaren.se";
 
-    // Same Base64Url shape ASP.NET Identity emits, and the same fixture ScalewayEmailSenderTests uses.
-    // Not a real token: no account exists that it could activate. gitleaks:allow
-    private const string UrlSafeToken = "CfDJ8Nr-9xQvT0pLm2Zq_aB3cD4eF5gH6iJ7kL8mN9oP0qR"; // gitleaks:allow
-
-    private static readonly Guid UserId = new("6e6b1f3a-3c2d-4a8f-9b1e-7d0c5a2e4f11");
-
     /// <summary>The encoder production uses, so the oracle normalises identically.</summary>
     private static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
 
@@ -130,18 +124,7 @@ public class EmailHtmlNoRemoteResourceTests
                     new FollowedCompanyFilterSummary(
                         OnlyMatchedActive: true, LocationFilterActive: true)))),
 
-        ("EmailConfirmation",
-            EmailTemplates.EmailConfirmation(
-                BaseUrl, new EmailConfirmationEmail(UserId, UrlSafeToken))),
-
         ("EmailChangedNotification", EmailTemplates.EmailChangedNotification()),
-
-        ("AccountExistsNotice", EmailTemplates.AccountExistsNotice(BaseUrl)),
-
-        ("PasswordReset",
-            EmailTemplates.PasswordReset(BaseUrl, new PasswordResetEmail(UserId, UrlSafeToken))),
-
-        ("PasswordChangedNotice", EmailTemplates.PasswordChangedNotice(BaseUrl)),
 
         // #1735: the dispatcher and each variant it selects, shaped as LoginChallengeIssuer sends them.
         ("LoginChallenge/code-and-link", EmailTemplates.LoginChallenge(BaseUrl, SampleCodeAndLink)),
@@ -331,16 +314,16 @@ public class EmailHtmlNoRemoteResourceTests
         }
     }
 
-    [Theory]
-    [InlineData("EmailChangedNotification")]
-    [InlineData("AccountExistsNotice")]
-    [InlineData("PasswordChangedNotice")]
-    public void EmailHtml_ForTheTokenFreeNotices_CarriesNoToken(string name)
+    [Fact]
+    public void EmailHtml_ForTheEmailChangedNotice_CarriesNoLoginLink()
     {
-        // The HTML counterpart of the text part's own no-token assertions. These three are security
-        // notices sent to an address that may not have requested anything, so a link that grants
-        // access must not appear in either part.
-        Case(name).HtmlBody.ShouldNotContain(UrlSafeToken);
+        // The HTML counterpart of the text part's own no-token assertion. A security notice goes to an
+        // address that may not have requested anything, so a link that grants access must not appear in
+        // either part.
+        var html = Case("EmailChangedNotification").HtmlBody;
+
+        html.ShouldNotContain(EmailTemplates.LoginLinkRoute);
+        html.ShouldNotContain("token=");
     }
 
     // ---------- the injection case: third-party ad text cannot smuggle markup in ----------
@@ -387,7 +370,7 @@ public class EmailHtmlNoRemoteResourceTests
         //
         // The invariant: each engine gets exactly ONE padding. The anchor carries real padding for
         // every client; the cell carries mso-padding-alt, which only Word reads.
-        var html = Case("EmailConfirmation").HtmlBody;
+        var html = Case("LoginCodeAndLink").HtmlBody;
 
         html.ShouldContain(
             "padding:12px 22px;mso-padding-alt:0",

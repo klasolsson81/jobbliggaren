@@ -58,10 +58,6 @@ public sealed class LoginChallengeDispatchServiceShutdownTests
         public Task SendMatchNotificationEmailAsync(string t, MatchNotificationEmail c, CancellationToken ct) => Task.CompletedTask;
         public Task SendFollowedCompanyNotificationEmailAsync(string t, FollowedCompanyNotificationEmail c, CancellationToken ct) => Task.CompletedTask;
         public Task SendEmailChangedNotificationAsync(string t, CancellationToken ct) => Task.CompletedTask;
-        public Task SendEmailConfirmationAsync(string t, EmailConfirmationEmail c, CancellationToken ct) => Task.CompletedTask;
-        public Task SendAccountExistsNoticeAsync(string t, CancellationToken ct) => Task.CompletedTask;
-        public Task SendPasswordResetAsync(string t, PasswordResetEmail c, CancellationToken ct) => Task.CompletedTask;
-        public Task SendPasswordChangedNoticeAsync(string t, CancellationToken ct) => Task.CompletedTask;
     }
 
     private static LoginChallengeDispatch Item(string email) =>

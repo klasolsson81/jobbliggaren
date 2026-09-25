@@ -126,12 +126,12 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
     public async Task An_identity_row_without_a_profile_gets_its_record_and_is_mailed_nothing()
     {
         // The orphan the registration path leaves when the Identity user committed and the profile did not
-        // (#1349; OrphanedIdentityActivationTests enumerates its producers).
+        // (#1349).
         var email = NewAddress("orphan");
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
-            var created = await scope.ServiceProvider.GetRequiredService<IUserAccountService>()
-                .CreateUserAsync(email, Helpers.AuthTestHelpers.DefaultTestPassword, Ct);
+            var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()
+                .CreatePasswordlessUserAsync(email, Ct);
             created.IsSuccess.ShouldBeTrue();
         }
 

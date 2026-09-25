@@ -113,7 +113,6 @@ public sealed class ReauthenticationChainTests
         reached.ShouldNotContain(typeof(PasswordlessSessionGrant));
         reached.ShouldNotContain(typeof(ISessionStore));
         reached.ShouldNotContain(typeof(LoginSubjectResolver));
-        reached.ShouldNotContain(typeof(ILoginTimingEqualizer));
         reached.ShouldNotContain(typeof(ILoginChallengeDispatcher));
         reached.ShouldContain(typeof(IGrantStore));
         reached.ShouldContain(typeof(ILoginChallengeStore));
@@ -122,8 +121,7 @@ public sealed class ReauthenticationChainTests
     [Fact]
     public void The_re_auth_service_takes_the_grant_store_and_not_the_account_service()
     {
-        // D5's member swap, pinned on the constructor: the password check left with IUserAccountService and the
-        // grant arrived with IGrantStore. A service that took both would have a password path back.
+        // D5's member swap, pinned on the constructor: the grant arrived with IGrantStore.
         var parameters = typeof(ReauthenticationService)
             .GetConstructors()
             .ShouldHaveSingleItem()

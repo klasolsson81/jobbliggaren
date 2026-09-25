@@ -112,7 +112,6 @@ public sealed class LoginProofChainTests
         }
 
         reached.ShouldNotContain(typeof(IUserAccountService));
-        reached.ShouldNotContain(typeof(ILoginTimingEqualizer));
         reached.ShouldContain(typeof(ILoginAccountLookup));
     }
 

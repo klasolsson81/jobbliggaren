@@ -58,7 +58,7 @@ public abstract record LoginSubject
 
 /// <summary>
 /// The one place that classifies an address for the login challenge: at issue time to choose the mail, and
-/// after proof to choose the outcome. The profile read is the #1349 rule <c>LoginCommandHandler</c> applies:
+/// after proof to choose the outcome. The profile read is the #1349 rule:
 /// a soft-deleted profile and a missing one are both refused a session.
 /// </summary>
 public sealed class LoginSubjectResolver(ILoginAccountLookup accounts, IAppDbContext db)

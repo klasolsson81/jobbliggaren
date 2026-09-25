@@ -120,21 +120,6 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         }
     }
 
-    [Theory]
-    [InlineData(CooldownScopes.ResendConfirm)]
-    [InlineData(CooldownScopes.AccountExists)]
-    [InlineData(CooldownScopes.PasswordReset)]
-    public async Task Cooldown_ApiIdentity_AllowsOnlyItsRecordedScopes(string scope)
-    {
-        var gate = new RedisCooldownGate(RedisBoundaryFixture.Cache(fixture.Api));
-        var subject = Guid.NewGuid() + "@example.com";
-        (await gate.TryBeginAsync(scope, subject, TimeSpan.FromSeconds(60), Ct)).ShouldBeTrue();
-        (await gate.TryBeginAsync(scope, subject, TimeSpan.FromSeconds(60), Ct)).ShouldBeFalse();
-        var key = $"jobbliggaren:cd/{scope}/v1/{SubjectFingerprint.Hex(subject)}";
-        await DeniedAsync(() => fixture.Worker.GetDatabase().HashGetAsync(key, "data"));
-        await DeniedAsync(() => fixture.Worker.GetDatabase().KeyDeleteAsync(key));
-    }
-
     [Fact]
     public async Task Challenges_ApiVolatileIdentity_ReplacesConsumesAndSurvivesScriptCacheLoss()
     {

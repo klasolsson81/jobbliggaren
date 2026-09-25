@@ -84,7 +84,6 @@ public class VolatileRedisIsolationTests
 
     [Theory]
     [InlineData(typeof(RedisSessionStore))]
-    [InlineData(typeof(RedisCooldownGate))]
     public void DurableConsumer_TakesADurableRoute_AndNotTheVolatileConnection(Type consumer)
     {
         // The control for the theory above: the same scan, on the types that DO stay durable, finds their route.

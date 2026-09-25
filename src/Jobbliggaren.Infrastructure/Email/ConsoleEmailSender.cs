@@ -41,7 +41,7 @@ public sealed partial class ConsoleEmailSender(
     /// <para>
     /// <b>The recipient gate does not read this, and must not.</b> It changes what is written to the
     /// log, never the delivery contract. <c>ChangeEmailCommandHandler</c> and
-    /// <c>RequestPasswordResetCommandHandler</c> both refuse up front on
+    /// <c>RequestLoginChallengeCommandHandler</c> both refuse up front on
     /// <see langword="false"/> and return 503, so reasoning "the body is withheld, therefore we
     /// cannot deliver" would turn a withheld log line into a failed request — in the one
     /// environment where the flow is supposed to be exercised.
@@ -75,44 +75,6 @@ public sealed partial class ConsoleEmailSender(
     {
         var body = EmailTemplates.EmailChangedNotification();
         WriteEmail("email-changed-notification", toEmail, body.Subject, body.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
-    public Task SendEmailConfirmationAsync(
-        string toEmail,
-        EmailConfirmationEmail content,
-        CancellationToken cancellationToken)
-    {
-        var body = EmailTemplates.EmailConfirmation(_options.BaseUrl, content);
-        WriteEmail("email-confirmation", toEmail, body.Subject, body.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
-    public Task SendAccountExistsNoticeAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        var body = EmailTemplates.AccountExistsNotice(_options.BaseUrl);
-        WriteEmail("account-exists-notice", toEmail, body.Subject, body.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
-    public Task SendPasswordResetAsync(
-        string toEmail,
-        PasswordResetEmail content,
-        CancellationToken cancellationToken)
-    {
-        var body = EmailTemplates.PasswordReset(_options.BaseUrl, content);
-        WriteEmail("password-reset", toEmail, body.Subject, body.PlainTextBody);
-        return Task.CompletedTask;
-    }
-
-    public Task SendPasswordChangedNoticeAsync(
-        string toEmail,
-        CancellationToken cancellationToken)
-    {
-        var body = EmailTemplates.PasswordChangedNotice(_options.BaseUrl);
-        WriteEmail("password-changed-notice", toEmail, body.Subject, body.PlainTextBody);
         return Task.CompletedTask;
     }
 

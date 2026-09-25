@@ -43,7 +43,7 @@ public sealed class PasswordlessSessionGrant(
                 userAgent: requestContext.UserAgent));
 
             // The Identity write has committed, so from here on CancellationToken.None: a session opened with
-            // the removed password is revoked BEFORE the new one exists (the change-password ordering).
+            // the removed password is revoked BEFORE the new one exists.
             await db.SaveChangesAsync(CancellationToken.None);
             await sessions.InvalidateAllForUserAsync(subject.UserId, CancellationToken.None);
         }

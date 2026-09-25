@@ -224,7 +224,9 @@ only for critical errors that interrupt — never for routine updates.
 Every `<Dialog>` must have:
 - `role="dialog"` (shadcn Dialog adds automatically)
 - `aria-labelledby` pointing to `<DialogTitle>` id
-- `aria-describedby` pointing to `<DialogDescription>` id
+- `aria-describedby` pointing to `<DialogDescription>` id when the dialog carries
+  a lede; a dialog without one (DESIGN.md §8 rule 2) renders no
+  `<DialogDescription>`, and Radix then sets no `aria-describedby`
 - Focus trapped inside while open (shadcn handles)
 - Focus returns to trigger element on close (shadcn handles)
 - Escape key closes (shadcn handles)

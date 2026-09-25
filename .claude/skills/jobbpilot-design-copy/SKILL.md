@@ -229,9 +229,6 @@ anti-pattern, arkitekturtestad).
   (`MatchDimensionVerdict_is_the_locked_five_member_set`) — utelämna ingen.
   "Uppfyllt"/"Ej uppfyllt" är **något annat**: `requirements`-radens etiketter per
   enskilt krav, inte dimensionens omdöme.
-- **Ska-krav-raden** (`jobads.ui.match.mustHaveSummary`): fyra grenar, en per
-  utfall, inklusive den vakuösa. ADR 0076 Amendment 2026-06-20 §2(b) förbjuder
-  uttryckligen den affirmativa raden när annonsen inte angav några krav.
 - **CV-granskning** (`resumes.enums`): omdöme **Godkänt · Delvis · Underkänt · Ej
   bedömt**; nivå per kategori **Ej redo · Behöver omarbetning · Konkurrenskraftigt ·
   Toppskikt**.
@@ -250,10 +247,7 @@ visar dem:
 
 Slå inte ihop formerna till en sträng, och påstå aldrig ett citat du inte har.
 
-**Stavning: `ska-krav`.** Sex förekomster i `messages/sv/`: fyra gemena i meningar
-(`jobads.json` mustHaveSummary) och två versala som rubrik-etiketter
-(`content-matchning.json:43`, `jobads.json:216`). "skallkrav" finns i noll
-skeppade strängar. ADR 0076:s prosa skriver "skallkrav" — följ inte den
+**Stavning: `ska-krav`.** ADR 0076:s prosa skriver "skallkrav" — följ inte den
 stavningen i UI.
 
 Två ytor säger regeln till användaren med produktens egna ord, och copy får inte

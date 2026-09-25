@@ -42,6 +42,21 @@
     "PepperBase64": "GENERATE ONCE: openssl rand -base64 32"
   },
 
+  "Auth": {
+    "OAuth": {
+      "//": "OPTIONAL (#1744). Blank or absent, no external login exists: the providers list is empty and",
+      "//1": "/logga-in shows its provider rows inactive. A Google ClientId registers Google, and the Api then",
+      "//2": "refuses to start, naming the key, unless ClientSecret is set and Email:BaseUrl is https, or http",
+      "//3": "to a loopback host in Development. The client's authorized redirect URI must be exactly",
+      "//4": "{Email:BaseUrl}/api/auth/oauth/google/callback, e.g. http://localhost:3000/api/auth/oauth/google/callback.",
+      "//5": "Use a Google client made for localhost, never the box's (security-auditor m-8). Never commit values.",
+      "Google": {
+        "ClientId": "",
+        "ClientSecret": ""
+      }
+    }
+  },
+
   "Email": {
     "//": "OPTIONAL — unlike the four sections above, omitting this whole section is fine and is the",
     "//1": "recommended dev setup. Email:Provider defaults to Console in code (EmailOptions.Provider",

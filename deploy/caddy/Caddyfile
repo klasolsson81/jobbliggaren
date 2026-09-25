@@ -111,6 +111,14 @@
 					# which is already deleted here; the streaming is what makes the exposure larger rather than
 					# smaller. Art. 5(1)(c) on the same footing.
 					delete prefix
+					# The external-login callback's query (#1744, ADR 0142 D8). `code` is a single-use
+					# authorization code and `state` the flow's binding, credentials both; `hd` is the Workspace
+					# domain, a person's own on a personal domain; `error_description` is the provider's free
+					# text. The callback answers 200 on every branch, so this is the second line, not the first.
+					delete code
+					delete state
+					delete hd
+					delete error_description
 				}
 				request>headers delete
 			}

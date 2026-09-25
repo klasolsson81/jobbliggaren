@@ -370,6 +370,12 @@ Alla tre startas av CC som bakgrundsprocesser.
    404 vid första skarpa utskicket. Valideringen är registrerad **inuti Scaleway-armen** just för
    att `Email` ska förbli valfri på default-vägen; `EmailOptions` har medvetet ingen
    `ValidateOnStart`.
+   **Ett andra villkorat undantag (#1744):** `Auth:OAuth:Google` är VALFRI, och tom eller saknad
+   betyder att ingen extern inloggning finns. Sätter du `ClientId` registreras Google, och då
+   vägrar API:t att starta, med nyckeln namngiven, om inte `ClientSecret` också är satt och
+   `Email:BaseUrl` är https, eller http mot localhost i Development. Klientens redirect-URI hos
+   Google måste vara exakt `http://localhost:3000/api/auth/oauth/google/callback` lokalt. Använd
+   en egen Google-klient för localhost, aldrig lådans (security-auditor m-8).
    **Kopiera `appsettings.Local.json.example` → `appsettings.Local.json` och generera
    nycklarna** (`openssl rand -base64 32` per sektion; `.example` är källan till sanning för
    listan). De tre pepprarna tillkom successivt — `AuditPseudonymization` 2026-07-14 (ADR 0090

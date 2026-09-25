@@ -269,7 +269,6 @@ export function MatchPreferencesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="jp-matchdialog"
-        aria-describedby={undefined}
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="jp-matchdialog__head">

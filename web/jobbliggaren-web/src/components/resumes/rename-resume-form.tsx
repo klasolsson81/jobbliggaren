@@ -66,7 +66,7 @@ export function RenameResumeForm({
         </Button>
       )}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("rename.title")}</DialogTitle>
           </DialogHeader>

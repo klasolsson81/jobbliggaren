@@ -141,7 +141,7 @@ export function CriterionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-matchdialog" aria-describedby={undefined}>
+      <DialogContent className="jp-matchdialog">
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
             {isEdit ? t("editTitle") : t("createTitle")}

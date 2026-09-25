@@ -66,7 +66,7 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
     await page.goto("/ansokningar");
-    // Statusgrupperna är hopfällda som default ("Utkast (1) — Klicka för att visa").
+    // Statusgrupperna är hopfällda som default ("Utkast (1)").
     // Disclosure-knappen är den enda med aria-expanded; steg-chippen i pipelinen
     // ("1 UTKAST") matchar också namnet men är ingen disclosure.
     await page

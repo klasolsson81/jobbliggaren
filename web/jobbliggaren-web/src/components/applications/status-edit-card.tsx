@@ -123,17 +123,6 @@ export function StatusEditCard({
 
         {singleTransition && (
           <div className="flex flex-col gap-3 border-t border-border-default pt-4">
-            <p
-              id={instructionId}
-              className="text-body-sm text-text-primary"
-            >
-              {tUi.rich("statusEdit.singleNextStep", {
-                status: applicationStatusLabel(t, singleTransition),
-                b: (chunks) => (
-                  <span className="font-medium text-text-primary">{chunks}</span>
-                ),
-              })}
-            </p>
             <div className="flex justify-end">
               <Button
                 type="button"
@@ -165,12 +154,7 @@ export function StatusEditCard({
               id={instructionId}
               className="text-body-sm text-text-primary"
             >
-              {tUi.rich("statusEdit.chooseInstruction", {
-                status: currentLabel,
-                b: (chunks) => (
-                  <span className="font-medium text-text-primary">{chunks}</span>
-                ),
-              })}
+              {tUi("statusEdit.chooseInstruction")}
             </p>
 
             <RadioGroup
@@ -245,13 +229,7 @@ export function StatusEditCard({
               })}
             </DialogTitle>
             <DialogDescription>
-              {tUi.rich("statusEdit.confirmBody", {
-                from: currentLabel,
-                to: pendingTarget
-                  ? applicationStatusLabel(t, pendingTarget)
-                  : "",
-                b: (chunks) => <strong>{chunks}</strong>,
-              })}
+              {tUi("statusEdit.confirmBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

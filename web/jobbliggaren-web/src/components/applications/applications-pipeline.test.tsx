@@ -219,11 +219,14 @@ describe("ApplicationsPipeline — Lista-sektioner (2a)", () => {
     expect(document.getElementById("status-Submitted-list")).not.toBeNull();
   });
 
-  it("kollapsad sektion visar 'Klicka för att visa'", () => {
+  it("kollapsad sektion visar bara etikett och antal", () => {
     renderPipeline(makePipeline({ Rejected: 1 }));
 
     const section = document.getElementById("status-Rejected")!;
-    expect(section).toHaveTextContent("Klicka för att visa");
+    const toggle = within(section).getByRole("button", { name: /Nekad/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle.textContent).toBe("Nekad(1)");
+    expect(section).not.toHaveTextContent("Klicka för att visa");
   });
 
   it("'AVSLUT & VILANDE'-kicker före första terminala gruppen", () => {

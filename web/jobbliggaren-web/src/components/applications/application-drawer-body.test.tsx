@@ -79,11 +79,11 @@ describe("ApplicationDrawerBody (§8, interaktiv sedan PR 7)", () => {
     const { container } = render(
       <ApplicationDrawerBody application={makeDetail()} now={NOW} />,
     );
-    // §8.3: primär-CTA mot nästa steg (Submitted → Bekräftad) + ångra-löftet.
+    // §8.3: primär-CTA mot nästa steg (Submitted → Bekräftad).
     expect(
       screen.getByRole("button", { name: "Flytta till Bekräftad" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Alla byten kan ångras.")).toBeInTheDocument();
+    expect(screen.queryByText("Alla byten kan ångras.")).toBeNull();
     // §8.4: exakt 7 steg, nuvarande (Skickad) disabled med aria-current.
     const steps = container.querySelectorAll(".jp-steppicker__step");
     expect(steps).toHaveLength(7);

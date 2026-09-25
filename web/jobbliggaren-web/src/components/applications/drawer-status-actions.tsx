@@ -26,9 +26,8 @@ interface DrawerStatusActionsProps {
  * ADR 0092 Livscykel-amendment). Klient-ö renderad av den RSC-ägda
  * ApplicationDrawerBody (serialiserbara props över gränsen):
  *
- *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) + "Alla
- *    byten kan ångras." — Ghosted: "Återaktivera som Skickad" (prototyp-facit);
- *    terminala: ingen CTA.
+ *  - §8.3 Primär-CTA "Flytta till {nästa}" (fylld accent-800, h38) — Ghosted:
+ *    "Återaktivera som Skickad" (prototyp-facit); terminala: ingen CTA.
  *  - §8.4 Stegväljare: de 7 stegen på aktiva vägen, KLICKBARA ÄVEN BAKÅT =
  *    direkt transition (ADR 0092 D3 fria byten; nuvarande steg disabled —
  *    self-transition är en tyst no-op).
@@ -80,20 +79,16 @@ export function DrawerStatusActions({
 
   return (
     <div className="jp-drawer-actions">
-      {/* §8.3 Primär-CTA + ångra-löftet (ADR 0092 D3 gör löftet sant: varje
-          byte kan följas av en kompenserande invers). */}
+      {/* §8.3 Primär-CTA. */}
       {ctaLabel != null && next != null && (
-        <div>
-          <button
-            type="button"
-            className="jp-btn jp-btn--primary jp-drawer-cta"
-            disabled={isPending}
-            onClick={() => move(next)}
-          >
-            {ctaLabel}
-          </button>
-          <p className="jp-drawer-cta__hint">{tUi("drawer.undoHint")}</p>
-        </div>
+        <button
+          type="button"
+          className="jp-btn jp-btn--primary jp-drawer-cta"
+          disabled={isPending}
+          onClick={() => move(next)}
+        >
+          {ctaLabel}
+        </button>
       )}
 
       {/* §8.4 Stegväljare — 7 steg, även bakåt. */}

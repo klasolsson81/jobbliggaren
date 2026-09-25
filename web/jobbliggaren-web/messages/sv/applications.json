@@ -40,7 +40,7 @@
       "channelPlaceholder": "Välj kanal",
       "dateLabel": "Datum",
       "noteLabel": "Anteckning (valfritt)",
-      "noteHint": "Till exempel vad som diskuterades. Max 1 000 tecken.",
+      "noteHint": "Max 1 000 tecken.",
       "submit": "Lägg till uppföljning"
     },
     "addNote": {
@@ -97,28 +97,27 @@
     "drawer": {
       "moveToNext": "Flytta till {status}",
       "reactivate": "Återaktivera som Skickad",
-      "undoHint": "Alla byten kan ångras.",
       "flowLabel": "Flytta i flödet",
-      "flowHint": "Klicka på ett steg, även bakåt",
+      "flowHint": "Även bakåt",
       "nowChip": "Nu",
       "parkLabel": "Avsluta eller parkera"
     },
     "logFollowUp": {
       "title": "Logga uppföljning",
       "noteLabel": "Notering (valfri)",
-      "hint": "Uppföljningen loggas med dagens datum under Uppföljningar och i tidslinjen. Väntetiden räknas om från idag.",
+      "hint": "Uppföljningen loggas med dagens datum och väntetiden räknas om från idag.",
       "save": "Spara uppföljning"
     },
     "finishDraft": {
       "title": "Slutför och skicka",
-      "body": "När du skickar flyttas ansökan till Skickad och väntetiden räknas från idag.",
+      "body": "Ansökan flyttas till Skickad och väntetiden räknas från idag.",
       "applyBy": "Sök senast",
       "send": "Skicka ansökan"
     },
     "toast": {
       "statusChange": "{company}: {from} → {to}",
       "statusChangeBatch": "{count, plural, one {# ansökan markerad} other {# ansökningar markerade}} som {to}",
-      "followUpLogged": "{company}: uppföljning sparad under Uppföljningar, väntetiden räknas om",
+      "followUpLogged": "{company}: uppföljning sparad",
       "undo": "Ångra",
       "undoing": "Ångrar…",
       "dismissAriaLabel": "Stäng meddelandet"
@@ -130,20 +129,17 @@
       "emptyBody": "Välj en annan flik eller skapa en ny ansökan.",
       "attentionTitle": "Kräver åtgärd",
       "sectionShownOfTotal": "visar {shown} av {total}",
-      "showMore": "Visa fler ({count})",
-      "clickToShow": "Klicka för att visa"
+      "showMore": "Visa fler ({count})"
     },
     "queue": {
       "title": "Kräver åtgärd",
       "sortHint": "Sorterat på hur bråttom det är",
-      "lede": "Det viktigaste först. Klicka på kortet för alla detaljer, eller använd knappen för att gå direkt till åtgärden.",
       "empty": "Inget kräver åtgärd just nu.",
       "showMore": "Visa {count} till",
       "showFewer": "Visa färre"
     },
     "all": {
       "title": "Alla ansökningar",
-      "hint": "Klicka på en rad eller ett kort för alla detaljer",
       "noResults": "Inga ansökningar matchar sökningen eller filtret."
     },
     "controls": {
@@ -161,7 +157,7 @@
     "table": {
       "caption": "Ansökningar i tabellform, sorterbar",
       "ariaLabel": "Ansökningar",
-      "empty": "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret för att se alla.",
+      "empty": "Inga ansökningar matchar sökningen eller filtret. Rensa sökningen eller ändra filtret.",
       "colRole": "Roll & företag",
       "colStatus": "Status",
       "colStep": "I steget",
@@ -203,18 +199,16 @@
       "terminalGroup": "Avslut och vilande"
     },
     "board": {
-      "toolbarHint": "Dra ett kort till ett annat steg. Klicka på ett kort för detaljer.",
+      "toolbarHint": "Dra ett kort till ett annat steg.",
       "showMore": "Visa {count} fler",
       "showFewer": "Visa färre",
       "emptyColumn": "Inga ansökningar här",
-      "emptyAccepted": "Dra hit när du accepterar",
       "emptyZone": "Tomt",
-      "ghostHint": "Dra ett kort tillbaka till Skickad för att återaktivera det.",
       "daysShort": "{days} dgr"
     },
     "rail": {
       "kicker": "Alla steg",
-      "hint": "Klicka på ett steg för att filtrera listan, klicka igen för att rensa",
+      "hint": "Klicka på ett steg för att filtrera listan",
       "ariaLabel": "Filtrera på steg",
       "cellAriaLabel": "{step}, {count, plural, =0 {inga ansökningar} =1 {en ansökan} other {# ansökningar}}"
     },
@@ -231,7 +225,7 @@
     "followUps": {
       "sectionLabel": "Uppföljningar",
       "empty": "Inga uppföljningar registrerade.",
-      "emptyDrawer": "Inga uppföljningar ännu. Knappen loggar en uppföljning här och nollställer väntetiden i åtgärdskön.",
+      "emptyDrawer": "Inga uppföljningar ännu.",
       "add": "+ Lägg till uppföljning",
       "addLog": "+ Lägg till",
       "addHeading": "Lägg till uppföljning",
@@ -257,7 +251,7 @@
     },
     "preservedAd": {
       "panelTitle": "Om annonsen (sparad kopia)",
-      "savedNotice": "Annonsen är inte längre aktiv. Det här är en sparad kopia från {date}.",
+      "savedNotice": "Annonsen är inte längre aktiv. Kopian är från {date}.",
       "company": "Företag",
       "location": "Ort",
       "published": "Publicerad",
@@ -280,7 +274,7 @@
       }
     },
     "recordOutcome": {
-      "notice": "Utfallet kan inte ändras när det har sparats. Kontrollera att det stämmer innan du sparar.",
+      "notice": "Utfallet kan inte ändras när det har sparats.",
       "outcomeLabel": "Utfall",
       "outcomePlaceholder": "Välj utfall",
       "optionResponded": "Svar mottaget",
@@ -294,19 +288,18 @@
       "title": "Status",
       "currentStatus": "Nuvarande status:",
       "closedNotice": "Den här ansökan är avslutad och kan inte ändras.",
-      "singleNextStep": "Nästa steg för den här ansökan är <b>{status}</b>.",
       "markAs": "Markera som {status}",
-      "chooseInstruction": "Välj ny status. Nuvarande status är <b>{status}</b>.",
+      "chooseInstruction": "Välj ny status.",
       "destructiveNotice": "{status} avslutar ansökan. Det går inte att ångra utan manuell åtgärd.",
       "save": "Spara",
       "confirmTitle": "Markera som {status}?",
-      "confirmBody": "Ansökan ändras från <b>{from}</b> till <b>{to}</b>. Det går inte att ångra utan manuell åtgärd.",
+      "confirmBody": "Det går inte att ångra utan manuell åtgärd.",
       "confirmFallback": "Bekräfta"
     },
     "withdraw": {
       "action": "Återta ansökan",
       "confirmTitle": "Återta ansökan?",
-      "confirmBody": "Ansökan ändras från <b>{from}</b> till <b>{to}</b>. En återtagen ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
+      "confirmBody": "Ansökan avslutas och kan inte ändras vidare utan manuell åtgärd.",
       "withdrawing": "Återtar…"
     },
     "delete": {

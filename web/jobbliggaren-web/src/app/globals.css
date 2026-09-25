@@ -3899,12 +3899,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   height: 38px;
   justify-content: center;
 }
-.jp-drawer-cta__hint {
-  margin: 6px 0 0;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  text-align: center;
-}
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
    nuvarande = fylld accent-800 + NU-chip + accent-50-rad, framtida = vit med
    border-strong-ring. Varje steg är en riktig knapp (klick = direkt byte,
@@ -7044,28 +7038,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
-.jp-section__closedhint {
-  /* #805 punkt 2: antalet flyttades inline intill etiketten, så "klicka för att
-     visa"-hinten bär nu högerjusteringen (var margin-left:12px efter det
-     tidigare höger-pushade antalet). */
-  margin-left: auto;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
 
 /* ── Kräver åtgärd-kön ── */
 .jp-attentionqueue {
   margin-top: 8px;
-}
-.jp-attentionqueue__lede {
-  margin: 10px 0 14px;
-  max-width: 68ch;
-  font-size: var(--text-body-sm);
-  /* Instruktions-/scanning-copy = informationsbärande → ink-1 (#549 WS1,
-     no-gray-doktrinen). Storleken 14px hålls medvetet: syskon-ledena
-     (.jp-parse-summary__lede/.jp-occupations__lede) är redan 14px ink-1;
-     defekten var färgen, inte storleken (CTO-bind 2026-07-10). */
-  color: var(--jp-ink-1);
 }
 .jp-actioncard-grid {
   display: grid;
@@ -7390,18 +7366,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding-bottom: 4px;
 }
 
-/* Terminal-spalten: fyra mini-zoner + ghost-hjalptext, staplade. */
+/* Terminal-spalten: fyra mini-zoner, staplade. */
 .jp-board__terminal {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-.jp-board__ghosthint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-  line-height: 1.35;
-  margin-top: 2px;
 }
 
 /* Kolumn/zon-chassi. Toppband = 3px border-top i statusfarg (data-status-

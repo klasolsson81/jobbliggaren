@@ -70,7 +70,10 @@ describe("ApplicationToastHost (design §10, #630 PR 7)", () => {
       showApplicationToast({ kind: "followUpLogged", company: "Volvo" });
     });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Volvo: uppföljning sparad under Uppföljningar",
+      "Volvo: uppföljning sparad",
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent(
+      "under Uppföljningar",
     );
     expect(
       screen.queryByRole("button", { name: "Ångra" }),

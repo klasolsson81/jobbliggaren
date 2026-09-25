@@ -134,12 +134,10 @@ export function buildSecurityHeaders(isDev: boolean): readonly HttpHeader[] {
  *
  * `no-store` on the GET and on the POST: a login URL must never be served out of a cache.
  *
- * `same-origin`, and NOT the `no-referrer` the other token pages use, for a reason that is this
- * page's alone: its form must work without JavaScript, and a no-JS form POST is a navigate-mode
+ * `same-origin`, for a reason that is this page's alone: its form must work without JavaScript, and a no-JS form POST is a navigate-mode
  * request. Under `no-referrer` the Fetch standard serializes that request's `Origin` as `null`,
  * and Next refuses a Server Action whose `Origin` does not match the host (`action-handler.js`,
- * "Invalid Server Actions request"). The other token pages post through `fetch()`, which is
- * unaffected. `same-origin` still strips the referrer on every cross-origin request, and the CSP
+ * "Invalid Server Actions request"). `same-origin` still strips the referrer on every cross-origin request, and the CSP
  * admits no cross-origin subresource to begin with; the edge drops the whole request-header map
  * from its log (`CaddyfileTokenScrubbingPinTests`), so a same-origin `Referer` is not persisted
  * there either (security-auditor, #1738 M-1).

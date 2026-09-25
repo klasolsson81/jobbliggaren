@@ -10,7 +10,7 @@ describe("readProblemTitle (#616)", () => {
     const res = responseWith(async () => ({
       title: "Auth.LoginCodeBurned",
       detail: "irrelevant",
-      status: 400,
+      status: 410,
     }));
 
     await expect(readProblemTitle(res)).resolves.toBe("Auth.LoginCodeBurned");

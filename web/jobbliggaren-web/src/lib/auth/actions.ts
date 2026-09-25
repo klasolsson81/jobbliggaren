@@ -20,7 +20,7 @@ export async function logoutAction(): Promise<void> {
       });
       // Best-effort logout: backend-session försvinner via sin Redis-TTL om
       // anropet failar. Strukturerad warning så vi kan upptäcka systematiska
-      // fel (TD-6) — ingen PII loggad (session-id är pseudonym).
+      // fel (TD-6).
       if (!res.ok) {
         // An event name and a status code; the session id stays out of it.
         // eslint-disable-next-line no-console

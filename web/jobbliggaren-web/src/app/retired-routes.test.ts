@@ -112,7 +112,7 @@ describe.each(RETIRED)("the retired route $path", ({ path, destination, withSubp
 
 /**
  * A deleted token route answers 404 and is NOT redirected (ADR 0142 part 5a). Its mails carried the
- * account's id (`uid`) and a single-use token in the query, and a Next redirect keeps the query string, so a
+ * account's id (`uid`) and a token in the query, and a Next redirect keeps the query string, so a
  * 308 would republish both onto the destination's URL, into history and a same-origin Referer, for no
  * function. `/glomt-losenord` carried no query and follows the same rule so there is one rule.
  */

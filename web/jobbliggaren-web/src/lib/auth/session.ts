@@ -68,14 +68,11 @@ export const getServerSession = cache(
 /**
  * Sets the session cookie for a freshly issued session id.
  *
- * `persistent` follows the lifetime the backend reports for the session:
  *  - `true`  → a persistent cookie with a finite Max-Age (the 180d absolute cap,
  *    PERSISTENT_MAX_AGE_SECONDS) so the login survives a browser restart. The
  *    backend stays the SSOT for expiry (30d sliding / 180d cap); the Max-Age is
  *    only the finite ceiling, never an infinite cookie.
  *  - `false` → Max-Age is omitted → a session cookie the browser drops on close.
- *    This is the privacy-by-default (Art. 25(2)): an unticked box must not leave
- *    a durable credential on the device.
  *
  * All other attributes are the non-negotiable `__Host-` requirements (HttpOnly,
  * Secure, SameSite=Strict, Path=/, no Domain) in both branches.

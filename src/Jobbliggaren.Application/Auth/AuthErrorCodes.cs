@@ -208,8 +208,7 @@ public static class AuthErrorCodes
     /// but a date we might miss is worse than none. Echoes the copy the retired kill-switch carried
     /// before ADR 0083 removed it.
     /// <para>
-    /// <b>The user never sees this string.</b> The frontend renders its own localised copy
-    /// (<c>auth.actions.registrationsClosed</c> in <c>messages/{sv,en}/pages.json</c>) and never the
+    /// <b>The user never sees this string.</b> The frontend renders its own localised copy and never the
     /// ProblemDetails <c>detail</c>; what it consumes is <see cref="RegistrationsClosed"/> as the
     /// discriminator. The two Swedish sentences are therefore independent by construction, not
     /// duplicated by accident — this one exists so a direct API consumer gets a civil answer too.

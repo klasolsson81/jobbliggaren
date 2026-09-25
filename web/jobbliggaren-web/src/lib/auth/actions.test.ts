@@ -51,6 +51,7 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.events.length = 0;
   mocks.deleteSessionCookie.mockImplementation(async () => {
+    await Promise.resolve();
     mocks.events.push("delete");
   });
   mocks.redirect.mockImplementation((path: string) => {
@@ -90,16 +91,16 @@ describe("logoutAction", () => {
     expect(destination).toBe("/logga-in");
   });
 
-  it("logs a refused backend call by status alone, and logs the user out locally anyway", async () => {
+  it.each([401, 503])("logs a refused backend call (%i) by status alone, and logs the user out locally anyway", async (status) => {
     mocks.cookieValue.mockReturnValue(SESSION_ID);
-    mocks.fetch.mockResolvedValue(new Response(null, { status: 503 }));
+    mocks.fetch.mockResolvedValue(new Response(null, { status }));
 
     const destination = await run();
 
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError.mock.lastCall).toEqual([
       "logout.backend_call_failed",
-      { event: "logout", status: 503 },
+      { event: "logout", status },
     ]);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain(SESSION_ID);
     expect(mocks.events).toEqual(["delete", "redirect"]);
@@ -108,14 +109,14 @@ describe("logoutAction", () => {
 
   it("logs a thrown fetch by its message, never the session id, and logs the user out locally anyway", async () => {
     mocks.cookieValue.mockReturnValue(SESSION_ID);
-    mocks.fetch.mockRejectedValue(new Error("connect ECONNREFUSED"));
+    mocks.fetch.mockRejectedValue(new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") }));
 
     const destination = await run();
 
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError.mock.lastCall).toEqual([
       "logout.backend_call_failed",
-      { event: "logout", cause: "connect ECONNREFUSED" },
+      { event: "logout", cause: "fetch failed" },
     ]);
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain(SESSION_ID);
     expect(mocks.events).toEqual(["delete", "redirect"]);

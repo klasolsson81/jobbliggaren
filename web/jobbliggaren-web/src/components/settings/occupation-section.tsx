@@ -254,7 +254,6 @@ export function OccupationSection({
   // Stabilt panel-id (aria-controls). useId ger ett hydration-säkert unikt id.
   const reactId = useId();
   const panelId = `${idPrefix}-occ-picker-${reactId}`;
-  const filterHelpId = `${idPrefix}-occ-filter-help`;
 
   function openPicker() {
     setPickerOpen(true);
@@ -358,11 +357,7 @@ export function OccupationSection({
                 value={occupationFilter}
                 onChange={(e) => setOccupationFilter(e.target.value)}
                 maxLength={80}
-                aria-describedby={filterHelpId}
               />
-              <p id={filterHelpId} className="text-body-sm text-text-primary">
-                {t("matchPrefs.occupation.filterHint")}
-              </p>
             </div>
 
             {isFiltering ? (
@@ -722,9 +717,6 @@ function CvSuggestMessage({
         >
           <p className="text-body-sm text-text-primary font-medium">
             {t("matchPrefs.occupation.noCvTitle")}
-          </p>
-          <p className="text-body-sm text-text-primary mt-1">
-            {t("matchPrefs.occupation.noCvBody")}
           </p>
           {/* Spår 4: laddar upp inline i modalen i stället för att navigera bort. */}
           <Button

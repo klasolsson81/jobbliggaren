@@ -10,7 +10,7 @@
 import { useState, useTransition } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { codedTaxonomyOptions } from "@/lib/i18n/coded-taxonomy";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type {
   TaxonomyOccupationField,
@@ -267,14 +267,15 @@ export function MatchPreferencesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-matchdialog" onCloseAutoFocus={onCloseAutoFocus}>
+      <DialogContent
+        className="jp-matchdialog"
+        aria-describedby={undefined}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
             {t("matchPrefs.dialog.title")}
           </DialogTitle>
-          <DialogDescription className="jp-matchdialog__intro">
-            {t("matchPrefs.dialog.intro")}
-          </DialogDescription>
           {/* Stäng-knappen = shadcn/radix Close inbyggd i DialogContent (civic-
               restylad i globals.css), inte en egen knapp — undviker dubblerad
               "Stäng" för skärmläsare och ärver ESC-stängning. Fokus-retur till

@@ -19,7 +19,7 @@
     "cadenceLabel": "Hur ofta vill du få sammanfattningen",
     "cadenceDaily": "Dagligen",
     "cadenceWeekly": "Veckovis",
-    "cadenceHint": "Gäller e-postsammanfattningen av starka matchningar och notiserna om företag du följer. Toppmatchningar skickas alltid direkt via e-post.",
+    "cadenceHint": "Gäller även notiserna om företag du följer.",
     "cadenceHintDisabled": "Slå på matchningsnotiser eller notiser om företag du följer för att välja hur ofta e-postsammanfattningen skickas.",
     "savedAt": "Sparat {time}",
     "errors": {
@@ -82,7 +82,6 @@
       "selectedAria": "Valda orter",
       "addOrter": "Lägg till orter",
       "filterLabel": "Filtrera kommuner",
-      "filterHint": "Skriv för att smalna av kommunlistan, eller bläddra via län.",
       "noMatch": "Ingen kommun matchar filtret.",
       "regionColumn": "Län",
       "regionsUnavailable": "Länen kunde inte läsas in just nu.",
@@ -90,12 +89,11 @@
       "chooseRegion": "Välj ett län till vänster.",
       "municipalitiesUnavailable": "Inga kommuner kunde läsas in för det här länet.",
       "distans": "Distans",
-      "distansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
+      "distansHint": "Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "wholeRegion": "Hela {label}"
     },
     "dialog": {
       "title": "Lägg till i matchning",
-      "intro": "Sök och välj yrken, orter och anställningsformer. Valda visas överst i varje del. Ta bort med kryssikonen.",
       "saving": "Sparar…",
       "save": "Spara matchning",
       "cancel": "Avbryt"
@@ -103,7 +101,6 @@
     "occupation": {
       "addOccupations": "Lägg till yrken",
       "filterLabel": "Filtrera yrkesgrupper",
-      "filterHint": "Skriv för att smalna av listan, eller bläddra via yrkesområde.",
       "noMatch": "Ingen yrkesgrupp matchar filtret.",
       "occupationField": "Yrkesområde",
       "occupationGroups": "Yrkesgrupper",
@@ -116,14 +113,13 @@
       "cancelUpload": "Avbryt",
       "openImportInstead": "Öppna importsidan i stället",
       "noCvTitle": "Inget CV uppladdat",
-      "noCvBody": "Ladda upp ett CV så kan vi föreslå yrken utifrån din erfarenhet. Du väljer själv vilka förslag som tas med.",
       "uploadCv": "Ladda upp CV",
       "noRole": "Vi kunde inte läsa ett yrke ur ditt CV. Du kan välja yrken i listan i stället.",
       "unauthorized": "Du är inte inloggad. Logga in och försök igen.",
       "error": "Kunde inte läsa ditt CV just nu. Försök igen om en stund.",
       "yearsLabel": "År i yrket",
       "yearsAria": "År i yrket {label}",
-      "yearsHint": "Ungefär hur många år du arbetat i yrket. Frivilligt, och påverkar inte din matchningsgrad.",
+      "yearsHint": "Frivilligt, och påverkar inte din matchningsgrad.",
       "yearsWhatIsThis": "Om år i yrket",
       "reviewYearsValue": "{years} år",
       "reviewYearsEmpty": "År ej angivna"
@@ -131,8 +127,7 @@
     "skill": {
       "addSkill": "Lägg till kompetens",
       "searchLabel": "Sök kompetens",
-      "searchHint": "Skriv minst två tecken för att söka. Välj en kompetens i listan för att lägga till den.",
-      "searchPrompt": "Skriv för att söka bland kompetenser.",
+      "searchHint": "Skriv minst två tecken.",
       "searching": "Söker…",
       "noResults": "Ingen kompetens matchar din sökning.",
       "added": "Tillagd",
@@ -144,7 +139,6 @@
     },
     "experience": {
       "label": "Antal års erfarenhet",
-      "hint": "Ungefärligt antal år du arbetat inom ditt område. Frivilligt; lämna tomt om du inte vill ange det.",
       "reviewValue": "{years} år",
       "reviewEmpty": "Inget angivet"
     },

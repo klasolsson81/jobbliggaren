@@ -19,7 +19,7 @@
     "cadenceLabel": "How often to receive the summary",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",
-    "cadenceHint": "Applies to the email summary of strong matches and to the notifications about companies you follow. Top matches are always emailed right away.",
+    "cadenceHint": "Also applies to the notifications about companies you follow.",
     "cadenceHintDisabled": "Turn on match notifications, or notifications about companies you follow, to choose how often the email summary is sent.",
     "savedAt": "Saved {time}",
     "errors": {
@@ -82,7 +82,6 @@
       "selectedAria": "Selected places",
       "addOrter": "Add places",
       "filterLabel": "Filter municipalities",
-      "filterHint": "Type to narrow the municipality list, or browse by region.",
       "noMatch": "No municipality matches the filter.",
       "regionColumn": "Region",
       "regionsUnavailable": "The regions could not be loaded right now.",
@@ -90,12 +89,11 @@
       "chooseRegion": "Choose a region on the left.",
       "municipalitiesUnavailable": "No municipalities could be loaded for this region.",
       "distans": "Remote",
-      "distansHint": "Counts as a location of its own. Remote jobs are included regardless of which counties or municipalities you pick.",
+      "distansHint": "Remote jobs are included regardless of which counties or municipalities you pick.",
       "wholeRegion": "All of {label}"
     },
     "dialog": {
       "title": "Add to matching",
-      "intro": "Search and select occupations, places and employment types. Selected ones appear at the top of each part. Remove them with the cross icon.",
       "saving": "Saving…",
       "save": "Save matching",
       "cancel": "Cancel"
@@ -103,7 +101,6 @@
     "occupation": {
       "addOccupations": "Add occupations",
       "filterLabel": "Filter occupational groups",
-      "filterHint": "Type to narrow the list, or browse by occupational area.",
       "noMatch": "No occupational group matches the filter.",
       "occupationField": "Occupational area",
       "occupationGroups": "Occupational groups",
@@ -116,14 +113,13 @@
       "cancelUpload": "Cancel",
       "openImportInstead": "Open the import page instead",
       "noCvTitle": "No CV uploaded",
-      "noCvBody": "Upload a CV and we can suggest occupations based on your experience. You decide which suggestions to include.",
       "uploadCv": "Upload CV",
       "noRole": "We could not read an occupation from your CV. You can choose occupations from the list instead.",
       "unauthorized": "You are not logged in. Log in and try again.",
       "error": "Could not read your CV right now. Try again in a moment.",
       "yearsLabel": "Years in the occupation",
       "yearsAria": "Years in the occupation {label}",
-      "yearsHint": "Roughly how many years you have worked in the occupation. Optional, and it does not affect your match grade.",
+      "yearsHint": "Optional, and it does not affect your match grade.",
       "yearsWhatIsThis": "About years in the occupation",
       "reviewYearsValue": "{years} years",
       "reviewYearsEmpty": "Years not stated"
@@ -131,8 +127,7 @@
     "skill": {
       "addSkill": "Add skill",
       "searchLabel": "Search skill",
-      "searchHint": "Type at least two characters to search. Choose a skill from the list to add it.",
-      "searchPrompt": "Type to search among skills.",
+      "searchHint": "Type at least two characters.",
       "searching": "Searching…",
       "noResults": "No skill matches your search.",
       "added": "Added",
@@ -144,7 +139,6 @@
     },
     "experience": {
       "label": "Years of experience",
-      "hint": "The approximate number of years you have worked in your field. Optional; leave empty if you prefer not to state it.",
       "reviewValue": "{years} years",
       "reviewEmpty": "Not stated"
     },

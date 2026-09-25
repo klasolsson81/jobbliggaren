@@ -734,13 +734,6 @@
   letter-spacing: -0.01em;
   color: var(--jp-ink-1);
 }
-.jp-wizard__pitch-body {
-  margin: 6px 0 0;
-  max-width: 56ch;
-  font-size: var(--text-ui);
-  line-height: 1.6;
-  color: var(--jp-ink-1);
-}
 .jp-wizard__upload {
   display: flex;
   flex-direction: column;

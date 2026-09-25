@@ -479,9 +479,9 @@ export function MatchSetupRailModal({
     }
   }
 
-  function currentIntro(): string {
+  function currentIntro(): string | null {
     // Yrken/Kompetenser: utan uppladdat CV finns inga CV-förslag → copy som inte
-    // lovar dem (design-review Major). Med CV behålls "vi föreslår ur ditt CV".
+    // lovar dem (design-review Major).
     const hasCv = hasUploadedCv;
     switch (step) {
       case STEP_START:
@@ -495,7 +495,7 @@ export function MatchSetupRailModal({
       case STEP_FORMER:
         return t("former.intro");
       default:
-        return t("granska.intro");
+        return null;
     }
   }
 
@@ -546,9 +546,14 @@ export function MatchSetupRailModal({
     }
   }
 
+  const intro = currentIntro();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-stdmodal jp-wizard--rail">
+      <DialogContent
+        className="jp-stdmodal jp-wizard--rail"
+        {...(intro === null ? { "aria-describedby": undefined } : {})}
+      >
         {/* Mobil topp-rad (dold på desktop): sigill + titel. Kryss = radix Close. */}
         <div className="jp-wizard__mobilebar">
           <BrandMarkSvg
@@ -695,9 +700,11 @@ export function MatchSetupRailModal({
                 >
                   {currentTitle()}
                 </DialogTitle>
-                <DialogDescription className="jp-wizard__intro">
-                  {currentIntro()}
-                </DialogDescription>
+                {intro !== null && (
+                  <DialogDescription className="jp-wizard__intro">
+                    {intro}
+                  </DialogDescription>
+                )}
               </div>
 
               <div className="jp-wizard__body">
@@ -718,9 +725,6 @@ export function MatchSetupRailModal({
                           <h3 className="jp-wizard__pitch-title">
                             {t("start.pitchTitle")}
                           </h3>
-                          <p className="jp-wizard__pitch-body">
-                            {t("start.pitchBody")}
-                          </p>
                         </div>
                       </div>
 
@@ -799,10 +803,7 @@ export function MatchSetupRailModal({
                         </div>
                       ) : (
                         <InfoNote>
-                          {t.rich(
-                            hasUploadedCv ? "yrken.empty" : "yrken.emptyNoCv",
-                            { b: (c) => <b>{c}</b> },
-                          )}
+                          {t.rich("yrken.empty", { b: (c) => <b>{c}</b> })}
                         </InfoNote>
                       )}
                       <OccupationSection

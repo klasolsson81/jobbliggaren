@@ -15,7 +15,6 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using StackExchange.Redis;
@@ -118,7 +117,7 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     [Fact]
     public async Task The_providers_list_names_google_and_is_publicly_cacheable_for_five_minutes()
     {
-        // Acceptance: ["google"] when configured; the [] half is the inert rows'.
+        // Acceptance: ["google"] when configured; the [] half is GoogleIdentityProviderGateTests'.
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -127,21 +126,18 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public void No_provider_is_live_in_the_Development_composition_even_with_a_full_google_client()
+    public void The_Development_composition_registers_google_from_its_client_id()
     {
-        // security-auditor S4, condition 1, the Development half: Program.cs reads appsettings.Local.json in every
-        // environment, and a developer's carries a Google client. So does this host's configuration; its scripted
-        // adapter reaches the handlers through RegisteredProviders alone, so these are the composition's own.
-        factory.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"]
-            .ShouldBe(ApiFactory.GoogleClientId);
-
-        factory.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        // The host's scripted adapter reaches the handlers through RegisteredProviders alone, so this is the
+        // composition's own registration, made by the gate from the client id in this host's configuration.
+        factory.Services.GetServices<IExternalIdentityProvider>().ShouldHaveSingleItem()
+            .ShouldBeOfType<GoogleIdentityProvider>();
     }
 
     [Fact]
     public async Task A_start_hands_its_flow_to_the_state_store()
     {
-        // The counter the inert rows read, observed non-zero on this host, so their zero is a count and not a
+        // The counter the refusal rows read, observed non-zero on this host, so their zero is a count and not a
         // counter that never moves.
         var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
         var before = store.Writes;

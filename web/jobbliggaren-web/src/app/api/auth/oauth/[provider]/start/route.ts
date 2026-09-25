@@ -37,6 +37,17 @@ function isPrefetch(request: NextRequest): boolean {
   );
 }
 
+/**
+ * A start is a click on the row, a top-level navigation. An image, a frame or a fetch on another page is not one,
+ * and would otherwise spend the start budget and the visitor's own rate limit. A client that sends neither header
+ * is let through.
+ */
+function isEmbedded(request: NextRequest): boolean {
+  const mode = request.headers.get("sec-fetch-mode");
+  const dest = request.headers.get("sec-fetch-dest");
+  return (mode !== null && mode !== "navigate") || (dest !== null && dest !== "document");
+}
+
 /** The authorization request goes to the provider's one endpoint, and carries the state the cookie will. */
 function isAuthorizationRequestFor(provider: ExternalProviderKey, authorizeUrl: string, state: string): boolean {
   try {
@@ -61,7 +72,9 @@ export async function GET(
 ): Promise<NextResponse> {
   const provider = toExternalProviderKey((await params).provider);
   if (provider === null) return redirectTo(ENTRY);
-  if (isPrefetch(request)) return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  if (isPrefetch(request) || isEmbedded(request)) {
+    return new NextResponse(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  }
 
   // Guarded here and again where the target is used: a link anyone can build ends in a redirect.
   const rawNext = request.nextUrl.searchParams.get("next");

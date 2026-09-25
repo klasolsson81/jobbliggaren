@@ -584,8 +584,8 @@ has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G amendme
    records the dated readings. If any of its lapse conditions has fired since, the keys are not placed.
 2. **The volatile ACL admits the flow store.** Compare the effective `ACL LIST` of `redis-volatile`
    against the rendered policy (redis-service-boundaries.md): the `api-volatile` user carries a
-   selector for `~jobbliggaren:auth/oauth-state/v1/*` with `+set` and `+getdel`. Without it every start
-   answers 503.
+   selector for `~jobbliggaren:auth/oauth-state/v1/*` with `+set` and `+getdel`, and its budget selector
+   names `~jobbliggaren:budget/external-login-starts/v1/*`. Without either, every start answers 503.
 3. **The Google client.** Its authorized redirect URI is exactly
    `https://${SITE_HOST}/api/auth/oauth/google/callback`. Use a separate client for localhost, so this
    client's secret never sits on a developer machine (security-auditor m-8).

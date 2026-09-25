@@ -109,6 +109,7 @@ public class GetExternalLoginProvidersQueryHandlerTests
 public class StartExternalLoginCommandHandlerTests
 {
     private readonly IOAuthStateStore _states = Substitute.For<IOAuthStateStore>();
+    private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
     private readonly IExternalIdentityProvider _google = Substitute.For<IExternalIdentityProvider>();
     private readonly OAuthState _state = OAuthState.Generate();
 
@@ -118,12 +119,14 @@ public class StartExternalLoginCommandHandlerTests
     {
         _google.Key.Returns(ExternalProviderKey.Google);
         _states.PutAsync(Arg.Any<OAuthFlow>(), Arg.Any<CancellationToken>()).Returns(_state);
+        _budget.TryConsumeAsync(Arg.Any<RateBudgetScope>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(true);
         _google.BuildAuthorizeUrl(Arg.Any<OAuthState>(), Arg.Any<PkceChallenge>())
             .Returns(new Uri("https://accounts.google.com/o/oauth2/v2/auth?scripted"));
     }
 
     private StartExternalLoginCommandHandler Handler(params IExternalIdentityProvider[] providers) =>
-        new(new RegisteredProviders(providers), _states);
+        new(new RegisteredProviders(providers), _states, _budget, NullLogger<StartExternalLoginCommandHandler>.Instance);
 
     [Fact]
     public async Task Handle_ShouldBeNotFoundAndMintNothing_WhenTheProviderIsNotRegistered()
@@ -133,6 +136,29 @@ public class StartExternalLoginCommandHandlerTests
         result.Error.Code.ShouldBe(AuthErrorCodes.ExternalProviderUnknown);
         result.Error.Kind.ShouldBe(ErrorKind.NotFound);
         await _states.DidNotReceiveWithAnyArgs().PutAsync(default!, Ct);
+        await _budget.DidNotReceiveWithAnyArgs().TryConsumeAsync(default!, default!, Ct);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldCountEveryStartAgainstTheOneGlobalBudget()
+    {
+        await Handler(_google).Handle(new StartExternalLoginCommand("google", "/oversikt"), Ct);
+
+        await _budget.Received(1).TryConsumeAsync(
+            ExternalLoginPolicy.StartBudget, ExternalLoginPolicy.StartBudgetSubject, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRefuseAndWriteNothing_WhenTheStartBudgetIsSpent()
+    {
+        _budget.TryConsumeAsync(ExternalLoginPolicy.StartBudget, ExternalLoginPolicy.StartBudgetSubject, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var result = await Handler(_google).Handle(new StartExternalLoginCommand("google", "/oversikt"), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.ExternalLoginStartsExhausted);
+        await _states.DidNotReceiveWithAnyArgs().PutAsync(default!, Ct);
+        _google.DidNotReceiveWithAnyArgs().BuildAuthorizeUrl(default!, default!);
     }
 
     [Fact]

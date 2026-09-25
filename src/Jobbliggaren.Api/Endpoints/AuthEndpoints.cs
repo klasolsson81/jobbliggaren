@@ -391,6 +391,13 @@ public static class AuthEndpoints
             title: AuthErrorCodes.EmailDeliveryUnavailable,
             statusCode: StatusCodes.Status503ServiceUnavailable),
 
+        // #1744 — the external-login start budget is spent: the same availability axis, decided before any input
+        // but the provider key is read. No Retry-After: the web's start does not read it.
+        AuthErrorCodes.ExternalLoginStartsExhausted => Results.Problem(
+            detail: AuthErrorCodes.ExternalLoginStartsExhaustedMessage,
+            title: AuthErrorCodes.ExternalLoginStartsExhausted,
+            statusCode: StatusCodes.Status503ServiceUnavailable),
+
         _ => error.ToProblemResult(),
     };
 }

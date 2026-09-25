@@ -8,6 +8,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -28,9 +29,22 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// read by the adapter itself. The #1744 acceptance rows are marked.
 /// </summary>
 [Collection("Api")]
-public class ExternalLoginEndpointsTests(ApiFactory factory)
+public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLifetime
 {
     private readonly HttpClient _client = factory.CreateClient();
+
+    // The start budget is one key for the whole host, and this collection shares the host: each row starts from a
+    // full budget and leaves one behind.
+    public ValueTask InitializeAsync() => ResetStartBudgetAsync();
+
+    public ValueTask DisposeAsync() => ResetStartBudgetAsync();
+
+    private async ValueTask ResetStartBudgetAsync()
+    {
+        await using var admin = await ConnectionMultiplexer.ConnectAsync(factory.VolatileRedisConnectionString);
+        await admin.GetDatabase().KeyDeleteAsync(
+            RedisRateBudget.Key(ExternalLoginPolicy.StartBudget, ExternalLoginPolicy.StartBudgetSubject));
+    }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -155,6 +169,25 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).EnumerateObject().Select(p => p.Name)
             .ShouldBe(["authorizeUrl", "state"]);
+    }
+
+    [Fact]
+    public async Task A_start_past_the_global_budget_is_a_503_that_writes_nothing_and_leaves_a_code_login_open()
+    {
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        for (var i = 0; i < ExternalLoginPolicy.StartBudget.Limit; i++)
+            await StartAsync();
+        var before = store.Writes;
+
+        var refused = await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct);
+
+        // The title, not only the status: a 429 from this host's AuthWrite limiter would be a different refusal.
+        refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await refused.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("title").GetString()
+            .ShouldBe(AuthErrorCodes.ExternalLoginStartsExhausted);
+        store.Writes.ShouldBe(before);
+        (await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email = NewAddress("after-flood") }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
     [Theory]

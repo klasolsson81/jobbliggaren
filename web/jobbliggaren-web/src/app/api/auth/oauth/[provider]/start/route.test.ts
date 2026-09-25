@@ -99,7 +99,10 @@ describe("the external login start", () => {
     ["Next-Router-Prefetch", { "next-router-prefetch": "1" }],
     ["Sec-Purpose", { "sec-purpose": "prefetch;prerender" }],
     ["Purpose", { purpose: "prefetch" }],
-  ])("mints nothing for a prefetch (%s)", async (_, headers) => {
+    ["an image on another page", { "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" }],
+    ["a frame", { "sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe" }],
+    ["a fetch", { "sec-fetch-mode": "cors", "sec-fetch-dest": "empty" }],
+  ])("mints nothing for a request that is not a click on the row (%s)", async (_, headers) => {
     const fetchMock = backendAnswers(200, { authorizeUrl: AUTHORIZE, state: STATE });
 
     const response = await start("", { headers });
@@ -107,6 +110,15 @@ describe("the external login start", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(response.status).toBe(204);
     expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("starts for a top-level navigation that says it is one", async () => {
+    const fetchMock = backendAnswers(200, { authorizeUrl: AUTHORIZE, state: STATE });
+
+    const response = await start("", { headers: { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(response.status).toBe(302);
   });
 
   it.each([

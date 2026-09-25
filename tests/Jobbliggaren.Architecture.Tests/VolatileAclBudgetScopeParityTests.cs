@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Shouldly;
@@ -55,7 +56,7 @@ public partial class VolatileAclBudgetScopeParityTests
     }
 
     [Fact]
-    public void Only_the_two_policy_types_declare_a_budget_scope()
+    public void Only_the_three_policy_types_declare_a_budget_scope()
     {
         // Fail-closed on the declaring surface: a scope moved into a handler, or a third policy type, turns this
         // red and is decided on purpose.
@@ -63,7 +64,10 @@ public partial class VolatileAclBudgetScopeParityTests
             .Where(type => ScopeMembers(type).Any())
             .Select(type => type.FullName)
             .Order(StringComparer.Ordinal)
-            .ShouldBe(new[] { typeof(ChangeEmailPolicy).FullName, typeof(LoginChallengePolicy).FullName }
+            .ShouldBe(new[]
+            {
+                typeof(ChangeEmailPolicy).FullName, typeof(ExternalLoginPolicy).FullName, typeof(LoginChallengePolicy).FullName,
+            }
                 .Order(StringComparer.Ordinal));
     }
 

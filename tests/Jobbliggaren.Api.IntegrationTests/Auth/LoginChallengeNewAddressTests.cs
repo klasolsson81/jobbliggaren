@@ -173,7 +173,7 @@ public class LoginChallengeNewAddressTests(ApiFactory factory)
         var code = mail.ShouldBeOfType<LoginChallengeEmail.NewAccountCode>().Code.Reveal();
 
         // A sibling complete whose Identity write committed and whose profile save did not
-        // (CompleteLoginChallengeCommandHandler.CreateAccountAsync): the creator's half alone.
+        // (AccountRegistrar.OpenAsync): the creator's half alone.
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var created = await scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>()

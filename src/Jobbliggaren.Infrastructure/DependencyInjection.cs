@@ -76,8 +76,8 @@ public static class DependencyInjection
     /// and the login-code capture (<see cref="AddDevLoginCodeCapture"/>, #1735).
     ///
     /// <para>
-    /// Registered ONLY in Development — the FIRST of two independent structural gates
-    /// (the SECOND is the <c>Program.cs</c> <c>IsDevelopment()</c> gate on the
+    /// Registered ONLY in Development — one of two independent structural gates
+    /// (the other is the <c>Program.cs</c> <c>IsDevelopment()</c> gate on the
     /// <c>/api/v1/dev/*</c> endpoint map). The predicate is <c>IsDevelopment()</c>
     /// exactly (not <c>|| IsEnvironment("Test")</c>) so it mirrors the endpoint map-gate
     /// one-for-one: in any deployed environment the ports are absent from the container

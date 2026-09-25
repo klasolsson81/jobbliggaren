@@ -30,7 +30,7 @@ so the run distribution (flake rate, duration) can be observed first.
 
 ## Seeding and logging in: the two Development seams (the core design)
 
-Every login is a mailed code (ADR 0142), and the login challenge's budgets are constants: the
+Every login is a mailed code (ADR 0142), and the login challenge's budgets apply: the
 same address asking again inside 60 seconds gets a challenge with no record, and mails to
 addresses without an account are capped at 20 per 24 hours. A run seeds more accounts than
 that cap allows, so the suite seeds and logs in through two **dev-only** seams:

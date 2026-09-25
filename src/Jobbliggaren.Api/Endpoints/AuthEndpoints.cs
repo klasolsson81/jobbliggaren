@@ -118,8 +118,9 @@ public static class AuthEndpoints
 
         // Change-email — CONFIRM step (#679; a grant since #1739). AUTHENTICATED: the grant is redeemed for this
         // user and this address, and only then is the account moved. On success the endpoint owns C6: every
-        // session is invalidated and THIS device is issued a fresh one, keeping its lifetime profile. The teardown is not caught: a failure there answers an error over a committed change,
-        // never a 200 claiming other devices were logged out. CancellationToken.None: the change is committed; a
+        // session is invalidated and THIS device is issued a fresh one, keeping its lifetime profile. The teardown
+        // is not caught: a failure there answers an error over a committed change, never a 200 claiming other
+        // devices were logged out. CancellationToken.None: the change is committed; a
         // client disconnect must not leave the account half-rotated.
         group.MapPost("/change-email/confirm", async (
             EmailChangeConfirmRequest body,
@@ -285,8 +286,7 @@ public static class AuthEndpoints
         // ("capacity deliberately withheld, and coming back" — RFC 9110 §15.6.4 names scheduled
         // maintenance), which is a third axis distinct from the 400/404/409/410 request/resource
         // semantics the kind-union models — same rule as the 401 identity arm (#239 Variant B) above.
-        // It is therefore NOT the §3
-        // per-endpoint Code-matching anti-pattern: that ban targets the heuristic
+        // It is therefore NOT the §3 per-endpoint Code-matching anti-pattern: that ban targets the heuristic
         // Code.EndsWith(".NotFound") shape, not a named constant in one auth switch that still
         // falls through to the central mapper.
         //
@@ -307,7 +307,7 @@ public static class AuthEndpoints
         // No Retry-After, for the reason written on the arm above: the date is unknown and a wrong
         // one is worse than none.
         //
-        // Its producers, and why it discloses nothing about any address:
+        // Why it discloses nothing about any address:
         //   · POST /auth/change-email — authenticated and re-authenticated, so the caller already
         //     owns the account and learns nothing new.
         //   · POST /auth/challenge (#1735) — unauthenticated, and safe by ORDER: the handler's

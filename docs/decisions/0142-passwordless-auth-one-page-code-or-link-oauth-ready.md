@@ -1244,15 +1244,23 @@ AskUserQuestion on 2026-09-25.
   `LoginAndGetSessionIdAsync` are deleted, and `SessionBootstrapTests` pins the passwordless bootstrap only.
   The box's two accounts still carry a hash until 5b, so the two proof tests about a legacy password account
   keep running on a private seed in `LoginChallengeProofTests`. The seed writes the hash at runtime, names the
-  retired route as its actor (AGENTS.md §5), and goes in 5b with `RemovePasswordAsync`.
+  retired routes as its actors (AGENTS.md §5), and goes in 5b with `RemovePasswordAsync`.
 
 **The Identity `bootstrap` procedure** is `vps-deploy-stack.md` §3c (Klas, 2026-09-18). Running it on the box,
 which applies 6d, is a separate Klas GO.
 
 **DoD 8.** No new personal data. Four mails end, and their purposes with them: `EmailConfirmation`,
 `AccountExistsNotice`, `PasswordReset` and `PasswordChangedNotice`. The HIBP range lookup ends. The three
-`cd/*` cooldown keys end, and the persistent Redis ACL template drops their patterns. `password_hash` is kept
-unchanged until 5b. No DPIA.
+`cd/*` cooldown keys end, and the persistent Redis ACL template drops their patterns. The emitters of
+`User.PasswordChanged`, `User.PasswordReset` and `User.EmailConfirmed` go with their operations; no reader
+switches on those event types, and existing rows keep their 90-day retention and their `user_id` anonymisation.
+`password_hash` is kept unchanged until 5b. No DPIA.
+
+**Lapse triggers, read for this change by security-auditor 2026-09-25: none fires.** 1: the compose default
+`${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged, and the box reads `false`. 2, 3: no account is added; the seed
+seam exists only in Development. 4: no IdP. 5: code length, attempts and the mint budget are unchanged. 6: written
+as "5b lands"; 5a removes the fallback reversibly, the hashes stay, and 5b's PR re-measures. 7: the request path
+and its budget branch are untouched.
 
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 

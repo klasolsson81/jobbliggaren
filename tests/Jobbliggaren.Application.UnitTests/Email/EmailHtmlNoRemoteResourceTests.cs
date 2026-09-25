@@ -76,8 +76,7 @@ public class EmailHtmlNoRemoteResourceTests
 
     /// <summary>
     /// Every template rendered the way its production callers render it. The shapes are
-    /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s, <c>RegisterCommandHandler</c>'s,
-    /// <c>ChangeEmailCommandHandler</c>'s and the reset endpoints'. Grade labels come from
+    /// <c>BackgroundMatchingJob</c>'s, <c>DigestDispatchJob</c>'s and <c>ChangeEmailCommandHandler</c>'s. Grade labels come from
     /// <c>NotifiableMatchGradeLabels</c> verbatim — "Stark match", never "Stark matchning", which no
     /// production path emits.
     /// <para>

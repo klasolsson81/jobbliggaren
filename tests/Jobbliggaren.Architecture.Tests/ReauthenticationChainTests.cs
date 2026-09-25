@@ -20,7 +20,7 @@ namespace Jobbliggaren.Architecture.Tests;
 /// #1739 — the re-authentication chain (ADR 0142 D5) has the same one-consumer-per-link shape as the login
 /// chain (<see cref="LoginProofChainTests"/>): the grant store is reached by exactly the types that issue or
 /// redeem a grant. The reach test is the load-bearing one: the handlers of the re-auth and change-email arms take
-/// neither the outcome function that mints a session, nor the session store, nor a password check, so a bound
+/// neither the outcome function that mints a session nor the session store, so a bound
 /// proof can never become a login (D5's "never a session"). Same scan as the
 /// login chain's: every composing assembly, every constructor and method parameter, compiler-generated ones
 /// included.
@@ -85,12 +85,11 @@ public sealed class ReauthenticationChainTests
     }
 
     [Fact]
-    public void The_re_auth_and_change_email_arms_can_reach_neither_a_session_nor_a_password_check()
+    public void The_re_auth_and_change_email_arms_cannot_reach_a_session()
     {
         // The bound arms' constructor dependencies, and those of any concrete class among them. A verified code
-        // must be a grant and nothing else (D5): no outcome function, no session grant, no session store; and
-        // neither arm reads a password or touches lockout. The session re-issue after a change is the
-        // endpoint's, never a handler's.
+        // must be a grant and nothing else (D5): no outcome function, no session grant, no session store. The
+        // session re-issue after a change is the endpoint's, never a handler's.
         var reached = new HashSet<Type>();
         var pending = new Stack<Type>(
         [

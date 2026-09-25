@@ -222,9 +222,8 @@ public static class AuthErrorCodes
     /// <para>
     /// <b>Generalised for #1171.</b> It read "…någon bekräftelselänk. Din adress är oförändrad." while
     /// change-email was the only producer; the forgot-password request (retired in ADR 0142 part 5a) was the
-    /// second, and there no
-    /// address was being changed, so that sentence would have been false. The code names an OPERATIONAL
-    /// condition — no configured sender can deliver — which is flow-independent, so the detail is too.
+    /// second, and there no address was being changed, so that sentence would have been false. The code names an
+    /// OPERATIONAL condition — no configured sender can deliver — which is flow-independent, so the detail is too.
     /// A second code for the same condition would have needed a second endpoint arm and a second
     /// frontend whitelist entry to say the same thing. Neither client renders this string, so no user
     /// copy changed.

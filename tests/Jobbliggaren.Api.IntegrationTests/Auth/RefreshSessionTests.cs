@@ -30,7 +30,7 @@ public class RefreshSessionTests(ApiFactory factory)
     // one producer in src/ is the change-email confirm's fallback in AuthEndpoints, when the current
     // session cannot be read.
     [Fact]
-    public async Task POST_refresh_with_legacy_session_returns_rotated_false_and_keeps_session()
+    public async Task POST_refresh_with_session_profile_session_returns_rotated_false_and_keeps_session()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();

@@ -16,7 +16,7 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// <see cref="ScalewayEmailSender"/> bakom <c>Email:Provider=Scaleway</c> (Scaleway
 /// Transactional Email i fr-par, #183).
 ///
-/// Security: the whole plaintext body — activation and reset tokens included — reaches
+/// Security: the whole plaintext body — login codes and links included — reaches
 /// <c>ILogger</c>, and dev's Seq persists it. Since #1208 that happens ONLY for a recipient at a
 /// domain RFC 2606 / RFC 6761 reserve, i.e. one that can never be a real mailbox; every other
 /// recipient gets a kind-only <c>Warning</c> and no body at all. Dev-Seq is loopback-bound and
@@ -32,9 +32,9 @@ public sealed partial class ConsoleEmailSender(
 
     /// <summary>
     /// <see langword="true"/>, and that is a substantive answer rather than a convenience for the
-    /// test suite (#1087). This sender writes the whole body — activation and confirmation links
+    /// test suite (#1087). This sender writes the whole body — login codes and links
     /// included — to <c>ILogger</c> for a reserved recipient, so a developer CAN complete a
-    /// token→email→confirm flow from the log. Delivery-dependent handlers must therefore work in
+    /// code or link login from the log. Delivery-dependent handlers must therefore work in
     /// Development exactly as they will in production; answering <see langword="false"/> here would
     /// refuse the very flows dev exists to exercise. See <see cref="IEmailSender.CanDeliver"/>.
     ///
@@ -181,8 +181,8 @@ public sealed partial class ConsoleEmailSender(
     }
 
     // Only PlainTextBody reaches this log, and the omission of HtmlBody is deliberate rather than an
-    // oversight to be "completed" later: this line carries the WHOLE body, including confirmation and
-    // activation links (CLAUDE.md §11). Logging the HTML part as well would widen that surface for no
+    // oversight to be "completed" later: this line carries the WHOLE body, including login codes and
+    // links (CLAUDE.md §11). Logging the HTML part as well would widen that surface for no
     // dev benefit, since the two parts say the same thing (#183, 2026-08-12).
     [LoggerMessage(3001, LogLevel.Information,
         "[ConsoleEmailSender] To={To} Subject={Subject}\n---\n{Body}\n---")]

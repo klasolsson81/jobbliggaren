@@ -86,7 +86,7 @@ export async function takeLoginCode(email: string): Promise<string> {
 
 /**
  * Logs in through the real UI: address, then the code from the dev seam. For an address that
- * HAS an account (seed it first with `ensureConfirmedTestUser`), so it spends nothing of the
+ * HAS an account (seed it first with `seedTestUser`), so it spends nothing of the
  * global cap on new addresses.
  *
  * ONCE per address. A second login for the same address inside the cooldown can never succeed

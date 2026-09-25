@@ -161,7 +161,7 @@ x-app-connections: &app-connections
 #
 # Email__BaseUrl is set unconditionally because it is wrong unconditionally otherwise: it
 # is unset everywhere in the tree, so it falls back to EmailOptions' http://localhost:3000
-# and every confirmation link in a real send would point at the reader's own machine. Its
+# and every login link in a real send would point at the reader's own machine. Its
 # only consumers are the e-mail templates.
 x-app-email: &app-email
   Email__Provider: ${EMAIL_PROVIDER:-Console}
@@ -375,7 +375,7 @@ services:
       # #1350 — where the Data-Protection keyring is persisted, matched by the writable volume
       # below. Unset means the framework default, i.e. the container's writable layer, which is
       # the defect: every recreate mints a fresh keyring and silently invalidates every
-      # outstanding change-email link, login challenge and grant. The Api reads the key name
+      # outstanding login challenge and grant. The Api reads the key name
       # from DependencyInjection.DataProtectionKeyPathConfigKey; DeployComposeDataProtectionTests
       # pins that this value and the mount destination stay the same path.
       # NOT passed to `worker`: it mints and validates no DataProtector tokens and must not
@@ -920,8 +920,8 @@ volumes:
   # /run/jobbliggaren/, which is RAM-backed (ADR 0050 B-1) and would lose the keys on every
   # reboot while looking repaired; and rather than a database-backed store, which would put the
   # keys into the pg_dump artefact the backup ships off-box (jobbliggaren-backup.sh dumps
-  # Postgres and no Docker volume). Deleting this volume invalidates outstanding activation,
-  # reset and change-email links and nothing else — they are 24h or shorter and re-requestable.
+  # Postgres and no Docker volume). Deleting this volume invalidates outstanding login
+  # challenges and grants and nothing else — they are short-lived and re-requestable.
   dataprotection_keys:
   # The sink's event store. It holds application events in PLAINTEXT on this box's disk —
   # `UserId`, `CorrelationId`, IP addresses and whatever else a log statement carries — which

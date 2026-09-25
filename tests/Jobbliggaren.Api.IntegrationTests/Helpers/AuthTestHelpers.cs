@@ -1,8 +1,7 @@
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
-using Jobbliggaren.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,13 +25,12 @@ public static class AuthTestHelpers
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = true };
-        var created = await services.GetRequiredService<UserManager<ApplicationUser>>().CreateAsync(user);
-        if (!created.Succeeded)
-            throw new InvalidOperationException(
-                $"Bootstrap user creation failed: {string.Join(", ", created.Errors.Select(e => e.Code))}");
+        var created = await services.GetRequiredService<IPasswordlessAccountCreator>()
+            .CreatePasswordlessUserAsync(email, ct);
+        if (created.IsFailure)
+            throw new InvalidOperationException($"Bootstrap user creation failed: {created.Error.Code}");
 
-        return await RegisterJobSeekerAndCreateSessionAsync(services, user.Id, lifetime, ct);
+        return await RegisterJobSeekerAndCreateSessionAsync(services, created.Value, lifetime, ct);
     }
 
     internal static async Task<string> RegisterJobSeekerAndCreateSessionAsync(

@@ -19,9 +19,9 @@ namespace Jobbliggaren.Architecture.Tests;
 /// only from <see cref="LoginProofOutcome"/>, and that only from the two proof handlers and <c>complete</c>
 /// (#1737); the account lookup is reachable only from <see cref="LoginSubjectResolver"/>, and that only from
 /// the consumer, the outcome function, <c>complete</c> and the Development seed seam, never from the request
-/// path that mints a challenge (ADR 0142 D2); and an account is opened only through <see cref="AccountRegistrar"/>,
-/// which only <c>complete</c> and the seed seam reach (ADR 0142 part 5a). The scan covers every assembly that composes services,
-/// the Api's included, and every constructor and method parameter of every type, compiler-generated ones
+/// path that mints a challenge (ADR 0142 D2); and an account is opened only through
+/// <see cref="AccountRegistrar"/>, which only <c>complete</c> and the seed seam reach (ADR 0142 part 5a). The
+/// scan covers every assembly that composes services, the Api's included, and every constructor and method parameter of every type, compiler-generated ones
 /// included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
 /// a parameter; the source scan covers the write's port by name.
 /// </summary>
@@ -90,11 +90,11 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void The_proof_chain_can_reach_neither_a_password_check_nor_lockout()
+    public void The_proof_chain_cannot_reach_the_account_service()
     {
         // Every port the three handlers can reach, following concrete classes through their constructors. The
         // account is reached through ILoginAccountLookup, which offers a lookup and nothing else, and created
-        // through IPasswordlessAccountCreator, which offers no password check.
+        // through IPasswordlessAccountCreator.
         var reached = new HashSet<Type>();
         var pending = new Stack<Type>(
         [

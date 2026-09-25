@@ -145,7 +145,7 @@ public class DevAccountSeedEndpointTests(ApiFactory factory)
     [Fact]
     public async Task An_identity_row_without_a_profile_answers_409_and_stays_without_one()
     {
-        // The state CompleteLoginChallengeCommandHandler leaves when its save throws after the Identity write
+        // The state AccountRegistrar leaves when its save throws after the Identity write
         // committed, and AccountHardDeleter's step 2h, which deletes the profile before the Identity row.
         var email = ReservedAddress("orphan");
         Guid userId;

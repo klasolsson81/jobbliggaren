@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 /// <summary>
 /// #1737 — the last step of registering by a proven inbox (ADR 0142 D3). Every refusal of the grant is one
 /// answer, and the session is opened by the outcome function the two proof handlers share, so this handler
-/// reaches neither the session grant nor the password surface.
+/// does not reach the session grant.
 /// </summary>
 public sealed class CompleteLoginChallengeCommandHandler(
     IOptions<AuthOptions> authOptions,

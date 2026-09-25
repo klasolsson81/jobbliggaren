@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Jobbliggaren.Application.Dev.Commands.ResetMyData;
 using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Application.Dev.Commands.TakeLoginCode;
@@ -63,7 +64,8 @@ public static class DevEndpoints
             {
                 DevSeedAccountOutcome.Ready => Results.NoContent(),
                 DevSeedAccountOutcome.NotReserved => Results.NotFound(),
-                _ => Results.Conflict(),
+                DevSeedAccountOutcome.Unavailable => Results.Conflict(),
+                _ => throw new UnreachableException("A DevSeedAccountOutcome has no response."),
             };
         });
     }

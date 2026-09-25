@@ -28,7 +28,7 @@ nothing is built on the box, which is capacity condition 1.
 | `worker` | Hangfire jobs | nothing |
 | `migrate` | Oneshot; gates `api`/`worker` via `service_completed_successfully` | nothing |
 | `postgres` | Data | nothing |
-| `redis` | Sessions, cooldown gates, landing-stats cache, and the company-register cache | nothing |
+| `redis` | Sessions, landing-stats cache, and the company-register cache | nothing |
 | `redis-volatile` | A Redis nothing can persist from: no AOF, no RDB, no volume, `/data` a sized tmpfs under a read-only root. Built for the login challenge's TTL-bounded keys (ADR 0142 D1). Only `api` is handed its connection string | nothing |
 | `seq` | The queryable log sink (#1175, ADR 0128). No host port and no SSH tunnel — `AllowTcpForwarding no` — so it is reachable only from inside the project network | nothing |
 | `migrate-rewrap` | `profiles: ["ops"]`, so **not started by `up`**. Operator-invoked one-shot for the master-key re-wrap; shares `migrate`'s image and the app-secrets mount | nothing |
@@ -458,7 +458,17 @@ nothing runs that by itself: an operator runs it, on Klas's GO for that run. It 
 sanctioned exception to *"manual applies go through the unit"* (§3b), and it has **no schema-ahead
 gate** (§3a), so it must never run an image older than the history it meets.
 
-**Preconditions, all five, read before anything is applied:**
+**The whole sequence runs under ONE lock**, so the hourly reconcile cannot re-create a
+container underneath it. Hold it in a root shell and run the preconditions, the apply and the read-back
+inside it; exiting the shell releases it. The wrapper takes the lock non-blocking, so a timer that
+fires meanwhile logs `another reconcile holds` and exits 0.
+
+```bash
+sudo flock /run/jobbliggaren-reconcile.lock bash
+cd /opt/jobbliggaren/deploy
+```
+
+**Preconditions, all five:**
 
 1. **Klas's GO for this run.** Not a standing grant.
 2. **One revision.** `migrate`, `api` and `worker` carry the same revision label X in `latest`.
@@ -483,14 +493,9 @@ gate** (§3a), so it must never run an image older than the history it meets.
    `pg_dump -n identity` would be a second mechanism, and a plaintext copy of the very hashes 5b
    exists to destroy. The `Down` script is the backup.
 
-**The run: the whole sequence under ONE lock**, so the hourly reconcile cannot re-create a
-container underneath it. Hold it in a root shell and run the pre-reads, the apply and the read-back
-inside it; exiting the shell releases it. The wrapper takes the lock non-blocking, so a timer that
-fires meanwhile logs `another reconcile holds` and exits 0.
+**The run, inside the same shell:**
 
 ```bash
-sudo flock /run/jobbliggaren-reconcile.lock bash
-cd /opt/jobbliggaren/deploy
 docker compose -f docker-compose.yml run --rm --pull never --no-deps migrate bootstrap
 ```
 

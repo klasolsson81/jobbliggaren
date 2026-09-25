@@ -444,9 +444,10 @@ public class LoginChallengeProofTests(ApiFactory factory)
         }
     }
 
-    // A password account as the retired POST /auth/register wrote it (CreateUserAsync(email, password), retired
-    // in #1743): a hash and the address confirmed or not. No path in src/ writes one since, and the rows it wrote
-    // stay until 5b nulls password_hash, so the actor is that route. The current writer's shape is pinned by
+    // A password account as the retired routes left it: POST /auth/register (CreateUserAsync(email, password)) wrote
+    // the hash with the address unconfirmed, and POST /auth/verify-email (ConfirmEmailAsync) confirmed it; both
+    // retired in #1743. No path in src/ writes one since, and the rows they wrote stay until 5b nulls
+    // password_hash, so the actors are those routes. The current writer's shape is pinned by
     // LoginChallengeCompleteTests.A_new_address_that_accepts_the_terms_gets_a_passwordless_account_and_a_persistent_session.
     // This seed goes in 5b together with RemovePasswordAsync. The hash is generated at runtime, never a literal.
     private async Task<string> SeedLegacyPasswordAccountAsync(string email, bool confirmed)

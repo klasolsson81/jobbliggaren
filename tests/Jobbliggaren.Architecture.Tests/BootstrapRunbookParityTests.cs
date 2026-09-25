@@ -19,9 +19,12 @@ public class BootstrapRunbookParityTests
         start.ShouldBeGreaterThanOrEqualTo(0, "vps-deploy-stack.md has no §3c");
         var end = Array.FindIndex(runbook, start + 1, l => l.StartsWith("## ", StringComparison.Ordinal));
 
-        var command = runbook[start..(end < 0 ? runbook.Length : end)]
-            .SingleOrDefault(l => l.Contains(" run --rm ", StringComparison.Ordinal));
+        var section = runbook[start..(end < 0 ? runbook.Length : end)];
+        var command = section.SingleOrDefault(l => l.Contains(" run --rm ", StringComparison.Ordinal));
         command.ShouldNotBeNull("§3c carries no single `run --rm` command");
+        var firstRead = Array.FindIndex(section, l => l.Contains("docker ", StringComparison.Ordinal));
+        Array.FindIndex(section, l => l.StartsWith("sudo flock ", StringComparison.Ordinal))
+            .ShouldBeInRange(0, firstRead - 1, "§3c must take the reconcile lock before its first docker read");
         command.ShouldContain("--pull never");
         command.Trim().ShouldEndWith(" migrate bootstrap");
 

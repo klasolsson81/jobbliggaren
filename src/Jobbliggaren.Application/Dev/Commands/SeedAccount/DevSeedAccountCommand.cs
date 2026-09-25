@@ -20,9 +20,6 @@ public enum DevSeedAccountOutcome
     /// <summary>The address is not at a reserved domain; nothing was read or written.</summary>
     NotReserved,
 
-    /// <summary>
-    /// The address has an account a login cannot sign in to: a profile pending deletion, or an Identity row
-    /// without a profile. Nothing was changed.
-    /// </summary>
+    /// <summary>A login cannot sign in to the address. Nothing was changed.</summary>
     Unavailable,
 }

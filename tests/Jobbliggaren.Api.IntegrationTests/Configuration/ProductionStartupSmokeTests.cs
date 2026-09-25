@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Auth;
@@ -16,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -288,10 +290,16 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
     {
         // The counterfactual: the same environment with the gate open and the fixture's delivering sender.
         var ct = TestContext.Current.CancellationToken;
-        using var host = _factory.WithWebHostBuilder(b => b.UseSetting("Auth:RegistrationsOpen", "true"));
+        var logs = new CapturingLoggerProvider();
+        using var host = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Auth:RegistrationsOpen", "true")
+            .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(logs)));
         using var client = host.CreateClient();
 
         (await client.GetAsync("/api/live", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var announcement = logs.Logs.Where(l => l.EventId.Id is 4300 or 4301).ShouldHaveSingleItem();
+        announcement.EventId.Id.ShouldBe(4301);
+        announcement.Level.ShouldBe(LogLevel.Warning);
     }
 
     private static IEnumerable<Exception> Chain(Exception root)

@@ -111,7 +111,7 @@ public sealed class DevSeedAccountCommandHandlerTests
     [Fact]
     public async Task An_Identity_row_without_a_profile_is_Unavailable_and_no_profile_is_created()
     {
-        // The state CompleteLoginChallengeCommandHandler's save leaves behind when it throws after the Identity
+        // The state AccountRegistrar's save leaves behind when it throws after the Identity
         // write committed (the orphan sweep collects it later).
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns(new LoginAccount(_userId, Email));
 

@@ -1122,15 +1122,9 @@ REGISTRETS TÄCKNING, inte mallantalet, så bumpen konverterade ett sant påstå
 i en merge-blockerande grind — i den lugnande riktningen. Mätt 2026-08-10 av dotnet-architect och
 security-auditor oberoende.)*
 
-**FYRA**
-av mallarna är ogrindade: `EmailChangeConfirmation` (`ChangeEmailCommandHandler:66`),
 `EmailChangedNotification` (`ConfirmEmailChangeCommandHandler:45`, vars enda villkor är att
-den gamla adressen finns), samt sedan #1171 `PasswordReset`
-(`RequestPasswordResetCommandHandler`) och `PasswordChangedNotice`
-(`ResetPasswordCommandHandler`) — **båda utan feature-villkor alls**, så en flipp gör dem levande
-vid första `/glomt-losenord`. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
-providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen, och
-`EmailChangeConfirmation` har en och listas ändå här.)* **Den senare går till den GAMLA adressen** — en annan
+den gamla adressen finns) är ogrindad. *(Läs "grindad" som checklistan gör: ett villkor UTÖVER
+providerswitchen. En `CanDeliver`-kontroll räknas inte — `CanDeliver` ÄR switchen.)* **Den går till den GAMLA adressen** — en annan
 mottagarklass än den användaren just skrev, så en Art. 30-behandling som bara skopas till
 den första lämnar en mottagare oregistrerad.
 
@@ -2287,8 +2281,7 @@ residualen står här, i den trackade filen, och åtgärdas lokalt före flippen
         ADR 0142 del 5a den enda), som frågar den registrerade avsändarens `IEmailSender.CanDeliver` i stället för
         att läsa om `Email:Provider`. Asymmetrin är löst som punkten krävde — regeln bor i
         validatorn, som binds i Api:ns identitetsmodul, och **inte** i `AddEmailSender`, den enda
-        sömmen båda hostarna delar; Worker:n binder samma `Auth`-sektion med ett rent `Configure`
-        och registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
+        sömmen båda hostarna delar; Worker:n registrerar ingen validator. **Båda halvorna är pinnade vid anropsplatsen**, så
         paritets-editen åt endera hållet landar rött.
         ⚠ **Detta stänger INTE punkt 5.5, och inte heller B-ii gör det.** Villkor (a) upphör
         först vid en riktig `Email:Provider` (`:218`/`:220`/`:224` publicerade då fortfarande

@@ -12,8 +12,8 @@ public sealed class AuthOptions
 
     /// <summary>
     /// Public-registration kill-switch (Klas-beslut 2026-08-03, ADR 0083 Amendment 2026-08-03). When
-    /// <c>false</c> no new account is created: a login challenge for an address without an account mints no
-    /// code, and <c>complete</c> refuses as its first statement, before any grant is read.
+    /// <c>false</c>, a login challenge for an address without an account mints no code, and <c>complete</c>
+    /// refuses as its first statement, before any grant is read.
     /// <para>
     /// Default <c>false</c> = CLOSED, and the polarity is the whole point: the app is publicly reachable before
     /// its legal and security gates are green, so an unset value must fail CLOSED. The mirror-image name

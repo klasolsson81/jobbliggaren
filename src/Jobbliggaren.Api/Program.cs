@@ -252,8 +252,8 @@ app.Use(async (ctx, next) =>
     }
     catch (ReauthenticationFailedException)
     {
-        // Server-enforced re-auth failure (PR2c/C5) — render the SAME ProblemDetails 401 as
-        // /auth/login (AuthProblem is the single source), so an unusable grant and a soft-deleted
+        // Server-enforced re-auth failure (PR2c/C5) — render the ProblemDetails 401
+        // (AuthProblem is the single source), so an unusable grant and a soft-deleted
         // account are byte-identical on the wire and neither leaks which cause applied
         // (GDPR Art. 32 oracle-avoidance). No credential material is logged or echoed.
         await AuthProblem.InvalidCredentials().ExecuteAsync(ctx);

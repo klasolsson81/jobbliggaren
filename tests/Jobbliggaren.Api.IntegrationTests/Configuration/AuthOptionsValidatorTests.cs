@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -151,14 +152,14 @@ public class AuthOptionsValidatorTests
     /// composition method is called, so the two absences are a MEASUREMENT rather than two silences
     /// beside a differently-measured presence. Note what the shape does and does not catch: asserting
     /// on the registered <c>ServiceType</c> catches a validator placed in either seam, and the
-    /// dangerous flags are present so an inline <c>throw</c> in <c>AddEmailSender</c> — that file's own
+    /// gate is open so an inline <c>throw</c> in <c>AddEmailSender</c> — that file's own
     /// idiom in the Scaleway arm — would surface as an exception rather than as a failed assertion. A check
     /// that neither registers nor throws would pass.
     /// </para>
     /// </summary>
     public class TheWorkerIsNotSubjectToTheGate
     {
-        private static IConfiguration ConfigurationWithTheDangerousFlags() =>
+        private static IConfiguration ConfigurationWithTheGateOpen() =>
             new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -180,7 +181,7 @@ public class AuthOptionsValidatorTests
             // build where nothing anywhere registers the validator.
             var services = new ServiceCollection();
 
-            services.AddIdentityAndSessions(ConfigurationWithTheDangerousFlags());
+            services.AddIdentityAndSessions(ConfigurationWithTheGateOpen());
 
             services.ShouldContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -190,7 +191,7 @@ public class AuthOptionsValidatorTests
         {
             var services = new ServiceCollection();
 
-            services.AddCoreIdentityForWorker(ConfigurationWithTheDangerousFlags());
+            services.AddCoreIdentityForWorker(ConfigurationWithTheGateOpen());
 
             services.ShouldNotContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -204,7 +205,7 @@ public class AuthOptionsValidatorTests
             env.EnvironmentName.Returns("Production");
             var services = new ServiceCollection();
 
-            services.AddEmailSender(ConfigurationWithTheDangerousFlags(), env);
+            services.AddEmailSender(ConfigurationWithTheGateOpen(), env);
 
             services.ShouldNotContain(d => d.ServiceType == typeof(IValidateOptions<AuthOptions>));
         }
@@ -248,6 +249,8 @@ public class AuthOptionsValidatorTests
 
             response.StatusCode.ShouldBe(
                 HttpStatusCode.ServiceUnavailable, "this host holds the gate closed");
+            (await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken))
+                .GetProperty("title").GetString().ShouldBe(AuthErrorCodes.RegistrationsClosed);
 
             var announcement = factory.ClosedHostLogs.SingleOrDefault(l => l.EventId.Id == 4300);
             announcement.ShouldNotBeNull(

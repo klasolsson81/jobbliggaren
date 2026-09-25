@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
 /// <summary>
 /// End-to-end tests for POST /api/v1/auth/change-email (#679; two codes since #1739, ADR 0142 D5) — the REQUEST
-/// step, re-auth-gated like /change-password. The grant is minted through production by
+/// step, re-auth-gated. The grant is minted through production by
 /// <see cref="ReauthTestHelpers"/>; on success a code goes to the NEW address and the answer is 202 with the
 /// challenge id, WITHOUT changing the address and WITHOUT touching any session. Accounts are passwordless
 /// (ADR 0142 D9). Runs against the ApiFactory's recording IEmailSender and real Testcontainers Postgres/Redis.

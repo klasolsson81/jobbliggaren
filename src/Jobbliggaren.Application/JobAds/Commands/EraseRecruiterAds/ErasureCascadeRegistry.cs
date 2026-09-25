@@ -269,7 +269,6 @@ public static class ErasureCascadeRegistry
         // SQL arm over the whole container searches both, which is why both are claimed here.
         new("JobSeekerProfiles",
             [
-                "job_seekers.display_name",
                 "job_seekers.match_preferences",
                 "job_seekers.preferences",
                 "job_seekers.Language",
@@ -495,7 +494,6 @@ public static class ErasureCascadeRegistry
             // the `preferences` container accepts anything at all. `preferences` and `Language` are
             // the same bytes - the model reports the container column and the JSON property inside
             // it separately, and one arm over the whole container covers both.
-            ["job_seekers.display_name"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.match_preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.preferences"] = ErasureColumnDisposition.MatchedHumanErases,
             ["job_seekers.Language"] = ErasureColumnDisposition.MatchedHumanErases,
@@ -762,10 +760,9 @@ public static class ErasureCascadeRegistry
                 + "written. That catalogue has no runtime mutation surface; it changes by PR only.",
 
             ["job_seekers:MatchedHumanErases"] =
-                "FOUR KEYS, THREE COLUMNS: `preferences` and `Language` are the same bytes - the "
+                "`preferences` and `Language` are the same bytes - the "
                 + "model reports the OwnsOne(...).ToJson() container column and the JSON property "
                 + "inside it separately, and one arm over the whole container covers both. "
-                + "display_name is plaintext varchar(200) with no converter. "
                 + "match_preferences is jsonb holding six lists of up to 400 elements, every element "
                 + "gated by ^[A-Za-z0-9_-]{1,32} and by nothing else - no concept-id is resolved "
                 + "against any taxonomy table on that path. Same false ground, same shape, as "

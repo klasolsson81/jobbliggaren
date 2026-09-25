@@ -653,7 +653,7 @@ v5.4.0, not re-measured):
 3. Klas has given the merge GO for the irreversible migration.
 
 **Rollback.** From U on, a pin to an older tag makes `migrate` refuse (exit 3, `vps-deploy-stack.md` §3a),
-unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses.
+unless `MIGRATE_ALLOW_SCHEMA_AHEAD` names the exact set of ids it refuses. From D on, the override cannot bring back code older than U: its model selects the dropped column (above). U's tag with the override is the only rollback by tag, and on it the recruiter-erasure search fails with 42703.
 
 **Klas answered two questions from the round on 2026-09-24.** He chose from AskUserQuestion options, and each
 question was quoted to him verbatim first.
@@ -664,6 +664,8 @@ question was quoted to him verbatim first.
    i den release som din fortsättnings-GO för #1759-holdet deployar? Eller ska 4b vänta med merge tills
    holdet är hävt eller avskrivet?" Klas: "4b får ingå i releasen". The hold was not active when he
    answered.
+
+**DoD 8.** No new personal data: 4b removes a stored category. No new logging. Row versions and WAL are not claimed erased, and nothing is said about backups (STOPP-4). Legacy CVs keep the name in their encrypted content (Amendment (7)). No DPIA.
 
 ### D8 — OAuth hand-rolled behind a port, last: Variant B
 
@@ -1676,7 +1678,7 @@ keys it creates: the grant keys go in with 1c, the OAuth-state keys with 6a. The
 `Sessioner` bullet's "payload carries only non-PII" gains *"this holds for the session record, not the
 challenge record"*; a line records that the challenge record is practically unreachable for
 Art. 15/17 because it expires within the response time. **Copy follows data, never precedes it:**
-"lösenord (hash)" (`content-legal.json:32`) is struck in **5b**; "visningsnamn" leaves the purpose sentence in
+"lösenord (hash)" (`content-legal.json:33`) is struck in **5b**; "visningsnamn" leaves the purpose sentence in
 **4a's PR B**, with its purpose, and the stored-data sentence in **4b**, with the data (Amendment 2026-09-23 (7)); the
 register's "the operation carries a credential (the password)" in **3a**. **No DPIA is required**
 (Art. 35(3)(a)–(c) all negative: no systematic evaluation with legal effect, no large-scale special
@@ -1734,7 +1736,7 @@ true)` + cookie-policy copy, Playwright → **3a** #1739 re-auth grants, in four
 change-email →
 **4a** #1741 in eight PRs (Amendment 2026-09-22, #1741): A0 the tolerant reader → V1 the preamble cut → DX and DX2
 the DOCX line model → A `Resume.FullName` optional, the CV half → B0 the profile read's tolerant reader → B the
-account half, after 3b; RP beside them → **4b** #1742
+account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 2026-09-24 (8)): U the unmap → D the drop
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
@@ -1744,7 +1746,7 @@ columns are measured unused (`ApplicationUser.cs` + its configuration only; `Has
 so no Postgres enum to clean).
 
 **Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
-1b, 1c-expand (`DisplayNameNullable`), 4b. 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
+1b, 1c-expand (`DisplayNameNullable`), 4b (`UnmapJobSeekerDisplayName`, then `DropJobSeekerDisplayName`). 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
 ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 

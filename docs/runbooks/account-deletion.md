@@ -220,7 +220,7 @@ alternative address). Sedan:
 BEGIN;
 
 -- 1. Hitta soft-deletad JobSeeker
-SELECT id, user_id, display_name, deleted_at
+SELECT id, user_id, deleted_at
 FROM job_seekers
 WHERE user_id = '<userId>'::uuid
   AND deleted_at IS NOT NULL;
@@ -330,9 +330,8 @@ WHERE id = '<jobSeekerId>'::uuid
 
 ⚠ **"Verifierad" har en högre tröskel här än i §4.1, och §4.1:s båda metoder är otillgängliga.** Det
 finns inget konto att legitimera sig mot (Identity-raden är per definition borta) och ingen alternativ
-adress på fil — domäntabellerna bär ingen. Kvar på raden är `display_name` i klartext, som varken är
-unikt eller verifierat, och DEK-krypterat CV-innehåll som **inte** får dekrypteras för att avgöra vems
-det är.
+adress på fil — domäntabellerna bär ingen. Kvar på raden är DEK-krypterat CV-innehåll som **inte**
+får dekrypteras för att avgöra vems det är.
 
 **Går kopplingen inte att verifiera: radera inte.** Det är rätt svar, inte ett undantag — Art. 11.2
 (kan den personuppgiftsansvarige inte identifiera den registrerade gäller Art. 15–20 inte) och

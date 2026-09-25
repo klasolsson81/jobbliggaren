@@ -631,7 +631,6 @@ user_roles, roles, role_claims, user_claims, user_logins, user_tokens
 job_seekers
   id (uuid PK)
   user_id (uuid FK users)
-  display_name (text)
   preferences (jsonb)            -- flexibel VO
   terms_accepted_at (timestamptz null)                    -- ADR 0142 D6: avtalsstämpel, null bara före del 1b
   terms_version, privacy_policy_version (varchar(20) null) -- all-or-nothing: ck_job_seekers_terms_all_or_none

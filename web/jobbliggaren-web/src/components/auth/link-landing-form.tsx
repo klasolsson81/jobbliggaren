@@ -106,6 +106,8 @@ export function LinkLandingForm({
           </p>
         )}
 
+        <p className="text-body-sm text-text-primary">{t("auth.passwordless.persistence")}</p>
+
         <div className="flex flex-col gap-3">
           <Button type="submit" disabled={isPending} className="w-full max-md:h-11">
             {isPending

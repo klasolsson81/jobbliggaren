@@ -285,4 +285,31 @@ public static class AuthErrorCodes
 
     public const string LoginGrantUnusableMessage =
         "Det gick inte att slutföra registreringen. Begär en ny kod på inloggningssidan.";
+
+    /// <summary>
+    /// #1744 — no provider is registered under the key: unknown to this build, or known and without keys on this
+    /// host. NotFound → 404.
+    /// </summary>
+    public const string ExternalProviderUnknown = "Auth.ExternalProviderUnknown";
+
+    public const string ExternalProviderUnknownMessage = "Inloggningstjänsten finns inte.";
+
+    /// <summary>
+    /// #1744 — an external login that cannot be completed, for any reason: a state that is unknown, expired, used or
+    /// started for another provider, or a code the provider refused. The flow is spent either way. One answer; the
+    /// log names the cause. Gone → 410.
+    /// </summary>
+    public const string ExternalLoginUnusable = "Auth.ExternalLoginUnusable";
+
+    public const string ExternalLoginUnusableMessage =
+        "Inloggningen slutfördes inte. Försök igen, eller logga in med en kod.";
+
+    /// <summary>
+    /// #1744 — the provider is not authoritative for the account's address, or has not verified it (ADR 0142 D8).
+    /// The login is refused and nothing is linked; the remedy is a code to the address. Validation → 400.
+    /// </summary>
+    public const string ExternalEmailUnverified = "Auth.ExternalEmailUnverified";
+
+    public const string ExternalEmailUnverifiedMessage =
+        "Inloggningstjänsten kan inte intyga din e-postadress. Logga in med en kod i stället.";
 }

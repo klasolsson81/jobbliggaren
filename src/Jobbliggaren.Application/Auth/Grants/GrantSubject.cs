@@ -1,3 +1,5 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
+
 namespace Jobbliggaren.Application.Auth.Grants;
 
 /// <summary>
@@ -10,6 +12,7 @@ public enum GrantPurpose
     LoginComplete = 1,
     Reauthentication = 2,
     ChangeEmail = 3,
+    LoginCompleteExternal = 4,
 }
 
 /// <summary>What a grant binds and carries (ADR 0142 D3). A closed set, one variant per purpose.</summary>
@@ -46,6 +49,17 @@ public abstract record GrantSubject
     {
         public override GrantPurpose Purpose => GrantPurpose.ChangeEmail;
     }
+
+    /// <summary>
+    /// A provider-verified address with no account, waiting for the terms (ADR 0142 D3, D8), and the external
+    /// login to attach once the account exists. Bearer-bound like <see cref="LoginComplete"/>: no row is written
+    /// before the acceptance, so the identity waits here and expires with the grant.
+    /// </summary>
+    public sealed record LoginCompleteExternal(
+        VerifiedEmail ProvenEmail, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
+    {
+        public override GrantPurpose Purpose => GrantPurpose.LoginCompleteExternal;
+    }
 }
 
 /// <summary>
@@ -54,34 +68,58 @@ public abstract record GrantSubject
 /// </summary>
 public sealed record GrantAssertion
 {
-    private GrantAssertion(GrantPurpose purpose, GrantSubject? binding)
+    private GrantAssertion(IReadOnlyList<GrantPurpose> purposes, GrantSubject? binding)
     {
-        Purpose = purpose;
+        Purposes = purposes;
         Binding = binding;
     }
 
-    public GrantPurpose Purpose { get; }
+    /// <summary>The purposes the stored grant may have; one, except for a bearer redemption of several.</summary>
+    public IReadOnlyList<GrantPurpose> Purposes { get; }
 
     /// <summary>The binding the stored subject must EQUAL, or null for a bearer-bound purpose.</summary>
     public GrantSubject? Binding { get; }
 
+    // Value equality over the purposes, not the list's reference: two assertions a caller builds alike are equal.
+    public bool Equals(GrantAssertion? other) =>
+        other is not null && Purposes.SequenceEqual(other.Purposes) && Equals(Binding, other.Binding);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var purpose in Purposes)
+            hash.Add(purpose);
+        hash.Add(Binding);
+        return hash.ToHashCode();
+    }
+
     /// <summary>The caller knows the binding and asserts it; the store refuses anything not equal to it.</summary>
-    public static GrantAssertion Of(GrantSubject binding) => new(binding.Purpose, binding);
+    public static GrantAssertion Of(GrantSubject binding) => new([binding.Purpose], binding);
 
     /// <summary>
-    /// The caller knows only the token, because carrying the binding out is the purpose's whole job. Refused
-    /// for every purpose not declared bearer-bound, so a new purpose is caller-asserted until someone says
-    /// otherwise.
+    /// The caller knows only the token, because carrying the binding out is the purpose's whole job. Every purpose
+    /// named must be declared bearer-bound, so a new purpose is caller-asserted until someone says otherwise. A
+    /// caller that accepts several — <c>complete</c> takes a code's grant or a provider's — names them all, and the
+    /// store redeems the token once.
     /// </summary>
-    public static GrantAssertion Bearer(GrantPurpose purpose) =>
-        IsBearerBound(purpose)
-            ? new(purpose, null)
-            : throw new ArgumentOutOfRangeException(
-                nameof(purpose), purpose, "This purpose's binding is caller-asserted; use GrantAssertion.Of.");
+    public static GrantAssertion Bearer(GrantPurpose first, params GrantPurpose[] more)
+    {
+        GrantPurpose[] purposes = [first, .. more];
+        foreach (var purpose in purposes)
+        {
+            if (!IsBearerBound(purpose))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(first), purpose, "This purpose's binding is caller-asserted; use GrantAssertion.Of.");
+            }
+        }
+
+        return new(purposes.Distinct().ToArray(), null);
+    }
 
     private static bool IsBearerBound(GrantPurpose purpose) => purpose switch
     {
-        GrantPurpose.LoginComplete => true,
+        GrantPurpose.LoginComplete or GrantPurpose.LoginCompleteExternal => true,
         _ => false,
     };
 }

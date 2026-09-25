@@ -3,11 +3,13 @@ using System.Security.Cryptography;
 using System.Text;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Landing.Common;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Registration;
@@ -240,6 +242,38 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
         var challengeKey = RedisLoginChallengeStore.RecordKey(RedisLoginChallengeStore.RecordSegment(ChallengeId.Generate()));
         await DeniedAsync(() => db.StringGetDeleteAsync(challengeKey));
         (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(grantKey)).ShouldBeTrue();
+    }
+
+    // #1744 — the OAuth state family (ADR 0142 D8): the one SET with its TTL, the one GETDEL, and nothing else.
+    [Fact]
+    public async Task OAuthState_ApiVolatileIdentity_PutsWithTtlAndTakesOnce()
+    {
+        var states = new RedisOAuthStateStore(
+            fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), NullLogger<RedisOAuthStateStore>.Instance);
+        var admin = fixture.VolatileAdmin.GetDatabase();
+
+        var state = await states.PutAsync(
+            new OAuthFlow(ExternalProviderKey.Google, PkceVerifier.Generate(), "/oversikt"), Ct);
+        (await admin.KeyTimeToLiveAsync(RedisOAuthStateStore.Key(state))).ShouldNotBeNull()
+            .ShouldBeGreaterThan(TimeSpan.Zero);
+        (await states.TakeAsync(state, ExternalProviderKey.Google, Ct)).ShouldNotBeNull();
+        (await states.TakeAsync(state, ExternalProviderKey.Google, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task OAuthStateKeys_ApiVolatileIdentity_AdmitOnlyTheirOwnCommands()
+    {
+        var states = new RedisOAuthStateStore(
+            fixture.ChallengeAdapter, new EphemeralDataProtectionProvider(), NullLogger<RedisOAuthStateStore>.Instance);
+        var key = RedisOAuthStateStore.Key(await states.PutAsync(
+            new OAuthFlow(ExternalProviderKey.Google, PkceVerifier.Generate(), "/oversikt"), Ct));
+        var db = fixture.Challenge.GetDatabase();
+
+        await DeniedAsync(() => db.StringGetAsync(key));
+        await DeniedAsync(() => db.KeyDeleteAsync(key));
+        await DeniedAsync(() => db.KeyExpireAsync(key, TimeSpan.FromHours(1)));
+        await DeniedAsync(() => db.ScriptEvaluateAsync("return redis.call('GET', KEYS[1])", [new RedisKey(key)]));
+        (await fixture.VolatileAdmin.GetDatabase().KeyExistsAsync(key)).ShouldBeTrue();
     }
 
     [Theory]

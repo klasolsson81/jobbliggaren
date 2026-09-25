@@ -54,10 +54,6 @@ Någon begär en inloggningskod för kontots adress inom 30 dagar:
 
 Beskedet når alltså bara den som läser kontots inkorg.
 
-Lösenordsinloggningen (`POST /api/v1/auth/login`) returnerar `Auth.InvalidCredentials` (401) för ett
-soft-deletat konto, identiskt med "okänd email" / "fel lösen" för att undvika information disclosure
-(security-auditor STEG 10b Sec-1), och skriver audit-raden `LoginFailed`.
-
 ### 2.3 Hard-delete (`HardDeleteAccountsJob`)
 
 Hangfire-jobb kör 04:00 UTC daily. Tre steg:

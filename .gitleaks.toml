@@ -2,10 +2,11 @@
 [extend]
 useDefault = true
 
-# False positive: hardcoded integration-test password (not a real secret).
+# False positive: the retired integration-test password (not a real secret). No file carries it
+# since ADR 0142 part 5a (#1743), but the pre-push scan reads the whole git history, where it stays.
 # Global allowlist keyed on the secret VALUE (SHA-independent) so it survives
 # history rewrites and the JobbPilot→Jobbliggaren rename. This supersedes the
 # SHA-keyed .gitleaksignore (whose fingerprints break on every history rewrite).
 [[allowlists]]
-description = "Integration-test password T3stlosen123456 — not a real secret"
+description = "Retired integration-test password T3stlosen123456 — git history only, not a real secret"
 regexes = ['''T3stlosen123456''']

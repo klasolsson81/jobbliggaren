@@ -1,6 +1,6 @@
 # Registration gate — opening it, and creating the first accounts
 
-**Scope:** `Auth:RegistrationsOpen` and `Auth:RequireEmailConfirmation` on the deployed
+**Scope:** `Auth:RegistrationsOpen` on the deployed
 box, and the only sanctioned way to bring an account into existence there. Owned by
 [#734](https://github.com/klasolsson81/jobbliggaren/issues/734).
 **Host:** Netcup RS 1000 G12, Debian 13 (trixie), Nuremberg — `dev.jobbliggaren.se`.
@@ -15,9 +15,9 @@ box, and the only sanctioned way to bring an account into existence there. Owned
 Registration is closed by default and the default is not an omission: the app becomes
 publicly reachable before its legal and security gates are green, so an unset value must
 fail closed. `AuthOptionsValidator` exempts Development and Test and applies everywhere else,
-where it refuses the boot on an open gate without email confirmation, and on any sender that
-cannot deliver, open gate or not (since #1735 login itself is a mailed code) — so the two flags
-and the mail provider are one interlock, not three switches. **Writing an account straight into
+where it refuses the boot on any sender that
+cannot deliver, open gate or not (since #1735 login itself is a mailed code) — so the flag
+and the mail provider are one interlock, not two switches. **Writing an account straight into
 the database is not an alternative to this procedure**; `AuthOptions`' own documentation
 forbids it, and this file is the path it prescribes instead.
 
@@ -46,9 +46,9 @@ forbids it, and this file is the path it prescribes instead.
    property rather than by two clauses that happen to intersect. A separate mailbox satisfies
    neither, whatever it is called.
    ⚠ **It governs the two accounts the operator registers at step 5, and nobody else.** Once
-   the gate is open, whoever reaches `/registrera` registers with **their own** address:
+   the gate is open, whoever reaches `/logga-in` registers with **their own** address:
    nothing here chooses it and this precondition cannot reach it. Such an address is not one
-   the controller holds, so **(b) fires on the first such account, and (d) on the confirmation
+   the controller holds, so **(b) fires on the first such account, and (d) on the first
    mail to it.** The definitions are `release-checklist.md` §2.5 point 1 leg (e) precondition
    5's and are **not restated here** — read there what firing them costs, before the gate is
    opened rather than after.
@@ -56,7 +56,7 @@ forbids it, and this file is the path it prescribes instead.
    can speak for, and which it never could. What must be discharged before a first
    self-registration belongs to precondition 5 and the checklist — never to CC.
 4. **The K2 edge credentials** (`BASIC_AUTH_USER` / `BASIC_AUTH_HASH`), because every
-   request to the site — including the one the confirmation link makes — is challenged
+   request to the site — including the one a login link makes — is challenged
    first.
    ⚠ **A self-registration must clear that same challenge, on someone else's device.**
 5. **A rights channel that receives, or a recorded decision that it does not.**
@@ -122,24 +122,23 @@ they would sit in `.env` looking set, and the gate would stay closed with no err
 
 **1. The mail credentials and the provider value are already in place — precondition 1, and
 nothing this procedure runs.** The injection order, the flip and its gate belong to
-`deploy/.env.example`'s outbound-email block; the sequence against step 2's two `AUTH_` keys
+`deploy/.env.example`'s outbound-email block; the sequence against step 2's `AUTH_` key
 is fixed in that file's **registration-gate** block, which is where to read it.
 
-**2. Edit `deploy/.env`** — these three keys, and no `EMAIL_*` line:
+**2. Edit `deploy/.env`** — these two keys, and no `EMAIL_*` line:
 
 ```
 AUTH_REGISTRATIONS_OPEN=true
-AUTH_REQUIRE_EMAIL_CONFIRMATION=true
 ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL=<the operator's own address>
 ```
 
-⚠ **The third key belongs to the bootstrap half — a visit that only opens the gate sets the
-`AUTH_` keys and leaves it blank.** It exists so step 7 can make the operator's own account an
+⚠ **The second key belongs to the bootstrap half — a visit that only opens the gate sets the
+`AUTH_` key and leaves it blank.** It exists so step 7 can make the operator's own account an
 Admin, and step 7's own reasoning is why it is not needed twice: the role is persisted in the
 database, so once the log has confirmed the assignment the knob has no further work. Setting it
 again on a later visit re-asserts a standing grant for nothing.
 
-**3. Restart the api.** Only `api` reads the three keys above, and step 2 changes no `EMAIL_*`
+**3. Restart the api.** Only `api` reads the two keys above, and step 2 changes no `EMAIL_*`
 line, so `worker` — which shares those through the `x-app-email` anchor and consumes no
 `Auth__*` at all — has no cause to restart here.
 
@@ -156,12 +155,10 @@ sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 Expect, at **Warning** level:
 
 ```
-Registration gate: OPEN outside Development; email confirmation: REQUIRED
+Registration gate: OPEN outside Development
 ```
 
-`OPEN` with `NOT REQUIRED` is the one combination the validator refuses, so a container that
-came up at all is in one of the other three and this line says which. If the api is instead
-crash-looping, read the refusal: it names the offending key and the rule.
+If the api is instead crash-looping, read the refusal: it names the offending key and the rule.
 
 Expect **also**, on this boot, a Warning from the admin seeder saying no matching user was
 found. That is correct: the address in `ADMIN_BOOTSTRAP_INITIAL_ADMIN_EMAIL` has no account
@@ -171,18 +168,16 @@ yet. Step 7 is what resolves it.
 `IdempotentAdminRoleSeeder` gates the whole lookup on the value being non-blank, so a blank one
 never reaches it.
 
-**5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/registrera`,
+**5. Register both accounts** in a browser at `https://dev.jobbliggaren.se/logga-in`,
 through the K2 challenge: the operator's own account first (the address from step 2), then
-the standing CC test account. Each returns `202` with no session — that is the
-email-confirmation-first flow, not a failure. The `202` is deliberately uniform: a fresh and
-an already-taken address are byte-identical on status and body, and only the mail differs.
-So expect a confirmation link; **an "account already exists" notice means the address was
-taken** — stop and find out by whom rather than retrying.
+the standing CC test account. Enter the address, then the code from the mail, then accept the
+terms: the account is created at that last step and the browser is signed in. The page answers
+every address alike, and only the mail differs. So expect a code without a link; **a mail with a
+login link means the address already has an account** — stop and find out whose rather than
+continuing.
 
-**6. Confirm both, from the links in the two inboxes.** The link points at
-`https://dev.jobbliggaren.se`, so K2 challenges again — on whatever device opens the mail.
-That is the edge gate working, not a broken link. Until a link is followed, that account's
-login is refused with `403 EmailNotConfirmed`.
+**6.** *(Retired in ADR 0142 part 5a: the code at step 5 proves the inbox, so there is no link to
+follow. The number is left vacant so the step numbers in this file keep their meaning.)*
 
 **7. Restart the api once more, so the admin role is assigned.**
 
@@ -248,17 +243,11 @@ knob and reads as "the address is still there". Measured 2026-08-16, where it di
 The full address does **not** match — the image carries no `@domain` — so the trap is specific to
 grepping the local part, which is the natural thing to reach for.
 
-**8. Rotate the bootstrap password — only if one was handled outside the app.** Log in and change
-it there. ⚠ **Under this procedure that is normally not the case, and the step is then a no-op.**
-It is inherited from the hand-seeded model §1 forbids, where an operator sets a password before
-the account exists. Step 5 registers in a browser, so the password was chosen *in* the app and has
-never been outside it. Rotate anyway if it was pasted from somewhere durable; otherwise skip, and
-do not read the skip as an outstanding action.
+**8.** *(Retired in ADR 0142 part 5a: an account this procedure creates has no password.)*
 
 **9. Record the test account.** Fill `docs/test-accounts.local.md` in the main checkout from
 its tracked template (`docs/test-accounts.local.md.example`). It is gitignored and stays
-that way: this repo is public, and the file carries both the CC account's password and the
-K2 credential. It is deliberately **not** synced into worktrees.
+that way: this repo is public, and the file carries the K2 credential. It is deliberately **not** synced into worktrees.
 
 **10. Close the gate again — and RE-CREATE, exactly as in step 7.** Comment out
 `AUTH_REGISTRATIONS_OPEN`, then:
@@ -282,19 +271,19 @@ operator believes it is closed.
 sudo docker logs jobbliggaren-api 2>&1 | grep 'Registration gate'
 ```
 
-Expect `Registration gate: CLOSED; email confirmation: REQUIRED` — EventId 4300 at Information,
-not 4301 at Warning.
+Expect `Registration gate: CLOSED` — EventId 4300 at Information, not 4301 at Warning.
 
 **Then make the gate answer for itself. This step is not done until it does.** The log line states
 the posture the process **booted with**; this measures the posture the endpoint **enforces**, and
-ADR 0132 Leg 2 is bounded by the second. A `POST` to `/api/v1/auth/register` **must** answer
-`503 Auth.RegistrationsClosed` and leave no row behind — the gate is the handler's first
+ADR 0132 Leg 2 is bounded by the second. A `POST` to `/api/v1/auth/challenge/complete` **must**
+answer `503 Auth.RegistrationsClosed` and leave no row behind — the gate is the handler's first
 statement.
 
 **Use this form. The naive one cannot answer 503 and its failure looks like the thing you are
-testing for.** `RegisterCommand` is a complex type, so it is body-bound and model binding runs
-*before* the handler: a bare `curl -X POST` returns **415** and malformed JSON returns **400**,
-neither of which ever reaches the gate. From inside the project network, where K2 does not apply:
+testing for.** The request is body-bound, so model binding and the validator run *before* the
+handler: a bare `curl -X POST` returns **415**, malformed JSON **400**, and a body without a
+`grantToken` or without `"acceptTerms":true` **400** — none of them reaches the gate. From inside
+the project network, where K2 does not apply:
 
 **Take the baseline first**, or the second half of this check has nothing to compare against:
 
@@ -306,41 +295,23 @@ sudo docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
 Then probe, **with a body that passes validation**:
 
 ```bash
-printf '{"email":"probe@example.com","password":"%s","displayName":"probe","acceptTerms":true}' \
-  "$(openssl rand -base64 18)" \
-  | sudo docker exec -i jobbliggaren-caddy curl -sS -X POST \
-      http://api:8080/api/v1/auth/register -H 'Content-Type: application/json' \
-      -d @- -w '\nHTTP %{http_code}\n'
+sudo docker exec jobbliggaren-caddy curl -sS -X POST \
+  http://api:8080/api/v1/auth/challenge/complete -H 'Content-Type: application/json' \
+  -d '{"grantToken":"probe","acceptTerms":true}' -w '\nHTTP %{http_code}\n'
 ```
 
-**The body is built on the host and piped in, and both halves of that are deliberate.** `openssl`
-exists on the box and **not** in the caddy image (measured — the same command inline returns
-`sh: openssl: not found`, then `400` for a zero-length password), so the generation has to happen
-outside the container. And piping through `-d @-` keeps the value out of `sudo`'s argv, which is
-where #1343's whole defect class lives; a literal in this file would be worse still — a
-password-shaped string in a public repo, which `gitleaks` flags, correctly. Nothing consumes it
-either way: the gate refuses before `CreateUserAsync`. It only has to clear
-`RegisterCommandValidator`'s 12-character minimum, which `openssl rand -base64 18` does by
-construction.
+The grant is a dummy on purpose: the gate refuses before any grant is redeemed, so no real one is
+needed and none is spent.
 
 Expect `HTTP 503` with `"title":"Auth.RegistrationsClosed"`.
 
-⚠ **An empty `{}` does NOT work, and its failure is indistinguishable from the thing you are
-testing for.** The gate is the handler's first statement — but `ValidationBehavior` is a *pipeline
-behavior wrapping the handler*, so `RegisterCommandValidator` runs first and an empty object comes
-back **400** with `'Email' must not be empty`, never reaching the gate at all. Measured both ways
-on 2026-08-16. "Before validation" was never the claim; `RegisterCommandHandler`'s own comment says
-what first means — *"FIRST statement, before `CreateUserAsync`"*, i.e. before the account is
-created, not before the pipeline. The address above is deliberately `example.com`, reserved by
-RFC 2606 and belonging to nobody.
-
-⚠ **A `429` is a fifth non-503 answer**:
-`/register` runs under `AuthWritePolicy`, and you have just registered accounts through it. Wait
+⚠ **A `429` is another non-503 answer**:
+`/challenge/complete` runs under `AuthWritePolicy`, and you have just registered accounts through it. Wait
 out the window rather than reading the throttle as a closed gate.
 
 **Then re-run the baseline query — "leaves no row behind" is a claim, not an observation.** Both
 counts must be **identical** to the ones taken before the probe. That is what makes the 503
-meaningful: a validating body reaches the gate, and the gate refuses before `CreateUserAsync`, so
+meaningful: a validating body reaches the gate, and the gate refuses before any account is written, so
 a refusal that left a row would be a defect rather than a posture. After a two-account visit the
 pair reads `2 | 2`, but compare against your own baseline rather than that number — a burned
 address or an earlier orphan moves it.
@@ -356,9 +327,7 @@ This command is the sanctioned exception to *"manual applies go through the unit
 requires and why the reconcile unit is the wrong instrument here. **Check that precondition before
 running it.**
 
-**Leave `AUTH_REQUIRE_EMAIL_CONFIRMATION=true` set** (`.env.example` says why: with the gate
-closed a `false` there is accepted silently and disables the login gate). Accounts and logins
-survive a closed gate; closing it refuses new registrations only.
+Accounts and logins survive a closed gate; closing it refuses new registrations only.
 
 Closed is the default rather than a preference: the gate is
 opened for a visit and not left open between them. Leaving it open is available, but it is a
@@ -403,18 +372,17 @@ refused boot creates nothing, and a **gate-closed** refusal (503) leaves no Iden
 job seeker and no audit row — the gate is the handler's first statement, so that holds by
 construction.
 
-**Three failures above are not boot refusals, and none of them leaves an account behind.**
+**Two failures above are not boot refusals, and neither of them leaves an account behind.**
 
 - **Step 0 skipped** — silent, and safe: the knobs reach nothing and the gate stays closed.
-- **Step 6 never completed** — `403 EmailNotConfirmed` on an account that exists. Follow the
-  link; there is nothing to revert.
 - **A Scaleway credential that is present but wrong**, or a From identity outside the
   verified domain. This one is by design and it is the one to know: validation at boot checks
   that the keys are *present*, and `ScalewayEmailSender` reports itself able to deliver
   unconditionally, so the validator's sender rule passes and the boot succeeds.
 
-  **It is silent at step 5.** The registration answers the same **202** as a working send and
-  the account is created in full — never a 500, and never the boot log, which will look clean.
+  **It is silent at step 5.** The login page answers as it does for a working send, and the code
+  never arrives, so no account is created — never a 500, and never the boot log, which will look
+  clean.
 
   **The api's runtime log carries two lines, and the first is the one to read:**
 
@@ -423,20 +391,10 @@ construction.
      the diagnostic: it separates a wrong key (401) from a wrong project (403) from a From
      identity outside the verified domain. That is the discriminator for the two causes this
      bullet opens with, so read it before reaching for Scaleway's console.
-  2. `RegisterCommand: confirmation send failed …` — **Warning**, naming `#1349`. It records
-     that the account stands and the link did not go out; it carries no status.
+  2. `Login-challenge dispatch failed ({ErrorType}) …` — **Warning**, EventId 1010. It records
+     that no mail went out; it carries no status.
 
   Neither line carries a recipient or a body (ADR 0124). Confirm the delivery attempt itself in
   Scaleway's own delivery log.
 
-  **Recovery is the user's own:** the activation mail never arrived, so they press
-  **"Skicka en ny bekräftelselänk"** — mounted on both the login and the registration screen.
-  It is a link, not a code. The account is real, so the resend works.
-
-  ⚠ **This bullet described the opposite until #1349 (2026-08-17)**, and the difference matters
-  if you are diagnosing an older incident: the send used to be the handler's final *unguarded*
-  action, so the fault surfaced as a 500 and rolled the not-yet-committed job seeker back while
-  the Identity user — committed in its own boundary — survived. That orphan was then swept by
-  the account-hard-delete job hours later. The send is now swallowed and the job seeker commits,
-  so **this path produces no orphan.** Registration still passes through that state transiently
-  on every call, and other producers remain; `OrphanedIdentityActivationTests` enumerates them.
+  **Recovery:** fix the credential, then ask for a new code on `/logga-in`.

@@ -1614,11 +1614,13 @@ public static class DependencyInjection
     /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token provider (one
     /// <c>DataProtectorTokenProvider</c>: of the four <c>AddDefaultTokenProviders</c> registers only Default
     /// is DataProtector-based, the other three being TOTP), the login challenge store (#1735, purpose
-    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>) and the grant store (<c>RedisGrantStore</c>). Sharing a
+    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>), the grant store (<c>RedisGrantStore</c>) and the OAuth state
+    /// store (#1744, <c>RedisOAuthStateStore</c>). Sharing a
     /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
     /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
     /// no antiforgery, so the keyring's blast radius is the one token KIND that provider mints - change
-    /// email - plus every live login challenge's address and code (ADR 0142 D1) and every live grant, and
+    /// email - plus every live login challenge's address and code (ADR 0142 D1), every live grant and every live
+    /// OAuth flow's PKCE verifier, and
     /// nothing else. The keys are persisted unprotected on the file system (no
     /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
     /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,

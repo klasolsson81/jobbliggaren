@@ -18,9 +18,9 @@ public sealed class SharedPostgresFixtureGroup : ICollectionFixture<SharedPostgr
 
 /// <summary>
 /// One <c>postgres:18</c> for the whole run, migrated ONCE into a template database. A test takes a
-/// clone of the template (<c>CREATE DATABASE … TEMPLATE</c>) and drops it afterwards, so it still owns a fresh, fully migrated database of its own — the property the
-/// per-test containers this replaces were paying for — without a container start and a full
-/// migration run per test method.
+/// clone of the template (<c>CREATE DATABASE … TEMPLATE</c>) and drops it afterwards, so it still
+/// owns a fresh, fully migrated database — the property the per-test containers this replaces were
+/// paying for — without a container start and a full migration run per test method.
 ///
 /// <para>
 /// Measured 2026-09-24 on the runner (#1785): the classes that implemented <see cref="IAsyncLifetime"/>

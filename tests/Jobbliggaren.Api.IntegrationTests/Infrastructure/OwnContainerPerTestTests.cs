@@ -18,10 +18,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
 /// <para>
 /// The classifier is reflection over this assembly. A test class (one with a
 /// <see cref="FactAttribute"/> method) owns a container when an instance field of its own reaches
-/// an <see cref="IContainer"/> or <see cref="INetwork"/>: directly, through a generic argument
-/// (<c>List&lt;INetwork&gt;</c>), or through the instance fields of a type declared in this assembly
-/// (a <c>WebApplicationFactory</c> the class news up itself). A field whose type the class receives as
-/// a fixture — an <see cref="IClassFixture{TFixture}"/> argument, or an
+/// an <see cref="IContainer"/> or <see cref="INetwork"/>: directly, as an array element, through a
+/// generic argument (<c>List&lt;INetwork&gt;</c>), or through the instance fields of a type declared
+/// in this assembly (a <c>WebApplicationFactory</c> the class news up itself). A field whose type the
+/// class receives as a fixture — an <see cref="IClassFixture{TFixture}"/> argument, or an
 /// <see cref="ICollectionFixture{TFixture}"/> of the collection it joins — is shared, not owned, and
 /// is not followed.
 /// </para>
@@ -93,6 +93,11 @@ public sealed class OwnContainerPerTestTests
         }
 
         if (typeof(IContainer).IsAssignableFrom(type) || typeof(INetwork).IsAssignableFrom(type))
+        {
+            return true;
+        }
+
+        if (type.IsArray && Reaches(type.GetElementType()!, visited))
         {
             return true;
         }

@@ -45,6 +45,9 @@ export function safeRedirectPath(raw: string | null | undefined): string {
 
   if (parsed.origin !== PARSE_BASE.origin) return DEFAULT_REDIRECT_PATH;
 
+  // Checked on the OUTPUT too: removing dot segments can leave a path that begins with two slashes, and that
+  // string, handed back to a browser, names another host.
   const target = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-  return HOME_REDIRECT_PATHS.has(target) ? DEFAULT_REDIRECT_PATH : target;
+  if (target.startsWith("//") || HOME_REDIRECT_PATHS.has(target)) return DEFAULT_REDIRECT_PATH;
+  return target;
 }

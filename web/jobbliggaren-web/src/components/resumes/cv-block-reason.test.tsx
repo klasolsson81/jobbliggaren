@@ -84,8 +84,8 @@ describe("CvBlockReason", () => {
     // And the retired certifications must not come back.
     expect(screen.queryByText(/Klar att sparas/)).not.toBeInTheDocument();
     // "Inget hittat i filen" was my first kicker and it was also wrong: it is
-    // parse.overallFailed's own failure phrasing ("Vi kunde inte läsa någon användbar text
-    // ur filen"), rendered on the same page, inside a GREEN pill (design-reviewer round 2).
+    // the failure phrasing of the enums.overall.Failed pill ("Ingen text kunde läsas"),
+    // rendered on the same page, inside a GREEN pill (design-reviewer round 2).
     expect(screen.queryByText(/Inget hittat i filen/)).not.toBeInTheDocument();
     expect(screen.getByText("Inga hinder i filen")).toBeInTheDocument();
     expect(screen.queryByText(/uppfyller kraven/)).not.toBeInTheDocument();

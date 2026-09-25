@@ -6089,25 +6089,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.5;
   max-width: 68ch;
 }
-.jp-parse-summary__note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--jp-info-bg);
-  border: 1px solid var(--jp-info);
-  border-radius: var(--jp-r-sm);
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  line-height: 1.45;
-}
-.jp-parse-summary__note-icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--jp-info);
-  margin-top: 1px;
-}
 .jp-parse-summary__sections {
   list-style: none;
   margin: 0;
@@ -6226,8 +6207,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-direction: column;
   gap: 4px;
 }
-/* Hederlighetsklausulen och rubrikversionen är villkoren täckningen läses under, inte
-   påståendet — de stöder från raden under den. */
+/* Rubrikversionen är villkoret täckningen läses under, inte påståendet — den stöder
+   från raden under den. */
 .jp-cvreview__coverage-note {
   margin: 0;
   font-size: var(--text-body-sm);

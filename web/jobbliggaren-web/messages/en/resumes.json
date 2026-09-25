@@ -11,7 +11,6 @@
   "rename": {
     "trigger": "Rename",
     "title": "Rename CV",
-    "description": "The name appears in your CV list.",
     "nameLabel": "Name",
     "cancel": "Cancel",
     "save": "Save",
@@ -46,13 +45,13 @@
   },
   "upload": {
     "pendingLabel": "Uploading and reviewing your CV",
-    "pendingText": "Uploading and reviewing your CV. This may take a moment.",
+    "pendingText": "Uploading and reviewing your CV…",
     "nameLabel": "CV name (optional)",
-    "nameHint": "The name appears in your CV list so you can find the right variant. Leave it empty and we name the CV after today's date.",
+    "nameHint": "The name appears in your CV list. Leave it empty and we name the CV after today's date.",
     "namePersonnummer": "Remove the personal identity number from the CV name.",
     "dropText": "Choose a file to upload",
     "dropHint": "PDF or Word (DOCX)",
-    "help": "Upload a PDF or Word file (DOCX) of at most 10 MB. We read the contents and create a CV you can review.",
+    "help": "The file can be at most 10 MB.",
     "submit": "Upload and review CV",
     "errorWrongType": "Choose a PDF or Word file (DOCX).",
     "errorTooLarge": "The file is too large. The maximum size is 10 MB.",
@@ -72,14 +71,12 @@
   },
   "parse": {
     "title": "How your CV was read",
-    "overallConfident": "We were able to read your CV and split it into clear sections. Please review that everything is correct.",
-    "overallDegraded": "We were able to read your CV, but some sections came out incomplete. Correct the file and upload it again.",
-    "overallFailed": "We could not read any usable text from the file. Save it again as PDF or Word and upload it again.",
-    "manualReviewNote": "Some sections came out incomplete. You can upload a corrected file whenever you like."
+    "overallDegraded": "Correct the file and upload it again.",
+    "overallFailed": "Save the file again as PDF or Word and upload it again."
   },
   "review": {
     "title": "Review by criterion",
-    "unavailable": "The review could not be loaded right now. How your CV was read above is not affected. Try reloading the page in a moment.",
+    "unavailable": "The review could not be loaded right now. Try reloading the page in a moment.",
     "summary": "{assessedCount} of {totalCount} criteria are assessed.",
     "summaryNote": "Criteria that cannot be assessed are counted as not assessed and do not lower the verdict. The verdict for each dimension weights criteria by how important they are, so it does not always follow the number of passes.",
     "rubric": "Rubric {version}",
@@ -87,6 +84,7 @@
     "todoEmpty": "{assessedCount, plural, =0 {No criterion could be assessed, so the review points out nothing to fix.} one {The only criterion that could be assessed needs no action.} other {None of the # assessed criteria need action.}}",
     "todoEmptyUnassessed": "{count, plural, one {# criterion could not be assessed.} other {# criteria could not be assessed.}}",
     "categoriesTitle": "Verdict by dimension",
+    "summaryNoteAria": "How is the verdict for each dimension calculated?",
     "passSummary": "{count, plural, one {Passed criterion} other {Passed criteria}}",
     "unassessedSummary": "Not assessed ({count})",
     "band": {
@@ -111,9 +109,9 @@
       "resolvedLabel": "Fixed",
       "ignoredLabel": "Ignored",
       "openLabel": "Open",
-      "resolvedHint": "You have marked this as fixed. It stays in the review until the finding is gone from your CV.",
-      "ignoredHint": "You have chosen to ignore this style rule. It no longer counts as something to fix.",
-      "staleHint": "You marked this as fixed, but the finding is still present in your CV. Reset it if you want to fix it again."
+      "resolvedHint": "The finding stays in the review until it is gone from your CV.",
+      "ignoredHint": "The finding no longer counts as something to fix.",
+      "staleHint": "The finding is still present in your CV."
     }
   },
   "improve": {
@@ -136,11 +134,11 @@
   },
   "occupations": {
     "title": "Possible occupational areas",
-    "lede": "Suggested occupational areas based on your CV. You confirm your occupation in a later step."
+    "lede": "You confirm your occupation in a later step."
   },
   "preamble": {
     "title": "Text above the first heading",
-    "body": "Your file opens with this text, above the first heading. Because it is not under a heading, we do not read it as a section, and it was not added to your CV automatically.",
+    "body": "It is not under a heading, so we do not read it as a section.",
     "useHint": "Want to use it? Give it a heading in your file, for example Profile, and upload the file again."
   },
   "profileToggle": {
@@ -160,14 +158,14 @@
     "download": "Download",
     "statusRegionLabel": "File status",
     "readyBodyPdf": "This is the file you uploaded, unchanged.",
-    "readyBodyDocx": "This is the file you uploaded, unchanged. Word files cannot be displayed in the browser. Download the file to open it on your device.",
+    "readyBodyDocx": "Word files cannot be displayed in the browser.",
     "rateLimited": "You have made too many requests in a short time. Try again in {seconds} seconds.",
-    "noOriginal": "This CV has no stored original file. A file exists only for CVs you imported, and only if it could be stored at import.",
+    "noOriginal": "This CV has no stored original file.",
     "importCta": "Import CV",
     "retry": "Try again",
     "error": "The original file could not be loaded.",
     "atsText": "Text version for ATS",
-    "atsTextBanner": "This is how an ATS parser reads your CV: one column, top to bottom, plain text. Your pdf looks different to people.",
+    "atsTextBanner": "This is how an ATS parser reads your CV: one column, top to bottom, plain text.",
     "atsTextLoading": "Fetching text version…",
     "atsTextNotFound": "The text version is not available yet.",
     "atsTextError": "Could not fetch the text version. Try again in a moment.",
@@ -185,7 +183,7 @@
   "personnummer": {
     "regionLabel": "Personal identity number found in your CV",
     "title": "Remove personal identity number",
-    "body": "We found {count, plural, one {# occurrence} other {# occurrences}} of what looks like a personal identity number. A personal identity number is not needed in a CV. Remove it before you save."
+    "body": "We found {count, plural, one {# occurrence} other {# occurrences}} of what looks like a personal identity number."
   },
   "contentForm": {
     "personalInfoLabel": "Personal details",

@@ -1,5 +1,4 @@
 import { useTranslations } from "next-intl";
-import { Info } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import {
   overallConfidenceLabel,
@@ -12,16 +11,14 @@ import type { ParseConfidenceDto } from "@/lib/dto/parsed-resume";
  * Parse-sammanfattning (F4-8/OQ5). RSC. Övergripande konfidens + per-sektions-
  * lista. Förklarbar, inte opak: varje sektion visar nivå (StatusPill) och sin
  * citerade, PII-fria evidens. Ärlighet (§5): `Hittades inte` skiljs från
- * `Delvis`; `requiresManualReview` ger en civic kompletteringsnotis utan att
- * skuldbelägga.
+ * `Delvis`.
  */
 
-/** DTO:ns `overall`-värde → nyckel-suffix för förklaringsmeningen i `parse.*`. */
+/** DTO:ns `overall`-värde → nyckel i `parse.*`. */
 const OVERALL_EXPLANATION_KEY: Record<
-  ParseConfidenceDto["overall"],
-  "parse.overallConfident" | "parse.overallDegraded" | "parse.overallFailed"
+  Exclude<ParseConfidenceDto["overall"], "Confident">,
+  "parse.overallDegraded" | "parse.overallFailed"
 > = {
-  Confident: "parse.overallConfident",
   Degraded: "parse.overallDegraded",
   Failed: "parse.overallFailed",
 };
@@ -44,16 +41,9 @@ export function ParseSummary({
         <StatusPill tone={overall.tone}>{overall.label}</StatusPill>
       </div>
 
-      <p className="jp-parse-summary__lede">
-        {t(OVERALL_EXPLANATION_KEY[confidence.overall])}
-      </p>
-
-      {confidence.requiresManualReview && (
-        <p className="jp-parse-summary__note">
-          <span className="jp-parse-summary__note-icon" aria-hidden="true">
-            <Info size={16} />
-          </span>
-          <span>{t("parse.manualReviewNote")}</span>
+      {confidence.overall !== "Confident" && (
+        <p className="jp-parse-summary__lede">
+          {t(OVERALL_EXPLANATION_KEY[confidence.overall])}
         </p>
       )}
 

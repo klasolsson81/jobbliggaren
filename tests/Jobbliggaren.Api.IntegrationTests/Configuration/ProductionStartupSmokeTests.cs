@@ -4,6 +4,7 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
@@ -205,6 +206,23 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
 
         using var scope = host.Services.CreateScope();
         scope.ServiceProvider.GetService<IDevSeedableAddressPolicy>().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task No_external_identity_provider_is_live_in_Production_env_even_with_a_full_google_client()
+    {
+        // #1744, 6a PR S (security-auditor S4, condition 1): the spine ships inert. A full Google client in the
+        // configuration registers no provider, the list is empty, and a start is not found, so no flow is minted.
+        var ct = TestContext.Current.CancellationToken;
+        using var host = _factory.WithWebHostBuilder(b => b
+            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
+            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret"));
+        using var client = host.CreateClient();
+
+        host.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", ct)).ShouldBe([]);
+        (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]

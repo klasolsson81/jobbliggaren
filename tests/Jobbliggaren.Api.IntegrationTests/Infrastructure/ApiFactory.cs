@@ -2,16 +2,20 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Admin.BackgroundJobs;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
+using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.Infrastructure;
@@ -46,6 +51,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     internal RedisBoundaryFixture RedisBoundary => _redisBoundary;
 
     private readonly LoginChallengeFaults _loginChallengeFaults = new();
+
+    // #1744 — Google's two server-side endpoints, scripted. The only thing the external-login path stubs.
+    private readonly ScriptedGoogle _google = new();
+
+    /// <summary>#1744 — the scripted token and userinfo endpoints the host's Google adapter calls.</summary>
+    internal ScriptedGoogle Google => _google;
+
+    /// <summary>#1744 — the host's client id at Google, as the test adapter sends it.</summary>
+    internal const string GoogleClientId = "test-client-id.apps.googleusercontent.com";
 
     /// <summary>#1735 — puts the login challenge's Redis stores out of reach for a scope (the 503 rows).</summary>
     internal LoginChallengeFaults LoginChallengeFaults => _loginChallengeFaults;
@@ -203,6 +217,24 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.RemoveAll<IGrantStore>();
             services.AddSingleton<IGrantStore>(sp => new FaultableGrantStore(
                 ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults));
+            services.RemoveAll<IOAuthStateStore>();
+            services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
+                ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), _loginChallengeFaults));
+
+            // #1744 — the REAL Google adapter over ScriptedGoogle, last-wins like the sender above (#241). No
+            // production composition registers a provider before 6a PR G; this host does, so the spine can be
+            // driven end to end, and whatever a developer's appsettings.Local.json carries, no test reaches
+            // Google. The redirect base is the host's own Email:BaseUrl, as the adapter's registration reads it.
+            services.RemoveAll<IExternalIdentityProvider>();
+            services.AddSingleton<IExternalIdentityProvider>(sp => new GoogleIdentityProvider(
+                new ScriptedGoogleClients(_google),
+                Options.Create(new GoogleOAuthOptions
+                {
+                    ClientId = GoogleClientId,
+                    ClientSecret = "test-google-client-secret", // gitleaks:allow
+                }),
+                new ExternalLoginCallbacks(new Uri(sp.GetRequiredService<IOptions<EmailOptions>>().Value.BaseUrl)),
+                sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()));
 
             // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
             // base host must pin it OPEN or every new account would be refused before it is created.
@@ -211,6 +243,15 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // its PostConfigure AFTER this one and re-flips it.
             services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
+    }
+
+    /// <summary>
+    /// Hands the adapter clients over <see cref="ScriptedGoogle"/>; a handler that answers a host it does not
+    /// script throws, so a test cannot reach the network by accident.
+    /// </summary>
+    private sealed class ScriptedGoogleClients(ScriptedGoogle google) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(google, disposeHandler: false);
     }
 
     private WebApplicationFactory<Program>? _registrationsClosedHost;

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -91,5 +92,20 @@ internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFault
     {
         faults.ThrowIfUnavailable();
         return inner.RedeemAsync(token, expected, ct);
+    }
+}
+
+internal sealed class FaultableOAuthStateStore(IOAuthStateStore inner, LoginChallengeFaults faults) : IOAuthStateStore
+{
+    public Task<OAuthState> PutAsync(OAuthFlow flow, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.PutAsync(flow, ct);
+    }
+
+    public Task<OAuthFlow?> TakeAsync(OAuthState state, ExternalProviderKey expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.TakeAsync(state, expected, ct);
     }
 }

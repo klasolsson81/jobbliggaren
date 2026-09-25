@@ -13,7 +13,7 @@ public: not a commit, not a PR body, not an issue, not a committed session log.
 A CC session that reads this file necessarily holds these values in its transcript — that is
 the access path, not a leak to be forbidden, and a prohibition its own readers cannot obey
 would be prose pretending to be a control. Treat it as a rotation trigger instead: when the
-box stops being a private dev box, rotate both credentials.
+box stops being a private dev box, rotate the credential.
 
 How the accounts come into existence: [`runbooks/registration-gate.md`](runbooks/registration-gate.md).
 Writing one straight into the database is not the alternative; `AuthOptions` forbids it.

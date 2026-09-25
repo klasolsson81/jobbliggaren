@@ -1257,7 +1257,7 @@ switches on those event types, and existing rows keep their 90-day retention and
 `password_hash` is kept unchanged until 5b. No DPIA.
 
 **Lapse triggers, read for this change by security-auditor 2026-09-25: none fires.** 1: the compose default
-`${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged, and the box reads `false`. 2, 3: no account is added; the seed
+`${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged. 2, 3: no account is added; the seed
 seam exists only in Development. 4: no IdP. 5: code length, attempts and the mint budget are unchanged. 6: written
 as "5b lands"; 5a removes the fallback reversibly, the hashes stay, and 5b's PR re-measures. 7: the request path
 and its budget branch are untouched.

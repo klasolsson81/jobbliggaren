@@ -55,6 +55,9 @@ describe("LinkLandingForm", () => {
       );
       const buttons = disclosure.nextElementSibling;
       expect(buttons?.querySelector("button")).toBe(screen.getByRole("button", { name: primary }));
+      expect(screen.getByRole("button", { name: primary })).toHaveAccessibleDescription(
+        disclosure.textContent ?? ""
+      );
     }
   );
 

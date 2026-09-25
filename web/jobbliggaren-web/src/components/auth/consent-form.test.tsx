@@ -56,6 +56,9 @@ describe("ConsentForm", () => {
     expect(primary.previousElementSibling).toHaveTextContent(
       /Du förblir inloggad på den här enheten i upp till 180 dagar/
     );
+    expect(primary).toHaveAccessibleDescription(
+      "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+    );
   });
 
   it("walks away through the action that clears the grant: a link would leave it on the device", async () => {

@@ -93,26 +93,31 @@ public class NoPasswordSymbolTests
                  && s.Text.Contains("::", StringComparison.Ordinal),
             "the target rule must let the Identity members through");
 
+        scan.TargetRuleRemoved.ShouldAllBe(r => r.Contains(" StackExchange.Redis.ConfigurationOptions::", StringComparison.Ordinal));
         scan.TargetRuleRemoved
             .Where(NameNamesAPassword)
             .Distinct(StringComparer.Ordinal)
             .ShouldBe(["System.String StackExchange.Redis.ConfigurationOptions::get_Password()"]);
 
         scan.IdentityMembersResolved.ShouldBeGreaterThan(0, "no Identity member was resolved, so no parameter name was judged");
+        scan.Symbols.ShouldContain(
+            s => s.Arm == Arm.ResolvedParameter && s.Text == "user",
+            "a resolved Identity member must yield its parameter names (UpdateSecurityStampAsync(TUser user) is called)");
         scan.OwnInScopeMembersCounted.ShouldBeGreaterThan(
             0, "no reference to a member of an in-scope type of this module was counted, so the rule for them is unmeasured");
     }
 
     [Theory]
     [InlineData("Jobbliggaren.Infrastructure.Identity.Migrations.AppIdentityDbContextModelSnapshot", false)]
+    [InlineData("Jobbliggaren.Infrastructure.Identity.Migrations.AppIdentityDbContextModelSnapshot/<>c", false)]
     [InlineData("Jobbliggaren.Infrastructure.Identity.Migrations.DropAuthProviderColumns", false)]
     [InlineData("Jobbliggaren.Infrastructure.Identity.DesignTimeIdentityDbContextFactory", false)]
     [InlineData("Jobbliggaren.Infrastructure.Identity.ApplicationUser", true)]
     [InlineData("Jobbliggaren.Infrastructure.Auth.LoginChallenges.IdentityInboxProofRecorder/<RecordAsync>d__", true)]
     public void The_role_rule_scopes_a_type_by_its_outermost_declaring_type(string typeName, bool inScope)
     {
-        using var assembly = ReadAssembly(typeof(ApplicationUser));
-        var module = assembly.MainModule;
+        using var loaded = ReadAssembly(typeof(ApplicationUser));
+        var module = loaded.Definition.MainModule;
         var reachers = Reachers(module);
 
         // A state machine's name ends in a compiler-chosen number, so a name ending in "__" is a prefix.
@@ -126,8 +131,8 @@ public class NoPasswordSymbolTests
     [Fact]
     public void A_compiler_generated_top_level_type_is_scoped_by_the_bodies_that_reach_it()
     {
-        using var assembly = ReadAssembly(typeof(ApplicationUser));
-        var module = assembly.MainModule;
+        using var loaded = ReadAssembly(typeof(ApplicationUser));
+        var module = loaded.Definition.MainModule;
         var reachers = Reachers(module);
         var anonymous = module.GetTypes()
             .Where(t => t.DeclaringType is null && IsCompilerGenerated(t) && t.Name.Contains("AnonymousType", StringComparison.Ordinal))
@@ -200,18 +205,32 @@ public class NoPasswordSymbolTests
         || text.Contains("lösenord", StringComparison.OrdinalIgnoreCase)
         || text.Contains("losenord", StringComparison.OrdinalIgnoreCase);
 
-    private static AssemblyDefinition ReadAssembly(Type marker)
+    // Cecil does not dispose a resolver passed in through ReaderParameters, and the resolve arm opens the
+    // Identity assemblies through it, so the pair is disposed together.
+    private sealed record LoadedAssembly(AssemblyDefinition Definition, DefaultAssemblyResolver Resolver) : IDisposable
+    {
+        public void Dispose()
+        {
+            Definition.Dispose();
+            Resolver.Dispose();
+        }
+    }
+
+    private static LoadedAssembly ReadAssembly(Type marker)
     {
         var resolver = new DefaultAssemblyResolver();
         resolver.AddSearchDirectory(AppContext.BaseDirectory);
         // The shared framework is not copied to the test's bin, and Identity lives there.
         resolver.AddSearchDirectory(Path.GetDirectoryName(typeof(UserManager<>).Assembly.Location)!);
-        return AssemblyDefinition.ReadAssembly(marker.Assembly.Location, new ReaderParameters { AssemblyResolver = resolver });
+        return new LoadedAssembly(
+            AssemblyDefinition.ReadAssembly(marker.Assembly.Location, new ReaderParameters { AssemblyResolver = resolver }),
+            resolver);
     }
 
     private static Scan ScanAssembly(Type marker, bool backingServiceCredentialsOutOfScope)
     {
-        using var assembly = ReadAssembly(marker);
+        using var loaded = ReadAssembly(marker);
+        var assembly = loaded.Definition;
         var symbols = new List<Symbol>();
         var removed = new List<string>();
         var resolved = 0;

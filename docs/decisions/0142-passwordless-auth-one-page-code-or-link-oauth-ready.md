@@ -1307,7 +1307,7 @@ resolved so that their parameter names are read. This revises F3's per-assembly 
 - **The arithmetic is unchanged.** 5b touches neither code length, attempts per challenge, challenge TTL nor the mint budget, so 30 guesses per address per day, ≈ 0.003 % per day and 1.089 % per year under sustained attack stand as written above.
 - **"Mail is the only way in" did not start here.** It has held for every account since 5a PR B (`41a49394`) removed every route that accepts a password, measured live on 2026-09-25T16:51:37Z, and it holds until an IdP goes live (trigger 4). What 5b changes is reversibility: once §3c's read-back shows no row holding a hash, reverting 5a restores no way in, because no account has a password to present.
 - **Evicting a session won by a guessed code** (security-auditor's #1743 form-round m-2). The owner can end every session through a confirmed address change, which invalidates all and re-issues one, or through account deletion; logout ends the current session only. A password holder could also do it by changing or resetting the password until 5a; that path went with 5a and 5b does not bring it back. Otherwise the owner contacts the controller, as the terms say. No self-service "log out everywhere" is proposed, and none is a #734 gate: Klas declined the session list on 2026-09-20. m-2 stays a Minor.
-- **Bearer reading, re-taken for this part:** 2026-09-25T16:51:37Z: 2 accounts, all the controller's, by count; `Auth__RegistrationsOpen=false` in the running api container. Every consequence above is the controller's alone.
+- **Bearer reading, re-taken for this part:** 2026-09-25T16:51:37Z: 2 accounts, none created after the direct reading of 2026-09-21, one in the Admin role; `Auth__RegistrationsOpen=false` in the running api container. Every consequence above is the controller's alone.
 
 **The acceptance continues for the product as it is today.** The other triggers, read for this part: 1: the compose default `${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged. 2, 3: no account is added; the migration updates existing rows only. 4: no IdP in this diff; if 6a (#1744) merges first, security-auditor re-reads triggers 4 and 6 against the merged base before this part's verdict. 5: code length, attempts and the mint budget are unchanged. 7: the request path and its budget branch are untouched; the recorder change sits after proof. No other acceptance in this ADR lapses: 5b opens nothing and adds no account.
 
@@ -1877,7 +1877,7 @@ The attempt budget is a measured acceptance with seven lapse triggers, one of th
 ## Implementation status
 
 Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from #1732's first
-comment; 5a/5b are one issue, #1743, until it is split):
+comment):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
 (`Persistence`) → **1a** #1735 in four PRs: **1a-prep** #1755 (merged 2026-09-19; Klas's three D10 answers,

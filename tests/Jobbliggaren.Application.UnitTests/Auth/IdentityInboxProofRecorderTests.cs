@@ -10,7 +10,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// <summary>
 /// #1735 — the Identity side of a first passwordless inbox proof (security-auditor Q-S3). The write it makes
 /// and its all-or-nothing answer are pinned end to end in LoginChallengeProofTests; what is pinned here is the
-/// adapter's branches that an integration host cannot steer: a confirmed address writes nothing, an unconfirmed
+/// adapter's branches: a confirmed address writes nothing, an unconfirmed
 /// one is confirmed and its stamp rotated in ONE save, and a write Identity did not persist throws.
 /// <c>ConcurrencyFailure</c> is what <c>UserStore.UpdateAsync</c> answers when two first proofs race on two live
 /// records.

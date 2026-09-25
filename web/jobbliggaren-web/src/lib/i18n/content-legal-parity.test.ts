@@ -552,8 +552,8 @@ describe("content-legal i18n-paritet (sv ↔ en)", () => {
     for (const [path, item] of en) expect(item, path).not.toMatch(EN_STATUS_MARKER);
   });
 
-  // ADR 0142 part 5b (#1857): no account holds a password, so the account-data line names none. Pinned on
-  // the line itself, in both locales, so a strike in only one of them is red.
+  // ADR 0142 part 5b (#1857): the account-data line names no password. Pinned on the line itself, in both
+  // locales, so a strike in only one of them is red.
   it("kontouppgiftsraden nämner inget lösenord, på samma plats i båda katalogerna (#1857)", () => {
     const sv = matchingLeaves(svLegal.privacy, /kontoidentifierare/i);
     const en = matchingLeaves(enLegal.privacy, /account identifier/i);

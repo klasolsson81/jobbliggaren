@@ -2,6 +2,8 @@
 
 Transcribed verbatim from the agent's SubagentHandback payload (extracted from its transcript), 2026-09-25.
 Brief: `docs/sessions/2026-09-25-1857-form-brief.md`. This report carries her signature on the backup decision (Q5).
+Where she writes "Amendment (11)", the amendment landed as ADR 0142's Amendment 2026-09-25 (13): the number is
+set at write time.
 
 ## Security-audit: 5b (#1857, epik #1732), formrond före kod, ingen PR ännu
 **Status:** ✓ Godkänd med villkor. Jag signerar backupbeslutet (Q5) med fyra ändringar. Två Major-villkor (M-1, M-2) ska in i formen, och byggs PR:en utan dem blockerar jag den. Signaturen i Q5 vilar på M-1.

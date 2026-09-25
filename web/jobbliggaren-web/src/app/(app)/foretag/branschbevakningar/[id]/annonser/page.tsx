@@ -356,9 +356,6 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
           </div>
         ) : ads.items.length === 0 ? (
           <div className="jp-empty mt-6">
-            <div className="jp-empty__title">
-              {matchingCount !== null ? t("ads.matchingEmptyTitle") : t("ads.emptyTitle")}
-            </div>
             <p className="jp-empty__body text-body-sm text-text-primary">
               {matchingCount !== null ? t("ads.matchingEmptyBody") : t("ads.emptyBody")}
             </p>

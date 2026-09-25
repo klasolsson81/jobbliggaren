@@ -57,7 +57,6 @@ export function CriteriaSection({ items, reference }: CriteriaSectionProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-prose text-body-sm text-text-primary">{t("lede")}</p>
         <Button type="button" onClick={() => setCreateOpen(true)} disabled={!canCreate}>
           <Plus size={16} aria-hidden="true" />
           {t("newButton")}

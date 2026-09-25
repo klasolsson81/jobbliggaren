@@ -278,7 +278,12 @@ describe("BevakningAdsPage — the per-card match mark", () => {
     await renderPage();
 
     expect(getJobAdMatchTags).not.toHaveBeenCalled();
-    expect(screen.getByText("Inga aktiva annonser just nu.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "0 aktiva annonser" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Prova att bredda bevakningens branscher eller kommuner."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/inte angett vilka yrken/)).toBeNull();
   });
 });
@@ -390,8 +395,15 @@ describe("BevakningAdsPage — the matching view", () => {
 
     // "The watch has no ads" and "none of its ads match you" are different facts, and the criterion
     // here HAS five ads.
-    expect(screen.getByText("Inga annonser matchar dig just nu.")).toBeInTheDocument();
-    expect(screen.queryByText("Inga aktiva annonser just nu.")).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Inga matchande annonser" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Prova att bredda bevakningen eller se över dina matchningsinställningar."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Prova att bredda bevakningens branscher eller kommuner."),
+    ).toBeNull();
   });
 
   it("keeps the axis on every pagination href", async () => {
@@ -526,7 +538,9 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
   function expectNoListAndNoPagination() {
     // The route's own empty state — "the watch has no ads" — which is a zero this page has just
     // declined to claim.
-    expect(screen.queryByText("Inga aktiva annonser just nu.")).toBeNull();
+    expect(
+      screen.queryByText("Prova att bredda bevakningens branscher eller kommuner."),
+    ).toBeNull();
     // JobAdList's unconditional one, and the advice about controls this route does not have.
     expect(screen.queryByText("Inga jobb hittades")).toBeNull();
     expect(screen.queryByText(/Justera filtren eller töm sökrutan/)).toBeNull();
@@ -549,7 +563,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Bevakningen matchar fler företag än vi kan räkna annonser för, så det finns ingen lista att visa.",
+        "Bevakningen matchar fler företag än vi kan räkna annonser för.",
       ),
     ).toBeInTheDocument();
 
@@ -584,9 +598,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
       screen.getByRole("heading", { level: 2, name: "Annonserna är inte framräknade än" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Bevakningen är inte framräknad än, så det finns inga annonser att visa här.",
-      ),
+      screen.getByText("Det finns inga annonser att visa här än."),
     ).toBeInTheDocument();
 
     // Ignorance, not refusal: the way back is offered, the "narrow it" nudge is NOT — the watch is
@@ -599,7 +611,7 @@ describe("BevakningAdsPage — a watch with no answer has no list", () => {
     // THIS surface (a page opened to see a list) where adsNotMaterialised talks about figures, so it
     // must be PRESENT here rather than absent (design-reviewer Minor B).
     expect(
-      screen.getByText(/så det finns inga annonser att visa här/),
+      screen.getByText(/Det finns inga annonser att visa här än/),
     ).toBeInTheDocument();
     expectNoListAndNoPagination();
   });

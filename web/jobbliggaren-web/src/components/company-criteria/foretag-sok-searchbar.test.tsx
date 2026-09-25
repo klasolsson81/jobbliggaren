@@ -764,13 +764,9 @@ describe("ForetagSokSearchbar — bransch popover (#999)", () => {
     // this is the only place on the surface that says so.
     expect(
       within(dialog).getByText(
-        "Välj en eller flera branscher. Du kan välja en hel avdelning, en huvudgrupp eller enskilda koder.",
+        "Välj en hel avdelning, en huvudgrupp eller enskilda branscher.",
       ),
     ).toBeInTheDocument();
-    // And the sentence that paid no rent is gone: a hint under a field already labelled "Sök bransch".
-    expect(
-      within(dialog).queryByText("Skriv för att smalna av listan över branscher."),
-    ).not.toBeInTheDocument();
   });
 
   it("has the panel's counter region mounted and empty before the first pick", async () => {

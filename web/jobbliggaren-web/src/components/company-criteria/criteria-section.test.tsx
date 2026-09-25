@@ -162,7 +162,9 @@ describe("CriteriaSection", () => {
       />,
     );
 
-    expect(visibleText()).toContain("Därför visas inte antalet annonser");
+    expect(visibleText()).toContain(
+      "Bevakningen matchar fler företag än vi kan räkna annonser för. Färre branscher eller kommuner ger färre företag.",
+    );
     expect(screen.queryAllByRole("link", { name: "Ändra bevakningen" })).toHaveLength(0);
     // The not-assessed nudge is a DIFFERENT action, to a surface this page offers no substitute for,
     // and it must survive the gate untouched (CTO D1, binding 1).
@@ -290,6 +292,14 @@ describe("CriteriaSection", () => {
 
     expect(visibleText()).toContain("Inga aktiva annonser just nu.");
     expect(document.querySelectorAll("a.jp-countlink")).toHaveLength(0);
+  });
+
+  // The page's pagehero carries `foretag.criteria.lede`; the section never repeats it (#1824).
+  it("upprepar inte sidans ingress", () => {
+    render(<CriteriaSection items={[]} reference={REFERENCE} />);
+
+    expect(visibleText()).not.toContain("En sparad sökning på bransch och kommun");
+    expect(screen.getByRole("button", { name: "Ny branschbevakning" })).toBeTruthy();
   });
 
   // The breadth line is the row's DEFINITION and the ad numbers its OUTCOME, so the reading order is

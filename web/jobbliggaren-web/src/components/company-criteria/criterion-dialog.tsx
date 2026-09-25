@@ -6,12 +6,7 @@
 
 import { useId, useMemo, useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,14 +141,11 @@ export function CriterionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="jp-matchdialog">
+      <DialogContent className="jp-matchdialog" aria-describedby={undefined}>
         <div className="jp-matchdialog__head">
           <DialogTitle className="jp-matchdialog__title">
             {isEdit ? t("editTitle") : t("createTitle")}
           </DialogTitle>
-          <DialogDescription className="jp-matchdialog__intro">
-            {t("intro")}
-          </DialogDescription>
         </div>
 
         <div className="jp-matchdialog__body flex flex-col gap-6">
@@ -166,7 +158,6 @@ export function CriterionDialog({
             heading={tc("sniHeading")}
             help={tc("sniHelp")}
             filterLabel={tc("sniFilterLabel")}
-            filterHint={tc("sniFilterHint")}
             groupAria={tc("sniGroupAria")}
             expandAria={(name) => tc("sniExpandAria", { name })}
             collapseAria={(name) => tc("sniCollapseAria", { name })}
@@ -191,7 +182,6 @@ export function CriterionDialog({
             heading={tc("kommunHeading")}
             help={tc("kommunHelp")}
             filterLabel={tc("kommunFilterLabel")}
-            filterHint={tc("kommunFilterHint")}
             groupAria={tc("kommunGroupAria")}
             expandAria={(name) => tc("kommunExpandAria", { name })}
             collapseAria={(name) => tc("kommunCollapseAria", { name })}

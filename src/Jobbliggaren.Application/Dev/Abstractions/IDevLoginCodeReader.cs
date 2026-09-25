@@ -7,7 +7,7 @@ namespace Jobbliggaren.Application.Dev.Abstractions;
 /// code is useless without the challenge id its requester already holds (security-auditor Q15).
 ///
 /// <para>
-/// Guarded like <see cref="IDevEmailConfirmer"/>, by two gates keyed on <c>IsDevelopment()</c>: the
+/// Guarded like <see cref="IDevSeedableAddressPolicy"/>, by two gates keyed on <c>IsDevelopment()</c>: the
 /// implementation is registered only in Development (<c>AddDevOnlyTestingSupport</c>), and the endpoint
 /// that reads it is mapped only in Development. Deleting <c>Application/Dev/</c> breaks the capture's build.
 /// </para>

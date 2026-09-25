@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
+using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Shouldly;
 
@@ -104,13 +104,7 @@ public class BearerTokenValidationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
 
-        // Register för att få en giltig session
-        var registerResponse = await client.PostAsJsonAsync(
-            "/api/v1/auth/register",
-            new { email = $"bearer-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Bearer Test", acceptTerms = true },
-            ct);
-        var json = await registerResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct);
-        var sessionId = json.GetProperty("sessionId").GetString()!;
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", sessionId);
 
@@ -125,12 +119,7 @@ public class BearerTokenValidationTests(ApiFactory factory)
         var ct = TestContext.Current.CancellationToken;
         var client = factory.CreateClient();
 
-        var registerResponse = await client.PostAsJsonAsync(
-            "/api/v1/auth/register",
-            new { email = $"case-{Guid.NewGuid()}@example.com", password = "T3stlosen123456", displayName = "Case Test", acceptTerms = true },
-            ct);
-        var json = await registerResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(ct);
-        var sessionId = json.GetProperty("sessionId").GetString()!;
+        var sessionId = await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, ct: ct);
 
         // "bearer" med lowercase — RFC 6750 kräver case-insensitiv matchning
         client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"bearer {sessionId}");

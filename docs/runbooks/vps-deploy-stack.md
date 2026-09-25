@@ -28,7 +28,7 @@ nothing is built on the box, which is capacity condition 1.
 | `worker` | Hangfire jobs | nothing |
 | `migrate` | Oneshot; gates `api`/`worker` via `service_completed_successfully` | nothing |
 | `postgres` | Data | nothing |
-| `redis` | Sessions, cooldown gates, landing-stats cache, and the company-register cache | nothing |
+| `redis` | Sessions, landing-stats cache, and the company-register cache | nothing |
 | `redis-volatile` | A Redis nothing can persist from: no AOF, no RDB, no volume, `/data` a sized tmpfs under a read-only root. Built for the login challenge's TTL-bounded keys (ADR 0142 D1). Only `api` is handed its connection string | nothing |
 | `seq` | The queryable log sink (#1175, ADR 0128). No host port and no SSH tunnel — `AllowTcpForwarding no` — so it is reachable only from inside the project network | nothing |
 | `migrate-rewrap` | `profiles: ["ops"]`, so **not started by `up`**. Operator-invoked one-shot for the master-key re-wrap; shares `migrate`'s image and the app-secrets mount | nothing |
@@ -426,7 +426,8 @@ version rather than a guarantee — the wrapper states that same argument at its
   omitted, so the exception is not read as wider than it is.
 
 **Anything that moves an image is not this exception** — a rollback pin, a new publish, a
-`postgres`/`redis`/`seq` tag bump — and goes through the unit.
+`postgres`/`redis`/`seq` tag bump — and goes through the unit. The second exception, an Identity
+migration, is §3c.
 
 **The timer fires at :47, offset from the publish run's :17 — and the hazard is cross-image
 skew, not a half-published single image.** The publish job is a five-cell matrix with no
@@ -448,6 +449,92 @@ carries the refusal anatomy and the exits
 A pinned tag must also be one that was published *with* an attestation, or the wrapper refuses
 it: images pushed before #196's attest step exist but cannot be verified, so the reachable
 rollback window starts there.
+
+## 3c. Identity migrations: `bootstrap`
+
+`schema`, which every `up` runs, applies `AppDbContext` migrations only. A migration on
+`AppIdentityDbContext` (the `identity` schema) is applied by `Jobbliggaren.Migrate bootstrap`, and
+nothing runs that by itself: an operator runs it, on Klas's GO for that run. It is the **second**
+sanctioned exception to *"manual applies go through the unit"* (§3b), and it has **no schema-ahead
+gate** (§3a), so it must never run an image older than the history it meets.
+
+**The whole sequence runs under ONE lock**, so the hourly reconcile cannot re-create a
+container underneath it. Hold it in a root shell and run the preconditions, the apply and the read-back
+inside it; exiting the shell releases it. The wrapper takes the lock non-blocking, so a timer that
+fires meanwhile logs `another reconcile holds` and exits 0.
+
+```bash
+sudo flock /run/jobbliggaren-reconcile.lock bash
+cd /opt/jobbliggaren/deploy
+```
+
+**Preconditions, all five:**
+
+1. **Klas's GO for this run.** Not a standing grant.
+2. **One revision.** `migrate`, `api` and `worker` carry the same revision label X in `latest`.
+   Each digest verifies against its own repository's attestation
+   (`deploy/systemd/verify-image-attestation.sh`, over that repository's RepoDigest, never
+   `index 0`). X is on or after the commit that stopped mapping what the migration drops — for
+   `20260917195454_DropAuthProviderColumns` that is `93a85abe`, which dropped the mapping and added
+   the migration together. The running `api` and `worker` containers run those digests. This one
+   condition rules out both a mixed set and an older `migrate` image, whose older grant list could
+   hand back a revoked grant.
+3. **The exact pending set.** List the Identity migrations at X with git
+   (`git ls-tree --name-only X src/Jobbliggaren.Infrastructure/Identity/Migrations/`) and diff them
+   against `select migration_id from identity."__EFMigrationsHistory"` (the column is snake_case;
+   `"MigrationId"` does not exist). Run only if what is pending is exactly the set this GO names
+   **and** the history holds no id that X lacks.
+4. **The migration's own pre-read.** For `DropAuthProviderColumns`:
+   `select count(*) from identity."AspNetUsers" where provider <> 'Local' or provider_user_id is not null`
+   must be 0.
+5. **Reversibility.** Every migration in the set has a `Down` that restores the state the pre-read
+   measured. A migration without one (5b's, which throws) is not run by this procedure until its
+   own PR adds a backup decision `security-auditor` has signed. **No dump is taken:**
+   `pg_dump -n identity` would be a second mechanism, and a plaintext copy of the very hashes 5b
+   exists to destroy. The `Down` script is the backup.
+
+**The run, inside the same shell:**
+
+```bash
+docker compose -f docker-compose.yml run --rm --pull never --no-deps migrate bootstrap
+```
+
+Read the output in the foreground. Expected, for a one-migration set: `Mode: bootstrap`,
+`Bootstrap Step 1` and its grants, `Bootstrap Step 2`, `Pending migrations: 1`, the id,
+`applied 1 Identity-migration(s)`, the completion line, and exit 0 (measured
+2026-09-25 against a throwaway compose project on the published image, where a fresh database
+reported 5). A second run reports `Pending migrations: 0` and changes nothing.
+
+**Credential hygiene.** `--rm` is mandatory. No secret goes on argv or through `-e`: the service
+takes its environment from the compose file's substitution out of `deploy/.env`. Never run
+`docker compose config`, which renders every secret, and never `docker inspect` the run
+container. Read with `count(*)` and `information_schema`, nothing else.
+
+**Read-back, inside the same shell:**
+
+```bash
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from identity.\"__EFMigrationsHistory\" where migration_id = '20260917195454_DropAuthProviderColumns';"
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from information_schema.columns where table_schema = 'identity' and table_name = 'AspNetUsers' and column_name in ('provider', 'provider_user_id');"
+docker exec jobbliggaren-postgres psql -U postgres -d jobbliggaren -tAc \
+  "select count(*) from pg_indexes where schemaname = 'identity' and indexname = 'ix_asp_net_users_provider_provider_user_id';"
+docker ps --filter name=jobbliggaren-api --filter name=jobbliggaren-worker --format '{{.Names}} {{.Status}}'
+```
+
+Expect `1`, `0`, `0`, and both containers `(healthy)`. **Never read
+`docker logs jobbliggaren-migrate`:** that is the `schema` oneshot from the last `up`. The run
+container is named `<project>-migrate-run-<id>` and is removed on exit (measured).
+
+**Rollback.**
+
+- **A failed apply:** the migration ran in a transaction and rolled back. Read back and stop.
+- **After a successful apply:** generate the `Down` script from a checkout at X —
+  `dotnet ef migrations script <id> <predecessor> --context AppIdentityDbContext --project src/Jobbliggaren.Infrastructure`
+  — apply it over stdin to the postgres container under the same lock, and read back in reverse.
+
+**The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
+body.
 
 ## 4. Host-side prerequisites
 

@@ -19,24 +19,24 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 [Collection("Api")]
 public class StorableAddressPortTests(ApiFactory factory)
 {
-    private const string Password = "Correct-Horse-Battery-9";
-
     private readonly ApiFactory _factory = factory;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static string Tag() => Guid.NewGuid().ToString("N");
 
-    private async Task<T> WithAccountsAsync<T>(Func<IUserAccountService, UserManager<ApplicationUser>, Task<T>> body)
+    private async Task<T> WithAccountsAsync<T>(
+        Func<IPasswordlessAccountCreator, IUserAccountService, UserManager<ApplicationUser>, Task<T>> body)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         return await body(
+            scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>(),
             scope.ServiceProvider.GetRequiredService<IUserAccountService>(),
             scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
     }
 
     private Task<int> RowsTaggedAsync(string tag) =>
-        WithAccountsAsync((_, users) => users.Users.CountAsync(u => u.Email != null && u.Email.Contains(tag), Ct));
+        WithAccountsAsync((_, _, users) => users.Users.CountAsync(u => u.Email != null && u.Email.Contains(tag), Ct));
 
     [Theory]
     [InlineData("o'brien-{0}@example.se")]
@@ -46,9 +46,9 @@ public class StorableAddressPortTests(ApiFactory factory)
     {
         var email = pattern.Replace("{0}", Tag());
 
-        var row = await WithAccountsAsync(async (accounts, users) =>
+        var row = await WithAccountsAsync(async (creator, accounts, users) =>
         {
-            (await accounts.CreateUserAsync(email, Password, Ct)).IsSuccess.ShouldBeTrue();
+            (await creator.CreatePasswordlessUserAsync(email, Ct)).IsSuccess.ShouldBeTrue();
             return (await users.FindByEmailAsync(email)).ShouldNotBeNull();
         });
 
@@ -67,27 +67,11 @@ public class StorableAddressPortTests(ApiFactory factory)
         var email = pattern.Replace("{0}", tag);
         email.ShouldContain(tag, customMessage: "the no-row reading below is only as strong as this substitution");
 
-        var result = await WithAccountsAsync((accounts, _) => accounts.CreateUserAsync(email, Password, Ct));
+        var result = await WithAccountsAsync((creator, _, _) => creator.CreatePasswordlessUserAsync(email, Ct));
 
         result.IsFailure.ShouldBeTrue();
         result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
         result.Error.Message.ShouldBe(AuthErrorCodes.EmailNotStorableMessage);
-        (await RowsTaggedAsync(tag)).ShouldBe(0);
-    }
-
-    [Fact]
-    public async Task The_passwordless_creator_refuses_an_unstorable_address_and_leaves_no_row()
-    {
-        // The address reaching it is the PROVEN one out of the grant, and the login challenge's request path
-        // asks no such question: this is the only place it is asked before a passwordless account exists.
-        var tag = Tag();
-
-        await using var scope = _factory.Services.CreateAsyncScope();
-        var creator = scope.ServiceProvider.GetRequiredService<IPasswordlessAccountCreator>();
-        var result = await creator.CreatePasswordlessUserAsync($" pad-{tag}@example.se", Ct);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
         (await RowsTaggedAsync(tag)).ShouldBe(0);
     }
 
@@ -99,10 +83,10 @@ public class StorableAddressPortTests(ApiFactory factory)
         var tag = Tag();
         var stored = $"twin-{tag}@example.se";
 
-        var padded = await WithAccountsAsync(async (accounts, _) =>
+        var padded = await WithAccountsAsync(async (creator, accounts, _) =>
         {
-            (await accounts.CreateUserAsync(stored, Password, Ct)).IsSuccess.ShouldBeTrue();
-            return await accounts.CreateUserAsync(" " + stored, Password, Ct);
+            (await creator.CreatePasswordlessUserAsync(stored, Ct)).IsSuccess.ShouldBeTrue();
+            return await creator.CreatePasswordlessUserAsync(" " + stored, Ct);
         });
 
         padded.Error.Code.ShouldBe(AuthErrorCodes.EmailNotStorable);
@@ -120,10 +104,10 @@ public class StorableAddressPortTests(ApiFactory factory)
     {
         var tag = Tag();
 
-        var plain = await WithAccountsAsync(async (accounts, _) =>
+        var plain = await WithAccountsAsync(async (creator, accounts, _) =>
         {
-            (await accounts.CreateUserAsync(first.Replace("{0}", tag), Password, Ct)).IsSuccess.ShouldBeTrue();
-            return await accounts.CreateUserAsync(second.Replace("{0}", tag), Password, Ct);
+            (await creator.CreatePasswordlessUserAsync(first.Replace("{0}", tag), Ct)).IsSuccess.ShouldBeTrue();
+            return await creator.CreatePasswordlessUserAsync(second.Replace("{0}", tag), Ct);
         });
 
         plain.Error.Code.ShouldBe(AuthErrorCodes.DuplicateAccount);
@@ -136,9 +120,9 @@ public class StorableAddressPortTests(ApiFactory factory)
         var tag = Tag();
         var stored = $"ask-{tag}@example.se";
 
-        var result = await WithAccountsAsync(async (accounts, _) =>
+        var result = await WithAccountsAsync(async (creator, accounts, _) =>
         {
-            var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
+            var userId = (await creator.CreatePasswordlessUserAsync(stored, Ct)).Value;
             return await accounts.CheckAddressIsFreeAsync(userId, " other-" + stored, Ct);
         });
 
@@ -153,9 +137,9 @@ public class StorableAddressPortTests(ApiFactory factory)
         var stored = $"write-{tag}@example.se";
         var padded = " other-" + stored;
 
-        var (result, row) = await WithAccountsAsync(async (accounts, users) =>
+        var (result, row) = await WithAccountsAsync(async (creator, accounts, users) =>
         {
-            var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
+            var userId = (await creator.CreatePasswordlessUserAsync(stored, Ct)).Value;
             var swap = await accounts.SwapConfirmedAddressAsync(userId, padded, Ct);
             return (swap, (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull());
         });
@@ -174,9 +158,9 @@ public class StorableAddressPortTests(ApiFactory factory)
         var stored = $"move-{tag}@example.se";
         var next = $"björn-{tag}@example.se";
 
-        var row = await WithAccountsAsync(async (accounts, users) =>
+        var row = await WithAccountsAsync(async (creator, accounts, users) =>
         {
-            var userId = (await accounts.CreateUserAsync(stored, Password, Ct)).Value;
+            var userId = (await creator.CreatePasswordlessUserAsync(stored, Ct)).Value;
             (await accounts.CheckAddressIsFreeAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
             (await accounts.SwapConfirmedAddressAsync(userId, next, Ct)).IsSuccess.ShouldBeTrue();
             return (await users.FindByIdAsync(userId.ToString())).ShouldNotBeNull();

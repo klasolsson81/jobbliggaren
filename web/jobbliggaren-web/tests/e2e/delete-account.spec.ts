@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { ensureConfirmedTestUser, loginAs, takeLoginCode, testEmail } from "./helpers/auth";
+import { seedTestUser, loginAs, takeLoginCode, testEmail } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const SESSION_COOKIE = "__Host-jobbliggaren_session";
@@ -29,7 +29,7 @@ test.describe("Radera konto (/mina-sidor)", () => {
     page,
   }) => {
     const runId = newRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
     const dialog = await requestCode(page, "fel@example.se");
@@ -50,7 +50,7 @@ test.describe("Radera konto (/mina-sidor)", () => {
     page,
   }) => {
     const runId = newRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
     const session = (await page.context().cookies()).find((c) => c.name === SESSION_COOKIE)?.value;
     expect(session).toBeTruthy();
@@ -72,7 +72,7 @@ test.describe("Radera konto (/mina-sidor)", () => {
 
   test("refuses a wrong code on the field, and deletes nothing", async ({ page }) => {
     const runId = newRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
 
     const dialog = await requestCode(page, testEmail(runId));

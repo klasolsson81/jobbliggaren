@@ -99,7 +99,7 @@ public class RedisSessionStoreTests : IAsyncLifetime, IClassFixture<SharedPlainR
         fetched.UserId.ShouldBe(userId);
     }
 
-    // #678 C6-D2a: the lifetime must survive the Redis payload JSON round-trip so the change-password
+    // #678 C6-D2a: the lifetime must survive the Redis payload JSON round-trip so the change-email confirm's
     // re-issue can read the current profile from GetAsync and re-mint under it.
     [Fact]
     public async Task GetAsync_ShouldRoundTripLifetime_ThroughThePayload()

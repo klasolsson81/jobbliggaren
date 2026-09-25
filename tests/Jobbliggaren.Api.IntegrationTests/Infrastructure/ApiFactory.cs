@@ -39,8 +39,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>
     /// #241 — the recording <see cref="Jobbliggaren.Application.Common.Abstractions.IEmailSender"/>
-    /// the host resolves. Lets a test positively assert an email side-effect (e.g. "a waitlist
-    /// confirmation was queued to X") without the network, and locks out the real provider.
+    /// the host resolves. Lets a test positively assert an email side-effect (e.g. "a login code was
+    /// queued to X") without the network, and locks out the real provider.
     /// </summary>
     internal RecordingEmailSender Emails => _emailSender;
     internal RedisBoundaryFixture RedisBoundary => _redisBoundary;
@@ -61,18 +61,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// Mediator pipeline WITHOUT a bootstrapped Hangfire schema (ApiFactory does not bootstrap it).
     /// </summary>
     internal RecordingBackgroundJobController Jobs => _backgroundJobs;
-
-    // #616 — last-wins IBreachedPasswordChecker override so the host never composes the real HIBP
-    // client (no network egress from tests). Held as a field so tests can steer verdicts per
-    // password via BreachChecks.
-    private readonly StubBreachedPasswordChecker _breachChecker = new();
-
-    /// <summary>
-    /// #616 — the stub <see cref="Jobbliggaren.Application.Common.Abstractions.IBreachedPasswordChecker"/>
-    /// the host resolves. Defaults every password to NotBreached; a test opts a password into
-    /// Breached/Unavailable via <c>SetVerdict</c> to exercise the rejection and fail-open paths.
-    /// </summary>
-    internal StubBreachedPasswordChecker BreachChecks => _breachChecker;
 
     // Set in InitializeAsync before Services is accessed (triggers host creation)
     private string _postgresCs = string.Empty;
@@ -145,8 +133,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                     .UseNpgsql(_postgresCs,
                         npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                     .UseSnakeCaseNamingConvention()
-                    // #714 — a flag-ON test class builds an extra host via WithWebHostBuilder
-                    // (CreateEmailConfirmationClient). Each derived host that re-AddDbContext's spins a
+                    // A test class builds an extra host via WithWebHostBuilder
+                    // (CreateRegistrationsClosedClient). Each derived host that re-AddDbContext's spins a
                     // fresh EF internal service provider; across the shared [Collection("Api")] that
                     // trips EF's process-wide ManyServiceProvidersCreatedWarning (>20 providers), which
                     // is thrown-by-default and cascades to unrelated tests. Ignoring it is the
@@ -216,54 +204,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IGrantStore>(sp => new FaultableGrantStore(
                 ActivatorUtilities.CreateInstance<RedisGrantStore>(sp), _loginChallengeFaults));
 
-            // #616 — replace the real HIBP typed client (AddBreachedPasswordCheck) with the stub.
-            // Every register/change-password test funnels through PwnedPasswordValidator inside
-            // UserManager, so without this override each of those tests would make a live call to
-            // api.pwnedpasswords.com. RemoveAll first so nothing resolves the real client even via
-            // GetServices<IBreachedPasswordChecker>().
-            services.RemoveAll<IBreachedPasswordChecker>();
-            services.AddSingleton<IBreachedPasswordChecker>(_breachChecker);
-
-            // #714 — pin email-confirmation-first OFF for the base host. The factory forces
-            // Development env (above), which loads appsettings.Development.json where the flag is ON
-            // (dev runs the confirmation-first flow). PostConfigure runs after config binding and wins; the
-            // flag-ON test classes re-flip it ON per class via WithWebHostBuilder + PostConfigure(true),
-            // which registers AFTER this and therefore takes precedence (CTO-bind Risk 3).
-            services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = false);
-
             // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
-            // base host must pin it OPEN or every register-based bootstrap would be refused before an
-            // account is created. Pinned here rather than
-            // inherited from appsettings.Development.json for the same reason the line above is: the
-            // harness must not depend on a dev config file it does not own. The derived hosts below
-            // register their PostConfigure AFTER this one and override only the flags they name, so
-            // they inherit an OPEN registration; the closed-registration host re-flips this one.
+            // base host must pin it OPEN or every new account would be refused before it is created.
+            // Pinned here rather than inherited from appsettings.Development.json: the harness must not
+            // depend on a dev config file it does not own. The closed-registration host below registers
+            // its PostConfigure AFTER this one and re-flips it.
             services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
-    }
-
-    private WebApplicationFactory<Program>? _emailConfirmationHost;
-    private readonly object _emailConfirmationLock = new();
-
-    /// <summary>
-    /// #714 — an <see cref="HttpClient"/> against a host with email-confirmation-first registration
-    /// forced ON (<c>Auth:RequireEmailConfirmation</c>). The derived host is built ONCE and cached, so
-    /// all flag-ON test classes SHARE it: building one per class would each spin a fresh EF internal
-    /// service provider and, across the shared <c>[Collection("Api")]</c>, trip EF's process-wide
-    /// <c>ManyServiceProvidersCreatedWarning</c> (&gt;20 providers) → cascade failures. It reuses this
-    /// factory's Testcontainers + the shared <c>RecordingEmailSender</c> (so <c>factory.Emails</c> still
-    /// captures its sends). The base host pins the flag OFF (PostConfigure above); this
-    /// PostConfigure(true) is registered after it and therefore wins.
-    /// </summary>
-    internal HttpClient CreateEmailConfirmationClient()
-    {
-        lock (_emailConfirmationLock)
-        {
-            _emailConfirmationHost ??= WithWebHostBuilder(builder => builder.ConfigureServices(services =>
-                services.PostConfigure<AuthOptions>(o => o.RequireEmailConfirmation = true)));
-        }
-
-        return _emailConfirmationHost.CreateClient();
     }
 
     private WebApplicationFactory<Program>? _registrationsClosedHost;
@@ -275,7 +222,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// actually refuses, the base host's 200/202 assertions cannot tell a working gate from an absent
     /// one.
     /// <para>
-    /// Cached and shared for the same reason as <see cref="CreateEmailConfirmationClient"/> — one
+    /// Cached and shared: one
     /// derived host per test class would each spin a fresh EF internal service provider and trip EF's
     /// process-wide <c>ManyServiceProvidersCreatedWarning</c> (&gt;20) across the shared
     /// <c>[Collection("Api")]</c>. Registered AFTER the base host's PostConfigure, so it wins.
@@ -293,9 +240,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
                 services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = false);
                 // Capture THIS host's boot records so the gate's announcement can be pinned against
                 // the behaviour of the same host. Hung on an existing derived host on purpose: a
-                // dedicated one is a fourth WebApplicationFactory, and the full suite measured that
-                // as EF's ManyServiceProvidersCreatedWarning (>20 internal providers), which then
-                // fails whichever collection fixture initialises after the ceiling breaks.
+                // dedicated one counts toward EF's ManyServiceProvidersCreatedWarning (>20 internal
+                // providers), which fails whichever collection fixture initialises after the ceiling
+                // breaks.
                 services.AddSingleton<ILoggerProvider>(_closedHostLogs);
             }));
         }
@@ -307,7 +254,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>
     /// Boot records from the closed-registration host. Per-host, not shared: the base
-    /// <c>ConfigureWebHost</c> re-runs for every derived host, so one sink would mix three hosts'
+    /// <c>ConfigureWebHost</c> re-runs for every derived host, so one sink would mix every host's
     /// announcements into a single queue and an "announced once" assertion would read whichever
     /// host happened to boot first.
     /// </summary>

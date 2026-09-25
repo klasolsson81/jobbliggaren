@@ -55,8 +55,8 @@ namespace Jobbliggaren.Infrastructure.Email;
 /// </para>
 /// <para>
 /// <b>No idempotency parameter.</b> Scaleway's send endpoint offers none, and the port stopped
-/// carrying one in ADR 0124 — dedupe across calls is owned by the claim-then-send spine and by
-/// <c>ICooldownGate</c> (ADR 0103), one layer up. The transport adds no retry of its own; see
+/// carrying one in ADR 0124 — dedupe across calls is owned by the claim-then-send spine and by the
+/// login challenge's budgets, one layer up. The transport adds no retry of its own; see
 /// <see cref="ScalewayClientRegistration"/> for why none may be added.
 /// </para>
 /// </summary>
@@ -116,38 +116,6 @@ public sealed partial class ScalewayEmailSender(
             toEmail,
             EmailTemplates.EmailChangedNotification(),
             "email-changed-notification",
-            cancellationToken);
-
-    public Task SendEmailConfirmationAsync(
-        string toEmail, EmailConfirmationEmail content, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.EmailConfirmation(_options.BaseUrl, content),
-            "email-confirmation",
-            cancellationToken);
-
-    public Task SendAccountExistsNoticeAsync(
-        string toEmail, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.AccountExistsNotice(_options.BaseUrl),
-            "account-exists-notice",
-            cancellationToken);
-
-    public Task SendPasswordResetAsync(
-        string toEmail, PasswordResetEmail content, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.PasswordReset(_options.BaseUrl, content),
-            "password-reset",
-            cancellationToken);
-
-    public Task SendPasswordChangedNoticeAsync(
-        string toEmail, CancellationToken cancellationToken) =>
-        SendAsync(
-            toEmail,
-            EmailTemplates.PasswordChangedNotice(_options.BaseUrl),
-            "password-changed-notice",
             cancellationToken);
 
     public Task SendLoginChallengeAsync(

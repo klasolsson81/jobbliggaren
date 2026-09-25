@@ -26,7 +26,6 @@ using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.JobSources;
 using Jobbliggaren.Infrastructure.JobSources.Platsbanken;
 using Jobbliggaren.Infrastructure.Persistence;
-using Jobbliggaren.Infrastructure.Security.BreachCheck;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -47,16 +46,6 @@ namespace Jobbliggaren.Infrastructure;
 
 public static class DependencyInjection
 {
-    /// <summary>
-    /// The Identity token-provider name for password-reset tokens (#1171). Named rather than
-    /// literal per CLAUDE.md §5 (no magic strings): the value has to be byte-identical in the
-    /// <c>opts.Tokens.PasswordResetTokenProvider</c> assignment and in the matching
-    /// <c>AddTokenProvider</c> call, and a typo in either would silently fall back to a provider
-    /// with the shared 24h lifespan rather than fail. It is an Identity registry key, distinct from
-    /// <see cref="PasswordResetTokenProviderOptions.Name"/>, which is the DataProtector purpose.
-    /// </summary>
-    private const string PasswordResetTokenProviderName = "PasswordReset";
-
     /// <summary>
     /// Composition-root entry för Api. Registrerar alla Infrastructure-moduler.
     /// Worker använder INTE denna metod — Worker anropar bara <see cref="AddPersistence"/>
@@ -81,38 +70,37 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// DEV-ONLY testing support (#796) — REMOVE BEFORE LAUNCH (Klas). Registers the
-    /// token-free confirmed-login seam (<see cref="Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer"/>,
-    /// implemented by <see cref="Auth.DevEmailConfirmer"/> over <c>UserManager</c>) used
-    /// by the Playwright E2E suite to obtain a confirmed, login-capable user against a
-    /// flag-ON backend without a real email round-trip.
+    /// DEV-ONLY testing support — REMOVE BEFORE LAUNCH (Klas). Registers the ports of the two seams the
+    /// Playwright E2E suite logs in through without a real mailbox: the seed seam's address policy
+    /// (<see cref="Jobbliggaren.Application.Dev.Abstractions.IDevSeedableAddressPolicy"/>, ADR 0142 part 5a)
+    /// and the login-code capture (<see cref="AddDevLoginCodeCapture"/>, #1735).
     ///
     /// <para>
-    /// Registered ONLY in Development — the FIRST of two independent structural gates
-    /// (the SECOND is the <c>Program.cs</c> <c>IsDevelopment()</c> gate on the
+    /// Registered ONLY in Development — one of two independent structural gates
+    /// (the other is the <c>Program.cs</c> <c>IsDevelopment()</c> gate on the
     /// <c>/api/v1/dev/*</c> endpoint map). The predicate is <c>IsDevelopment()</c>
     /// exactly (not <c>|| IsEnvironment("Test")</c>) so it mirrors the endpoint map-gate
-    /// one-for-one: in any deployed environment the port is absent from the container
-    /// and <c>ConfirmEmailDevCommandHandler</c> cannot resolve (fail-closed).
+    /// one-for-one: in any deployed environment the ports are absent from the container
+    /// and the seams' command handlers cannot resolve (fail-closed).
     /// </para>
     /// </summary>
     public static IServiceCollection AddDevOnlyTestingSupport(
         this IServiceCollection services,
         IHostEnvironment environment)
     {
-        // NOTE on fail-closed: Mediator registers ConfirmEmailDevCommandHandler
-        // unconditionally, but its IDevEmailConfirmer dependency is registered ONLY here
-        // (Development). Outside Development the handler is dead — it can only throw at
+        // NOTE on fail-closed: Mediator registers the seams' command handlers unconditionally,
+        // but their dev-only dependencies are registered ONLY here (Development). Outside
+        // Development the handlers are dead — they can only throw at
         // Send-time (an unreachable path, since the endpoint is also unmapped), NOT at
         // container-build time, because the Api host leaves ValidateOnBuild off outside
         // Development. If the Api is ever hardened to force ValidateOnBuild=true in all
-        // environments, this dead handler would turn a deployed boot into a startup crash
+        // environments, these dead handlers would turn a deployed boot into a startup crash
         // — remove the whole dev-seam before then (REMOVE BEFORE LAUNCH).
         if (environment.IsDevelopment())
         {
-            services.AddScoped<
-                Jobbliggaren.Application.Dev.Abstractions.IDevEmailConfirmer,
-                Auth.DevEmailConfirmer>();
+            services.AddSingleton<
+                Jobbliggaren.Application.Dev.Abstractions.IDevSeedableAddressPolicy,
+                Auth.DevSeedableAddressPolicy>();
             services.AddDevLoginCodeCapture();
         }
 
@@ -1623,15 +1611,15 @@ public static class DependencyInjection
     ///
     /// <para>
     /// <b>Api only.</b> <c>AddCoreIdentityForWorker</c> deliberately registers no
-    /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token providers (two
-    /// <c>DataProtectorTokenProvider</c>s: of the four <c>AddDefaultTokenProviders</c> registers only Default
-    /// is DataProtector-based, the other three being TOTP, plus the named password-reset provider) and the
-    /// login challenge store (#1735, purpose <c>RedisLoginChallengeStore.ProtectorPurpose</c>). Sharing a
+    /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token provider (one
+    /// <c>DataProtectorTokenProvider</c>: of the four <c>AddDefaultTokenProviders</c> registers only Default
+    /// is DataProtector-based, the other three being TOTP), the login challenge store (#1735, purpose
+    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>) and the grant store (<c>RedisGrantStore</c>). Sharing a
     /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
     /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
-    /// no antiforgery, so the keyring's blast radius is the three token KINDS those providers mint -
-    /// activation, password reset, change email - plus every live login challenge's address and code
-    /// (ADR 0142 D1), and nothing else. The keys are persisted unprotected on the file system (no
+    /// no antiforgery, so the keyring's blast radius is the one token KIND that provider mints - change
+    /// email - plus every live login challenge's address and code (ADR 0142 D1) and every live grant, and
+    /// nothing else. The keys are persisted unprotected on the file system (no
     /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
     /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,
     /// not a count — a comment naming it will match.
@@ -1702,68 +1690,15 @@ public static class DependencyInjection
         services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(opts =>
             {
-                // NIST SP 800-63B: length is the primary defense, complexity secondary.
-                // The §5.1.1.2 blocklist requirement (breach-corpus check on registration/
-                // change) is enforced by PwnedPasswordValidator (#616), chained below —
-                // HIBP k-anonymity, fail-open per CTO-bind (see AddBreachedPasswordCheck).
-                opts.Password.RequiredLength = 12;
-                opts.Password.RequireNonAlphanumeric = false;
-                opts.Password.RequireDigit = false;
-                opts.Password.RequireUppercase = false;
-                opts.Password.RequireLowercase = false;
                 opts.User.RequireUniqueEmail = true;
 
                 TheUserNameIsTheAddress(opts.User);
 
-                // #679 (CTO-bind #1): route the change-email confirmation token through the
-                // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
-                // Identity's default ChangeEmailTokenProvider is the "Email" provider — a 6-digit
-                // TOTP that is short-lived (~9 min, breaks a normal email round-trip) and
-                // brute-forceable (10^6, stateless), which on the PUBLIC confirm endpoint would be
-                // an account-takeover path. The DataProtector token is HMAC'd + encrypted, bound to
-                // (SecurityStamp, new email), single-use (SecurityStamp rotates on ChangeEmailAsync),
-                // and honours the 24h TokenLifespan. Email-confirm already defaults here; password-reset
-                // did too until #1171 moved it to its own named provider (see below) for a shorter life.
                 opts.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultProvider;
 
-                // #714 (defense-in-depth): pin the email-confirmation token to the same opaque
-                // DataProtector provider. Unlike ChangeEmail above, EmailConfirmationTokenProvider
-                // ALREADY defaults to TokenOptions.DefaultProvider (it is PasswordReset/email-confirm
-                // that default here, not the "Email" TOTP provider), so this is not a fix but an
-                // explicit, self-documenting guard against a future Identity default drift — the
-                // registration confirm endpoint is PUBLIC, so a short brute-forceable TOTP would be an
-                // account-activation-takeover path (parity with the #679 rationale).
-                opts.Tokens.EmailConfirmationTokenProvider = TokenOptions.DefaultProvider;
-
-                // #1171: password-reset gets its OWN provider, registered by name below, so its
-                // lifespan can be shorter than the shared 24h without touching the two kinds above.
-                // The shared DataProtectionTokenProviderOptions is one type read by one provider, so
-                // configuring it would shorten all three — and the change-email and email-confirm
-                // bodies promise 24h in published copy. PasswordResetTokenProviderOptions carries the
-                // number and EmailTemplates.PasswordReset reads the same constant.
-                opts.Tokens.PasswordResetTokenProvider = PasswordResetTokenProviderName;
-
-                // #503 (OWASP A07 / NIST SP 800-63B §5.2.2): per-account anti-automation on
-                // login. ValidateCredentialsAsync (UserAccountService) counts failed attempts
-                // via AccessFailedAsync and short-circuits locked accounts via IsLockedOutAsync.
-                // Temporary, auto-expiring lockout (avoid self-DoS): 5 attempts -> 15 min, on
-                // top of the per-IP AuthWrite throttle (20/min).
-                opts.Lockout.MaxFailedAccessAttempts = 5;
-                opts.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-                opts.Lockout.AllowedForNewUsers = true;
             })
             .AddEntityFrameworkStores<AppIdentityDbContext>()
-            .AddDefaultTokenProviders()
-            // #1171: its own ProviderMap name, distinct from the four AddDefaultTokenProviders registers
-            // (Default/Email/Phone/Authenticator), so it adds a provider rather than replacing one.
-            .AddTokenProvider<PasswordResetTokenProvider<ApplicationUser>>(PasswordResetTokenProviderName)
-            // #616 (CTO-bind Variant B): breached-password rejection at the UserManager
-            // chokepoint — CreateAsync + ChangePasswordAsync (and any future reset flow)
-            // are covered by this ONE registration. Api-EXCLUSIVE: AddCoreIdentityForWorker
-            // never chains this, so the Worker stays HTTP-free (ADR 0023).
-            .AddPasswordValidator<PwnedPasswordValidator>();
-
-        services.AddBreachedPasswordCheck(configuration);
+            .AddDefaultTokenProviders();
 
         services.AddApiRedisConnections(configuration);
 
@@ -1775,14 +1710,11 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<SessionStoreOptions>, SessionStoreOptionsValidator>();
 
-        // #714 — email-confirmation-first registration toggle (Application-owned contract, bound
-        // here). Read by RegisterCommandHandler + UserAccountService.ValidateCredentialsAsync.
-        //
-        // ADR 0083 Amendment 2026-08-03: bound via AddOptions/ValidateOnStart so AuthOptionsValidator
-        // can refuse the one unsafe combination (RegistrationsOpen without RequireEmailConfirmation,
-        // outside Development/Test). Registered HERE only — AddCoreIdentityForWorker binds the same
-        // section with a plain Configure, deliberately: the Worker owns no registration surface, so a
-        // shared env file must not take it down for a condition it cannot exercise.
+        // The registration kill-switch (Application-owned contract, bound here). ADR 0083 Amendment
+        // 2026-08-03: bound via AddOptions/ValidateOnStart so AuthOptionsValidator refuses to boot outside
+        // Development/Test when the registered sender cannot deliver. Registered HERE only: the Worker
+        // owns no login or registration surface, so a shared env file must not take it down for a
+        // condition it cannot exercise.
         services.AddOptions<AuthOptions>()
             .Bind(configuration.GetSection(AuthOptions.SectionName))
             .ValidateOnStart();
@@ -1796,24 +1728,13 @@ public static class DependencyInjection
         // the handler's own refusal.
         services.Configure<DevToolsOptions>(configuration.GetSection(DevToolsOptions.SectionName));
 
-        // #733/#703 — Redis-backed anti-email-bomb cooldown gate (ICooldownGate) + its window options. The
-        // gate is the #733 primitive generalised (a policy-free check-and-set on a (scope, subject) pair)
-        // and now throttles four requester-chosen-address outbound surfaces: confirmation-link resend
-        // (#733, window from ResendCooldownOptions), the register account-exists notice, the
-        // change-email request, and the forgot-password request (#703/#1171, windows from
-        // AuthEmailCooldownOptions). Api-only — the cooldown runs
-        // in the request path. ValidateOnStart + [Range] so a misconfigured window fails the host loud (a
-        // security invariant), parity DigestDispatchOptions. The two option sections stay independent so the
-        // already-shipped Auth:ResendCooldown key is not broken.
-        services.AddOptions<ResendCooldownOptions>()
-            .Bind(configuration.GetSection(ResendCooldownOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+        // #703 — the anti-email-bomb windows of the change-email and login-challenge requests. Api-only —
+        // they run in the request path. ValidateOnStart + [Range] so a misconfigured window fails the host
+        // loud (a security invariant), parity DigestDispatchOptions.
         services.AddOptions<AuthEmailCooldownOptions>()
             .Bind(configuration.GetSection(AuthEmailCooldownOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddScoped<ICooldownGate, RedisCooldownGate>();
 
         // #1735 (ADR 0142 D1/D2) — the login challenge's per-address counters (the cooldown, the mail budget
         // and the code budget). Api-only: it runs in the request path and on the volatile connection above,
@@ -1830,22 +1751,8 @@ public static class DependencyInjection
         services.AddSingleton<IGrantStore, RedisGrantStore>();
         services.AddSingleton<IRegistrationClaim, RedisRegistrationClaim>();
 
-        // #1171 — the out-of-band forgot-password dispatch. Api-EXCLUSIVE for the same reason the
-        // cooldown is (it runs in the request path) and for one more that is structural: the consumer
-        // MINTS a reset token, which needs the token providers only this composition registers. The
-        // Worker cannot host it. Singleton because the channel is the shared state; the hosted service
-        // is its only reader.
-        services.AddOptions<PasswordResetDispatchOptions>()
-            .Bind(configuration.GetSection(PasswordResetDispatchOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-        services.AddSingleton<PasswordResetDispatchChannel>();
-        services.AddSingleton<IPasswordResetDispatcher>(
-            sp => sp.GetRequiredService<PasswordResetDispatchChannel>());
-        services.AddHostedService<PasswordResetDispatchService>();
-
         // #1735 (ADR 0142 D2) — the login challenge's own dispatch: its own channel instance, capacity and
-        // drop event, so a forgot-password flood cannot drop logins. Api-EXCLUSIVE: the consumer's store
+        // drop event. Api-EXCLUSIVE: the consumer's store
         // protects with this composition's Data-Protection keyring and runs on its volatile Redis connection.
         // LoginChallengeCompositionTests pins the pair (here yes, AddCoreIdentityForWorker no); a hand-written
         // line in Worker/Program.cs is caught by nothing but a reader.
@@ -1859,6 +1766,7 @@ public static class DependencyInjection
         services.AddHostedService<LoginChallengeDispatchService>();
         services.AddScoped<ILoginAccountLookup, UserAccountService>();
         services.AddScoped<IPasswordlessAccountCreator, UserAccountService>();
+        services.AddScoped<AccountRegistrar>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
@@ -1882,10 +1790,6 @@ public static class DependencyInjection
         services.AddScoped<ISessionStore>(sp =>
             new SessionStoreResilienceDecorator(sp.GetRequiredService<RedisSessionStore>()));
 
-        // #481 Low — login-timing equalizer (singleton: owns one PasswordHasher + a memoized dummy
-        // hash). Injected into UserAccountService to pay a constant PBKDF2 cost on the unknown-email
-        // login branch so response timing does not enumerate registered accounts.
-        services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
         services.AddScoped<IUserAccountService, UserAccountService>();
 
         // #746 PR-B: role resolution moved OUT of an IClaimsTransformation (which ran on every
@@ -1904,85 +1808,6 @@ public static class DependencyInjection
         // ReauthenticationBehavior injects IEnumerable<IReauthenticationService> so it still
         // constructs in the Worker (empty sequence → the re-auth guard never fires there).
         services.AddScoped<IReauthenticationService, Jobbliggaren.Application.Auth.ReauthenticationService>();
-
-        return services;
-    }
-
-    /// <summary>
-    /// #616 (ADR: HIBP breach check) — typed HttpClient for the Pwned Passwords k-anonymity
-    /// range API behind <see cref="IBreachedPasswordChecker"/>. Api-ONLY: called from
-    /// <see cref="AddIdentityAndSessions"/>; the Worker composition (<see cref="AddCoreIdentityForWorker"/>)
-    /// stays HTTP-free (ADR 0023) and gets no extra password validators.
-    ///
-    /// <para>
-    /// Resilience is CTO-bound for an INTERACTIVE hot path, deliberately NOT the batch-ingest
-    /// profile of AddStandardResilienceHandler (ADR 0032 / BUILD.md §9.1): total attempt budget
-    /// ~2 s, ZERO retries (fail-open makes a retry pure added latency for a waiting user), and a
-    /// circuit breaker so a sustained HIBP outage fails open INSTANTLY instead of costing every
-    /// registration the full timeout.
-    /// </para>
-    /// </summary>
-    public static IServiceCollection AddBreachedPasswordCheck(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        services.AddOptions<BreachCheckOptions>()
-            .Bind(configuration.GetSection(BreachCheckOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-
-        // Opt-OUT kill switch: a missing section/key means ENABLED (defaultValue: true).
-        // Do not copy the ScbRegister opt-in idiom here — a silently-disabled breach check
-        // would be an invisible security regression.
-        var enabled = configuration.GetValue(
-            $"{BreachCheckOptions.SectionName}:{nameof(BreachCheckOptions.Enabled)}", defaultValue: true);
-        if (!enabled)
-        {
-            services.AddSingleton<IBreachedPasswordChecker, DisabledBreachedPasswordChecker>();
-            return services;
-        }
-
-        services.AddHttpClient<IBreachedPasswordChecker, HibpPasswordBreachClient>((sp, client) =>
-            {
-                var opts = sp.GetRequiredService<IOptions<BreachCheckOptions>>().Value;
-                client.BaseAddress = new Uri(opts.BaseUrl);
-                // Response-size side-channel defense: pads every range response to 800–1000
-                // lines (padding lines carry count 0 — the client discards them).
-                client.DefaultRequestHeaders.Add("Add-Padding", "true");
-                // HIBP rejects UA-less requests. First outgoing client in the codebase to need
-                // a User-Agent — deliberate new pattern, set here in parity with ApplyApiKey.
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jobbliggaren/1.0 (+https://jobbliggaren.se)");
-                // Backstop only — the Polly attempt timeout below is the real ~2 s budget.
-                client.Timeout = TimeSpan.FromSeconds(10);
-                // Padded responses are ~40 kB; cap the buffer as DoS hygiene.
-                client.MaxResponseContentBufferSize = 1_000_000;
-            })
-            // CRITICAL (CTO-bind fail-open observability condition): the default HttpClientFactory
-            // LogicalHandler/ClientHandler loggers write the full request URI — which contains the
-            // 5-char SHA-1 prefix — at Information. Nothing credential-derived may reach the logs,
-            // so ALL default client logging is removed; EventId 5001 in HibpPasswordBreachClient is
-            // the only telemetry this client emits.
-            .RemoveAllLoggers()
-            .AddResilienceHandler("hibp-breach-check", (builder, context) =>
-            {
-                var opts = context.ServiceProvider
-                    .GetRequiredService<IOptions<BreachCheckOptions>>().Value;
-
-                // Circuit breaker FIRST (= outermost) so the inner attempt-timeout's
-                // TimeoutRejectedException is counted by the breaker's default ShouldHandle —
-                // reversed order would mean timeouts never open the circuit (CTO-bind FORK 3).
-                builder.AddCircuitBreaker(new HttpCircuitBreakerStrategyOptions
-                {
-                    MinimumThroughput = opts.CircuitBreakerMinimumThroughput,
-                    FailureRatio = opts.CircuitBreakerFailureRatio,
-                    SamplingDuration = TimeSpan.FromSeconds(opts.CircuitBreakerSamplingSeconds),
-                    BreakDuration = TimeSpan.FromSeconds(opts.CircuitBreakerBreakSeconds),
-                });
-
-                // Total budget for the single attempt. NO AddRetry — retry 0 is the CTO-bound
-                // interactive profile (a failed attempt goes straight to fail-open).
-                builder.AddTimeout(TimeSpan.FromSeconds(opts.TimeoutSeconds));
-            });
 
         return services;
     }
@@ -2041,22 +1866,13 @@ public static class DependencyInjection
         // AddIdentityCore<TUser>() registrerar UserManager + UserStore utan
         // AuthenticationScheme/Cookies/SignInManager — HTTP-fritt.
         // AddDefaultTokenProviders() utelämnas medvetet — token-providers
-        // (password-reset, email-confirm) kräver IDataProtectionProvider
+        // (change-email) kräver IDataProtectionProvider
         // som är HTTP-bagage. Worker behöver bara CreateAsync/FindByIdAsync/
         // DeleteAsync vilka inte använder token-providers.
         services.AddIdentityCore<ApplicationUser>(opts => TheUserNameIsTheAddress(opts.User))
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppIdentityDbContext>();
 
-        // #481 Low — required by UserAccountService's constructor (see AddIdentityAndSessions). The
-        // Worker never logs in, but the dependency must resolve wherever UserAccountService is built.
-        services.AddSingleton<ILoginTimingEqualizer, LoginTimingEqualizer>();
-
-        // #714 — DI-parity: UserAccountService (built here too) now injects IOptions<AuthOptions> for
-        // the EmailConfirmed login gate. Bind it in the Worker composition as well or the container
-        // cannot construct UserAccountService (same discipline as ILoginTimingEqualizer above). The
-        // Worker never logs in, so the gate is inert here, but the option must resolve.
-        services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IAccountHardDeleter, AccountHardDeleter>();
 

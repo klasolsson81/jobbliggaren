@@ -19,8 +19,7 @@ public sealed record LoginChallengeDispatch(
 
 /// <summary>
 /// Hands a login challenge to the out-of-band consumer, so no existence-dependent work runs on the request
-/// path (ADR 0142 D2). Its own port and its own bounded queue, separate from the password reset's, so a
-/// forgot-password flood cannot silently drop logins now that mail is how people log in.
+/// path (ADR 0142 D2). Its own port and its own bounded queue.
 /// <para>
 /// <b>Returns nothing, and that is the contract.</b> No caller can branch on an enqueue result, because
 /// there is none: the request path answers its uniform 202 whether the queue took the item, dropped it on a
@@ -44,8 +43,8 @@ public sealed class LoginChallengeDispatchOptions
 
     /// <summary>
     /// Queued requests held before further ones are dropped. Bounded because the producer is an
-    /// unauthenticated endpoint; the default mirrors <see cref="PasswordResetDispatchOptions.Capacity"/>'s
-    /// derivation (one consumer, a provider round trip per item).
+    /// unauthenticated endpoint; the default is derived from one consumer and a provider round trip per
+    /// item.
     /// </summary>
     [Range(1, 100_000)]
     public int Capacity { get; set; } = 1000;

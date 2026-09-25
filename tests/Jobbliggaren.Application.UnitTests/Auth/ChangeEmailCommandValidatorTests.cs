@@ -4,8 +4,7 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #679 (C5-email of epik #481) — pins the REQUEST-step validator. Parity with
-/// <c>ChangePasswordCommandValidatorTests</c>: the re-auth grant is a credential (the shared
+/// #679 (C5-email of epik #481) — pins the REQUEST-step validator. The re-auth grant is a credential (the shared
 /// <c>ReauthGrantRules</c> rule — present and bounded, no format rule that could describe a real grant),
 /// while the new email is a new value (NotEmpty + well-formed + 256-char cap so a malformed address
 /// is a clean 400 before a token is minted).

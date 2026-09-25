@@ -64,7 +64,8 @@ public sealed class CompleteLoginChallengeTests
             _inbox, _sessions, Substitute.For<IAuthAuditLogger>(), _db, FakeDateTimeProvider.Default, correlation, request);
 
         return new CompleteLoginChallengeCommandHandler(
-            options, _grants, _claim, resolver, _accounts, _db, FakeDateTimeProvider.Default, correlation, request,
+            options, _grants, _claim, resolver,
+            new AccountRegistrar(_accounts, _db, FakeDateTimeProvider.Default, correlation, request),
             new LoginProofOutcome(resolver, grant, _grants, options, NullLogger<LoginProofOutcome>.Instance));
     }
 
@@ -221,7 +222,7 @@ public sealed class CompleteLoginChallengeTests
         await Handler().Handle(Command(), Ct);
 
         var row = await _db.AuditLogEntries.AsNoTracking().SingleAsync(Ct);
-        row.EventType.ShouldBe(CompleteLoginChallengeCommandHandler.AccountCreatedAuditEventType);
+        row.EventType.ShouldBe(AccountRegistrar.AccountCreatedAuditEventType);
         row.AggregateType.ShouldBe("User");
         row.AggregateId.ShouldBe(_userId);
         row.UserId.ShouldBe(_userId);

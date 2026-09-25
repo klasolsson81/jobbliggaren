@@ -7,7 +7,6 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
@@ -45,12 +44,7 @@ public class UserAccountServiceAddressSwapTests
 
     public UserAccountServiceAddressSwapTests()
     {
-        _sut = new UserAccountService(
-            _userManager,
-            Substitute.For<ILoginTimingEqualizer>(),
-            Options.Create(new AuthOptions()),
-            _logger,
-            _dbExceptionInspector);
+        _sut = new UserAccountService(_userManager, _logger, _dbExceptionInspector);
 
         _userManager.FindByIdAsync(_user.Id.ToString()).Returns(_user);
         _userManager.SetUserNameAsync(_user, NewEmail).Returns(IdentityResult.Success);

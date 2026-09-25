@@ -254,8 +254,7 @@ public class LoginChallengeProofTests(ApiFactory factory)
     public async Task A_confirmed_password_account_logs_in_by_code_and_its_identity_row_is_unchanged()
     {
         var email = NewAddress("pw-confirmed");
-        var existingSession = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: Ct);
-        await ConfirmThroughVerifyEmailAsync(email);
+        var existingSession = await SeedLegacyPasswordAccountAsync(email, confirmed: true);
         var before = await IdentityRowOf(email);
         before.PasswordHash.ShouldNotBeNull();
         before.EmailConfirmed.ShouldBeTrue();
@@ -268,14 +267,13 @@ public class LoginChallengeProofTests(ApiFactory factory)
         // Wrong codes never reach lockout, and a confirmed account's password and stamp survive until 5b.
         (await IdentityRowOf(email)).ShouldBe(before);
         (await ProbeAsync(existingSession)).ShouldBe(HttpStatusCode.OK);
-        await AuthTestHelpers.LoginAndGetSessionIdAsync(_client, email, ct: Ct);
     }
 
     [Fact]
     public async Task A_first_proof_of_an_unconfirmed_inbox_removes_the_password_and_every_earlier_session()
     {
         var email = NewAddress("pw-unconfirmed");
-        var earlierSession = await AuthTestHelpers.RegisterWithPasswordAndGetSessionIdAsync(_factory, email, ct: Ct);
+        var earlierSession = await SeedLegacyPasswordAccountAsync(email, confirmed: false);
         var before = await IdentityRowOf(email);
         before.PasswordHash.ShouldNotBeNull();
         before.EmailConfirmed.ShouldBeFalse();
@@ -291,9 +289,6 @@ public class LoginChallengeProofTests(ApiFactory factory)
 
         (await ProbeAsync(earlierSession)).ShouldBe(HttpStatusCode.Unauthorized);
         (await ProbeAsync(sessionId)).ShouldBe(HttpStatusCode.OK);
-        (await _client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email, password = AuthTestHelpers.DefaultTestPassword }, Ct)).StatusCode
-            .ShouldBe(HttpStatusCode.Unauthorized);
 
         await using var scope = _factory.Services.CreateAsyncScope();
         var rows = await scope.ServiceProvider.GetRequiredService<IAppDbContext>().AuditLogEntries
@@ -449,15 +444,21 @@ public class LoginChallengeProofTests(ApiFactory factory)
         }
     }
 
-    // The production path that confirms a password account's address: the token the confirmation mail
-    // carries, presented to /verify-email.
-    private async Task ConfirmThroughVerifyEmailAsync(string email)
+    // A password account as the retired routes left it: POST /auth/register (CreateUserAsync(email, password)) wrote
+    // the hash with the address unconfirmed, and POST /auth/verify-email (ConfirmEmailAsync) confirmed it; both
+    // retired in #1743. No path in src/ writes one since, and the rows they wrote stay until 5b nulls
+    // password_hash, so the actors are those routes. The current writer's shape is pinned by
+    // LoginChallengeCompleteTests.A_new_address_that_accepts_the_terms_gets_a_passwordless_account_and_a_persistent_session.
+    // This seed goes in 5b together with RemovePasswordAsync. The hash is generated at runtime, never a literal.
+    private async Task<string> SeedLegacyPasswordAccountAsync(string email, bool confirmed)
     {
-        var userId = await UserIdOf(email);
         await using var scope = _factory.Services.CreateAsyncScope();
-        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var token = await accounts.GenerateEmailConfirmationTokenAsync(userId, Ct);
-        (await _client.PostAsJsonAsync("/api/v1/auth/verify-email", new { uid = userId, token = token.Value }, Ct))
-            .IsSuccessStatusCode.ShouldBeTrue();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = confirmed };
+        user.PasswordHash = users.PasswordHasher.HashPassword(user, Guid.NewGuid().ToString("N"));
+        (await users.CreateAsync(user)).Succeeded.ShouldBeTrue();
+
+        return await AuthTestHelpers.RegisterJobSeekerAndCreateSessionAsync(
+            scope.ServiceProvider, user.Id, SessionLifetime.Persistent, Ct);
     }
 }

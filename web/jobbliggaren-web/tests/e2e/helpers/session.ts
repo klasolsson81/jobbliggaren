@@ -1,5 +1,5 @@
 import { test as base, type BrowserContext, type Page } from "@playwright/test";
-import { ensureConfirmedTestUser, loginAs } from "./auth";
+import { seedTestUser, loginAs } from "./auth";
 
 /**
  * A `test` whose pages are already logged in, with ONE login per spec file.
@@ -31,7 +31,7 @@ export function loggedInTest(runId: number) {
       // `provide`, not Playwright's customary `use`: the React hooks lint reads a call named
       // `use` inside a function named `page` as the React hook.
       async ({ browser }, provide) => {
-        await ensureConfirmedTestUser(BACKEND_URL, runId);
+        await seedTestUser(BACKEND_URL, runId);
         const context = await browser.newContext({ baseURL: BASE_URL });
         const page = await context.newPage();
         await loginAs(page, runId);

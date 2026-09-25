@@ -74,28 +74,6 @@ public class ConsoleEmailSenderReservedRecipientTests
             (s, to) => s.SendEmailChangedNotificationAsync(to, CancellationToken.None),
             CarriesProbe: false),
 
-        new(nameof(IEmailSender.SendEmailConfirmationAsync), "email-confirmation",
-            (s, to) => s.SendEmailConfirmationAsync(
-                to,
-                new EmailConfirmationEmail(Guid.Empty, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
-        new(nameof(IEmailSender.SendAccountExistsNoticeAsync), "account-exists-notice",
-            (s, to) => s.SendAccountExistsNoticeAsync(to, CancellationToken.None),
-            CarriesProbe: false),
-
-        new(nameof(IEmailSender.SendPasswordResetAsync), "password-reset",
-            (s, to) => s.SendPasswordResetAsync(
-                to,
-                new PasswordResetEmail(Guid.Empty, BodyProbe),
-                CancellationToken.None),
-            CarriesProbe: true),
-
-        new(nameof(IEmailSender.SendPasswordChangedNoticeAsync), "password-changed-notice",
-            (s, to) => s.SendPasswordChangedNoticeAsync(to, CancellationToken.None),
-            CarriesProbe: false),
-
         new(nameof(IEmailSender.SendLoginChallengeAsync), "login-challenge",
             (s, to) => s.SendLoginChallengeAsync(
                 to,

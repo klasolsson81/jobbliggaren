@@ -5,9 +5,9 @@ using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Auth;
-using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
 using Jobbliggaren.Domain.JobSeekers;
@@ -109,7 +109,7 @@ public class LoginChallengeCompleteTests(ApiFactory factory)
 
         (await db.AuditLogEntries.AsNoTracking().CountAsync(
             e => e.AggregateId == user.Id
-                && e.EventType == CompleteLoginChallengeCommandHandler.AccountCreatedAuditEventType, Ct)).ShouldBe(1);
+                && e.EventType == AccountRegistrar.AccountCreatedAuditEventType, Ct)).ShouldBe(1);
 
         // Born confirmed: the grant that follows finds nothing to prove, so it writes no first-proof row.
         (await db.AuditLogEntries.AsNoTracking().CountAsync(
@@ -192,7 +192,7 @@ public class LoginChallengeCompleteTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.AuditLogEntries.AsNoTracking().CountAsync(
             e => e.AggregateId == existing.Id
-                && e.EventType == CompleteLoginChallengeCommandHandler.AccountCreatedAuditEventType, Ct)).ShouldBe(0);
+                && e.EventType == AccountRegistrar.AccountCreatedAuditEventType, Ct)).ShouldBe(0);
     }
 
     [Theory]

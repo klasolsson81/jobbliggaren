@@ -589,9 +589,8 @@ if [[ "${1:-}" == "--check" ]]; then
       if (( remaining_days <= 0 )); then
         log "EXPIRED: the Scaleway API key expired on ${expiry}."
         log "         Outbound mail is failing SILENTLY right now — api and worker are healthy,"
-        log "         --check finds every file present, and each send fails per-message. If the"
-        log "         registration gate is open, account confirmation and password reset are both"
-        log "         dead."
+        log "         --check finds every file present, and each send fails per-message. Every"
+        log "         login is a mailed code or link, so no one can log in."
         expiring=1
       elif (( remaining_days <= EXPIRY_NOTICE_DAYS )); then
         # NOTICE, NOT A FAULT — and it deliberately does NOT set `expiring`, so this run still

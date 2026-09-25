@@ -62,6 +62,17 @@ public sealed class LoginOutcomeResultTests
         body.EnumerateObject().Select(p => p.Name).ShouldBe(["outcome", "grantToken"]);
     }
 
+    [Theory]
+    [MemberData(nameof(Variants))]
+    public void Only_the_external_callback_adds_the_path_its_flow_carried(string variant)
+    {
+        // #1744 — the code and link routes answer without it; the provider callback echoes its flow's path.
+        var (outcome, _) = OneOfEach[variant];
+
+        Body(AuthEndpoints.LoginOutcomeResult(outcome)).TryGetProperty("next", out _).ShouldBeFalse();
+        Body(AuthEndpoints.LoginOutcomeResult(outcome, "/cv")).GetProperty("next").GetString().ShouldBe("/cv");
+    }
+
     [Fact]
     public void A_printed_consent_outcome_never_shows_the_whole_grant_token()
     {

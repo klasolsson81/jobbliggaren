@@ -526,6 +526,9 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `POST /api/v1/auth/change-email`
 - `POST /api/v1/auth/change-email/verify`
 - `POST /api/v1/auth/change-email/confirm`
+- `POST /api/v1/auth/oauth/{provider}/start`
+- `POST /api/v1/auth/oauth/{provider}/callback`
+- `GET /api/v1/auth/oauth/providers`
 
 **Me / profil**
 - `GET /api/v1/me`

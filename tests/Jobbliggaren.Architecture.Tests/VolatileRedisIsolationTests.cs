@@ -1,5 +1,6 @@
 using System.Reflection;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Registration;
@@ -62,6 +63,7 @@ public class VolatileRedisIsolationTests
             typeof(RedisRateBudget).FullName!,
             typeof(RedisGrantStore).FullName!,
             typeof(RedisRegistrationClaim).FullName!,
+            typeof(RedisOAuthStateStore).FullName!,
             typeof(VolatileRedisHealthCheck).FullName!,
             typeof(ApiRedisStartupValidator).FullName!,
         ];
@@ -77,6 +79,7 @@ public class VolatileRedisIsolationTests
     [InlineData(typeof(RedisRateBudget))]
     [InlineData(typeof(RedisGrantStore))]
     [InlineData(typeof(RedisRegistrationClaim))]
+    [InlineData(typeof(RedisOAuthStateStore))]
     public void VolatileStore_TakesNoRouteToTheDurableInstance(Type store)
     {
         ConstructorParameterTypes(store).ShouldNotContain(p => DurableRoutes.Contains(p));

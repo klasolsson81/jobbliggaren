@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -91,5 +92,26 @@ internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFault
     {
         faults.ThrowIfUnavailable();
         return inner.RedeemAsync(token, expected, ct);
+    }
+}
+
+internal sealed class FaultableOAuthStateStore(IOAuthStateStore inner, LoginChallengeFaults faults) : IOAuthStateStore
+{
+    private int _writes;
+
+    /// <summary>#1744 — how many flows this host handed to the real store, so a refused start can be pinned as unwritten.</summary>
+    internal int Writes => Volatile.Read(ref _writes);
+
+    public Task<OAuthState> PutAsync(OAuthFlow flow, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        Interlocked.Increment(ref _writes);
+        return inner.PutAsync(flow, ct);
+    }
+
+    public Task<OAuthFlow?> TakeAsync(OAuthState state, ExternalProviderKey expected, CancellationToken ct)
+    {
+        faults.ThrowIfUnavailable();
+        return inner.TakeAsync(state, expected, ct);
     }
 }

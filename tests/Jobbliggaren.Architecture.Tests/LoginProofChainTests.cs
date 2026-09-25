@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -59,10 +61,21 @@ public sealed class LoginProofChainTests
         ConsumersOf(typeof(PasswordlessSessionGrant)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
         ConsumersOf(typeof(LoginProofOutcome)).ShouldBe(
         [
+            typeof(CompleteExternalLoginCommandHandler).FullName!,
             typeof(CompleteLoginChallengeCommandHandler).FullName!,
             typeof(ConsumeLoginLinkCommandHandler).FullName!,
             typeof(VerifyLoginChallengeCommandHandler).FullName!,
         ]);
+    }
+
+    [Fact]
+    public void Only_the_resolver_asks_who_a_provider_login_belongs_to_and_only_the_linker_writes_one()
+    {
+        // #1744 (senior-cto-advisor F2): the one classifier answers the link as well; the one writer adds it and
+        // its audit row, and only the outcome function reaches the writer, after the address has matched.
+        ConsumersOf(typeof(IExternalLoginLookup)).ShouldBe([typeof(LoginSubjectResolver).FullName!]);
+        ConsumersOf(typeof(IExternalLoginWriter)).ShouldBe([typeof(ExternalLoginLinker).FullName!]);
+        ConsumersOf(typeof(ExternalLoginLinker)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
     }
 
     [Fact]
@@ -101,6 +114,7 @@ public sealed class LoginProofChainTests
             typeof(VerifyLoginChallengeCommandHandler),
             typeof(ConsumeLoginLinkCommandHandler),
             typeof(CompleteLoginChallengeCommandHandler),
+            typeof(CompleteExternalLoginCommandHandler),
         ]);
         while (pending.TryPop(out var type))
         {
@@ -135,6 +149,29 @@ public sealed class LoginProofChainTests
             "Jobbliggaren.Application/Auth/LoginChallenges/PasswordlessSessionGrant.cs",
             "Jobbliggaren.Infrastructure/Auth/LoginChallenges/IdentityInboxProofRecorder.cs",
             "Jobbliggaren.Infrastructure/DependencyInjection.cs",
+        ]);
+    }
+
+    // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in the provider adapter, and again only where
+    // the grant store reads back the purpose-4 payload that address was sealed into.
+    [Fact]
+    public void Only_the_provider_adapter_and_the_grant_store_make_a_verified_email_in_source()
+    {
+        var srcRoot = Path.Combine(RepoRoot(), "src");
+        Directory.Exists(srcRoot).ShouldBeTrue($"src root not found: {srcRoot}");
+
+        var makers = Directory
+            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Where(path => File.ReadAllText(path).Contains("VerifiedEmail.TryCreate(", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        makers.ShouldBe(
+        [
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs",
         ]);
     }
 

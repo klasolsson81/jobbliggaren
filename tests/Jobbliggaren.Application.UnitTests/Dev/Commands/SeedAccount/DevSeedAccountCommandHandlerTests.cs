@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -42,7 +43,7 @@ public sealed class DevSeedAccountCommandHandlerTests
         correlation.Current.Returns(Guid.NewGuid());
         return new DevSeedAccountCommandHandler(
             _policy,
-            new LoginSubjectResolver(_lookup, _db),
+            new LoginSubjectResolver(_lookup, Substitute.For<IExternalLoginLookup>(), _db),
             new AccountRegistrar(
                 _accounts, _db, FakeDateTimeProvider.Default, correlation, Substitute.For<IRequestContextProvider>()));
     }

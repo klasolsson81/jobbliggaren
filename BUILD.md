@@ -1792,7 +1792,7 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 
 `build.yml` (`ci`-aggregat):
 - Trigger: PR mot `main`, push till `main`
-- Jobs: `coverage` (the backend build + full test suite, instrumented, with the ADR 0044 gate — the suite's only run since 2026-09-25, #1785), `frontend` (lint/typecheck/build/test), `scripts`, `images`
+- Jobs: enumerated in `build.yml`'s `ci.needs` and nowhere else (ADR 0044 Beslut 4: a list of the tree goes stale, a rule does not)
 - Inga moln-anrop, inga deploys
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.

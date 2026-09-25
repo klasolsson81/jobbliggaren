@@ -146,7 +146,7 @@ jobs:
 
       # --- C#-only: manuellt build mellan init och analyze -------------------
       # Källgenererad mediator-kod existerar bara efter kompilering → måste
-      # byggas för att SAST ska se den. Samma fyra steg som build.yml.
+      # byggas för att SAST ska se den.
       - name: Build (C#, manual build-mode)
         if: matrix.language == 'csharp'
         run: |

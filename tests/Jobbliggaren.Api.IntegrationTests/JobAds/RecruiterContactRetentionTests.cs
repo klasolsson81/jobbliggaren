@@ -66,7 +66,6 @@ public sealed class RecruiterContactRetentionTests : IAsyncLifetime
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

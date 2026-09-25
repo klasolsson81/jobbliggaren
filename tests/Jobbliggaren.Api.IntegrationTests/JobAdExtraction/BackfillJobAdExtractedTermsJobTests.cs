@@ -94,7 +94,6 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         services.AddScoped<BackfillJobAdExtractedTermsJob>();
 
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

@@ -20,7 +20,7 @@ namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 /// (Testcontainers, ALDRIG EF-InMemory — paritet med
 /// TaxonomyReadModelIntegrationTests / SwedishStemmerPostgresParityTests; the
 /// seeder's idempotens-transaktion + advisory-lock kräver en relationell motor).
-/// Self-contained fixture (egen container) så snapshoten styrs deterministiskt.
+/// Self-contained fixture så snapshoten styrs deterministiskt.
 ///
 /// V2 (CTO Decision 1): match the free-text title against the ~2323 occupation-
 /// NAME labels, resolve the hit to its ssyk-4 group via the frozen map, return a
@@ -77,7 +77,6 @@ public sealed class OccupationCodeDeriverIntegrationTests : IAsyncLifetime
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
 
         await RunSeederAsync(CancellationToken.None);
         _frozenMap = await ReadFrozenMapAsync();

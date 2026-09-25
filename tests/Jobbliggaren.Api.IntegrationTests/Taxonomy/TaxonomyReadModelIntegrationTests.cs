@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 /// (Testcontainers, ALDRIG EF-InMemory: query-filter/sortering/idempotens-
 /// transaktion + advisory-lock måste verifieras mot relationell motor).
 /// Kör seedern direkt (Test-env grace-period) och exercerar porten.
-/// Self-contained fixture (egen container) så idempotens/version-bump kan
+/// Self-contained fixture så idempotens/version-bump kan
 /// styras deterministiskt.
 /// </summary>
 [Collection(SharedPostgresFixtureGroup.Name)]
@@ -40,7 +40,6 @@ public sealed class TaxonomyReadModelIntegrationTests : IAsyncLifetime
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

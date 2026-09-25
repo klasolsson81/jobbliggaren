@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Data.Common;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.Common.Security;
@@ -34,7 +35,6 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Refit;
 using Shouldly;
-using Testcontainers.PostgreSql;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -72,6 +72,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// resurrect it.
 /// </para>
 /// </remarks>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class RecruiterErasureIngestTests : IAsyncLifetime
 {
     // A recruiter, in the shape the real corpus actually holds her (evidence pack §9: "kontakta
@@ -118,14 +119,17 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     private const string RawPayloadOnlyToken = "Vikströmshamn";
     private const string RawPayloadOnlyExternalId = "erasure-e2e-5";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
     private readonly CommandTimeoutRecorder _commandTimeouts = new();
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
 
+    public RecruiterErasureIngestTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         _jobTech = WireMockServer.Start();
         _jobTech
@@ -138,7 +142,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AppDbContext>(options => options
-            .UseNpgsql(_postgres.GetConnectionString(),
+            .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(_commandTimeouts));
@@ -161,11 +165,6 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -173,7 +172,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
         await _provider.DisposeAsync();
         _jobTech.Stop();
         _jobTech.Dispose();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
     }
 
     /// <summary>The JobTech wire shape, v2 (webpage_url top-level).</summary>
@@ -2369,7 +2368,7 @@ public sealed class RecruiterErasureIngestTests : IAsyncLifetime
     /// <summary>
     /// Re-points the stub at <paramref name="snapshotJson"/> and runs the production ingest. Safe
     /// because this class is <see cref="IAsyncLifetime"/> on the CLASS, so every test method gets
-    /// its own container, its own stub and its own database.
+    /// its own database and its own stub.
     /// </summary>
     private async Task IngestPayloadAsync(string snapshotJson, CancellationToken ct)
     {

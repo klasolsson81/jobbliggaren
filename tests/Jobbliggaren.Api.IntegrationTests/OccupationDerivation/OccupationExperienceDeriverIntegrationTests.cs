@@ -55,7 +55,6 @@ public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
 
-
         var env = Substitute.For<IHostEnvironment>();
         env.EnvironmentName.Returns("Test");
         var seeder = new TaxonomySnapshotSeeder(

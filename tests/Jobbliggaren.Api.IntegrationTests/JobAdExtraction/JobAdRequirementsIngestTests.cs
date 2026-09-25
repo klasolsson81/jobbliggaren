@@ -51,7 +51,6 @@ public sealed class JobAdRequirementsIngestTests : IAsyncLifetime
                 .UseSnakeCaseNamingConvention());
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

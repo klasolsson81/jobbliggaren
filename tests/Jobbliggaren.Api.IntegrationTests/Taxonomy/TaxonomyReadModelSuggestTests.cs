@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 /// ADR 0067 Beslut 5a (Fas D1) — TaxonomyReadModel.SuggestByPrefixAsync mot
 /// riktig Postgres (Testcontainers, ALDRIG EF-InMemory: query-filter/sortering/
 /// idempotens-transaktion + advisory-lock i seedern måste verifieras mot
-/// relationell motor). Self-contained fixture (egen container) speglar
+/// relationell motor). Self-contained fixture speglar
 /// TaxonomyReadModelIntegrationTests så snapshoten kan styras deterministiskt;
 /// prefix-scanen är ren in-memory över den cachade snapshoten.
 /// <para>
@@ -46,7 +46,6 @@ public sealed class TaxonomyReadModelSuggestTests : IAsyncLifetime
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
 
         await RunSeederAsync(CancellationToken.None);
     }

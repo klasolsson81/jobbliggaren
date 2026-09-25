@@ -97,7 +97,6 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
         services.AddScoped<BackfillRecruiterContactScrubJob>();
 
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

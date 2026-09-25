@@ -18,8 +18,7 @@ public sealed class SharedPostgresFixtureGroup : ICollectionFixture<SharedPostgr
 
 /// <summary>
 /// One <c>postgres:18</c> for the whole run, migrated ONCE into a template database. A test takes a
-/// clone of the template (<c>CREATE DATABASE … TEMPLATE</c>, a file copy inside the server) and drops
-/// it afterwards, so it still owns a fresh, fully migrated database of its own — the property the
+/// clone of the template (<c>CREATE DATABASE … TEMPLATE</c>) and drops it afterwards, so it still owns a fresh, fully migrated database of its own — the property the
 /// per-test containers this replaces were paying for — without a container start and a full
 /// migration run per test method.
 ///
@@ -69,10 +68,18 @@ public sealed class SharedPostgresFixture : IAsyncLifetime
             await db.Database.MigrateAsync();
         }
 
-        // A template with an open connection cannot be copied (55006), and the migrator's connection
-        // went back to the pool rather than away. Closed here, once, before the first clone.
-        using var pooled = new NpgsqlConnection(template);
-        NpgsqlConnection.ClearPool(pooled);
+        // A template with an open connection cannot be copied (55006). The migrator's connection went
+        // back to the pool rather than away, so the pool is cleared; then the template is closed to
+        // connections altogether and whatever still holds one is terminated, so a later leak fails at
+        // its own connect instead of failing every clone after it.
+        using (var pooled = new NpgsqlConnection(template))
+        {
+            NpgsqlConnection.ClearPool(pooled);
+        }
+
+        await ExecuteAsync($"ALTER DATABASE \"{TemplateDatabase}\" WITH ALLOW_CONNECTIONS false");
+        await ExecuteAsync(
+            $"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{TemplateDatabase}' AND pid <> pg_backend_pid()");
     }
 
     /// <summary>

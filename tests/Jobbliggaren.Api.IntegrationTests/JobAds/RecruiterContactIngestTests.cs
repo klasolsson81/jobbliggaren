@@ -138,7 +138,6 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         services.AddScoped<IJobSource, PlatsbankenJobSource>();
 
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

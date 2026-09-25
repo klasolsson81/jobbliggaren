@@ -54,7 +54,6 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
     }
 
     public async ValueTask DisposeAsync()

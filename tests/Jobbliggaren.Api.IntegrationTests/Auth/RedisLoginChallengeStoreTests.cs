@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 

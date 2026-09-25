@@ -3,7 +3,6 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 

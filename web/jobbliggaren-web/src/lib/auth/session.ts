@@ -65,6 +65,14 @@ export const getServerSession = cache(
   }
 );
 
+/** The `__Host-` requirements, shared with a route handler that sets the cookie on its own response (#1744). */
+export const SESSION_COOKIE_ATTRIBUTES = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "strict",
+  path: "/",
+} as const;
+
 /**
  * Sets the session cookie for a freshly issued session id.
  *
@@ -83,10 +91,7 @@ export async function setSessionCookie(
 ): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/",
+    ...SESSION_COOKIE_ATTRIBUTES,
     ...(persistent ? { maxAge: PERSISTENT_MAX_AGE_SECONDS } : {}),
   });
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EXTERNAL_PROVIDER_KEYS } from "@/lib/auth/external-login";
 
 /**
  * Where a visitor is in the login flow (ADR 0142 "Page form"). The value of the
@@ -33,6 +34,12 @@ export const RESEND_COOLDOWN_SECONDS = 60;
 
 const MAX_NEXT_LENGTH = 512;
 
+/**
+ * The provider a step was reached through (#1744, design-reviewer Blocker 1). Closed, and never the
+ * address: it chooses which sentence the step shows. Absent means the step was reached by a code.
+ */
+const via = z.enum(EXTERNAL_PROVIDER_KEYS).optional();
+
 const codePhase = z.strictObject({
   phase: z.literal("code"),
   challengeId: z.string().min(1).max(64),
@@ -50,6 +57,7 @@ const consentPhase = z.strictObject({
   phase: z.literal("consent"),
   grantToken: z.string().min(1).max(64),
   next: z.string().max(MAX_NEXT_LENGTH),
+  via,
 });
 
 const outcomeResult = z.discriminatedUnion("outcome", [
@@ -64,12 +72,22 @@ const outcomeResult = z.discriminatedUnion("outcome", [
 const outcomePhase = z.strictObject({
   phase: z.literal("outcome"),
   result: outcomeResult,
+  via,
 });
 
-const noticePhase = z.strictObject({
-  phase: z.literal("notice"),
-  notice: z.enum(["grantUnusable", "codeExpired", "accountDeleted"]),
-});
+const EXTERNAL_NOTICES = ["externalUnverified", "externalNotCompleted"] as const;
+
+/** An external login's two notices name their provider; no other notice carries one. */
+const noticePhase = z
+  .strictObject({
+    phase: z.literal("notice"),
+    notice: z.enum(["grantUnusable", "codeExpired", "accountDeleted", ...EXTERNAL_NOTICES]),
+    provider: z.enum(EXTERNAL_PROVIDER_KEYS).optional(),
+  })
+  .refine(
+    (flow) => (flow.provider !== undefined) === (EXTERNAL_NOTICES as readonly string[]).includes(flow.notice),
+    { message: "an external notice needs its provider, and no other notice takes one" }
+  );
 
 export const loginFlowSchema = z.discriminatedUnion("phase", [
   codePhase,

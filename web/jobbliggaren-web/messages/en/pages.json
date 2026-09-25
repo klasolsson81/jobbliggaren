@@ -569,7 +569,8 @@
           "linkedin": "Continue with LinkedIn",
           "github": "Continue with GitHub",
           "comingSoon": "Coming soon"
-        }
+        },
+        "orEmail": "Or continue with email"
       },
       "code": {
         "meta": {
@@ -602,6 +603,7 @@
         },
         "title": "Create your account",
         "identification": "The account is created for the email address you just confirmed with the code.",
+        "identificationProvider": "The account is created for the email address of the {provider} account you chose.",
         "termsLabel": "I accept the <terms>terms of use</terms>.",
         "termsHint": "The links open in a new tab.",
         "privacySibling": "We process your data in accordance with the <privacy>privacy policy</privacy>.",
@@ -628,6 +630,13 @@
         }
       },
       "persistence": "You stay logged in on this device for up to 180 days. Log out is on every logged-in page.",
+      "external": {
+        "providerNames": {
+          "google": "Google"
+        },
+        "title": "Log in with {provider}",
+        "continue": "Continue"
+      },
       "outcome": {
         "registrationClosed": {
           "title": "Registration is not open yet.",
@@ -654,6 +663,14 @@
         "accountDeleted": {
           "title": "Your account has been deleted",
           "body": "You are logged out on all devices. For 30 days you can have the account restored by emailing <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "externalUnverified": {
+          "title": "{provider} cannot vouch for your email address",
+          "body": "Log in with a code instead: enter your email address below."
+        },
+        "externalNotCompleted": {
+          "title": "Logging in with {provider} was not completed",
+          "body": "Try {provider} again, or enter your email address below."
         }
       },
       "errors": {

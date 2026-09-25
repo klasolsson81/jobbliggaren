@@ -209,7 +209,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 Email = orphanEmail,
                 CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
             };
-            var result = await userManager.CreateAsync(user, "OrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
             orphanUserId = user.Id;
         }
@@ -250,7 +250,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         {
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var user = new ApplicationUser { UserName = freshEmail, Email = freshEmail };
-            var result = await userManager.CreateAsync(user, "FreshOrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: färsk Identity-user måste skapas");
             freshUserId = user.Id;
         }
@@ -317,7 +317,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
                 Email = forwardEmail,
                 CreatedAt = DateTimeOffset.UtcNow.AddHours(-2), // äldre än #508 1h-grace → sweepbar
             };
-            var result = await userManager.CreateAsync(user, "FwdOrphanPass123!");
+            var result = await userManager.CreateAsync(user);
             result.Succeeded.ShouldBeTrue("seed: åldrad forward-orphan Identity-user måste skapas");
             forwardUserId = user.Id;
         }
@@ -860,7 +860,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
 
         var email = $"hd-{Guid.NewGuid():N}@test.local";
         var user = new ApplicationUser { UserName = email, Email = email };
-        var result = await userManager.CreateAsync(user, "HardDeletePass123!");
+        var result = await userManager.CreateAsync(user);
         result.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         // JobSeeker.Register tar IDateTimeProvider — vi använder en FixedClock

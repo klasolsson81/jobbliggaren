@@ -104,8 +104,9 @@ public class LoginChallengeProofTests(ApiFactory factory)
         return (await _client.SendAsync(request, Ct)).StatusCode;
     }
 
+    // ConcurrencyStamp moves on every UserStore.UpdateAsync, so equality on it pins that no Identity write ran.
     private sealed record IdentityRow(
-        string? PasswordHash, string? SecurityStamp, bool EmailConfirmed, int AccessFailedCount,
+        string? ConcurrencyStamp, string? SecurityStamp, bool EmailConfirmed, int AccessFailedCount,
         DateTimeOffset? LockoutEnd);
 
     private async Task<IdentityRow> IdentityRowOf(string email)
@@ -113,7 +114,7 @@ public class LoginChallengeProofTests(ApiFactory factory)
         await using var scope = _factory.Services.CreateAsyncScope();
         var user = await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email);
         return new IdentityRow(
-            user!.PasswordHash, user.SecurityStamp, user.EmailConfirmed, user.AccessFailedCount, user.LockoutEnd);
+            user!.ConcurrencyStamp, user.SecurityStamp, user.EmailConfirmed, user.AccessFailedCount, user.LockoutEnd);
     }
 
     private async Task<Guid> UserIdOf(string email)
@@ -251,12 +252,11 @@ public class LoginChallengeProofTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_confirmed_password_account_logs_in_by_code_and_its_identity_row_is_unchanged()
+    public async Task A_confirmed_account_logs_in_by_code_and_its_identity_row_is_unchanged()
     {
-        var email = NewAddress("pw-confirmed");
-        var existingSession = await SeedLegacyPasswordAccountAsync(email, confirmed: true);
+        var email = NewAddress("confirmed");
+        var existingSession = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
         var before = await IdentityRowOf(email);
-        before.PasswordHash.ShouldNotBeNull();
         before.EmailConfirmed.ShouldBeTrue();
 
         var minted = await MintAsync(email);
@@ -264,18 +264,16 @@ public class LoginChallengeProofTests(ApiFactory factory)
         await VerifyAsync(minted.ChallengeId, wrong);
         await SignedInSessionOf(await VerifyAsync(minted.ChallengeId, minted.Code));
 
-        // Wrong codes never reach lockout, and a confirmed account's password and stamp survive until 5b.
         (await IdentityRowOf(email)).ShouldBe(before);
         (await ProbeAsync(existingSession)).ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task A_first_proof_of_an_unconfirmed_inbox_removes_the_password_and_every_earlier_session()
+    public async Task A_first_proof_of_an_unconfirmed_inbox_confirms_it_rotates_the_stamp_and_revokes_every_earlier_session()
     {
-        var email = NewAddress("pw-unconfirmed");
-        var earlierSession = await SeedLegacyPasswordAccountAsync(email, confirmed: false);
+        var email = NewAddress("unconfirmed");
+        var earlierSession = await SeedUnconfirmedLegacyAccountAsync(email);
         var before = await IdentityRowOf(email);
-        before.PasswordHash.ShouldNotBeNull();
         before.EmailConfirmed.ShouldBeFalse();
         var userId = await UserIdOf(email);
 
@@ -284,7 +282,6 @@ public class LoginChallengeProofTests(ApiFactory factory)
 
         var after = await IdentityRowOf(email);
         after.EmailConfirmed.ShouldBeTrue();
-        after.PasswordHash.ShouldBeNull();
         after.SecurityStamp.ShouldNotBe(before.SecurityStamp);
 
         (await ProbeAsync(earlierSession)).ShouldBe(HttpStatusCode.Unauthorized);
@@ -444,18 +441,18 @@ public class LoginChallengeProofTests(ApiFactory factory)
         }
     }
 
-    // A password account as the retired routes left it: POST /auth/register (CreateUserAsync(email, password)) wrote
-    // the hash with the address unconfirmed, and POST /auth/verify-email (ConfirmEmailAsync) confirmed it; both
-    // retired in #1743. No path in src/ writes one since, and the rows they wrote stay until 5b nulls
-    // password_hash, so the actors are those routes. The current writer's shape is pinned by
+    // An unconfirmed account as the retired routes and 5b left it: POST /auth/register (retired in #1743) wrote the
+    // row unconfirmed, and NullPasswordHashes' Up nulled its hash and left email_confirmed = false — pinned on exactly
+    // that row in NullPasswordHashesMigrationTests, where the recorder is also shown to accept the migrated row. No
+    // path in src/ writes an unconfirmed row: the current writer's shape is pinned by
     // LoginChallengeCompleteTests.A_new_address_that_accepts_the_terms_gets_a_passwordless_account_and_a_persistent_session.
-    // This seed goes in 5b together with RemovePasswordAsync. The hash is generated at runtime, never a literal.
-    private async Task<string> SeedLegacyPasswordAccountAsync(string email, bool confirmed)
+    // The earlier session stands for one the retired register or login minted before #1743; how long such a session
+    // can live is bounded by the Session:Persistent:AbsoluteTtl option.
+    private async Task<string> SeedUnconfirmedLegacyAccountAsync(string email)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = confirmed };
-        user.PasswordHash = users.PasswordHasher.HashPassword(user, Guid.NewGuid().ToString("N"));
+        var user = new ApplicationUser { UserName = email, Email = email, EmailConfirmed = false };
         (await users.CreateAsync(user)).Succeeded.ShouldBeTrue();
 
         return await AuthTestHelpers.RegisterJobSeekerAndCreateSessionAsync(

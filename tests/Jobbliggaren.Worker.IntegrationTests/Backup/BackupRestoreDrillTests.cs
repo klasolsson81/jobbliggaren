@@ -707,7 +707,7 @@ public class BackupRestoreDrillTests(RestoreDrillFixture fixture)
 
             var email = $"drill-{Guid.NewGuid():N}@test.local";
             var user = new ApplicationUser { UserName = email, Email = email };
-            (await userManager.CreateAsync(user, "RestoreDrillPass123!"))
+            (await userManager.CreateAsync(user))
                 .Succeeded.ShouldBeTrue("seed: the Identity user must be created");
 
             var clock = new FixedClock(deletedAt.AddDays(-1));

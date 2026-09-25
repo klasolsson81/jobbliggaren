@@ -5,7 +5,7 @@
       "description": "Hur Jobbliggaren behandlar dina personuppgifter: ändamål, laglig grund, lagringstid, dina rättigheter och säkerhet. Ingen spårning och ingen AI."
     },
     "title": "Integritetspolicy",
-    "updated": "Senast uppdaterad: 2026-09-25",
+    "updated": "Senast uppdaterad: 2026-09-26",
     "intro": "Den här integritetspolicyn beskriver hur Jobbliggaren behandlar dina personuppgifter, varför, med vilken laglig grund och hur länge. Här finns också dina rättigheter och hur du använder dem. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att hitta och hålla ordning på dina jobbansökningar, byggd på öppna data om lediga jobb från Arbetsförmedlingens JobTech (Platsbanken).",
     "sections": [
       {
@@ -30,7 +30,7 @@
           "När du anger din e-postadress på inloggningssidan behandlar vi adressen för att skicka en inloggningskod eller en inloggningslänk dit. Är registreringen öppen och saknar adressen ett konto kan du skapa ett konto i samma steg, genom att godkänna användarvillkoren, och adressen blir då ditt kontos adress. Den rättsliga grunden är att behandlingen är nödvändig för att ingå eller fullgöra avtalet med dig (artikel 6.1 b). Adressen sparas skyddad i högst 25 minuter; skapas ett konto sparas den därefter som kontots adress enligt punkterna ovan. Ett avtryck av adressen, som vi inte kan räkna tillbaka till adressen, sparas i högst ett dygn för att begränsa hur många mejl som kan begäras till en och samma adress. Sidan svarar likadant oavsett om adressen har ett konto eller inte, eftersom ett svar som skilde på adresser hade avslöjat vilka adresser som finns hos oss, och vid hög belastning kan vi behöva avstå från att skicka mejlet till en adress som saknar konto."
         ],
         "list": [
-          "E-postadress, lösenord (lagrat som kryptografisk hash, aldrig i klartext) och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Dessutom tidpunkten då du godkände användarvillkoren och vilka versioner av villkoren och integritetspolicyn som gällde då. Används för att skapa och säkra ditt konto, identifiera dig i tjänsten och kunna visa att villkoren har godkänts.",
+          "E-postadress och kontoidentifierare, samt identifierare från en extern inloggningstjänst om du loggar in via en sådan. Dessutom tidpunkten då du godkände användarvillkoren och vilka versioner av villkoren och integritetspolicyn som gällde då. Används för att skapa och säkra ditt konto, identifiera dig i tjänsten och kunna visa att villkoren har godkänts.",
           "Språkval och dina matchningsönskemål, till exempel yrke, region, anställningsform och kompetenser du vill matcha mot. Används för att visa relevanta jobb och anpassa tjänsten efter dina val.",
           "Ditt cv och tolkat innehåll från det. Används för att spara, visa och arbeta med ditt cv i tjänsten.",
           "Din uppladdade originalfil av cv:t. När du importerar ett cv sparar vi filen du laddade upp i original och krypterad, så att du kan ladda ner den igen och senare arbeta vidare från den. Innehåller filens text ett personnummer sparas filen bara om du uttryckligen godkänner det när du laddar upp den; utan ditt godkännande sparas den inte. Du kan när som helst ångra ditt val genom att ta bort utkastet eller cv:t, då raderas filen direkt.",

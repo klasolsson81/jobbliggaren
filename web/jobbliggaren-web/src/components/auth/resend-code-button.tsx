@@ -10,9 +10,9 @@ import { useCountdown } from "@/lib/hooks/use-countdown";
 
 // Client because it holds the action's state (`useActionState`) and counts the cooldown down.
 //
-// "Skicka ny kod". The form of `ResendConfirmationButton` (disabled while cooling, the countdown
-// OUTSIDE the live region so a screen reader is not read a number every second, the message in
-// `role="status"`), with two differences that both come from what a resend costs here.
+// "Skicka ny kod": disabled while cooling, the countdown OUTSIDE the live region so a screen reader
+// is not read a number every second, the message in `role="status"`. Two further properties come from
+// what a resend costs here.
 //
 // It STARTS in cooldown. A new code replaces the one already mailed, and inside the server's
 // per-address window a request returns a challenge with no record at all, which would make the

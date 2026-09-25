@@ -68,7 +68,7 @@ export const getServerSession = cache(
 /**
  * Sets the session cookie for a freshly issued session id.
  *
- * `persistent` mirrors the user's "Håll mig inloggad" choice:
+ * `persistent` follows the lifetime the backend reports for the session:
  *  - `true`  → a persistent cookie with a finite Max-Age (the 180d absolute cap,
  *    PERSISTENT_MAX_AGE_SECONDS) so the login survives a browser restart. The
  *    backend stays the SSOT for expiry (30d sliding / 180d cap); the Max-Age is

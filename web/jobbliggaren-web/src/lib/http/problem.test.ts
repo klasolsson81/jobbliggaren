@@ -8,16 +8,16 @@ function responseWith(json: () => Promise<unknown>): Response {
 describe("readProblemTitle (#616)", () => {
   it("returns the title from a ProblemDetails body", async () => {
     const res = responseWith(async () => ({
-      title: "Auth.PwnedPassword",
+      title: "Auth.LoginCodeBurned",
       detail: "irrelevant",
       status: 400,
     }));
 
-    await expect(readProblemTitle(res)).resolves.toBe("Auth.PwnedPassword");
+    await expect(readProblemTitle(res)).resolves.toBe("Auth.LoginCodeBurned");
   });
 
   it("returns null for a body without a title", async () => {
-    const res = responseWith(async () => ({ errors: { Password: ["x"] } }));
+    const res = responseWith(async () => ({ errors: { Email: ["x"] } }));
 
     await expect(readProblemTitle(res)).resolves.toBeNull();
   });

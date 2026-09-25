@@ -1073,7 +1073,6 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
     /(auth)
       /logga-in
       /registrera
-      /glomt-losenord
     /(app)                     -- autentiserat
       /layout.tsx             -- app shell, navigation
       /instrumentpanel        -- dashboard

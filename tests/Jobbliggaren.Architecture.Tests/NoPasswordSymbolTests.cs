@@ -40,15 +40,19 @@ public class NoPasswordSymbolTests
     public void No_password_symbol_is_declared_referenced_or_held_as_a_constant(Type assemblyMarker)
     {
         using var resolver = new DefaultAssemblyResolver();
-        resolver.AddSearchDirectory(Path.GetDirectoryName(assemblyMarker.Assembly.Location)!);
+        resolver.AddSearchDirectory(AppContext.BaseDirectory);
         using var assembly = AssemblyDefinition.ReadAssembly(
             assemblyMarker.Assembly.Location, new ReaderParameters { AssemblyResolver = resolver });
         var symbols = Symbols(assembly).ToList();
 
         symbols.ShouldNotBeEmpty($"{assembly.Name.Name}: nothing was scanned, so an empty offender list proves nothing");
+        symbols.ShouldContain(s => s.Arm == Arm.Literal, $"{assembly.Name.Name}: no ldstr literal was read");
+        symbols.ShouldContain(s => s.Arm == Arm.Attribute, $"{assembly.Name.Name}: no attribute argument was read");
 
         var offenders = symbols
-            .Where(s => s.Arm is Arm.Constant or Arm.Literal ? ConstantNamesAPassword(s.Text) : NameNamesAPassword(s.Text))
+            .Where(s => s.Arm is Arm.Constant or Arm.Literal or Arm.Attribute
+                ? ConstantNamesAPassword(s.Text)
+                : NameNamesAPassword(s.Text))
             .Select(s => $"{s.Arm}: {s.Text}")
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
@@ -92,6 +96,7 @@ public class NoPasswordSymbolTests
         Reference,
         Constant,
         Literal,
+        Attribute,
     }
 
     private sealed record Symbol(Arm Arm, string Text);
@@ -108,19 +113,19 @@ public class NoPasswordSymbolTests
     private static IEnumerable<Symbol> Symbols(AssemblyDefinition assembly)
     {
         foreach (var literal in AttributeStrings(assembly))
-            yield return new Symbol(Arm.Literal, literal);
+            yield return new Symbol(Arm.Attribute, literal);
 
         foreach (var module in assembly.Modules)
         {
             foreach (var literal in AttributeStrings(module))
-                yield return new Symbol(Arm.Literal, literal);
+                yield return new Symbol(Arm.Attribute, literal);
 
             // GetTypes() includes nested and compiler-generated types.
             foreach (var type in module.GetTypes())
             {
                 yield return new Symbol(Arm.Declaration, type.FullName);
                 foreach (var literal in AttributeStrings(type))
-                    yield return new Symbol(Arm.Literal, literal);
+                    yield return new Symbol(Arm.Attribute, literal);
                 foreach (var generic in type.GenericParameters)
                     yield return new Symbol(Arm.Declaration, generic.Name);
                 foreach (var signature in Unwrapped(type.BaseType).Concat(type.Interfaces.SelectMany(i => Unwrapped(i.InterfaceType))))
@@ -130,7 +135,7 @@ public class NoPasswordSymbolTests
                 {
                     yield return new Symbol(Arm.Declaration, method.Name);
                     foreach (var literal in AttributeStrings(method).Concat(AttributeStrings(method.MethodReturnType)))
-                        yield return new Symbol(Arm.Literal, literal);
+                        yield return new Symbol(Arm.Attribute, literal);
                     if (method.HasBody)
                     {
                         foreach (var instruction in method.Body.Instructions)
@@ -147,7 +152,7 @@ public class NoPasswordSymbolTests
                     {
                         yield return new Symbol(Arm.Declaration, parameter.Name);
                         foreach (var literal in AttributeStrings(parameter))
-                            yield return new Symbol(Arm.Literal, literal);
+                            yield return new Symbol(Arm.Attribute, literal);
                         foreach (var signature in Unwrapped(parameter.ParameterType))
                             yield return new Symbol(Arm.Signature, signature);
                     }
@@ -157,7 +162,7 @@ public class NoPasswordSymbolTests
                 {
                     yield return new Symbol(Arm.Declaration, field.Name);
                     foreach (var literal in AttributeStrings(field))
-                        yield return new Symbol(Arm.Literal, literal);
+                        yield return new Symbol(Arm.Attribute, literal);
                     foreach (var signature in Unwrapped(field.FieldType))
                         yield return new Symbol(Arm.Signature, signature);
                     if (field.HasConstant && field.Constant is string constant)
@@ -168,7 +173,7 @@ public class NoPasswordSymbolTests
                 {
                     yield return new Symbol(Arm.Declaration, property.Name);
                     foreach (var literal in AttributeStrings(property))
-                        yield return new Symbol(Arm.Literal, literal);
+                        yield return new Symbol(Arm.Attribute, literal);
                     foreach (var signature in Unwrapped(property.PropertyType))
                         yield return new Symbol(Arm.Signature, signature);
                 }
@@ -177,7 +182,7 @@ public class NoPasswordSymbolTests
                 {
                     yield return new Symbol(Arm.Declaration, @event.Name);
                     foreach (var literal in AttributeStrings(@event))
-                        yield return new Symbol(Arm.Literal, literal);
+                        yield return new Symbol(Arm.Attribute, literal);
                     foreach (var signature in Unwrapped(@event.EventType))
                         yield return new Symbol(Arm.Signature, signature);
                 }

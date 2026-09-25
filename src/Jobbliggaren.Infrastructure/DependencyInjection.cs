@@ -1694,14 +1694,6 @@ public static class DependencyInjection
 
                 TheUserNameIsTheAddress(opts.User);
 
-                // #679 (CTO-bind #1): route the change-email confirmation token through the
-                // opaque DataProtector provider that .AddDefaultTokenProviders() below registers.
-                // Identity's default ChangeEmailTokenProvider is the "Email" provider — a 6-digit
-                // TOTP that is short-lived (~9 min, breaks a normal email round-trip) and
-                // brute-forceable (10^6, stateless), which on the PUBLIC confirm endpoint would be
-                // an account-takeover path. The DataProtector token is HMAC'd + encrypted, bound to
-                // (SecurityStamp, new email), single-use (SecurityStamp rotates on ChangeEmailAsync),
-                // and honours the 24h TokenLifespan.
                 opts.Tokens.ChangeEmailTokenProvider = TokenOptions.DefaultProvider;
 
             })

@@ -22,9 +22,9 @@ public class BootstrapRunbookParityTests
         var section = runbook[start..(end < 0 ? runbook.Length : end)];
         var command = section.SingleOrDefault(l => l.Contains(" run --rm ", StringComparison.Ordinal));
         command.ShouldNotBeNull("§3c carries no single `run --rm` command");
-        var firstRead = Array.FindIndex(section, l => l.Contains("docker ", StringComparison.Ordinal));
+        var preconditions = Array.FindIndex(section, l => l.StartsWith("**Preconditions", StringComparison.Ordinal));
         Array.FindIndex(section, l => l.StartsWith("sudo flock ", StringComparison.Ordinal))
-            .ShouldBeInRange(0, firstRead - 1, "§3c must take the reconcile lock before its first docker read");
+            .ShouldBeInRange(0, preconditions - 1, "§3c must take the reconcile lock before its preconditions");
         command.ShouldContain("--pull never");
         command.Trim().ShouldEndWith(" migrate bootstrap");
 

@@ -21,8 +21,8 @@ namespace Jobbliggaren.Architecture.Tests;
 /// the consumer, the outcome function, <c>complete</c> and the Development seed seam, never from the request
 /// path that mints a challenge (ADR 0142 D2); and an account is opened only through
 /// <see cref="AccountRegistrar"/>, which only <c>complete</c> and the seed seam reach (ADR 0142 part 5a). The
-/// scan covers every assembly that composes services, the Api's included, and every constructor and method parameter of every type, compiler-generated ones
-/// included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
+/// scan covers every assembly that composes services, the Api's included, and every constructor and method
+/// parameter of every type, compiler-generated ones included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
 /// a parameter; the source scan covers the write's port by name.
 /// </summary>
 public sealed class LoginProofChainTests

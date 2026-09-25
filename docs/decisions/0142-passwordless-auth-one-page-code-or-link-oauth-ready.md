@@ -746,7 +746,7 @@ are corrected in place; this block records why.*
 - `ExternalSubject` holds OIDC's bound: at most 255 visible ASCII characters.
 - `VerifiedEmail` has no public constructor. Its factory requires one local part, one domain and the address bound,
   and only an adapter decides that an address qualifies.
-- `OAuthState` (256 bits), `PkceVerifier` (256 bits, with a derived-only S256 `PkceChallenge`) and
+- `PkceVerifier` (256 bits) and
   `AuthorizationCode` print none of their value, and neither does the subject or the address.
 
 **Google is authoritative only for Gmail and Workspace.**

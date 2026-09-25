@@ -23,7 +23,7 @@ public sealed class StartExternalLoginCommandHandler(RegisteredProviders provide
 
         var verifier = PkceVerifier.Generate();
         var state = await states.PutAsync(
-            new OAuthFlow(provider.Key, verifier, command.Next ?? string.Empty), cancellationToken);
+            new OAuthFlow(provider.Key, verifier, command.Next), cancellationToken);
 
         return Result.Success(new ExternalLoginStart(provider.BuildAuthorizeUrl(state, verifier.ToChallenge()), state));
     }

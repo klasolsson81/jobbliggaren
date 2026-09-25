@@ -230,7 +230,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // #1744 — the REAL Google adapter over ScriptedGoogle, last-wins like the sender above (#241). No
             // production composition registers a provider before 6a PR G; this host does, so the spine can be
             // driven end to end, and whatever a developer's appsettings.Local.json carries, no test reaches
-            // Google. The redirect base is the host's own Email:BaseUrl, as the adapter's registration reads it.
+            // Google. The redirect base is the host's own Email:BaseUrl.
             // The setting is read here, when the services are built, so a derived host's UseSetting has landed.
             if (builder.GetSetting(CompositionProvidersOnlySetting) != "true")
             {

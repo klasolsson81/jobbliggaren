@@ -152,6 +152,29 @@ public sealed class LoginProofChainTests
         ]);
     }
 
+    // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in the provider adapter, and again only where
+    // the grant store reads back the purpose-4 payload that address was sealed into.
+    [Fact]
+    public void Only_the_provider_adapter_and_the_grant_store_make_a_verified_email_in_source()
+    {
+        var srcRoot = Path.Combine(RepoRoot(), "src");
+        Directory.Exists(srcRoot).ShouldBeTrue($"src root not found: {srcRoot}");
+
+        var makers = Directory
+            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Where(path => File.ReadAllText(path).Contains("VerifiedEmail.TryCreate(", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        makers.ShouldBe(
+        [
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs",
+        ]);
+    }
+
     private static bool IsBuildOutput(string path) =>
         path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
         || path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal);

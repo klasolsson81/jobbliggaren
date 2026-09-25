@@ -2,9 +2,9 @@ namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
 /// What a started flow needs at its callback (ADR 0142 D8): the provider it was started for, the PKCE verifier and
-/// the post-login path. <see cref="Next"/> is an echo the web re-validates when it uses it, never an input.
+/// the post-login path. <see cref="Next"/> is an echo, never an input.
 /// </summary>
-public sealed record OAuthFlow(ExternalProviderKey Provider, PkceVerifier Verifier, string Next);
+public sealed record OAuthFlow(ExternalProviderKey Provider, PkceVerifier Verifier, string? Next);
 
 /// <summary>
 /// The started flows, on the non-persisted Redis (ADR 0142 D1): one record per state, alive for
@@ -23,26 +23,3 @@ public interface IOAuthStateStore
     Task<OAuthFlow?> TakeAsync(OAuthState state, ExternalProviderKey expected, CancellationToken ct);
 }
 
-/// <summary>
-/// Which account an external login is linked to, for <c>LoginSubjectResolver</c> alone: the one place that
-/// classifies a login subject also answers who a provider's identifier belongs to.
-/// </summary>
-public interface IExternalLoginLookup
-{
-    Task<Guid?> FindUserIdAsync(ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct);
-}
-
-/// <summary>The one writer of an external login, for <see cref="ExternalLoginLinker"/> alone.</summary>
-public interface IExternalLoginWriter
-{
-    Task<ExternalLinkResult> LinkAsync(
-        Guid userId, ExternalProviderKey provider, ExternalSubject subject, CancellationToken ct);
-}
-
-/// <summary>What a link attempt found. The expected outcomes are values; only a write that failed otherwise throws.</summary>
-public enum ExternalLinkResult
-{
-    Linked,
-    AlreadyLinkedToThisUser,
-    LinkedToAnotherUser,
-}

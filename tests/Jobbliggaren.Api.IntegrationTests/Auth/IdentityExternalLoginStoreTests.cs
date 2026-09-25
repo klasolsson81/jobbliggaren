@@ -7,6 +7,8 @@ using Jobbliggaren.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shouldly;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
@@ -34,6 +36,7 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
 
     private static IdentityExternalLoginStore Store(AsyncServiceScope scope) =>
         new(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+            scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
             scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
 
     [Fact]
@@ -96,5 +99,78 @@ public class IdentityExternalLoginStoreTests(ApiFactory factory)
         row.LoginProvider.ShouldBe("google");
         row.ProviderKey.ShouldBe(subject.Reveal());
         row.ProviderDisplayName.ShouldBeNull();
+    }
+
+    // ── A link another request makes past this store's read (code-reviewer Major 2, test-writer Minor 4) ──
+    // The actor: a second callback for the same identifier, in another request, linking it through the same store.
+
+    public enum RaceWindow
+    {
+        BeforeIdentitysOwnCheck,
+        BeforeTheSave,
+    }
+
+    [Theory]
+    [InlineData(RaceWindow.BeforeIdentitysOwnCheck, false, ExternalLinkResult.LinkedToAnotherUser)]
+    [InlineData(RaceWindow.BeforeIdentitysOwnCheck, true, ExternalLinkResult.AlreadyLinkedToThisUser)]
+    [InlineData(RaceWindow.BeforeTheSave, false, ExternalLinkResult.LinkedToAnotherUser)]
+    [InlineData(RaceWindow.BeforeTheSave, true, ExternalLinkResult.AlreadyLinkedToThisUser)]
+    public async Task A_link_another_request_makes_past_the_read_is_answered_by_who_holds_it(
+        RaceWindow window, bool sameAccount, ExternalLinkResult expected)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var userId = await OpenAccountAsync(scope);
+        var winner = sameAccount ? userId : await OpenAccountAsync(scope);
+        var subject = NewSubject();
+        async Task TheOtherRequestLinksItAsync()
+        {
+            await using var other = factory.Services.CreateAsyncScope();
+            (await Store(other).LinkAsync(winner, ExternalProviderKey.Google, subject, Ct)).ShouldBe(ExternalLinkResult.Linked);
+        }
+
+        var identity = scope.ServiceProvider.GetRequiredService<AppIdentityDbContext>();
+        var store = new IdentityExternalLoginStore(
+            ActivatorUtilities.CreateInstance<RacingUserManager>(
+                scope.ServiceProvider, new Race(window, TheOtherRequestLinksItAsync)),
+            identity,
+            scope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
+
+        (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, Ct)).ShouldBe(expected);
+
+        await identity.SaveChangesAsync(Ct);
+        (await Store(scope).FindUserIdAsync(ExternalProviderKey.Google, subject, Ct)).ShouldBe(winner);
+        (await identity.UserLogins.AsNoTracking().CountAsync(l => l.ProviderKey == subject.Reveal(), Ct)).ShouldBe(1);
+    }
+
+    public sealed record Race(RaceWindow Window, Func<Task> TheOtherRequest);
+
+    // Identity's own UserManager, letting the other request in at one point of AddLoginAsync.
+    private sealed class RacingUserManager(
+        Race race,
+        IUserStore<ApplicationUser> store,
+        IOptions<IdentityOptions> optionsAccessor,
+        IPasswordHasher<ApplicationUser> hasher,
+        IEnumerable<IUserValidator<ApplicationUser>> userValidators,
+        IEnumerable<IPasswordValidator<ApplicationUser>> validators,
+        ILookupNormalizer keyNormalizer,
+        IdentityErrorDescriber errors,
+        IServiceProvider services,
+        ILogger<UserManager<ApplicationUser>> logger)
+        : UserManager<ApplicationUser>(
+            store, optionsAccessor, hasher, userValidators, validators, keyNormalizer, errors, services, logger)
+    {
+        public override async Task<IdentityResult> AddLoginAsync(ApplicationUser user, UserLoginInfo login)
+        {
+            if (race.Window == RaceWindow.BeforeIdentitysOwnCheck)
+                await race.TheOtherRequest();
+            return await base.AddLoginAsync(user, login);
+        }
+
+        protected override async Task<IdentityResult> UpdateUserAsync(ApplicationUser user)
+        {
+            if (race.Window == RaceWindow.BeforeTheSave)
+                await race.TheOtherRequest();
+            return await base.UpdateUserAsync(user);
+        }
     }
 }

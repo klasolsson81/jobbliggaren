@@ -11,6 +11,8 @@ public readonly record struct ExternalProviderKey
 {
     public static readonly ExternalProviderKey Google = new("google");
 
+    public const int MaximumLength = 32;
+
     /// <summary>Every key this build knows, in the order the login page lists them.</summary>
     public static IReadOnlyList<ExternalProviderKey> Known { get; } = [Google];
 
@@ -19,11 +21,9 @@ public readonly record struct ExternalProviderKey
     public string Value { get; }
 
     /// <summary>How a session earned through this provider is recorded (one home for the mapping).</summary>
-    public LoginMethod LoginMethod => Value switch
-    {
-        "google" => LoginMethod.Google,
-        _ => throw new UnreachableException($"No login method for provider key '{Value}'."),
-    };
+    public LoginMethod LoginMethod => this == Google
+        ? LoginMethod.Google
+        : throw new UnreachableException($"No login method for provider key '{Value}'.");
 
     public static bool TryParse(string? raw, out ExternalProviderKey key)
     {

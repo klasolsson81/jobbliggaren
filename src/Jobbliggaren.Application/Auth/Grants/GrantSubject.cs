@@ -56,7 +56,7 @@ public abstract record GrantSubject
     /// before the acceptance, so the identity waits here and expires with the grant.
     /// </summary>
     public sealed record LoginCompleteExternal(
-        string ProvenEmail, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
+        VerifiedEmail ProvenEmail, ExternalProviderKey Provider, ExternalSubject Subject) : GrantSubject
     {
         public override GrantPurpose Purpose => GrantPurpose.LoginCompleteExternal;
     }

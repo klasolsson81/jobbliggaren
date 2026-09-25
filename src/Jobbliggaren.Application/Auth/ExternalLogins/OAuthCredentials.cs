@@ -5,9 +5,8 @@ using System.Text;
 namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
-/// The OAuth <c>state</c> (ADR 0142 D8): 256 bits from the CSPRNG, Base64Url. It is the key to the flow's record and
-/// the value of the Lax cookie that binds the browser to the flow. <see cref="ToString"/> prints a six-character
-/// prefix only, as <c>GrantToken</c> does.
+/// The OAuth <c>state</c> (ADR 0142 D8): 256 bits from the CSPRNG, Base64Url. It is the key to the flow's record.
+/// <see cref="ToString"/> prints a six-character prefix only, as <c>GrantToken</c> does.
 /// </summary>
 public readonly record struct OAuthState
 {

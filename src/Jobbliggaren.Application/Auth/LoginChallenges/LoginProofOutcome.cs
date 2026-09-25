@@ -11,7 +11,7 @@ namespace Jobbliggaren.Application.Auth.LoginChallenges;
 /// The one function every proof ends in: a code, a link and a provider's (senior-cto-advisor Q1, 2026-09-19;
 /// #1744). It resolves the proven address at proof time, not at issue time, so an account deleted or a kill-switch
 /// thrown inside the challenge's 15 minutes is honoured. One switch decides; what a proof of a NEW address may earn
-/// is decided by the entry point, never by comparing a method.
+/// is decided by the entry point.
 /// </summary>
 public sealed partial class LoginProofOutcome(
     LoginSubjectResolver subjects,
@@ -65,7 +65,7 @@ public sealed partial class LoginProofOutcome(
             return NotThisAccountsAddress(registration);
         }
 
-        var consent = new GrantSubject.LoginCompleteExternal(proof.Email.Value, proof.Provider, proof.Subject);
+        var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject);
         Func<LoginSubject.Active, CancellationToken, Task<bool>>? link = resolved.LinkedUserId is null
             ? (active, token) => externalLogins.LinkAsync(active.UserId, proof.Provider, proof.Subject, token)
             : null;

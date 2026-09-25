@@ -149,11 +149,11 @@ public class StartExternalLoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldCarryAnEmptyPath_WhenTheWebSendsNone()
+    public async Task Handle_ShouldCarryNoPath_WhenTheWebSendsNone()
     {
         await Handler(_google).Handle(new StartExternalLoginCommand("google", null), Ct);
 
-        ((OAuthFlow)_states.ReceivedCalls().Single().GetArguments()[0]!).Next.ShouldBe(string.Empty);
+        ((OAuthFlow)_states.ReceivedCalls().Single().GetArguments()[0]!).Next.ShouldBeNull();
     }
 }
 
@@ -291,6 +291,8 @@ public class ExternalLoginValidatorTests
         "/" + (char)9 + "/evil.example",
         "/" + (char)92 + "evil.example",
         "/cv" + (char)127,
+        "/cv" + (char)0x85,
+        "/cv" + (char)0x9F,
         "/" + new string('a', ExternalLoginPolicy.MaxNextLength),
     };
 
@@ -298,6 +300,37 @@ public class ExternalLoginValidatorTests
     [MemberData(nameof(RefusedNext))]
     public void Start_ShouldRefuse_WhenTheNextIsNotABoundedSameSitePath(string next) =>
         _start.TestValidate(new StartExternalLoginCommand("google", next)).ShouldHaveValidationErrorFor(c => c.Next);
+
+    [Fact]
+    public void Start_ShouldAdmit_WhenTheNextIsExactlyTheBound() =>
+        _start.TestValidate(new StartExternalLoginCommand("google", "/" + new string('a', ExternalLoginPolicy.MaxNextLength - 1)))
+            .ShouldNotHaveAnyValidationErrors();
+
+    public static TheoryData<string> RefusedProvider => new() { "", new string('g', ExternalProviderKey.MaximumLength + 1) };
+
+    [Theory]
+    [MemberData(nameof(RefusedProvider))]
+    public void Both_ShouldRefuse_WhenTheProviderIsMissingOrLongerThanAnyKey(string provider)
+    {
+        _start.TestValidate(new StartExternalLoginCommand(provider, null)).ShouldHaveValidationErrorFor(c => c.Provider);
+        _complete.TestValidate(new CompleteExternalLoginCommand(provider, "4/0AVGzR1code", OAuthState.Generate().Reveal()))
+            .ShouldHaveValidationErrorFor(c => c.Provider);
+    }
+
+    [Fact]
+    public void Both_ShouldAdmit_WhenTheProviderIsExactlyTheBound()
+    {
+        var provider = new string('g', ExternalProviderKey.MaximumLength);
+
+        _start.TestValidate(new StartExternalLoginCommand(provider, null)).ShouldNotHaveValidationErrorFor(c => c.Provider);
+        _complete.TestValidate(new CompleteExternalLoginCommand(provider, "4/0AVGzR1code", OAuthState.Generate().Reveal()))
+            .ShouldNotHaveValidationErrorFor(c => c.Provider);
+    }
+
+    [Fact]
+    public void Complete_ShouldRefuse_WhenTheCodeIsMissing() =>
+        _complete.TestValidate(new CompleteExternalLoginCommand("google", "", OAuthState.Generate().Reveal()))
+            .ShouldHaveValidationErrorFor(c => c.Code);
 
     [Fact]
     public void Complete_ShouldAdmit_WhenTheStateHasTheMintedShape() =>

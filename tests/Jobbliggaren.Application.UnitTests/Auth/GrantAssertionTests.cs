@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
+using Jobbliggaren.TestSupport;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth;
@@ -94,15 +95,16 @@ public class GrantAssertionTests
     }
 
     [Fact]
-    public void LoginCompleteExternal_ShouldCompareByItsAddressProviderAndSubject_WhenTwoAreBuilt()
+    public async Task LoginCompleteExternal_ShouldCompareByItsAddressProviderAndSubject_WhenTwoAreBuilt()
     {
+        var email = (await GoogleIdentities.ProofAsync(GoogleUserInfoShapes.Gmail("110248495921238986420", "a"))).Email;
         // Redeem compares a caller-asserted binding by record equality, so the subject's value must take part.
         var subject = ExternalSubject.TryCreate("110248495921238986420")!.Value;
 
-        new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject)
-            .ShouldBe(new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject));
-        new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject)
+        new GrantSubject.LoginCompleteExternal(email, ExternalProviderKey.Google, subject)
+            .ShouldBe(new GrantSubject.LoginCompleteExternal(email, ExternalProviderKey.Google, subject));
+        new GrantSubject.LoginCompleteExternal(email, ExternalProviderKey.Google, subject)
             .ShouldNotBe(new GrantSubject.LoginCompleteExternal(
-                "a@example.se", ExternalProviderKey.Google, ExternalSubject.TryCreate("2")!.Value));
+                email, ExternalProviderKey.Google, ExternalSubject.TryCreate("2")!.Value));
     }
 }

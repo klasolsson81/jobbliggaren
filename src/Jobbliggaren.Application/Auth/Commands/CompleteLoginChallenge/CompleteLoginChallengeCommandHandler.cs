@@ -71,21 +71,17 @@ public sealed class CompleteLoginChallengeCommandHandler(
     private async Task<Result<LoginOutcome>> CompleteByProviderAsync(
         GrantSubject.LoginCompleteExternal external, CancellationToken ct)
     {
-        // The grant was issued from a VerifiedEmail and carries its address unchanged.
-        if (VerifiedEmail.TryCreate(external.ProvenEmail) is not { } email)
+        if (!await claim.TryClaimAsync(external.ProvenEmail.Value, ct))
             return GrantUnusable();
 
-        if (!await claim.TryClaimAsync(external.ProvenEmail, ct))
-            return GrantUnusable();
-
-        var proof = new ExternalLoginProof(email, external.Provider, external.Subject);
+        var proof = new ExternalLoginProof(external.ProvenEmail, external.Provider, external.Subject);
 
         // Checked before an account is opened, so the ordinary case never creates an account it then cannot link:
         // a provider login another account holds leaves the address without one, and the outcome refuses it.
         var resolved = await subjects.ResolveExternalAsync(proof, ct);
         if (resolved.Subject is LoginSubject.NoAccount && !resolved.IsLinkedElsewhere)
         {
-            var opened = await registrar.OpenAsync(external.ProvenEmail, ct);
+            var opened = await registrar.OpenAsync(external.ProvenEmail.Value, ct);
             if (opened.IsFailure)
                 return Result.Failure<LoginOutcome>(opened.Error);
         }

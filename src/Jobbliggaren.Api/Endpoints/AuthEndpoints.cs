@@ -214,8 +214,8 @@ public static class AuthEndpoints
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // External login — START (#1744, ADR 0142 D8). PUBLIC: mints a flow for a provider this host registered and
-        // answers where to send the browser. The web binds the state to the browser in a Lax cookie. No account is
-        // read; a provider without keys is not registered, so it is a 404 here.
+        // answers where to send the browser. No account is read; a provider without keys is not registered, so it
+        // is a 404 here.
         group.MapPost("/oauth/{provider}/start", async (
             string provider,
             ExternalLoginStartRequest body,
@@ -232,10 +232,9 @@ public static class AuthEndpoints
                 });
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
-        // External login — CALLBACK (#1744, ADR 0142 D8). PUBLIC: the web relays the provider's code and state after
-        // matching the state against its cookie. It answers the same outcome union as a code or a link, plus the
-        // post-login path the flow carried. A flow that cannot be completed is one 410; an address the provider is
-        // not authoritative for is a 400.
+        // External login — CALLBACK (#1744, ADR 0142 D8). PUBLIC: answers the same outcome union as a code or a
+        // link, plus the post-login path the flow carried. A flow that cannot be completed is one 410; an address
+        // the provider is not authoritative for is a 400.
         group.MapPost("/oauth/{provider}/callback", async (
             string provider,
             ExternalLoginCallbackRequest body,
@@ -292,7 +291,7 @@ public static class AuthEndpoints
     /// </summary>
     public sealed record LoginChallengeCompleteRequest(string? GrantToken, bool AcceptTerms);
 
-    /// <summary>POST /auth/oauth/{provider}/start body (#1744): the post-login path, already made safe by the web.</summary>
+    /// <summary>POST /auth/oauth/{provider}/start body (#1744): the post-login path.</summary>
     public sealed record ExternalLoginStartRequest(string? Next);
 
     /// <summary>

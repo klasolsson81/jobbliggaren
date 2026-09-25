@@ -11,6 +11,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -306,9 +307,13 @@ public sealed class CompleteLoginChallengeTests
 
     private static readonly ExternalSubject Subject = ExternalSubject.TryCreate("110248495921238986420")!.Value;
 
-    private void TheGrantIsAProvidersGrant() =>
+    private async Task TheGrantIsAProvidersGrantAsync()
+    {
+        var proof = await GoogleIdentities.ProofAsync(
+            GoogleUserInfoShapes.Workspace(Subject.Reveal(), Email, hostedDomain: "example.com"));
         _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
-            .Returns(new GrantSubject.LoginCompleteExternal(Email, ExternalProviderKey.Google, Subject));
+            .Returns(new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject));
+    }
 
     [Fact]
     public async Task One_redemption_accepts_either_registration_grant()
@@ -326,7 +331,7 @@ public sealed class CompleteLoginChallengeTests
     [Fact]
     public async Task A_providers_grant_opens_the_account_then_links_the_login_then_opens_a_google_session()
     {
-        TheGrantIsAProvidersGrant();
+        await TheGrantIsAProvidersGrantAsync();
         TheAddressGetsItsAccountFromTheCreator();
         _externalWriter.LinkAsync(_userId, ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
             .Returns(ExternalLinkResult.Linked);
@@ -349,7 +354,7 @@ public sealed class CompleteLoginChallengeTests
     public async Task A_providers_grant_whose_login_another_account_holds_opens_no_account()
     {
         // Checked before OpenAsync, so the ordinary case never creates an account it then cannot link.
-        TheGrantIsAProvidersGrant();
+        await TheGrantIsAProvidersGrantAsync();
         _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
         _externalLookup.FindUserIdAsync(ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
@@ -364,7 +369,7 @@ public sealed class CompleteLoginChallengeTests
     [Fact]
     public async Task A_providers_grant_whose_claim_is_lost_is_gone_and_creates_nothing()
     {
-        TheGrantIsAProvidersGrant();
+        await TheGrantIsAProvidersGrantAsync();
         _claim.TryClaimAsync(Email, Arg.Any<CancellationToken>()).Returns(false);
 
         var result = await Handler().Handle(Command(), Ct);

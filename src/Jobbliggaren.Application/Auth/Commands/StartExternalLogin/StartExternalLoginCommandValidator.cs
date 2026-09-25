@@ -7,10 +7,10 @@ public sealed class StartExternalLoginCommandValidator : AbstractValidator<Start
 {
     public StartExternalLoginCommandValidator()
     {
-        RuleFor(c => c.Provider).NotEmpty().MaximumLength(32);
+        RuleFor(c => c.Provider).NotEmpty().MaximumLength(ExternalProviderKey.MaximumLength);
 
         // The path lands in the volatile Redis, which refuses writes when full, and later in a redirect: a bounded
-        // same-site path or nothing. The web has already made it safe; this refuses anything that is not.
+        // same-site path or nothing.
         RuleFor(c => c.Next)
             .MaximumLength(ExternalLoginPolicy.MaxNextLength)
             .Must(IsSameSitePath)
@@ -22,5 +22,5 @@ public sealed class StartExternalLoginCommandValidator : AbstractValidator<Start
         next is not null
         && next.StartsWith('/')
         && !next.StartsWith("//", StringComparison.Ordinal)
-        && next.All(ch => ch >= ' ' && ch != (char)127 && ch != (char)92);
+        && next.All(ch => !char.IsControl(ch) && ch != (char)92);
 }

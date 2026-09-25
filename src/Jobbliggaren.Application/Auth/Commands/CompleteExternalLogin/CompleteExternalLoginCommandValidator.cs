@@ -7,7 +7,7 @@ public sealed class CompleteExternalLoginCommandValidator : AbstractValidator<Co
 {
     public CompleteExternalLoginCommandValidator()
     {
-        RuleFor(c => c.Provider).NotEmpty().MaximumLength(32);
+        RuleFor(c => c.Provider).NotEmpty().MaximumLength(ExternalProviderKey.MaximumLength);
         RuleFor(c => c.Code).NotEmpty().MaximumLength(ExternalLoginPolicy.MaxCodeLength);
 
         // Exactly the shape a minted state has, checked before anything reaches Redis.

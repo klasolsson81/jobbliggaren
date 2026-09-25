@@ -13,8 +13,8 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 /// <summary>
 /// The started OAuth flows on the non-persisted Redis (#1744, ADR 0142 D1, D8). One string per flow: the key is a
 /// hash of the state, the value the DataProtector-protected flow (provider, PKCE verifier, post-login path), and the
-/// lifetime is the key's TTL, set by the same command that writes it. The state is the value of the browser's
-/// binding cookie, so a key listing must not hand it out, and the verifier is a secret, so the value is protected.
+/// lifetime is the key's TTL, set by the same command that writes it. The verifier is a secret, so the value is
+/// protected.
 /// </summary>
 internal sealed partial class RedisOAuthStateStore : IOAuthStateStore
 {
@@ -68,7 +68,7 @@ internal sealed partial class RedisOAuthStateStore : IOAuthStateStore
                 return null;
             }
 
-            return new OAuthFlow(provider, PkceVerifier.FromRaw(payload.Verifier), payload.Next ?? string.Empty);
+            return new OAuthFlow(provider, PkceVerifier.FromRaw(payload.Verifier), payload.Next);
         });
 
     // Unknown, expired and already used all arrive here as a null value; an unreadable payload reads the same way.

@@ -13,6 +13,7 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 /// </summary>
 internal sealed class IdentityExternalLoginStore(
     UserManager<ApplicationUser> userManager,
+    AppIdentityDbContext identity,
     IDbExceptionInspector dbExceptionInspector) : IExternalLoginLookup, IExternalLoginWriter
 {
     public async Task<Guid?> FindUserIdAsync(
@@ -41,6 +42,11 @@ internal sealed class IdentityExternalLoginStore(
         catch (DbUpdateException ex) when (dbExceptionInspector.IsUniqueConstraintViolation(ex))
         {
             // Two links raced past the read; the primary key refused this one. Whoever holds it now decides.
+            identity.Entry(user).State = EntityState.Detached;
+            foreach (var refused in identity.ChangeTracker.Entries<IdentityUserLogin<Guid>>()
+                         .Where(e => e.State == EntityState.Added).ToList())
+                refused.State = EntityState.Detached;
+
             return await ClassifyAsync(userId, provider, subject) ?? ExternalLinkResult.LinkedToAnotherUser;
         }
 

@@ -24,7 +24,6 @@ internal sealed partial class GoogleIdentityProvider(
     ExternalLoginCallbacks callbacks,
     ILogger<GoogleIdentityProvider> logger) : IExternalIdentityProvider
 {
-    /// <summary>The named client. Registered with no resilience handler: a retried token POST replays a code.</summary>
     internal const string HttpClientName = "google-oauth";
 
     // Constants from Google's discovery document (accounts.google.com/.well-known/openid-configuration, read

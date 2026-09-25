@@ -139,6 +139,7 @@ public sealed class RedisOAuthStateStoreTests : IAsyncLifetime, IClassFixture<Sh
         (await _store.TakeAsync(foreign, ExternalProviderKey.Google, Ct)).ShouldBeNull();
         (await _store.TakeAsync(noVerifier, ExternalProviderKey.Google, Ct)).ShouldBeNull();
         (await _mux.GetDatabase().KeyExistsAsync(RedisOAuthStateStore.Key(foreign))).ShouldBeFalse();
+        (await _mux.GetDatabase().KeyExistsAsync(RedisOAuthStateStore.Key(noVerifier))).ShouldBeFalse();
     }
 
     private async Task WriteByHandAsync(OAuthState state, object record)

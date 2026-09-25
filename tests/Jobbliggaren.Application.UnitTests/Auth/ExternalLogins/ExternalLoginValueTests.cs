@@ -85,6 +85,12 @@ public class ExternalSubjectTests
         ExternalSubject.TryCreate(raw)!.Value.Reveal().ShouldBe(raw);
     }
 
+    [Theory]
+    [InlineData("!")]
+    [InlineData("~")]
+    public void TryCreate_ShouldAccept_WhenTheSubjectIsTheFirstOrLastVisibleAsciiCharacter(string raw) =>
+        ExternalSubject.TryCreate(raw)!.Value.Reveal().ShouldBe(raw);
+
     [Fact]
     public void MaximumLength_ShouldBeOidcCoresBound_WhenRead() => ExternalSubject.MaximumLength.ShouldBe(255);
 
@@ -117,7 +123,7 @@ public class VerifiedEmailTests
 {
     [Fact]
     public void TryCreate_ShouldKeepTheSpellingItWasGiven_WhenTheAddressIsWellFormed() =>
-        VerifiedEmail.TryCreate("Anna.Berg@firma.example")!.Value.Value.ShouldBe("Anna.Berg@firma.example");
+        VerifiedEmail.TryCreate("Anna.Berg@firma.example")!.Value.ShouldBe("Anna.Berg@firma.example");
 
     [Fact]
     public void TryCreate_ShouldAcceptTheLongestAddressAValidatorAdmits_WhenAtTheBound()

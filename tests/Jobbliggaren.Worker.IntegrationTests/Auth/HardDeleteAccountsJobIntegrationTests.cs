@@ -96,6 +96,7 @@ public class HardDeleteAccountsJobIntegrationTests(WorkerTestFixture fixture)
         {
             var store = new IdentityExternalLoginStore(
                 seedScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                seedScope.ServiceProvider.GetRequiredService<AppIdentityDbContext>(),
                 seedScope.ServiceProvider.GetRequiredService<IDbExceptionInspector>());
             (await store.LinkAsync(userId, ExternalProviderKey.Google, subject, ct)).ShouldBe(ExternalLinkResult.Linked);
 

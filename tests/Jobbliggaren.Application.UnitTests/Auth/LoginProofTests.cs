@@ -524,6 +524,7 @@ public sealed class LoginProofTests
         var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
         eventId.ShouldBe(1024);
         message.ShouldContain(holder.ToString());
+        message.ShouldContain(nameof(LoginMethod.Google));
         message.ShouldNotContain(Sub);
         message.ShouldNotContain("@");
     }
@@ -542,38 +543,54 @@ public sealed class LoginProofTests
         outcome.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
-        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1024);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1024);
+        message.ShouldContain(nameof(LoginMethod.Google));
     }
 
     [Fact]
     public async Task A_provider_proof_whose_address_differs_from_the_accounts_only_in_ascii_case_signs_in()
     {
         // senior-cto-advisor F3 (a), security-auditor S3: the external arm matches pure-ASCII spellings case-blind.
-        _lookup.FindAccountAsync("PERSON@EXAMPLE.COM", Arg.Any<CancellationToken>())
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>())
             .Returns(new LoginAccount(_userId, "Person@Example.com"));
         await WithProfileAsync();
         TheLinkWriterAnswers(ExternalLinkResult.Linked);
 
-        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(address: "PERSON@EXAMPLE.COM"), Ct))
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct))
             .ShouldBeOfType<LoginOutcome.SignedIn>();
     }
 
     [Theory]
-    [InlineData(0x017F)] // LATIN SMALL LETTER LONG S folds to s
-    [InlineData(0x212A)] // KELVIN SIGN folds to k
-    public async Task A_provider_proof_that_differs_by_a_folding_character_is_refused(int codePoint)
+    [InlineData(0x017F, "person@example.com", 3)]
+    [InlineData(0x212A, "kalle@example.com", 0)]
+    [InlineData(0x037E, "per;on@example.com", 3)]
+    [InlineData(0x1FEF, "per`on@example.com", 3)]
+    public async Task A_provider_proof_that_differs_by_a_folding_character_is_refused(
+        int codePoint, string account, int at)
     {
         // UNREACHABLE from Google, declared: no documented shape carries it. The account's own spelling differs by
-        // one character that Unicode case folding maps to an ASCII letter, which #1779 closed; only the refusal
-        // is asserted.
-        var folded = $"per{(char)codePoint}on@example.com";
-        TheSpellingFindsTheAccount(folded);
+        // one character; only the refusal is asserted.
+        var folded = $"{account[..at]}{(char)codePoint}{account[(at + 1)..]}";
+        await TheProviderSpellingIsRefusedAsync(folded, account);
+    }
+
+    [Fact]
+    public async Task A_provider_proof_in_a_decomposed_spelling_of_the_accounts_address_is_refused() =>
+        await TheProviderSpellingIsRefusedAsync($"bjo{(char)0x0308}rn@example.com", "björn@example.com");
+
+    private async Task TheProviderSpellingIsRefusedAsync(string providerSpelling, string account)
+    {
+        _lookup.FindAccountAsync(providerSpelling, Arg.Any<CancellationToken>())
+            .Returns(new LoginAccount(_userId, account));
         await WithProfileAsync();
 
-        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(address: folded), Ct))
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(address: providerSpelling), Ct))
             .ShouldBeOfType<LoginOutcome.RegistrationClosed>();
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
-        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1016);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.Google));
     }
 
     [Fact]
@@ -586,7 +603,7 @@ public sealed class LoginProofTests
         outcome.ShouldBeOfType<LoginOutcome.ConsentRequired>().Grant.ShouldBe(IssuedGrant);
         await _grants.Received(1).IssueAsync(
             Arg.Is<GrantSubject>(s => s is GrantSubject.LoginCompleteExternal
-                                      && ((GrantSubject.LoginCompleteExternal)s).ProvenEmail == fresh
+                                      && ((GrantSubject.LoginCompleteExternal)s).ProvenEmail.Value == fresh
                                       && ((GrantSubject.LoginCompleteExternal)s).Provider == ExternalProviderKey.Google
                                       && ((GrantSubject.LoginCompleteExternal)s).Subject.Reveal() == Sub),
             Arg.Any<CancellationToken>());
@@ -626,6 +643,17 @@ public sealed class LoginProofTests
     }
 
     [Fact]
+    public async Task A_link_this_account_won_in_the_meantime_signs_in_and_writes_no_audit_row()
+    {
+        await WithProfileAsync();
+        TheLinkWriterAnswers(ExternalLinkResult.AlreadyLinkedToThisUser);
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct)).ShouldBeOfType<LoginOutcome.SignedIn>();
+
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task A_link_another_account_won_in_the_meantime_opens_no_session()
     {
         await WithProfileAsync();
@@ -636,6 +664,8 @@ public sealed class LoginProofTests
 
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         _db.AuditLogEntries.Local.ShouldBeEmpty();
-        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1025);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1025);
+        message.ShouldContain(nameof(LoginMethod.Google));
     }
 }

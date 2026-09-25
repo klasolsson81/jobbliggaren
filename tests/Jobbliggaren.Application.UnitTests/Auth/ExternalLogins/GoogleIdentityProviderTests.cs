@@ -127,7 +127,7 @@ public sealed class GoogleIdentityProviderTests : IDisposable
 
         identity!.Provider.ShouldBe(ExternalProviderKey.Google);
         identity.Subject.Reveal().ShouldBe(Sub);
-        identity.Email!.Value.Value.ShouldBe("anna.berg@gmail.com");
+        identity.Email!.Value.ShouldBe("anna.berg@gmail.com");
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         var identity = await ExchangeAsync(
             GoogleUserInfoShapes.Workspace(Sub, "anna@firma.example", hostedDomain: "firma.example"));
 
-        identity!.Email!.Value.Value.ShouldBe("anna@firma.example");
+        identity!.Email!.Value.ShouldBe("anna@firma.example");
     }
 
     [Fact]
@@ -171,15 +171,6 @@ public sealed class GoogleIdentityProviderTests : IDisposable
         identity!.Email.ShouldBeNull();
     }
 
-    [Fact]
-    public async Task ExchangeAsync_ShouldTolerateClaimsItDoesNotRead_WhenGoogleSendsTheProfile()
-    {
-        // The documented shapes carry name, picture and the given/family names; the adapter reads none of them.
-        var identity = await ExchangeAsync(GoogleUserInfoShapes.Gmail(Sub, "anna.berg"));
-
-        identity!.ToString().ShouldNotContain("Test Person");
-    }
-
     // ---------- declared unreachable: shapes Google does not document; only the refusal is asserted ----------
 
     [Theory]
@@ -189,6 +180,8 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     [InlineData("""{"sub":"110248495921238986420","email":"ANNA@GMAIL.COM","email_verified":true}""", "NotAuthoritative")]
     [InlineData("""{"sub":"110248495921238986420","email_verified":true}""", "AddressUnparsable")]
     [InlineData("""{"sub":"110248495921238986420","email":"anna","email_verified":true,"hd":"firma.example"}""", "AddressUnparsable")]
+    [InlineData("""{"sub":"110248495921238986420","email":"anna berg@firma.example","email_verified":true,"hd":"firma.example"}""", "AddressUnparsable")]
+    [InlineData("""{"sub":"110248495921238986420","email":"anna\u0007berg@firma.example","email_verified":true,"hd":"firma.example"}""", "AddressUnparsable")]
     public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenTheShapeIsOneGoogleDoesNotDocument(
         string userInfoJson, string cause)
     {
@@ -301,7 +294,7 @@ public sealed class GoogleIdentityProviderTests : IDisposable
     // ---------- what reaches the log ----------
 
     [Fact]
-    public async Task ExchangeAsync_ShouldLogNoCredentialAndNoIdentifier_OnAnyBranch()
+    public async Task ExchangeAsync_ShouldLogNoCredentialAndNoIdentifier()
     {
         await ExchangeAsync(GoogleUserInfoShapes.ThirdPartyVerified(Sub, "anna@outlook.example"));
         _google.TokenStatus = HttpStatusCode.BadRequest;

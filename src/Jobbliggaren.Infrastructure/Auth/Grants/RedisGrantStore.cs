@@ -80,10 +80,10 @@ internal sealed partial class RedisGrantStore : IGrantStore
                 GrantPurpose.ChangeEmail when payload.UserId is { } userId && userId != Guid.Empty
                                               && !string.IsNullOrEmpty(payload.Email) =>
                     new GrantSubject.ChangeEmail(userId, payload.Email),
-                GrantPurpose.LoginCompleteExternal when !string.IsNullOrEmpty(payload.Email)
+                GrantPurpose.LoginCompleteExternal when VerifiedEmail.TryCreate(payload.Email) is { } email
                                                         && ExternalProviderKey.TryParse(payload.Provider, out var provider)
                                                         && ExternalSubject.TryCreate(payload.Subject) is { } external =>
-                    new GrantSubject.LoginCompleteExternal(payload.Email, provider, external),
+                    new GrantSubject.LoginCompleteExternal(email, provider, external),
                 _ => null,
             };
 
@@ -106,7 +106,11 @@ internal sealed partial class RedisGrantStore : IGrantStore
         {
             try
             {
-                return JsonSerializer.Deserialize<GrantPayload>(ProtectorFor(purpose).Unprotect((byte[])stored!));
+                var payload = JsonSerializer.Deserialize<GrantPayload>(ProtectorFor(purpose).Unprotect((byte[])stored!));
+                if (payload?.Purpose == (int)purpose)
+                    return payload;
+
+                lastError = nameof(GrantPayload.Purpose);
             }
             catch (Exception ex) when (ex is CryptographicException or JsonException)
             {
@@ -131,7 +135,7 @@ internal sealed partial class RedisGrantStore : IGrantStore
         GrantSubject.ChangeEmail changeEmail =>
             new GrantPayload((int)GrantPurpose.ChangeEmail, changeEmail.NewEmail, changeEmail.UserId),
         GrantSubject.LoginCompleteExternal external =>
-            new GrantPayload((int)GrantPurpose.LoginCompleteExternal, external.ProvenEmail, UserId: null)
+            new GrantPayload((int)GrantPurpose.LoginCompleteExternal, external.ProvenEmail.Value, UserId: null)
             {
                 Provider = external.Provider.Value,
                 Subject = external.Subject.Reveal(),

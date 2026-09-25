@@ -218,11 +218,8 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         // configuration registers no provider, the list is empty, and a start is not found, so no flow is minted.
         var ct = TestContext.Current.CancellationToken;
         using var host = _factory.WithWebHostBuilder(b => b
-            .ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Auth:OAuth:Google:ClientId"] = "configured-client-id",
-                ["Auth:OAuth:Google:ClientSecret"] = "configured-client-secret",
-            }))
+            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
+            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret")
             // Counts what reaches the real store; replaces no provider registration.
             .ConfigureTestServices(services =>
             {

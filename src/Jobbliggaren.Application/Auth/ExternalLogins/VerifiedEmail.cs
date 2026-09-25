@@ -8,7 +8,7 @@ namespace Jobbliggaren.Application.Auth.ExternalLogins;
 /// qualifies; this factory adds the bounds every stored address meets, so an address longer than a validator
 /// admits never reaches a grant's padded payload. <see cref="ToString"/> prints no part of it.
 /// </summary>
-public readonly record struct VerifiedEmail
+public sealed record VerifiedEmail
 {
     private VerifiedEmail(string value) => Value = value;
 

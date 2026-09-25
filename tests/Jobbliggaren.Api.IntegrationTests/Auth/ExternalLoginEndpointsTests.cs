@@ -136,11 +136,8 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         // list, so the ScriptedGoogle registration above is the only thing it drops.
         await using var host = factory.WithWebHostBuilder(b => b
             .UseSetting(ApiFactory.CompositionProvidersOnlySetting, "true")
-            .ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Auth:OAuth:Google:ClientId"] = "configured-client-id",
-                ["Auth:OAuth:Google:ClientSecret"] = "configured-client-secret",
-            })));
+            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
+            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret"));
         using var client = host.CreateClient();
 
         // The control: the client reached the configuration, so the absences below are not a missing key's.
@@ -166,6 +163,16 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         store.Writes.ShouldBe(before + 1);
     }
 
+    [Fact]
+    public async Task A_start_answers_the_authorize_url_and_the_state_and_nothing_else()
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).EnumerateObject().Select(p => p.Name)
+            .ShouldBe(["authorizeUrl", "state"]);
+    }
+
     [Theory]
     [InlineData("github")]
     [InlineData("myspace")]
@@ -181,8 +188,13 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     [InlineData("oversikt")]
     public async Task A_path_that_is_not_same_site_is_refused_before_a_flow_is_minted(string next)
     {
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        var before = store.Writes;
+
         (await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        store.Writes.ShouldBe(before);
     }
 
     // ── the state (acceptance: mismatch, replay, expiry refused with no session) ──
@@ -222,8 +234,9 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         var flow = await StartAsync();
 
         var refused = await CallbackAsync("4/0AVGzR1never-issued", flow.State);
+        var unknown = await CallbackAsync("4/0AVGzR1unknown", OAuthState.Generate().Reveal());
 
-        (await ComparableAsync(refused)).ShouldContain(AuthErrorCodes.ExternalLoginUnusable);
+        (await ComparableAsync(refused)).ShouldBe(await ComparableAsync(unknown));
         (await CallbackAsync(GoogleAuthorises(flow, Workspace(NewSubject(), NewAddress("spent"))), flow.State))
             .StatusCode.ShouldBe(HttpStatusCode.Gone);
     }
@@ -249,7 +262,7 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     // ── an existing account (acceptance: linked via AspNetUserLogins, session; the second sign-in finds the login) ──
 
     [Fact]
-    public async Task A_verified_address_of_an_existing_account_links_it_signs_in_and_the_second_sign_in_finds_the_login()
+    public async Task A_verified_address_of_an_existing_account_links_it_and_signs_in()
     {
         var address = NewAddress("befintlig");
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, address, ct: Ct);
@@ -276,13 +289,17 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         // test-writer Major 8, the expectation senior-cto-advisor F2 reversed: a Workspace admin renamed the user.
         var address = NewAddress("fore");
         await AuthTestHelpers.RegisterAndGetSessionIdAsync(factory, address, ct: Ct);
+        var userId = (await UserIdOfAsync(address)).ShouldNotBeNull();
         var sub = NewSubject();
         (await SignInByGoogleAsync(sub, address)).GetProperty("outcome").GetString().ShouldBe("signedIn");
+        var newAddress = NewAddress("efter");
 
-        var renamed = await SignInByGoogleAsync(sub, NewAddress("efter"));
+        var renamed = await SignInByGoogleAsync(sub, newAddress);
 
         renamed.GetProperty("outcome").GetString().ShouldBe("accountUnavailable");
         renamed.TryGetProperty("sessionId", out _).ShouldBeFalse();
+        (await LoginRowsAsync(userId)).ShouldBe(1);
+        (await UserIdOfAsync(newAddress)).ShouldBeNull();
     }
 
     // ── a new address (acceptance: consent step, then account + link + session; closed registration) ──

@@ -5,6 +5,8 @@ namespace Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 
 public sealed class StartExternalLoginCommandValidator : AbstractValidator<StartExternalLoginCommand>
 {
+    private const char Backslash = '\\';
+
     public StartExternalLoginCommandValidator()
     {
         RuleFor(c => c.Provider).NotEmpty().MaximumLength(ExternalProviderKey.MaximumLength);
@@ -22,5 +24,5 @@ public sealed class StartExternalLoginCommandValidator : AbstractValidator<Start
         next is not null
         && next.StartsWith('/')
         && !next.StartsWith("//", StringComparison.Ordinal)
-        && next.All(ch => !char.IsControl(ch) && ch != (char)92);
+        && next.All(ch => !char.IsControl(ch) && ch != Backslash);
 }

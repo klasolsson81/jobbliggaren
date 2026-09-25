@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
@@ -153,7 +154,8 @@ public sealed class LoginProofChainTests
     }
 
     // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in the provider adapter, and again only where
-    // the grant store reads back the purpose-4 payload that address was sealed into.
+    // the grant store reads back the purpose-4 payload that address was sealed into. Counted per file, so a second
+    // maker inside either of the two is seen as well.
     [Fact]
     public void Only_the_provider_adapter_and_the_grant_store_make_a_verified_email_in_source()
     {
@@ -163,16 +165,41 @@ public sealed class LoginProofChainTests
         var makers = Directory
             .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
             .Where(path => !IsBuildOutput(path))
-            .Where(path => File.ReadAllText(path).Contains("VerifiedEmail.TryCreate(", StringComparison.Ordinal))
-            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
-            .Order(StringComparer.Ordinal)
+            .Select(path => (
+                Path: Path.GetRelativePath(srcRoot, path).Replace('\\', '/'),
+                Count: VerifiedEmailMakers(File.ReadAllText(path))))
+            .Where(file => file.Count > 0)
+            .OrderBy(file => file.Path, StringComparer.Ordinal)
+            .Select(file => $"{file.Path}: {file.Count}")
             .ToList();
 
         makers.ShouldBe(
         [
-            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
-            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs",
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs: 1",
+            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs: 1",
         ]);
+    }
+
+    [Theory]
+    [InlineData("var email = VerifiedEmail.TryCreate(address);")]
+    [InlineData("var email = VerifiedEmail\n    .TryCreate(address);")]
+    [InlineData("var emails = addresses.Select(VerifiedEmail.TryCreate);")]
+    [InlineData("using static Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = TryCreate(address);")]
+    [InlineData("using Proof = Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = Proof.TryCreate(address);")]
+    public void The_verified_email_scan_counts_every_way_of_naming_the_factory(string source) =>
+        VerifiedEmailMakers(source).ShouldBe(1);
+
+    private static int VerifiedEmailMakers(string source)
+    {
+        var joined = Regex.Replace(source, @"\s*\.\s*", ".");
+        var names = Regex.Matches(joined, @"\busing\s+(\w+)\s*=\s*[\w.]*\bVerifiedEmail\s*;")
+            .Select(alias => alias.Groups[1].Value)
+            .Append(nameof(VerifiedEmail));
+        var qualified = names.Sum(name => Regex.Count(joined, $@"\b{name}\.TryCreate\b"));
+        var imported = Regex.IsMatch(joined, @"\busing\s+static\s+[\w.]*\bVerifiedEmail\s*;")
+            ? Regex.Count(joined, @"(?<![\w.])TryCreate\s*\(")
+            : 0;
+        return qualified + imported;
     }
 
     private static bool IsBuildOutput(string path) =>

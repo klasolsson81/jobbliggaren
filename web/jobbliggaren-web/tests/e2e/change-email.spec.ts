@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { ensureConfirmedTestUser, loginAs, takeLoginCode, testEmail } from "./helpers/auth";
+import { seedTestUser, loginAs, takeLoginCode, testEmail } from "./helpers/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5049";
 const SESSION_COOKIE = "__Host-jobbliggaren_session";
@@ -58,7 +58,7 @@ test.describe("Byt e-postadress (/mina-sidor)", () => {
     page,
   }) => {
     const runId = newRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
     const before = await sessionOf(page.context());
 
@@ -103,7 +103,7 @@ test.describe("Byt e-postadress (/mina-sidor)", () => {
     const untilRotationIsDue = (since: number) =>
       page.waitForTimeout(Math.max(0, since + (interval + 1) * 1_000 - Date.now()));
     const runId = newRunId();
-    await ensureConfirmedTestUser(BACKEND_URL, runId);
+    await seedTestUser(BACKEND_URL, runId);
     await loginAs(page, runId);
     const loggedInAt = Date.now();
     const context = page.context();

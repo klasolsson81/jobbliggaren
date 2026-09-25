@@ -41,7 +41,7 @@
 }
 .jp-settings-field__hint {
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   margin: 0;
 }
 
@@ -1354,7 +1354,7 @@
 .jp-guide__hint {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-guide__wordcount {
   margin: 0;

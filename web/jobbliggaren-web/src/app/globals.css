@@ -2127,8 +2127,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-hint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 .jp-input {
   width: 100%;
@@ -3116,7 +3116,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-left: 8px;
   font-weight: var(--jp-fw-regular);
   letter-spacing: 0.02em;
-  color: var(--jp-ink-3);
+  color: var(--jp-ink-2);
 }
 /* #805 punkt 5: inline "?"-hjälp tätt bunden till en sektionsetikett
    (uppföljning-vs-anteckning). Etiketttext + trigger i en smal-gap-grupp så
@@ -5949,7 +5949,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-cvupload__drop-hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 /* Input:et är visuellt dolt men kvarstår fokuserbart + i tab-ordningen
    (ingen display:none — det skulle ta bort det ur tangentbordsflödet). */
@@ -5967,7 +5967,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvupload__help {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -6567,7 +6567,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvreview__status-hint {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -7216,7 +7216,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-steprail__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-steprail__cells {
   display: grid;
@@ -7347,7 +7347,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-board__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px

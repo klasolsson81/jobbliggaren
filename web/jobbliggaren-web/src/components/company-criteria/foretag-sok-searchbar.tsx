@@ -701,15 +701,15 @@ export function ForetagSokSearchbar({
                 moved more than that one did.
 
                 Reserving the element alone is not enough: `.jp-field`'s 6 px gap accounts for only
-                6 of the 26, the other 20 being the caption line itself — hence `min-h-5`, one
-                caption line, rather than an empty span. The cost is honest and permanent: the field
-                block is 26 px taller at all times. That is the price of a surface that does not
-                move under the pointer while you type.
+                part of the shift, the rest being the hint line itself — hence `min-h-[1lh]`, one
+                line of the hint, rather than an empty span. The cost is honest and permanent: the
+                field block is one hint line taller at all times. That is the price of a surface
+                that does not move under the pointer while you type.
 
                 `aria-describedby` stays CONDITIONAL, so the field's description gains a sentence
                 only while one is true — an empty description would otherwise be announced as part
                 of the field forever. */}
-            <span id={unappliedId} className="jp-hint min-h-5">
+            <span id={unappliedId} className="jp-hint min-h-[1lh]">
               {draftDiffersFromApplied ? t("unappliedChanges") : ""}
             </span>
           </div>

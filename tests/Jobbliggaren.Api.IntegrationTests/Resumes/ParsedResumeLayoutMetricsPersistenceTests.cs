@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Domain.Privacy;
@@ -7,7 +8,6 @@ using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 
@@ -24,40 +24,37 @@ namespace Jobbliggaren.Api.IntegrationTests.Resumes;
 /// the layout_metrics MAPPING, not the CV-PII encryption (which is exercised elsewhere) — the
 /// non-PII plaintext columns (parsed_content_enc is NULLABLE) tolerate the interceptor's absence.
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class ParsedResumeLayoutMetricsPersistenceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
 
     private static readonly FakeDateTimeProvider Clock =
         new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
+    public ParsedResumeLayoutMetricsPersistenceTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
 
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // pg_trgm is required by a trigram-index migration (mirrors ApiFactory / the other
-        // Testcontainers suites); the Testcontainers superuser can create it. Idempotent.
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Application.JobAds.Commands.ArchiveExternalJobAd;
@@ -20,7 +21,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Refit;
 using Shouldly;
-using Testcontainers.PostgreSql;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -45,6 +45,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// pins Tier A creates: the <c>contacts</c>-ALONE channel, the <c>snapshot_contacts</c>-ALONE
 /// surgical arm, the tombstone <c>contacts</c> clear, and the archived-ad write-gate.
 /// </remarks>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class RecruiterContactIngestTests : IAsyncLifetime
 {
     // ── Ad A — THE FUNNEL AD (L2+L3, F-A). A declared contact whose identifier lives ONLY in the
@@ -94,13 +95,16 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
     private static readonly string WriteGateBody =
         $"Vi söker en DevOps-ingenjör. Skicka din ansökan till {WriteGateBodyEmail}.";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
     private WireMockServer _jobTech = default!;
     private ServiceProvider _provider = default!;
 
+    public RecruiterContactIngestTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         _jobTech = WireMockServer.Start();
         _jobTech
@@ -113,7 +117,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<AppDbContext>(options => options
-            .UseNpgsql(_postgres.GetConnectionString(),
+            .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention());
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -135,10 +139,6 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
 
         _provider = services.BuildServiceProvider();
 
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -146,7 +146,7 @@ public sealed class RecruiterContactIngestTests : IAsyncLifetime
         await _provider.DisposeAsync();
         _jobTech.Stop();
         _jobTech.Dispose();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
     }
 
     /// <summary>The JobTech wire shape, v2, with the top-level <c>application_contacts</c> array.</summary>

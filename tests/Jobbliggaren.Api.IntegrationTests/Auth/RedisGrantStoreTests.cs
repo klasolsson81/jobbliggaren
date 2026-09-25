@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
@@ -19,9 +18,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// production registers, on the deploy stack's own <c>redis-volatile</c>. The lifetime is spelled out as a
 /// literal 10, so a change to the policy constant makes this go red.
 /// </summary>
-public sealed class RedisGrantStoreTests : IAsyncLifetime
+public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedVolatileRedisFixture>
 {
-    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+    private readonly SharedVolatileRedisFixture _redis;
     private readonly EphemeralDataProtectionProvider _keyring = new();
 
     // The test's OWN reader, beside the connection the store is given.
@@ -29,10 +28,12 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
     private VolatileRedisConnection _connection = null!;
     private RedisGrantStore _store = null!;
 
+    public RedisGrantStoreTests(SharedVolatileRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
-        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
+        await _redis.FlushAsync();
+        var connectionString = $"{_redis.ConnectionString},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _store = Store(_keyring);
@@ -43,7 +44,6 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private RedisGrantStore Store(IDataProtectionProvider keyring) =>

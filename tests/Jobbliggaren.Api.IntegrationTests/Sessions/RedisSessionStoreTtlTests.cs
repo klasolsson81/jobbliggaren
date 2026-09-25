@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Microsoft.Extensions.Caching.Distributed;
@@ -7,16 +8,15 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Sessions;
 
-public class RedisSessionStoreTtlTests : IAsyncLifetime
+public class RedisSessionStoreTtlTests : IAsyncLifetime, IClassFixture<SharedPlainRedisFixture>
 {
     private const int ShortTtlSeconds = 3;
     private const int MediumTtlSeconds = 5;
 
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly SharedPlainRedisFixture _redis;
 
     private RedisSessionStore _shortTtlStore = null!;
     private RedisSessionStore _mediumTtlStore = null!;
@@ -32,11 +32,13 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     // 14d wall-clock so the key survives the sub-second run while the fake clock jumps).
     private readonly MutableFakeDateTimeProvider _capClock = new();
 
+    public RedisSessionStoreTtlTests(SharedPlainRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
+        await _redis.FlushAsync();
 
-        var cs = _redis.GetConnectionString();
+        var cs = _redis.ConnectionString;
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(cs);
         _db = _mux.GetDatabase();
 
@@ -105,7 +107,6 @@ public class RedisSessionStoreTtlTests : IAsyncLifetime
     {
         await _mux.CloseAsync();
         _mux.Dispose();
-        await _redis.DisposeAsync();
         GC.SuppressFinalize(this);
     }
 

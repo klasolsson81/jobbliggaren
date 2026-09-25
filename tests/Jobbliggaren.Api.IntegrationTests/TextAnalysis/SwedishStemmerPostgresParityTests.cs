@@ -1,8 +1,8 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Npgsql;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 
@@ -12,7 +12,8 @@ namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 // search_vector (JobAdSearchQuery — "Måste matcha EXAKT") diverges from the
 // matching engine (F4-4/5/6). Drift triggers a reactive STEG, never a TD.
 //
-// Self-contained fixture (own PostgreSqlContainer, IAsyncLifetime) — mirrors
+// Shares the run's Postgres (SharedPostgresFixture: the oracle is the server's own
+// text-search configuration, so it needs no schema and no database of its own) — mirrors
 // TaxonomyReadModelIntegrationTests. No migrations needed: to_tsvector and
 // pg_read_file are built-in / superuser-available in the Testcontainers image.
 //
@@ -21,27 +22,27 @@ namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 // the corpus uses plain Swedish word tokens.
 //
 // RED until SnowballStemmer + LocalTextAnalyzer ship.
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class SwedishStemmerPostgresParityTests : IAsyncLifetime
 {
     private const string PgStopwordPath =
         "/usr/share/postgresql/18/tsearch_data/swedish.stop";
 
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
 
     private NpgsqlConnection _conn = default!;
 
+    public SwedishStemmerPostgresParityTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
-        _conn = new NpgsqlConnection(_postgres.GetConnectionString());
+        _conn = new NpgsqlConnection(_postgres.AdminConnectionString);
         await _conn.OpenAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _conn.DisposeAsync();
-        await _postgres.DisposeAsync();
         GC.SuppressFinalize(this);
     }
 

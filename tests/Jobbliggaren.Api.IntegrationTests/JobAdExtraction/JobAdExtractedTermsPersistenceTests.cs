@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobAds;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -6,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 
@@ -15,8 +15,8 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 /// jsonb VO persistence + the STORED generated <c>extracted_lexemes</c> companion
 /// + its GIN index, against a real Postgres (Testcontainers — ALDRIG EF-InMemory:
 /// the generated column + jsonb <c>?|</c> overlap only exist on the real engine).
-/// Self-contained fixture (own container) mirroring
-/// <c>OccupationCodeDeriverIntegrationTests</c>.
+/// A database of its own per test on the run's shared Postgres (<see cref="SharedPostgresFixture"/>),
+/// mirroring <c>OccupationCodeDeriverIntegrationTests</c>.
 ///
 /// Pins the F4-6-facing contract:
 /// <list type="bullet">
@@ -33,36 +33,34 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 ///
 /// RED until the Domain VO + the F4-4 EF mapping/migration ship.
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
 
+    public JobAdExtractedTermsPersistenceTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
 
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // pg_trgm is required by the trigram-index migration (parity ApiFactory).
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 
@@ -187,7 +185,7 @@ public sealed class JobAdExtractedTermsPersistenceTests : IAsyncLifetime
             id = jobAd.Id.Value;
         }
 
-        await using var conn = new NpgsqlConnection(_postgres.GetConnectionString());
+        await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
 
         // Matching lexeme set → ad returned.

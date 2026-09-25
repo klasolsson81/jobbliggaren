@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -15,7 +16,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 
@@ -23,9 +23,9 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 /// Fas 4 STEG 4 (F4-4, ADR 0071/0074 Path C) — the LOCAL extraction backfill
 /// (<see cref="BackfillJobAdExtractedTermsJob"/>) against a real Postgres
 /// (Testcontainers; the STORED generated <c>extracted_lexemes</c> predicate that
-/// drives idempotency only exists on the real engine). Self-contained fixture
-/// (own container) + the REAL extractor wired through DI per the job's per-item
-/// scope model.
+/// drives idempotency only exists on the real engine). A database of its own per test on
+/// the run's shared Postgres (<see cref="SharedPostgresFixture"/>) + the REAL extractor wired
+/// through DI per the job's per-item scope model.
 ///
 /// Pins:
 /// <list type="bullet">
@@ -40,18 +40,21 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAdExtraction;
 ///
 /// RED until the Domain VO + the F4-4 EF mapping/migration + the job ship.
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
     private IJobSource _jobSource = default!;
     private ISystemEventAuditor _auditor = default!;
 
+    public BackfillJobAdExtractedTermsJobTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         _jobSource = Substitute.For<IJobSource>();
         _auditor = Substitute.For<ISystemEventAuditor>();
@@ -59,7 +62,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         // IAppDbContext resolves to the SAME scoped AppDbContext (production mapping).
@@ -92,16 +95,12 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
 
         _provider = services.BuildServiceProvider();
 
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 
@@ -143,7 +142,7 @@ public sealed class BackfillJobAdExtractedTermsJobTests : IAsyncLifetime
         }
         await db.SaveChangesAsync(ct);
         // Null ONLY the rows this helper seeded — a caller may also seed an already-extracted '[]'
-        // row in the same (per-test) container, and that row must keep its non-null terms so the
+        // row in the same (per-test) database, and that row must keep its non-null terms so the
         // backfill predicate (extracted_lexemes IS NULL) skips it. The STORED extracted_lexemes shadow
         // follows extracted_terms to NULL, reproducing the pre-F4-4 legacy state.
         // The complement — that the current writer never produces this shape — is pinned in

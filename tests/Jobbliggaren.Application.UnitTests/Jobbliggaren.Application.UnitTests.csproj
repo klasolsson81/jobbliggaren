@@ -83,5 +83,6 @@
     <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
     <Compile Include="..\Shared\ScriptedGoogle.cs" Link="Shared\ScriptedGoogle.cs" />
     <Compile Include="..\Shared\GoogleUserInfoShapes.cs" Link="Shared\GoogleUserInfoShapes.cs" />
+    <Compile Include="..\Shared\GoogleIdentities.cs" Link="Shared\GoogleIdentities.cs" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Exceptions;
@@ -70,7 +71,7 @@ public sealed class LoginChallengeIssuerTests
         }
 
         return new LoginChallengeIssuer(
-            new LoginSubjectResolver(lookup, db), _store, _budget, _sender, _audit,
+            new LoginSubjectResolver(lookup, Substitute.For<IExternalLoginLookup>(), db), _store, _budget, _sender, _audit,
             Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen }),
             (ILogger<LoginChallengeIssuer>?)logger ?? NullLogger<LoginChallengeIssuer>.Instance);
     }

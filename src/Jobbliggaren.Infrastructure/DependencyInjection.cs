@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -14,6 +15,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Registration;
@@ -1774,6 +1776,16 @@ public static class DependencyInjection
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
         services.AddScoped<PasswordlessSessionGrant>();
         services.AddScoped<LoginProofOutcome>();
+
+        // #1744 (ADR 0142 D8) — the external-login spine: the started flows on the volatile connection and the
+        // Api's keyring, like the grant store; the links in Identity's AspNetUserLogins. No IExternalIdentityProvider
+        // is registered here: a provider without keys is not registered at all, and the registration that reads the
+        // keys lands with the web and the copy (6a PR G). Until then the providers list is empty on every host.
+        services.AddSingleton<IOAuthStateStore, RedisOAuthStateStore>();
+        services.AddSingleton<RegisteredProviders>();
+        services.AddScoped<IExternalLoginLookup, IdentityExternalLoginStore>();
+        services.AddScoped<IExternalLoginWriter, IdentityExternalLoginStore>();
+        services.AddScoped<ExternalLoginLinker>();
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

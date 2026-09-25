@@ -1,4 +1,5 @@
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -45,7 +46,7 @@ public sealed class LoginChallengeDispatchServiceTests
         lookup.FindAccountAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
 
         var services = new ServiceCollection();
-        services.AddScoped(_ => new LoginSubjectResolver(lookup, TestAppDbContextFactory.Create()));
+        services.AddScoped(_ => new LoginSubjectResolver(lookup, Substitute.For<IExternalLoginLookup>(), TestAppDbContextFactory.Create()));
         services.AddScoped(sp => new LoginChallengeIssuer(
             sp.GetRequiredService<LoginSubjectResolver>(), _store, AdmittingBudget(), _sender,
             Substitute.For<IAuthAuditLogger>(),

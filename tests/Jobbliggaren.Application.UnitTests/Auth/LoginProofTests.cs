@@ -1,6 +1,7 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -10,6 +11,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -40,6 +42,8 @@ public sealed class LoginProofTests
     private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
+    private readonly IExternalLoginLookup _externalLookup = Substitute.For<IExternalLoginLookup>();
+    private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
 
     private static readonly GrantToken IssuedGrant = GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw");
 
@@ -79,8 +83,16 @@ public sealed class LoginProofTests
 
     // Registration is closed unless a test opens it, as it is wherever the flag is unset (ADR 0083).
     private LoginProofOutcome Outcome(bool registrationsOpen = false) => new(
-        new LoginSubjectResolver(_lookup, _db), Grant(), _grants,
+        new LoginSubjectResolver(_lookup, _externalLookup, _db), Grant(), _grants, Linker(),
         Options.Create(new AuthOptions { RegistrationsOpen = registrationsOpen }), _outcomeLog);
+
+    private ExternalLoginLinker Linker()
+    {
+        var correlation = Substitute.For<ICorrelationIdProvider>();
+        correlation.Current.Returns(Guid.NewGuid());
+        return new ExternalLoginLinker(
+            _externalWriter, _db, FakeDateTimeProvider.Default, correlation, Substitute.For<IRequestContextProvider>());
+    }
 
     private VerifyLoginChallengeCommandHandler Verify(bool registrationsOpen = false) =>
         new(_store, Outcome(registrationsOpen));
@@ -440,5 +452,190 @@ public sealed class LoginProofTests
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+    }
+
+    // ── #1744: a provider's proof (ADR 0142 D8, security-auditor M-1, senior-cto-advisor F2/F3) ─────────────
+    // Every proof comes from the production Google adapter over a documented userinfo shape (GoogleIdentities):
+    // a Workspace account on the fixture's domain, which the adapter verifies because hd is set.
+
+    private const string Sub = "110248495921238986420";
+
+    private static Task<ExternalLoginProof> ProviderProofAsync(string address = Email, string sub = Sub) =>
+        GoogleIdentities.ProofAsync(
+            GoogleUserInfoShapes.Workspace(sub, address, hostedDomain: address[(address.IndexOf('@') + 1)..]));
+
+    private void TheLoginIsLinkedTo(Guid? userId) =>
+        _externalLookup.FindUserIdAsync(ExternalProviderKey.Google, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(userId);
+
+    private void TheLinkWriterAnswers(ExternalLinkResult result) =>
+        _externalWriter.LinkAsync(
+                Arg.Any<Guid>(), ExternalProviderKey.Google, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+
+    [Fact]
+    public async Task A_provider_proof_of_an_active_accounts_own_address_links_it_before_the_session_and_records_google()
+    {
+        await WithProfileAsync();
+        TheLinkWriterAnswers(ExternalLinkResult.Linked);
+
+        var outcome = await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct);
+
+        outcome.ShouldBeOfType<LoginOutcome.SignedIn>();
+        Received.InOrder(() =>
+        {
+            _externalWriter.LinkAsync(
+                _userId, ExternalProviderKey.Google, Arg.Is<ExternalSubject>(s => s.Reveal() == Sub), Arg.Any<CancellationToken>());
+            _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+            _audit.LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Google);
+        });
+        var row = _db.AuditLogEntries.Local.ShouldHaveSingleItem();
+        row.EventType.ShouldBe(ExternalLoginLinker.ExternalLoginLinkedAuditEventType);
+        row.UserId.ShouldBe(_userId);
+        row.Payload.ShouldBe("""{"provider":"google"}""");
+    }
+
+    [Fact]
+    public async Task A_provider_proof_already_linked_to_the_account_signs_in_without_writing_a_link()
+    {
+        await WithProfileAsync();
+        TheLoginIsLinkedTo(_userId);
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct)).ShouldBeOfType<LoginOutcome.SignedIn>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_provider_login_another_account_holds_is_refused_and_never_moved()
+    {
+        // security-auditor M-1(b): the address names this account, the identifier belongs to another.
+        await WithProfileAsync();
+        var holder = Guid.NewGuid();
+        TheLoginIsLinkedTo(holder);
+
+        var outcome = await Outcome(registrationsOpen: true).ResolveExternalAsync(await ProviderProofAsync(), Ct);
+
+        outcome.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1024);
+        message.ShouldContain(holder.ToString());
+        message.ShouldNotContain(Sub);
+        message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task A_linked_login_whose_address_changed_at_the_provider_is_refused()
+    {
+        // test-writer Major 8, with the expectation senior-cto-advisor F2 reversed: the identifier is linked to this
+        // account, and the provider now asserts another address, which names no account. No session, no new row.
+        await WithProfileAsync();
+        TheLoginIsLinkedTo(_userId);
+
+        var outcome = await Outcome(registrationsOpen: true)
+            .ResolveExternalAsync(await ProviderProofAsync(address: "person.renamed@example.com"), Ct);
+
+        outcome.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1024);
+    }
+
+    [Fact]
+    public async Task A_provider_proof_whose_address_differs_from_the_accounts_only_in_ascii_case_signs_in()
+    {
+        // senior-cto-advisor F3 (a), security-auditor S3: the external arm matches pure-ASCII spellings case-blind.
+        _lookup.FindAccountAsync("PERSON@EXAMPLE.COM", Arg.Any<CancellationToken>())
+            .Returns(new LoginAccount(_userId, "Person@Example.com"));
+        await WithProfileAsync();
+        TheLinkWriterAnswers(ExternalLinkResult.Linked);
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(address: "PERSON@EXAMPLE.COM"), Ct))
+            .ShouldBeOfType<LoginOutcome.SignedIn>();
+    }
+
+    [Theory]
+    [InlineData(0x017F)] // LATIN SMALL LETTER LONG S folds to s
+    [InlineData(0x212A)] // KELVIN SIGN folds to k
+    public async Task A_provider_proof_that_differs_by_a_folding_character_is_refused(int codePoint)
+    {
+        // UNREACHABLE from Google, declared: no documented shape carries it. The account's own spelling differs by
+        // one character that Unicode case folding maps to an ASCII letter, which #1779 closed; only the refusal
+        // is asserted.
+        var folded = $"per{(char)codePoint}on@example.com";
+        TheSpellingFindsTheAccount(folded);
+        await WithProfileAsync();
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(address: folded), Ct))
+            .ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1016);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_provider_proof_of_a_new_address_gets_an_external_grant_and_no_session()
+    {
+        const string fresh = "ny@example.com";
+
+        var outcome = await Outcome(registrationsOpen: true).ResolveExternalAsync(await ProviderProofAsync(fresh), Ct);
+
+        outcome.ShouldBeOfType<LoginOutcome.ConsentRequired>().Grant.ShouldBe(IssuedGrant);
+        await _grants.Received(1).IssueAsync(
+            Arg.Is<GrantSubject>(s => s is GrantSubject.LoginCompleteExternal
+                                      && ((GrantSubject.LoginCompleteExternal)s).ProvenEmail == fresh
+                                      && ((GrantSubject.LoginCompleteExternal)s).Provider == ExternalProviderKey.Google
+                                      && ((GrantSubject.LoginCompleteExternal)s).Subject.Reveal() == Sub),
+            Arg.Any<CancellationToken>());
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task With_registration_closed_a_provider_proof_of_a_new_address_is_closed_with_no_grant()
+    {
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync("ny@example.com"), Ct))
+            .ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_provider_proof_of_an_account_pending_deletion_links_nothing_and_opens_no_session()
+    {
+        await WithProfileAsync(softDeleted: true);
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct))
+            .ShouldBeOfType<LoginOutcome.PendingDeletion>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task With_registration_open_a_provider_proof_of_a_row_without_a_profile_links_nothing()
+    {
+        // No profile: WithProfileAsync is not called, and the lookup still finds the Identity row.
+        (await Outcome(registrationsOpen: true).ResolveExternalAsync(await ProviderProofAsync(), Ct))
+            .ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_link_another_account_won_in_the_meantime_opens_no_session()
+    {
+        await WithProfileAsync();
+        TheLinkWriterAnswers(ExternalLinkResult.LinkedToAnotherUser);
+
+        (await Outcome().ResolveExternalAsync(await ProviderProofAsync(), Ct))
+            .ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1025);
     }
 }

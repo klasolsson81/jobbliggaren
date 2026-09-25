@@ -103,7 +103,7 @@ public sealed class CompleteLoginChallengeTests
 
         await _grants.Received(1).RedeemAsync(
             Token,
-            Arg.Is<GrantAssertion>(a => a.Purpose == GrantPurpose.LoginComplete && a.Binding == null),
+            Arg.Is<GrantAssertion>(a => a.Purposes.Contains(GrantPurpose.LoginComplete) && a.Binding == null),
             Arg.Any<CancellationToken>());
     }
 

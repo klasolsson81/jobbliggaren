@@ -1,11 +1,12 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #1739 — what a caller may assert when it redeems a grant (ADR 0142 D3). A purpose is caller-asserted unless
-/// it is declared bearer-bound, so the two purposes 3a adds can only be redeemed with their binding.
+/// #1739, #1744 — what a caller may assert when it redeems a grant (ADR 0142 D3). A purpose is caller-asserted unless
+/// it is declared bearer-bound, so only the two registration purposes can be redeemed without their binding.
 /// </summary>
 public class GrantAssertionTests
 {
@@ -14,7 +15,16 @@ public class GrantAssertionTests
     {
         var assertion = GrantAssertion.Bearer(GrantPurpose.LoginComplete);
 
-        assertion.Purpose.ShouldBe(GrantPurpose.LoginComplete);
+        assertion.Purposes.ShouldBe([GrantPurpose.LoginComplete]);
+        assertion.Binding.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Bearer_ShouldCarryBothRegistrationPurposes_WhenCompleteAcceptsACodeOrAProvider()
+    {
+        var assertion = GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal);
+
+        assertion.Purposes.ShouldBe([GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal]);
         assertion.Binding.ShouldBeNull();
     }
 
@@ -26,6 +36,14 @@ public class GrantAssertionTests
         Should.Throw<ArgumentOutOfRangeException>(() => GrantAssertion.Bearer(purpose));
     }
 
+    [Theory]
+    [InlineData(GrantPurpose.Reauthentication)]
+    [InlineData(GrantPurpose.ChangeEmail)]
+    public void Bearer_ShouldThrow_WhenAnyOfSeveralPurposesIsCallerAsserted(GrantPurpose purpose)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => GrantAssertion.Bearer(GrantPurpose.LoginComplete, purpose));
+    }
+
     [Fact]
     public void Of_ShouldCarryTheBindingAndItsPurpose_WhenGivenASubject()
     {
@@ -33,8 +51,22 @@ public class GrantAssertionTests
 
         var assertion = GrantAssertion.Of(binding);
 
-        assertion.Purpose.ShouldBe(GrantPurpose.ChangeEmail);
+        assertion.Purposes.ShouldBe([GrantPurpose.ChangeEmail]);
         assertion.Binding.ShouldBe(binding);
+    }
+
+    [Fact]
+    public void Equality_ShouldHoldBetweenTwoAssertionsBuiltAlike_WhenTheyHoldTheirOwnPurposeLists()
+    {
+        // Handlers and their tests compare assertions they built separately; the purpose list takes part by value.
+        var userId = Guid.NewGuid();
+
+        GrantAssertion.Of(new GrantSubject.Reauthentication(userId))
+            .ShouldBe(GrantAssertion.Of(new GrantSubject.Reauthentication(userId)));
+        GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal)
+            .ShouldBe(GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal));
+        GrantAssertion.Bearer(GrantPurpose.LoginComplete)
+            .ShouldNotBe(GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal));
     }
 
     [Fact]
@@ -58,5 +90,19 @@ public class GrantAssertionTests
         ((int)GrantPurpose.LoginComplete).ShouldBe(1);
         ((int)GrantPurpose.Reauthentication).ShouldBe(2);
         ((int)GrantPurpose.ChangeEmail).ShouldBe(3);
+        ((int)GrantPurpose.LoginCompleteExternal).ShouldBe(4);
+    }
+
+    [Fact]
+    public void LoginCompleteExternal_ShouldCompareByItsAddressProviderAndSubject_WhenTwoAreBuilt()
+    {
+        // Redeem compares a caller-asserted binding by record equality, so the subject's value must take part.
+        var subject = ExternalSubject.TryCreate("110248495921238986420")!.Value;
+
+        new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject)
+            .ShouldBe(new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject));
+        new GrantSubject.LoginCompleteExternal("a@example.se", ExternalProviderKey.Google, subject)
+            .ShouldNotBe(new GrantSubject.LoginCompleteExternal(
+                "a@example.se", ExternalProviderKey.Google, ExternalSubject.TryCreate("2")!.Value));
     }
 }

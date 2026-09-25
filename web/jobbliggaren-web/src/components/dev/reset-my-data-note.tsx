@@ -60,7 +60,6 @@ export function ResetMyDataNote() {
 
   return (
     <div className="mt-8 rounded-md border border-dashed border-border bg-muted/40 p-4 text-body-sm leading-5 text-text-secondary">
-      <p className="mb-2">{t("dev.note")}</p>
       <Dialog
         open={open}
         onOpenChange={(next) => {

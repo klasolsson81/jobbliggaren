@@ -230,7 +230,7 @@
       "description": "Terms of use for Jobbliggaren, a free service for finding jobs and keeping track of your applications. Built on Arbetsförmedlingen's open data."
     },
     "title": "Terms of use",
-    "updated": "Last updated: 2026-06-28",
+    "updated": "Last updated: 2026-09-25",
     "intro": "These terms of use apply to your use of Jobbliggaren. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open job data from Arbetsförmedlingen JobTech (Platsbanken). By creating an account and using the service, you accept the terms below. How we process your personal data is described in the privacy policy, and which cookies we use is described in the cookie policy.",
     "sections": [
       {
@@ -250,7 +250,7 @@
       {
         "heading": "Who can use the service",
         "paragraphs": [
-          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for keeping your login details protected. If you suspect that someone unauthorised has gained access to your account, you should change your password and contact us.",
+          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for protecting access to your email, since login codes and login links are sent there. If you suspect that someone unauthorised has gained access to your account or to your email, you should contact us.",
           "The service is aimed at you who are looking for work and is not intended for children. If you are under 18, you should have a guardian's consent before using the service."
         ]
       },

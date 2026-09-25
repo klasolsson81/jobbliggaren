@@ -110,6 +110,42 @@ describe.each(RETIRED)("the retired route $path", ({ path, destination, withSubp
   });
 });
 
+/**
+ * A deleted token route answers 404 and is NOT redirected (ADR 0142 part 5a). Its mails carried the
+ * account's id (`uid`) and a token in the query, and a Next redirect keeps the query string, so a
+ * 308 would republish both onto the destination's URL, into history and a same-origin Referer, for no
+ * function. `/glomt-losenord` carried no query and follows the same rule so there is one rule.
+ */
+const DELETED = ["/glomt-losenord", "/aterstall-losenord", "/bekrafta-konto"];
+
+describe.each(DELETED)("the deleted password route %s", (path) => {
+  it("has no redirect, so it answers 404", async () => {
+    const redirects = await nextConfig.redirects!();
+
+    const matching = redirects.filter(
+      (redirect) => redirect.source === path || redirect.source.startsWith(`${path}/`),
+    );
+
+    expect(matching).toEqual([]);
+  });
+
+  it("has no route directory", () => {
+    expect(directoryNames(APP)).not.toContain(path.slice(1));
+  });
+
+  it("has no producer left in src/, in code or in a comment", () => {
+    const files = sourceFiles(SRC);
+    expect(files.length).toBeGreaterThan(100);
+
+    const pattern = producerPattern(path);
+    const offenders = files
+      .filter((file) => pattern.test(readFileSync(file, "utf8")))
+      .map((file) => relative(SRC, file).split(sep).join("/"));
+
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("the redirects", () => {
   it("never land on another redirect: a shim is not answered by a shim", async () => {
     const redirects = await nextConfig.redirects!();

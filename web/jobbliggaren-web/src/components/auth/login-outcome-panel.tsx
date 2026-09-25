@@ -16,8 +16,7 @@ import { formatDate } from "@/lib/i18n/format";
 //
 // Never the error channel: nothing here is the user's fault and nothing can be corrected.
 // `role="status"` announces a CHANGE to a region that already exists, and this one mounts already
-// filled, which NVDA and JAWS routinely miss. The focus move is what delivers it
-// (`RegisterForm.tsx` has the long form of this).
+// filled, which NVDA and JAWS routinely miss. The focus move is what delivers it.
 
 export function LoginOutcomePanel({ result }: { result: LoginFlowOutcome }) {
   const t = useTranslations("pages");

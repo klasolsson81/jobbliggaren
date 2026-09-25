@@ -12,8 +12,7 @@ const test = loggedInTest(RUN_ID);
 // ADR 0043), submit skriver ?q= och rensningen tar tillbaka oss till /jobb.
 //
 // "Sök" kräver { exact: true } — "Rensa sökfältet" substring-matchar annars
-// samma namn (strict-mode-violation), samma fälla som PasswordInputs
-// "Visa lösenord" i auth-specarna.
+// samma namn (strict-mode-violation).
 const SEARCH_FIELD_LABEL = "Sök efter yrke, arbetsgivare eller ort";
 
 // The base `test`: a page of its own, outside the logged-in context the rest of the file shares.

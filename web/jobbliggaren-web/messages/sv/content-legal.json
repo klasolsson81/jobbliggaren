@@ -230,7 +230,7 @@
       "description": "Användarvillkor för Jobbliggaren, en kostnadsfri tjänst för att söka jobb och hålla ordning på dina ansökningar. Byggd på Arbetsförmedlingens öppna data."
     },
     "title": "Användarvillkor",
-    "updated": "Senast uppdaterad: 2026-06-28",
+    "updated": "Senast uppdaterad: 2026-09-25",
     "intro": "De här användarvillkoren gäller för din användning av Jobbliggaren. Jobbliggaren är en kostnadsfri tjänst som hjälper dig att söka och hålla ordning på dina jobbansökningar, byggd på öppna jobbdata från Arbetsförmedlingens JobTech (Platsbanken). Genom att skapa ett konto och använda tjänsten godkänner du villkoren nedan. Hur vi behandlar dina personuppgifter beskrivs i integritetspolicyn, och vilka kakor vi använder beskrivs i cookiepolicyn.",
     "sections": [
       {
@@ -250,7 +250,7 @@
       {
         "heading": "Vem som kan använda tjänsten",
         "paragraphs": [
-          "För att skapa ett konto behöver du en giltig e-postadress. Du ansvarar för att de uppgifter du lämnar är riktiga och för att hålla dina inloggningsuppgifter skyddade. Om du misstänker att någon obehörig har fått tillgång till ditt konto bör du byta lösenord och kontakta oss.",
+          "För att skapa ett konto behöver du en giltig e-postadress. Du ansvarar för att de uppgifter du lämnar är riktiga och för att skydda åtkomsten till din e-post, eftersom inloggningskoder och inloggningslänkar skickas dit. Om du misstänker att någon obehörig har fått tillgång till ditt konto eller till din e-post bör du kontakta oss.",
           "Tjänsten riktar sig till dig som söker arbete och är inte avsedd för barn. Om du är under 18 år bör du ha en vårdnadshavares medgivande innan du använder tjänsten."
         ]
       },

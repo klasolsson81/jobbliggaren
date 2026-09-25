@@ -107,6 +107,23 @@ describe("ConsentForm", () => {
     expect([...posted.keys()]).toEqual(["acceptTerms"]);
   });
 
+  it("describes the checkbox by the new-tab hint, and keeps the hint first when the refusal is added", async () => {
+    completeRegistrationMock.mockResolvedValue({
+      error: "Du behöver godkänna användarvillkoren för att skapa kontot.",
+      channel: "field",
+    });
+    const user = userEvent.setup();
+    render(<ConsentForm />);
+    const box = screen.getByRole("checkbox", { name: TERMS });
+    const [hintId] = (box.getAttribute("aria-describedby") ?? "").split(" ");
+    expect(document.getElementById(hintId!)).toHaveTextContent("Länkarna öppnas i en ny flik.");
+
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(box.getAttribute("aria-describedby")!.split(" ")).toEqual([hintId, alert.id]);
+  });
+
   it("lets the ACTION refuse an unticked box, as an alert on the checkbox with focus moved to it", async () => {
     completeRegistrationMock.mockResolvedValue({
       error: "Du behöver godkänna användarvillkoren för att skapa kontot.",

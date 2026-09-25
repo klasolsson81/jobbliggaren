@@ -43,7 +43,6 @@ export function ConsentForm() {
         {/* Never re-ticked after a refusal: the only refusal is of an UNTICKED box. */}
         <AcceptTermsCheckbox
           ref={checkboxRef}
-          copy="consent"
           aria-invalid={fieldInvalid ? true : undefined}
           aria-describedby={fieldInvalid ? errorId : undefined}
         />

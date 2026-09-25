@@ -16,7 +16,7 @@ export const REFRESH_AFTER_COOKIE_NAME = "__Host-jobbliggaren_refresh_after";
 // carries the address as typed, so it is the one cookie here that holds a personal datum.
 export const LOGIN_FLOW_COOKIE_NAME = "__Host-jobbliggaren_login";
 
-// Persistent ("Håll mig inloggad" ticked) cookie Max-Age = the 180d absolute cap. The
+// Persistent-session cookie Max-Age = the 180d absolute cap. The
 // server is the SSOT for expiry (30d sliding + 180d cap from CreatedAt); this is just the
 // finite ceiling so the cookie survives browser restarts (never an infinite cookie).
 // MIRROR of the backend `SessionStoreOptions.Persistent.AbsoluteTtl` (180d) — if the

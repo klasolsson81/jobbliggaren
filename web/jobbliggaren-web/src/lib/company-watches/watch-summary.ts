@@ -27,6 +27,11 @@ export interface WatchSummary {
   readonly activeAdsHref: string | null;
   /** The same list, scope "matching" — or `null`. */
   readonly matchingAdsHref: string | null;
+  /**
+   * True when a link would otherwise have rendered but at least one watch cannot be linked, so
+   * the surface owes the reader one sentence saying why the numbers carry no link.
+   */
+  readonly explainMissingLinks: boolean;
 }
 
 /**
@@ -79,6 +84,12 @@ export function summariseWatches(
       ? buildCompanyJobsHref(linkableOrgNrs, "matching")
       : null;
 
+  // Owed only where a link would otherwise have rendered: an account whose watches have no ads at
+  // all is not missing anything, so it stays quiet.
+  const notLinkableCount = items.length - linkableOrgNrs.length;
+  const explainMissingLinks =
+    surfaceCanLink && notLinkableCount > 0 && (activeAds > 0 || (matchingAds ?? 0) > 0);
+
   return {
     count: items.length,
     activeAds,
@@ -86,5 +97,6 @@ export function summariseWatches(
     filteredWatches,
     activeAdsHref,
     matchingAdsHref,
+    explainMissingLinks,
   };
 }

@@ -154,7 +154,9 @@ describe("MatchSetupRailModal — steg-navigering", () => {
     expect(
       screen.getByRole("heading", { name: "Granska och spara" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "Kontrollera dina val. Du kan ändra varje del härifrån.",
+    );
     expect(
       screen.getByRole("button", { name: "Spara matchning" }),
     ).toBeInTheDocument();

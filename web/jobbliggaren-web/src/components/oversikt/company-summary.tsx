@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { InfoDialog } from "@/components/common/info-dialog";
 import { summariseWatches } from "@/lib/company-watches/watch-summary";
-import { Filter } from "lucide-react";
+import { EyeOff, Filter } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ApiResult } from "@/lib/dto/_helpers";
 import type { ListCompanyWatchesResult } from "@/lib/dto/company-follows";
@@ -182,6 +182,13 @@ export function CompanySummary({
               ariaLabel={tRule("onlyMatchedHelpAria")}
             />
           )}
+        </p>
+      )}
+
+      {summary.explainMissingLinks && (
+        <p className="jp-transparency-note">
+          <EyeOff size={16} aria-hidden="true" />
+          <span>{t("notLinkable")}</span>
         </p>
       )}
 

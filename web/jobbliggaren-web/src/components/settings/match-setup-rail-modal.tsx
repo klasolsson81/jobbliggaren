@@ -479,7 +479,7 @@ export function MatchSetupRailModal({
     }
   }
 
-  function currentIntro(): string | null {
+  function currentIntro(): string {
     // Yrken/Kompetenser: utan uppladdat CV finns inga CV-förslag → copy som inte
     // lovar dem (design-review Major).
     const hasCv = hasUploadedCv;
@@ -495,7 +495,7 @@ export function MatchSetupRailModal({
       case STEP_FORMER:
         return t("former.intro");
       default:
-        return null;
+        return t("granska.intro");
     }
   }
 
@@ -546,14 +546,9 @@ export function MatchSetupRailModal({
     }
   }
 
-  const intro = currentIntro();
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="jp-stdmodal jp-wizard--rail"
-        {...(intro === null ? { "aria-describedby": undefined } : {})}
-      >
+      <DialogContent className="jp-stdmodal jp-wizard--rail">
         {/* Mobil topp-rad (dold på desktop): sigill + titel. Kryss = radix Close. */}
         <div className="jp-wizard__mobilebar">
           <BrandMarkSvg
@@ -700,11 +695,9 @@ export function MatchSetupRailModal({
                 >
                   {currentTitle()}
                 </DialogTitle>
-                {intro !== null && (
-                  <DialogDescription className="jp-wizard__intro">
-                    {intro}
-                  </DialogDescription>
-                )}
+                <DialogDescription className="jp-wizard__intro">
+                  {currentIntro()}
+                </DialogDescription>
               </div>
 
               <div className="jp-wizard__body">

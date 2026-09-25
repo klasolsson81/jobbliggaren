@@ -265,10 +265,71 @@ describe("CompanySummary", () => {
     expect(anchorText()).toBe("1 bevakat företag · 100 aktiva annonser");
   });
 
-  it("ett org.nr som inte är tio siffror ger ingen länk", () => {
+  it("gästytan förklarar INTE en frånvaro den själv orsakade", () => {
+    // The explanation blames the DATA ("Antalen ovan saknar länk"). On a surface
+    // that links nothing by design, that sentence would be false about the cause.
+    render(
+      <CompanySummary heading={null}
+        watches={ok([
+          watch({ organizationNumber: null, isProtectedIdentity: true, activeAdCount: 40 }),
+        ])}
+        linkHref={null}
+      />,
+    );
+
+    expect(screen.queryByText(/saknar länk/)).toBeNull();
+  });
+
+  it("den maskade bevakningen FÖRKLARAS — ett tal utan väg får inte stå oförklarat", () => {
+    // design-reviewer Major 4: the watch row explains this same absence per row; the summary
+    // said nothing at all, so the number just stood there with no route and no reason.
+    render(
+      <CompanySummary heading={COPY.heading}
+        watches={ok([
+          watch({ organizationNumber: "5566524301", activeAdCount: 100 }),
+          watch({
+            id: "33333333-3333-3333-3333-333333333333",
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 36,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("noll annonser: ingen länk skulle ändå ha renderats, så förklaringen tiger", () => {
+    // Parity with the row: an account whose watches have no ads at all is not missing a route.
+    // Without this the note would fire on every masked watch, including ones with nothing to link.
+    render(
+      <CompanySummary heading={COPY.heading}
+        watches={ok([
+          watch({
+            organizationNumber: null,
+            isProtectedIdentity: true,
+            activeAdCount: 0,
+            matchingAdCount: 0,
+          }),
+        ])}
+      linkHref="/foretag/bevakade"
+      />,
+    );
+
+    expect(screen.queryByText(/saknar länk/)).toBeNull();
+  });
+
+  it("ett org.nr som inte är tio siffror ger varken länk ELLER tyst tal", () => {
     // code-reviewer Major 4: the summary gated on "is the field non-null" while the href builder
-    // gated on "is it ten digits". They disagreed, so `everyWatchLinkable` went true and the builder
-    // returned null. Both callers read `isLinkableOrgNr` now.
+    // gated on "is it ten digits". They disagreed, so `everyWatchLinkable` went true, the builder
+    // returned null, and the count rendered with no link AND no note -- exactly the state the row
+    // closed by construction. Both callers read `isLinkableOrgNr` now.
     //
     // ⚠ Premise: this shape is contract-impossible today. `OrganizationNumber.Create` enforces
     // ten digits and the one other on-wire form is an HMAC token the handler masks to null. The
@@ -283,6 +344,11 @@ describe("CompanySummary", () => {
     );
 
     expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
+    expect(
+      screen.getByText(
+        "Antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("en varumärkesgruppsrad (org.nr null, flaggan FALSK) släcker också länkarna", () => {
@@ -306,6 +372,15 @@ describe("CompanySummary", () => {
 
     expect(screen.queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
     expect(anchorText()).toBe("1 bevakat företag · 40 aktiva annonser");
+    // The row is COUNTED as not linkable, not merely dropped from the link. Without this the
+    // gate could admit the row and let the href builder return null instead, which renders the
+    // same missing link with no explanation beside it — the state design-reviewer Major 4 and
+    // code-reviewer Major 4 both name.
+    expect(
+      screen.getByText(
+        "Antalen ovan saknar länk.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("EN maskad bevakning räcker för att ingen summa ska länka", () => {

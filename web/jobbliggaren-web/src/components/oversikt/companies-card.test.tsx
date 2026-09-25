@@ -93,6 +93,7 @@ describe("CompaniesCard", () => {
     expect(text(card().querySelector(".jp-ov-num__value"))).toBe("10");
     expect(within(card()).queryByRole("link", { name: /aktiva annonser/ })).toBeNull();
     expect(within(card()).queryByRole("link", { name: COPY.cards.companiesCtaAria })).toBeNull();
+    expect(within(card()).getByText(COPY.companySummary.notLinkable)).toBeInTheDocument();
   });
 
   it("a per-watch filter is disclosed beneath the numbers", () => {

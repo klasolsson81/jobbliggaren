@@ -8,14 +8,17 @@ using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -215,14 +218,28 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
         // configuration registers no provider, the list is empty, and a start is not found, so no flow is minted.
         var ct = TestContext.Current.CancellationToken;
         using var host = _factory.WithWebHostBuilder(b => b
-            .UseSetting("Auth:OAuth:Google:ClientId", "configured-client-id")
-            .UseSetting("Auth:OAuth:Google:ClientSecret", "configured-client-secret"));
+            .ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Auth:OAuth:Google:ClientId"] = "configured-client-id",
+                ["Auth:OAuth:Google:ClientSecret"] = "configured-client-secret",
+            }))
+            // Counts what reaches the real store; replaces no provider registration.
+            .ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IOAuthStateStore>();
+                services.AddSingleton<IOAuthStateStore>(sp => new FaultableOAuthStateStore(
+                    ActivatorUtilities.CreateInstance<RedisOAuthStateStore>(sp), new LoginChallengeFaults()));
+            }));
         using var client = host.CreateClient();
+
+        // The control: the client reached the configuration, so the absences below are not a missing key's.
+        host.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
 
         host.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
         (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", ct)).ShouldBe([]);
         (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        ((FaultableOAuthStateStore)host.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
     }
 
     [Fact]

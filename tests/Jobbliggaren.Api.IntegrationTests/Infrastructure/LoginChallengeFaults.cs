@@ -97,9 +97,15 @@ internal sealed class FaultableGrantStore(IGrantStore inner, LoginChallengeFault
 
 internal sealed class FaultableOAuthStateStore(IOAuthStateStore inner, LoginChallengeFaults faults) : IOAuthStateStore
 {
+    private int _writes;
+
+    /// <summary>#1744 — how many flows this host handed to the real store, so a refused start can be pinned as unwritten.</summary>
+    internal int Writes => Volatile.Read(ref _writes);
+
     public Task<OAuthState> PutAsync(OAuthFlow flow, CancellationToken ct)
     {
         faults.ThrowIfUnavailable();
+        Interlocked.Increment(ref _writes);
         return inner.PutAsync(flow, ct);
     }
 

@@ -420,10 +420,18 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedV
     [Fact]
     public void Purposes_one_to_three_serialise_exactly_as_before_the_external_members()
     {
-        // The two external members are omitted when null (ADR 0142 D1: no live record changes shape).
-        Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(
-                new RedisGrantStore.GrantPayload(1, "a@b.se", UserId: null)))
+        // The two external members are omitted when null (ADR 0142 D1: no live record changes shape). One row per
+        // purpose, in the shape each one's subject serialises to.
+        var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        static string Serialised(RedisGrantStore.GrantPayload payload) =>
+            Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(payload));
+
+        Serialised(new RedisGrantStore.GrantPayload(1, "a@b.se", UserId: null))
             .ShouldBe("""{"p":1,"e":"a@b.se","u":null}""");
+        Serialised(new RedisGrantStore.GrantPayload(2, Email: null, userId))
+            .ShouldBe("""{"p":2,"e":null,"u":"11111111-2222-3333-4444-555555555555"}""");
+        Serialised(new RedisGrantStore.GrantPayload(3, "a@b.se", userId))
+            .ShouldBe("""{"p":3,"e":"a@b.se","u":"11111111-2222-3333-4444-555555555555"}""");
     }
 
     /// <summary>

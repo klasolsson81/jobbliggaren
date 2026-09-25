@@ -12,9 +12,11 @@ using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using StackExchange.Redis;
@@ -124,6 +126,44 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<string[]>(Ct)).ShouldBe(["google"]);
         response.Headers.CacheControl!.ToString().ShouldBe("public, max-age=300");
+    }
+
+    [Fact]
+    public async Task No_provider_is_live_in_the_Development_composition_even_with_a_full_google_client()
+    {
+        // security-auditor S4, condition 1, the Development half: Program.cs reads appsettings.Local.json in every
+        // environment, and a developer's carries a Google client. This host keeps the composition's own provider
+        // list, so the ScriptedGoogle registration above is the only thing it drops.
+        await using var host = factory.WithWebHostBuilder(b => b
+            .UseSetting(ApiFactory.CompositionProvidersOnlySetting, "true")
+            .ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Auth:OAuth:Google:ClientId"] = "configured-client-id",
+                ["Auth:OAuth:Google:ClientSecret"] = "configured-client-secret",
+            })));
+        using var client = host.CreateClient();
+
+        // The control: the client reached the configuration, so the absences below are not a missing key's.
+        host.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
+
+        host.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        (await client.GetFromJsonAsync<string[]>("/api/v1/auth/oauth/providers", Ct)).ShouldBe([]);
+        (await client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        ((FaultableOAuthStateStore)host.Services.GetRequiredService<IOAuthStateStore>()).Writes.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_start_hands_its_flow_to_the_state_store()
+    {
+        // The counter the inert rows read, observed non-zero on this host, so their zero is a count and not a
+        // counter that never moves.
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        var before = store.Writes;
+
+        await StartAsync();
+
+        store.Writes.ShouldBe(before + 1);
     }
 
     [Theory]

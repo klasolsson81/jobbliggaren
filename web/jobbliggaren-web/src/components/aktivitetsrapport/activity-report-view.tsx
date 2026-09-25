@@ -227,7 +227,7 @@ export function ActivityReportView({
       {count === 0 ? (
         <div className="jp-card">
           <p className="text-text-primary">
-            {t("empty.text", { month: monthLabel })}
+            {t("empty.text")}
           </p>
         </div>
       ) : (

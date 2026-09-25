@@ -1,16 +1,14 @@
 {
   "title": "Statistik",
-  "lede": "Översikt över hur dina ansökningar går: svar, intervjuer, avslag och utveckling över tid.",
   "back": "Tillbaka till ansökningar",
   "summary": "Du har {total, number} ansökningar totalt, varav {sent, number} skickade.",
   "error": {
     "title": "Kunde inte ladda statistik",
-    "body": "Något gick fel när statistiken skulle hämtas. Ladda om sidan och försök igen.",
+    "body": "Ladda om sidan och försök igen.",
     "rateLimited": "Du har hämtat statistik många gånger på kort tid. Vänta en stund och försök igen."
   },
   "empty": {
     "title": "Ingen statistik ännu",
-    "body": "Så fort du registrerar din första ansökan börjar statistiken byggas upp här.",
     "createFirst": "Skapa första ansökan",
     "searchFirst": "Sök annonser först"
   },
@@ -24,7 +22,7 @@
     "interview": "Intervjufrekvens",
     "rejection": "Avslagsfrekvens",
     "ofSent": "{numerator} av {denominator}",
-    "empty": "Du har inga skickade ansökningar ännu. Utfall visas när du skickat minst en ansökan."
+    "empty": "Utfall visas när du skickat minst en ansökan."
   },
   "funnel": {
     "heading": "Från skickad till accepterad",
@@ -42,7 +40,6 @@
   },
   "statusBreakdown": {
     "heading": "Per status",
-    "intro": "Alla dina ansökningar fördelade på status, inklusive utkast.",
     "status": "Status",
     "count": "Antal"
   },

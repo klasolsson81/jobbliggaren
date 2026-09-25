@@ -14,7 +14,7 @@
   },
   "audit": {
     "heading": "Audit log",
-    "lede": "Audit log of all write operations. Most recent entry first.",
+    "lede": "All write operations, most recent first.",
     "errors": {
       "forbidden": {
         "title": "Missing permission",
@@ -30,7 +30,7 @@
       },
       "rateLimited": {
         "title": "Too many requests",
-        "body": "You have made too many requests in a short time. Try again in {seconds} seconds."
+        "body": "Try again in {seconds, plural, one {# second} other {# seconds}}."
       },
       "error": {
         "title": "Could not load the audit log",
@@ -42,9 +42,9 @@
       "from": "From",
       "to": "To",
       "eventType": "Event",
-      "eventTypeHint": "Format: Aggregate.Event, for example Application.Created",
+      "eventTypeHint": "For example Application.Created",
       "aggregateType": "Aggregate",
-      "aggregateTypeHint": "Aggregate name, for example Application",
+      "aggregateTypeHint": "For example Application",
       "userId": "User ID",
       "userIdHint": "Given as a UUID",
       "apply": "Apply filter",
@@ -77,7 +77,6 @@
       "title": "Background jobs"
     },
     "heading": "Background jobs",
-    "lede": "Status of scheduled and failed background jobs. Read-only view.",
     "errors": {
       "forbidden": {
         "title": "Missing permission",
@@ -89,7 +88,7 @@
       },
       "rateLimited": {
         "title": "Too many requests",
-        "body": "You have made too many requests in a short time. Try again in {seconds} seconds."
+        "body": "Try again in {seconds, plural, one {# second} other {# seconds}}."
       },
       "error": {
         "title": "Could not load the job status",
@@ -117,7 +116,7 @@
       },
       "empty": {
         "title": "No scheduled jobs",
-        "body": "No recurring background jobs are registered in Hangfire. Contact operations if you expected scheduled jobs here."
+        "body": "Contact operations if you expected scheduled jobs here."
       }
     },
     "failed": {
@@ -135,8 +134,7 @@
         "errorCategory": "Error category"
       },
       "empty": {
-        "title": "No failed jobs",
-        "body": "All background jobs have run without errors."
+        "title": "No failed jobs"
       }
     }
   }

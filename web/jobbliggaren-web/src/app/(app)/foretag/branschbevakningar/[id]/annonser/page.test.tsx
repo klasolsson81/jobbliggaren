@@ -198,11 +198,10 @@ describe("BevakningAdsPage — the per-card match mark", () => {
 
     expect(getJobAdMatchTags).not.toHaveBeenCalled();
 
-    // /jobb's own sentence — "hur väl annonser matchar din profil" — never the follow dialog's.
+    // /jobb's own sentence.
     expect(
-      screen.getByText(/för att se hur väl annonser matchar din profil/),
+      screen.getByText("Du har inte angett vilka yrken du söker inom."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Du har inte angett vilka yrken du söker inom.")).toBeNull();
     expect(screen.getByRole("link", { name: "Ställ in matchning" })).toHaveAttribute(
       "href",
       "/mina-sidor#matchning",

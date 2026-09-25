@@ -120,32 +120,6 @@ function causeReason(
 }
 
 /**
- * Must-have-sammanfattning (PR-B2, CTO G3.6) — en kort rad som kopplar graden
- * till om annonsens ska-krav uppfylls (graden är nu requirement-aware: Stark/
- * Topp kräver att ska-kraven är mötta). Returnerar `null` för `NotAssessed`
- * (inget CV) → då visas "ladda upp CV"-signposten i stället. `Vacuous` =
- * annonsen anger inga ska-krav (gate-öppen — därför kan den ändå nå Stark/Topp).
- * Ingen siffra (Goodhart-vakt) — ren konstaterande civic-copy.
- */
-function mustHaveSummary(
-  verdict: MatchVerdict,
-  t: MatchTranslator,
-): string | null {
-  switch (verdict) {
-    case "Match":
-      return t("mustHaveSummary.Match");
-    case "Partial":
-      return t("mustHaveSummary.Partial");
-    case "NoMatch":
-      return t("mustHaveSummary.NoMatch");
-    case "Vacuous":
-      return t("mustHaveSummary.Vacuous");
-    case "NotAssessed":
-      return null;
-  }
-}
-
-/**
  * Titel-sammanfattning (#5a / STEG 2-grannfeature, ADR 0079) — en kort civic rad
  * som konstaterar hur CV:ts roll förhåller sig till annonsens titel. Titel-
  * dimensionen scoras på stammade lexem (Snowball), vars råa stammar ("systemutveckl")
@@ -461,7 +435,7 @@ function MatchRow({
   // Per-krav-checklista bara för krav-dimensionerna (Ska-krav / Meriterande) OCH
   // bara när det finns krav att lista. Vacuous (annonsen anger inga) + NotAssessed
   // (inget CV) har tomma matched/missing → faller till den generiska/NotAssessed-
-  // grenen (ärligt: ingen tom eller vilseledande checklista; footern bär summan).
+  // grenen (ärligt: ingen tom eller vilseledande checklista).
   const isRequirementDim =
     dimensionKey === "mustHaveCoverage" ||
     dimensionKey === "niceToHaveCoverage";
@@ -659,22 +633,13 @@ export function JobAdMatchSection({
 
       {/* Foot (PR-B2): kopplar graden till ska-kraven. Utan CV kan man inte nå
           Stark/Topp (kräver kompetens-/krav-bedömning) → en lugn signpost driver
-          CV-uppladdning; annars en kort must-have-sammanfattning. Text-only,
-          ingen siffra (Goodhart-vakt). */}
-      {match.mustHaveCoverage.verdict === "NotAssessed" ? (
-        <p
-          className="jp-modal__matchfoot"
-        >
+          CV-uppladdning. Text-only, ingen siffra (Goodhart-vakt). */}
+      {match.mustHaveCoverage.verdict === "NotAssessed" && (
+        <p className="jp-modal__matchfoot">
           {t("uploadCvFoot")}{" "}
           <Link href={CV_IMPORT_HREF} className="jp-nudgelink">
             {t("uploadCvCta")}
           </Link>
-        </p>
-      ) : (
-        <p
-          className="jp-modal__matchfoot"
-        >
-          {mustHaveSummary(match.mustHaveCoverage.verdict, t)}
         </p>
       )}
     </section>

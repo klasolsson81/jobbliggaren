@@ -93,8 +93,7 @@ export default async function BevakningAdsPage({ params, searchParams }: Props) 
   if (!user) redirect("/logga-in");
 
   const t = await getTranslations("pages.foretag.criteria");
-  // The nudge copy is /jobb's own ("…hur väl annonser matchar din profil"), never the follow
-  // dialog's.
+  // The nudge copy is /jobb's own, never the follow dialog's.
   const tMatch = await getTranslations("jobads.ui.match");
   const format = await getFormatter();
 

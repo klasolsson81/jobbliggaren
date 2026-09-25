@@ -153,40 +153,27 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(section?.textContent ?? "").not.toMatch(/\d+\s*%/);
   });
 
-  it("must-have-sammanfattning (PR-B2): Match → 'Du uppfyller alla ska-krav'", () => {
-    render(
-      <JobAdMatchSection
-        match={detail({ mustHaveCoverage: row("Match", ["B-körkort"]) })}
-      />
+  it.each<[MatchVerdict, MatchDimensionDetail]>([
+    ["Match", row("Match", ["B-körkort"])],
+    ["Partial", row("Partial", ["B-körkort"], ["Java"])],
+    ["NoMatch", row("NoMatch", [], ["Java"])],
+    ["Vacuous", row("Vacuous")],
+  ])("med CV (ska-krav %s) → Ska-krav-raden bär verdiktet, ingen foot", (verdict, mustHave) => {
+    const { container } = render(
+      <JobAdMatchSection match={detail({ mustHaveCoverage: mustHave })} />
     );
+    const mustHaveRow = screen
+      .getByText("Ska-krav")
+      .closest(".jp-modal__matchrow");
     expect(
-      screen.getByText("Du uppfyller alla ska-krav i annonsen.")
-    ).toBeInTheDocument();
+      mustHaveRow?.querySelector(".jp-modal__matchrow-verdict")
+    ).toHaveAttribute("data-verdict", verdict);
+    expect(container.querySelector(".jp-modal__matchfoot")).toBeNull();
   });
 
-  it("must-have-sammanfattning (PR-B2): NoMatch → 'Du uppfyller inte annonsens ska-krav'", () => {
-    render(
-      <JobAdMatchSection
-        match={detail({ mustHaveCoverage: row("NoMatch", [], ["Java"]) })}
-      />
-    );
-    expect(
-      screen.getByText("Du uppfyller inte annonsens ska-krav.")
-    ).toBeInTheDocument();
-  });
-
-  it("must-have-sammanfattning (PR-B2): Vacuous → 'Annonsen anger inga särskilda ska-krav'", () => {
-    render(
-      <JobAdMatchSection match={detail({ mustHaveCoverage: row("Vacuous") })} />
-    );
-    expect(
-      screen.getByText("Annonsen anger inga särskilda ska-krav.")
-    ).toBeInTheDocument();
-  });
-
-  it("utan CV (must-have NotAssessed) → 'ladda upp CV'-signpost → /cv/importera, ingen summering", () => {
+  it("utan CV (must-have NotAssessed) → 'ladda upp CV'-signpost → /cv/importera, en enda foot", () => {
     // PR-B2: utan CV kan man inte nå Stark/Topp → signposten driver CV-upload.
-    render(
+    const { container } = render(
       <JobAdMatchSection
         match={detail({
           grade: "Good",
@@ -197,14 +184,11 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       />
     );
     expect(
-      screen.getByText(/Det krävs för Stark match och Toppmatch/)
+      screen.getByText(/Ett CV krävs för Stark match och Toppmatch/)
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Ladda upp CV" });
     expect(link).toHaveAttribute("href", "/cv/importera");
-    // Must-have-summeringen visas INTE när CV saknas (signposten ersätter den).
-    expect(
-      screen.queryByText(/Du uppfyller/)
-    ).not.toBeInTheDocument();
+    expect(container.querySelectorAll(".jp-modal__matchfoot")).toHaveLength(1);
   });
 
   it("signpost-state: grade=null + yrket obesvarat AV ANVÄNDAREN → Översikt-nudge-copy + kanonisk länk", () => {
@@ -329,8 +313,8 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
     ).toBeNull();
   });
 
-  it("Vacuous (annonsen anger inga krav) → ingen checklista, bara verdict + footer", () => {
-    render(
+  it("Vacuous (annonsen anger inga krav) → ingen checklista, bara verdict", () => {
+    const { container } = render(
       <JobAdMatchSection
         match={detail({
           mustHaveCoverage: row("Vacuous"),
@@ -341,10 +325,13 @@ describe("JobAdMatchSection — per-ska-krav-checklista (#5b / STEG 2)", () => {
     // En tom checklista vore vilseledande → ingen status renderas.
     expect(screen.queryByText("Uppfyllt")).not.toBeInTheDocument();
     expect(screen.queryByText("Ej uppfyllt")).not.toBeInTheDocument();
-    // Footern bär den ärliga summan i stället.
+    const mustHaveRow = screen
+      .getByText("Ska-krav")
+      .closest(".jp-modal__matchrow");
     expect(
-      screen.getByText("Annonsen anger inga särskilda ska-krav.")
-    ).toBeInTheDocument();
+      mustHaveRow?.querySelector(".jp-modal__matchrow-verdict")
+    ).toHaveTextContent("Inga angivna");
+    expect(container.querySelector(".jp-modal__matchfoot")).toBeNull();
   });
 
   it("Meriterande (nice-to-have) renderas också som per-krav-checklista", () => {
@@ -862,9 +849,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText(
-          "Annonsen erbjuder distansarbete och matchar därför oavsett ort."
-        )
+        screen.getByText("Annonsen erbjuder distansarbete.")
       ).toBeInTheDocument();
       // Och verdiktet står kvar — orsaken förklarar raden, den ändrar den inte.
       expect(
@@ -913,9 +898,8 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       expect(screen.getByText("Annonsen anger inget yrke.")).toBeInTheDocument();
       expect(screen.getByText("Kompetenser")).toBeInTheDocument();
       // Skylten (och dess CTA till en inställning användaren redan fyllt i) är borta.
-      // Andra meningen är unik för skylten — radens egen fras delar bara den första.
       expect(
-        screen.queryByText(/Ställ in det för att se hur väl/)
+        screen.queryByText("Du har inte angett vilka yrken du söker inom.")
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Ställ in matchning" })
@@ -934,7 +918,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText(/Ställ in det för att se hur väl/)
+        screen.getByText("Du har inte angett vilka yrken du söker inom.")
       ).toBeInTheDocument();
       expect(screen.queryByText("Kompetenser")).not.toBeInTheDocument();
     });

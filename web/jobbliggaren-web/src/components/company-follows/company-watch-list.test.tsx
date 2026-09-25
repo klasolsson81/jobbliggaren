@@ -330,8 +330,7 @@ describe("CompanyWatchList — vilande filter-disclosure (BC-9′)", () => {
   });
 
   it("DISTANS räknas som en egen ort — ett distans-only-filter är aldrig \"0 orter\"", () => {
-    // #551 PR-C. Distans är den tredje granulariteten på ort-axeln, och husets egen copy säger
-    // det ordagrant: "Räknas som en egen ort" (ortDistansHint). Innan axeln nådde räknaren gav
+    // #551 PR-C. Distans är den tredje granulariteten på ort-axeln. Innan axeln nådde räknaren gav
     // ett distans-only-filter "Filtrerat: 0 orter" — ett filter som finns, beskrivet som noll
     // orter, i just den rad som annars är hela signalen om att raden ÄR filtrerad.
     renderList([

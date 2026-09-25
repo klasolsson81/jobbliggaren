@@ -1,7 +1,7 @@
 {
   "saved": {
     "emptyTitle": "Inga sparade annonser",
-    "emptyBody": "Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen. Den sparas här.",
+    "emptyBody": "Hitta en annons under Jobb och välj <i>Spara</i> i annonsdetaljen.",
     "listLabel": "Sparade annonser",
     "removed": "Annonsen är borttagen",
     "saved": "Sparad",
@@ -179,7 +179,7 @@
     "list": {
       "ariaLabel": "Jobbannonser",
       "emptyTitle": "Inga jobb hittades",
-      "emptyBody": "Justera filtren eller töm sökrutan för att se fler annonser."
+      "emptyBody": "Justera filtren eller töm sökrutan."
     },
     "skeleton": {
       "searching": "Söker bland annonser…"
@@ -190,7 +190,7 @@
       "adId": "Annons-ID",
       "description": "Annonsbeskrivning",
       "openAd": "Öppna annonsen",
-      "appliedNotice": "Du har markerat denna annons som ansökt. Se i",
+      "appliedNotice": "Se ansökan i",
       "appliedNoticeLink": "Mina ansökningar",
       "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag. Sammanställningen kan vara ofullständig.",
       "previousApplicationsLink": "Visa ansökningshistorik",
@@ -206,8 +206,8 @@
       "heading": "Matchning mot din profil",
       "settingsCta": "Ställ in matchning",
       "uploadCvCta": "Ladda upp CV",
-      "noStatedOccupation": "Du har inte angett vilka yrken du söker inom. Ställ in det för att se hur väl annonser matchar din profil.",
-      "uploadCvFoot": "Ladda upp ett CV för att matcha på kompetenser och krav. Det krävs för Stark match och Toppmatch.",
+      "noStatedOccupation": "Du har inte angett vilka yrken du söker inom.",
+      "uploadCvFoot": "Ett CV krävs för Stark match och Toppmatch.",
       "youHave": "Du har: {items}",
       "alsoRequested": "Annonsen efterfrågar även: {items}",
       "requested": "Annonsen efterfrågar: {items}",
@@ -249,7 +249,7 @@
       },
       "notAssessedReason": {
         "titleSimilarity": "Ingen roll i ditt CV att jämföra.",
-        "skills": "Inga kompetenser kunde läsas ur ditt CV. Ladda upp ett CV under Profil.",
+        "skills": "Inga kompetenser kunde läsas ur ditt CV.",
         "default": "Den här delen kunde inte bedömas."
       },
       "matchCause": {
@@ -263,7 +263,7 @@
           "ssykOverlap": "Annonsen anger inget yrke."
         },
         "RemoteOverride": {
-          "regionFit": "Annonsen erbjuder distansarbete och matchar därför oavsett ort."
+          "regionFit": "Annonsen erbjuder distansarbete."
         },
         "RegionContainsPreferredMunicipality": {
           "regionFit": "Annonsen anger bara län, inte kommun. Länet innehåller en kommun du valt."
@@ -272,12 +272,6 @@
       "unnamedEvidence": {
         "ssykOverlap": "{count, plural, one {Annonsen anger ett yrke som saknas i vårt register.} other {Annonsen anger # yrken som saknas i vårt register.}}",
         "regionFit": "{count, plural, one {Annonsen anger en ort som saknas i vårt register.} other {Annonsen anger # orter som saknas i vårt register.}}"
-      },
-      "mustHaveSummary": {
-        "Match": "Du uppfyller alla ska-krav i annonsen.",
-        "Partial": "Du uppfyller några av annonsens ska-krav.",
-        "NoMatch": "Du uppfyller inte annonsens ska-krav.",
-        "Vacuous": "Annonsen anger inga särskilda ska-krav."
       },
       "requirements": {
         "met": "Uppfyllt",
@@ -333,7 +327,7 @@
       "sortRelevance": "Relevans",
       "sortPublishedDesc": "Datum (nyast)",
       "sortExpiresAsc": "Ansökningsdatum (sista ansökan)",
-      "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Listan visas med nyaste först tills du ställt in det.",
+      "matchSortDisclosure": "Matchningssortering kräver att du anger vilka yrken du söker inom. Tills dess visas listan med nyaste först.",
       "matchSortDisclosureLink": "Ställ in matchning",
       "unknownCode": "Okänd kod ({code})",
       "employerChip": "Arbetsgivare {orgNr}",
@@ -342,7 +336,7 @@
     },
     "results": {
       "rateLimitedTitle": "För många förfrågningar",
-      "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder.",
+      "rateLimitedBody": "Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
       "errorTitle": "Kunde inte ladda jobbannonser",
       "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund."
     },
@@ -369,7 +363,7 @@
       "ortRightTitle": "Kommuner",
       "ortSelectAll": "Hela {label}",
       "ortDistans": "Distans",
-      "ortDistansHint": "Räknas som en egen ort. Distansjobb tas med oavsett vilka län eller kommuner du valt.",
+      "ortDistansHint": "Distansjobb tas med oavsett vilka län eller kommuner du valt.",
       "ortEmpty": "Län kunde inte laddas just nu. Du kan söka på sökord ändå.",
       "ortRightEmpty": "Välj ett län till vänster.",
       "yrkeLeftTitle": "Yrkesområde",
@@ -382,7 +376,7 @@
     "typeahead": {
       "loading": "Hämtar förslag…",
       "suggestionCount": "{count} förslag",
-      "rateLimited": "För många sökningar på kort tid. Förslagen pausas en stund. Du kan fortsätta skriva och söka ändå.",
+      "rateLimited": "För många sökningar på kort tid. Förslagen pausas en stund, men du kan söka ändå.",
       "listLabel": "Sökförslag",
       "employerAdCount": "{count, plural, one {# annons} other {# annonser}}"
     },

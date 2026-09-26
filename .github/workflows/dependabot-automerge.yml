@@ -283,7 +283,8 @@ jobs:
       # WHAT IS ACCEPTED: nothing — `pnpm.auditConfig` is absent. An entry added
       # later names its three reasons here (ADR 0065 Amendment 2026-07-28 Beslut 2).
       #
-      # TWO OVERRIDES CROSS A CONSUMER'S DECLARED MAJOR, named like `sharp` below.
+      # THE `@puppeteer/browsers` AND `uuid` KEYS CROSS A CONSUMER'S DECLARED MAJOR,
+      # named like `sharp` below.
       # `@puppeteer/browsers@<3.0.0` lifts puppeteer-core 24's exact pin (2.13.2) to
       # 3.x, the first line without `extract-zip`, which has no patched release;
       # `uuid@<11.1.1` lifts `@lhci/cli`'s `^8.3.1` to 11.x, whose CJS build still
@@ -291,12 +292,12 @@ jobs:
       # devDependency. The evidence is an `lhci collect` run on the overridden tree —
       # not a green build, which loads neither. pnpm warns of an unmet OPTIONAL peer
       # (`proxy-agent@>=8.0.1`, found 6.5.0); browsers 3 imports it only inside its
-      # HTTP helper and falls back to Node's agents. WHAT REMOVES BOTH: an `@lhci/cli`
-      # release on lighthouse 13 (puppeteer-core 25 declares browsers 3.x) and on
-      # uuid >= 11.1.1 — the selectors then stop matching, which no guard reports.
+      # HTTP helper. WHAT REMOVES BOTH: an `@lhci/cli` release on puppeteer-core 25
+      # (declares browsers 3.x) and on uuid >= 11.1.1 — the selectors then stop
+      # matching, which no guard reports.
       #
       # THE `sharp` RESIDUAL, NAMED RATHER THAN LEFT IMPLICIT. The override takes
-      # sharp 0.34.5 -> 0.35.3 and `pnpm build` is green. That is evidence the
+      # sharp 0.34 -> 0.35 and `pnpm build` is green. That is evidence the
       # override does not BREAK the build; it is NOT evidence that sharp still
       # SERVES, because the build never exercises it — `next/image` is imported by
       # no file in `src/`, and `next.config.ts` has no `images` key. No app-generated
@@ -306,8 +307,7 @@ jobs:
       # install scripts do not run — independent support for the same conclusion.
       # Do not cite the green build as a runtime guarantee.
       #
-      # READING THE LOG: pnpm's summary line counts accepted advisories too, so while
-      # any entry is accepted a passing run still prints a non-zero high count.
+      # READING THE LOG: pnpm's summary line counts accepted advisories too.
       # Judge the gate by its exit code, and risk by the Dependabot alert count —
       # never by that line.
       # `--prod` was measured and rejected AS THIS GATE'S MECHANISM, on convergence

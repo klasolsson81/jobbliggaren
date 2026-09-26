@@ -36,7 +36,7 @@ expect_lacks(){ case "$2" in *"$3"*) bad "$1" "$2" ;; *) ok "$1" ;; esac; }
 # shape production carries; `Y5` drives the case where it is missing.
 mk_lock() { { printf "lockfileVersion: '9.0'\n"; printf '%s\n' "$@"; } > "$TMP/lock.yaml"; }
 
-# A: the shipped shape — one accepted GHSA, dev-only reachable, live override.
+# A: one accepted GHSA, dev-only reachable, live override.
 cat > "$TMP/a.pkg.json" <<'J'
 { "dependencies": { "shadcn": "^4.12.0" },
   "devDependencies": { "eslint": "^9.0.0" },

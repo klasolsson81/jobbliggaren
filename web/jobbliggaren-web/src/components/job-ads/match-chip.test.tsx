@@ -75,24 +75,21 @@ describe("MatchChip (F4-13 graderad match-tagg)", () => {
     expect(chip?.textContent).not.toMatch(/\d/);
   });
 
-  // #379 (CTO bind) — explainability touch: ENBART Related-chip:en bär en
-  // supplementär hint (samma reason-copy som modalen visar) så "Relaterat yrke"
-  // blir begripligt på kortet utan att den synliga labeln ändras. De fyra gröna
-  // graderna är självförklarande och bär ingen title.
-  it("Related-chip:en bär en förklarande title (reason-copy), de gröna graderna gör det inte (#379)", () => {
-    const { container: related } = render(<MatchChip grade="Related" />);
-    const relatedChip = related.querySelector(".jp-matchchip");
-    expect(relatedChip).toHaveAttribute(
-      "title",
-      "Liknande yrke, inte ett du valt. Därför rankas annonsen under dina exakta träffar.",
-    );
-    // Den synliga labeln är oförändrad (title är supplementär, ej det tillgängliga namnet).
-    expect(relatedChip?.textContent).toBe("Relaterat yrke");
-
-    for (const grade of ["Top", "Strong", "Good", "Basic"] as const) {
+  // #1828 (senior-cto-advisor re-ruled #379): no chip carries a hover tooltip — a mouse-only
+  // title reached no keyboard, touch or screen-reader user. The relatedness is shown as
+  // evidence in the modal's Yrke row instead ("Liknande yrke: {grupp}").
+  it("ingen grad bär en title-tooltip; den synliga labeln är namnet (#1828)", () => {
+    for (const grade of ["Top", "Strong", "Good", "Basic", "Related"] as const) {
       const { container } = render(<MatchChip grade={grade} />);
       const chip = container.querySelector(".jp-matchchip");
       expect(chip).not.toHaveAttribute("title");
     }
+    const { container: related } = render(<MatchChip grade="Related" />);
+    expect(related.querySelector(".jp-matchchip")?.textContent).toBe("Relaterat yrke");
+  });
+
+  it("bär id:t den får, så kortet kan namnge chipet i sin beskrivning", () => {
+    const { container } = render(<MatchChip id="g-1" grade="Good" />);
+    expect(container.querySelector(".jp-matchchip")).toHaveAttribute("id", "g-1");
   });
 });

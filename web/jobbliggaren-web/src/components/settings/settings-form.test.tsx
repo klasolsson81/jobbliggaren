@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsForm } from "./settings-form";
 import type { JobSeekerProfileDto } from "@/lib/types/me";
+import type { ActionResult } from "@/lib/actions/_action-result";
 
 const { updateMyProfileActionMock } = vi.hoisted(() => ({
   updateMyProfileActionMock: vi.fn(),
@@ -285,34 +286,32 @@ describe("SettingsForm — the direct-apply outcome lands on the control that st
   });
 
   it("moves focus back to the language group when the save is refused", async () => {
-    // The segment is disabled while the save is pending, which drops focus to <body> in a real
-    // browser, and Segment's own restore effect is gated on the group already holding focus.
-    // Without this the message is announced but the control it names is unreachable.
-    //
-    // The blur is what makes this pin discriminate. jsdom does not blur on `disabled`, and
-    // `user.click` leaves focus inside the group, so without it Segment's OWN [value] restore
-    // effect re-focuses the checked button on the revert and the assertion holds with this
-    // card's effect deleted. Blurring reproduces the browser's disabled-blur, and Segment's
-    // restore is gated on the group already holding focus, so only this card's effect can
-    // bring it back. The real timing is measured in Chromium, in
-    // docs/reviews/2026-08-23-1391-rendered-measurement.md.
-    updateMyProfileActionMock.mockResolvedValue({
-      success: false,
-      error: "Kunde inte na servern.",
-    });
+    let resolveSave!: (result: ActionResult) => void;
+    updateMyProfileActionMock.mockReturnValue(new Promise<ActionResult>((resolve) => {
+      resolveSave = resolve;
+    }));
     const user = userEvent.setup();
     renderForm();
     const languageGroup = screen.getByRole("radiogroup", { name: "Språk" });
+    const english = screen.getByRole("radio", { name: "English" });
 
-    await user.click(screen.getByRole("radio", { name: "English" }));
-    (document.activeElement as HTMLElement | null)?.blur();
-    expect(languageGroup.contains(document.activeElement)).toBe(false);
+    await user.click(english);
+    expect(english).toBeDisabled();
+    // Chromium drops focus to BODY when the focused radio becomes disabled:
+    // docs/reviews/2026-08-23-1391-rendered-measurement.md. jsdom retains it and
+    // ignores blur() on a disabled element, so focus its viewport explicitly.
+    document.documentElement.focus();
+    expect(document.activeElement).toBe(document.body);
 
+    await act(async () => {
+      resolveSave({ success: false, error: "Kunde inte na servern." });
+    });
     await screen.findByRole("alert");
     await waitFor(() =>
       expect(languageGroup.contains(document.activeElement)).toBe(true),
     );
     expect(document.activeElement).toHaveAttribute("aria-checked", "true");
+    expect(document.activeElement).toBeEnabled();
   });
 
   it("renders the receipt for a saved language in the card that owns the segment", async () => {

@@ -168,8 +168,7 @@ export function ApplicationDetail({
         <div className="jp-modal__match jp-status-block" data-status-variant={variant}>
           {/* id="jp-modal-desc" OVILLKORLIGT här (status-blocket renderas
               alltid) → ApplicationModalShell aria-describedby dinglar
-              aldrig (F5 code-reviewer M1, F3 job-ad-detail.tsx-mönster:
-              beskrivnings-id alltid i DOM). */}
+              aldrig (F5 code-reviewer M1). */}
           <div className="jp-modal__match__expl" id="jp-modal-desc">
             <div className="jp-status-block__label">
               {tUi("detail.statusLabel")}

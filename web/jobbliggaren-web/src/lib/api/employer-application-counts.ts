@@ -9,8 +9,8 @@ import {
 const EMPTY_BATCH: EmployerApplicationCountBatch = { countsByJobAdId: {} };
 
 /**
- * #446 (#311) — batch-räknare för /jobb-listans "Du har X tidigare ansökningar
- * till detta företag"-badge. Speglar `getJobAdStatusBatch`/`getJobAdMatchTags`:
+ * #446 (#311) — batch-räknare för /jobb-kortets rad om tidigare ansökningar.
+ * Speglar `getJobAdStatusBatch`/`getJobAdMatchTags`:
  * anonym/utan-session/!ok/throw → tom batch (ingen 401-friktion, ingen badge —
  * civil degradering). Backend-validatorn cap:ar batchen vid 100 IDs.
  *

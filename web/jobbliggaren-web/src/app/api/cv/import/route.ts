@@ -5,6 +5,7 @@ import { getSessionId } from "@/lib/auth/session";
 import { parseResponse, parseRetryAfter } from "@/lib/dto/_helpers";
 import { importOutcomeResponseSchema } from "@/lib/dto/parsed-resume";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
+import { isSameOriginRequest } from "@/lib/security/same-origin";
 
 /**
  * BFF för CV-import (Fas 4 STEG B, F1). Binär-passthrough: klienten POST:ar en
@@ -37,6 +38,10 @@ const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 type StreamingRequestInit = RequestInit & { duplex: "half" };
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "error" }, { status: 403 });
+  }
+
   const t = await getTranslations("pages.cv.importApi");
   // SSOT-session via den delade getSessionId() (samma cookie-namn-källa som
   // resten av appen — security-auditor Minor: ingen lokal cookie-namn-drift).

@@ -103,6 +103,14 @@ Match-score visas som mono `"92% match"` + 3-nivå-förklaring.
 
 > **Amendment provenance:** Written 2026-07-27, recording a decision taken 2026-06-19. ADR 0076 (§"ADR 0053 Beslut 5 → Amended": "The amendment is recorded in ADR 0053 Amendment 2026-06-19.") and ADR 0074 (Amendment 2026-06-19, § Related status changes: "ADR 0053 Beslut 5 — Fas-4-gated deferral lifted by F4-16 (see ADR 0053 Amendment 2026-06-19 in that ADR's file).") both asserted this amendment existed. It did not — no `## Amendment 2026-06-19` section existed in this file before this edit. The substance above is transcribed from those two Accepted ADRs (ADR 0076 Decision 4, Alt B, the F4-16 STEG-table row, and its Consequences "ADR 0053 Beslut 5 (match presentation) is finally realised in F4-16 — the Fas-4-gated deferral is lifted"; ADR 0074 Amendment 2026-06-19) — no new decision is constructed here, and no new status is declared. Whether F4-16 has shipped is a state question this amendment does not adjudicate.
 
+## Amendment 2026-09-26 — #1828: the detail's status pill and ad id go; its dates take the card's meta form
+
+> **Amendment 2026-09-26 (#1828, epic #1822 part 6; design-reviewer's form round, senior-cto-advisor's ruling Q4):** The decisions and the earlier amendments stand; this one narrows only the Amendment 2026-05-19 field set. Under DESIGN.md §8 rule 1 (ADR 0144), the job-ad detail — the modal and `/jobb/[id]` alike — no longer renders two fields the Amendment 2026-05-19 field set lists. The status pill renders only for an archived ad ("Arkiverad"), since every ad `/jobb` lists is active. The "Annons-ID" row, our internal id and already the URL's, is gone. The published date and the application deadline render in the result card's own meta form (`.jp-job__meta`), the archived pill leading the line.
+
+> **No new field list.** The 2026-05-19 list has been outgrown three times without a word here (the follow toggle #455, the previous-applications line #593, the recruiter contacts #842), and a second list would be the next copy to decay. The detail's field set is the component's own (`web/jobbliggaren-web/src/components/job-ads/job-ad-detail.tsx`) under DESIGN.md §8, as the 2026-06-19 forward-note already says of the match section.
+
+> **Amendment provenance:** design-reviewer's #1828 form round, Major 4 (`docs/reviews/2026-09-25-1828-form-design.md`, local-only); senior-cto-advisor's route, Q4 (`docs/reviews/2026-09-25-1828-form-cto.md`, local-only). ADR 0053 remains **Accepted**: an additive layer, the original text and the three earlier amendments preserved unchanged.
+
 ## Konsekvenser
 
 ### Positiva

@@ -1091,8 +1091,8 @@ measured as a substring of its source.
 
 **The form (`senior-cto-advisor`, 2026-09-26): the first link needs a code.**
 - **The type carries it.** The adapter never makes a `VerifiedEmail`. It makes an `AssertedEmail`, which chooses where
-  a login code is sent and is compared with an address an account holds or a code proved; no account, link, grant or
-  inbox proof is made from it.
+  a login code is sent and is compared with an address an account holds or a code proved; no account, link or inbox
+  proof is made from it.
   - `ExternalIdentity` carries `ExternalAddress`, a closed choice of `Authoritative(VerifiedEmail)` and
     `Asserted(AssertedEmail)`.
   - `ExchangeAsync` returns the closed `ExternalExchange`: `Identified`, `AddressRefused` (400) or `Failed` (410).
@@ -1118,7 +1118,6 @@ measured as a substring of its source.
   stands, and a new address then earns purpose 1. EventId 1029 names which case it was:
   - the addresses do not match;
   - the identifier is linked to another account, or another account linked it meanwhile;
-  - the account is pending deletion or has no profile, or the grant has expired.
 - **The mailed link never binds.** A link is consumed in any browser, and the pending link lives only in the browser
   that completed GitHub's flow (RFC 6749 §10.12). Two named UX residuals follow:
   - A user who clicks the link instead of typing the code is signed in without GitHub linked, and is asked for a code
@@ -1157,14 +1156,14 @@ measured as a substring of its source.
   `X-GitHub-Api-Version: 2026-03-10`.
 - **Revocation:** the token is revoked (`DELETE /applications/{client_id}/token`) on every path that holds one. A failed
   revocation (EventId 1028) never changes the outcome.
-- **Client:** the named client `github-oauth`: 10 s, no redirect, no resilience handler. It is shared with Google's
-  through `ExternalLoginRegistration`. EventIds 1022 and 1023 name the provider in both adapters.
+- **Client:** the named client `github-oauth`: 10 s, no redirect, no resilience handler. Its registration is shared with
+  Google's through `ExternalLoginRegistration`. EventIds 1022 and 1023 name the provider in both adapters.
 
 **The grant store.**
 - Purposes 5 and 6 are bearer-bound and reuse purpose 4's fields.
 - The padding ceiling is computed from `ExternalProviderKey.MaximumLength` and the highest purpose number, so a new
   provider moves nothing. Every grant written from this build on is padded to the new common length.
-- A build without purpose 5 or 6 refuses such a record (410).
+- A build without purpose 6 refuses its record at `complete` (410).
 
 **PR 1 is inert for GitHub; PR 2 activates.**
 - In PR 1, `AddExternalIdentityProviders` composes Google's gate only, and no composition can register GitHub. That is

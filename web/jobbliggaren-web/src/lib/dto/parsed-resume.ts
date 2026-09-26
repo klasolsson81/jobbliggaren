@@ -53,7 +53,6 @@ export type SectionConfidenceDto = z.infer<typeof sectionConfidenceDtoSchema>;
 
 export const parseConfidenceDtoSchema = z.object({
   overall: overallConfidenceLevelSchema,
-  requiresManualReview: z.boolean(),
   /** Fallback-orsak (`None`/`ExtractionFailed`/`NoSectionsDetected`/… ). Öppen sträng. */
   fallback: z.string(),
   sections: z.array(sectionConfidenceDtoSchema),

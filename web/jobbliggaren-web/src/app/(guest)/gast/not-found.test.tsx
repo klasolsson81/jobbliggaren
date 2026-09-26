@@ -5,8 +5,7 @@ import svFallback from "../../../../messages/sv/fallback.json";
 import GuestNotFound from "./not-found";
 
 // Async Server Component using getTranslations; mock it to a real Swedish
-// translator so the rendered copy is the shipped copy (mirrors the pattern in
-// (auth)/bekrafta-konto/page.test.tsx).
+// translator so the rendered copy is the shipped copy.
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) =>
     createTranslator({

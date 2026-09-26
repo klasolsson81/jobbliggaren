@@ -20,12 +20,7 @@ describe("WithdrawApplicationButton (ADR 0047 Area 5 — destruktiv bekräftelse
 
   it("öppnar bekräftelse-dialog FÖRE handling, ej direkt transition", async () => {
     const user = userEvent.setup();
-    render(
-      <WithdrawApplicationButton
-        applicationId="app-1"
-        currentStatus="Submitted"
-      />
-    );
+    render(<WithdrawApplicationButton applicationId="app-1" />);
 
     await user.click(screen.getByRole("button", { name: "Återta ansökan" }));
 
@@ -41,12 +36,7 @@ describe("WithdrawApplicationButton (ADR 0047 Area 5 — destruktiv bekräftelse
 
   it("bekräftelse triggar Withdrawn-transition (domän-korrekt, ej hard-delete)", async () => {
     const user = userEvent.setup();
-    render(
-      <WithdrawApplicationButton
-        applicationId="app-1"
-        currentStatus="Submitted"
-      />
-    );
+    render(<WithdrawApplicationButton applicationId="app-1" />);
 
     await user.click(screen.getByRole("button", { name: "Återta ansökan" }));
     const dialog = screen.getByRole("dialog");
@@ -67,12 +57,7 @@ describe("WithdrawApplicationButton (ADR 0047 Area 5 — destruktiv bekräftelse
 
   it("Avbryt stänger dialogen utan transition", async () => {
     const user = userEvent.setup();
-    render(
-      <WithdrawApplicationButton
-        applicationId="app-1"
-        currentStatus="Submitted"
-      />
-    );
+    render(<WithdrawApplicationButton applicationId="app-1" />);
 
     await user.click(screen.getByRole("button", { name: "Återta ansökan" }));
     await user.click(screen.getByRole("button", { name: "Avbryt" }));
@@ -89,12 +74,7 @@ describe("WithdrawApplicationButton (ADR 0047 Area 5 — destruktiv bekräftelse
       error: "Statusbytet misslyckades.",
     });
     const user = userEvent.setup();
-    render(
-      <WithdrawApplicationButton
-        applicationId="app-1"
-        currentStatus="Submitted"
-      />
-    );
+    render(<WithdrawApplicationButton applicationId="app-1" />);
 
     await user.click(screen.getByRole("button", { name: "Återta ansökan" }));
     const dialog = screen.getByRole("dialog");

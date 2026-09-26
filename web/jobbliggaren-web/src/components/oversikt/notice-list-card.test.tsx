@@ -36,7 +36,7 @@ const match: SectionNoticeData = {
   type: "matches",
   kind: "info",
   label: "Matchning",
-  text: "Det finns 245 annonser som matchar dina val.",
+  text: "245 annonser matchar dina val.",
   cta: "Visa annonser",
   href: "/jobb",
   time: "idag",

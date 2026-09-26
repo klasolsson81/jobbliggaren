@@ -81,5 +81,8 @@
          when Jobbliggaren.QA.Corpus became a second consumer. Linked rather than duplicated
          (CTO constraint 2): two recording loggers would be two homes for one test utility. -->
     <Compile Include="..\Shared\RecordingLogger.cs" Link="Shared\RecordingLogger.cs" />
+    <Compile Include="..\Shared\ScriptedGoogle.cs" Link="Shared\ScriptedGoogle.cs" />
+    <Compile Include="..\Shared\GoogleUserInfoShapes.cs" Link="Shared\GoogleUserInfoShapes.cs" />
+    <Compile Include="..\Shared\GoogleIdentities.cs" Link="Shared\GoogleIdentities.cs" />
   </ItemGroup>
 </Project>

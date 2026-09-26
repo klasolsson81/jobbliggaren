@@ -58,7 +58,6 @@
     "en": "English"
   },
   "dev": {
-    "note": "Developer tools, enabled by a flag and removed before launch.",
     "resetButton": "Dev: reset your test data (removed before launch)",
     "confirmTitle": "Reset your test data?",
     "confirmBody": "Your CV, matching choices, saved job ads, recent searches and your matches are removed. The account, your applications, your company watches and your saved searches are unaffected. This cannot be undone.",

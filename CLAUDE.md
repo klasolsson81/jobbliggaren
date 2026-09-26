@@ -437,10 +437,10 @@ command, the report-only prompt, the verdict-table format and the label checklis
   (AES-256-GCM) for field encryption, and mail via `AddEmailSender`'s
   `Email:Provider` switch — **three** `IEmailSender` impls, not one:
   `ConsoleEmailSender` (Development/Test **only**; it logs the recipient address
-  and the whole body, confirmation and activation links included — **but only for a
+  and the whole body, login codes and links included — **but only for a
   recipient at a domain RFC 2606/6761 reserve**, i.e. one that cannot be a real
   mailbox. Every other recipient gets a kind-only `Warning` and no body at all, so a
-  real address cannot put its activation link into dev's Seq (#1208). The rule lives at
+  real address cannot put its login link into dev's Seq (#1208). The rule lives at
   `WriteEmail`, the one choke point every send method funnels through, as a set fixed in code
   and never an `IOptions` value — anything settable at runtime can be widened to the domains
   it excludes.
@@ -459,7 +459,7 @@ command, the report-only prompt, the verdict-table format and the label checklis
   `System.Text.Json`, so `NoAmazonReferenceTests` went back to a total ban.
   What actually prevented
   double delivery was never the provider key but the claim-then-send spine (plus
-  `StrandedMatchReaperJob`) and `ICooldownGate` (ADR 0103); the residual
+  `StrandedMatchReaperJob`); the residual
   transport retry is closed by the arm registering **no resilience handler at
   all**. Frontend `.env.local`; backend
   `appsettings.Development.json` + gitignored `appsettings.Local.json`.

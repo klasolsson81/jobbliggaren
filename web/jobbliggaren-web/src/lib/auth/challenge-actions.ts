@@ -71,7 +71,10 @@ export async function requestCode(
   const parsed = emailInputSchema.safeParse(typed);
   if (!parsed.success) {
     return {
-      error: t("auth.passwordless.entry.emailRequired"),
+      error:
+        typed.trim() === ""
+          ? t("auth.passwordless.entry.emailRequired")
+          : t("auth.passwordless.entry.emailInvalid"),
       channel: "field",
       values: { email: typed },
     };
@@ -93,7 +96,7 @@ export async function requestCode(
     const res = await post("/challenge", { email });
     if (res.status === 400) {
       return {
-        error: t("auth.passwordless.entry.emailRequired"),
+        error: t("auth.passwordless.entry.emailInvalid"),
         channel: "field",
         values: { email: typed },
       };

@@ -87,12 +87,12 @@ describe("ReAuthCodeDialog", () => {
     const dialog = await open(user);
 
     expect(dialog).toHaveAccessibleDescription(
-      `Det här gör operationen. För att bekräfta att det är du skickar vi en sexsiffrig kod till ${ADDRESS}. Du skriver in koden i nästa steg.`
+      `Det här gör operationen. För att bekräfta att det är du skickar vi en sexsiffrig kod till ${ADDRESS}.`
     );
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Avbryt" })).toHaveFocus());
   });
 
-  it("moves to the code step once the code is sent, the field focused and described by the sent line first", async () => {
+  it("moves to the code step once the code is sent, the field focused and described by the sent line", async () => {
     const user = userEvent.setup();
     render(<Harness operation={operation} />);
 
@@ -100,7 +100,7 @@ describe("ReAuthCodeDialog", () => {
 
     await waitFor(() => expect(field).toHaveFocus());
     expect(field).toHaveAccessibleDescription(
-      `Vi har skickat en sexsiffrig kod till ${ADDRESS}. Koden gäller i 15 minuter. Kommer inget mejl inom några minuter kan du skicka en ny kod.`
+      `Vi har skickat en kod till ${ADDRESS}. Koden gäller i 15 minuter.`
     );
   });
 
@@ -365,9 +365,7 @@ describe("ReAuthCodeDialog", () => {
       await toCodeStep(user);
 
       expect(resend()).toBeDisabled();
-      expect(resend()).toHaveAccessibleDescription(
-        "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet."
-      );
+      expect(resend()).toHaveAccessibleDescription("En ny kod ersätter den förra.");
       const hint = screen.getByText("Du kan skicka en ny kod om 60 sekunder.");
       expect(hint.closest('[role="status"]')).toBeNull();
 

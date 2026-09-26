@@ -88,10 +88,7 @@ export default async function AnsokanDetailPage({ params }: Props) {
                   "Återta ansökan" = keep as a terminal status. */}
               <DeleteApplicationButton applicationId={application.id} />
               {canWithdraw && (
-                <WithdrawApplicationButton
-                  applicationId={application.id}
-                  currentStatus={application.status}
-                />
+                <WithdrawApplicationButton applicationId={application.id} />
               )}
               <Link
                 href="/ansokningar"

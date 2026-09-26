@@ -81,8 +81,8 @@ describe("DeadCodePanel", () => {
 
 describe("LoginFlowNotice", () => {
   it.each([
-    ["grantUnusable", "Registreringen slutfördes inte", "Det gick inte att slutföra registreringen."],
-    ["codeExpired", "Inloggningen gick ut", "En inloggning gäller i 15 minuter, och den tiden har gått."],
+    ["grantUnusable", "Registreringen slutfördes inte", "Skriv in din e-postadress nedan och börja om."],
+    ["codeExpired", "Inloggningen gick ut", "En inloggning gäller i 15 minuter."],
   ] as const)("%s names the remedy that is on THIS page and takes focus", async (notice, title, body) => {
     render(<LoginFlowNotice notice={notice} />);
 

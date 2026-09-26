@@ -199,7 +199,7 @@ describe("CompanySummary", () => {
 
     expect(
       screen.getByText(
-        "Bevakade företag kunde inte hämtas. Uppdatera sidan för att försöka igen.",
+        "Bevakade företag kunde inte hämtas. Uppdatera sidan.",
       ),
     ).toBeInTheDocument();
     // Fabrikation: en degraderad hämtning får varken visa en siffra eller tomt-läget.

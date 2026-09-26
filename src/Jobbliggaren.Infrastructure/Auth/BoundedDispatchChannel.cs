@@ -3,9 +3,8 @@ using System.Threading.Channels;
 namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
-/// The bounded, dropping, single-reader in-process queue behind every out-of-band auth dispatch (#1171;
-/// ADR 0142 D2). Each port gets its OWN instance with its own capacity and its own drop log, so a flood on
-/// one flow cannot silently drop the other's work; this base holds only the mechanism they share.
+/// The bounded, dropping, single-reader in-process queue behind an out-of-band auth dispatch (#1171;
+/// ADR 0142 D2).
 /// </summary>
 internal abstract class BoundedDispatchChannel<T>
 {

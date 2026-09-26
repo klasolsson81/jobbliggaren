@@ -1,7 +1,7 @@
 // Jobbliggaren load-test-runner — ADR 0045 (performance-budgetar och fitness functions).
 //
 // SCOPE: NBomber-baserad fitness-function-runner. Detta projekt är medvetet
-// utanför Jobbliggaren.sln (build.yml backend-jobb + coverage-gaten plockar EJ
+// utanför Jobbliggaren.sln (build.yml coverage-gaten plockar EJ
 // upp det). Konsole-app, kör enbart av det dedikerade observe-only `loadtest`-
 // jobbet i build.yml + lokalt vid kalibrering.
 //

@@ -79,7 +79,7 @@ describe("/logga-in", () => {
       screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" })
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord.")
+      screen.getByText("Du loggar in med en kod som vi skickar till din e-postadress.")
     ).toBeInTheDocument();
 
     const field = screen.getByLabelText("E-postadress");
@@ -140,7 +140,7 @@ describe("/logga-in/kod", () => {
     render(await LoggaInKodPage());
 
     expect(screen.getByRole("heading", { level: 1, name: "Ange koden" })).toBeInTheDocument();
-    const resting = screen.getByText(/Kontrollera inkorgen och skräpposten\./);
+    const resting = screen.getByText(/Finns det ett mejl från Jobbliggaren följer du instruktionerna i det\./);
     expect(resting).not.toHaveTextContent(/skickat|anna@example\.com/);
   });
 
@@ -150,7 +150,7 @@ describe("/logga-in/kod", () => {
     render(await LoggaInKodPage());
 
     const typed = screen.getByText("Du angav anna@example.com.");
-    const resting = screen.getByText(/Kontrollera inkorgen och skräpposten\./);
+    const resting = screen.getByText(/Finns det ett mejl från Jobbliggaren följer du instruktionerna i det\./);
     expect(resting).not.toContainElement(typed);
     // After the field group: address, then resend, then change address, last.
     const order = [typed, screen.getByRole("button", { name: "Skicka ny kod" }), screen.getByRole("button", { name: "Byt e-postadress" })];

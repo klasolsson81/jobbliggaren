@@ -7,7 +7,7 @@ describe("<GuestDemoBanner />", () => {
     render(<GuestDemoBanner />);
     expect(screen.getByText("DEMO")).toBeInTheDocument();
     expect(
-      screen.getByText(/utforskar Jobbliggaren som gäst/i)
+      screen.getByText(/Innehållet är exempeldata/i)
     ).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /skapa konto/i });
     expect(cta).toHaveAttribute("href", "/logga-in");

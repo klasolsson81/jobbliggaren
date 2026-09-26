@@ -81,7 +81,7 @@ describe("DeleteAccountDialog", () => {
     await waitFor(() => expect(requestReauthCodeMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByLabelText("Sexsiffrig kod")).toHaveFocus();
     expect(
-      screen.getByText(`Vi har skickat en sexsiffrig kod till ${ADDRESS}. Koden gäller i 15 minuter.`)
+      screen.getByText(`Vi har skickat en kod till ${ADDRESS}. Koden gäller i 15 minuter.`)
     ).toBeInTheDocument();
   });
 

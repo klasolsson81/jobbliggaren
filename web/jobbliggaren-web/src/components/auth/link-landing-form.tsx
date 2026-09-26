@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useId, useRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { LoginOutcomePanel } from "@/components/auth/login-outcome-panel";
@@ -45,6 +45,7 @@ export function LinkLandingForm({
   );
   const messageRef = useRef<HTMLParagraphElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const persistenceId = useId();
 
   const asksForChoice =
     alreadyLoggedIn || state?.kind === "confirm" || (state?.kind !== undefined && state.confirmed);
@@ -106,8 +107,17 @@ export function LinkLandingForm({
           </p>
         )}
 
+        <p id={persistenceId} className="text-body-sm text-text-primary">
+          {t("auth.passwordless.persistence")}
+        </p>
+
         <div className="flex flex-col gap-3">
-          <Button type="submit" disabled={isPending} className="w-full max-md:h-11">
+          <Button
+            type="submit"
+            disabled={isPending}
+            aria-describedby={persistenceId}
+            className="w-full max-md:h-11"
+          >
             {isPending
               ? t("auth.passwordless.link.submitting")
               : asksForChoice

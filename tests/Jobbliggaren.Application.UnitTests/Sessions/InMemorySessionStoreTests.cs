@@ -232,7 +232,7 @@ public class InMemorySessionStoreTests
     }
 
     // #678 C6-D2a: the Session must expose the lifetime it was created under, both from CreateAsync
-    // and (round-tripped) from GetAsync, so the change-password re-issue can mint the replacement
+    // and (round-tripped) from GetAsync, so the change-email confirm's re-issue can mint the replacement
     // under the same profile and derive the persistent-cookie flag without a second store read.
     [Fact]
     public async Task CreateAndGet_ShouldExposeLifetime_ForEachProfile()

@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Microsoft.EntityFrameworkCore;
 
@@ -57,12 +58,33 @@ public abstract record LoginSubject
 }
 
 /// <summary>
-/// The one place that classifies an address for the login challenge: at issue time to choose the mail, and
-/// after proof to choose the outcome. The profile read is the #1349 rule <c>LoginCommandHandler</c> applies:
-/// a soft-deleted profile and a missing one are both refused a session.
+/// What an external proof resolves to (#1744, ADR 0142 D8): the account its verified address names, and the account
+/// the provider's identifier is linked to, if any.
 /// </summary>
-public sealed class LoginSubjectResolver(ILoginAccountLookup accounts, IAppDbContext db)
+public sealed record ExternalLoginSubject(LoginSubject Subject, Guid? LinkedUserId)
 {
+    /// <summary>
+    /// The identifier belongs to an account other than the one the address names, or to one while the address names
+    /// none (security-auditor M-1(b)): refused, and the login is never moved.
+    /// </summary>
+    public bool IsLinkedElsewhere =>
+        LinkedUserId is { } linked && (Subject is not LoginSubject.KnownAccount known || known.UserId != linked);
+}
+
+/// <summary>
+/// The one place that classifies an address for the login challenge: at issue time to choose the mail, and
+/// after proof to choose the outcome. The profile read is the #1349 rule:
+/// a soft-deleted profile and a missing one are both refused a session. For an external proof it also answers who
+/// the provider's identifier is linked to, so one classifier reads the account table.
+/// </summary>
+public sealed class LoginSubjectResolver(
+    ILoginAccountLookup accounts, IExternalLoginLookup externalLogins, IAppDbContext db)
+{
+    /// <summary>Address first, then the identifier's link (ADR 0142 D8, security-auditor M-1).</summary>
+    public async Task<ExternalLoginSubject> ResolveExternalAsync(ExternalLoginProof proof, CancellationToken ct) =>
+        new(await ResolveAsync(proof.Email.Value, ct),
+            await externalLogins.FindUserIdAsync(proof.Provider, proof.Subject, ct));
+
     public async Task<LoginSubject> ResolveAsync(string email, CancellationToken ct)
     {
         if (await accounts.FindAccountAsync(email, ct) is not { } account)

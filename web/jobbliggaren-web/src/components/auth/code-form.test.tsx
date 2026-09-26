@@ -29,9 +29,7 @@ describe("CodeForm", () => {
     expect(field).toHaveAttribute("maxlength", "6");
     expect(field).toHaveAttribute("pattern", "^\\d+$");
     expect(field).not.toHaveAttribute("placeholder");
-    expect(field).toHaveAccessibleDescription(
-      "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress."
-    );
+    expect(field).toHaveAccessibleDescription("Titta även i skräpposten.");
   });
 
   it("names what the press does on both paths, and says how long the login lasts right above it", () => {
@@ -42,6 +40,9 @@ describe("CodeForm", () => {
     const disclosure = screen.getByText(/Du förblir inloggad på den här enheten i upp till 180 dagar/);
     expect(disclosure.compareDocumentPosition(primary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector("form")?.lastElementChild).toBe(primary);
+    expect(primary).toHaveAccessibleDescription(
+      "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+    );
   });
 
   it("posts the typed code", async () => {

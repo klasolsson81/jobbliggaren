@@ -29,9 +29,9 @@ public sealed class PasswordlessSessionGrant(
 
         if (proof == InboxProof.FirstProofRecorded)
         {
-            // A credential changed, so it is an audit_log row, not an ops line: a completed credential change
-            // on a known user id is auditable (IAuthAuditLogger's rule), and the row is written after proof,
-            // so it says nothing about whether any other address has an account (security-auditor Q-S3).
+            // The address is confirmed and every earlier session is revoked, a change to the account's security
+            // state on a known user id, so it is an audit_log row, not an ops line; the row is written after
+            // proof, so it says nothing about whether any other address has an account (security-auditor Q-S3).
             db.AuditLogEntries.Add(AuditLogEntry.Create(
                 occurredAt: clock.UtcNow,
                 correlationId: correlationId.Current,
@@ -42,8 +42,8 @@ public sealed class PasswordlessSessionGrant(
                 ipAddress: requestContext.IpAddress,
                 userAgent: requestContext.UserAgent));
 
-            // The Identity write has committed, so from here on CancellationToken.None: a session opened with
-            // the removed password is revoked BEFORE the new one exists (the change-password ordering).
+            // The Identity write has committed, so from here on CancellationToken.None: every earlier session is
+            // revoked BEFORE the new one exists.
             await db.SaveChangesAsync(CancellationToken.None);
             await sessions.InvalidateAllForUserAsync(subject.UserId, CancellationToken.None);
         }

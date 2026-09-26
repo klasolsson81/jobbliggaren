@@ -4,14 +4,13 @@ namespace Jobbliggaren.Application.Auth.Registration;
 
 /// <summary>
 /// Creates the Identity account of a proven new address, and takes it back if its profile cannot be made
-/// (ADR 0142 D3/D10). A port of its own, never <c>IUserAccountService</c>: the proof chain must not reach the
-/// password surface, and <c>complete</c> is part of that chain.
+/// (ADR 0142 D3/D10). A port of its own, never <c>IUserAccountService</c>.
 /// </summary>
 public interface IPasswordlessAccountCreator
 {
     /// <summary>
     /// A user with a confirmed address and no password. A duplicate — by the address or by the user name,
-    /// which is the address — collapses to <c>Auth.DuplicateAccount</c>, as it does for a password account.
+    /// which is the address — collapses to <c>Auth.DuplicateAccount</c>.
     /// </summary>
     Task<Result<Guid>> CreatePasswordlessUserAsync(string email, CancellationToken ct);
 

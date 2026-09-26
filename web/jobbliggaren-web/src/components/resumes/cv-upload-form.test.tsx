@@ -97,7 +97,7 @@ describe("CvUploadForm — ärlig upload-copy", () => {
     expect(name).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(
-        "Namnet visas i din CV-lista så att du hittar rätt variant. Lämnar du det tomt döper vi CV:t efter dagens datum."
+        "Namnet visas i din CV-lista. Lämnar du det tomt döper vi CV:t efter dagens datum."
       )
     ).toBeInTheDocument();
   });

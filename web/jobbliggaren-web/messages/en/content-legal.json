@@ -5,7 +5,7 @@
       "description": "How Jobbliggaren processes your personal data: purposes, legal basis, retention periods, your rights and security. No tracking and no AI."
     },
     "title": "Privacy policy",
-    "updated": "Last updated: 2026-09-23",
+    "updated": "Last updated: 2026-09-26",
     "intro": "This privacy policy describes how Jobbliggaren processes your personal data, why, on what legal basis and for how long. It also covers your rights and how to exercise them. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open data about job openings from Arbetsförmedlingen JobTech (Platsbanken).",
     "sections": [
       {
@@ -30,7 +30,7 @@
           "When you enter your email address on the login page, we process the address in order to send a login code or a login link to it. If registration is open and the address has no account, you can create an account in the same step by accepting the terms of use, and the address then becomes your account's address. The legal basis is that the processing is necessary in order to enter into or perform the contract with you (Article 6(1)(b)). The address is stored protected for at most 25 minutes; if an account is created, it is then stored as the account's address in accordance with the points above. An imprint of the address, which we cannot compute back to the address, is stored for at most 24 hours in order to limit how many emails can be requested for one and the same address. The page answers the same way whether or not the address has an account, because an answer that distinguished between addresses would have revealed which addresses exist with us, and under heavy load we may have to refrain from sending the email to an address that has no account."
         ],
         "list": [
-          "Email address, password (stored as a cryptographic hash, never in plaintext), display name and account identifier, as well as an identifier from an external login service if you log in via one. Also the time you accepted the terms of use and which versions of the terms and the privacy policy applied then. Used to create and secure your account, to identify you in the service and to show that the terms were accepted.",
+          "Email address and account identifier, as well as an identifier from an external login service if you log in via one. Also the time you accepted the terms of use and which versions of the terms and the privacy policy applied then. Used to create and secure your account, to identify you in the service and to show that the terms were accepted.",
           "Language preference and your matching preferences, for example occupation, region, type of employment and skills you want to match against. Used to show relevant jobs and to tailor the service to your choices.",
           "Your CV and content parsed from it. Used to store, display and work with your CV in the service.",
           "Your uploaded original CV file. When you import a CV, we store the file you uploaded in its original form and encrypted, so you can download it again and later continue working from it. If the file's text contains a personal identity number, the file is stored only if you explicitly approve it when you upload the file; without your approval it is not stored. You can withdraw your choice at any time by removing the draft or the CV, and the file is then deleted immediately.",
@@ -45,7 +45,7 @@
         ],
         "list": [
           "Security and event log. We log events in the service, for example logins, together with the IP address and browser information. Our legitimate interest is to protect the service and your account against misuse, intrusion and incorrect use, and to be able to investigate security events.",
-          "Security messages about accounts. We send a message when something security relevant happens to an account: when the address is changed, a message goes to the previous address; when the password has been reset, we send a confirmation; and if someone attempts to register an account using an address that already exists with us, you as the owner of that address are told. One of these messages can reach you even if you have no account with us: if someone enters your address for an address change, we send a code there. Our legitimate interest is that you should be able to detect and act on a change you did not make yourself, and that an address should not be attachable to an account without the owner of that address confirming it. The messages go to the address being protected, which is why they are sent by email rather than shown in the service.",
+          "Security messages about accounts. We send a message when something security relevant happens to an account: when the address is changed, a message goes to the previous address. One of these messages can reach you even if you have no account with us: if someone enters your address for an address change, we send a code there. Our legitimate interest is that you should be able to detect and act on a change you did not make yourself, and that an address should not be attachable to an account without the owner of that address confirming it. The messages go to the address being protected, which is why they are sent by email rather than shown in the service.",
           "Retrieval of job ads from JobTech. We retrieve and process open data about job openings from Arbetsförmedlingen JobTech. Our legitimate interest is to be able to offer a functioning job service. The ads we retrieve are public data and are not your personal data. If an ad contains details of a contact person at the employer, we process those details as described in the section Contact details in job ads below.",
           "Marking what is new since your last visit. We keep track of what is new for you since you were last logged in, so that you can quickly see what has been added. Our legitimate interest is to give you a useful and clear service.",
           "Company lookups against SCB's business register (planned). When you search for an organisation number under Companies, the number you enter is sent to Statistics Sweden (SCB) to fetch the company's name. Our legitimate interest is enabling you to find and follow employers, including those with no ads with us. Numbers that may be personal identity numbers (sole traders) are never looked up and never sent. This is planned and not yet in operation.",
@@ -230,7 +230,7 @@
       "description": "Terms of use for Jobbliggaren, a free service for finding jobs and keeping track of your applications. Built on Arbetsförmedlingen's open data."
     },
     "title": "Terms of use",
-    "updated": "Last updated: 2026-06-28",
+    "updated": "Last updated: 2026-09-25",
     "intro": "These terms of use apply to your use of Jobbliggaren. Jobbliggaren is a free service that helps you find and keep track of your job applications, built on open job data from Arbetsförmedlingen JobTech (Platsbanken). By creating an account and using the service, you accept the terms below. How we process your personal data is described in the privacy policy, and which cookies we use is described in the cookie policy.",
     "sections": [
       {
@@ -250,7 +250,7 @@
       {
         "heading": "Who can use the service",
         "paragraphs": [
-          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for keeping your login details protected. If you suspect that someone unauthorised has gained access to your account, you should change your password and contact us.",
+          "To create an account you need a valid email address. You are responsible for ensuring that the data you provide is accurate and for protecting access to your email, since login codes and login links are sent there. If you suspect that someone unauthorised has gained access to your account or to your email, you should contact us.",
           "The service is aimed at you who are looking for work and is not intended for children. If you are under 18, you should have a guardian's consent before using the service."
         ]
       },

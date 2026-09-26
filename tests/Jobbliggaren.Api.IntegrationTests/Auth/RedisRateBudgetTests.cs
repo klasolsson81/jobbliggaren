@@ -3,7 +3,6 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
@@ -12,10 +11,10 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// semantics — atomic increment, the TTL set in the same transaction, NX so a refused call never extends
 /// the window — so they are measured here rather than on a fake.
 /// </summary>
-public sealed class RedisRateBudgetTests : IAsyncLifetime
+public sealed class RedisRateBudgetTests : IAsyncLifetime, IClassFixture<SharedVolatileRedisFixture>
 {
     // The deploy stack's own `redis-volatile`, so the contract is measured on the configuration the box runs.
-    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+    private readonly SharedVolatileRedisFixture _redis;
 
     // The test's OWN reader, beside the connection the adapter is given: production reaches this instance
     // only through VolatileRedisConnection, and the assertions below read keys and TTLs directly.
@@ -23,10 +22,12 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
     private VolatileRedisConnection _connection = null!;
     private RedisRateBudget _budget = null!;
 
+    public RedisRateBudgetTests(SharedVolatileRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
-        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
+        await _redis.FlushAsync();
+        var connectionString = $"{_redis.ConnectionString},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _budget = new RedisRateBudget(_connection);
@@ -37,7 +38,6 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private static RateBudgetScope Scope(int limit, TimeSpan window, string name = "test-scope") =>
@@ -134,17 +134,30 @@ public sealed class RedisRateBudgetTests : IAsyncLifetime
     public async Task An_unreachable_redis_throws_the_store_unavailable_contract()
     {
         var ct = TestContext.Current.CancellationToken;
-        await _redis.StopAsync(ct);
+        // Its own container: stopping the shared one would fail every test after this in the class.
+        var redis = VolatileRedisContainer.FromDeployCompose();
+        await redis.StartAsync(ct);
+        try
+        {
+            using var connection = new VolatileRedisConnection(
+                $"{VolatileRedisContainer.OperatorConnectionString(redis)},connectTimeout=1000,syncTimeout=1000");
+            var budget = new RedisRateBudget(connection);
+            await redis.StopAsync(ct);
 
-        var ex = await Should.ThrowAsync<VolatileRedisUnavailableException>(
-            () => _budget.TryConsumeAsync(Scope(1, TimeSpan.FromMinutes(1)), "g@example.com", ct));
+            var ex = await Should.ThrowAsync<VolatileRedisUnavailableException>(
+                () => budget.TryConsumeAsync(Scope(1, TimeSpan.FromMinutes(1)), "g@example.com", ct));
 
-        ex.ShouldBeAssignableTo<StoreUnavailableException>();
+            ex.ShouldBeAssignableTo<StoreUnavailableException>();
 
-        // Thrown inside the Mediator pipeline, where LoggingBehavior logs the whole exception: a Redis
-        // message embeds the operated key, and this key is an address fingerprint. Only the type travels.
-        ex.InnerException.ShouldBeNull();
-        ex.InnerType.ShouldNotBeNullOrWhiteSpace();
-        ex.Message.ShouldNotContain("budget/");
+            // Thrown inside the Mediator pipeline, where LoggingBehavior logs the whole exception: a Redis
+            // message embeds the operated key, and this key is an address fingerprint. Only the type travels.
+            ex.InnerException.ShouldBeNull();
+            ex.InnerType.ShouldNotBeNullOrWhiteSpace();
+            ex.Message.ShouldNotContain("budget/");
+        }
+        finally
+        {
+            await VolatileRedisContainer.DisposeAsync(redis);
+        }
     }
 }

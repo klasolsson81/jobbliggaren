@@ -17,7 +17,7 @@ export const CODE_INPUT_ID = "code";
 //
 // The page cannot tell an existing account from a new address, and must not, so the primary says
 // what the press does on both paths ("Bekräfta koden"), and the persistence disclosure sits
-// directly above it: this is the only step an existing account sees before a session exists (D4).
+// directly above it.
 //
 // A wrong code is action state, not cookie state, on purpose: it must not survive a reload. The
 // code is never echoed back, so the field is retyped after a miss.
@@ -27,6 +27,7 @@ export function CodeForm() {
   const inputRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const errorId = useId();
+  const persistenceId = useId();
   const fieldInvalid = state?.channel === "field";
 
   useEffect(() => {
@@ -61,9 +62,16 @@ export function CodeForm() {
         />
       )}
 
-      <p className="text-body-sm text-text-primary">{t("auth.passwordless.persistence")}</p>
+      <p id={persistenceId} className="text-body-sm text-text-primary">
+        {t("auth.passwordless.persistence")}
+      </p>
 
-      <Button type="submit" disabled={isPending} className="w-full max-md:h-11">
+      <Button
+        type="submit"
+        disabled={isPending}
+        aria-describedby={persistenceId}
+        className="w-full max-md:h-11"
+      >
         {isPending ? t("auth.passwordless.code.submitting") : t("auth.passwordless.code.submit")}
       </Button>
     </form>

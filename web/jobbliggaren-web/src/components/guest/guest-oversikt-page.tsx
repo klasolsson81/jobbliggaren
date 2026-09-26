@@ -220,7 +220,6 @@ export function GuestOversiktPage() {
           <div className="jp-pagehero__main">
             <div className="jp-pagehero__kicker">{t("oversikt.kicker")}</div>
             <h1 className="jp-pagehero__title">{t("oversikt.title")}</h1>
-            <p className="jp-pagehero__lede">{t("oversikt.lede")}</p>
           </div>
         </div>
       </section>

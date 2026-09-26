@@ -114,6 +114,8 @@ public class ChangeEmailVerifyAndConfirmTests(ApiFactory factory)
         var oldEmail = Address("lifetime");
         var newEmail = Address("lifetime-new");
         await SignUpAsync(oldEmail);
+        // The profile's one producer in src/ is this endpoint's own fallback, when the current session cannot
+        // be read.
         var device = await AnotherDeviceAsync(await UserIdOf(oldEmail), SessionLifetime.Session);
 
         var response = await ConfirmAsync(device, await GrantAsync(device, oldEmail, newEmail), newEmail);

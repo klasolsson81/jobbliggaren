@@ -1,39 +1,40 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Sessions;
 
-public class RedisSessionStoreTests : IAsyncLifetime
+public class RedisSessionStoreTests : IAsyncLifetime, IClassFixture<SharedPlainRedisFixture>
 {
-    private readonly RedisContainer _redis = new RedisBuilder("redis:8-alpine").Build();
+    private readonly SharedPlainRedisFixture _redis;
     private readonly ITestOutputHelper _output;
 
     private RedisSessionStore _store = null!;
     private FakeDateTimeProvider _time = null!;
     private ConnectionMultiplexer _mux = null!;
 
-    public RedisSessionStoreTests(ITestOutputHelper output)
+    public RedisSessionStoreTests(ITestOutputHelper output, SharedPlainRedisFixture redis)
     {
         _output = output;
+        _redis = redis;
     }
 
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
+        await _redis.FlushAsync();
 
         var cache = new RedisCache(Options.Create(
             new RedisCacheOptions
             {
-                Configuration = _redis.GetConnectionString(),
+                Configuration = _redis.ConnectionString,
                 InstanceName = "jobbliggaren:",
             }));
 
-        _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(_redis.ConnectionString);
         _time = FakeDateTimeProvider.Now;
         _store = new RedisSessionStore(
             cache,
@@ -46,7 +47,6 @@ public class RedisSessionStoreTests : IAsyncLifetime
     {
         await _mux.CloseAsync();
         _mux.Dispose();
-        await _redis.DisposeAsync();
         GC.SuppressFinalize(this);
     }
 
@@ -99,7 +99,7 @@ public class RedisSessionStoreTests : IAsyncLifetime
         fetched.UserId.ShouldBe(userId);
     }
 
-    // #678 C6-D2a: the lifetime must survive the Redis payload JSON round-trip so the change-password
+    // #678 C6-D2a: the lifetime must survive the Redis payload JSON round-trip so the change-email confirm's
     // re-issue can read the current profile from GetAsync and re-mint under it.
     [Fact]
     public async Task GetAsync_ShouldRoundTripLifetime_ThroughThePayload()

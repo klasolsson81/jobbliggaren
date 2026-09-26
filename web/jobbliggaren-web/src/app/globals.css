@@ -1584,6 +1584,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-pagehero__lede {
   margin: 8px 0 0; font-size: var(--text-body);
   color: var(--jp-hero-ink-soft); max-width: 60ch;
+  text-wrap: pretty;
 }
 .jp-pagehero__aside {
   flex: 0 0 auto; display: flex; align-items: center;
@@ -2127,8 +2128,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 .jp-hint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  font-size: var(--text-body-sm);
+  color: var(--jp-ink-1);
 }
 .jp-input {
   width: 100%;
@@ -3116,7 +3117,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin-left: 8px;
   font-weight: var(--jp-fw-regular);
   letter-spacing: 0.02em;
-  color: var(--jp-ink-3);
+  color: var(--jp-ink-2);
 }
 /* #805 punkt 5: inline "?"-hjälp tätt bunden till en sektionsetikett
    (uppföljning-vs-anteckning). Etiketttext + trigger i en smal-gap-grupp så
@@ -3899,12 +3900,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   height: 38px;
   justify-content: center;
 }
-.jp-drawer-cta__hint {
-  margin: 6px 0 0;
-  font-size: var(--text-micro);
-  color: var(--jp-ink-2);
-  text-align: center;
-}
 /* Stegväljaren (§8.4): 7 steg, cirkel 24px — klar = success-bg + bock,
    nuvarande = fylld accent-800 + NU-chip + accent-50-rad, framtida = vit med
    border-strong-ring. Varje steg är en riktig knapp (klick = direkt byte,
@@ -4657,6 +4652,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-land-hero__lede--plate {
   margin: 26px 0 0; font-size: var(--text-h3); line-height: 1.55;
   color: rgba(255, 255, 255, 0.94); max-width: 48ch; /* guard-allow: banner-lokal tema-stabil pa gradientplattan (ADR 0068) */
+  text-wrap: pretty;
 }
 .jp-land-hero__source {
   margin: 28px 0 0; display: inline-flex; align-items: center; gap: 9px;
@@ -4782,6 +4778,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   max-width: 60ch;
   margin: 8px 0 0;
   line-height: 1.55;
+  text-wrap: pretty;
 }
 
 /* jp-iconbtn (v2, ingen bindestreck) — theme-toggle.tsx + marketing.
@@ -5129,10 +5126,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   color: var(--jp-ink-1);
   font-weight: var(--jp-fw-bold);
-}
-.jp-appsummary__emptybody {
-  margin: 0;
-  color: var(--jp-ink-2);
 }
 .jp-appsummary--empty .jp-btn { align-self: flex-start; }
 /* Innehåll, inte metadata: ljusare tiers är för timestamps och kvitton. */
@@ -5791,6 +5784,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   justify-content: center;
   margin-top: 6px;
 }
+.jp-empty__title + .jp-empty__actions {
+  margin-top: 16px;
+}
 
 /* Sekundär-knapp i page-heron: outline-på-gradient (vit kant), så den civilt
    skiljs från den solida vita primärknappen utan en andra fylld yta.
@@ -5959,7 +5955,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-cvupload__drop-hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 /* Input:et är visuellt dolt men kvarstår fokuserbart + i tab-ordningen
    (ingen display:none — det skulle ta bort det ur tangentbordsflödet). */
@@ -5977,7 +5973,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvupload__help {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -6007,7 +6003,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 36ch;
   font-size: var(--text-ui);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* ── Granska-vyns fil-meta ───────────────────────── */
@@ -6088,25 +6084,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
-}
-.jp-parse-summary__note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  padding: 10px 12px;
-  background: var(--jp-info-bg);
-  border: 1px solid var(--jp-info);
-  border-radius: var(--jp-r-sm);
-  font-size: var(--text-body-sm);
-  color: var(--jp-ink-1);
-  line-height: 1.45;
-}
-.jp-parse-summary__note-icon {
-  flex-shrink: 0;
-  display: inline-flex;
-  color: var(--jp-info);
-  margin-top: 1px;
 }
 .jp-parse-summary__sections {
   list-style: none;
@@ -6226,8 +6203,8 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-direction: column;
   gap: 4px;
 }
-/* Hederlighetsklausulen och rubrikversionen är villkoren täckningen läses under, inte
-   påståendet — de stöder från raden under den. */
+/* Rubrikversionen är villkoret täckningen läses under, inte påståendet — den stöder
+   från raden under den. */
 .jp-cvreview__coverage-note {
   margin: 0;
   font-size: var(--text-body-sm);
@@ -6596,7 +6573,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 .jp-cvreview__status-hint {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   line-height: 1.5;
   max-width: 68ch;
 }
@@ -6666,7 +6643,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   margin: 0;
   max-width: 68ch;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-atstext__body {
   margin: 0;
@@ -7063,28 +7040,10 @@ a.jp-adminnav__link[aria-current="page"]::after {
   font-size: var(--text-caption);
   color: var(--jp-ink-2);
 }
-.jp-section__closedhint {
-  /* #805 punkt 2: antalet flyttades inline intill etiketten, så "klicka för att
-     visa"-hinten bär nu högerjusteringen (var margin-left:12px efter det
-     tidigare höger-pushade antalet). */
-  margin-left: auto;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-}
 
 /* ── Kräver åtgärd-kön ── */
 .jp-attentionqueue {
   margin-top: 8px;
-}
-.jp-attentionqueue__lede {
-  margin: 10px 0 14px;
-  max-width: 68ch;
-  font-size: var(--text-body-sm);
-  /* Instruktions-/scanning-copy = informationsbärande → ink-1 (#549 WS1,
-     no-gray-doktrinen). Storleken 14px hålls medvetet: syskon-ledena
-     (.jp-parse-summary__lede/.jp-occupations__lede) är redan 14px ink-1;
-     defekten var färgen, inte storleken (CTO-bind 2026-07-10). */
-  color: var(--jp-ink-1);
 }
 .jp-actioncard-grid {
   display: grid;
@@ -7263,7 +7222,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-steprail__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-steprail__cells {
   display: grid;
@@ -7394,7 +7353,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 .jp-board__hint {
   font-size: var(--text-caption);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 
 /* Grid: sex 1fr-kolumner + 218px terminal-spalt. Kolumnerna klampar vid 140px
@@ -7409,18 +7368,12 @@ a.jp-adminnav__link[aria-current="page"]::after {
   padding-bottom: 4px;
 }
 
-/* Terminal-spalten: fyra mini-zoner + ghost-hjalptext, staplade. */
+/* Terminal-spalten: fyra mini-zoner, staplade. */
 .jp-board__terminal {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-.jp-board__ghosthint {
-  font-size: var(--text-caption);
-  color: var(--jp-ink-2);
-  line-height: 1.35;
-  margin-top: 2px;
 }
 
 /* Kolumn/zon-chassi. Toppband = 3px border-top i statusfarg (data-status-
@@ -7822,7 +7775,7 @@ a.jp-adminnav__link[aria-current="page"]::after {
   border-radius: var(--jp-r-md);
   padding: 32px 16px;
   text-align: center;
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-apptable__footer {
   display: flex;

@@ -37,14 +37,8 @@ const tokenPages = Object.entries(pageImporters)
   .sort(([a], [b]) => a.localeCompare(b));
 
 describe("token-carrying (auth) pages — metadata invariants (#706)", () => {
-  it("discovery reaches at least the three known token routes (no vacuous pass)", () => {
-    expect(tokenPages.map(([key]) => key)).toEqual(
-      expect.arrayContaining([
-        "./aterstall-losenord/page.tsx",
-        "./bekrafta-konto/page.tsx",
-        "./logga-in/lank/page.tsx",
-      ]),
-    );
+  it("discovery reaches exactly the known token route (no vacuous pass)", () => {
+    expect(tokenPages.map(([key]) => key)).toEqual(["./logga-in/lank/page.tsx"]);
   });
 
   it("names an exception only for a page that discovery reaches", () => {

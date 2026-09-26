@@ -51,7 +51,7 @@ describe("MarkAllReadRow — hinten följer id:ns rotation (#1572)", () => {
 
     expect(hint).not.toBeNull();
     expect(hint).not.toHaveTextContent(/till i morgon/);
-    expect(hint).toHaveTextContent(/Ingenting tas bort/);
+    expect(hint).toHaveTextContent(/Notiserna döljs/);
     // Kvittot gör inget dygnspåstående och delas därför oförändrat mellan ytorna.
     expect(within(container).getByRole("status")).toBeInTheDocument();
   });
@@ -158,7 +158,6 @@ describe("MarkAllReadRow", () => {
     const hint = container.querySelector(`#${hintId}`);
     expect(hint).not.toBeNull();
     expect(hint).toHaveTextContent(/till i morgon/);
-    expect(hint).toHaveTextContent(/Ingenting tas bort/);
   });
 
   it("namnger antalet i live-regionen efter klicket (WCAG 4.1.3)", async () => {

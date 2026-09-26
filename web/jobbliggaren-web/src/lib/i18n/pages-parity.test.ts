@@ -29,7 +29,6 @@ describe("pages i18n-paritet (sv ↔ en)", () => {
   it("matchningar-vyns nycklar finns i båda katalogerna (ADR 0080)", () => {
     const required = [
       "matchningar.title",
-      "matchningar.lede",
       "matchningar.listLabel",
       "matchningar.newBadge",
       "matchningar.newBadgeAriaLabel",

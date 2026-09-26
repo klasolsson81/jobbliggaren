@@ -6,7 +6,7 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "languageLabel": "Language",
-    "languageHint": "Affects the whole app immediately. Saved to your account.",
+    "languageHint": "Saved to your account.",
     "languageSwedish": "Svenska",
     "languageEnglish": "English",
     "savedAt": "Saved {time}"
@@ -19,7 +19,7 @@
     "cadenceLabel": "How often to receive the summary",
     "cadenceDaily": "Daily",
     "cadenceWeekly": "Weekly",
-    "cadenceHint": "Applies to the email summary of strong matches and to the notifications about companies you follow. Top matches are always emailed right away.",
+    "cadenceHint": "Also applies to the notifications about companies you follow.",
     "cadenceHintDisabled": "Turn on match notifications, or notifications about companies you follow, to choose how often the email summary is sent.",
     "savedAt": "Saved {time}",
     "errors": {
@@ -53,7 +53,6 @@
   },
   "logout": {
     "title": "Log out",
-    "description": "End this session. You can log in again at any time.",
     "action": "Log out"
   },
   "matchPrefs": {
@@ -83,7 +82,6 @@
       "selectedAria": "Selected places",
       "addOrter": "Add places",
       "filterLabel": "Filter municipalities",
-      "filterHint": "Type to narrow the municipality list, or browse by region.",
       "noMatch": "No municipality matches the filter.",
       "regionColumn": "Region",
       "regionsUnavailable": "The regions could not be loaded right now.",
@@ -91,12 +89,11 @@
       "chooseRegion": "Choose a region on the left.",
       "municipalitiesUnavailable": "No municipalities could be loaded for this region.",
       "distans": "Remote",
-      "distansHint": "Counts as a location of its own. Remote jobs are included regardless of which counties or municipalities you pick.",
+      "distansHint": "Remote jobs are included regardless of which counties or municipalities you pick.",
       "wholeRegion": "All of {label}"
     },
     "dialog": {
       "title": "Add to matching",
-      "intro": "Search and select occupations, places and employment types. Selected ones appear at the top of each part. Remove them with the cross icon.",
       "saving": "Saving…",
       "save": "Save matching",
       "cancel": "Cancel"
@@ -104,7 +101,6 @@
     "occupation": {
       "addOccupations": "Add occupations",
       "filterLabel": "Filter occupational groups",
-      "filterHint": "Type to narrow the list, or browse by occupational area.",
       "noMatch": "No occupational group matches the filter.",
       "occupationField": "Occupational area",
       "occupationGroups": "Occupational groups",
@@ -117,14 +113,13 @@
       "cancelUpload": "Cancel",
       "openImportInstead": "Open the import page instead",
       "noCvTitle": "No CV uploaded",
-      "noCvBody": "Upload a CV and we can suggest occupations based on your experience. You decide which suggestions to include.",
       "uploadCv": "Upload CV",
       "noRole": "We could not read an occupation from your CV. You can choose occupations from the list instead.",
       "unauthorized": "You are not logged in. Log in and try again.",
       "error": "Could not read your CV right now. Try again in a moment.",
       "yearsLabel": "Years in the occupation",
       "yearsAria": "Years in the occupation {label}",
-      "yearsHint": "Roughly how many years you have worked in the occupation. Optional, and it does not affect your match grade.",
+      "yearsHint": "Optional, and it does not affect your match grade.",
       "yearsWhatIsThis": "About years in the occupation",
       "reviewYearsValue": "{years} years",
       "reviewYearsEmpty": "Years not stated"
@@ -132,8 +127,7 @@
     "skill": {
       "addSkill": "Add skill",
       "searchLabel": "Search skill",
-      "searchHint": "Type at least two characters to search. Choose a skill from the list to add it.",
-      "searchPrompt": "Type to search among skills.",
+      "searchHint": "Type at least two characters.",
       "searching": "Searching…",
       "noResults": "No skill matches your search.",
       "added": "Added",
@@ -145,7 +139,6 @@
     },
     "experience": {
       "label": "Years of experience",
-      "hint": "The approximate number of years you have worked in your field. Optional; leave empty if you prefer not to state it.",
       "reviewValue": "{years} years",
       "reviewEmpty": "Not stated"
     },
@@ -182,11 +175,10 @@
       "contactRoute": "You can also email <mail>kontakt@jobbliggaren.se</mail> and ask us to delete the account."
     },
     "reauth": {
-      "request": "To confirm that it is you, we send a six-digit code to {email}. You enter the code in the next step.",
+      "request": "To confirm that it is you, we send a six-digit code to {email}.",
       "send": "Send code",
       "sending": "Sending…",
-      "sent": "We have sent a six-digit code to {email}. The code is valid for 15 minutes.",
-      "hint": "If no email arrives within a few minutes, you can send a new code.",
+      "sent": "We have sent a code to {email}. The code is valid for 15 minutes.",
       "burned": "You have entered the wrong code three times, so the code can no longer be used. Send a new code and try again.",
       "resendReceipt": "We have sent a new code. Enter the code from the most recent email.",
       "cooldown": "A code was requested for your account a moment ago. Wait a minute and try again.",
@@ -200,18 +192,17 @@
     "changeEmail": {
       "title": "Change email address",
       "current": "Your email address is {email}.",
-      "description": "You confirm the change with two codes: one to your current address and one to the new one. The address changes once you have entered both, and you are then logged out on all other devices.",
+      "description": "You confirm the change with two codes, one to each address. Once the address has changed, you are logged out on all other devices.",
       "newEmailLabel": "New email address",
-      "newEmailHint": "The format is name@domain.se.",
       "newEmailRequired": "Enter the new email address.",
-      "invalidEmail": "Check the new email address. It should have the format name@domain.se.",
+      "invalidEmail": "Enter the new email address in the correct format, for example name@example.com.",
       "sameEmail": "The new address is the same as your current one. Enter a different address.",
       "continue": "Continue",
       "cancel": "Cancel",
-      "dialogDescription": "You are changing to {newEmail}. Once you have confirmed that it is you, we send a code to the new address.",
-      "codeStep": "We have sent a six-digit code to {newEmail}. Enter it here to change the address. The code is valid for 15 minutes.",
+      "dialogDescription": "You are changing to {newEmail}.",
+      "codeStep": "We have sent a six-digit code to {newEmail}. The code is valid for 15 minutes.",
       "codeLabel": "Code sent to the new address",
-      "codeHint": "Check your spam folder too. If no email arrives within a few minutes, you can start over and check the address.",
+      "codeHint": "Check your spam folder too.",
       "wrongCode": "The code is not correct. Use the code from the email to the new address and check the digits.",
       "lastAttempt": "One attempt left. After that you need to start over.",
       "confirm": "Change address",

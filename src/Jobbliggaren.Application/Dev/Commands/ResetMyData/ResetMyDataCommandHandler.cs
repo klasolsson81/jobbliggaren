@@ -59,7 +59,7 @@ public sealed class ResetMyDataCommandHandler(
         // whether the ROUTE exists; this decides whether the OPERATION runs, so the primitive
         // stays refused if it is ever reached by another caller — a second endpoint, a job, a
         // test host that maps everything. Same two-independent-structural-gates shape the
-        // confirm-email seam already has, and fail-closed for the same reason: the flag defaults
+        // seed and login-code seams have, and fail-closed for the same reason: the flag defaults
         // to false.
         if (!devTools.Value.EnableResetMyData)
         {

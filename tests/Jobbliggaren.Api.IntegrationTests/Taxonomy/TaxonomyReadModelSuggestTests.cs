@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.JobAds.Abstractions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.Infrastructure.Taxonomy;
@@ -7,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 
@@ -15,7 +15,7 @@ namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 /// ADR 0067 Beslut 5a (Fas D1) — TaxonomyReadModel.SuggestByPrefixAsync mot
 /// riktig Postgres (Testcontainers, ALDRIG EF-InMemory: query-filter/sortering/
 /// idempotens-transaktion + advisory-lock i seedern måste verifieras mot
-/// relationell motor). Self-contained fixture (egen container) speglar
+/// relationell motor). Self-contained fixture speglar
 /// TaxonomyReadModelIntegrationTests så snapshoten kan styras deterministiskt;
 /// prefix-scanen är ren in-memory över den cachade snapshoten.
 /// <para>
@@ -24,30 +24,28 @@ namespace Jobbliggaren.Api.IntegrationTests.Taxonomy;
 /// ordning (Kind enum → Label); korrekt Kind-mappning (Region→Region etc.).
 /// </para>
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class TaxonomyReadModelSuggestTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
 
+    public TaxonomyReadModelSuggestTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(
                         typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await appDb.Database.MigrateAsync();
 
         await RunSeederAsync(CancellationToken.None);
     }
@@ -55,7 +53,7 @@ public sealed class TaxonomyReadModelSuggestTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 

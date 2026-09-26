@@ -58,7 +58,6 @@
     "en": "English"
   },
   "dev": {
-    "note": "Utvecklarverktyg, aktiveras med en flagga och tas bort före lansering.",
     "resetButton": "Dev: återställ dina testdata (tas bort före lansering)",
     "confirmTitle": "Återställ dina testdata?",
     "confirmBody": "Ditt CV, dina matchningsval, sparade annonser, senaste sökningar och dina matchningar tas bort. Kontot, dina ansökningar, dina bevakningar och dina sparade sökningar påverkas inte. Det går inte att ångra.",

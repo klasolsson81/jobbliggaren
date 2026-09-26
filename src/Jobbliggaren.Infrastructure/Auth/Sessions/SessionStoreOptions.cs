@@ -10,9 +10,8 @@ public sealed class SessionStoreOptions
     // may override any field. The lifetime a session was created under is persisted,
     // so GetAsync selects the same profile on every read.
 
-    // Legacy = the pre-profiles reach (14d sliding / 30d cap, PR1), so existing
-    // sessions and any login before the "Håll mig inloggad" checkbox ships keep
-    // exactly today's behaviour. Never rotates.
+    // Legacy = the pre-profiles reach (14d sliding / 30d cap, PR1), which a session written before
+    // the profiles decodes to. Never rotates.
     public SessionLifetimeProfile Legacy { get; init; } = new()
     {
         SlidingTtl = TimeSpan.FromDays(14),
@@ -20,7 +19,7 @@ public sealed class SessionStoreOptions
         RotationInterval = TimeSpan.Zero,
     };
 
-    // Session = "Håll mig inloggad" unchecked. Short-lived so the reach is bounded
+    // Session = short-lived so the reach is bounded
     // even in browsers that restore the session cookie on restart (security R1). No
     // rotation (the window is already short).
     public SessionLifetimeProfile Session { get; init; } = new()
@@ -30,7 +29,7 @@ public sealed class SessionStoreOptions
         RotationInterval = TimeSpan.Zero,
     };
 
-    // Persistent = "Håll mig inloggad" checked. 30d sliding + 180d absolute cap + session-id
+    // Persistent = 30d sliding + 180d absolute cap + session-id
     // rotation every 24h. The 180d cap is now LIVE: the activation PR (#481 2b-3b) ships the
     // rotation DRIVER (the Next.js refresh seam that calls /auth/refresh), so security
     // C3/COND-1 is satisfied — a > 30d reach is only ever exposed WITH a working rotation

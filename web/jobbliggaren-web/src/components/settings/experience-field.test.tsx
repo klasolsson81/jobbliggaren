@@ -30,15 +30,13 @@ function StatefulHost({
 }
 
 describe("ExperienceField (STEG 3 / ADR 0079)", () => {
-  it("renderar label + hjälptext, inget exempel-värde i fältet", () => {
+  it("renderar label utan hjälptext, inget exempel-värde i fältet", () => {
     render(<ExperienceField value={null} onChange={vi.fn()} />);
     const input = screen.getByLabelText("Antal års erfarenhet");
     expect(input).toHaveValue(null);
     // Inget placeholder-exempel (hård Klas-regel).
     expect(input).not.toHaveAttribute("placeholder");
-    expect(
-      screen.getByText(/Ungefärligt antal år du arbetat/)
-    ).toBeInTheDocument();
+    expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("ett angivet värde visas i fältet", () => {

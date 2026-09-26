@@ -32,8 +32,7 @@ namespace Jobbliggaren.Application.UnitTests.Auth;
 /// <para>
 /// Point 4's no-row ground is #1349 and it INVERTED an earlier rule. This class used to specify
 /// "a missing seeker row is Success — no-row parity with LoginCommandHandler", and the parity was
-/// real: both gates passed an orphan. The behaviour it mirrored was the defect, so both gates now
-/// refuse and the parity holds again with the opposite outcome. The projection had to change for the
+/// real: both gates passed an orphan. The behaviour it mirrored was the defect. The projection had to change for the
 /// gate to see the case at all — <c>Select(js =&gt; (DateTimeOffset?)js.DeletedAt)</c> made
 /// <c>FirstOrDefaultAsync</c> answer null for "no row" and "a live row" alike.
 /// </para>
@@ -215,8 +214,7 @@ public class ReauthenticationServiceTests
     {
         // #1349 — INVERTED, and the old version is worth reading before this one. It asserted success
         // and justified it as "Parity with LoginCommandHandler: a user without a seeker row is not
-        // blocked by the gate". The parity was real; the behaviour it mirrored was the defect. Both
-        // gates now refuse, so the sentence is true again with the opposite outcome.
+        // blocked by the gate". The parity was real; the behaviour it mirrored was the defect.
         //
         // The gate could not even SEE this case before: Select(js => (DateTimeOffset?)js.DeletedAt)
         // made FirstOrDefaultAsync answer null for "no row" and for "a live row" alike. An orphan

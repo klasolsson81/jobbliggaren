@@ -177,7 +177,7 @@ describe("/foretag/bevakade/nya", () => {
 
     await renderPage();
 
-    expect(screen.getByText("1 ny annons sedan ditt senaste besök.")).toBeInTheDocument();
+    expect(screen.getByText("1 ny annons.")).toBeInTheDocument();
     expect(screen.getByText(/inte angett vilka yrken/)).toBeInTheDocument();
   });
 
@@ -232,7 +232,7 @@ describe("/foretag/bevakade/nya", () => {
     // Arriving here IS the acknowledgement, so the surface has to show what it acknowledged — the
     // filtered view shows one row, but the sentence must still say two.
     expect(
-      screen.getByText("2 nya annonser sedan ditt senaste besök, varav 1 matchar dig.")
+      screen.getByText("2 nya annonser, varav 1 matchar dig.")
     ).toBeInTheDocument();
   });
 
@@ -268,11 +268,11 @@ describe("/foretag/bevakade/nya", () => {
 
     await renderPage();
 
-    // `rows.length` is the CAPPED count. Rendering it as "N nya annonser sedan ditt senaste besök"
+    // `rows.length` is the CAPPED count. Rendering it as "N nya annonser"
     // asserts a total the page never read, and Översikt's uncapped count would contradict it
     // (ADR 0120: a rendered number is true or absent).
     expect(
-      screen.queryByText("2 nya annonser sedan ditt senaste besök, varav 1 matchar dig.")
+      screen.queryByText("2 nya annonser, varav 1 matchar dig.")
     ).not.toBeInTheDocument();
     expect(
       screen.getByText("Visar 2 nya annonser, varav 1 matchar dig.")
@@ -301,7 +301,7 @@ describe("/foretag/bevakade/nya", () => {
     await renderPage();
 
     expect(
-      screen.getByText("1 ny annons sedan ditt senaste besök.")
+      screen.getByText("1 ny annons.")
     ).toBeInTheDocument();
     expect(screen.getByText(/inte angett vilka yrken/)).toBeInTheDocument();
     // No matching arm to offer when the predicate is inert.

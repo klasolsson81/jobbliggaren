@@ -27,7 +27,7 @@ Change the contract and its tests together when adding a consumer.
 | Worker | PostgreSQL | Background jobs |
 | migrate | PostgreSQL | Schema changes |
 | migrate-rewrap | PostgreSQL | Key maintenance |
-| API | persistent Redis | Sessions, cooldowns, company cache and statistics reads |
+| API | persistent Redis | Sessions, company cache and statistics reads |
 | Worker | persistent Redis | Statistics publication |
 | API | volatile Redis | Login challenges and budgets |
 | API | Seq | Application logs |
@@ -72,7 +72,6 @@ boundary.
 | Session rotation claim / API persistent | `session:*:rotating` | SET with NX and expiry |
 | Session index / API persistent | `user:*:sessions` | SADD, SREM, SMEMBERS, EXPIRE, PEXPIRE, UNLINK |
 | Revocation/deletion markers / API persistent | `user:*:revoked`, `user:*:deleted` | EXISTS, SETEX, PSETEX |
-| RedisCooldownGate / API persistent | `cd/{scope}/v1/*` | HMGET, HMSET, EXPIRE |
 | CachedCompanyRegistry / API persistent | `company-registry:v1:*` | HMGET, HMSET, EXPIRE |
 | RedisLandingStatsCache / API persistent | exactly `landing:stats:v1` | HMGET |
 | RedisLandingStatsCache / Worker persistent | exactly `landing:stats:v1` | HMSET, EXPIRE |
@@ -81,6 +80,7 @@ boundary.
 | RedisLoginChallengeStore, bound challenges / API volatile | `auth/challenge-bound/v1/*` | HMSET, HGET, HINCRBY, EXISTS, EXPIRE, UNLINK, EVAL, EVALSHA |
 | Bound challenge index / API volatile | `auth/challenge-by-user/v1/*` | SET with GET and expiry |
 | RedisGrantStore / API volatile | `auth/grant/v1/*` | SET with NX and expiry, GETDEL |
+| RedisOAuthStateStore / API volatile | `auth/oauth-state/v1/*` | SET with NX and expiry, GETDEL |
 | RedisRegistrationClaim / API volatile | `auth/registration-claim/v1/*` | SET with NX and expiry |
 | RedisRateBudget / API volatile | `budget/{scope}/v1/*` | INCR, EXPIRE with NX |
 | API startup validator / API persistent + API volatile | none | PING |
@@ -91,8 +91,6 @@ boundary.
 | Host operator / operator-persistent + operator-volatile | administrative inspection and identity maintenance | INFO, CONFIG GET, ACL LIST/DRYRUN/SETUSER/DELUSER, CLIENT KILL |
 | Account maintenance / operator-persistent only | `user:*:deleted`; `user:*:sessions`, `session:*` | tombstone SET/EXISTS/DEL; session index and exact session DEL |
 
-The three persistent cooldown scopes are `resend-confirm`, `account-exists`
-and `password-reset`.
 The volatile budget scopes are `login-challenge-cooldown`,
 `login-challenge-mails`, `login-challenge-codes`,
 `login-challenge-unknown-address-mails`, `reauth-cooldown`, `reauth-codes`,
@@ -201,7 +199,7 @@ publishes no ports. It uses synthetic Redis listeners for every service, so
 pair reachability and mount behavior are independent of production boot files.
 
 Coverage includes real session creation, reading, sliding, rotation, logout,
-bulk revocation and deletion markers; real company/cooldown caches; real Worker
+bulk revocation and deletion markers; real company caches; real Worker
 publication followed by API read; challenges, replacement, code/link consumption,
 concurrent single use, cold/warm scripts and script-cache loss; and every existing
 budget scope. Refusal tests cover Worker access to auth data, reversed statistics

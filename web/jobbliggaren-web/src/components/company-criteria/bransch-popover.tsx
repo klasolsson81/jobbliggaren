@@ -124,8 +124,7 @@ export function BranschPopover({
           // `help` STAYS. The panel header says "Välj bransch", which names the control but not its
           // mechanics: that a checkbox on a parent selects its whole subtree, and that more than one
           // branch can be picked. One click here can select 52 codes, and after #999 this is the only
-          // sentence on /foretag/sok that says so. `filterHint` is the one dropped instead — it sat
-          // under a field already labelled "Sök bransch" and paid no rent (finding 9).
+          // sentence on /foretag/sok that says so.
           help={tc("sniHelp")}
           filterLabel={tc("sniFilterLabel")}
           groupAria={tc("sniGroupAria")}

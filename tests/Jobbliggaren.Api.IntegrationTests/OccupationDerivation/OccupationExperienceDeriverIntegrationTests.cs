@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Sessions;
 using Jobbliggaren.Domain.Resumes.Parsing;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -9,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 
@@ -26,13 +26,14 @@ namespace Jobbliggaren.Api.IntegrationTests.OccupationDerivation;
 ///   • "Advokat"           → ssyk-4 q8wL_kdi_WaW "Advokater"
 ///   • "Mjukvaruutvecklare" → ssyk-4 DJh5_yyF_hEM "Mjukvaru- och systemutvecklare m.fl."
 /// </summary>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
 {
     private const string AdvokatGroup = "q8wL_kdi_WaW";
     private const string MjukvaraGroup = "DJh5_yyF_hEM";
 
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
 
     private ServiceProvider _provider = default!;
 
@@ -40,22 +41,19 @@ public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
     private static readonly FakeDateTimeProvider Clock =
         new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
+    public OccupationExperienceDeriverIntegrationTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options =>
             options
-                .UseNpgsql(_postgres.GetConnectionString(),
+                .UseNpgsql(_connectionString,
                     npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
                 .UseSnakeCaseNamingConvention());
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await appDb.Database.MigrateAsync();
 
         var env = Substitute.For<IHostEnvironment>();
         env.EnvironmentName.Returns("Test");
@@ -68,7 +66,7 @@ public sealed class OccupationExperienceDeriverIntegrationTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 

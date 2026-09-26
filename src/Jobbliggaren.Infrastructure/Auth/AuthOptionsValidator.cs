@@ -6,53 +6,28 @@ using Microsoft.Extensions.Options;
 namespace Jobbliggaren.Infrastructure.Auth;
 
 /// <summary>
-/// Startup validation for <see cref="AuthOptions"/> (ADR 0083 Amendment 2026-08-03,
-/// senior-cto-advisor bind 2026-08-03). Refuses to boot on TWO conditions, neither of which fires inside
-/// Development or Test:
-/// <list type="number">
-/// <item><c>RegistrationsOpen</c> WITHOUT <c>RequireEmailConfirmation</c> — legacy instant-login: an
-/// account minted with no proof the registrant owns the address, and the acknowledged-deferred
-/// 200-vs-400 duplicate-enumeration oracle live on a public IP.</item>
-/// <item>a registered <see cref="IEmailSender"/> that cannot deliver, whatever either flag says.
-/// The rule was added 2026-08-09 as senior-cto-advisor's D1, the composition-time boot refusal
-/// <c>NullEmailSender</c>'s own contract names as its owner, and then required both flags on, because it
-/// guarded only registration's activation link; security-auditor Major 12 (#1735) dropped both.</item>
-/// </list>
-/// <para>
-/// Why controls rather than comments: both combinations were documented and unenforced, and
-/// repairing that with more documentation would reproduce its mechanism.
-/// </para>
-/// <para>
-/// Rule 1 fires in ONE direction only: an absent <c>Auth</c> section binds both flags to <c>false</c>
-/// and cannot trip it. Rule 2 has no flag to leave closed, by design.
-/// </para>
+/// Startup validation hung on <see cref="AuthOptions"/> (ADR 0083 Amendment 2026-08-03, ADR 0142 D10). Refuses
+/// to boot outside Development and Test when the registered <see cref="IEmailSender"/> cannot deliver, whatever
+/// <see cref="AuthOptions.RegistrationsOpen"/> says: every login is a mailed code or link, so a sender that drops
+/// mail locks every account out, and an open registration would mint accounts nobody can log in to
+/// (security-auditor Major 12, #1735).
 /// <para>
 /// The exemption is an ALLOWLIST (Development, Test), never <c>!IsProduction()</c> — a denylist would
-/// exempt Staging and every unrecognised environment name silently, which is the class of silence this
-/// change repairs. It reuses the house's established exemption predicate rather than inventing a
-/// third.
+/// exempt Staging and every unrecognised environment name silently.
 /// </para>
 /// <para>
-/// <b>Rule 2 asks the sender, never the configuration key.</b> <see cref="IEmailSender.CanDeliver"/>
-/// is the capability member #1087 added precisely so a delivery-dependent consumer can refuse up
-/// front; a provider added later is classified by its own answer, with nothing here to keep in sync.
-/// Reading <c>Email:Provider</c> instead would re-enumerate the switch in
-/// <c>DependencyInjection.AddEmailSender</c> and would go stale the day a third provider lands.
+/// <b>It asks the sender, never the configuration key.</b> <see cref="IEmailSender.CanDeliver"/> is the
+/// capability member #1087 added so a delivery-dependent consumer can refuse up front; a provider added later
+/// is classified by its own answer, with nothing here to keep in sync. Reading <c>Email:Provider</c> instead
+/// would re-enumerate the switch in <c>DependencyInjection.AddEmailSender</c>.
 /// </para>
 /// <para>
-/// <b>Why the dependency resolves here and why the Worker is untouched.</b> This validator is
-/// registered in <c>AddIdentityAndSessions</c>, which every HOST composition reaches together with
-/// <c>AddEmailSender</c>, so wherever this type resolves, an <see cref="IEmailSender"/>
-/// does. Where the pairing ever stops holding it fails LOUD, on an unresolvable constructor
-/// argument at boot, never on a silently open gate. <c>ProductionStartupSmokeTests</c> boots a real
-/// Production host, so the construction is pinned rather than argued. Re-measure the composition with:
-/// <c>grep -rn "AddIdentityAndSessions" --include=*.cs src/ tests/</c>.
-/// The Worker calls <c>AddEmailSender</c> too but composes identity through
-/// <c>AddCoreIdentityForWorker</c>, which binds the same <c>Auth</c> section with a plain
-/// <c>Configure</c> and registers no validator. That asymmetry is deliberate and is preserved here:
-/// the Worker owns no registration or login surface, so a shared env file must not take it down for
-/// a condition it cannot exercise. Putting either rule inside <c>AddEmailSender</c> — the one seam both
-/// hosts share — would do exactly that.
+/// <b>Why the dependency resolves here and why the Worker is untouched.</b> This validator is registered in
+/// <c>AddIdentityAndSessions</c>, which every HOST composition reaches together with <c>AddEmailSender</c>, so
+/// wherever this type resolves, an <see cref="IEmailSender"/> does. <c>ProductionStartupSmokeTests</c> boots a
+/// real Production host, so the construction is pinned rather than argued. The Worker calls
+/// <c>AddEmailSender</c> too but registers no validator: it owns no login surface, so a shared env file must
+/// not take it down for a condition it cannot exercise.
 /// </para>
 /// </summary>
 internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailSender emailSender)
@@ -63,18 +38,6 @@ internal sealed class AuthOptionsValidator(IHostEnvironment environment, IEmailS
         if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
         {
             return ValidateOptionsResult.Success;
-        }
-
-        if (options.RegistrationsOpen && !options.RequireEmailConfirmation)
-        {
-            return ValidateOptionsResult.Fail(
-                $"Auth:RegistrationsOpen=true kräver Auth:RequireEmailConfirmation=true utanför "
-                + $"Development/Test (aktuell miljö: {environment.EnvironmentName}). Öppen "
-                + "registrering utan e-postbekräftelse skapar konton bundna till adresser "
-                + "registranten inte bevisligen äger, och exponerar duplikat-oraklet på en publik "
-                + "IP. Sätt Auth__RequireEmailConfirmation=true OCH en riktig Email:Provider "
-                + "(förutsättningarna: docs/runbooks/registration-gate.md), eller lämna registreringen "
-                + "stängd.");
         }
 
         if (!emailSender.CanDeliver)

@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t("auth.passwordless.link.meta.title"),
     robots: { index: false, follow: false },
-    // `same-origin`, not the other token pages' `no-referrer`: see `LOGIN_LINK_REFERRER_POLICY`.
+    // `same-origin`: see `LOGIN_LINK_REFERRER_POLICY`.
     referrer: LOGIN_LINK_REFERRER_POLICY,
   };
 }

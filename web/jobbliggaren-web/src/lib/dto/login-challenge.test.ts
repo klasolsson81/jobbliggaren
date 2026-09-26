@@ -19,7 +19,7 @@ describe("loginOutcomeSchema", () => {
     ["a signed-in body without its session", { outcome: "signedIn" }],
     ["a consent body without its grant", { outcome: "consentRequired" }],
     ["a deletion date carrying a time", { outcome: "pendingDeletion", permanentDeletionDate: "2026-10-19T00:00:00Z" }],
-    ["a bare session body, which is /auth/login's shape and not this one", { sessionId: "s" }],
+    ["a bare session body with no outcome", { sessionId: "s" }],
   ])("refuses %s", (_label, body) => {
     expect(loginOutcomeSchema.safeParse(body).success).toBe(false);
   });

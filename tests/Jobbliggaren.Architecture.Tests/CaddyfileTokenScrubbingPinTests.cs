@@ -82,6 +82,9 @@ public class CaddyfileTokenScrubbingPinTests
     [
         // No removal trigger: no measurement can show that no inbox still holds a /bekrafta-epost link.
         new("email", Generator: "EmailTemplates.EmailChangeConfirmation", RetiredIn: "#1739 PR 4"),
+
+        // No removal trigger, for the same reason: /bekrafta-konto and /aterstall-losenord links.
+        new("uid", Generator: "EmailTemplates.EmailConfirmation, EmailTemplates.PasswordReset", RetiredIn: "#1743"),
     ];
 
     private sealed record RetiredParameter(string Name, string Generator, string RetiredIn);
@@ -163,7 +166,7 @@ public class CaddyfileTokenScrubbingPinTests
         ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix"];
 
     private static readonly Regex TokenLink = new(
-        @"https://\S+/(?:bekrafta-konto|aterstall-losenord|logga-in/lank)\?\S+",
+        @"https://\S+/logga-in/lank\?\S+",
         RegexOptions.Compiled);
 
     /// <summary>A line opening a <c>log</c> directive, at any indentation.</summary>
@@ -176,12 +179,6 @@ public class CaddyfileTokenScrubbingPinTests
     {
         var bodies = new[]
         {
-            EmailTemplates.EmailConfirmation(
-                BaseUrl,
-                new EmailConfirmationEmail(Guid.NewGuid(), Base64UrlToken)).PlainTextBody,
-            EmailTemplates.PasswordReset(
-                BaseUrl,
-                new PasswordResetEmail(Guid.NewGuid(), Base64UrlToken)).PlainTextBody,
             EmailTemplates.LoginChallenge(
                 BaseUrl,
                 new LoginChallengeEmail.CodeAndLink(
@@ -337,10 +334,11 @@ public class CaddyfileTokenScrubbingPinTests
         // Guards the shape the facts above assume. `RenderedParameterNames` de-duplicates, so
         // counting NAMES cannot tell several matched links from one. Count the links.
         RenderedLinks().Count.ShouldBe(
-            4,
+            2,
             "a token-bearing link stopped matching TokenLink, so the pin silently reads fewer "
             + "generators than it claims.");
 
+        RenderedParameterNames().ShouldNotBeEmpty();
         CaddyfileFilteredParameters().ShouldNotBeEmpty();
         GlobalOptionsLines().Length.ShouldBeLessThan(CaddyfileLines().Length);
 

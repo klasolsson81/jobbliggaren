@@ -3,7 +3,6 @@ using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Registration;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
@@ -13,19 +12,21 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// <c>redis-volatile</c>. The lifetime is spelled out as a literal, so a change to the policy constant makes
 /// this go red.
 /// </summary>
-public sealed class RedisRegistrationClaimTests : IAsyncLifetime
+public sealed class RedisRegistrationClaimTests : IAsyncLifetime, IClassFixture<SharedVolatileRedisFixture>
 {
-    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+    private readonly SharedVolatileRedisFixture _redis;
 
     // The test's OWN reader, beside the connection the claim is given.
     private ConnectionMultiplexer _mux = null!;
     private VolatileRedisConnection _connection = null!;
     private RedisRegistrationClaim _claim = null!;
 
+    public RedisRegistrationClaimTests(SharedVolatileRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
-        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
+        await _redis.FlushAsync();
+        var connectionString = $"{_redis.ConnectionString},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _claim = new RedisRegistrationClaim(_connection);
@@ -36,7 +37,6 @@ public sealed class RedisRegistrationClaimTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

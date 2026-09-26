@@ -30,7 +30,7 @@ describe("LinkLandingForm", () => {
     const { container } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
 
     expect(
-      screen.getByText("Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.")
+      screen.getByText("Länken gäller en gång och i 15 minuter.")
     ).toBeInTheDocument();
     expect(container.querySelector('input[type="hidden"][name="token"]')).toHaveValue("link-token");
 
@@ -41,6 +41,25 @@ describe("LinkLandingForm", () => {
     // The one-button arm never says "replace the session": that is the action's to ask about.
     expect(consumeLinkMock.mock.lastCall![1].has("replaceSession")).toBe(false);
   });
+
+  it.each([
+    [false, "Logga in"],
+    [true, "Fortsätt och logga in"],
+  ])(
+    "states the persistence directly above the primary (alreadyLoggedIn=%s): consuming the link opens a persistent session",
+    (alreadyLoggedIn, primary) => {
+      render(<LinkLandingForm token="link-token" alreadyLoggedIn={alreadyLoggedIn} />);
+
+      const disclosure = screen.getByText(
+        "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+      );
+      const buttons = disclosure.nextElementSibling;
+      expect(buttons?.querySelector("button")).toBe(screen.getByRole("button", { name: primary }));
+      expect(screen.getByRole("button", { name: primary })).toHaveAccessibleDescription(
+        disclosure.textContent ?? ""
+      );
+    }
+  );
 
   it("names the arm in the h1", () => {
     const { rerender } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={false} />);
@@ -55,7 +74,9 @@ describe("LinkLandingForm", () => {
       const { container } = render(<LinkLandingForm token="link-token" alreadyLoggedIn={true} />);
 
       expect(
-        screen.getByText(/En inloggning är redan aktiv i den här webbläsaren\. Fortsätter du ersätts den/)
+        screen.getByText(
+          "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot."
+        )
       ).toBeInTheDocument();
       expect(container.textContent).not.toMatch(/@/);
 
@@ -93,7 +114,9 @@ describe("LinkLandingForm", () => {
       const heading = await screen.findByRole("heading", { level: 1, name: "Du är redan inloggad" });
       await waitFor(() => expect(heading).toHaveFocus());
       expect(
-        screen.getByText(/En inloggning är redan aktiv i den här webbläsaren\. Fortsätter du ersätts den/)
+        screen.getByText(
+          "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot."
+        )
       ).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Stanna kvar som inloggad" })).toHaveAttribute(
         "href",

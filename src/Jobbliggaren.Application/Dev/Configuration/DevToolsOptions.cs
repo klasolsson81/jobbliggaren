@@ -30,15 +30,16 @@ public sealed class DevToolsOptions
     /// </para>
     /// <para>
     /// <b>What this flag deliberately does NOT reach:</b> the rest of the <c>/api/v1/dev/*</c>
-    /// group. <c>POST /api/v1/dev/confirm-email</c> is an UNAUTHENTICATED seam that force-confirms
-    /// an address, and it stays gated on <c>IsDevelopment()</c> unconditionally — which is why the
+    /// group. <c>POST /api/v1/dev/accounts</c> and <c>POST /api/v1/dev/login-code</c> are
+    /// UNAUTHENTICATED seams that open an account and hand out a login code for a reserved address,
+    /// and they stay gated on <c>IsDevelopment()</c> unconditionally — which is why the
     /// routes are mapped by two different extension methods rather than one call behind one
     /// condition. Turning this flag on must never be one <c>||</c> away from re-arming an auth
     /// bypass, and <c>ProductionStartupSmokeTests</c> measures that in both flag polarities.
     /// </para>
     /// <para>
     /// Read in TWO independent places — the map gate in <c>Program.cs</c> and a refusal inside the
-    /// handler — mirroring the two structural gates <c>confirm-email</c> already has. Deliberately
+    /// handler — mirroring the two structural gates the other seams have. Deliberately
     /// NOT <c>ValidateOnStart</c>-refused: a validator that rejects the flag outside Development
     /// would make it impossible to use for its only purpose. The boot announcement carries the
     /// posture instead, at Warning.

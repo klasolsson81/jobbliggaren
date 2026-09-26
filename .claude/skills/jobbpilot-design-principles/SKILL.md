@@ -192,7 +192,7 @@ accessible, and built to be trusted — not admired.
 ## Förbjudna mönster (anti-pattern catalog)
 
 ### Layout & styling
-- ✗ Gradienter på bakgrunder, knappar, badges (enda undantag: hero-banner-plattan, ADR 0068; leverantörsmärket bär sin egen, DESIGN.md §3)
+- ✗ Gradienter på bakgrunder, knappar, badges (undantag: hero-banner-plattan, ADR 0068; leverantörsmärket bär sin egen, DESIGN.md §3)
 - ✗ Drop-shadows på cards (skuggor endast på popovers/dropdowns)
 - ✗ Avrundade hörn över 6px (utom pill-prickar)
 - ✗ Floating Action Buttons (FAB)

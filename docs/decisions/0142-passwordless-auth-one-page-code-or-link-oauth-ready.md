@@ -855,7 +855,7 @@ form; none of them is re-asked.
   layout. The window is `aria-hidden` and the image has `alt=""`; `next/image` serves it `unoptimized`, byte for
   byte. Measured rendered in chromium at 1280 on 2026-09-26: window 20×20, image 40×40 at −10/−10, natural 160×160.
 - DESIGN.md §3 carries the scoped exception and §7 its one line. AGENTS.md §5's gradient ban names it beside the hero
-  plate. The design skills say the same, so no executing home contradicts it.
+  plate. The design skills say the same.
 - The row keeps the app's font and colours. Google Sans, `#747775` and `#1F1F1F` describe Google's own rendered
   button, not a MUST for a custom one (branding guidelines, read 2026-09-25). The row's hover shows on its border, so
   the mark's white ground matches the row at rest and in hover (`design-reviewer` D2).
@@ -878,7 +878,7 @@ form; none of them is re-asked.
   other than `navigate` or a `Sec-Fetch-Dest` other than `document`.
 - Otherwise it calls the api with the forwarded headers. It checks that the authorization request points at the
   provider's one endpoint and carries the state the api returned. Then it sets `__Host-jobbliggaren_oauth` (HttpOnly,
-  Secure, Lax, Path=/, 600 s) and answers a relative 302 with `no-store`. Any failure sends the browser to
+  Secure, Lax, Path=/, 600 s) and answers a 302 to the provider with `no-store`. Any failure sends the browser to
   `/logga-in` with a notice.
 - **The callback** answers every branch with 200 and the continuation document, never a 3xx and never a 5xx. It
   compares the state cookie with the query's state through equal-length SHA-256 digests in constant time, and clears
@@ -1783,7 +1783,8 @@ while `DARK_MODE_ENABLED` is `false`.
 
 - **Routes stay in `(auth)`:** SiteHeader/SiteFooter, centred `max-w-sm`, h1 in flow, no
   `jp-pagehero`, no hero gradient. Own `h1` per route: `/logga-in` "Logga in eller skapa konto" ·
-  `/logga-in/kod` "Ange koden" · `/logga-in/villkor` "Skapa ditt konto" · `/logga-in/lank` "Logga in
+  `/logga-in/kod` "Ange koden", or "Logga in med {provider}" for an outcome reached through a provider ·
+  `/logga-in/villkor` "Skapa ditt konto" · `/logga-in/lank` "Logga in
   på Jobbliggaren", or "Du är redan inloggad" on the arm shown when the browser already holds a
   session. `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
@@ -1792,7 +1793,7 @@ while `DARK_MODE_ENABLED` is `false`.
   h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress."*) → email
   field + the Art. 13 line → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no
-  "Eller" divider. **At least one provider live (6a):** h1 → the persistence line, which each active row is
+  "Eller" divider. **At least one provider live (6a):** h1 → a notice → the persistence line, which each active row is
   described by → the provider rows → divider "Eller fortsätt med e-post" → the lede → field → Fortsätt
   (Amendment 2026-09-26 (15)).
 - **Provider buttons** (design M2): shadcn `Button` `variant="outline"`, never `.jp-btn` in the same
@@ -1835,13 +1836,14 @@ while `DARK_MODE_ENABLED` is `false`.
   | pending deletion | status, replaces the form | "Ditt konto raderas permanent {14 apr 2026}. Fram till dess kan du få det återställt genom att mejla kontakt@jobbliggaren.se." | mail link; no "Ångra" button that does not exist |
   | resting / sent | base render, focus h1 | the resting copy above | field + "Skicka ny kod" + "Byt e-postadress" |
   | throttled (429) or unavailable (503) | status in the form's own message slot, focus to the message, never danger colour | "För många försök. Vänta en stund och försök igen." · "Det går inte att logga in just nu. Försök igen om några minuter." | the form stays |
-  | back on `/logga-in` with a notice | status panel with `h2` above the form, focus moved | "Registreringen slutfördes inte" (an unusable grant) · "Inloggningen gick ut" (a code submitted after the flow ran out) | the form, which is the remedy |
+  | back on `/logga-in` with a notice | status panel with `h2` above the form, focus moved | "Registreringen slutfördes inte" (an unusable grant) · "Inloggningen gick ut" (a code submitted after the flow ran out) · "{provider} kan inte intyga din e-postadress" and "Inloggningen med {provider} slutfördes inte" (an external login, Amendment 2026-09-26 (15)) | the form, which is the remedy |
 
 - **Consent step:** checkbox label *"Jag godkänner <terms>användarvillkoren</terms>."* — full stop;
   the privacy policy in a sibling sentence under the box (*"Vi behandlar dina uppgifter enligt
   integritetspolicyn."*), never inside the acceptance. "Skapa konto" the only primary. The D4
   disclosure directly above it. The step shows no address: under the `h1`, *"Kontot skapas på den
-  e-postadress du nyss bekräftade med koden."*, and last the same submit out, *"Börja om med en
+  e-postadress du nyss bekräftade med koden."*, or through a provider *"Kontot skapas på e-postadressen i
+  {provider}-kontot du valde."*, and last the same submit out, *"Börja om med en
   annan e-postadress"*.
 - **Link landing** (design M5): `<form action={consumeLinkAction}>` with the token in a hidden
   input and a submit button — works with JS off; no `useEffect` consumption (scanners GET); this is

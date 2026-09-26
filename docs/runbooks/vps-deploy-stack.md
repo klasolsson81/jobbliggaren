@@ -619,6 +619,12 @@ account's address is changed, on Mina sidor, to the Google account's address. Th
 The first successful login also measures the type of `email_verified`: a success means it was the
 JSON `true`. A refusal logs EventId 1023 with its cause class, never the address.
 
+**Take the first successful Google login in Safari** (iOS or macOS). Landing signed in on `/oversikt`
+is Apple WebKit's reading of the continuation hop, which no committed instrument measures (ADR 0142
+Amendment 2026-09-26 (15)). Post a second dated comment on #1732 with the date, device, OS and Safari
+version. With no Safari at hand, the comment says so and the residual stays open. If the login fails,
+deactivate and file the defect.
+
 **Deactivation.** Remove both lines from `deploy/.env` and re-create api. Starts are refused at once.
 The web caches the providers list for up to 5 minutes, so the button can show that long, and a click
 in that window is refused without a transfer to Google.

@@ -709,9 +709,8 @@ alone (login CSRF: an attacker completes their own IdP flow and feeds the victim
 The cookie binds the *browser* to the flow; the Redis record (`GETDEL`) is the lookup key for the
 PKCE verifier, provider and `next` — two roles, not double storage.
 
-**Provider marks:** none while the buttons are inactive (Amendment 2026-09-21 (3)). Marks, and
-whether the official coloured ones get a scoped DESIGN.md §3 exception, are 6a's and Klas's (see
-"Open — Klas decides").
+**Provider marks:** none on an inactive row (Amendment 2026-09-21 (3)). An active row carries the provider's
+official mark, unmodified, under DESIGN.md §3's scoped exception (Klas, 2026-09-25; Amendment 2026-09-26 (15)).
 
 **Privacy policy and Chapter V, in the same PR as the first live provider** (security Major 10):
 the IdPs enter "Mottagare" as **independent controllers, not processors** (Art. 13(1)(e) with source);
@@ -824,6 +823,243 @@ The volatile instance refuses writes when it is full, so no unbounded value reac
 
 **DoD 8.** In PR S no new personal data reaches production: without a registered provider no flow can complete. The
 processing-register entries land with PR G.
+
+#### Amendment 2026-09-26 (15) (#1744, part 6a, PR G) — Google login, and the corrections above
+
+*Built to `senior-cto-advisor`'s PR G order (`docs/reviews/2026-09-25-1744-form-cto.md` F9–F13) on the form round's
+reports (Amendment (14)). D8's marks paragraph, "Page form" and the Open block are corrected in place; this block
+records why.*
+
+**Klas answered on 2026-09-25**, each question put to him verbatim through AskUserQuestion. They gate this PR's
+form; none of them is re-asked.
+1. `design-reviewer`'s colour question (the Open block): **"(b) Officiella märken"**.
+2. `design-reviewer`'s gradient branch: *"Googles officiella märke kräver mer än märket: en gradient i G:et, som
+   AGENTS.md §5 bara tillåter på hero-plattan. Ditt (b) gav ett scopat undantag för märkena, inte för en andra
+   gradient eller för knappens typsnitt och färger. Vill du (a) utvidga undantaget till det Google kräver, eller (b)
+   låta Google-raden stå inaktiv tills vidare?"* Klas: **"(a) Utvidga undantaget"**.
+3. The download of Google's `signin-assets.zip` (855 303 bytes, developers.google.com, last modified 2026-06-29):
+   **"Ja, ladda ner"**. The option he chose said the G's SVG would be copied into the repo unmodified. F9 then chose
+   the archive's PNG of the same variant instead, because only a raster could be pinned byte-identical and rendered
+   the same in every engine. Both are Google's own files from that archive, unmodified.
+4. `security-auditor`'s Chapter V question: *"Frågan: accepterar du, innan du lägger in nycklarna, att
+   Google-inloggningen vilar på DPF-beslutet och får den följden?"* The consequence was stated beside it: Google login
+   closes, by Klas removing the keys on the box, if (EU) 2023/1795 falls, with no fallback basis. Klas: **"Ja, jag
+   accepterar"**. It gates activation, not merge.
+
+**The mark.**
+- The file is the archive entry "Android + Web/PNG @4x/Light/Theme=Light, Show text=No, Shape=Square,
+  Platform=Android+Web@4x.png", 160×160. It is committed byte-identical as
+  `public/provider-marks/google-g-light-square-4x.png`. `provider-marks.test.ts` pins its sha256, its size and its
+  one consumer outside the tests, `provider-buttons.tsx`.
+- It renders 40×40 in a 20×20 `overflow-hidden` window, offset −10 px, so the asset's own frame falls outside by
+  layout. The window is `aria-hidden` and the image has `alt=""`; `next/image` serves it `unoptimized`, byte for
+  byte. Measured rendered in chromium at 1280 on 2026-09-26: window 20×20, image 40×40 at −10/−10, natural 160×160.
+- DESIGN.md §3 carries the scoped exception and §7 its one line. AGENTS.md §5's gradient ban names it beside the hero
+  plate. The design skills say the same, so no executing home contradicts it.
+- The row keeps the app's font and colours. Google Sans, `#747775` and `#1F1F1F` describe Google's own rendered
+  button, not a MUST for a custom one (branding guidelines, read 2026-09-25). The row's hover shows on its border, so
+  the mark's white ground matches the row at rest and in hover (`design-reviewer` D2).
+
+**The page, as delivered** (corrected in place in "Page form").
+- With a live provider the order is: h1, then a notice, then the persistence line, then the provider rows, then the
+  divider "Eller fortsätt med e-post", then the lede, the field and Fortsätt.
+- Each active row is described by the persistence line (`aria-describedby`). A provider login creates the persistent
+  session without passing a step that shows it, so the line stands where the action is taken (D4 point 2,
+  `security-auditor` S1).
+- The list is read from `GET /auth/oauth/providers` with a five-minute revalidate. Any failure reads as `[]`, and a
+  key this build does not know is dropped. With `[]` the page is unchanged.
+- An active row is an `<a href>` to `/api/auth/oauth/{provider}/start?next=…`. It is never a form, which the CSP's
+  `form-action 'self'` refuses once the start redirects to the provider. It is never `next/link`, because a prefetch
+  must not mint a flow.
+
+**The web's two route handlers.**
+- **The start** refuses a provider segment it does not know before interpolating it, and guards `next` twice. It
+  answers 204 and mints nothing for a prefetch, and for a request that is not a click on the row: a `Sec-Fetch-Mode`
+  other than `navigate` or a `Sec-Fetch-Dest` other than `document`.
+- Otherwise it calls the api with the forwarded headers. It checks that the authorization request points at the
+  provider's one endpoint and carries the state the api returned. Then it sets `__Host-jobbliggaren_oauth` (HttpOnly,
+  Secure, Lax, Path=/, 600 s) and answers a relative 302 with `no-store`. Any failure sends the browser to
+  `/logga-in` with a notice.
+- **The callback** answers every branch with 200 and the continuation document, never a 3xx and never a 5xx. It
+  compares the state cookie with the query's state through equal-length SHA-256 digests in constant time, and clears
+  the cookie on every branch. A provider's `error`, or a missing or mismatched cookie, reaches no backend.
+- The callback's response is `no-store`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex`, set by the
+  handler and by `next.config`. The served policy is exactly one value (`security-headers.spec.ts`).
+- Where the document sends the browser:
+  - `signedIn`: `safeRedirectPath(next)`. The persistent session cookie is set on that same response and the flow
+    cookie is cleared.
+  - `consentRequired`: `/logga-in/villkor`, with the consent phase.
+  - `registrationClosed`, `accountUnavailable` and `pendingDeletion`: `/logga-in/kod`, with the outcome phase.
+  - `Auth.ExternalEmailUnverified`: `/logga-in`, with the notice `externalUnverified`.
+  - Every other refusal: `/logga-in`, with the notice `externalNotCompleted`.
+
+**The continuation document** (F13.4).
+- `<meta charset>` comes first, then `<meta name="referrer" content="no-referrer">`, before any element that fetches
+  or navigates.
+- The document is `<meta http-equiv="refresh" content="0;url=…">` plus a "Fortsätt" link, with the target
+  attribute-escaped, `lang` set, and an empty icon so no favicon is fetched.
+- It has no subresource, no script and no style.
+- **The ratified deviation:** it renders in the user agent's font and link colour, with no 44 px target. That is the
+  price of zero subresources, which keeps the callback URL's code and state out of every Referer. Rendered at 375
+  and 1280 on 2026-09-26.
+
+**`via` and the two notices.**
+- The flow cookie's consent and outcome phases carry `via`, a closed provider key. It is an echo for display, never
+  an input (F13.5): `complete` redeems both grant purposes whatever `via` says, and the account is made on the
+  grant's address.
+- With `via` set, the consent step says *"Kontot skapas på e-postadressen i {provider}-kontot du valde."*. An outcome
+  on the code step is titled *"Logga in med {provider}"*, in its h1 and its title (`design-reviewer` Blocker 1, M7).
+- The two external notices name their provider: *"{provider} kan inte intyga din e-postadress"* and
+  *"Inloggningen med {provider} slutfördes inte"*. The flow schema admits a provider on a notice exactly when it is
+  one of these two.
+
+**Chapter V: this product's one transfer to a third country.**
+- Google is an independent controller, never a processor.
+- For an account holder in the EEA or Switzerland it is Google Ireland Limited (Google Privacy Policy, effective
+  2026-04-02, read 2026-09-26).
+- The counterparty of the server's token and userinfo calls is Google LLC, USA. The Google APIs Terms of Service say
+  *"Google" means Google LLC*; last modified 2021-11-09, read 2026-09-26.
+- Chapter V applies, in a conservative reading, because the code and the access token are tied to an identified
+  person.
+- **Basis: Art. 45**, Commission Implementing Decision (EU) 2023/1795 (EU-US Data Privacy Framework), marked
+  "In force" on EUR-Lex, read 2026-09-26. Art. 49 is no basis (D8).
+  - Google LLC on the DPF List: EU-U.S. Data Privacy Framework **Active**, data collected **"HR and Non-HR Data"**,
+    original certification 2016-09-22, next certification due 2027-09-13 (dataprivacyframework.gov, read
+    2026-09-26).
+  - The appeal C-703/25 P, *Latombe v Commission* (from T-553/23), lodged 2025-10-31, is a pending case on InfoCuria,
+    read 2026-09-26. An order of 2026-06-04 (ECLI:EU:C:2026:465) is listed there and was not read.
+- **Lapse, on any of:**
+  1. Google LLC is no longer Active, or Non-HR data is no longer covered.
+  2. (EU) 2023/1795 is annulled, repealed or amended.
+  3. The Google APIs Terms of Service name another contracting party.
+  4. A scope beyond `openid email` is requested, or a Google token is stored.
+- On (1) or (2) the keys are removed on the box (`vps-deploy-stack.md` §3d). Without them no provider is registered.
+  No code change follows, and there is no fallback basis. Klas accepted this consequence (above).
+- **Home:** the processing register's Chapter V entry. **Reader:** Klas Olsson. Nothing detects a lapse
+  automatically.
+
+**Lapse trigger 4, "an IdP goes live": the reading.**
+- It fires at activation, not at merge: without keys the api registers no provider and the list is `[]`. It is read
+  here because activation has no PR, and the reading holds for the merged code.
+- A later change to the `VerifiedEmail` rule, the address invariant (M-1) or the outcome table fires it again, in
+  that change's own PR.
+- `security-auditor`, 2026-09-25:
+  - **(a)** The guessing arithmetic stands. The OAuth path mints no secret that can be guessed into a session: the
+    state is at least 128 bits, single-use and bound to a `__Host-` cookie; the code is Google's; the PKCE verifier is
+    256 bits. 0.003 %/day and 1.089 %/year stand, and trigger 5's quantities are untouched.
+  - **(b)** The path adds a second proof of the same thing. Under the authoritative rule and M-1, a Google session
+    exists only where Google is authoritative for an address that is verbatim the account's own. For `@gmail.com` the
+    Google account is the mailbox; with `hd` the domain's administrator controls the mailbox. Whoever passes could
+    have received the code, so the set that can obtain a session does not change. Without M-1, or without the rule
+    on both arms, the equivalence does not hold.
+  - **(c)** The DoS reading improves for Google-authoritative addresses: a third party that spends the mint budget no
+    longer locks out a Gmail or Workspace holder. It is unchanged for every other address.
+  - **(d)** Declared residual, not measured: the equivalence rests on Google's own verification.
+  - **(e)** A bearer reading, with instrument and date, at merge and again at activation, never inherited.
+- **(e) before merge, 2026-09-26T06:23Z,** read-only on the box over `ssh jp-vps` (`docker exec` into the running
+  containers):
+  - `Auth__RegistrationsOpen` in the running api container is `false`, and no `Auth__OAuth__` variable is set.
+  - The providers list, read from inside the web container, answers `200 []`.
+  - There are 2 accounts, both the controller's own address.
+  - `identity."AspNetUserLogins"` has 0 rows.
+
+  At activation the reading goes, dated, as a comment on #1732 (`vps-deploy-stack.md` §3d). The next amendment of
+  this ADR, 6b's at the latest, transcribes it (F13.6).
+- **The start path's flood** (`security-auditor` PR S m3; the form chosen by `dotnet-architect`, 2026-09-26):
+  - The start is a GET any page can reach, and each start writes a record to `redis-volatile`, which refuses every
+    write, a login code's included, once it is full.
+  - `ExternalLoginPolicy.StartBudget` admits 60 starts per minute, every provider together. It is consumed in the
+    start handler after the provider is found and before anything is written. Past it the start answers
+    `Auth.ExternalLoginStartsExhausted` with 503 (EventId 1027), so a flood stops external login and never code
+    login.
+  - The counter lives on the same instance as the flows, so a restart resets both together.
+  - Bound: a flow lives ten minutes, so at most 60 × (10 + 1) = 660 are live. Written through the production store,
+    each with the longest path the validator admits in the character the JSON writer escapes to six bytes, they took
+    2 442 304 of 67 108 864 bytes (3.6 %) on the deploy compose's own Redis. Measured 2026-09-26; regenerated by
+    `dotnet test --project tests/Jobbliggaren.Api.IntegrationTests -- --filter-method "*The_start_path_at_its_budget_bound*" --report-xunit`.
+    The row asserts at most a sixteenth, and that a login challenge is still written afterwards.
+  - The web start's `Sec-Fetch` refusal (above) keeps an embedded request from spending both this budget and the
+    visitor's own `AuthWrite` bucket, which `/auth/challenge` shares.
+- **The other triggers for 6a:**
+  - 1: the gate is untouched.
+  - 2 and 3: no account is added. A Google login on an address without an account answers `registrationClosed` while
+    the gate is shut, with no grant and no row.
+  - 5: code length, attempts and mint budget are untouched.
+  - 6: spent in Amendment (13).
+  - 7: untouched.
+
+**A login over an existing session** (`security-auditor` S2, parity with the code path). A login in a browser that
+already holds a session leaves the old one alive without a holder. It expires after 30 days unused. Harm
+presupposes an id already stolen, which the overwrite does not create.
+
+**The Strict-premise instrument** (F10).
+- The instrument is `web/jobbliggaren-web/playwright.oauth-strict.config.ts` with `tests/oauth-strict/`, run by
+  `pnpm exec playwright test -c playwright.oauth-strict.config.ts`.
+- It serves a production build behind an https proxy that records each request's cookies and Referer, with a stub
+  api and a provider stub on `http://127.0.0.1`. A browser follows a 3xx without asking Playwright's routes, so the
+  proxy rewrites the start's redirect to the stub and refuses any other redirect off the machine.
+- The branches:
+  - (i) the session cookie rides the continuation hop;
+  - (ii) control: a Strict cookie set on a 302 inside the cross-site chain is not sent on the next hop, and was
+    stored;
+  - (iii) control: the same 302 without the provider's hop carries it;
+  - (iv) mutant: a Strict state cookie never reaches the callback, which refuses;
+  - (v) the consent step renders on the Strict flow cookie;
+  - (vi) no request after the callback carries its code or state in a Referer, or leaves the app.
+
+**The Strict premise, per engine (F10), measured 2026-09-26.** `pnpm exec playwright test -c playwright.oauth-strict.config.ts`, Playwright 1.62.1, Windows 11, production build behind an https proxy with a throwaway localhost certificate. chromium (v1234) and firefox 153.0 (v1538): all six branches pass, controls (ii) and (iv) included; the design rests on these two readings. webkit 26.5 (v2336), Playwright's Windows port: **void for the Strict premise** — (ii) failed (a `SameSite=Strict` probe set on a 302 inside the cross-site chain was sent on the next hop) and (iv) failed at its precondition (the state cookie rewritten to `Strict` was reported as `sameSite: "None"`), so (i), (iii) and (v) passed without measuring. (vi) does not rest on SameSite and stands as a reading of that port only.
+
+**Residual: the premise is unmeasured in Apple's WebKit** (Safari, iOS and macOS). F10's "three engines before merge" is revised (CTO, 2026-09-26). A failure is fail-closed and is rolled back by deactivation (vps-deploy-stack.md §3d). **Closing measurement:** the first Google login that succeeds on the box is taken in Safari; landing signed in on `/oversikt` is Apple WebKit's reading of (i), and (v) rests on the same mechanism. The date, device, OS and Safari version go into a dated comment on #1732, and the next amendment transcribes it. If the login fails: deactivate, and file the defect.
+
+**Re-measure (F10's triggers, revised):** on any trigger, the harness is re-run in that change's PR. chromium and firefox are owed with both controls green. A WebKit reading counts only where (ii) passes and (iv)'s precondition holds; otherwise it is recorded as void, with its port and version, and never as a pass. The same triggers void the Safari reading, which is owed again at the first login after that change deploys.
+
+**The gate and the box.**
+- **Registration** (F11c). The client id is read raw: a blank one, which is what compose's `:-` passes, registers
+  nothing and never throws. A registered client needs its secret (`ValidateOnStart`). The redirect URI is built once
+  from the raw `Email:BaseUrl`. At start it must be absolute, with no userinfo, query or fragment; outside
+  Development it must be https, and in Development http is allowed to loopback only. A failure names the key, never
+  the value. The Worker never registers a provider. The named client `google-oauth` has a 10 s timeout, follows no
+  redirect and has no resilience handler.
+- **Compose and secrets.** Only the api gets `Auth__OAuth__Google__ClientId` and `…ClientSecret_FILE`, both with
+  `:-`, never `:?`, which would break the hourly reconcile. `inject-secrets.sh` writes the secret under
+  `JBL_INJECT_GOOGLE=1`, and its `--check` refuses a client id without its secret.
+- **m-4(d), accepted.** The client secret lands on the secrets mount every container already carries for the
+  field-encryption master key. A separate api-only mount would touch tmpfiles, inject-secrets, the reconcile gate and
+  their tests (#1295) for a gain near zero. **Lapse:** if the master key leaves the worker or migrate-rewrap, or the
+  api gets a mount of its own for another reason, the Google secret moves with it.
+- **m-8.** A separate Google client for localhost, so the box's secret never sits on a developer machine. It is a
+  console action outside the repo; the activation runbook recommends it.
+- **`+` aliases.** Both accounts on the box are `+` aliases, and Google returns the primary address without a tag. A
+  Google login therefore answers `registrationClosed` until an account's address is changed to the Google account's.
+  That fires no trigger.
+- **Activation and deactivation** are `vps-deploy-stack.md` §3d. Before the keys, the volatile ACL must carry both
+  the flow-store selector and the start budget's; without either every start answers 503. On deactivation, starts are
+  refused at once, and the button may show for up to five minutes of cache, where a click is refused with no transfer.
+
+**The edge.** Caddy's query filter deletes `code`, `state`, `hd` and `error_description` from the one line it
+writes, on a 5xx (`CaddyfileTokenScrubbingPinTests`). `oauth-callback-edge-log-verdicts.ts` records the callback's
+inventory, and `app-surface-coverage.test.ts` joins it. The callback never answers 5xx anyway.
+
+**ADR 0018 rule 3** gains its named exception in that ADR's Amendment 2026-09-17, point 3 (m-6).
+
+**DoD 8** (`security-auditor`, 2026-09-25).
+- **New personal data:**
+  - `AspNetUserLogins.provider_key`, Google's `sub`, durable with the account;
+  - the OAuth-state record, 10 min;
+  - the external-login grant (address and `sub`), 10 min;
+  - Google as a new source (Art. 14(2)(f)), and as an independent-controller recipient of the knowledge of the login;
+  - one third-country transfer (above).
+- The category was already declared (D8, and the privacy policy's "identifierare från en extern inloggningstjänst").
+- The privacy and cookie policies describe the path, dated 2026-09-26 with `CurrentPrivacyPolicyVersion`.
+- **Art. 15:** there is no self-service export; the manual channel answers from the register.
+- **Art. 17:** the foreign-key cascade removes the link with the account. No self-service unlink exists in 6a; a
+  request for the link alone is handled manually. That is scheduling, not verified.
+- **No new notice:** the login row is on `/logga-in` before the click.
+- **No DPIA:** Art. 35(3)(a)–(c) are all negative.
+- **Not Art. 22:** when the authoritative rule refuses, the code path remains.
+- **The register** (`docs/runbooks/gdpr-processing-register.md`, gitignored, written in the main copy) gains the
+  OAuth-state keys, `provider_key`, the grant sentence, Google as an independent controller, and the Chapter V entry
+  with its lapse set.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -1495,7 +1731,7 @@ gate on #1735 named in the default above.
 `design-reviewer`'s question, verbatim: *"provider-märkenas färgsättning saknar token och kan inte
 lösas inom DESIGN.md. … Jag behöver ditt besked om du vill (a) monokromt hela vägen och avstå de
 officiella märkena, eller (b) ett scopat DESIGN.md-undantag för de tre officiella märkena i 6a."*
-Default until answered: monochrome while inactive (D8); the colour question is 6a's.
+Answered 2026-09-25, "(b) Officiella märken": the marks and their exception are in Amendment 2026-09-26 (15).
 
 ## Attempt budget
 
@@ -1513,6 +1749,7 @@ Default until answered: monochrome while inactive (D8); the colour question is 6
 | Per-IP | `AuthWrite` 20/min, unchanged | rate limiter |
 | Grant TTL | 10 min, single use, purpose + subject asserted inside `Redeem` | grant port |
 | OAuth state | ≤ 10 min, cookie mandatory, Redis record `GETDEL` | 6a |
+| External-login starts | 60 / min, every provider together; past it a start is refused before anything is written (Amendment 2026-09-26 (15)) | `IRateBudget`, in the start handler, after the provider is found |
 
 Success probability per targeted address (security-auditor's arithmetic): 30 guesses/day →
 1 − (1 − 10⁻⁶)³⁰ ≈ **0.003 %/day**; **1.089 %/year** under sustained attack; at ≈ 92 accounts
@@ -1553,19 +1790,21 @@ while `DARK_MODE_ENABLED` is `false`.
   session. `{email}` in body text, never in `h1` or `<title>`. `robots: {index:false}` on
   kod/villkor/lank. `/registrera` → 308 `/logga-in`; `/installningar` and `/mig` → 308 `/mina-sidor`,
   permanent (`retired-routes.test.ts`; why, in Amendment 2026-09-22 (5)).
-- **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list
-  (now):** h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress."*) → email
+- **`/logga-in`, two orders switched on `GET /auth/oauth/providers`** (design M1): **empty list:**
+  h1 → a lede (*"Du loggar in med en kod som vi skickar till din e-postadress."*) → email
   field + the Art. 13 line → **Fortsätt** (the only
   `variant="default"`) → hairline → `h2` "Andra sätt att logga in" → the three inactive rows, no
-  "Eller" divider. **At least one provider live (6a):** provider buttons → divider "Eller fortsätt
-  med e-post" → field → Fortsätt.
+  "Eller" divider. **At least one provider live (6a):** h1 → the persistence line, which each active row is
+  described by → the provider rows → divider "Eller fortsätt med e-post" → the lede → field → Fortsätt
+  (Amendment 2026-09-26 (15)).
 - **Provider buttons** (design M2): shadcn `Button` `variant="outline"`, never `.jp-btn` in the same
   view, never three solid fills, never a provider's brand colour as fill. Inactive =
   `aria-disabled="true"` + **kept in the tab order** + no-op click + "Kommer snart" as the visible
   text — never `disabled` (the explanation would leave the a11y tree); never `opacity` as the
   dimming (contrast ≥ 4.5:1 in both themes); `type="button"`. No provider mark while inactive: the
   row is the text "Fortsätt med {provider}" with a trailing "Kommer snart", its accessible name
-  computed from that content, in the order Google, LinkedIn, GitHub.
+  computed from that content, in the order Google, LinkedIn, GitHub. An active row is an `<a href>` to the
+  start, never a form and never `next/link`, with the provider's official mark (Amendment 2026-09-26 (15)).
 - **Code step** (design M3/M4; the boxes Klas's, Amendment 2026-09-24 (9)): ONE `<input>` with a visible label
   "Sexsiffrig kod", `autocomplete="one-time-code"`, `inputmode="numeric"`, `maxLength=6`, `pattern="^\d+$"`,
   `aria-describedby`, no placeholder, drawn as six joined `aria-hidden` boxes that hold no name, value or tab stop
@@ -2002,7 +2241,7 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S · PR G · **6b** #1745 GitHub · **6c** #1746 LinkedIn
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)) · **6b** #1745 GitHub · **6c** #1746 LinkedIn
 (`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).

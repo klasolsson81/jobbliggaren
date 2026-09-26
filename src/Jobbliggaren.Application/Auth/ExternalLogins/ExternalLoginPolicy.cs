@@ -14,6 +14,9 @@ public static class ExternalLoginPolicy
     /// <summary>The longest post-login path a flow carries.</summary>
     public const int MaxNextLength = 512;
 
+    /// <summary>How long a caller may cache the providers list.</summary>
+    public static readonly TimeSpan ProvidersListMaxAge = TimeSpan.FromMinutes(5);
+
     /// <summary>The longest authorization code accepted. A provider's code is far shorter; this bounds the input.</summary>
     public const int MaxCodeLength = 512;
 

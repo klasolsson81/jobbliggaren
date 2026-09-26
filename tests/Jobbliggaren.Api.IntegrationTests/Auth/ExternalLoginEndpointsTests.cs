@@ -367,6 +367,8 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var flow = await StartAsync();
         using var _ = factory.LoginChallengeFaults.Unavailable();
 
+        // At start the 503 comes from the rate budget, which fails before the flow store is reached. Both run
+        // through VolatileRedisConnection.ExecuteAsync and share its translation of a Redis failure.
         (await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
         (await CallbackAsync("4/0AVGzR1code", flow.State)).StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);

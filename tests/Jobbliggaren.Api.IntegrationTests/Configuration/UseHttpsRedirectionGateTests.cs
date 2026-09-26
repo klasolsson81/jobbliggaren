@@ -90,6 +90,7 @@ public abstract class HttpsRedirectionGateFactoryBase : WebApplicationFactory<Pr
             // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+            services.NeutraliseExternalLoginsFromLocalConfiguration();
 
             // UseHttpsRedirection-middleware behöver veta vilken port att redirecta TILL.
             // Default-resolver kollar ASPNETCORE_URLS / ASPNETCORE_HTTPS_PORTS / HTTPS_PORT —

@@ -49,8 +49,9 @@ public class GoogleIdentityProviderGateTests
     [InlineData("   ")]
     public void A_blank_client_id_registers_nothing_and_never_throws(string? clientId)
     {
-        // compose passes ${AUTH_OAUTH_GOOGLE_CLIENT_ID:-}, the empty string, on a host without keys.
-        var settings = FullClient();
+        // compose passes ${AUTH_OAUTH_GOOGLE_CLIENT_ID:-}, the empty string, on a host without keys. The base is one
+        // the validator refuses, so a start that validated it anyway would throw.
+        var settings = FullClient(siteBase: "http://localhost:3000");
         settings[$"{GoogleOAuthOptions.SectionName}:{nameof(GoogleOAuthOptions.ClientId)}"] = clientId;
 
         var services = Compose(Environments.Production, settings);
@@ -59,6 +60,8 @@ public class GoogleIdentityProviderGateTests
         services.ShouldNotContain(d => d.ServiceType == typeof(IConfigureOptions<GoogleOAuthOptions>));
         services.ShouldNotContain(d => d.ServiceType == typeof(ExternalLoginCallbacks));
         services.ShouldNotContain(d => d.ServiceType == typeof(IHttpClientFactory));
+        using var provider = services.BuildServiceProvider();
+        Should.NotThrow(() => provider.GetService<IStartupValidator>()?.Validate());
     }
 
     [Fact]
@@ -87,7 +90,7 @@ public class GoogleIdentityProviderGateTests
         using var provider = Compose(Environments.Production, settings).BuildServiceProvider();
 
         var refusal = Should.Throw<OptionsValidationException>(
-            () => provider.GetRequiredService<IOptions<GoogleOAuthOptions>>().Value);
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
 
         refusal.Message.ShouldContain(nameof(GoogleOAuthOptions.ClientSecret));
         refusal.Message.ShouldNotContain(ClientId);
@@ -140,7 +143,7 @@ public class GoogleIdentityProviderGateTests
         using var provider = Compose(environmentName, FullClient(siteBase)).BuildServiceProvider();
 
         var refusal = Should.Throw<OptionsValidationException>(
-            () => provider.GetRequiredService<IOptions<ExternalLoginRedirectOptions>>().Value);
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
 
         refusal.Message.ShouldContain("Email:BaseUrl");
         if (siteBase.Length > 0)
@@ -154,8 +157,7 @@ public class GoogleIdentityProviderGateTests
         settings.Remove("Email:BaseUrl");
         using var provider = Compose(Environments.Production, settings).BuildServiceProvider();
 
-        Should.Throw<OptionsValidationException>(
-            () => provider.GetRequiredService<IOptions<ExternalLoginRedirectOptions>>().Value);
+        Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
     }
 
     // ── the named client: bounded, no redirects, no retry ──

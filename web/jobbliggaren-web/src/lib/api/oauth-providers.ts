@@ -3,7 +3,7 @@ import { z } from "zod";
 import { toExternalProviderKey, type ExternalProviderKey } from "@/lib/auth/external-login";
 import { env } from "@/lib/env";
 
-/** MIRROR of the backend's `Cache-Control: public, max-age=300` on the list. */
+/** MIRROR of the backend `ExternalLoginPolicy.ProvidersListMaxAge`, the list's `Cache-Control` max-age. */
 const PROVIDERS_REVALIDATE_SECONDS = 300;
 
 const providersSchema = z.array(z.string());

@@ -16,6 +16,7 @@ using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Queries.GetExternalLoginProviders;
 using Jobbliggaren.Application.Common.Abstractions;
@@ -252,7 +253,8 @@ public static class AuthEndpoints
         group.MapGet("/oauth/providers", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
         {
             var providers = await mediator.Send(new GetExternalLoginProvidersQuery(), ct);
-            http.Response.Headers.CacheControl = "public, max-age=300";
+            http.Response.Headers.CacheControl = "public, max-age="
+                + ((int)ExternalLoginPolicy.ProvidersListMaxAge.TotalSeconds).ToString(CultureInfo.InvariantCulture);
             return Results.Ok(providers);
         }).RequireRateLimiting(RateLimitingExtensions.LandingPublicReadPolicy);
     }
@@ -391,8 +393,8 @@ public static class AuthEndpoints
             title: AuthErrorCodes.EmailDeliveryUnavailable,
             statusCode: StatusCodes.Status503ServiceUnavailable),
 
-        // #1744 — the external-login start budget is spent: the same availability axis, decided before any input
-        // but the provider key is read. No Retry-After: the web's start does not read it.
+        // #1744 — the external-login start budget is spent: the same availability axis. No Retry-After: the web's
+        // start does not read it.
         AuthErrorCodes.ExternalLoginStartsExhausted => Results.Problem(
             detail: AuthErrorCodes.ExternalLoginStartsExhaustedMessage,
             title: AuthErrorCodes.ExternalLoginStartsExhausted,

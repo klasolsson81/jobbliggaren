@@ -186,18 +186,21 @@ public sealed class LoginProofChainTests
     [InlineData("var emails = addresses.Select(VerifiedEmail.TryCreate);")]
     [InlineData("using static Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = TryCreate(address);")]
     [InlineData("using Proof = Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = Proof.TryCreate(address);")]
+    [InlineData("using Proof = global::Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = Proof.TryCreate(address);")]
+    [InlineData("using static global::Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar email = TryCreate(address);")]
+    [InlineData("using static Jobbliggaren.Application.Auth.ExternalLogins.VerifiedEmail;\nvar emails = addresses.Select(TryCreate);")]
     public void The_verified_email_scan_counts_every_way_of_naming_the_factory(string source) =>
         VerifiedEmailMakers(source).ShouldBe(1);
 
     private static int VerifiedEmailMakers(string source)
     {
-        var joined = Regex.Replace(source, @"\s*\.\s*", ".");
+        var joined = Regex.Replace(source, @"\s*\.\s*", ".").Replace("global::", string.Empty, StringComparison.Ordinal);
         var names = Regex.Matches(joined, @"\busing\s+(\w+)\s*=\s*[\w.]*\bVerifiedEmail\s*;")
             .Select(alias => alias.Groups[1].Value)
             .Append(nameof(VerifiedEmail));
         var qualified = names.Sum(name => Regex.Count(joined, $@"\b{name}\.TryCreate\b"));
         var imported = Regex.IsMatch(joined, @"\busing\s+static\s+[\w.]*\bVerifiedEmail\s*;")
-            ? Regex.Count(joined, @"(?<![\w.])TryCreate\s*\(")
+            ? Regex.Count(joined, @"(?<![\w.])TryCreate\b")
             : 0;
         return qualified + imported;
     }

@@ -12,6 +12,7 @@ using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -110,6 +111,7 @@ public class StartExternalLoginCommandHandlerTests
 {
     private readonly IOAuthStateStore _states = Substitute.For<IOAuthStateStore>();
     private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
+    private readonly CapturingLogger<StartExternalLoginCommandHandler> _log = new();
     private readonly IExternalIdentityProvider _google = Substitute.For<IExternalIdentityProvider>();
     private readonly OAuthState _state = OAuthState.Generate();
 
@@ -126,7 +128,7 @@ public class StartExternalLoginCommandHandlerTests
     }
 
     private StartExternalLoginCommandHandler Handler(params IExternalIdentityProvider[] providers) =>
-        new(new RegisteredProviders(providers), _states, _budget, NullLogger<StartExternalLoginCommandHandler>.Instance);
+        new(new RegisteredProviders(providers), _states, _budget, _log);
 
     [Fact]
     public async Task Handle_ShouldBeNotFoundAndMintNothing_WhenTheProviderIsNotRegistered()
@@ -158,6 +160,10 @@ public class StartExternalLoginCommandHandlerTests
 
         result.Error.Code.ShouldBe(AuthErrorCodes.ExternalLoginStartsExhausted);
         await _states.DidNotReceiveWithAnyArgs().PutAsync(default!, Ct);
+        var (level, eventId, message) = _log.Records.ShouldHaveSingleItem();
+        (level, eventId).ShouldBe((LogLevel.Warning, 1027));
+        message.ShouldContain("Provider=google");
+        message.ShouldNotContain("/oversikt");
         _google.DidNotReceiveWithAnyArgs().BuildAuthorizeUrl(default!, default!);
     }
 

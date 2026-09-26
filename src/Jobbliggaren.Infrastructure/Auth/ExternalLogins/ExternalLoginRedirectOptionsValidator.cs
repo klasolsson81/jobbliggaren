@@ -1,3 +1,4 @@
+using Jobbliggaren.Infrastructure.Email;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -11,7 +12,7 @@ namespace Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 internal sealed class ExternalLoginRedirectOptionsValidator(IHostEnvironment environment)
     : IValidateOptions<ExternalLoginRedirectOptions>
 {
-    private const string Key = "Email:BaseUrl";
+    private const string Key = $"{EmailOptions.SectionName}:{nameof(EmailOptions.BaseUrl)}";
 
     public ValidateOptionsResult Validate(string? name, ExternalLoginRedirectOptions options)
     {

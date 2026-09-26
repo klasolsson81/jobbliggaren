@@ -50,10 +50,7 @@
       "//3": "to a loopback host in Development. The client's authorized redirect URI must be exactly",
       "//4": "{Email:BaseUrl}/api/auth/oauth/google/callback, e.g. http://localhost:3000/api/auth/oauth/google/callback.",
       "//5": "Use a Google client made for localhost, never the box's (security-auditor m-8). Never commit values.",
-      "Google": {
-        "ClientId": "",
-        "ClientSecret": ""
-      }
+      "//6": "To enable it, add a Google object here with ClientId and ClientSecret. Leave it out rather than blank."
     }
   },
 

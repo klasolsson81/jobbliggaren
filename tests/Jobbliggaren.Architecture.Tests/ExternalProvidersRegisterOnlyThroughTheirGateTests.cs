@@ -38,6 +38,11 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     [InlineData("services.AddSingleton(sp => new RegisteredProviders([google]));")]
     [InlineData("var google = new GoogleIdentityProvider(factory, options, callbacks, logger);")]
     [InlineData("new" + "\n" + "    RegisteredProviders(providers)")]
+    [InlineData("RegisteredProviders providers = new([google]);")]
+    [InlineData("services.AddSingleton<RegisteredProviders>(_ => new([google]));")]
+    [InlineData("services.AddSingleton<RegisteredProviders>(sp => new([ActivatorUtilities.CreateInstance<GoogleIdentityProvider>(sp)]));")]
+    [InlineData("GoogleIdentityProvider google = new(factory, options, callbacks, logger);")]
+    [InlineData("var google = ActivatorUtilities.CreateInstance<GoogleIdentityProvider>(sp);")]
     public void The_scan_recognises_a_list_or_an_adapter_built_by_hand(string text) => BuildsByHand(text).ShouldBeTrue();
 
     [Theory]
@@ -68,8 +73,16 @@ public sealed class ExternalProvidersRegisterOnlyThroughTheirGateTests
     {
         var compact = Compact(text);
         return compact.Contains("newRegisteredProviders(", StringComparison.Ordinal)
-               || compact.Contains("newGoogleIdentityProvider(", StringComparison.Ordinal);
+               || compact.Contains("newGoogleIdentityProvider(", StringComparison.Ordinal)
+               || compact.Contains("CreateInstance<RegisteredProviders>", StringComparison.Ordinal)
+               || compact.Contains("CreateInstance<GoogleIdentityProvider>", StringComparison.Ordinal)
+               || TargetTypedByHand.IsMatch(compact);
     }
+
+    // A target-typed new: a variable or field of either type, or a factory registration of the list.
+    private static readonly Regex TargetTypedByHand = new(
+        @"(RegisteredProviders|GoogleIdentityProvider)\??\w+=new\(|<RegisteredProviders>\([\w()]*=>",
+        RegexOptions.CultureInvariant);
 
     private static string Compact(string text) => string.Concat(text.Where(ch => !char.IsWhiteSpace(ch)));
 

@@ -22,6 +22,8 @@ public class ExternalLoginMirrorWireContractTests
     private const string ExternalLoginModule = "web/jobbliggaren-web/src/lib/auth/external-login.ts";
     private const string SecurityHeadersModule = "web/jobbliggaren-web/src/lib/security/security-headers.ts";
     private const string AppRoot = "web/jobbliggaren-web/src/app";
+    private const string ProvidersModule = "web/jobbliggaren-web/src/lib/api/oauth-providers.ts";
+    private const string StartRouteModule = "web/jobbliggaren-web/src/app/api/auth/oauth/[provider]/start/route.ts";
 
     [Fact]
     public void The_web_knows_exactly_the_backends_provider_keys()
@@ -57,6 +59,20 @@ public class ExternalLoginMirrorWireContractTests
                 .ShouldBe(template.Replace("[provider]", ":provider", StringComparison.Ordinal), Hint(SecurityHeadersModule));
         }
     }
+
+    [Fact]
+    public void The_web_caches_the_providers_list_as_long_as_the_api_allows() =>
+        int.Parse(
+                Capture(ProvidersModule, @"\bconst\s+PROVIDERS_REVALIDATE_SECONDS\s*=\s*(\d+)\s*;"),
+                CultureInfo.InvariantCulture)
+            .ShouldBe((int)ExternalLoginPolicy.ProvidersListMaxAge.TotalSeconds, Hint(ProvidersModule));
+
+    [Fact]
+    public void The_start_accepts_a_state_of_exactly_the_minted_length() =>
+        int.Parse(
+                Capture(StartRouteModule, @"\bstate:\s*z\.string\(\)\.regex\(/\^\[A-Za-z0-9_-\]\{(\d+)\}\$/\)"),
+                CultureInfo.InvariantCulture)
+            .ShouldBe(OAuthState.EncodedLength, Hint(StartRouteModule));
 
     private static string Hint(string module) =>
         $"{module} re-types this value from the backend. Change both sides in the same PR.";

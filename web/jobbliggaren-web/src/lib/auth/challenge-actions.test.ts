@@ -186,7 +186,7 @@ describe("requestCode", () => {
       expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
     });
 
-    it("keeps a provider's live code phase for its address: that code still binds the provider (#1745)", async () => {
+    it("keeps a provider's live code phase for its address (#1745)", async () => {
       // Actor: the callback's codeRequired branch wrote this phase in this browser. The step it lands on names the
       // provider and what the code does, so the binding is visible before the code is typed (design-reviewer, #1882).
       mocks.readLoginFlow.mockResolvedValue(providerCode);

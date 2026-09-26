@@ -79,7 +79,6 @@ describe("DeadCodePanel", () => {
   });
 
   it("names only a new code for a burned code reached through a provider (#1745, design Minor 2)", () => {
-    // Through a provider the mail's link logs in without linking it, and a new code still links it.
     render(<DeadCodePanel reason="burned" linksProvider />);
 
     const panel = screen.getByRole("status");

@@ -1040,8 +1040,6 @@ presupposes an id already stolen, which the overwrite does not create.
 writes, on a 5xx (`CaddyfileTokenScrubbingPinTests`). `oauth-callback-edge-log-verdicts.ts` records the callback's
 inventory, and `app-surface-coverage.test.ts` joins it. The callback never answers 5xx anyway.
 
-**ADR 0018 rule 3** gains its named exception in that ADR's Amendment 2026-09-17, point 3 (m-6).
-
 **DoD 8** (`security-auditor`, 2026-09-25).
 - **New personal data:**
   - `AspNetUserLogins.provider_key`, Google's `sub`, durable with the account;

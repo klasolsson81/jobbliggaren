@@ -175,22 +175,34 @@ public sealed class GitHubIdentityProviderTests : IDisposable
                                            && r.Message.Contains("Status=200") && r.Message.Contains("Provider=github"));
     }
 
-    [Theory]
-    [InlineData("bad_verification_code")]
-    [InlineData("unverified_user_email")]
-    public async Task ExchangeAsync_ShouldFailWithoutReadingTheBody_WhenAnErrorComesWithAFailureStatus(string error)
+    [Fact]
+    public async Task ExchangeAsync_ShouldReadTheClosedErrorUnderAFailureStatus_WhenACodeIsRefused()
     {
-        // DECLARED: GitHub documents no status for these errors, and its practice is 200. A failure status is not
-        // read at all, since a provider's error body may echo what it refused, so even unverified_user_email is the
-        // one failure there.
-        _github.TokenError = error;
+        // DECLARED: GitHub documents no status for these errors, and its practice is 200. Under a failure status the
+        // same closed mapping reads `error` alone (security-auditor m-3), so the cause is still named and nothing
+        // else of the body is used.
+        _github.TokenError = "bad_verification_code";
         _github.TokenErrorStatus = HttpStatusCode.BadRequest;
 
         (await ExchangeUnscriptedAsync()).ShouldBeOfType<ExternalExchange.Failed>();
 
         _github.Requests.Count.ShouldBe(1);
-        _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("Cause=TokenRefused")
+        _logger.Records.ShouldContain(r => r.EventId.Id == 1022 && r.Message.Contains("Cause=TokenBadVerificationCode")
                                            && r.Message.Contains("Status=400"));
+    }
+
+    [Fact]
+    public async Task ExchangeAsync_ShouldRefuseTheAddress_WhenUnverifiedUserEmailComesWithAFailureStatus()
+    {
+        // DECLARED as above: unverified_user_email is the address rule's refusal (400) under either status, so the
+        // answer never depends on which status GitHub chose.
+        _github.TokenError = "unverified_user_email";
+        _github.TokenErrorStatus = HttpStatusCode.BadRequest;
+
+        (await ExchangeUnscriptedAsync()).ShouldBeOfType<ExternalExchange.AddressRefused>();
+
+        _github.Requests.Count.ShouldBe(1);
+        _logger.Records.ShouldContain(r => r.EventId.Id == 1023 && r.Message.Contains("Cause=UnverifiedAtToken"));
     }
 
     [Fact]

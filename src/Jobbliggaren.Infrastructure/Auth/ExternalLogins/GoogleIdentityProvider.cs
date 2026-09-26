@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Jobbliggaren.Application.Auth.ExternalLogins;
@@ -140,10 +141,9 @@ internal sealed partial class GoogleIdentityProvider(
             return new ExternalExchange.Failed();
         }
 
-        var (email, refusal) = Authoritative(root);
-        if (email is null)
+        if (!TryAuthoritative(root, out var email, out var refusal))
         {
-            LogEmailNotUsable(logger, Key.Value, refusal!.Value);
+            LogEmailNotUsable(logger, Key.Value, refusal);
             return new ExternalExchange.AddressRefused();
         }
 
@@ -153,26 +153,33 @@ internal sealed partial class GoogleIdentityProvider(
 
     // Fail-closed, in the order the claims are read: a verified flag that is not the JSON true, then an address that
     // cannot be stored, then a verified address Google is not authoritative for.
-    private static (VerifiedEmail? Email, EmailRefusal? Refusal) Authoritative(JsonElement root)
+    private static bool TryAuthoritative(
+        JsonElement root, [NotNullWhen(true)] out VerifiedEmail? email, out EmailRefusal refusal)
     {
+        email = null;
+        refusal = EmailRefusal.NotBoolean;
         if (!root.TryGetProperty("email_verified", out var verified)
             || verified.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
-            return (null, EmailRefusal.NotBoolean);
+            return false;
         }
 
+        refusal = EmailRefusal.False;
         if (verified.ValueKind == JsonValueKind.False)
-            return (null, EmailRefusal.False);
+            return false;
 
+        refusal = EmailRefusal.AddressUnparsable;
         var address = StringOrNull(root, "email");
-        if (address is null || !StorableAddress.IsStorable(address) || VerifiedEmail.TryCreate(address) is not { } email)
-            return (null, EmailRefusal.AddressUnparsable);
+        if (address is null || !StorableAddress.IsStorable(address) || VerifiedEmail.TryCreate(address) is not { } parsed)
+            return false;
 
+        refusal = EmailRefusal.NotAuthoritative;
         var workspace = !string.IsNullOrEmpty(StringOrNull(root, "hd"));
         if (!address.EndsWith(GmailSuffix, StringComparison.Ordinal) && !workspace)
-            return (null, EmailRefusal.NotAuthoritative);
+            return false;
 
-        return (email, null);
+        email = parsed;
+        return true;
     }
 
     private static string? StringOrNull(JsonElement root, string name) =>

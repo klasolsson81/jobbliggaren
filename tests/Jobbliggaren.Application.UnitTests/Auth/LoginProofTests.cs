@@ -861,6 +861,34 @@ public sealed class LoginProofTests
         _outcomeLog.Records.ShouldHaveSingleItem().Message.ShouldContain("Cause=AddressMismatch");
     }
 
+    [Theory]
+    [InlineData(FoldedEmail, false)]
+    [InlineData(FoldedEmail, true)]
+    [InlineData("Person@Example.com", false)]
+    [InlineData("Person@Example.com", true)]
+    public async Task A_code_bound_link_proving_another_spelling_of_an_accounts_address_binds_nothing_and_opens_no_session(
+        string proven, bool registrationsOpen)
+    {
+        // #1779 on the new path (security-auditor signature condition (c)). Actors: the issuer's no-account branch
+        // records the spelling it was given (LoginChallengeIssuer), someone registers the fold-equivalent address
+        // inside the challenge's 15 minutes, and the adapter admits the spelling (its own predicate, as the folding row
+        // above declares). The grant and the code agree, so only the binding's ordinal check can refuse it.
+        await WithProfileAsync();
+        TheSpellingFindsTheAccount(proven);
+        await ThePendingLinkIsForAsync(proven);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(proven)));
+
+        var outcome = (await Verify(registrationsOpen).Handle(VerifyWithLinkCommand(), Ct)).Value;
+
+        outcome.ShouldBeOfType(registrationsOpen ? typeof(LoginOutcome.AccountUnavailable) : typeof(LoginOutcome.RegistrationClosed));
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.Code));
+    }
+
     [Fact]
     public async Task A_code_bound_github_login_of_a_new_address_waits_for_the_terms_with_the_link_in_its_grant()
     {
@@ -1010,6 +1038,45 @@ public sealed class LoginProofTests
         await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
         await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
         await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_found_github_link_whose_address_folds_onto_the_accounts_is_refused(bool registrationsOpen)
+    {
+        // security-auditor V-5 / M-1(a): the found path still checks that GitHub names the account's own address.
+        // Actors: the code-bound path wrote the link, the GitHub user then set a fold-equivalent primary, and the
+        // adapter admits it (DECLARED, as the folding row above). The identifier is linked to this very account, so
+        // only the address check refuses it.
+        await WithProfileAsync();
+        TheGitHubLoginIsLinkedTo(_userId);
+        TheFoldedSpellingFindsTheAccount();
+
+        var outcome = await Outcome(registrationsOpen).ResolveFoundLinkAsync(await GitHubProofAsync(FoldedEmail), Ct);
+
+        outcome.ShouldBeOfType(registrationsOpen ? typeof(LoginOutcome.AccountUnavailable) : typeof(LoginOutcome.RegistrationClosed));
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1016);
+        message.ShouldContain(nameof(LoginMethod.GitHub));
+    }
+
+    [Fact]
+    public async Task A_found_github_link_whose_address_differs_only_in_ascii_case_signs_in()
+    {
+        // The control for the row above: the case-blind ASCII branch of ExternalAddressMatch admits it (an ordinal
+        // comparison here would refuse it).
+        await WithProfileAsync();
+        TheGitHubLoginIsLinkedTo(_userId);
+        TheSpellingFindsTheAccount("Person@Example.com");
+
+        var outcome = await Outcome().ResolveFoundLinkAsync(await GitHubProofAsync("Person@Example.com"), Ct);
+
+        outcome.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.GitHub);
     }
 
     [Fact]

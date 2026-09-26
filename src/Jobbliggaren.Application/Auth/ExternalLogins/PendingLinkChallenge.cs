@@ -24,5 +24,5 @@ public sealed class PendingLinkChallenge(LoginChallengeAdmission admission, IGra
     }
 }
 
-/// <summary>The challenge a code was sent for, and the grant the code's verification may redeem to bind the login.</summary>
+/// <summary>The challenge id, and the grant the code's verification may redeem to bind the login.</summary>
 public sealed record PendingLinkRequested(ChallengeId ChallengeId, GrantToken LinkGrant);

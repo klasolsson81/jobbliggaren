@@ -61,6 +61,7 @@ public sealed partial class CompleteExternalLoginCommandHandler(
             // Nothing is linked and no grant is issued.
             ExternalExchange.AddressRefused => Result.Failure<ExternalLoginCompletion>(DomainError.Validation(
                 AuthErrorCodes.ExternalEmailUnverified, AuthErrorCodes.ExternalEmailUnverifiedMessage)),
+            ExternalExchange.Failed => Unusable(),
             _ => Unusable(),
         };
     }

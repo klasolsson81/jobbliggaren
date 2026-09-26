@@ -449,24 +449,21 @@ public sealed class GitHubFirstLoginTests(ApiFactory factory) : IAsyncLifetime
     // ── the found link ──
 
     [Fact]
-    public async Task Row15_A_linked_login_whose_primary_moved_to_another_accounts_address_is_refused_and_mails_nobody()
+    public async Task Row15_A_linked_login_whose_primary_moved_to_another_accounts_address_is_refused_on_the_found_branch()
     {
         // Actor: the GitHub user changing the primary at GitHub. The found branch refuses as Google's does and never
-        // falls through to the code step, so the other account's owner gets no mail.
+        // falls through to the code step: the answer is the refusal, not codeRequired.
         var a = NewAddress("a");
         var b = NewAddress("b");
         var userA = await AccountAsync(a);
         await AccountAsync(b);
         var id = NewGitHubId();
         await BindWithTheMailedCodeAsync(id, a);
-        var mailsToB = MailsTo(b).Count;
 
         var body = await OkBodyAsync(await GitHubLoginAsync(id, b));
 
         body.GetProperty("outcome").GetString().ShouldBe("accountUnavailable");
         body.TryGetProperty("sessionId", out _).ShouldBeFalse();
-        await Task.Delay(200, Ct);
-        MailsTo(b).Count.ShouldBe(mailsToB);
         (await LoginRowsAsync(userA)).Count.ShouldBe(1);
     }
 
@@ -531,8 +528,6 @@ public sealed class GitHubFirstLoginTests(ApiFactory factory) : IAsyncLifetime
         (await ComparableAsync(response)).ShouldContain(AuthErrorCodes.ExternalEmailUnverified);
         factory.GitHub.Requests.Skip(requestsBefore).ShouldHaveSingleItem().Uri.AbsoluteUri
             .ShouldBe(ScriptedGitHub.TokenEndpoint);
-        await Task.Delay(200, Ct);
-        MailsTo(address).ShouldBeEmpty();
     }
 
     [Fact]

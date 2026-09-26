@@ -24,8 +24,8 @@ public abstract record ExternalLoginCompletion
     public sealed record Decided(LoginOutcome Outcome, string? Next) : ExternalLoginCompletion;
 
     /// <summary>
-    /// A code went to the asserted address through the challenge's gates, and the pending link waits for it (#1745).
-    /// The address is an echo for the code step to show; no request reads it back as proof of anything.
+    /// The code step, with the pending link (#1745). The address is an echo for the code step to show; no request reads
+    /// it back as proof of anything.
     /// </summary>
     public sealed record CodeRequired(ChallengeId ChallengeId, GrantToken LinkGrant, AssertedEmail Address, string? Next)
         : ExternalLoginCompletion

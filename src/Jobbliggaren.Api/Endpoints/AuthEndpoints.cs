@@ -236,8 +236,8 @@ public static class AuthEndpoints
 
         // External login — CALLBACK (#1744, ADR 0142 D8). PUBLIC: answers the same outcome union as a code or a
         // link, plus the post-login path the flow carried, or `codeRequired` when a provider's asserted address has
-        // no link yet (#1745, Amendment (16)): a code went to it and a pending-link grant waits for the code. A flow
-        // that cannot be completed is one 410; an address the provider's rule refuses is a 400.
+        // no link yet (#1745, Amendment (16)). A flow that cannot be completed is one 410; an address the provider's
+        // rule refuses is a 400.
         group.MapPost("/oauth/{provider}/callback", async (
             string provider,
             ExternalLoginCallbackRequest body,

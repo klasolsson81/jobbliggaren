@@ -67,8 +67,8 @@ public sealed partial class LoginProofOutcome(
         }
 
         var consent = new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject);
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? link = resolved.LinkedUserId is null
-            ? (active, token) => externalLogins.LinkAsync(active.UserId, proof.Provider, proof.Subject, token)
+        var link = resolved.LinkedUserId is null
+            ? new LinkBeforeSession(proof.Provider, proof.Subject, SessionSurvivesLoss: false)
             : null;
 
         return await DecideAsync(resolved.Subject, method, registration, consent, link, SessionEvidence.InboxProven, ct);
@@ -157,14 +157,9 @@ public sealed partial class LoginProofOutcome(
                 linkBeforeSession: null, SessionEvidence.InboxProven, ct);
         }
 
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? link = linkedUserId is null
-            ? async (active, token) =>
-            {
-                if (!await externalLogins.LinkAsync(active.UserId, provider, externalSubject, token))
-                    LogPendingLinkNotBound(logger, PendingLinkNotBound.LinkLost, provider.Value);
-                return true;
-            }
-        : null;
+        var link = linkedUserId is null
+            ? new LinkBeforeSession(provider, externalSubject, SessionSurvivesLoss: true)
+            : null;
 
         return await DecideAsync(
             subject, LoginMethod.Code, registration,
@@ -177,7 +172,7 @@ public sealed partial class LoginProofOutcome(
         LoginMethod method,
         RegistrationState registration,
         GrantSubject? consent,
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
+        LinkBeforeSession? linkBeforeSession,
         SessionEvidence evidence,
         CancellationToken ct) => (subject, registration) switch
         {
@@ -206,15 +201,22 @@ public sealed partial class LoginProofOutcome(
         LoginSubject.Active active,
         LoginMethod method,
         RegistrationState registration,
-        Func<LoginSubject.Active, CancellationToken, Task<bool>>? linkBeforeSession,
+        LinkBeforeSession? linkBeforeSession,
         SessionEvidence evidence,
         CancellationToken ct)
     {
-        // The link commits before the session, so a link another account won in the meantime opens none.
-        if (linkBeforeSession is not null && !await linkBeforeSession(active, ct))
+        // The link commits before the session. A link another account won in the meantime costs a provider's own proof
+        // its session; a code earned its session itself, so there it costs only the link.
+        if (linkBeforeSession is { } link
+            && !await externalLogins.LinkAsync(active.UserId, link.Provider, link.Subject, ct))
         {
-            LogLinkLostToAnotherAccount(logger, active.UserId, method);
-            return NotThisAccountsAddress(registration);
+            if (!link.SessionSurvivesLoss)
+            {
+                LogLinkLostToAnotherAccount(logger, active.UserId, method);
+                return NotThisAccountsAddress(registration);
+            }
+
+            LogPendingLinkNotBound(logger, PendingLinkNotBound.LinkLost, link.Provider.Value);
         }
 
         return new LoginOutcome.SignedIn((await grant.GrantAsync(active, method, evidence, ct)).SessionId);
@@ -257,4 +259,7 @@ public sealed partial class LoginProofOutcome(
         LinkedElsewhere,
         LinkLost,
     }
+
+    // The provider login a session links first, and whether losing it to another account costs the session.
+    private sealed record LinkBeforeSession(ExternalProviderKey Provider, ExternalSubject Subject, bool SessionSurvivesLoss);
 }

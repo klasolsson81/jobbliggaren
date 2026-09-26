@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -35,6 +36,7 @@ internal sealed partial class GitHubIdentityProvider(
     internal static readonly Uri TokenEndpoint = new("https://github.com/login/oauth/access_token");
     internal static readonly Uri UserEndpoint = new("https://api.github.com/user");
     internal static readonly Uri EmailsEndpoint = new("https://api.github.com/user/emails?per_page=100");
+    internal static readonly Uri ApplicationsEndpoint = new("https://api.github.com/applications/");
 
     internal const string Scope = "user:email";
 
@@ -80,8 +82,10 @@ internal sealed partial class GitHubIdentityProvider(
         try
         {
             var redeemed = await RedeemCodeAsync(client, code, verifier, ct);
-            if (redeemed.Token is not { } token)
-                return redeemed.Refusal!;
+            if (redeemed is TokenRedemption.Refused { Outcome: var refusal })
+                return refusal;
+            if (redeemed is not TokenRedemption.Issued { Token: var token })
+                return new ExternalExchange.Failed();
 
             accessToken = token;
             if (await ReadSubjectAsync(client, token, ct) is not { } subject)
@@ -114,7 +118,7 @@ internal sealed partial class GitHubIdentityProvider(
         }
     }
 
-    private async Task<(string? Token, ExternalExchange? Refusal)> RedeemCodeAsync(
+    private async Task<TokenRedemption> RedeemCodeAsync(
         HttpClient client, AuthorizationCode code, PkceVerifier verifier, CancellationToken ct)
     {
         // The secret, the code and the verifier travel in the body, never in the URI.
@@ -135,45 +139,55 @@ internal sealed partial class GitHubIdentityProvider(
         request.Headers.UserAgent.ParseAdd(UserAgent);
 
         using var response = await client.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            // The body is not read: a provider's error body may echo what it refused.
-            LogExchangeFailed(logger, Key.Value, ExchangeFailure.TokenRefused, (int)response.StatusCode);
-            return (null, new ExternalExchange.Failed());
-        }
+        var status = (int)response.StatusCode;
 
-        using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var root = body.RootElement;
-        if (root.ValueKind != JsonValueKind.Object)
-        {
-            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Malformed, (int)response.StatusCode);
-            return (null, new ExternalExchange.Failed());
-        }
-
-        // GitHub reports a refused code with a success status and an `error` member; it wins over any token beside it.
-        // Only the closed class is logged, never the value, its description or its URI.
-        if (root.TryGetProperty("error", out var error))
+        // GitHub reports a refused code with an `error` member, in practice under a success status; it is read under any
+        // status and wins over a token beside it. Only the closed class is logged, never the value, the description
+        // or the URI, and nothing else of an error body is read.
+        using var body = await TryParseAsync(response, ct);
+        var root = body?.RootElement;
+        if (root is { ValueKind: JsonValueKind.Object } errorRoot && errorRoot.TryGetProperty("error", out var error))
         {
             if (error.ValueKind == JsonValueKind.String
                 && string.Equals(error.GetString(), ErrorUnverifiedUserEmail, StringComparison.Ordinal))
             {
                 LogEmailNotUsable(logger, Key.Value, EmailRefusal.UnverifiedAtToken);
-                return (null, new ExternalExchange.AddressRefused());
+                return new TokenRedemption.Refused(new ExternalExchange.AddressRefused());
             }
 
-            LogExchangeFailed(logger, Key.Value, TokenErrorCause(error), (int)response.StatusCode);
-            return (null, new ExternalExchange.Failed());
+            LogExchangeFailed(logger, Key.Value, TokenErrorCause(error), status);
+            return new TokenRedemption.Refused(new ExternalExchange.Failed());
         }
 
-        if (!root.TryGetProperty("access_token", out var token)
-            || token.ValueKind != JsonValueKind.String
-            || string.IsNullOrEmpty(token.GetString()))
+        if (!response.IsSuccessStatusCode)
         {
-            LogExchangeFailed(logger, Key.Value, ExchangeFailure.Malformed, (int)response.StatusCode);
-            return (null, new ExternalExchange.Failed());
+            LogExchangeFailed(logger, Key.Value, ExchangeFailure.TokenRefused, status);
+            return new TokenRedemption.Refused(new ExternalExchange.Failed());
         }
 
-        return (token.GetString(), null);
+        if (root is { ValueKind: JsonValueKind.Object } tokenRoot
+            && tokenRoot.TryGetProperty("access_token", out var token)
+            && token.ValueKind == JsonValueKind.String
+            && token.GetString() is { Length: > 0 } issued)
+        {
+            return new TokenRedemption.Issued(issued);
+        }
+
+        LogExchangeFailed(logger, Key.Value, ExchangeFailure.Malformed, status);
+        return new TokenRedemption.Refused(new ExternalExchange.Failed());
+    }
+
+    // A body that is not JSON is no body: an error page in front of GitHub reads like an empty answer.
+    private static async Task<JsonDocument?> TryParseAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static ExchangeFailure TokenErrorCause(JsonElement error) =>
@@ -226,10 +240,9 @@ internal sealed partial class GitHubIdentityProvider(
         }
 
         using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var (address, refusal) = PrimaryVerified(body.RootElement);
-        if (address is null)
+        if (!TryPrimaryVerified(body.RootElement, out var address, out var refusal))
         {
-            LogEmailNotUsable(logger, Key.Value, refusal!.Value);
+            LogEmailNotUsable(logger, Key.Value, refusal);
             return new ExternalExchange.AddressRefused();
         }
 
@@ -241,56 +254,70 @@ internal sealed partial class GitHubIdentityProvider(
     // an array of objects, each with a JSON boolean `primary`; exactly one entry is primary; its `verified` is the
     // JSON true; its address is not the noreply domain and is storable. Pagination is not followed, so a primary
     // beyond the one page read is refused like a missing one.
-    private static (AssertedEmail? Address, EmailRefusal? Refusal) PrimaryVerified(JsonElement root)
+    private static bool TryPrimaryVerified(
+        JsonElement root, [NotNullWhen(true)] out AssertedEmail? address, out EmailRefusal refusal)
     {
+        address = null;
+        refusal = EmailRefusal.ListMalformed;
         if (root.ValueKind != JsonValueKind.Array)
-            return (null, EmailRefusal.ListMalformed);
+            return false;
 
         JsonElement? primary = null;
         foreach (var entry in root.EnumerateArray())
         {
             if (entry.ValueKind != JsonValueKind.Object)
-                return (null, EmailRefusal.ListMalformed);
+                return false;
 
             if (!entry.TryGetProperty("primary", out var isPrimary)
                 || isPrimary.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                return (null, EmailRefusal.NotBoolean);
+                refusal = EmailRefusal.NotBoolean;
+                return false;
             }
 
             if (isPrimary.ValueKind == JsonValueKind.False)
                 continue;
 
             if (primary is not null)
-                return (null, EmailRefusal.PrimaryAmbiguous);
+            {
+                refusal = EmailRefusal.PrimaryAmbiguous;
+                return false;
+            }
 
             primary = entry;
         }
 
         if (primary is not { } chosen)
-            return (null, EmailRefusal.NoPrimary);
+        {
+            refusal = EmailRefusal.NoPrimary;
+            return false;
+        }
 
         if (!chosen.TryGetProperty("verified", out var verified)
             || verified.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         {
-            return (null, EmailRefusal.NotBoolean);
+            refusal = EmailRefusal.NotBoolean;
+            return false;
         }
 
         if (verified.ValueKind == JsonValueKind.False)
-            return (null, EmailRefusal.False);
+        {
+            refusal = EmailRefusal.False;
+            return false;
+        }
 
         var raw = chosen.TryGetProperty("email", out var email) && email.ValueKind == JsonValueKind.String
             ? email.GetString()
             : null;
-        if (raw is null)
-            return (null, EmailRefusal.AddressUnparsable);
+        if (raw is not null && IsNoReply(raw))
+        {
+            refusal = EmailRefusal.NotAMailbox;
+            return false;
+        }
 
-        if (IsNoReply(raw))
-            return (null, EmailRefusal.NotAMailbox);
-
-        return StorableAddress.IsStorable(raw) && AssertedEmail.TryCreate(raw) is { } address
-            ? (address, null)
-            : (null, EmailRefusal.AddressUnparsable);
+        refusal = EmailRefusal.AddressUnparsable;
+        address = raw is not null && StorableAddress.IsStorable(raw) ? AssertedEmail.TryCreate(raw) : null;
+        return address is not null;
     }
 
     // The domain after the last '@', compared case-blind: a refusing suffix may refuse more, never less.
@@ -302,8 +329,7 @@ internal sealed partial class GitHubIdentityProvider(
 
     private async Task RevokeAsync(HttpClient client, string accessToken)
     {
-        var endpoint = new Uri(
-            $"https://api.github.com/applications/{Uri.EscapeDataString(options.Value.ClientId)}/token");
+        var endpoint = new Uri(ApplicationsEndpoint, $"{Uri.EscapeDataString(options.Value.ClientId)}/token");
         try
         {
             // Not the caller's token: a revocation runs to its own end, bounded by the client's timeout.
@@ -370,6 +396,16 @@ internal sealed partial class GitHubIdentityProvider(
         PrimaryAmbiguous,
         NotAMailbox,
         AddressUnparsable,
+    }
+
+    // What the token endpoint answered: a token, or the exchange's outcome without one.
+    private abstract record TokenRedemption
+    {
+        private TokenRedemption() { }
+
+        public sealed record Issued(string Token) : TokenRedemption;
+
+        public sealed record Refused(ExternalExchange Outcome) : TokenRedemption;
     }
 
     internal enum RevocationFailure

@@ -84,6 +84,14 @@ internal sealed partial class RedisGrantStore : IGrantStore
                                                         && ExternalProviderKey.TryParse(payload.Provider, out var provider)
                                                         && ExternalSubject.TryCreate(payload.Subject) is { } external =>
                     new GrantSubject.LoginCompleteExternal(email, provider, external),
+                GrantPurpose.PendingExternalLink when AssertedEmail.TryCreate(payload.Email) is { } address
+                                                      && ExternalProviderKey.TryParse(payload.Provider, out var provider)
+                                                      && ExternalSubject.TryCreate(payload.Subject) is { } external =>
+                    new GrantSubject.PendingExternalLink(address, provider, external),
+                GrantPurpose.LoginCompleteWithLink when !string.IsNullOrEmpty(payload.Email)
+                                                        && ExternalProviderKey.TryParse(payload.Provider, out var provider)
+                                                        && ExternalSubject.TryCreate(payload.Subject) is { } external =>
+                    new GrantSubject.LoginCompleteWithLink(payload.Email, provider, external),
                 _ => null,
             };
 
@@ -140,6 +148,18 @@ internal sealed partial class RedisGrantStore : IGrantStore
                 Provider = external.Provider.Value,
                 Subject = external.Subject.Reveal(),
             },
+        GrantSubject.PendingExternalLink pending =>
+            new GrantPayload((int)GrantPurpose.PendingExternalLink, pending.Address.Value, UserId: null)
+            {
+                Provider = pending.Provider.Value,
+                Subject = pending.Subject.Reveal(),
+            },
+        GrantSubject.LoginCompleteWithLink withLink =>
+            new GrantPayload((int)GrantPurpose.LoginCompleteWithLink, withLink.ProvenEmail, UserId: null)
+            {
+                Provider = withLink.Provider.Value,
+                Subject = withLink.Subject.Reveal(),
+            },
         _ => throw new InvalidOperationException($"No grant payload for {subject.GetType().Name}."),
     };
 
@@ -156,15 +176,15 @@ internal sealed partial class RedisGrantStore : IGrantStore
         return padded;
     }
 
-    // Every field at its bound, as characters the default encoder escapes to six bytes each: the longest address
-    // a validator or VerifiedEmail admits, a user id, the longest provider key and the longest subject OIDC allows.
-    // Computed once; no payload can exceed it, because each field reaching a grant passed a type that reads the
-    // same bound.
+    // Every field at its bound, as characters the default encoder escapes to six bytes each: the highest purpose
+    // number, the longest address a validator or an external address type admits, a user id, a provider key at the
+    // type's own bound (so adding a provider moves nothing) and the longest subject OIDC allows. Computed once; no
+    // payload can exceed it, because each field reaching a grant passed a type that reads the same bound.
     private static readonly int PayloadCeiling = JsonSerializer.SerializeToUtf8Bytes(
         new GrantPayload(
-            (int)GrantPurpose.LoginCompleteExternal, new string('"', EmailAddressRules.MaximumLength), Guid.Empty)
+            (int)Enum.GetValues<GrantPurpose>().Max(), new string('"', EmailAddressRules.MaximumLength), Guid.Empty)
         {
-            Provider = new string('"', ExternalProviderKey.Known.Max(k => k.Value.Length)),
+            Provider = new string('"', ExternalProviderKey.MaximumLength),
             Subject = new string('"', ExternalSubject.MaximumLength),
         }).Length;
 
@@ -175,7 +195,8 @@ internal sealed partial class RedisGrantStore : IGrantStore
     private static partial void LogPayloadUnreadable(ILogger logger, string errorType);
 
     // The two external-login members are nullable and omitted when null, so purposes 1-3 serialise exactly as
-    // they did before them: no live record changes shape, and no new key segment is owed (ADR 0142 D1).
+    // they did before them: no live record changes shape, and no new key segment is owed (ADR 0142 D1). Purposes 5
+    // and 6 (#1745) reuse purpose 4's members.
     internal sealed record GrantPayload(
         [property: JsonPropertyName("p")] int Purpose,
         [property: JsonPropertyName("e")] string? Email,

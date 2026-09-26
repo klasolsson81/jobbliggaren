@@ -95,7 +95,7 @@ public sealed class LoginProofTests
     }
 
     private VerifyLoginChallengeCommandHandler Verify(bool registrationsOpen = false) =>
-        new(_store, Outcome(registrationsOpen));
+        new(_store, _grants, Outcome(registrationsOpen));
 
     private ConsumeLoginLinkCommandHandler Link(bool registrationsOpen = false) =>
         new(_store, Outcome(registrationsOpen));
@@ -394,7 +394,7 @@ public sealed class LoginProofTests
     [Fact]
     public async Task A_confirmed_inbox_writes_no_audit_row_and_revokes_nothing()
     {
-        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct);
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, SessionEvidence.InboxProven, Ct);
 
         _db.AuditLogEntries.Local.ShouldBeEmpty();
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
@@ -406,7 +406,7 @@ public sealed class LoginProofTests
     {
         _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
 
-        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Link, Ct);
+        await Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Link, SessionEvidence.InboxProven, Ct);
 
         var row = _db.AuditLogEntries.Local.ShouldHaveSingleItem();
         row.EventType.ShouldBe(PasswordlessSessionGrant.InboxProvenAuditEventType);
@@ -433,7 +433,7 @@ public sealed class LoginProofTests
                 new TimeoutException("Redis timed out")));
 
         await Should.ThrowAsync<SessionStoreUnavailableException>(
-            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct));
+            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, SessionEvidence.InboxProven, Ct));
 
         (await _db.AuditLogEntries.AsNoTracking()
             .CountAsync(e => e.EventType == PasswordlessSessionGrant.InboxProvenAuditEventType, Ct)).ShouldBe(1);
@@ -446,12 +446,28 @@ public sealed class LoginProofTests
             .ThrowsAsync(new InvalidOperationException("ConcurrencyFailure"));
 
         await Should.ThrowAsync<InvalidOperationException>(
-            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, Ct));
+            () => Grant().GrantAsync(new LoginSubject.Active(_userId, Email), LoginMethod.Code, SessionEvidence.InboxProven, Ct));
 
         _db.AuditLogEntries.Local.ShouldBeEmpty();
         await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         _audit.DidNotReceiveWithAnyArgs().LoginSucceeded(default, default!, default);
+    }
+
+    [Fact]
+    public async Task A_session_on_a_bound_link_never_reaches_the_inbox_proof()
+    {
+        // #1745 (dotnet-architect V1, ADR 0127): a found provider link proves no inbox now. Even a recorder that would
+        // answer a first proof is never asked, so nothing is confirmed and no earlier session is revoked.
+        _inbox.RecordAsync(_userId, Arg.Any<CancellationToken>()).Returns(InboxProof.FirstProofRecorded);
+
+        await Grant().GrantAsync(
+            new LoginSubject.Active(_userId, Email), LoginMethod.GitHub, SessionEvidence.BoundLink, Ct);
+
+        await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        await _sessions.DidNotReceiveWithAnyArgs().InvalidateAllForUserAsync(default, Ct);
+        _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.GitHub);
     }
 
     // ── #1744: a provider's proof (ADR 0142 D8, security-auditor M-1, senior-cto-advisor F2/F3) ─────────────
@@ -663,5 +679,348 @@ public sealed class LoginProofTests
         var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
         eventId.ShouldBe(1025);
         message.ShouldContain(nameof(LoginMethod.Google));
+    }
+
+    // ── #1745: a GitHub login a code binds (ADR 0142 Amendment (16); senior-cto-advisor 1a, security-auditor V-1..V-5) ──
+    // Every GitHub identity comes from the production adapter over a documented /user and /user/emails shape
+    // (GitHubIdentities). The pending link is the subject PendingLinkChallenge.RequestAsync issues from that proof,
+    // redeemed through the grant store (its purpose-5 round trip is RedisGrantStoreTests'), so the stubbed redemption
+    // answers what production writes.
+
+    private const long GitHubId = 58323117;
+    private static readonly GrantToken LinkGrant = GrantToken.FromRaw("BAECAwQFBgcICQoLDA0ODw");
+
+    private static Task<AssertedLoginProof> GitHubProofAsync(string address = Email) =>
+        GitHubIdentities.AssertedProofAsync(
+            GitHubApiShapes.User(GitHubId, "person-gh"), GitHubApiShapes.Emails.PrimaryVerified(address));
+
+    private async Task<GrantSubject.PendingExternalLink> ThePendingLinkIsForAsync(string address = Email)
+    {
+        var proof = await GitHubProofAsync(address);
+        var pending = new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject);
+        _grants.RedeemAsync(
+                LinkGrant, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Arg.Any<CancellationToken>())
+            .Returns(pending);
+        return pending;
+    }
+
+    private static VerifyLoginChallengeCommand VerifyWithLinkCommand() =>
+        new(ChallengeId.Generate().Reveal(), "123456", LinkGrant.Reveal());
+
+    private void TheGitHubLoginIsLinkedTo(Guid? userId) =>
+        _externalLookup.FindUserIdAsync(ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(userId);
+
+    private void TheGitHubLinkWriterAnswers(ExternalLinkResult result) =>
+        _externalWriter.LinkAsync(
+                Arg.Any<Guid>(), ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+
+    private static ChallengeVerdict VerdictNamed(string name) => name switch
+    {
+        "wrong" => ChallengeVerdict.Wrong(2),
+        "wrong, last attempt" => ChallengeVerdict.Wrong(1),
+        "burned" => ChallengeVerdict.Burned,
+        _ => ChallengeVerdict.Missing,
+    };
+
+    [Theory]
+    [InlineData("wrong")]
+    [InlineData("wrong, last attempt")]
+    [InlineData("burned")]
+    [InlineData("missing")]
+    public async Task A_pending_link_is_never_redeemed_by_a_code_that_did_not_verify(string verdict)
+    {
+        // Row 3 (security-auditor V-3): a typo leaves the grant for the right code. Actor: the store's verdicts.
+        await ThePendingLinkIsForAsync();
+        Verdict(VerdictNamed(verdict));
+
+        (await Verify(registrationsOpen: true).Handle(VerifyWithLinkCommand(), Ct)).IsFailure.ShouldBeTrue();
+
+        await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_pending_link_is_redeemed_as_a_bearer_pending_link_only_after_the_code_verified()
+    {
+        // Row 3: the exact assertion kills "any other purpose accepted as the pending link" (B13).
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync();
+        TheGitHubLinkWriterAnswers(ExternalLinkResult.Linked);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        await Verify().Handle(VerifyWithLinkCommand(), Ct);
+
+        Received.InOrder(() =>
+        {
+            _store.ConsumeCodeAsync(Arg.Any<ChallengeId>(), Arg.Any<LoginCode>(), Arg.Any<CancellationToken>());
+            _grants.RedeemAsync(LinkGrant, GrantAssertion.Bearer(GrantPurpose.PendingExternalLink), Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task A_verified_code_without_a_pending_link_redeems_nothing()
+    {
+        await WithProfileAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.SignedIn>();
+
+        await _grants.DidNotReceiveWithAnyArgs().RedeemAsync(default, default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_code_bound_github_login_links_before_the_session_and_records_a_code_login()
+    {
+        // Row 5: the code proved the account's own inbox, so the login is linked, its audit row committed, and only
+        // then the session opened; the session was earned by the code, so it is recorded as one.
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync();
+        TheGitHubLinkWriterAnswers(ExternalLinkResult.Linked);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        var outcome = (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value;
+
+        outcome.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        Received.InOrder(() =>
+        {
+            _externalWriter.LinkAsync(
+                _userId, ExternalProviderKey.GitHub, Arg.Is<ExternalSubject>(s => s.Reveal() == "58323117"),
+                Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+            _audit.LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+        });
+        var row = _db.AuditLogEntries.Local.ShouldHaveSingleItem();
+        row.EventType.ShouldBe(ExternalLoginLinker.ExternalLoginLinkedAuditEventType);
+        row.Payload.ShouldBe("""{"provider":"github"}""");
+        _outcomeLog.Records.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_pending_link_for_one_address_and_a_code_for_another_signs_the_code_in_and_links_nothing()
+    {
+        // Row 4 (security-auditor V-1, V-2): both addresses are active accounts, so a binding to either has a target.
+        // Actor: a client that calls verify with its own pending link and its own challenge for another address; the
+        // Api takes both from the request body. Kills "bind to the grant's account after any code" (the hijack) and
+        // "bind to the code's account without the address match".
+        const string other = "annan@example.com";
+        var otherUser = Guid.NewGuid();
+        _lookup.FindAccountAsync(other, Arg.Any<CancellationToken>()).Returns(new LoginAccount(otherUser, other));
+        _db.JobSeekers.Add(JobSeeker.Register(
+            otherUser, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value);
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync(other);
+        TheGitHubLinkWriterAnswers(ExternalLinkResult.Linked);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        var outcome = (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value;
+
+        outcome.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        await _sessions.Received(1).CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+        await _sessions.DidNotReceive().CreateAsync(otherUser, Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>());
+        _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1029);
+        message.ShouldContain("Cause=AddressMismatch");
+        message.ShouldContain("Provider=github");
+        message.ShouldNotContain("@");
+    }
+
+    [Fact]
+    public async Task A_pending_link_whose_address_differs_only_in_ascii_case_is_bound()
+    {
+        // security-auditor 2, signed 2026-09-26 for code-bound links only: the code went to the account's own
+        // spelling, and the comparison only decides that grant and code concern the same account.
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync("Person@Example.com");
+        TheGitHubLinkWriterAnswers(ExternalLinkResult.Linked);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.SignedIn>();
+
+        await _externalWriter.Received(1).LinkAsync(
+            _userId, ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_pending_link_whose_address_differs_by_a_folding_character_is_not_bound()
+    {
+        // security-auditor 2(c): the ASCII bar stands, so #1779 does not reopen. DECLARED: GitHub documents no rule for
+        // a non-ASCII address, though the adapter's own predicate admits this one; only the refusal to bind and the
+        // code's own outcome are asserted.
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync(FoldedEmail);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.SignedIn>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        _outcomeLog.Records.ShouldHaveSingleItem().Message.ShouldContain("Cause=AddressMismatch");
+    }
+
+    [Fact]
+    public async Task A_code_bound_github_login_of_a_new_address_waits_for_the_terms_with_the_link_in_its_grant()
+    {
+        // Row 6: never purpose 1, which would drop the link at complete (B11). The grant carries the address the
+        // CODE proved, never the asserted one (dotnet-architect R2).
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        var pending = await ThePendingLinkIsForAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        var outcome = (await Verify(registrationsOpen: true).Handle(VerifyWithLinkCommand(), Ct)).Value;
+
+        outcome.ShouldBe(new LoginOutcome.ConsentRequired(IssuedGrant));
+        await _grants.Received(1).IssueAsync(
+            new GrantSubject.LoginCompleteWithLink(Email, ExternalProviderKey.GitHub, pending.Subject),
+            Arg.Any<CancellationToken>());
+        await _grants.DidNotReceive().IssueAsync(Arg.Any<GrantSubject.LoginComplete>(), Arg.Any<CancellationToken>());
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_code_bound_github_login_of_a_new_address_is_closed_with_no_grant_while_registration_is_closed()
+    {
+        // Row 7: the operator's kill-switch is honoured at proof time (LoginProofOutcome resolves then).
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        await ThePendingLinkIsForAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify(registrationsOpen: false).Handle(VerifyWithLinkCommand(), Ct)).Value
+            .ShouldBeOfType<LoginOutcome.RegistrationClosed>();
+
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_code_bound_github_login_of_an_account_pending_deletion_links_nothing()
+    {
+        // Row 13: the holder's own deletion request inside the challenge's 15 minutes. Kills "link before the switch".
+        await WithProfileAsync(softDeleted: true);
+        await ThePendingLinkIsForAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBeOfType<LoginOutcome.PendingDeletion>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_code_bound_github_login_of_a_row_without_a_profile_links_nothing()
+    {
+        // security-auditor V-2: no link on an account that cannot be given a session. No profile is seeded.
+        await ThePendingLinkIsForAsync();
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify(registrationsOpen: true).Handle(VerifyWithLinkCommand(), Ct)).Value
+            .ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task An_expired_pending_link_leaves_the_codes_own_outcome()
+    {
+        // Row 14: Redis TTL ends the grant after 10 minutes, the code lives 15. The store then redeems nothing.
+        await WithProfileAsync();
+        _grants.RedeemAsync(LinkGrant, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
+            .Returns((GrantSubject?)null);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.Code);
+        _outcomeLog.Records.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_pending_link_another_account_holds_meanwhile_costs_the_link_and_never_the_session()
+    {
+        // security-auditor V-2: the pending link can only add a link to what the code earns. Actor: the same GitHub
+        // user completing a first login for another account in a second browser inside the grant's 10 minutes.
+        var holder = Guid.NewGuid();
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync();
+        TheGitHubLoginIsLinkedTo(holder);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1029);
+        message.ShouldContain("Cause=LinkedElsewhere");
+        message.ShouldNotContain(holder.ToString());
+    }
+
+    [Fact]
+    public async Task A_pending_link_another_account_holds_leaves_a_new_address_the_codes_own_grant()
+    {
+        // security-auditor V-2: a new address then earns purpose 1, never 6, and the held login is never moved.
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        await ThePendingLinkIsForAsync();
+        TheGitHubLoginIsLinkedTo(Guid.NewGuid());
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify(registrationsOpen: true).Handle(VerifyWithLinkCommand(), Ct)).Value
+            .ShouldBe(new LoginOutcome.ConsentRequired(IssuedGrant));
+
+        await _grants.Received(1).IssueAsync(new GrantSubject.LoginComplete(Email), Arg.Any<CancellationToken>());
+        await _grants.DidNotReceive().IssueAsync(
+            Arg.Any<GrantSubject.LoginCompleteWithLink>(), Arg.Any<CancellationToken>());
+        _outcomeLog.Records.ShouldHaveSingleItem().Message.ShouldContain("Cause=LinkedElsewhere");
+    }
+
+    [Fact]
+    public async Task A_link_another_account_wins_at_the_write_costs_the_link_and_never_the_session()
+    {
+        // Minor E, decided by security-auditor V-2: the write loses to another account between the read and the
+        // insert (IdentityExternalLoginStore reports LinkedToAnotherUser). The code earned the session.
+        await WithProfileAsync();
+        await ThePendingLinkIsForAsync();
+        TheGitHubLinkWriterAnswers(ExternalLinkResult.LinkedToAnotherUser);
+        Verdict(ChallengeVerdict.Verified(new LoginChallengeProof(Email)));
+
+        (await Verify().Handle(VerifyWithLinkCommand(), Ct)).Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1029);
+        message.ShouldContain("Cause=LinkLost");
+    }
+
+    [Fact]
+    public async Task A_found_github_link_signs_in_as_github_and_never_writes_a_link_or_an_inbox_proof()
+    {
+        // Row 8, the second GitHub login: security-auditor V-5, dotnet-architect V1. The link is one the code-bound
+        // path wrote (A_code_bound_github_login_links_before_the_session_and_records_a_code_login).
+        await WithProfileAsync();
+        TheGitHubLoginIsLinkedTo(_userId);
+
+        var outcome = await Outcome(registrationsOpen: true).ResolveFoundLinkAsync(await GitHubProofAsync(), Ct);
+
+        outcome.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        _audit.Received(1).LoginSucceeded(_userId, Arg.Any<string>(), LoginMethod.GitHub);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_github_login_without_a_link_is_no_outcome_and_reads_no_account()
+    {
+        // The found path answers null for "no link", and then no account has been read (dotnet-architect R4).
+        await WithProfileAsync();
+
+        (await Outcome(registrationsOpen: true).ResolveFoundLinkAsync(await GitHubProofAsync(), Ct)).ShouldBeNull();
+
+        await _lookup.DidNotReceiveWithAnyArgs().FindAccountAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
     }
 }

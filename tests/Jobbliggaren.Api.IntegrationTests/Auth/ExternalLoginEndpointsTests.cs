@@ -16,7 +16,10 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using StackExchange.Redis;
 
@@ -27,6 +30,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// adapter runs over <see cref="ScriptedGoogle"/>: the flow is started here, "Google" is handed the code for that
 /// flow's challenge and redirect URI, and the callback completes it. Every identity is a documented userinfo shape
 /// read by the adapter itself. The #1744 acceptance rows are marked.
+/// <para>
+/// #1745: this stays the provider-neutral file and Google's; GitHub's code-bound path is <c>GitHubFirstLoginTests</c>.
+/// The rows here that name GitHub rest on <see cref="ApiFactory"/>'s hand-built registration, whose actor is 6b PR 2's
+/// gate; the composition itself registers no GitHub in PR 1, which a row here pins.
+/// </para>
 /// </summary>
 [Collection("Api")]
 public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLifetime
@@ -57,9 +65,10 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
 
     private sealed record StartedFlow(string State, string Challenge, string RedirectUri);
 
-    private async Task<StartedFlow> StartAsync(string next = "/ansokningar/abc-123", HttpClient? client = null)
+    private async Task<StartedFlow> StartAsync(
+        string next = "/ansokningar/abc-123", HttpClient? client = null, string provider = "google")
     {
-        var response = await (client ?? _client).PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next }, Ct);
+        var response = await (client ?? _client).PostAsJsonAsync($"/api/v1/auth/oauth/{provider}/start", new { next }, Ct);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
         var state = body.GetProperty("state").GetString()!;
@@ -77,8 +86,9 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         return code;
     }
 
-    private Task<HttpResponseMessage> CallbackAsync(string code, string state, HttpClient? client = null) =>
-        (client ?? _client).PostAsJsonAsync("/api/v1/auth/oauth/google/callback", new { code, state }, Ct);
+    private Task<HttpResponseMessage> CallbackAsync(
+        string code, string state, HttpClient? client = null, string provider = "google") =>
+        (client ?? _client).PostAsJsonAsync($"/api/v1/auth/oauth/{provider}/callback", new { code, state }, Ct);
 
     private async Task<JsonElement> SignInByGoogleAsync(string sub, string address, HttpClient? client = null)
     {
@@ -129,23 +139,34 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
     // ── the providers list ──
 
     [Fact]
-    public async Task The_providers_list_names_google_and_is_publicly_cacheable_for_five_minutes()
+    public async Task The_providers_list_names_every_registered_provider_in_the_known_order_and_is_publicly_cacheable()
     {
-        // Acceptance: ["google"] when configured; the [] half is GoogleIdentityProviderGateTests'.
+        // Acceptance: the registered keys; the [] half is GoogleIdentityProviderGateTests'. In 6b PR 1 GitHub's half of
+        // this list measures ApiFactory's hand-built registration (its actor is 6b PR 2's gate), not a composition.
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<string[]>(Ct)).ShouldBe(["google"]);
+        (await response.Content.ReadFromJsonAsync<string[]>(Ct)).ShouldBe(["google", "github"]);
         response.Headers.CacheControl!.ToString().ShouldBe("public, max-age=300");
     }
 
     [Fact]
-    public void The_Development_composition_registers_google_from_its_client_id()
+    public void The_Development_composition_registers_google_from_its_client_id_and_never_github()
     {
-        // The host's scripted adapter reaches the handlers through RegisteredProviders alone, so this is the
+        // The host's scripted adapters reach the handlers through RegisteredProviders alone, so this is the
         // composition's own registration, made by the gate from the client id in this host's configuration.
+        // #1745, 6b PR 1's inertness pin in Development (test-writer reading §4): the host carries a full GitHub
+        // client too, and the composition registers no GitHub adapter, binds no GitHub options and names no client.
+        var configuration = factory.Services.GetRequiredService<IConfiguration>();
+        configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe(ApiFactory.GitHubClientId);
+
         factory.Services.GetServices<IExternalIdentityProvider>().ShouldHaveSingleItem()
             .ShouldBeOfType<GoogleIdentityProvider>();
+        factory.Services.GetServices<IConfigureOptions<GitHubOAuthOptions>>().ShouldBeEmpty();
+        factory.Services.GetServices<IConfigureOptions<HttpClientFactoryOptions>>()
+            .OfType<ConfigureNamedOptions<HttpClientFactoryOptions>>()
+            .Select(options => options.Name)
+            .ShouldNotContain(GitHubIdentityProvider.HttpClientName);
     }
 
     [Fact]
@@ -190,8 +211,94 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
             .StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
+    [Fact]
+    public async Task A_github_start_points_at_githubs_authorize_endpoint_and_its_own_callback()
+    {
+        // P3: the one start route, the adapter the segment names.
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        var before = store.Writes;
+
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/oauth/github/start", new { next = "/oversikt" }, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        body.EnumerateObject().Select(p => p.Name).ShouldBe(["authorizeUrl", "state"]);
+        var url = new Uri(body.GetProperty("authorizeUrl").GetString()!);
+        url.GetLeftPart(UriPartial.Path).ShouldBe("https://github.com/login/oauth/authorize");
+        var query = HttpUtility.ParseQueryString(url.Query);
+        query["client_id"].ShouldBe(ApiFactory.GitHubClientId);
+        new Uri(query["redirect_uri"]!).AbsolutePath.ShouldBe("/api/auth/oauth/github/callback");
+        query["state"].ShouldBe(body.GetProperty("state").GetString());
+        store.Writes.ShouldBe(before + 1);
+    }
+
+    [Fact]
+    public async Task A_github_start_counts_against_the_one_budget_every_provider_shares()
+    {
+        // P4: the budget is spent by Google's starts, and GitHub's start is refused before anything is written.
+        // Kills "a budget per provider".
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        for (var i = 0; i < ExternalLoginPolicy.StartBudget.Limit; i++)
+            await StartAsync();
+        var before = store.Writes;
+
+        var refused = await _client.PostAsJsonAsync("/api/v1/auth/oauth/github/start", new { next = "/oversikt" }, Ct);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await refused.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("title").GetString()
+            .ShouldBe(AuthErrorCodes.ExternalLoginStartsExhausted);
+        store.Writes.ShouldBe(before);
+    }
+
     [Theory]
-    [InlineData("github")]
+    [InlineData("google", "github")]
+    [InlineData("github", "google")]
+    public async Task A_flow_started_for_one_provider_is_refused_at_the_others_callback_and_spent(
+        string startedFor, string presentedTo)
+    {
+        // P13, §3.6's end-to-end layer (ADR 0142 Amendment (14) L801). Actor: an attacker, or a confused browser,
+        // who copies the challenge out of the started flow's public authorize URL into the other provider's authorize
+        // request; that provider then hands out a VALID code for it, so a refusal can come only from the provider
+        // binding and never from the code.
+        var flow = await StartAsync(provider: startedFor);
+        var address = NewAddress("korsad");
+        var otherRedirect = flow.RedirectUri.Replace($"/{startedFor}/", $"/{presentedTo}/", StringComparison.Ordinal);
+        var code = presentedTo == "github"
+            ? GitHubAuthorises(flow.Challenge, otherRedirect, address)
+            : GoogleAuthorises(flow with { RedirectUri = otherRedirect }, Workspace(NewSubject(), address));
+        var googleRequests = factory.Google.Requests.Count;
+        var githubRequests = factory.GitHub.Requests.Count;
+
+        var crossed = await CallbackAsync(code, flow.State, provider: presentedTo);
+        var unknown = await CallbackAsync(code, OAuthState.Generate().Reveal(), provider: presentedTo);
+
+        (await ComparableAsync(crossed)).ShouldBe(await ComparableAsync(unknown));
+        factory.Google.Requests.Count.ShouldBe(googleRequests);
+        factory.GitHub.Requests.Count.ShouldBe(githubRequests);
+
+        // The take spent the flow: its own provider's callback, with a code that provider would accept, is refused.
+        var ownCode = startedFor == "github"
+            ? GitHubAuthorises(flow.Challenge, flow.RedirectUri, address)
+            : GoogleAuthorises(flow, Workspace(NewSubject(), address));
+        (await CallbackAsync(ownCode, flow.State, provider: startedFor)).StatusCode.ShouldBe(HttpStatusCode.Gone);
+        (await UserIdOfAsync(address)).ShouldBeNull();
+    }
+
+    // What GitHub does after the user approves the app: a code bound to the challenge and redirect URI it was given.
+    private string GitHubAuthorises(string challenge, string redirectUri, string primary)
+    {
+        var code = $"scripted-{Guid.NewGuid():N}";
+        factory.GitHub.Expect(
+            code,
+            GitHubApiShapes.User(Random.Shared.NextInt64(1_000_000, 1L << 53), "korsad-gh"),
+            GitHubApiShapes.Emails.PrimaryVerified(primary),
+            challenge,
+            redirectUri);
+        return code;
+    }
+
+    [Theory]
+    [InlineData("GitHub")]
     [InlineData("myspace")]
     public async Task Starting_a_provider_this_host_did_not_register_is_not_found(string provider)
     {
@@ -332,6 +439,10 @@ public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLife
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
 
         body.GetProperty("outcome").GetString().ShouldBe("consentRequired");
+        // #1745: Google's answer is the outcome union, byte for byte as before; never the code step's members, so the
+        // web's callback continuation is unchanged for Google (senior-cto-advisor 1d, F10 not triggered).
+        body.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal)
+            .ShouldBe(["grantToken", "next", "outcome"]);
         body.GetProperty("next").GetString().ShouldBe("/cv");
         (await UserIdOfAsync(address)).ShouldBeNull("no row is written before the terms are accepted (ADR 0142 D3)");
 

@@ -26,7 +26,7 @@ public sealed class EmailOptions
     /// Bas-URL för app:en. Används i bakgrundsmatchnings-notisens länkar
     /// (<c>{BaseUrl}/matchningar</c> + <c>{BaseUrl}/mina-sidor</c>, ADR 0080 Vag 4).
     /// Also the base of an external login's <c>redirect_uri</c> when a provider is configured (#1744,
-    /// <c>GoogleIdentityProviderRegistration</c>), validated at start there.
+    /// <c>ExternalLoginRegistration</c>), validated at start there.
     /// </summary>
     public string BaseUrl { get; init; } = "http://localhost:3000";
 }

@@ -1,7 +1,11 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
+using FluentValidation.TestHelper;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Validation;
+using Jobbliggaren.Infrastructure.Auth;
 using Shouldly;
 
 namespace Jobbliggaren.Application.UnitTests.Auth.ExternalLogins;
@@ -156,6 +160,90 @@ public class VerifiedEmailTests
         $"{VerifiedEmail.TryCreate("anna@firma.example")}".ShouldNotContain("anna");
 }
 
+/// <summary>
+/// #1745 (ADR 0142 Amendment (16)) — the asserted address: the bound every stored address meets, the one shape a
+/// provider's address must have, and nothing of it printed. Its factory shares <c>ExternalAddressBounds</c> with
+/// <see cref="VerifiedEmail"/>, so the two admit exactly the same strings (dotnet-architect R1).
+/// </summary>
+public class AssertedEmailTests
+{
+    private static readonly string AtTheBound =
+        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length) + "@x.example";
+
+    private static readonly string OneOver =
+        new string('a', EmailAddressRules.MaximumLength - "@x.example".Length + 1) + "@x.example";
+
+    [Fact]
+    public void TryCreate_ShouldKeepTheSpellingItWasGiven_WhenTheAddressIsWellFormed() =>
+        AssertedEmail.TryCreate("Anna.Berg@firma.example")!.Value.ShouldBe("Anna.Berg@firma.example");
+
+    [Fact]
+    public void TryCreate_ShouldAcceptTheLongestAddressAValidatorAdmitsAndRefuseOneMore()
+    {
+        AssertedEmail.TryCreate(AtTheBound).ShouldNotBeNull();
+        AssertedEmail.TryCreate(OneOver).ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("anna")]
+    [InlineData("@firma.example")]
+    [InlineData("anna@")]
+    [InlineData("anna@firma@example")]
+    public void TryCreate_ShouldRefuse_WhenTheAddressIsNotOneLocalPartAndOneDomain(string? address) =>
+        AssertedEmail.TryCreate(address).ShouldBeNull();
+
+    [Fact]
+    public void ToString_ShouldPrintNoPartOfTheAddress_WhenInterpolated() =>
+        $"{AssertedEmail.TryCreate("anna@firma.example")}".ShouldNotContain("anna");
+
+    public static TheoryData<string> Candidates() => new()
+    {
+        "anna@firma.example",
+        "Anna.Berg@firma.example",
+        "a@b",
+        "björn@firma.example",
+        "o'brien@firma.example",
+        "anna",
+        "@firma.example",
+        "anna@",
+        "anna@firma@example",
+        "anna berg@firma.example",
+        "anna" + (char)7 + "berg@firma.example",
+        "anna@firma.example" + (char)10,
+        "a" + (char)0x200B + "b@firma.example",
+        AtTheBound,
+        OneOver,
+    };
+
+    [Theory]
+    [MemberData(nameof(Candidates))]
+    public void An_address_the_github_adapter_admits_is_one_the_request_validator_admits(string candidate)
+    {
+        // dotnet-architect V4: the provider path is a second entry to ADR 0142 D2's dispatch, and its address never
+        // passes RequestLoginChallengeCommandValidator. The adapter admits exactly StorableAddress.IsStorable and
+        // then AssertedEmail.TryCreate (GitHubIdentityProvider.PrimaryVerified), so whatever that pair admits must be
+        // an address the typed path's validator admits too; the grant's padded payload and the consumer rely on it.
+        if (!StorableAddress.IsStorable(candidate) || AssertedEmail.TryCreate(candidate) is null)
+            return;
+
+        new RequestLoginChallengeCommandValidator().TestValidate(new RequestLoginChallengeCommand(candidate))
+            .ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void The_implication_table_holds_candidates_the_adapter_admits_and_ones_it_refuses()
+    {
+        // The control for the row above: an implication over a table the adapter refuses entirely is vacuous.
+        var admitted = Candidates().Select(row => row.Data)
+            .Count(c => StorableAddress.IsStorable(c) && AssertedEmail.TryCreate(c) is not null);
+
+        admitted.ShouldBeGreaterThan(3);
+        admitted.ShouldBeLessThan(Candidates().Count);
+    }
+}
+
 public class ExternalProviderKeyTests
 {
     [Fact]
@@ -166,29 +254,64 @@ public class ExternalProviderKeyTests
         key.ShouldBe(ExternalProviderKey.Google);
     }
 
+    [Fact]
+    public void TryParse_ShouldFindGitHub_WhenGivenItsKey()
+    {
+        ExternalProviderKey.TryParse("github", out var key).ShouldBeTrue();
+
+        key.ShouldBe(ExternalProviderKey.GitHub);
+    }
+
+    // "linkedin" stays unknown until 6c (#1746) adds its key.
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("Google")]
     [InlineData("GOOGLE")]
     [InlineData("google ")]
-    [InlineData("github")]
+    [InlineData("GitHub")]
+    [InlineData("GITHUB")]
+    [InlineData("github ")]
+    [InlineData("linkedin")]
     [InlineData("..")]
     public void TryParse_ShouldRefuse_WhenTheKeyIsNotKnownSpelledExactly(string? raw) =>
         ExternalProviderKey.TryParse(raw, out _).ShouldBeFalse();
 
     [Fact]
-    public void Known_ShouldBeGoogleAlone_WhenOnlyPart6aHasShipped() =>
-        ExternalProviderKey.Known.ShouldBe([ExternalProviderKey.Google]);
+    public void Known_ShouldBeGoogleThenGitHub_InTheOrderTheLoginPageListsThem() =>
+        ExternalProviderKey.Known.ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.GitHub]);
+
+    [Fact]
+    public void Known_ShouldFitTheKeyBound_ForEveryKey() =>
+        ExternalProviderKey.Known.ShouldAllBe(key => key.Value.Length <= ExternalProviderKey.MaximumLength);
 
     [Fact]
     public void LoginMethod_ShouldBeGoogle_WhenTheKeyIsGoogle() =>
         ExternalProviderKey.Google.LoginMethod.ShouldBe(LoginMethod.Google);
 
     [Fact]
-    public void LoginMethod_ShouldBeDefined_ForEveryKnownKey()
+    public void LoginMethod_ShouldBeGitHub_WhenTheKeyIsGitHub() =>
+        ExternalProviderKey.GitHub.LoginMethod.ShouldBe(LoginMethod.GitHub);
+
+    [Fact]
+    public void LoginMethod_ShouldBeOneProviderMethodPerKey_AndNeverACodeOrALink()
     {
-        foreach (var key in ExternalProviderKey.Known)
-            Enum.IsDefined(key.LoginMethod).ShouldBeTrue();
+        // test-writer Minor 9: a mapping of GitHub onto Google's method would write Google into the audit line.
+        var methods = ExternalProviderKey.Known.Select(key => key.LoginMethod).ToList();
+
+        methods.Distinct().Count().ShouldBe(methods.Count);
+        methods.ShouldNotContain(LoginMethod.Code);
+        methods.ShouldNotContain(LoginMethod.Link);
+        methods.ShouldAllBe(method => Enum.IsDefined(method));
+    }
+
+    [Fact]
+    public void LoginMethod_ShouldThrow_WhenTheKeyIsTheDefaultValue()
+    {
+        // The actor is TryParse's refusing branch, which writes `key = default`: the value is producible, and a
+        // mapping whose last arm is "everything else is GitHub" would record it as a GitHub login.
+        ExternalProviderKey.TryParse("myspace", out var refused).ShouldBeFalse();
+
+        Should.Throw<UnreachableException>(() => refused.LoginMethod);
     }
 }

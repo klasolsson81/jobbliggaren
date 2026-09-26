@@ -1768,6 +1768,7 @@ public static class DependencyInjection
         services.AddScoped<AccountRegistrar>();
         services.AddScoped<LoginSubjectResolver>();
         services.AddScoped<LoginChallengeIssuer>();
+        services.AddScoped<LoginChallengeAdmission>();
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
         services.AddScoped<PasswordlessSessionGrant>();
         services.AddScoped<LoginProofOutcome>();
@@ -1780,7 +1781,8 @@ public static class DependencyInjection
         services.AddScoped<IExternalLoginLookup, IdentityExternalLoginStore>();
         services.AddScoped<IExternalLoginWriter, IdentityExternalLoginStore>();
         services.AddScoped<ExternalLoginLinker>();
-        services.AddGoogleIdentityProvider(configuration);
+        services.AddScoped<PendingLinkChallenge>();
+        services.AddExternalIdentityProviders(configuration);
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

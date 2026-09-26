@@ -61,6 +61,18 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>#1744 — the host's client id at Google, as the test adapter sends it.</summary>
     internal const string GoogleClientId = "test-client-id.apps.googleusercontent.com";
 
+    /// <summary>#1745 — the host's client id at GitHub, as the test adapter sends it.</summary>
+    internal const string GitHubClientId = "Iv23-test-client-id";
+
+    // Not shaped like a real secret. gitleaks:allow
+    private const string GitHubClientSecret = "test-github-client-secret"; // gitleaks:allow
+
+    // #1745 — GitHub's token, REST and revocation endpoints, scripted. The only thing the GitHub login path stubs.
+    private readonly ScriptedGitHub _github = new(GitHubClientId, GitHubClientSecret);
+
+    /// <summary>#1745 — the scripted endpoints the host's GitHub adapter calls.</summary>
+    internal ScriptedGitHub GitHub => _github;
+
     /// <summary>#1735 — puts the login challenge's Redis stores out of reach for a scope (the 503 rows).</summary>
     internal LoginChallengeFaults LoginChallengeFaults => _loginChallengeFaults;
 
@@ -111,6 +123,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // #1744 — a full Google client, as a developer's appsettings.Local.json carries one.
         builder.UseSetting("Auth:OAuth:Google:ClientId", GoogleClientId);
         builder.UseSetting("Auth:OAuth:Google:ClientSecret", "test-google-client-secret"); // gitleaks:allow
+
+        // #1745 — a full GitHub client too, as a developer's appsettings.Local.json can carry one. In 6b PR 1 no
+        // composition reads it (ExternalLoginEndpointsTests pins that this host's composition registers no GitHub).
+        builder.UseSetting("Auth:OAuth:GitHub:ClientId", GitHubClientId);
+        builder.UseSetting("Auth:OAuth:GitHub:ClientSecret", GitHubClientSecret);
 
         // ADR 0066 (#802) — fält-krypteringen är Local-only. Provider läses via
         // configuration[...] vid DI-tid i AddPersistence, så det MÅSTE vara ett
@@ -228,19 +245,38 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // #1744 — the REAL Google adapter over ScriptedGoogle, handed to the handlers through RegisteredProviders
             // alone: the composition's own IExternalIdentityProvider registrations stay what they are, and no test
             // reaches Google. The redirect base is the host's own Email:BaseUrl.
+            //
+            // #1745 — and the REAL GitHub adapter over ScriptedGitHub, built by hand here because in 6b PR 1 no
+            // composition registers it: the actor that registers GitHub on a host is AddGitHubIdentityProvider, the gate
+            // 6b PR 2 adds (the 6a PR S precedent, where this list held Google while no composition did). Every GitHub
+            // endpoint row therefore rests on a registration PR 2 produces, and PR 2 re-measures them on its gate.
             services.RemoveAll<RegisteredProviders>();
-            services.AddSingleton(sp => new RegisteredProviders(
-            [
-                new GoogleIdentityProvider(
-                    new ScriptedGoogleClients(_google),
-                    Options.Create(new GoogleOAuthOptions
-                    {
-                        ClientId = GoogleClientId,
-                        ClientSecret = "test-google-client-secret", // gitleaks:allow
-                    }),
-                    new ExternalLoginCallbacks(new Uri(sp.GetRequiredService<IOptions<EmailOptions>>().Value.BaseUrl)),
-                    sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()),
-            ]));
+            services.AddSingleton(sp =>
+            {
+                var callbacks = new ExternalLoginCallbacks(
+                    new Uri(sp.GetRequiredService<IOptions<EmailOptions>>().Value.BaseUrl));
+                return new RegisteredProviders(
+                [
+                    new GoogleIdentityProvider(
+                        new NamedClientFactory(GoogleIdentityProvider.HttpClientName, _google),
+                        Options.Create(new GoogleOAuthOptions
+                        {
+                            ClientId = GoogleClientId,
+                            ClientSecret = "test-google-client-secret", // gitleaks:allow
+                        }),
+                        callbacks,
+                        sp.GetRequiredService<ILogger<GoogleIdentityProvider>>()),
+                    new GitHubIdentityProvider(
+                        new NamedClientFactory(GitHubIdentityProvider.HttpClientName, _github),
+                        Options.Create(new GitHubOAuthOptions
+                        {
+                            ClientId = GitHubClientId,
+                            ClientSecret = GitHubClientSecret,
+                        }),
+                        callbacks,
+                        sp.GetRequiredService<ILogger<GitHubIdentityProvider>>()),
+                ]);
+            });
 
             // ADR 0083 Amendment 2026-08-03 — the registration kill-switch defaults to CLOSED, so the
             // base host must pin it OPEN or every new account would be refused before it is created.
@@ -249,15 +285,6 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             // its PostConfigure AFTER this one and re-flips it.
             services.PostConfigure<AuthOptions>(o => o.RegistrationsOpen = true);
         });
-    }
-
-    /// <summary>
-    /// Hands the adapter clients over <see cref="ScriptedGoogle"/>; a handler that answers a host it does not
-    /// script throws, so a test cannot reach the network by accident.
-    /// </summary>
-    private sealed class ScriptedGoogleClients(ScriptedGoogle google) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(google, disposeHandler: false);
     }
 
     private WebApplicationFactory<Program>? _registrationsClosedHost;

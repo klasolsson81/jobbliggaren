@@ -6,8 +6,9 @@ using Shouldly;
 namespace Jobbliggaren.Application.UnitTests.Auth;
 
 /// <summary>
-/// #1739, #1744 — what a caller may assert when it redeems a grant (ADR 0142 D3). A purpose is caller-asserted unless
-/// it is declared bearer-bound, so only the two registration purposes can be redeemed without their binding.
+/// #1739, #1744, #1745 — what a caller may assert when it redeems a grant (ADR 0142 D3). A purpose is caller-asserted
+/// unless it is declared bearer-bound, so only the registration purposes and the pending link can be redeemed without
+/// their binding.
 /// </summary>
 public class GrantAssertionTests
 {
@@ -92,6 +93,35 @@ public class GrantAssertionTests
         ((int)GrantPurpose.Reauthentication).ShouldBe(2);
         ((int)GrantPurpose.ChangeEmail).ShouldBe(3);
         ((int)GrantPurpose.LoginCompleteExternal).ShouldBe(4);
+        ((int)GrantPurpose.PendingExternalLink).ShouldBe(5);
+        ((int)GrantPurpose.LoginCompleteWithLink).ShouldBe(6);
+    }
+
+    [Theory]
+    [InlineData(GrantPurpose.PendingExternalLink)]
+    [InlineData(GrantPurpose.LoginCompleteWithLink)]
+    public void Bearer_ShouldCarryNoBinding_WhenThePurposeIsOneOfTheLinkPurposes(GrantPurpose purpose)
+    {
+        // #1745 (dotnet-architect R2): the browser holds only the token, so both link purposes are bearer-bound.
+        var assertion = GrantAssertion.Bearer(purpose);
+
+        assertion.Purposes.ShouldBe([purpose]);
+        assertion.Binding.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task PendingExternalLink_ShouldCompareByItsAddressProviderAndSubject_WhenTwoAreBuilt()
+    {
+        // The address comes from the production GitHub adapter (GitHubIdentities); the other subject is the same
+        // account's own identifier at another provider.
+        var proof = await GitHubIdentities.AssertedProofAsync(
+            GitHubApiShapes.User(58323117, "anna-berg-gh"), GitHubApiShapes.Emails.PrimaryVerified("anna@firma.example"));
+
+        new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject)
+            .ShouldBe(new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject));
+        new GrantSubject.PendingExternalLink(proof.Address, proof.Provider, proof.Subject)
+            .ShouldNotBe(new GrantSubject.PendingExternalLink(
+                proof.Address, proof.Provider, ExternalSubject.TryCreate("2")!.Value));
     }
 
     [Fact]

@@ -1,5 +1,3 @@
-using Jobbliggaren.Application.Common.Validation;
-
 namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
@@ -17,15 +15,6 @@ public sealed record VerifiedEmail
     public override string ToString() => "VerifiedEmail(redacted)";
 
     /// <summary>Null for anything that is not one address of a local part and a domain within the length bound.</summary>
-    public static VerifiedEmail? TryCreate(string? address)
-    {
-        if (string.IsNullOrEmpty(address) || address.Length > EmailAddressRules.MaximumLength)
-            return null;
-
-        var at = address.IndexOf('@', StringComparison.Ordinal);
-        if (at <= 0 || at == address.Length - 1 || address.IndexOf('@', at + 1) >= 0)
-            return null;
-
-        return new VerifiedEmail(address);
-    }
+    public static VerifiedEmail? TryCreate(string? address) =>
+        ExternalAddressBounds.IsWithinBounds(address) ? new VerifiedEmail(address) : null;
 }

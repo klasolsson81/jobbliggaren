@@ -10,10 +10,10 @@ using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.UnitTests.Common;
 using Jobbliggaren.Domain.Common;
+using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
@@ -60,12 +60,16 @@ public class ExternalAddressMatchTests
 /// <summary>#1744 — the registered set is what the login page may offer; the known order is the page's order.</summary>
 public class RegisteredProvidersTests
 {
-    private static IExternalIdentityProvider Google()
+    private static IExternalIdentityProvider Provider(ExternalProviderKey key)
     {
         var provider = Substitute.For<IExternalIdentityProvider>();
-        provider.Key.Returns(ExternalProviderKey.Google);
+        provider.Key.Returns(key);
         return provider;
     }
+
+    private static IExternalIdentityProvider Google() => Provider(ExternalProviderKey.Google);
+
+    private static IExternalIdentityProvider GitHub() => Provider(ExternalProviderKey.GitHub);
 
     [Fact]
     public void Keys_ShouldBeEmpty_WhenNoProviderIsRegistered() => new RegisteredProviders([]).Keys.ShouldBeEmpty();
@@ -74,36 +78,66 @@ public class RegisteredProvidersTests
     public void Keys_ShouldNameGoogle_WhenGoogleIsRegistered() =>
         new RegisteredProviders([Google()]).Keys.ShouldBe([ExternalProviderKey.Google]);
 
+    // #1745: kills "the registration order".
+    [Fact]
+    public void Keys_ShouldBeInTheKnownOrder_WhenTheProvidersAreRegisteredInAnother() =>
+        new RegisteredProviders([GitHub(), Google()]).Keys.ShouldBe([ExternalProviderKey.Google, ExternalProviderKey.GitHub]);
+
+    [Fact]
+    public void Find_ShouldAnswerTheProviderUnderItsOwnKey_WhenSeveralAreRegistered()
+    {
+        // #1745: kills "the first registered provider".
+        var google = Google();
+        var github = GitHub();
+        var providers = new RegisteredProviders([google, github]);
+
+        providers.Find("github").ShouldBeSameAs(github);
+        providers.Find("google").ShouldBeSameAs(google);
+    }
+
+    // Unknown to this build, or known and misspelled: never "github" itself, which is a known key since #1745.
     [Theory]
-    [InlineData("github")]
+    [InlineData("GitHub")]
+    [InlineData("myspace")]
     [InlineData("GOOGLE")]
     [InlineData("")]
     [InlineData(null)]
     public void Find_ShouldAnswerNull_WhenTheKeyIsNotAKnownKeySpelledExactly(string? raw) =>
-        new RegisteredProviders([Google()]).Find(raw).ShouldBeNull();
+        new RegisteredProviders([Google(), GitHub()]).Find(raw).ShouldBeNull();
 
-    [Fact]
-    public void Find_ShouldAnswerNull_WhenTheKeyIsKnownButNotRegisteredOnThisHost() =>
-        new RegisteredProviders([]).Find("google").ShouldBeNull();
+    [Theory]
+    [InlineData("google")]
+    [InlineData("github")]
+    public void Find_ShouldAnswerNull_WhenTheKeyIsKnownButNotRegisteredOnThisHost(string raw) =>
+        new RegisteredProviders([]).Find(raw).ShouldBeNull();
 }
 
 /// <summary>#1744 — the providers list: the registered keys, empty where no keys are set.</summary>
 public class GetExternalLoginProvidersQueryHandlerTests
 {
+    private static IExternalIdentityProvider Provider(ExternalProviderKey key)
+    {
+        var provider = Substitute.For<IExternalIdentityProvider>();
+        provider.Key.Returns(key);
+        return provider;
+    }
+
     [Fact]
     public async Task Handle_ShouldAnswerAnEmptyList_WhenNoProviderIsRegistered() =>
         (await new GetExternalLoginProvidersQueryHandler(new RegisteredProviders([]))
             .Handle(new GetExternalLoginProvidersQuery(), TestContext.Current.CancellationToken)).ShouldBeEmpty();
 
     [Fact]
-    public async Task Handle_ShouldAnswerGoogle_WhenGoogleIsRegistered()
-    {
-        var google = Substitute.For<IExternalIdentityProvider>();
-        google.Key.Returns(ExternalProviderKey.Google);
-
-        (await new GetExternalLoginProvidersQueryHandler(new RegisteredProviders([google]))
+    public async Task Handle_ShouldAnswerGoogle_WhenGoogleIsRegistered() =>
+        (await new GetExternalLoginProvidersQueryHandler(new RegisteredProviders([Provider(ExternalProviderKey.Google)]))
             .Handle(new GetExternalLoginProvidersQuery(), TestContext.Current.CancellationToken)).ShouldBe(["google"]);
-    }
+
+    [Fact]
+    public async Task Handle_ShouldAnswerTheKnownOrder_WhenBothAreRegisteredInAnother() =>
+        (await new GetExternalLoginProvidersQueryHandler(new RegisteredProviders(
+                [Provider(ExternalProviderKey.GitHub), Provider(ExternalProviderKey.Google)]))
+            .Handle(new GetExternalLoginProvidersQuery(), TestContext.Current.CancellationToken))
+        .ShouldBe(["google", "github"]);
 }
 
 /// <summary>#1744 — start: the flow is minted and the provider's URL carries the stored verifier's challenge.</summary>
@@ -113,6 +147,7 @@ public class StartExternalLoginCommandHandlerTests
     private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
     private readonly CapturingLogger<StartExternalLoginCommandHandler> _log = new();
     private readonly IExternalIdentityProvider _google = Substitute.For<IExternalIdentityProvider>();
+    private readonly IExternalIdentityProvider _github = Substitute.For<IExternalIdentityProvider>();
     private readonly OAuthState _state = OAuthState.Generate();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -120,11 +155,14 @@ public class StartExternalLoginCommandHandlerTests
     public StartExternalLoginCommandHandlerTests()
     {
         _google.Key.Returns(ExternalProviderKey.Google);
+        _github.Key.Returns(ExternalProviderKey.GitHub);
         _states.PutAsync(Arg.Any<OAuthFlow>(), Arg.Any<CancellationToken>()).Returns(_state);
         _budget.TryConsumeAsync(Arg.Any<RateBudgetScope>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(true);
         _google.BuildAuthorizeUrl(Arg.Any<OAuthState>(), Arg.Any<PkceChallenge>())
             .Returns(new Uri("https://accounts.google.com/o/oauth2/v2/auth?scripted"));
+        _github.BuildAuthorizeUrl(Arg.Any<OAuthState>(), Arg.Any<PkceChallenge>())
+            .Returns(new Uri("https://github.com/login/oauth/authorize?scripted"));
     }
 
     private StartExternalLoginCommandHandler Handler(params IExternalIdentityProvider[] providers) =>
@@ -181,6 +219,21 @@ public class StartExternalLoginCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldStartTheNamedProviderAndChargeTheSameBudget_WhenTwoAreRegistered()
+    {
+        // #1745: kills "the first registered adapter builds the URL" and "a budget per provider".
+        var result = await Handler(_google, _github).Handle(new StartExternalLoginCommand("github", "/cv"), Ct);
+
+        result.Value.AuthorizeUrl.Host.ShouldBe("github.com");
+        var flow = (OAuthFlow)_states.ReceivedCalls().Single().GetArguments()[0]!;
+        flow.Provider.ShouldBe(ExternalProviderKey.GitHub);
+        _github.Received(1).BuildAuthorizeUrl(_state, flow.Verifier.ToChallenge());
+        _google.DidNotReceiveWithAnyArgs().BuildAuthorizeUrl(default!, default!);
+        await _budget.Received(1).TryConsumeAsync(
+            ExternalLoginPolicy.StartBudget, ExternalLoginPolicy.StartBudgetSubject, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_ShouldCarryNoPath_WhenTheWebSendsNone()
     {
         await Handler(_google).Handle(new StartExternalLoginCommand("google", null), Ct);
@@ -191,17 +244,34 @@ public class StartExternalLoginCommandHandlerTests
 
 /// <summary>
 /// #1744 — the callback's order: registered provider, then the flow taken for THAT provider, then the exchange, and
-/// only a verified identity reaches the outcome. Identities come from the production adapter (GoogleIdentities).
+/// only an identified login reaches an outcome. #1745 (ADR 0142 Amendment (16)): an authoritative address reaches the
+/// outcome as before; an asserted one reaches a session only through a link a code bound, and otherwise only chooses
+/// where a code is sent. Identities come from the production adapters (GoogleIdentities, GitHubIdentities); the rest
+/// of the chain is real down to its ports, so a read of the account table shows as a call on the lookup port.
 /// </summary>
 public class CompleteExternalLoginCommandHandlerTests
 {
+    private const long GitHubId = 58323117;
+    private const string Next = "/ansokningar/abc";
+
+    private static readonly GrantToken IssuedGrant = GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw");
+
     private readonly IOAuthStateStore _states = Substitute.For<IOAuthStateStore>();
     private readonly IExternalIdentityProvider _google = Substitute.For<IExternalIdentityProvider>();
+    private readonly IExternalIdentityProvider _github = Substitute.For<IExternalIdentityProvider>();
     private readonly IGrantStore _grants = Substitute.For<IGrantStore>();
     private readonly ISessionStore _sessions = Substitute.For<ISessionStore>();
     private readonly ILoginAccountLookup _lookup = Substitute.For<ILoginAccountLookup>();
+    private readonly IExternalLoginLookup _externalLookup = Substitute.For<IExternalLoginLookup>();
+    private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
+    private readonly IInboxProofRecorder _inbox = Substitute.For<IInboxProofRecorder>();
+    private readonly IAuthAuditLogger _audit = Substitute.For<IAuthAuditLogger>();
+    private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly IRateBudget _budget = Substitute.For<IRateBudget>();
+    private readonly ILoginChallengeDispatcher _dispatcher = Substitute.For<ILoginChallengeDispatcher>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly CapturingLogger<CompleteExternalLoginCommandHandler> _log = new();
+    private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
     private readonly OAuthState _state = OAuthState.Generate();
     private readonly PkceVerifier _verifier = PkceVerifier.Generate();
 
@@ -210,34 +280,78 @@ public class CompleteExternalLoginCommandHandlerTests
     public CompleteExternalLoginCommandHandlerTests()
     {
         _google.Key.Returns(ExternalProviderKey.Google);
+        _github.Key.Returns(ExternalProviderKey.GitHub);
         _states.TakeAsync(_state, ExternalProviderKey.Google, Arg.Any<CancellationToken>())
-            .Returns(new OAuthFlow(ExternalProviderKey.Google, _verifier, "/ansokningar/abc"));
-        _grants.IssueAsync(Arg.Any<GrantSubject>(), Arg.Any<CancellationToken>())
-            .Returns(GrantToken.FromRaw("AAECAwQFBgcICQoLDA0ODw"));
+            .Returns(new OAuthFlow(ExternalProviderKey.Google, _verifier, Next));
+        _states.TakeAsync(_state, ExternalProviderKey.GitHub, Arg.Any<CancellationToken>())
+            .Returns(new OAuthFlow(ExternalProviderKey.GitHub, _verifier, Next));
+        _grants.IssueAsync(Arg.Any<GrantSubject>(), Arg.Any<CancellationToken>()).Returns(IssuedGrant);
+        _sender.CanDeliver.Returns(true);
+        _budget.TryConsumeAsync(Arg.Any<RateBudgetScope>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _inbox.RecordAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(InboxProof.AlreadyConfirmed);
+        _sessions.CreateAsync(Arg.Any<Guid>(), Arg.Any<SessionLifetime>(), Arg.Any<CancellationToken>())
+            .Returns(call => new Session(
+                SessionId.FromRaw("granted-session-id"), call.Arg<Guid>(), FakeDateTimeProvider.Default.UtcNow,
+                FakeDateTimeProvider.Default.UtcNow.AddDays(30), call.Arg<SessionLifetime>()));
     }
+
+    private bool _registrationsOpen = true;
 
     private CompleteExternalLoginCommandHandler Handler(params IExternalIdentityProvider[] providers)
     {
         var correlation = Substitute.For<ICorrelationIdProvider>();
         var request = Substitute.For<IRequestContextProvider>();
         var outcome = new LoginProofOutcome(
-            new LoginSubjectResolver(_lookup, Substitute.For<IExternalLoginLookup>(), _db),
+            new LoginSubjectResolver(_lookup, _externalLookup, _db),
             new PasswordlessSessionGrant(
-                Substitute.For<IInboxProofRecorder>(), _sessions, Substitute.For<IAuthAuditLogger>(), _db,
-                FakeDateTimeProvider.Default, correlation, request),
+                _inbox, _sessions, _audit, _db, FakeDateTimeProvider.Default, correlation, request),
             _grants,
-            new ExternalLoginLinker(
-                Substitute.For<IExternalLoginWriter>(), _db, FakeDateTimeProvider.Default, correlation, request),
-            Options.Create(new AuthOptions { RegistrationsOpen = true }),
-            NullLogger<LoginProofOutcome>.Instance);
-        return new CompleteExternalLoginCommandHandler(new RegisteredProviders(providers), _states, outcome, _log);
+            new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
+            Options.Create(new AuthOptions { RegistrationsOpen = _registrationsOpen }),
+            _outcomeLog);
+        var pendingLinks = new PendingLinkChallenge(
+            new LoginChallengeAdmission(
+                _sender, _budget, Options.Create(new AuthEmailCooldownOptions()), _dispatcher, request),
+            _grants);
+        return new CompleteExternalLoginCommandHandler(
+            new RegisteredProviders(providers), _states, outcome, pendingLinks, _log);
     }
 
-    private CompleteExternalLoginCommand Command() => new("google", "4/0AVGzR1code", _state.Reveal());
+    private CompleteExternalLoginCommand Command(string provider = "google") =>
+        new(provider, "scripted-code", _state.Reveal());
 
     private async Task GoogleAnswersAsync(string userInfoJson) =>
         _google.ExchangeAsync(Arg.Any<AuthorizationCode>(), _verifier, Arg.Any<CancellationToken>())
-            .Returns(await GoogleIdentities.ReadAsync(userInfoJson));
+            .Returns(await GoogleIdentities.ExchangeAsync(userInfoJson));
+
+    // What the production GitHub adapter answers for an account whose one address is its verified primary.
+    private async Task<ExternalSubject> GitHubAnswersAsync(string primary, long id = GitHubId)
+    {
+        var exchange = await GitHubIdentities.ExchangeAsync(
+            GitHubApiShapes.User(id, "anna-berg-gh"), GitHubApiShapes.Emails.PrimaryVerified(primary));
+        _github.ExchangeAsync(Arg.Any<AuthorizationCode>(), _verifier, Arg.Any<CancellationToken>()).Returns(exchange);
+        return exchange.ShouldBeOfType<ExternalExchange.Identified>().Identity.Subject;
+    }
+
+    // An account that can be given a session: an Identity row the lookup finds, and a live profile.
+    private async Task<Guid> ActiveAccountAsync(string address)
+    {
+        var userId = Guid.NewGuid();
+        _lookup.FindAccountAsync(address, Arg.Any<CancellationToken>()).Returns(new LoginAccount(userId, address));
+        _db.JobSeekers.Add(JobSeeker.Register(
+            userId, TermsAcceptance.AcceptCurrent(FakeDateTimeProvider.Default), FakeDateTimeProvider.Default).Value);
+        await _db.SaveChangesAsync(Ct);
+        return userId;
+    }
+
+    // The identifier is linked to this account. The actor is ExternalLoginLinker.LinkAsync, reached on the code-bound
+    // path (LoginProofTests.A_code_bound_github_login_links_before_the_session_and_records_a_code_login).
+    private void TheGitHubLoginIsLinkedTo(ExternalSubject subject, Guid userId) =>
+        _externalLookup.FindUserIdAsync(ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>())
+            .Returns(userId);
+
+    // ── the order ──
 
     [Fact]
     public async Task Handle_ShouldBeNotFoundAndLeaveTheStateUntouched_WhenTheProviderIsNotRegistered()
@@ -264,16 +378,40 @@ public class CompleteExternalLoginCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldBeGoneAndExchangeWithNeither_WhenTheFlowWasStartedForTheOtherProvider()
+    {
+        // §3.6, the handler's layer: a Google flow presented at GitHub's callback. The store refuses the take for the
+        // wrong provider; that refusal is RedisOAuthStateStore's compare, pinned on the real store by
+        // RedisOAuthStateStoreTests.A_flow_started_for_one_provider_is_refused_at_the_others_callback_and_spent.
+        // Kills "Find answers the first registered provider".
+        _states.TakeAsync(_state, ExternalProviderKey.GitHub, Arg.Any<CancellationToken>()).Returns((OAuthFlow?)null);
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.ExternalLoginUnusable);
+        result.Error.Kind.ShouldBe(ErrorKind.Gone);
+        await _states.Received(1).TakeAsync(_state, ExternalProviderKey.GitHub, Arg.Any<CancellationToken>());
+        await _states.DidNotReceive().TakeAsync(_state, ExternalProviderKey.Google, Arg.Any<CancellationToken>());
+        await _google.DidNotReceiveWithAnyArgs().ExchangeAsync(default, default, Ct);
+        await _github.DidNotReceiveWithAnyArgs().ExchangeAsync(default, default, Ct);
+        _log.Records.ShouldHaveSingleItem().Message.ShouldContain("Provider=github");
+    }
+
+    [Fact]
     public async Task Handle_ShouldBeTheSameGone_WhenTheProviderRefusesTheCode()
     {
+        // The value the adapters answer a refused code with (GoogleIdentityProviderTests and
+        // GitHubIdentityProviderTests, the refused-code rows); it carries nothing, so the stub is that answer.
         _google.ExchangeAsync(Arg.Any<AuthorizationCode>(), _verifier, Arg.Any<CancellationToken>())
-            .Returns((ExternalIdentity?)null);
+            .Returns(new ExternalExchange.Failed());
 
         var result = await Handler(_google).Handle(Command(), Ct);
 
         result.Error.Code.ShouldBe(AuthErrorCodes.ExternalLoginUnusable);
         result.Error.Kind.ShouldBe(ErrorKind.Gone);
     }
+
+    // ── an authoritative address: Google, unchanged ──
 
     [Fact]
     public async Task Handle_ShouldRefuseAndReachNoOutcome_WhenGoogleIsNotAuthoritativeForTheAddress()
@@ -296,8 +434,207 @@ public class CompleteExternalLoginCommandHandlerTests
 
         var result = await Handler(_google).Handle(Command(), Ct);
 
-        result.Value.Outcome.ShouldBeOfType<LoginOutcome.ConsentRequired>();
-        result.Value.Next.ShouldBe("/ansokningar/abc");
+        var decided = result.Value.ShouldBeOfType<ExternalLoginCompletion.Decided>();
+        decided.Outcome.ShouldBeOfType<LoginOutcome.ConsentRequired>();
+        decided.Next.ShouldBe(Next);
+        // An authoritative address never takes the code path.
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+        await _grants.Received(1).IssueAsync(Arg.Any<GrantSubject.LoginCompleteExternal>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── an asserted address: GitHub (#1745) ──
+
+    [Fact]
+    public async Task Handle_ShouldReadNoAccountAndAnswerTheSameCodeStep_WhetherOrNotTheAddressHasAnAccount()
+    {
+        // Row 1 and dotnet-architect R6.2, the behavioural half of the fitness function: without a link, nothing
+        // about any account is read, so the answer cannot vary with one. "Not linked" is IdentityExternalLoginStore's
+        // null for an identifier without a row (IdentityExternalLoginStoreTests.An_identifier_nobody_linked_is_found_on_no_account),
+        // and the account that holds A is one the lookup would find if anything asked.
+        const string withAccount = "anna@firma.example";
+        const string withoutAccount = "ny@firma.example";
+        await ActiveAccountAsync(withAccount);
+        var handler = Handler(_google, _github);
+
+        await GitHubAnswersAsync(withAccount, id: 1111);
+        var first = (await handler.Handle(Command("github"), Ct)).Value.ShouldBeOfType<ExternalLoginCompletion.CodeRequired>();
+        await GitHubAnswersAsync(withoutAccount, id: 2222);
+        var second = (await handler.Handle(Command("github"), Ct)).Value.ShouldBeOfType<ExternalLoginCompletion.CodeRequired>();
+
+        _lookup.ReceivedCalls().ShouldBeEmpty();
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+        await _externalLookup.Received(2).FindUserIdAsync(
+            ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>());
+
+        first.Address.Value.ShouldBe(withAccount);
+        second.Address.Value.ShouldBe(withoutAccount);
+        (first with { ChallengeId = default, Address = second.Address }).ShouldBe(second with { ChallengeId = default });
+        first.ChallengeId.ShouldNotBe(second.ChallengeId);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldSendACodeAndIssueThePendingLink_WhenTheGitHubLoginHasNoLink()
+    {
+        var subject = await GitHubAnswersAsync("anna@firma.example");
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        var code = result.Value.ShouldBeOfType<ExternalLoginCompletion.CodeRequired>();
+        code.LinkGrant.ShouldBe(IssuedGrant);
+        code.Next.ShouldBe(Next);
+        await _grants.Received(1).IssueAsync(
+            new GrantSubject.PendingExternalLink(code.Address, ExternalProviderKey.GitHub, subject),
+            Arg.Any<CancellationToken>());
+        _dispatcher.Received(1).Enqueue(Arg.Is<LoginChallengeDispatch>(
+            d => d.ChallengeId == code.ChallengeId && d.Email == "anna@firma.example"));
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Theory]
+    [InlineData("cooldown")]
+    [InlineData("mail budget")]
+    public async Task Handle_ShouldAnswerTheSameCodeStepAndSendNothing_WhenAGateRefusesSilently(string gate)
+    {
+        // Minor F / dotnet-architect R3: the grant is issued whatever the gates decided, so the answer tells neither
+        // a cooldown nor a spent mail budget from a sent mail. The actor is IRateBudget's refusal.
+        if (gate == "cooldown")
+        {
+            _budget.TryConsumeAsync(Arg.Is<RateBudgetScope>(s => s.Name == "login-challenge-cooldown"),
+                    Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(false);
+        }
+        else
+        {
+            _budget.TryConsumeAsync(LoginChallengePolicy.MailBudget, Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(false);
+        }
+
+        await GitHubAnswersAsync("anna@firma.example");
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Value.ShouldBeOfType<ExternalLoginCompletion.CodeRequired>().LinkGrant.ShouldBe(IssuedGrant);
+        await _grants.Received(1).IssueAsync(Arg.Any<GrantSubject.PendingExternalLink>(), Arg.Any<CancellationToken>());
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldAnswerEmailDeliveryUnavailableAfterTheLinkLookup_WhenTheSenderCannotDeliver()
+    {
+        // Minor F: the capability is read after the link lookup, so the 503 varies only with the configuration and
+        // with whether the presented identity is linked, which only its holder can present. No grant, no dispatch.
+        _sender.CanDeliver.Returns(false);
+        await GitHubAnswersAsync("anna@firma.example");
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.EmailDeliveryUnavailable);
+        Received.InOrder(() =>
+        {
+            _externalLookup.FindUserIdAsync(ExternalProviderKey.GitHub, Arg.Any<ExternalSubject>(), Arg.Any<CancellationToken>());
+            _ = _sender.CanDeliver;
+        });
+        _lookup.ReceivedCalls().ShouldBeEmpty();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldSignInWithGitHubAndWriteNothing_WhenTheLinkIsFoundOnTheAccountTheAddressNames()
+    {
+        // Row 8 at the callback: the found path follows Google's checks, and it never links, issues, sends or
+        // records an inbox proof (dotnet-architect V1: SessionEvidence.BoundLink never reaches the recorder).
+        var userId = await ActiveAccountAsync("anna@firma.example");
+        var subject = await GitHubAnswersAsync("anna@firma.example");
+        TheGitHubLoginIsLinkedTo(subject, userId);
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        var decided = result.Value.ShouldBeOfType<ExternalLoginCompletion.Decided>();
+        decided.Outcome.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        decided.Next.ShouldBe(Next);
+        _audit.Received(1).LoginSucceeded(userId, Arg.Any<string>(), LoginMethod.GitHub);
+        await _inbox.DidNotReceiveWithAnyArgs().RecordAsync(default, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+        _db.AuditLogEntries.Local.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, typeof(LoginOutcome.AccountUnavailable))]
+    [InlineData(false, typeof(LoginOutcome.RegistrationClosed))]
+    public async Task Handle_ShouldRefuseAndSendNoCode_WhenTheLinkedLoginsPrimaryNamesAnotherAccount(
+        bool registrationsOpen, Type expected)
+    {
+        // Row 15 (P8 rewritten): the identifier is linked to A, and the GitHub user changed the primary to B's address.
+        // The found branch refuses as Google's does (1024); it never falls through to the code step, so B gets no mail.
+        var holder = await ActiveAccountAsync("anna@firma.example");
+        await ActiveAccountAsync("bertil@firma.example");
+        var subject = await GitHubAnswersAsync("bertil@firma.example");
+        TheGitHubLoginIsLinkedTo(subject, holder);
+        _registrationsOpen = registrationsOpen;
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Value.ShouldBeOfType<ExternalLoginCompletion.Decided>().Outcome.ShouldBeOfType(expected);
+        _outcomeLog.Records.ShouldHaveSingleItem().EventId.ShouldBe(1024);
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldOpenNothing_WhenTheLinkedAccountIsGoneBeforeTheAddressIsRead()
+    {
+        // Row 8's race: the callback saw the link, and the account was hard-deleted before its address was read. The
+        // actor is HardDeleteAccountsJob between the two reads (its cascade takes the login row with the account). The
+        // found path never falls back to linking or to the code step.
+        var subject = await GitHubAnswersAsync("anna@firma.example");
+        TheGitHubLoginIsLinkedTo(subject, Guid.NewGuid());
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Value.ShouldBeOfType<ExternalLoginCompletion.Decided>().Outcome.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task CodeRequired_ShouldPrintNeitherTheAddressNorTheWholeGrant_WhenInterpolated()
+    {
+        // The code step carries the asserted address and a bearer grant; a logged or printed completion shows neither.
+        var subject = await GitHubAnswersAsync("anna@firma.example");
+        var code = (await Handler(_google, _github).Handle(Command("github"), Ct)).Value
+            .ShouldBeOfType<ExternalLoginCompletion.CodeRequired>();
+
+        var printed = $"{code}";
+
+        printed.ShouldNotContain("anna");
+        printed.ShouldNotContain(IssuedGrant.Reveal());
+        printed.ShouldNotContain(code.ChallengeId.Reveal());
+        printed.ShouldNotContain(subject.Reveal());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRefuseWithTheActionableCodeAndReadNothing_WhenGitHubRefusesTheAddress()
+    {
+        // senior-cto-advisor point 2: 400, not 410. The value is the one GitHubIdentityProvider answers
+        // unverified_user_email with (GitHubIdentityProviderTests.ExchangeAsync_ShouldRefuseTheAddressWithoutReadingTheUser_WhenGitHubSaysThePrimaryIsUnverified);
+        // it carries nothing, so the stub is that answer.
+        _github.ExchangeAsync(Arg.Any<AuthorizationCode>(), _verifier, Arg.Any<CancellationToken>())
+            .Returns(new ExternalExchange.AddressRefused());
+
+        var result = await Handler(_google, _github).Handle(Command("github"), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.ExternalEmailUnverified);
+        result.Error.Kind.ShouldBe(ErrorKind.Validation);
+        _externalLookup.ReceivedCalls().ShouldBeEmpty();
+        _lookup.ReceivedCalls().ShouldBeEmpty();
+        await _grants.DidNotReceiveWithAnyArgs().IssueAsync(default!, Ct);
+        _dispatcher.DidNotReceiveWithAnyArgs().Enqueue(default!);
     }
 }
 

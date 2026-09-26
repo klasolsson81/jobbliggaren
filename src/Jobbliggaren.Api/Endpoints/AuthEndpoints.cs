@@ -187,7 +187,8 @@ public static class AuthEndpoints
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new VerifyLoginChallengeCommand(body.ChallengeId, body.Code), ct);
+            var result = await mediator.Send(
+                new VerifyLoginChallengeCommand(body.ChallengeId, body.Code, body.LinkGrant), ct);
             return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
@@ -234,8 +235,9 @@ public static class AuthEndpoints
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // External login — CALLBACK (#1744, ADR 0142 D8). PUBLIC: answers the same outcome union as a code or a
-        // link, plus the post-login path the flow carried. A flow that cannot be completed is one 410; an address
-        // the provider is not authoritative for is a 400.
+        // link, plus the post-login path the flow carried, or `codeRequired` when a provider's asserted address has
+        // no link yet (#1745, Amendment (16)): a code went to it and a pending-link grant waits for the code. A flow
+        // that cannot be completed is one 410; an address the provider's rule refuses is a 400.
         group.MapPost("/oauth/{provider}/callback", async (
             string provider,
             ExternalLoginCallbackRequest body,
@@ -245,7 +247,18 @@ public static class AuthEndpoints
             var result = await mediator.Send(new CompleteExternalLoginCommand(provider, body.Code, body.State), ct);
             return result.IsFailure
                 ? ToErrorResult(result.Error)
-                : LoginOutcomeResult(result.Value.Outcome, result.Value.Next);
+                : result.Value switch
+                {
+                    ExternalLoginCompletion.Decided decided => LoginOutcomeResult(decided.Outcome, decided.Next),
+                    ExternalLoginCompletion.CodeRequired code => Results.Ok(new ExternalCodeRequiredBody(
+                        ExternalLoginCompletion.CodeRequired.WireName,
+                        code.ChallengeId.Reveal(),
+                        code.LinkGrant.Reveal(),
+                        code.Address.Value)
+                    { Next = code.Next }),
+                    _ => throw new UnreachableException(
+                        $"Unmapped external login completion {result.Value.GetType().Name}."),
+                };
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
         // External login — the PROVIDERS this host registered (#1744, ADR 0142 D8). PUBLIC and the same for every
@@ -278,8 +291,11 @@ public static class AuthEndpoints
     /// <summary>POST /auth/challenge body (#1735). A pure transport DTO; the address is never logged.</summary>
     public sealed record LoginChallengeRequest(string? Email);
 
-    /// <summary>POST /auth/challenge/verify body (#1735). The code is a credential and is never logged.</summary>
-    public sealed record LoginChallengeVerifyRequest(string? ChallengeId, string? Code);
+    /// <summary>
+    /// POST /auth/challenge/verify body (#1735). The code is a credential and is never logged, and so is the optional
+    /// pending-link grant a provider login left in the browser (#1745).
+    /// </summary>
+    public sealed record LoginChallengeVerifyRequest(string? ChallengeId, string? Code, string? LinkGrant = null);
 
     /// <summary>POST /auth/reauth/verify body (#1739). The code is a credential and is never logged.</summary>
     public sealed record ReauthenticationVerifyRequest(string? ChallengeId, string? Code);
@@ -322,6 +338,19 @@ public static class AuthEndpoints
         LoginOutcome.AccountUnavailable => new(LoginOutcome.AccountUnavailable.WireName),
         _ => throw new UnreachableException($"Unmapped login outcome {outcome.GetType().Name}."),
     };
+
+    // #1745 — the callback's code step. The address is an echo for the step to show, never read back as proof; the
+    // challenge id and the grant are credentials the browser holds, as a code step's challenge id already is.
+    internal sealed record ExternalCodeRequiredBody(
+        [property: JsonPropertyName("outcome")] string Outcome,
+        [property: JsonPropertyName("challengeId")] string ChallengeId,
+        [property: JsonPropertyName("linkGrant")] string LinkGrant,
+        [property: JsonPropertyName("email")] string Email)
+    {
+        [JsonPropertyName("next")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Next { get; init; }
+    }
 
     // The wire names are spelled out, so the body reads the same under any serializer options; a member that does
     // not apply to the outcome is left out, never sent as null.
@@ -384,10 +413,13 @@ public static class AuthEndpoints
         // Why it discloses nothing about any address:
         //   · POST /auth/change-email — authenticated and re-authenticated, so the caller already
         //     owns the account and learns nothing new.
-        //   · POST /auth/challenge (#1735) — unauthenticated, and safe by ORDER: the handler's
-        //     capability check is its first statement and reads no input, so this 503 is decided
+        //   · POST /auth/challenge (#1735) — unauthenticated, and safe by ORDER: the capability check is
+        //     LoginChallengeAdmission's first statement and reads no input, so this 503 is decided
         //     before the submitted address is looked at and cannot vary with it. Move that check
         //     after the account lookup and this arm becomes an enumeration oracle.
+        //   · POST /auth/oauth/{provider}/callback (#1745) — reached only after the provider login is
+        //     found unlinked, so it varies with the configuration and with whether the presented provider
+        //     identity is linked, which only its holder can present; no account is read before it.
         AuthErrorCodes.EmailDeliveryUnavailable => Results.Problem(
             detail: AuthErrorCodes.EmailDeliveryUnavailableMessage,
             title: AuthErrorCodes.EmailDeliveryUnavailable,

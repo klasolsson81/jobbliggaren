@@ -1,9 +1,10 @@
 namespace Jobbliggaren.Application.Auth.ExternalLogins;
 
 /// <summary>
-/// A provider's identifier for a person (OIDC <c>sub</c>): stable, never reused, and an Art. 4(1) identifier, so it
-/// is never logged. <see cref="ToString"/> prints no part of it. The bound is OIDC Core 1.0 §2's: at most 255 ASCII
-/// characters; this type also refuses a space or a control character, which no provider documents.
+/// A provider's identifier for a person (OIDC <c>sub</c>, or GitHub's numeric <c>id</c> in invariant decimal): stable,
+/// never reused, and an Art. 4(1) identifier, so it is never logged. <see cref="ToString"/> prints no part of it. The
+/// bound is OIDC Core 1.0 §2's: at most 255 ASCII characters; this type also refuses a space or a control character,
+/// which no provider documents.
 /// </summary>
 public readonly record struct ExternalSubject
 {

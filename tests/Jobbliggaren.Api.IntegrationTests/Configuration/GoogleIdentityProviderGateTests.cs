@@ -194,10 +194,11 @@ public class GoogleIdentityProviderGateTests
         services.AddHttpClient(GoogleIdentityProvider.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => transport);
         using var provider = services.BuildServiceProvider();
 
-        var identity = await provider.GetRequiredService<IExternalIdentityProvider>().ExchangeAsync(
+        var exchange = await provider.GetRequiredService<IExternalIdentityProvider>().ExchangeAsync(
             AuthorizationCode.FromRaw("4/0AVGzR1gate"), PkceVerifier.Generate(), TestContext.Current.CancellationToken);
 
-        identity.ShouldBeNull();
+        // #1745: the exchange's failure is the closed result's member, never null.
+        exchange.ShouldBeOfType<ExternalExchange.Failed>();
         transport.Calls.ShouldBe(1);
     }
 

@@ -305,8 +305,9 @@ public static class AuthErrorCodes
         "Inloggningen slutfördes inte. Försök igen, eller logga in med en kod.";
 
     /// <summary>
-    /// #1744 — the provider is not authoritative for the account's address, or has not verified it (ADR 0142 D8).
-    /// The login is refused and nothing is linked; the remedy is a code to the address. Validation → 400.
+    /// #1744 — the provider's address rule refused the address (ADR 0142 D8, Amendment (16)): not authoritative for
+    /// it, not verified, or not a mailbox at all. The login is refused and nothing is linked; the remedy is a code to
+    /// the address. Validation → 400.
     /// </summary>
     public const string ExternalEmailUnverified = "Auth.ExternalEmailUnverified";
 

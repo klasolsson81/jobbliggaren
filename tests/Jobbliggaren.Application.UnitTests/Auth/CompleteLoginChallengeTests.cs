@@ -13,7 +13,6 @@ using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
 using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -43,6 +42,7 @@ public sealed class CompleteLoginChallengeTests
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
     private readonly IExternalLoginLookup _externalLookup = Substitute.For<IExternalLoginLookup>();
     private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
+    private readonly CapturingLogger<LoginProofOutcome> _outcomeLog = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -73,7 +73,7 @@ public sealed class CompleteLoginChallengeTests
             new LoginProofOutcome(
                 resolver, grant, _grants,
                 new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
-                options, NullLogger<LoginProofOutcome>.Instance));
+                options, _outcomeLog));
     }
 
     private static CompleteLoginChallengeCommand Command() => new(Token.Reveal(), AcceptTerms: true);
@@ -316,15 +316,19 @@ public sealed class CompleteLoginChallengeTests
     }
 
     [Fact]
-    public async Task One_redemption_accepts_either_registration_grant()
+    public async Task One_redemption_accepts_every_registration_grant_and_never_the_pending_link()
     {
+        // #1745 (test-writer Major A, dotnet-architect R2): exactly purposes 1, 4 and 6. A purpose-5 grant carries an
+        // ASSERTED address, and a client could post its own from its own GitHub callback; were 5 in this set, the
+        // account would be created on that address with no code (the hijack M-1 closes).
         TheAddressGetsItsAccountFromTheCreator();
 
         await Handler().Handle(Command(), Ct);
 
         await _grants.Received(1).RedeemAsync(
             Token,
-            GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal),
+            GrantAssertion.Bearer(
+                GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal, GrantPurpose.LoginCompleteWithLink),
             Arg.Any<CancellationToken>());
     }
 
@@ -386,5 +390,98 @@ public sealed class CompleteLoginChallengeTests
         await Handler().Handle(Command(), Ct);
 
         await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    // ── #1745: the arm for a code that carried a pending GitHub link (ADR 0142 Amendment (16)) ──────────────────
+    // The grant subject is the one LoginProofOutcome issues when a verified code carried a pending link for an address
+    // with no account (LoginProofTests.A_code_bound_github_login_of_a_new_address_waits_for_the_terms_with_the_link_in_its_grant):
+    // the address the CODE proved, and the identifier the production GitHub adapter read.
+
+    private async Task<ExternalSubject> TheGrantIsACodeBoundLinksGrantAsync()
+    {
+        var proof = await GitHubIdentities.AssertedProofAsync(
+            GitHubApiShapes.User(58323117, "new-person-gh"), GitHubApiShapes.Emails.PrimaryVerified(Email));
+        _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
+            .Returns(new GrantSubject.LoginCompleteWithLink(Email, proof.Provider, proof.Subject));
+        return proof.Subject;
+    }
+
+    [Fact]
+    public async Task A_code_bound_links_grant_opens_the_account_then_links_github_then_opens_a_code_session()
+    {
+        // Row 6: account, link and session in the one step, the link committed before the session.
+        var subject = await TheGrantIsACodeBoundLinksGrantAsync();
+        TheAddressGetsItsAccountFromTheCreator();
+        _externalWriter.LinkAsync(_userId, ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.Linked);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        Received.InOrder(() =>
+        {
+            _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>());
+            _externalWriter.LinkAsync(_userId, ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+        });
+        (await _db.AuditLogEntries.AsNoTracking().Select(e => e.EventType).ToListAsync(Ct)).ShouldBe(
+            [AccountRegistrar.AccountCreatedAuditEventType, ExternalLoginLinker.ExternalLoginLinkedAuditEventType],
+            ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task A_code_bound_links_grant_whose_login_another_account_took_meanwhile_still_opens_the_account()
+    {
+        // Row 12 as security-auditor V-2 decides it: the pending link can only ADD a link to what the code earns, and
+        // the code earned the account. Unlike the provider's own grant (whose proof WAS the provider), the account is
+        // created and signed in without the link, and nothing is moved. Actor: the same GitHub user binding the
+        // identifier to another account in a second browser inside the grant's 10 minutes.
+        var subject = await TheGrantIsACodeBoundLinksGrantAsync();
+        TheAddressGetsItsAccountFromTheCreator();
+        _externalLookup.FindUserIdAsync(ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid());
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        await _accounts.Received(1).CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>());
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+        (await _db.AuditLogEntries.AsNoTracking().Select(e => e.EventType).ToListAsync(Ct))
+            .ShouldBe([AccountRegistrar.AccountCreatedAuditEventType]);
+        var (_, eventId, message) = _outcomeLog.Records.ShouldHaveSingleItem();
+        eventId.ShouldBe(1029);
+        message.ShouldContain("Cause=LinkedElsewhere");
+        message.ShouldContain("Provider=github");
+    }
+
+    [Fact]
+    public async Task A_code_bound_links_grant_whose_claim_is_lost_is_gone_and_creates_nothing()
+    {
+        await TheGrantIsACodeBoundLinksGrantAsync();
+        _claim.TryClaimAsync(Email, Arg.Any<CancellationToken>()).Returns(false);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.LoginGrantUnusable);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_code_bound_links_grant_for_an_address_registered_meanwhile_links_that_account()
+    {
+        // The code proved the inbox, so whatever the address resolves to now earns the link, as a code earns the
+        // session: the account one registered meanwhile. Nothing is created.
+        var subject = await TheGrantIsACodeBoundLinksGrantAsync();
+        await WithAccountAsync();
+        _externalWriter.LinkAsync(_userId, ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.Linked);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _externalWriter.Received(1).LinkAsync(
+            _userId, ExternalProviderKey.GitHub, subject, Arg.Any<CancellationToken>());
     }
 }

@@ -8,4 +8,7 @@ public enum LoginMethod
 
     /// <summary>A Google login (#1744, ADR 0142 D8). One member per provider: the set is closed by product decision.</summary>
     Google = 3,
+
+    /// <summary>A GitHub login (#1745, ADR 0142 D8).</summary>
+    GitHub = 4,
 }

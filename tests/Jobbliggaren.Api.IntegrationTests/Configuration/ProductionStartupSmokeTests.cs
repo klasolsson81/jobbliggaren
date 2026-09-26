@@ -4,9 +4,11 @@ using Jobbliggaren.Api.IntegrationTests.Helpers;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.IntegrationTests.Security;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Dev.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Email;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -15,6 +17,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -41,6 +44,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
     private string _redisCs = string.Empty;
     private RedisTestEnvironment? _redisEnvironment;
 
+    /// <summary>
+    /// #1745 — the providers the Production composition registered, read BEFORE the neutraliser below removes every
+    /// one of them (test-writer 6b form reading, Minor H): after it, an absence would be the neutraliser's, not the
+    /// composition's. Captured from the first host built, the fixture's own.
+    /// </summary>
+    internal IReadOnlyList<Type?>? ComposedExternalProviders { get; private set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
@@ -53,6 +63,10 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
             // under test.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+            ComposedExternalProviders ??= services
+                .Where(d => d.ServiceType == typeof(IExternalIdentityProvider))
+                .Select(d => d.ImplementationType)
+                .ToList();
             services.NeutraliseExternalLoginsFromLocalConfiguration();
 
             services.RemoveAll<DbContextOptions<AppDbContext>>();
@@ -106,6 +120,13 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         // ConfigureServices, men AddInfrastructure läser CS:erna direkt vid registrerings-
         // tid innan replace körs. Sätt till container-CS:erna så registreringen passerar.
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", _postgresCs);
+
+        // #1745 — a full Google and GitHub client in the environment, as compose passes them on the box. Google is the
+        // control for the inertness row: the same composition that registers it registers no GitHub in 6b PR 1.
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", "configured-client-id");
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", "configured-client-secret");
+        Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientId", "configured-github-client-id");
+        Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientSecret", "configured-github-client-secret");
         _redisEnvironment = new RedisTestEnvironment(_redisCs, _redisBoundary.OptionsFor(_redisBoundary.Volatile, RedisBoundaryFixture.ApiVolatile).ToString(true));
         // ADR 0066 (#802): fält-krypteringen är Local-only och validatorn kräver en
         // giltig master-nyckel i ALLA miljöer (även Production-smoke) — den sätts
@@ -124,6 +145,10 @@ public sealed class ProductionStartupFactory : WebApplicationFactory<Program>, I
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
         Environment.SetEnvironmentVariable("ForwardedHeaders__KnownNetworks__0", null);
         Environment.SetEnvironmentVariable("ConnectionStrings__Postgres", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientId", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__Google__ClientSecret", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientId", null);
+        Environment.SetEnvironmentVariable("Auth__OAuth__GitHub__ClientSecret", null);
         _redisEnvironment?.Dispose();
 
         await Task.WhenAll(_postgres.StopAsync(), _redisBoundary.DisposeAsync().AsTask());
@@ -311,6 +336,20 @@ public class ProductionStartupSmokeTests(ProductionStartupFactory factory)
             : root.InnerException is { } single ? [single] : (IReadOnlyCollection<Exception>)[];
         foreach (var exception in inner.SelectMany(Chain))
             yield return exception;
+    }
+
+    [Fact]
+    public void No_github_adapter_is_composed_in_Production_env_even_with_a_full_github_client()
+    {
+        // #1745, 6b PR 1's inertness pin in Production (dotnet-architect R7, test-writer reading §4). Read before the
+        // neutraliser (Minor H), with Google as the control: the composition that registers Google from its client
+        // registers no GitHub, and nothing binds GitHub's options. 6b PR 2's gate turns this round.
+        var configuration = _factory.Services.GetRequiredService<IConfiguration>();
+        configuration["Auth:OAuth:GitHub:ClientId"].ShouldBe("configured-github-client-id");
+        configuration["Auth:OAuth:Google:ClientId"].ShouldBe("configured-client-id");
+
+        _factory.ComposedExternalProviders.ShouldNotBeNull().ShouldBe([typeof(GoogleIdentityProvider)]);
+        _factory.Services.GetServices<IConfigureOptions<GitHubOAuthOptions>>().ShouldBeEmpty();
     }
 
     // #1735 — the login-code seam's second gate, measured the same way: neither the reader nor the capture

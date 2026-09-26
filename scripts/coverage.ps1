@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $artifacts = Join-Path $root 'artifacts/coverage'
 
-Remove-Item -Recurse -Force $artifacts -ErrorAction SilentlyContinue
+if (Test-Path -LiteralPath $artifacts) { Remove-Item -LiteralPath $artifacts -Recurse -Force }
 $raw = Join-Path $artifacts 'raw'
 New-Item -ItemType Directory -Force -Path $raw | Out-Null
 

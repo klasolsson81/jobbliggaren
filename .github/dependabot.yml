@@ -115,28 +115,6 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Refit.HttpClientFactory"
         update-types: ["version-update:semver-major"]
-      # CodeCoverage 18.9.0 is refused BY VERSION, not by update-type, and the
-      # distinction is the point: 18.8.0 -> 18.9.0 is a semver-MINOR, so an
-      # update-type ignore would also hide 18.10.0 and every later fix. Pinning the
-      # one bad version keeps a future release visible.
-      #
-      # What it does: 18.9.0 stops emitting a cobertura file where build.yml's
-      # `tests/**/coverage.cobertura.xml` glob looks. Measured in CI on #1157
-      # (2026-08-02): `dotnet build` clean, `dotnet test` 22 160 passed — and
-      # `scripts/coverage.sh` red. The failure then surfaces two steps downstream as
-      # `jq: Could not open file artifacts/coverage/Summary.json`, which NAMES THE
-      # WRONG THING, so a reader of the gate failure never reaches the cause.
-      #
-      # This is noise control, not a safety net: `coverage` is in `ci.needs`
-      # (build.yml:687), so a bad collector fails the required aggregate and cannot
-      # auto-merge. The ignore exists because #1174 and #1179 both re-proposed it
-      # after the pin, and each costs a CI run and a review to reject again.
-      #
-      # LIFT WHEN: a release after 18.9.0 restores the cobertura output. Verify it
-      # with `scripts/coverage.sh`, NEVER with the test suite alone — the suite is
-      # green on the broken version, which is exactly how this got in. The pin
-      # comment at the PackageVersion line in Directory.Packages.props carries the
-      # same requirement, for the reader who arrives from the other direction.
       - dependency-name: "Microsoft.Testing.Extensions.CodeCoverage"
         versions: ["18.9.0"]
     # A MAJOR MUST NOT BE ABLE TO HIDE INSIDE A GROUP.

@@ -73,11 +73,13 @@ export function GuestJobbPage() {
             </h2>
             <span className="jp-section__count">{jobAds.length}</span>
           </div>
-          <div className="jp-jobs">
+          <ul className="jp-jobs">
             {jobAds.map((jobAd) => (
-              <GuestJobAdCard key={jobAd.id} jobAd={jobAd} />
+              <li key={jobAd.id}>
+                <GuestJobAdCard jobAd={jobAd} />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       </div>
     </>

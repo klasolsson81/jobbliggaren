@@ -15,8 +15,9 @@ import { fileURLToPath } from "node:url";
  * The distinction encoded here is the one the sweep found: switching the outline off is legitimate
  * when the element draws its own ring on a focus state, and a defect when it does not. Three homes
  * switch off and replace — `.jp-hero__input` (its row has `overflow: hidden`, which clips an outward
- * ring, so it draws an inward one), `.jp-app__rowlink` and `.jp-apptable__rowlink` (both move the
- * ring to the stretched `::after`). Three switched off and replaced nothing: `.jp-input`,
+ * ring, so it draws an inward one), `.jp-app__rowlink` (paired with `.jp-job__rowlink` since #1828)
+ * and `.jp-apptable__rowlink` (both move the ring to the stretched `::after`). Three switched off and
+ * replaced nothing: `.jp-input`,
  * `.jp-sortfield__select` and `.jp-appcontrols__input`. Measured for #1450 on 2026-08-23, their
  * residual indicator read 2.16:1 (border state change) and 1.28:1 (glow, 1.29:1 on the third) against
  * WCAG 2.4.11's 3:1 floor. Those three are deleted; this guard is what stops a fourth being written.
@@ -181,12 +182,16 @@ const SUPPRESSORS = DECLS.filter(switchesOff);
 describe("focus ring — switching it off always carries a replacement (#1450)", () => {
   it("has exactly the suppressors this guard is about", () => {
     expect(
-      SUPPRESSORS.map((d) => `${d.selector} { ${d.prop} }`).sort(),
+      // A selector list is compared part by part: its line breaks are the checkout's (CRLF on
+      // Windows, LF in CI), not the stylesheet's meaning.
+      SUPPRESSORS.map(
+        (d) => `${d.selector.split(",").map((part) => part.trim()).join(", ")} { ${d.prop} }`,
+      ).sort(),
       `A suppressor this guard has not been taught about. That is not necessarily a defect — ` +
         `it is this guard refusing to let one pass unread. Add it here once you have checked it ` +
         `draws its own ring.`,
     ).toEqual([
-      ".jp-app__rowlink:focus-visible { outline }",
+      ".jp-app__rowlink:focus-visible, .jp-job__rowlink:focus-visible { outline }",
       ".jp-apptable__rowlink:focus-visible { outline }",
       ".jp-hero__input { outline }",
     ]);

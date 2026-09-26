@@ -528,7 +528,7 @@
     "title": "Mina matchningar",
     "listLabel": "Dina matchningar",
     "newBadge": "Ny",
-    "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
+    "newBadgeAriaLabel": "matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
     "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom.",

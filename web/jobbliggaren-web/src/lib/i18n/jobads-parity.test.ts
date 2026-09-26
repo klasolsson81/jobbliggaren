@@ -49,7 +49,7 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
       "ui.gradeFilter.relatedToggleLabel",
       "ui.gradeFilter.relatedToggleHelp",
       "ui.gradeFilter.grade.Related",
-      // Badge + modal-förklaring för Related.
+      // Badge för Related; modalens Yrke-rad visar beviset i egen ram (#1828).
       "ui.match.grade.Related",
       // Orsaks-katalogen: de sju (orsak × dimension)-par backend faktiskt producerar OCH
       // modalen kan rendera. Enumet är bundet (MatchDimensionCause_is_the_locked_four_member_set)
@@ -62,7 +62,8 @@ describe("jobads i18n-paritet (sv ↔ en)", () => {
       "ui.match.matchCause.AdSilent.employmentFit",
       "ui.match.matchCause.RemoteOverride.regionFit",
       "ui.match.matchCause.RegionContainsPreferredMunicipality.regionFit",
-      "ui.match.relatedYrkeReason",
+      "ui.match.ssyk.matched",
+      "ui.match.ssyk.related",
     ];
     const sv = new Set(leafPaths(svJobads));
     const en = new Set(leafPaths(enJobads));

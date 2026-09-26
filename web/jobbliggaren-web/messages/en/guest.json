@@ -93,9 +93,8 @@
     "searchButton": "Search",
     "searchHint": "Log in or create an account to search.",
     "listTitle": "Sample job ads",
-    "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Published <b>{date}</b>",
-    "cardApplyBy": "Apply by <b>{date}</b>",
+    "cardApplyBy": "Application deadline <b>{date}</b>",
     "fullKicker": "Demo job ad",
     "backToList": "Back to job ads",
     "meta": {

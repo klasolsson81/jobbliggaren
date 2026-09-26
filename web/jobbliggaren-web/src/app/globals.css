@@ -2185,12 +2185,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
    detaljen, EJ raden — ansökningsraden = exakt 2 grid-barn
    (body + actions), prototyp-exakt, ingen topologi-avvikelse mot
    .jp-job. Titel/company/meta är DELADE selektorer (F5 B2 nedan).
-   Återinför ALDRIG separata .jp-job/.jp-app-chassi-block. */
+   Återinför ALDRIG separata .jp-job/.jp-app-chassi-block.
+   The 12px gap is Klas's decision of 2026-09-25 (#1828), replacing HANDOVER §5.3's 8px for this rule. */
 .jp-jobs,
 .jp-applist {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 .jp-job,
 .jp-app {

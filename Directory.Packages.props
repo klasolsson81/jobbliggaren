@@ -8,7 +8,7 @@
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
     <!-- EF Core — Application uses DbSet<T> as abstraction per ADR 0009 (bridge pattern).
          Provider-specific packages (Npgsql, Relational) stay in Infrastructure. -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
     <!-- Test stack -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -16,7 +16,7 @@
     </PackageVersion>
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.10.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <!-- NSubstitute 6.0.0 (#1163, 2026-08-02). 6.0.0 enables nullable annotations on the whole
          public API for .NET 8+. The only migration upstream documents is
@@ -63,28 +63,28 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <!-- Integration testing -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <!-- Worker host -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <!-- DI-abstraktion i Application (IServiceScopeFactory för snapshot child-scope,
          root-cause-fix 2026-05-16). Ren DI-abstraktion (ej EF/ASP.NET) → Clean Arch OK.
          Tidigare transitiv via FluentValidation.DependencyInjectionExtensions;
          explicit ref = versionshygien (senior-cto-advisor + dotnet-architect 2026-05-16). -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <!-- Auth + JWT -->
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <!-- Health checks — TD-29 / F2-P6 strict readiness-probe.
          Microsoft.Extensions.Diagnostics.HealthChecks.* är Microsoft-paket (inte Xabaril).
          AddDbContextCheck<T> pingar DbContext via SELECT 1, returnerar Healthy/Unhealthy.
          Redis-check skrivs som custom IHealthCheck via IConnectionMultiplexer.IsConnected
          — undviker third-party Xabaril-dep, ~10 rader kod. -->
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="3.1.31" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.3.1" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
     <!-- Test — Redis container -->
-    <PackageVersion Include="Testcontainers.Redis" Version="4.14.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.15.0" />
     <!-- Transitive CVE pin: Testcontainers 4.13.0 declares SSH.NET >= 2025.1.0 (measured in
          its nuspec, all TFM groups), which is vulnerable to GHSA-q939-rpr3-3284 (HIGH —
          ScpClient recursive download allows arbitrary file write via server-controlled SCP
@@ -125,7 +125,7 @@
          vars arm inte behöver något paket alls, så allow-listan föll bort med sin enda medlem.
          NoAmazonReferenceTests bär förbudet och sina icke-vakuitetsankare. -->
 
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.12" />
     <!-- TD-104 / Pre-4 STEG 6 — persistent strukturerad logg-sink (senior-cto-advisor
          Variant B: MEL → Seq, additivt på befintlig MEL-pipeline; Serilog avvisat YAGNI).
          9.0.0 = senaste stabila (net8/net9/netstandard2.0-asset). .NET 10-kompatibel:
@@ -152,7 +152,7 @@
          Web-verifierad 2026-06-06 (reactiveui/refit #2114, nuget.org). -->
     <PackageVersion Include="Refit" Version="11.2.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="11.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.9.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
     <PackageVersion Include="WireMock.Net" Version="1.25.0" />
     <!-- Transitiv CVE-pinning: WireMock.Net 1.25.0 drar in OpenTelemetry.Api 1.14.0 +
          OpenTelemetry.Exporter.OpenTelemetryProtocol 1.14.0 vilka är sårbara mot
@@ -269,7 +269,7 @@
          the removal is what carries point (1); a net "+3" does not. The licence shipped WITH a release governs
          that release, so a NuGet bump CHANGES WHICH LICENCE VERSION GOVERNS - and nothing in this
          repo reads the licence at a bump. -->
-    <PackageVersion Include="QuestPDF" Version="2026.8.0" />
+    <PackageVersion Include="QuestPDF" Version="2026.9.1" />
     <!-- INGET e-postpaket, och det är resultatet av ett leverantörsbyte och inte ett glapp (#183).
          AWSSDK.SimpleEmailV2 togs bort 2026-08-15 när transaktionell e-post flyttade från Amazon
          SES v2 till Scaleway Transactional Email (fr-par). Scaleway publicerar officiella SDK:er

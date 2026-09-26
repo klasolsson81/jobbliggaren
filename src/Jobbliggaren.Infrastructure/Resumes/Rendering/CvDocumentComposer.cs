@@ -31,6 +31,8 @@ namespace Jobbliggaren.Infrastructure.Resumes.Rendering;
 /// </remarks>
 internal static class CvDocumentComposer
 {
+    private const string BundledFontFamily = "Lato";
+
     private enum Variant { Ats, Klar, Accentlinje }
 
     // Density → spacing multiplier (Klas 2026-07-12: percentage-scale one base spacing).
@@ -49,7 +51,7 @@ internal static class CvDocumentComposer
         // FontPair interim: both Modern and Classic use the QuestPDF-bundled Lato (the only embedded
         // font; covers åäö, deterministic). The serif (Classic) awaits an OFL font asset — threaded now
         // so no re-plumbing later, rendered uniformly until then (parity the deferred photo controls).
-        var font = Fonts.Lato;
+        var font = BundledFontFamily;
 
         // The ATS profile always renders the plain single-column parallel, IGNORING the visual
         // template — the ATS-safe version is generated in parallel from the same content (§5.5/§8).

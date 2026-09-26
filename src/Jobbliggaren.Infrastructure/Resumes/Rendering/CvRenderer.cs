@@ -29,8 +29,7 @@ internal sealed class CvRenderer : ICvRenderer
     // QuestPDF requires the licence type to be declared once before any document is generated.
     // Set here (idempotent) so any construction path — DI (AddCvRendering) or direct (tests) —
     // has it; Community is source-available, free under USD 1M revenue, non-copyleft (ADR 0050).
-    static CvRenderer() =>
-        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+    static CvRenderer() => QuestPdfConfiguration.Apply();
 
     public ValueTask<RenderedCv> RenderAsync(
         ParsedResume parsedResume, CvTemplateOptions options, RenderProfile profile, CancellationToken cancellationToken)

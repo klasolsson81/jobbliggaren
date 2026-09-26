@@ -914,7 +914,7 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddCvRendering(this IServiceCollection services)
     {
-        EnsureQuestPdfLicense();
+        Resumes.Rendering.QuestPdfConfiguration.Apply();
         services.AddSingleton<
             Jobbliggaren.Application.Resumes.Rendering.Abstractions.ICvRenderer,
             Jobbliggaren.Infrastructure.Resumes.Rendering.CvRenderer>();
@@ -924,11 +924,6 @@ public static class DependencyInjection
         // commit. CvPalette itself stays: the composer renders every persisted CV through it.
         return services;
     }
-
-    // QuestPDF requires the licence type to be declared once before any document is generated.
-    // Community (source-available, free under USD 1M revenue, non-copyleft vs ADR 0050).
-    private static void EnsureQuestPdfLicense() =>
-        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
     private static void EnsureDssoDictionaryPresent()
     {

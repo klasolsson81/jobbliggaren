@@ -289,7 +289,7 @@ on the one PR your own trigger sends you to.** Measured 2026-07-30, same tree, s
 three files: without them the guard prints *"no findings"*; with `--pnpm-major 11`
 it prints `SKIPPED — pnpm major 11 does not read the pnpm field in package.json`.
 pnpm 11 reads none of this configuration, so on a PR that raises
-`pnpm/action-setup` past 9 — a trigger listed below — every override and the single
+`pnpm/action-setup` past 9 — a trigger listed below — every override and any
 acceptance are dead while the unprobed command reports clean.
 
 **Grade against the REPO, not the diff.** All three checks measure tree state.
@@ -361,7 +361,7 @@ repair and miss the removals: an addition to `ignoreGhsas`; a lowered
 gated key becoming **open** (Beslut 6's priced obligation — an open key is what
 creates the silent pin-back debt; a *gated* new key repairs without it, and taxing
 repair is what built the #1042 deadlock); a removal from
-`ignoredBuiltDependencies` (it is a cited leg of the live acceptance's rationale);
+`ignoredBuiltDependencies`;
 and `pnpm/action-setup` raised **past 9** (ADR 0065: that is a migration, not a
 bump). Explicitly **not** triggers: raising an existing override target — the
 routine Dependabot repair — or removing an `ignoreGhsas` entry.

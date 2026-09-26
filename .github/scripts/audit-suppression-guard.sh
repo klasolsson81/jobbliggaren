@@ -197,14 +197,14 @@ jq -e '.pnpm.auditConfig.ignoreGhsas == null or (.pnpm.auditConfig.ignoreGhsas |
   || skip "\`pnpm.auditConfig.ignoreGhsas\` in $PKG is present but is not an array, so the suppression checks cannot read it and an unreadable list would be indistinguishable from an empty one."
 # The lockfile is the one input with no shape contract at all, and its failure mode is
 # loud rather than silent: an EMPTY file, or a file that is not a lockfile, makes every
-# override key report DEAD OVERRIDE (measured: 8 false alarms against this tree).
+# override key report DEAD OVERRIDE.
 # Fail-closed, but this file's own position is that a false alarm in an observe-only
 # signal is worse than silence, so assert the format's required top-level key.
 #
 # Be exact about what that does NOT cover, since an earlier version of this comment
 # said "empty or truncated" and the check catches only the first: `lockfileVersion` is
 # line 1 of every pnpm lockfile, so ANY truncation from the end keeps it, and a file
-# holding that line alone still produces 8 DEAD OVERRIDE. A content assertion could
+# holding that line alone still produces DEAD OVERRIDE. A content assertion could
 # close it, and is deliberately not added — the failure mode is noise, not a false
 # clean, and a "must contain at least one package entry" rule would itself misfire on
 # a legitimately empty dependency tree. Declared, not overlooked.
@@ -398,8 +398,7 @@ else
     # 0065 Beslut 6's silent pin-back. It was removed 2026-07-30, on measurement:
     #   - it cannot detect a pin-back. The signature is the OPPOSITE — an override
     #     forces resolution TO the floor, so the resolved version lands >= floor,
-    #     never below. On this tree `sharp` floor 0.35.0 resolves 0.35.3, and that
-    #     is the ADR's own named instance.
+    #     never below.
     #   - a true pin-back needs each consumer's DECLARED range, which pnpm-lock v9
     #     does not carry for transitive edges (`next@16.2.11` records
     #     `sharp: 0.35.3(...)`, a resolved version). It is not lockfile-detectable
@@ -426,17 +425,15 @@ else
     #      measured case is `postcss` swallowing `@tailwindcss/postcss`; the sharper
     #      one is `url` against `base64url@1.0.0:`, where guard 2 does NOT help,
     #      because it reads position 5 and finds the `6` of base64. Both are real npm
-    #      packages, and the swallowing shape is common here: 685 lines in
-    #      `web/jobbliggaren-web/pnpm-lock.yaml` match `^  '?@scope/name@<digit>`,
-    #      carrying 330 distinct scoped names. (An earlier revision said "683" and
-    #      named neither the population nor the quantity; no predicate reproduces it.)
+    #      packages, and the swallowing shape is common here:
+    #      `grep -cE "^  '?@[^/]+/[^@]+@[0-9]" web/jobbliggaren-web/pnpm-lock.yaml`.
     #   2. THE VERSION TERMINATOR — what follows the name must be a version. The
     #      earlier comment justified this with `foo@workspace:`, and that form could
     #      not be reproduced: a workspace lockfile writes `specifier: workspace:*`
     #      and `version: link:../lib` under `importers`, never a `pkg@workspace:`
     #      key (measured 2026-08-01 against a generated workspace). The true case is
-    #      the lockfile OWN overrides block — measured, 3 live lines here
-    #      (`js-yaml@>=4.0.0 <4.3.0:` and two `brace-expansion` ranges). Those start
+    #      the lockfile OWN overrides block — every gated key there
+    #      (`js-yaml@>=4.0.0 <4.3.0:` is one). Those start
     #      with the bare name and `@`, so guard 1 passes them, and only the digit
     #      test separates a repair that is merely DECLARED from a package that is
     #      installed. Without it a dead override reads as live: a false negative on

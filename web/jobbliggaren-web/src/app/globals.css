@@ -2205,8 +2205,6 @@ a.jp-adminnav__link[aria-current="page"]::after {
   cursor: pointer;
   transition: border-color 80ms, transform 80ms;
 }
-/* position:relative endast jp-job (jobb-specifik __newflag-behållare,
-   ej row-mönster-drift — app-raden har inget absolut-positionerat barn). */
 .jp-job {
   position: relative;
 }
@@ -2810,6 +2808,9 @@ a.jp-adminnav__link[aria-current="page"]::after {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+.jp-modal__body > .jp-job__meta {
+  margin-top: 0;
 }
 /* Modal loading chrome (logo Fas 2, ADR 0070) — Suspense fallback while the
    modal detail streams in (ModalLoadingShell). Reuses the .jp-modal-scrim /

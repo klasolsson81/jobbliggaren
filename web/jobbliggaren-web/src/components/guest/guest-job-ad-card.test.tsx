@@ -26,9 +26,8 @@ describe("GuestJobAdCard", () => {
       container.querySelector(".jp-job__meta"),
     ]);
     expect(link).toHaveAccessibleDescription(expect.stringContaining(ad.companyName));
+    expect(link).toHaveAccessibleDescription(expect.stringContaining("Platsbanken"));
     expect(link).toHaveAccessibleDescription(expect.stringContaining("Publicerad"));
-    if (ad.expiresAtIso) {
-      expect(link).toHaveAccessibleDescription(expect.stringContaining("Sista ansökningsdag"));
-    }
+    expect(link).toHaveAccessibleDescription(expect.stringContaining("Sista ansökningsdag"));
   });
 });

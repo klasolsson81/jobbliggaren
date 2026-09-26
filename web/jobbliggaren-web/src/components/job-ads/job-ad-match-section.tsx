@@ -76,13 +76,13 @@ function MatchSectionHeading({
 }
 
 /**
- * "Ej bedömt"-skäl för de dimensioner som har EXAKT ETT sätt att bli obedömda, så
- * att skälet går att läsa ur dimensionen ensam. De tre membership-dimensionerna
+ * "Ej bedömt"-skäl för de dimensioner vars skäl går att läsa ur dimensionen ensam.
+ * De tre membership-dimensionerna
  * har inte det längre och står därför inte här: deras skäl kommer från servern
  * (`causeReason`), som är den enda som vet vilken arm som körde.
  *
- * Kompetenser, Ska-krav och Meriterande är obedömda på ETT predikat (CV:ts
- * kompetensmängd är tom, `MatchScorer.ScoreConceptCoverage`), så skälet står en
+ * Kompetenser, Ska-krav och Meriterande är obedömda på ETT predikat (inga valda
+ * kompetenser, `MatchScorer.ScoreConceptCoverage`), så skälet står en
  * gång, på Kompetenser; foten under raderna bär åtgärden (ADR 0076 §6). Ett skäl
  * som bara upprepar verdiktet "Ej bedömt" renderas inte (DESIGN.md §8 regel 1).
  */
@@ -655,8 +655,6 @@ export function JobAdMatchSection({
                   }
                 : undefined
             }
-            // #300 PR-5 — "därför lägre"-förklaring bara på Yrke-raden NÄR hela
-            // matchen är Related (liknande, inte exakt valt, yrke).
             isRelatedYrke={key === "ssykOverlap" && match.grade === "Related"}
           />
         ))}

@@ -129,8 +129,8 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
   });
 
-  // #1828 — Platsbanken is the one source /jobb ingests and the hero above the list names it,
-  // so the card does not repeat it; another source is information and keeps its label.
+  // #1828 — Platsbanken is the one source /jobb ingests, so the card does not print it; another
+  // source is information and keeps its label.
   it("does not print Platsbanken, the one source /jobb ingests", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(screen.queryByText("Platsbanken")).not.toBeInTheDocument();
@@ -138,8 +138,8 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
   });
 
   it("prints any other source", () => {
-    render(<JobAdCard jobAd={{ ...baseAd, source: "Eures" }} />);
-    expect(screen.getByText("EURES")).toBeInTheDocument();
+    render(<JobAdCard jobAd={{ ...baseAd, source: "Manual" }} />);
+    expect(screen.getByText("Egen")).toBeInTheDocument();
   });
 
   it("omits sista ansökningsdag when expiresAt is null", () => {

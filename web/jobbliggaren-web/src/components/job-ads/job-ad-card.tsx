@@ -196,8 +196,8 @@ export function JobAdCard({
           </div>
         )}
         <div id={`${idBase}-meta`} className="jp-job__meta">
-          {/* Platsbanken is the one source /jobb ingests, and the hero above the list
-              already names it; another source is information and keeps its label. */}
+          {/* Platsbanken is the one source /jobb ingests; another source is information
+              and keeps its label. */}
           {jobAd.source !== "Platsbanken" && (
             <span>{jobSourceLabel(t, jobAd.source)}</span>
           )}

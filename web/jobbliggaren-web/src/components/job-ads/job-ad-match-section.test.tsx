@@ -285,12 +285,12 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       />
     );
     expect(
-      screen.getAllByText("Inga kompetenser från ett CV att jämföra.")
+      screen.getAllByText("Inga kompetenser valda.")
     ).toHaveLength(1);
     const rowFor = (label: string) =>
       within(container).getByText(label).closest(".jp-modal__matchrow") as HTMLElement;
     expect(
-      within(rowFor("Kompetenser")).getByText("Inga kompetenser från ett CV att jämföra.")
+      within(rowFor("Kompetenser")).getByText("Inga kompetenser valda.")
     ).toBeInTheDocument();
     for (const label of ["Ska-krav", "Meriterande"]) {
       const evidence = rowFor(label).querySelector(".jp-modal__matchrow-evidence");
@@ -448,7 +448,7 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
       />
     );
     expect(
-      screen.getByText("Ingen roll från ett CV att jämföra.")
+      screen.getByText("Ingen roll att jämföra.")
     ).toBeInTheDocument();
   });
 });

@@ -249,8 +249,8 @@
         "niceToHaveCoverage": "Meriterande"
       },
       "notAssessedReason": {
-        "titleSimilarity": "Ingen roll från ett CV att jämföra.",
-        "skills": "Inga kompetenser från ett CV att jämföra."
+        "titleSimilarity": "Ingen roll att jämföra.",
+        "skills": "Inga kompetenser valda."
       },
       "matchCause": {
         "PreferenceUnstated": {

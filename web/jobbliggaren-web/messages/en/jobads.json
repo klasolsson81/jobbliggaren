@@ -249,8 +249,8 @@
         "niceToHaveCoverage": "Nice to have"
       },
       "notAssessedReason": {
-        "titleSimilarity": "No role from a CV to compare.",
-        "skills": "No skills from a CV to compare."
+        "titleSimilarity": "No role to compare.",
+        "skills": "No skills selected."
       },
       "matchCause": {
         "PreferenceUnstated": {

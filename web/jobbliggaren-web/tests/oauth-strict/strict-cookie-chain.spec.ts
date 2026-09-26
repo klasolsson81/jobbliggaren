@@ -5,7 +5,7 @@ import {
   PROBE_COOKIE,
   REFUSED_EXTERNAL_PATH,
   SESSION_ID,
-  consentUrlFor,
+  CONTROL_CONSENT_URL,
   startHarness,
   type Harness,
   type Recorded,
@@ -66,7 +66,7 @@ test("(i) the app's callback: the Strict session cookie rides the continuation h
 test("(ii) control: in this harness a Strict cookie set on a 302 in the chain is NOT sent on the next hop", async ({
   page,
 }) => {
-  await page.goto(consentUrlFor(`${APP_ORIGIN}/__control/redirect`));
+  await page.goto(CONTROL_CONSENT_URL);
   await page.locator("#approve").click();
 
   await expect.poll(() => requestTo("/__control/landing")).toBeDefined();

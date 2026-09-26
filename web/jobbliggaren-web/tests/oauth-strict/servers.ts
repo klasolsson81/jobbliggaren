@@ -74,16 +74,13 @@ async function bodyOf(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "null");
 }
 
-/** The provider's consent page: a document on another site whose button leaves through `/approve`. */
-function consentPage(to: string): string {
-  const href = `${IDP_ORIGIN}/approve?to=${encodeURIComponent(to)}`;
-  return `<!doctype html><title>stub</title><a id="approve" href="${href}">approve</a>`;
+/** The provider's consent page: a document on another site whose button leaves through the stub. */
+function consentPage(approve: string): string {
+  return `<!doctype html><title>stub</title><a id="approve" href="${IDP_ORIGIN}${approve}">approve</a>`;
 }
 
-/** Where the stub's consent page for an arbitrary target lives: the control of branch (ii). */
-export function consentUrlFor(to: string): string {
-  return `${IDP_ORIGIN}/consent?to=${encodeURIComponent(to)}`;
-}
+/** The consent page of branch (ii)'s control, whose button leads to the control's own redirect on the app. */
+export const CONTROL_CONSENT_URL = `${IDP_ORIGIN}/consent-control`;
 
 export type Harness = {
   /** Every request the browser sent to the app, in order. */
@@ -141,12 +138,23 @@ export async function startHarness(): Promise<Harness> {
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(body);
     };
+    // The stub sends the browser back to the app only, to the callback or the control: never to a URL it was given.
     if (url.pathname === "/authorize") {
       const state = url.searchParams.get("state") ?? "";
-      return html(consentPage(`${APP_ORIGIN}${CALLBACK_PATH}?code=${harness.code}&state=${state}`));
+      return html(consentPage(`/approve?state=${encodeURIComponent(state)}`));
     }
-    if (url.pathname === "/consent") return html(consentPage(url.searchParams.get("to") ?? APP_ORIGIN));
-    response.writeHead(302, { Location: url.searchParams.get("to") ?? APP_ORIGIN });
+    if (url.pathname === "/consent-control") return html(consentPage("/approve-control"));
+    if (url.pathname === "/approve-control") {
+      response.writeHead(302, { Location: `${APP_ORIGIN}/__control/redirect` });
+      return response.end();
+    }
+    if (url.pathname === "/approve") {
+      const state = encodeURIComponent(url.searchParams.get("state") ?? "");
+      response.writeHead(302, { Location: `${APP_ORIGIN}${CALLBACK_PATH}?code=${harness.code}&state=${state}` });
+      return response.end();
+    }
+    // Anything else, a favicon included, is no step of the flow.
+    response.writeHead(404);
     response.end();
   });
 

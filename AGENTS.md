@@ -174,9 +174,10 @@ signal available is a discipline miss.
 - Data: Server Components by default; `"use client"` only where interactivity
   requires it. **Client mutations go through Server Actions** — `useTransition`
   for pending state, `useOptimistic` where optimistic rendering is wanted — with
-  one delivered exception: a **binary upload** goes through a BFF route
+  two delivered exceptions: a **binary upload** goes through a BFF route
   (`app/api/cv/import/route.ts`), because Server Actions cannot stream
-  `multipart/form-data` (`duplex: "half"`). That is the only **mutation** path
+  `multipart/form-data` (`duplex: "half"`), and the **OAuth** start and callback
+  are GETs a navigation reaches (ADR 0018). Those are the only **mutation** paths
   outside Server Actions — several other client `fetch`es are POST-shaped *reads*.
 - **Short-lived client reads** — keystroke-driven suggest, popover counts,
   draft-preview counts, on-demand document/blob fetches — use `AbortController`
@@ -216,8 +217,8 @@ DTOs).
 for data fetching (a page's **initial data** — see §4 for the delivered poll and
 short-lived-client-read shapes, which this does not reach) · `console.log` in production · emoji in UI copy ·
 exclamation marks (civic tone) · gradients/drop shadows > `shadow-sm`/glow/
-glassmorphism — **sole exception:** the hero plate's dark-green gradient
-(`--jp-hero-gradient`, scoped per ADR 0068) · radius > 8px except pills/badges
+glassmorphism — **sole exceptions:** the hero plate's dark-green gradient
+(`--jp-hero-gradient`, scoped per ADR 0068) and a provider's own mark (DESIGN.md §3) · radius > 8px except pills/badges
 · `localStorage` for sensitive data · hardcoded UI strings (use `next-intl` +
 `messages/sv/`) · direct DOM manipulation.
 

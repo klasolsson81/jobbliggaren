@@ -569,7 +569,8 @@
           "linkedin": "Fortsätt med LinkedIn",
           "github": "Fortsätt med GitHub",
           "comingSoon": "Kommer snart"
-        }
+        },
+        "orEmail": "Eller fortsätt med e-post"
       },
       "code": {
         "meta": {
@@ -602,6 +603,7 @@
         },
         "title": "Skapa ditt konto",
         "identification": "Kontot skapas på den e-postadress du nyss bekräftade med koden.",
+        "identificationProvider": "Kontot skapas på e-postadressen i {provider}-kontot du valde.",
         "termsLabel": "Jag godkänner <terms>användarvillkoren</terms>.",
         "termsHint": "Länkarna öppnas i en ny flik.",
         "privacySibling": "Vi behandlar dina uppgifter enligt <privacy>integritetspolicyn</privacy>.",
@@ -628,6 +630,13 @@
         }
       },
       "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida.",
+      "external": {
+        "providerNames": {
+          "google": "Google"
+        },
+        "title": "Logga in med {provider}",
+        "continue": "Fortsätt"
+      },
       "outcome": {
         "registrationClosed": {
           "title": "Registreringen är inte öppen ännu.",
@@ -654,6 +663,14 @@
         "accountDeleted": {
           "title": "Ditt konto är raderat",
           "body": "Du är utloggad på alla enheter. I 30 dagar kan du få kontot återställt genom att mejla <mail>kontakt@jobbliggaren.se</mail>."
+        },
+        "externalUnverified": {
+          "title": "{provider} kan inte intyga din e-postadress",
+          "body": "Logga in med en kod i stället: skriv in din e-postadress nedan."
+        },
+        "externalNotCompleted": {
+          "title": "Inloggningen med {provider} slutfördes inte",
+          "body": "Försök igen med {provider}, eller skriv in din e-postadress nedan."
         }
       },
       "errors": {

@@ -8,6 +8,7 @@ using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.ExternalLogins;
+using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Identity;
 using Jobbliggaren.Infrastructure.Persistence;
@@ -15,7 +16,6 @@ using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using StackExchange.Redis;
@@ -29,9 +29,22 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// read by the adapter itself. The #1744 acceptance rows are marked.
 /// </summary>
 [Collection("Api")]
-public class ExternalLoginEndpointsTests(ApiFactory factory)
+public sealed class ExternalLoginEndpointsTests(ApiFactory factory) : IAsyncLifetime
 {
     private readonly HttpClient _client = factory.CreateClient();
+
+    // The start budget is one key for the whole host, and this collection shares the host: each row starts from a
+    // full budget and leaves one behind.
+    public ValueTask InitializeAsync() => ResetStartBudgetAsync();
+
+    public ValueTask DisposeAsync() => ResetStartBudgetAsync();
+
+    private async ValueTask ResetStartBudgetAsync()
+    {
+        await using var admin = await ConnectionMultiplexer.ConnectAsync(factory.VolatileRedisConnectionString);
+        await admin.GetDatabase().KeyDeleteAsync(
+            RedisRateBudget.Key(ExternalLoginPolicy.StartBudget, ExternalLoginPolicy.StartBudgetSubject));
+    }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -118,7 +131,7 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     [Fact]
     public async Task The_providers_list_names_google_and_is_publicly_cacheable_for_five_minutes()
     {
-        // Acceptance: ["google"] when configured; the [] half is the inert rows'.
+        // Acceptance: ["google"] when configured; the [] half is GoogleIdentityProviderGateTests'.
         var response = await _client.GetAsync("/api/v1/auth/oauth/providers", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -127,21 +140,18 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public void No_provider_is_live_in_the_Development_composition_even_with_a_full_google_client()
+    public void The_Development_composition_registers_google_from_its_client_id()
     {
-        // security-auditor S4, condition 1, the Development half: Program.cs reads appsettings.Local.json in every
-        // environment, and a developer's carries a Google client. So does this host's configuration; its scripted
-        // adapter reaches the handlers through RegisteredProviders alone, so these are the composition's own.
-        factory.Services.GetRequiredService<IConfiguration>()["Auth:OAuth:Google:ClientId"]
-            .ShouldBe(ApiFactory.GoogleClientId);
-
-        factory.Services.GetServices<IExternalIdentityProvider>().ShouldBeEmpty();
+        // The host's scripted adapter reaches the handlers through RegisteredProviders alone, so this is the
+        // composition's own registration, made by the gate from the client id in this host's configuration.
+        factory.Services.GetServices<IExternalIdentityProvider>().ShouldHaveSingleItem()
+            .ShouldBeOfType<GoogleIdentityProvider>();
     }
 
     [Fact]
     public async Task A_start_hands_its_flow_to_the_state_store()
     {
-        // The counter the inert rows read, observed non-zero on this host, so their zero is a count and not a
+        // The counter the refusal rows read, observed non-zero on this host, so their zero is a count and not a
         // counter that never moves.
         var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
         var before = store.Writes;
@@ -159,6 +169,25 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).EnumerateObject().Select(p => p.Name)
             .ShouldBe(["authorizeUrl", "state"]);
+    }
+
+    [Fact]
+    public async Task A_start_past_the_global_budget_is_a_503_that_writes_nothing_and_leaves_a_code_login_open()
+    {
+        var store = (FaultableOAuthStateStore)factory.Services.GetRequiredService<IOAuthStateStore>();
+        for (var i = 0; i < ExternalLoginPolicy.StartBudget.Limit; i++)
+            await StartAsync();
+        var before = store.Writes;
+
+        var refused = await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct);
+
+        // The title, not only the status: a 429 from this host's AuthWrite limiter would be a different refusal.
+        refused.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await refused.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("title").GetString()
+            .ShouldBe(AuthErrorCodes.ExternalLoginStartsExhausted);
+        store.Writes.ShouldBe(before);
+        (await _client.PostAsJsonAsync("/api/v1/auth/challenge", new { email = NewAddress("after-flood") }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.Accepted);
     }
 
     [Theory]
@@ -338,6 +367,8 @@ public class ExternalLoginEndpointsTests(ApiFactory factory)
         var flow = await StartAsync();
         using var _ = factory.LoginChallengeFaults.Unavailable();
 
+        // At start the 503 comes from the rate budget, which fails before the flow store is reached. Both run
+        // through VolatileRedisConnection.ExecuteAsync and share its translation of a Redis failure.
         (await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct))
             .StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
         (await CallbackAsync("4/0AVGzR1code", flow.State)).StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);

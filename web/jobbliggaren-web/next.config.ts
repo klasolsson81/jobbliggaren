@@ -5,6 +5,8 @@ import {
   buildSecurityHeaders,
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
+  OAUTH_CALLBACK_ROUTE,
+  OAUTH_CALLBACK_ROUTE_HEADERS,
 } from "./src/lib/security/security-headers";
 
 // next-intl without i18n routing: the plugin wires the request config at
@@ -81,6 +83,10 @@ const nextConfig: NextConfig = {
       {
         source: LOGIN_LINK_ROUTE,
         headers: LOGIN_LINK_ROUTE_HEADERS.map((h) => ({ ...h })),
+      },
+      {
+        source: OAUTH_CALLBACK_ROUTE,
+        headers: OAUTH_CALLBACK_ROUTE_HEADERS.map((h) => ({ ...h })),
       },
     ];
   },

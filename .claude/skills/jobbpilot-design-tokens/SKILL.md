@@ -32,7 +32,7 @@ description: >
 
 ## Usage rules
 
-1. **Never hardcode hex values** — the canonical palette is `--jp-*` defined
+1. **Never hardcode hex values** (except the provider mark, DESIGN.md §3) — the canonical palette is `--jp-*` defined
    once in `globals.css` `:root {}` (light) + `[data-theme="dark"] {}` (dark)
 2. **Never use Tailwind palette defaults** — `bg-slate-*`, `text-zinc-*`,
    `bg-gray-*` are all forbidden; use semantic token names
@@ -43,7 +43,7 @@ description: >
    Pills/badges = `rounded-pill`
 5. **Gradient-undantaget (ADR 0068):** `--jp-hero-gradient` får ENBART användas
    på hero-plattan (`.jp-hero__plate`), `.jp-pagehero` och `.jp-land-hero`.
-   Gradients är förbjudna överallt annars — civic-utility-regeln gäller
+   Gradients är förbjudna överallt annars, utom inuti leverantörsmärket (DESIGN.md §3) — civic-utility-regeln gäller
    fortsatt för all övrig UI
 6. **Knapp-kontraktet (G1):** primärknapp = `--jp-accent-800` fill (#15603F,
    dark-skiftas ALDRIG) + vit text. `#6EE7A8` (dark-accent-700) används ENDAST

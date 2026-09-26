@@ -214,3 +214,19 @@ reversed there on 2026-09-17).
    already names for external links.
 
 Additive amendment apart from the two pointer corrections in point 2, which are marked in place.
+
+## Amendment 2026-09-26 (ADR 0142, #1744) — rule 3's two named exceptions
+
+The OAuth start and callback (`GET /api/auth/oauth/{provider}/start` and `…/callback`) are rule 3's only
+exceptions. The start writes a self-expiring anonymous record and a cookie, and reads no account. The callback
+writes durably, and it cannot be a POST: a provider's `form_post` is a cross-site POST, which a Lax cookie does not
+ride. Its CSRF protection is the protocol's own, the state bound to the Lax `__Host-jobbliggaren_oauth` cookie
+(RFC 6749 §10.12). The binding holds on four conditions (security-auditor, 2026-09-25):
+
+1. the cookie is `__Host-`, so no subdomain can toss one;
+2. the state is at least 128 bits from a CSPRNG, and single-use (`GETDEL`);
+3. the whole string is compared in constant time;
+4. the record binds the provider, the path's provider must match it, and the code is exchanged only with the
+   record's provider (mix-up, RFC 9700; reachable from 6b).
+
+Additive amendment.

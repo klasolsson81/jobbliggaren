@@ -72,6 +72,10 @@ jobs:
       FieldEncryption__Provider: "Local"
       Seq__ServerUrl: "" # no Seq sink in CI
       BACKEND_URL: "http://localhost:5049" # frontend (env.ts) + the seeding helpers
+      # A fake Google client (#1744): the api registers the provider, so /logga-in renders its live
+      # row for oauth.spec.ts. No request reaches Google; the spec routes it to a stub.
+      Auth__OAuth__Google__ClientId: "e2e-fake-client.apps.googleusercontent.com"
+      Auth__OAuth__Google__ClientSecret: "e2e-fake-not-a-secret" # gitleaks:allow
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
       # Relax rate limits for the suite — every spec logs in from the same localhost IP in a
       # burst, which trips the default AuthWrite limiter (429). Mirrors ApiFactory's

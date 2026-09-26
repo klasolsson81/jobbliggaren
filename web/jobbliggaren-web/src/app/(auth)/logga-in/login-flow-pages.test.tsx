@@ -12,6 +12,7 @@ const NOW = 1_800_000_000;
 const mocks = vi.hoisted(() => ({
   readLoginFlow: vi.fn(),
   getSessionId: vi.fn(),
+  getExternalLoginProviders: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
@@ -27,6 +28,9 @@ vi.mock("@/lib/auth/login-flow-cookie", () => ({
   nowEpochSeconds: () => NOW,
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionId: mocks.getSessionId }));
+vi.mock("@/lib/api/oauth-providers", () => ({
+  getExternalLoginProviders: mocks.getExternalLoginProviders,
+}));
 vi.mock("@/lib/auth/challenge-actions", () => ({
   requestCode: vi.fn(),
   verifyCode: vi.fn(),
@@ -37,7 +41,7 @@ vi.mock("@/lib/auth/challenge-actions", () => ({
 }));
 
 import LoggaInPage from "./page";
-import LoggaInKodPage from "./kod/page";
+import LoggaInKodPage, { generateMetadata as kodMetadata } from "./kod/page";
 import LoggaInLankPage from "./lank/page";
 import LoggaInVillkorPage from "./villkor/page";
 
@@ -65,6 +69,7 @@ beforeEach(() => {
   // `null`, never `undefined`: that is what the real `getSessionId` answers with no cookie. A
   // stub returning `undefined` once hid a page that treated every visitor as logged in.
   mocks.getSessionId.mockReset().mockResolvedValue(null);
+  mocks.getExternalLoginProviders.mockReset().mockResolvedValue([]);
   mocks.redirect.mockClear();
 });
 
@@ -131,6 +136,64 @@ describe("/logga-in", () => {
     const field = screen.getByLabelText("E-postadress");
     expect(notice.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  describe("with a live provider", () => {
+    const follows = (earlier: Element, later: Element) =>
+      Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    beforeEach(() => mocks.getExternalLoginProviders.mockResolvedValue(["google"]));
+
+    it("puts the providers first under the persistence line, then the address with its lede", async () => {
+      render(await page());
+
+      const order = [
+        screen.getByRole("heading", { level: 1, name: "Logga in eller skapa konto" }),
+        screen.getByText(/Du förblir inloggad på den här enheten i upp till 180 dagar\./),
+        screen.getByRole("link", { name: "Fortsätt med Google" }),
+        screen.getByText("Eller fortsätt med e-post"),
+        screen.getByText("Du loggar in med en kod som vi skickar till din e-postadress."),
+        screen.getByLabelText("E-postadress"),
+      ];
+      for (let i = 1; i < order.length; i++) expect(follows(order[i - 1]!, order[i]!)).toBe(true);
+      expect(
+        screen.getAllByRole("button").filter((b) => b.getAttribute("data-variant") === "default")
+      ).toHaveLength(1);
+    });
+
+    it("describes the Google row by the persistence line, and keeps it out of the address form", async () => {
+      render(await page());
+
+      const google = screen.getByRole("link", { name: "Fortsätt med Google" });
+      expect(google).toHaveAccessibleDescription(
+        "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+      );
+      expect(google.closest("form")).toBeNull();
+    });
+
+    it("carries next to the start as well as into the form", async () => {
+      const { container } = render(await page({ next: "/cv" }));
+
+      expect(screen.getByRole("link", { name: "Fortsätt med Google" })).toHaveAttribute(
+        "href",
+        "/api/auth/oauth/google/start?next=%2Fcv"
+      );
+      expect(container.querySelector('input[name="next"]')).toHaveValue("/cv");
+    });
+
+    it("shows a provider's notice under the h1, above the rows it points back to", async () => {
+      mocks.readLoginFlow.mockResolvedValue({
+        phase: "notice",
+        notice: "externalNotCompleted",
+        provider: "google",
+      });
+
+      render(await page());
+
+      const notice = screen.getByRole("status");
+      expect(notice).toHaveTextContent("Inloggningen med Google slutfördes inte");
+      expect(follows(notice, screen.getByRole("link", { name: "Fortsätt med Google" }))).toBe(true);
+    });
+  });
 });
 
 describe("/logga-in/kod", () => {
@@ -184,6 +247,25 @@ describe("/logga-in/kod", () => {
     }
   );
 
+  it("titles an outcome reached through a provider by the provider, never by a code", async () => {
+    mocks.readLoginFlow.mockResolvedValue({ ...closed, via: "google" });
+
+    render(await LoggaInKodPage());
+
+    expect(screen.getByRole("heading", { level: 1, name: "Logga in med Google" })).toBeInTheDocument();
+    expect(await kodMetadata()).toMatchObject({ title: "Logga in med Google" });
+  });
+
+  it.each<[string, LoginFlow | null]>([
+    ["a code phase", code],
+    ["an outcome of a code", closed],
+    ["no cookie", null],
+  ])("keeps the code title for %s", async (_label, flow) => {
+    mocks.readLoginFlow.mockResolvedValue(flow);
+
+    expect(await kodMetadata()).toMatchObject({ title: "Ange koden" });
+  });
+
   it("replaces the whole form with the outcome panel, and shows no address", async () => {
     mocks.readLoginFlow.mockResolvedValue(closed);
 
@@ -216,6 +298,18 @@ describe("/logga-in/villkor", () => {
       screen.getByText("Kontot skapas på den e-postadress du nyss bekräftade med koden.")
     ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Jag godkänner användarvillkoren." })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/@/);
+  });
+
+  it("says the account is created on the address of the provider account, not one confirmed by a code", async () => {
+    mocks.readLoginFlow.mockResolvedValue({ ...consent, via: "google" });
+
+    const { container } = render(await LoggaInVillkorPage());
+
+    expect(
+      screen.getByText("Kontot skapas på e-postadressen i Google-kontot du valde.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/bekräftade med koden/)).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/@/);
   });
 

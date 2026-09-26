@@ -570,6 +570,65 @@ Expect `1`, `0`, the T of the pre-read, and both containers `(healthy)`.
 **The run record** goes in the session log and ADR 0142's Implementation status, never in a PR
 body.
 
+## 3d. Google login: activation and deactivation (#1744)
+
+A merge makes Google login **possible**; keys on this box make it **live**. Without
+`AUTH_OAUTH_GOOGLE_CLIENT_ID` the api registers no provider, `/api/v1/auth/oauth/providers` answers
+`[]` and `/logga-in` shows its provider rows inactive. Activation is Klas's step, done with him, and it
+has no PR, so this section is its procedure (ADR 0142 D8 and the 6a PR G amendment).
+
+**Before the keys.** Three conditions, each read on the day, never inherited:
+
+1. **Chapter V.** Google login is the product's one transfer to a third country: the server completes
+   the login with Google LLC, USA, under the EU-US Data Privacy Framework (Art. 45). The PR G amendment
+   records the dated readings. If any of its lapse conditions has fired since, the keys are not placed.
+2. **The volatile ACL admits the flow store.** Compare the effective `ACL LIST` of `redis-volatile`
+   against the rendered policy (redis-service-boundaries.md): the `api-volatile` user carries a
+   selector for `~jobbliggaren:auth/oauth-state/v1/*` with `+set` and `+getdel`, and its budget selector
+   names `~jobbliggaren:budget/external-login-starts/v1/*`. Without either, every start answers 503.
+3. **The Google client.** Its authorized redirect URI is exactly
+   `https://${SITE_HOST}/api/auth/oauth/google/callback`. Use a separate client for localhost, so this
+   client's secret never sits on a developer machine (security-auditor m-8).
+
+**Activation, in this order.** Inject before you edit: a client id without its secret file is a
+refused api start.
+
+```bash
+sudo JBL_INJECT_GOOGLE=1 /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh
+# then set, in deploy/.env:
+#   AUTH_OAUTH_GOOGLE_CLIENT_ID=<the client id>
+#   AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE=/run/app-secrets/Auth__OAuth__Google__ClientSecret
+sudo /opt/jobbliggaren/deploy/systemd/jobbliggaren-inject-secrets.sh --check
+cd /opt/jobbliggaren/deploy && sudo docker compose -f docker-compose.yml up -d --pull never api
+```
+
+Re-create, never `docker restart`: the variables are read at container creation.
+
+**The reading, dated, as a comment on #1732.** Counts, never printouts (lapse trigger 4 (e)):
+
+- `Auth__RegistrationsOpen` in the running api container;
+- the number of accounts, and whether every one is the controller's;
+- `count(*)` of `identity."AspNetUserLogins"`, expected 0 before the first Google login;
+- the providers list, read from inside the web container, expected `["google"]`.
+
+The next amendment of ADR 0142 transcribes the comment.
+
+**Expected on the first login.** Both accounts on this box are `+` aliases, and Google returns the
+primary address without a tag. A Google login therefore answers "registration closed" until one
+account's address is changed, on Mina sidor, to the Google account's address. That fires no trigger.
+The first successful login also measures the type of `email_verified`: a success means it was the
+JSON `true`. A refusal logs EventId 1023 with its cause class, never the address.
+
+**Take the first successful Google login in Safari** (iOS or macOS). Landing signed in on `/oversikt`
+is Apple WebKit's reading of the continuation hop, which no committed instrument measures (ADR 0142
+Amendment 2026-09-26 (15)). Post a second dated comment on #1732 with the date, device, OS and Safari
+version. With no Safari at hand, the comment says so and the residual stays open. If the login fails,
+deactivate and file the defect.
+
+**Deactivation.** Remove both lines from `deploy/.env` and re-create api. Starts are refused at once.
+The web caches the providers list for up to 5 minutes, so the button can show that long, and a click
+in that window is refused without a transfer to Google.
+
 ## 4. Host-side prerequisites
 
 **Docker daemon.** Write `/etc/docker/daemon.json` **before the first `up`**: `json-file`

@@ -183,11 +183,14 @@ public sealed class RedisAclContractTests(RedisBoundaryFixture fixture) : IClass
             LoginChallengePolicy.MailBudget, LoginChallengePolicy.CodeBudget, LoginChallengePolicy.UnknownAddressMailBudget,
             LoginChallengePolicy.ReauthCooldown(TimeSpan.FromSeconds(60)), LoginChallengePolicy.ReauthCodeBudget,
             ChangeEmailPolicy.UserCooldown(TimeSpan.FromSeconds(60)), ChangeEmailPolicy.TargetCooldown(TimeSpan.FromSeconds(60)),
-            ChangeEmailPolicy.UserTargetsDailyBudget };
+            ChangeEmailPolicy.UserTargetsDailyBudget, ExternalLoginPolicy.StartBudget };
         foreach (var scope in scopes)
         {
             var subject = scope == LoginChallengePolicy.UnknownAddressMailBudget
-                ? LoginChallengePolicy.UnknownAddressMailSubject : Guid.NewGuid() + "@example.com";
+                ? LoginChallengePolicy.UnknownAddressMailSubject
+                : scope == ExternalLoginPolicy.StartBudget
+                    ? ExternalLoginPolicy.StartBudgetSubject
+                    : Guid.NewGuid() + "@example.com";
             var admitted = await Task.WhenAll(Enumerable.Range(0, scope.Limit + 3)
                 .Select(_ => budget.TryConsumeAsync(scope, subject, Ct)));
             admitted.Count(x => x).ShouldBe(scope.Limit);

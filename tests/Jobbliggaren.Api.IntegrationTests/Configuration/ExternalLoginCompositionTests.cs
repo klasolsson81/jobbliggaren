@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -7,46 +8,57 @@ using Shouldly;
 namespace Jobbliggaren.Api.IntegrationTests.Configuration;
 
 /// <summary>
-/// #1744, 6a PR S — the external-login spine is composed in the Api only, and INERT: no provider is registered,
-/// whatever the configuration holds (senior-cto-advisor F1; security-auditor S4, conditions 1-2). PR G replaces the
-/// inert half with the registration gate. The positive half is the control: an absence with no presence beside it
-/// would pass against a build that registers nothing at all.
+/// #1744 — the external-login spine is composed in the Api only, and the Api's one wiring of the Google gate registers
+/// the provider exactly when the client id is set (GoogleIdentityProviderGateTests owns the gate's own rows). The Worker
+/// composes none of it, with or without a client.
 /// </summary>
 public sealed class ExternalLoginCompositionTests
 {
-    // A full Google client, as Klas's appsettings.Local.json and the box's _FILE seam will carry it.
-    private static IConfiguration Configuration(bool withVolatileRedis) =>
+    // A full Google client, as appsettings.Local.json and the box's _FILE seam carry it.
+    private static IConfiguration Configuration(bool withVolatileRedis, bool withGoogleClient) =>
         new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:Postgres"] = "Host=localhost;Database=jobbliggaren;Username=x;Password=y",
             ["ConnectionStrings:Redis"] = "localhost:6379,user=api-persistent,password=synthetic",
             [$"ConnectionStrings:{DependencyInjection.VolatileRedisConnectionStringName}"] =
                 withVolatileRedis ? "localhost:6381,user=api-volatile,password=synthetic" : null,
-            ["Auth:OAuth:Google:ClientId"] = "configured-client-id",
-            ["Auth:OAuth:Google:ClientSecret"] = "configured-client-secret",
+            ["Auth:OAuth:Google:ClientId"] = withGoogleClient ? "configured-client-id" : null,
+            ["Auth:OAuth:Google:ClientSecret"] = withGoogleClient ? "configured-client-secret" : null,
         }).Build();
 
     [Fact]
-    public void The_Api_composes_the_spine_and_registers_no_provider_even_with_a_full_google_client()
+    public void The_Api_composes_the_spine_and_registers_google_from_a_full_client()
     {
         var services = new ServiceCollection();
 
-        services.AddIdentityAndSessions(Configuration(withVolatileRedis: true));
+        services.AddIdentityAndSessions(Configuration(withVolatileRedis: true, withGoogleClient: true));
 
         services.ShouldContain(d => d.ServiceType == typeof(IOAuthStateStore));
         services.ShouldContain(d => d.ServiceType == typeof(RegisteredProviders));
         services.ShouldContain(d => d.ServiceType == typeof(IExternalLoginLookup));
         services.ShouldContain(d => d.ServiceType == typeof(IExternalLoginWriter));
         services.ShouldContain(d => d.ServiceType == typeof(ExternalLoginLinker));
+        services.Where(d => d.ServiceType == typeof(IExternalIdentityProvider)).ShouldHaveSingleItem()
+            .ImplementationType.ShouldBe(typeof(GoogleIdentityProvider));
+    }
+
+    [Fact]
+    public void The_Api_composes_the_spine_and_no_provider_without_a_client()
+    {
+        var services = new ServiceCollection();
+
+        services.AddIdentityAndSessions(Configuration(withVolatileRedis: true, withGoogleClient: false));
+
+        services.ShouldContain(d => d.ServiceType == typeof(RegisteredProviders));
         services.ShouldNotContain(d => d.ServiceType == typeof(IExternalIdentityProvider));
     }
 
     [Fact]
-    public void The_Worker_composes_none_of_it()
+    public void The_Worker_composes_none_of_it_even_with_a_full_client()
     {
         var services = new ServiceCollection();
 
-        services.AddCoreIdentityForWorker(Configuration(withVolatileRedis: false));
+        services.AddCoreIdentityForWorker(Configuration(withVolatileRedis: false, withGoogleClient: true));
 
         services.ShouldNotContain(d => d.ServiceType == typeof(IOAuthStateStore));
         services.ShouldNotContain(d => d.ServiceType == typeof(RegisteredProviders));

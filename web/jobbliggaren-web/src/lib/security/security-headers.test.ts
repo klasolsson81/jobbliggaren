@@ -3,6 +3,8 @@ import {
   LOGIN_LINK_REFERRER_POLICY,
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
+  OAUTH_CALLBACK_ROUTE,
+  OAUTH_CALLBACK_ROUTE_HEADERS,
   PERMISSIONS_POLICY,
   STRICT_TRANSPORT_SECURITY,
   buildContentSecurityPolicy,
@@ -196,6 +198,29 @@ describe("the login link route's headers", () => {
   it("overrides ONLY the referrer policy of the global set, and adds no second CSP", () => {
     const globalKeys = buildSecurityHeaders(false).map((header) => header.key);
     const shared = LOGIN_LINK_ROUTE_HEADERS.map((header) => header.key).filter((key) =>
+      globalKeys.includes(key)
+    );
+
+    expect(shared).toEqual(["Referrer-Policy"]);
+  });
+});
+
+describe("the external login callback's headers", () => {
+  it("names the route the provider sends the browser back to", () => {
+    expect(OAUTH_CALLBACK_ROUTE).toBe("/api/auth/oauth/:provider/callback");
+  });
+
+  it("forbids caching, sends no referrer and keeps the page out of an index", () => {
+    expect(OAUTH_CALLBACK_ROUTE_HEADERS).toEqual([
+      { key: "Cache-Control", value: "no-store" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "X-Robots-Tag", value: "noindex" },
+    ]);
+  });
+
+  it("overrides ONLY the referrer policy of the global set, and adds no second CSP", () => {
+    const globalKeys = buildSecurityHeaders(false).map((header) => header.key);
+    const shared = OAUTH_CALLBACK_ROUTE_HEADERS.map((header) => header.key).filter((key) =>
       globalKeys.includes(key)
     );
 

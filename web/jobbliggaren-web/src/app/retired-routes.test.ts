@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   LOGIN_LINK_ROUTE,
   LOGIN_LINK_ROUTE_HEADERS,
+  OAUTH_CALLBACK_ROUTE,
+  OAUTH_CALLBACK_ROUTE_HEADERS,
 } from "@/lib/security/security-headers";
 import nextConfig from "../../next.config";
 
@@ -166,12 +168,13 @@ describe("the redirects", () => {
   });
 });
 
-describe("the login link route's headers in next.config", () => {
+describe("the route entries after the global block in next.config", () => {
   it("come AFTER the global block, because the later entry is the one served for a shared key", async () => {
     const entries = await nextConfig.headers!();
     const sources = entries.map((entry) => entry.source);
 
-    expect(sources).toEqual(["/(.*)", LOGIN_LINK_ROUTE]);
+    expect(sources).toEqual(["/(.*)", LOGIN_LINK_ROUTE, OAUTH_CALLBACK_ROUTE]);
     expect(entries[1]!.headers).toEqual(LOGIN_LINK_ROUTE_HEADERS.map((header) => ({ ...header })));
+    expect(entries[2]!.headers).toEqual(OAUTH_CALLBACK_ROUTE_HEADERS.map((header) => ({ ...header })));
   });
 });

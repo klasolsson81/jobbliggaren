@@ -312,4 +312,14 @@ public static class AuthErrorCodes
 
     public const string ExternalEmailUnverifiedMessage =
         "Inloggningstjänsten kan inte intyga din e-postadress. Logga in med en kod i stället.";
+
+    /// <summary>
+    /// #1744 — every external-login start of the current window is spent
+    /// (<see cref="ExternalLogins.ExternalLoginPolicy.StartBudget"/>). Nothing was written. Mapped to 503 in
+    /// <c>AuthEndpoints.ToErrorResult</c>, beside <see cref="RegistrationsClosed"/>.
+    /// </summary>
+    public const string ExternalLoginStartsExhausted = "Auth.ExternalLoginStartsExhausted";
+
+    public const string ExternalLoginStartsExhaustedMessage =
+        "Inloggning med en extern tjänst går inte just nu. Försök igen om en stund, eller logga in med en kod.";
 }

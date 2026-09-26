@@ -116,3 +116,19 @@ test.describe("/logga-in/lank overrides the referrer policy and forbids caching"
     expectLinkRouteHeaders(response.headers(), "POST");
   });
 });
+
+// #1744 — the OAuth callback's URL carries the provider's code and state, so its document sends no
+// referrer, is stored nowhere and is never indexed. Measured on a refusal, which reaches no backend:
+// without the state cookie nothing is forwarded.
+test.describe("the OAuth callback sends no referrer and forbids caching and indexing", () => {
+  test("on a refusal", async ({ page }) => {
+    const h = await headersFor(page, "/api/auth/oauth/google/callback?code=not-a-code&state=not-a-state");
+
+    // Exact: the route handler and next.config both set it, and a comma-joined value would pass a
+    // presence check.
+    expect(h["referrer-policy"]).toBe("no-referrer");
+    expect(h["cache-control"]).toContain("no-store");
+    expect(h["x-robots-tag"]).toBe("noindex");
+    expect(h["x-frame-options"]).toBe("DENY");
+  });
+});

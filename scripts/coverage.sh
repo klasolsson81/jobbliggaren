@@ -10,19 +10,24 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifacts="$root/artifacts/coverage"
 
 rm -rf "$artifacts"
-mkdir -p "$artifacts"
+mkdir -p "$artifacts/raw"
 
 dotnet tool restore
 
-# Rå cobertura per testprojekt (ofiltrerad — audit-trail). Varje projekts
-# TestResults/ får egen coverage.cobertura.xml; ReportGenerator globbar ihop.
 export ASPNETCORE_ENVIRONMENT=Development
-dotnet test --solution "$root/Jobbliggaren.sln" -c Release \
-  -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+dotnet test --solution "$root/Jobbliggaren.sln" -c Release --results-directory "$artifacts/raw" \
+  -- --coverage --coverage-output-format cobertura
+
+expected=$(grep -cE '^Project.*"tests\\.*\.csproj"' "$root/Jobbliggaren.sln")
+actual=$(find "$artifacts/raw" -name '*.cobertura.xml' -type f | wc -l)
+if [[ "$expected" -eq 0 || "$actual" -ne "$expected" ]]; then
+  echo "::error::Expected $expected coverage reports, found $actual" >&2
+  exit 1
+fi
 
 cd "$root"
 dotnet tool run reportgenerator \
-  "-reports:tests/**/coverage.cobertura.xml" \
+  "-reports:$artifacts/raw/*.cobertura.xml" \
   "-targetdir:$artifacts" \
   "-reporttypes:Html;Cobertura;JsonSummary;TextSummary;MarkdownSummaryGithub" \
   "-assemblyfilters:+Jobbliggaren.Domain;+Jobbliggaren.Application;+Jobbliggaren.Infrastructure;+Jobbliggaren.Api;+Jobbliggaren.Worker;-Jobbliggaren.Migrate;-*.UnitTests;-*.IntegrationTests;-*.Architecture.Tests" \

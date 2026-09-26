@@ -56,7 +56,7 @@ describe("MatchList (ADR 0080 Vag 4 PR-5)", () => {
     // kontexten bärs av en sr-only-text.
     expect(badge).not.toHaveAttribute("aria-label");
     expect(
-      screen.getByText("Ny matchning sedan ditt senaste besök")
+      screen.getByText("matchning sedan ditt senaste besök")
     ).toBeInTheDocument();
   });
 

@@ -528,7 +528,7 @@
     "title": "My matches",
     "listLabel": "Your matches",
     "newBadge": "New",
-    "newBadgeAriaLabel": "New match since your last visit",
+    "newBadgeAriaLabel": "match since your last visit",
     "matchedAt": "Matched",
     "emptyTitle": "You have no matches yet",
     "emptyBody": "Background matching runs every night once you have turned on Match notifications on My pages (off by default) and specified which occupations you are looking for.",

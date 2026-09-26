@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { jobAdStatusLabel } from "@/lib/job-ads/status";
 import { formatDate } from "@/lib/i18n/format";
-import type { AdContactDto, JobAdDetailDto, JobAdStatus } from "@/lib/dto/job-ads";
+import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
 import type { JobAdMatchDetail } from "@/lib/dto/job-ad-match";
 import type { CompanyFollowState } from "@/lib/dto/company-follows";
 import type { OrtGranularity } from "@/lib/job-ads/ort-granularity";
@@ -20,11 +20,8 @@ import { formatAdDescription } from "./format-ad-description";
  * jobbmodalen (`@modal/(.)jobb/[id]`) per ADR 0053 (en presentations-
  * komponent, två kontexter — DRY-positiv konsekvens).
  *
- * Fält-set är ADR 0053 amendment 2026-05-19 (Fas-3-gated): ENDAST real
- * JobAdDto. Match-score / requirements / occupation / location / "Spara
- * annons" / "Har ansökt" var v3-prototyp-mock och saknas i domänen — de
- * renderas EJ (frånvaro, inte mock; HANDOVER §0.5-veto uppfylls genom
- * frånvaro, ingen disabled-knapp-teater).
+ * Fältsetet är komponentens eget under DESIGN.md §8 (ADR 0053 Amendment
+ * 2026-09-26, #1828).
  */
 
 interface JobAdDetailProps {
@@ -77,17 +74,13 @@ interface JobAdDetailProps {
    * #593 (#446-uppföljning, #311) — antalet av den inloggade användarens EGNA tidigare (inskickade)
    * ansökningar till annonsens arbetsgivare (samma org.nr), server-resolverat via
    * `getEmployerApplicationCounts` (#446). `undefined`/0 → renderas EJ (anonym/gäst, eller inga tidigare
-   * ansökningar — POSITIVE-ONLY, paritet #446-kort-badgen). Till skillnad från /jobb-list-kortet (ETT
-   * ytter-`<Link>` → nästlad länk ogiltig, B1/Fork 3C) har detaljvyn inget ytter-ankare, så den renderas
-   * som en `<Link>` till `/foretag/historik`. Rent heltal; INGET org.nr i text/attribut/URL
-   * (CLAUDE.md §5 — enskild firma = personnummer).
+   * ansökningar — POSITIVE-ONLY, paritet #446-kortet). Raden följs av en länk till `/foretag/historik`.
+   * Rent heltal; INGET org.nr i text/attribut/URL (CLAUDE.md §5 — enskild firma = personnummer).
    *
    * <para>#824 PR 4 — antalet är ett GOLV. Predikatet faller på FRÅNVARO av arbetsgivar-identitet
    * (`.Where(r => r.OrgNr != null)`), tre vägar: ingen annons alls (manuell ansökan, `JobAdId == null`),
    * en annons som aldrig bar org.nr, eller ett org.nr som purgats med `raw_payload` (#824-mekanismen).
-   * Copyn bär därför båda halvorna av hedgen på den här ytan (golv-markör på siffran +
-   * ofullständigheten hos sammanställningen länken leder till) — ett oreserverat faktapåstående till den
-   * registrerade om hennes egna uppgifter är en Art. 5(1)(a)/(d)-defekt, inte en formuleringsfråga.</para>
+   * "Minst" styr därför talet (ADR 0144 D4 rad 9).</para>
    */
   previousApplicationCount?: number;
   /**
@@ -100,14 +93,6 @@ interface JobAdDetailProps {
    */
   contacts?: readonly AdContactDto[];
 }
-
-// Active/Archived → .jp-pill-variant. Speglar
-// JOB_AD_STATUS_BADGE_VARIANT-semantiken (Active=success, Archived=neutral)
-// men mot v3 .jp-pill-systemet (HANDOVER §5.7). Expired retirerades i #886.
-const STATUS_PILL_CLASS: Record<JobAdStatus, string> = {
-  Active: "jp-pill jp-pill--success",
-  Archived: "jp-pill jp-pill--neutral",
-};
 
 export function JobAdDetail({
   jobAd,
@@ -151,50 +136,38 @@ export function JobAdDetail({
                 så en tagg vore redundant + stale-benägen. BEVAKAR-taggen lever på
                 list-KORTEN (alltid load-time-sann, inget per-kort-toggle). */}
           </div>
-          <span className={STATUS_PILL_CLASS[jobAd.status]}>
-            <span className="jp-pill__dot" aria-hidden="true" />
-            {jobAdStatusLabel(t, jobAd.status)}
-          </span>
         </header>
       )}
 
       <div className="jp-modal__body">
-        {headless && (
-          <span className={STATUS_PILL_CLASS[jobAd.status]} style={{ alignSelf: "flex-start" }}>
-            <span className="jp-pill__dot" aria-hidden="true" />
-            {jobAdStatusLabel(t, jobAd.status)}
-          </span>
-        )}
-
-        <dl className="jp-modal__metarow">
-          <div className="jp-modal__metaitem">
-            <dt>{tUi("detail.published")}</dt>
-            <dd>{publishedAt}</dd>
-          </div>
-          {expiresAt && (
-            <div className="jp-modal__metaitem">
-              <dt>{tUi("detail.lastApplicationDay")}</dt>
-              <dd>{expiresAt}</dd>
-            </div>
+        {/* The card's own meta form (`.jp-job__meta`, one rule for both surfaces). An
+            active ad carries no pill: every ad /jobb lists is active; "Arkiverad" is
+            information and leads the line. */}
+        <div className="jp-job__meta">
+          {jobAd.status === "Archived" && (
+            <span className="jp-pill jp-pill--neutral">
+              <span className="jp-pill__dot" aria-hidden="true" />
+              {jobAdStatusLabel(t, jobAd.status)}
+            </span>
           )}
-          <div className="jp-modal__metaitem">
-            <dt>{tUi("detail.adId")}</dt>
-            <dd>{jobAd.id}</dd>
-          </div>
-        </dl>
+          <span>
+            {tUi("detail.published")} <b>{publishedAt}</b>
+          </span>
+          {expiresAt && (
+            <span>
+              {tUi("detail.lastApplicationDay")} <b>{expiresAt}</b>
+            </span>
+          )}
+        </div>
 
-        {/* #593 (#446-uppföljning) — "Du har MINST X tidigare ansökningar till detta företag.
-            Sammanställningen kan vara ofullständig." som LÄNK till ansökningshistoriken. POSITIVE-ONLY
-            (bara > 0). Giltig länk här (ingen ytter-`<a>` på detaljvyn, till skillnad från list-kortet —
-            B1/Fork 3C). Rent heltal, inget org.nr. #824 PR 4: golv-markör + ofullständighet, båda
-            halvorna — se prop-doccen ovan. */}
+        {/* #593 (#446-uppföljning) — räknaren + länk till ansökningshistoriken. POSITIVE-ONLY
+            (bara > 0). Rent heltal, inget org.nr. */}
         {previousApplicationCount != null && previousApplicationCount > 0 && (
           <p className="text-body-sm">
             {tUi("detail.previousApplications", { count: previousApplicationCount })}{" "}
             {/* Understrykning i vilo-läge (design-reviewer, WCAG 1.4.1/F73): en in-prose-länk får inte
                 skiljas från brödtexten enbart med färg (<3:1 mot body-ink i båda teman). Basankaret
-                (globals.css a:not(.jp-btn)) sätter bara color; text-body-sm ärver ingen understrykning
-                (till skillnad från .jp-muted a). Tailwind-utility, ingen globals.css-touch (hotspot). */}
+                (globals.css a:not(.jp-btn)) sätter bara color; text-body-sm ärver ingen understrykning. */}
             <Link
               href="/foretag/historik"
               className="underline underline-offset-2"
@@ -214,31 +187,26 @@ export function JobAdDetail({
           />
         )}
 
-        <div>
-          <div className="jp-eyebrow mb-2">
+        <section aria-labelledby="jp-ad-description-title">
+          <div id="jp-ad-description-title" className="jp-eyebrow mb-2">
             {tUi("detail.description")}
           </div>
-          <div id="jp-modal-desc" className="jp-modal__description">
+          <div className="jp-modal__description">
             {formatAdDescription(jobAd.description)}
           </div>
-          {/* #842 Tier A (ADR 0106) — Art. 14(5)(b): the public recruiter notice
-              must be reachable from the ad detail; the link is the condition of
-              the disproportionate-effort exemption, not decoration. text-left
-              overrides .jp-muted's right-alignment (that default belongs to the
-              foot note below): this line sits in the left-aligned prose rhythm
-              (design-review Minor 1, 2026-07-16). */}
-          <p className="jp-muted mt-3 text-left">
-            <Link href="/kontaktperson-i-annons">
-              {tUi("detail.recruiterNoticeLink")}
-            </Link>
-          </p>
-        </div>
+        </section>
 
-        {/* #842 PR4 — recruiter contact block, adjacent to the Art. 14 notice
-            link above (which stays as this surface's transparency link). Sits in
-            the .jp-modal__body flex column (20px gap spaces it). Self-hides when
-            the ad carries no contacts; the guest demo omits the prop entirely. */}
+        {/* #842 PR4 — recruiter contact block. Self-hides when the ad carries no
+            contacts; the guest demo omits the prop entirely. */}
         <RecruiterContactBlock contacts={contacts} />
+        {/* #842 Tier A (ADR 0106) — Art. 14(5)(b): the public recruiter notice must be
+            reachable from the ad detail, with or without contacts (ADR 0144 D4 row 10).
+            A sibling after the block, never inside it: the block renders nothing for []. */}
+        <p className="jp-recruiter-notice">
+          <Link href="/kontaktperson-i-annons">
+            {tUi("detail.recruiterNoticeLink")}
+          </Link>
+        </p>
       </div>
 
       <div className="jp-modal__foot">
@@ -267,16 +235,16 @@ export function JobAdDetail({
             <ExternalLink size={14} aria-hidden="true" /> {tUi("detail.openAd")}
           </a>
         )}
+        {userActions?.applied && (
+          <p className="jp-modal__footnote">
+            {tUi("detail.appliedNotice")}{" "}
+            <Link href="/ansokningar">
+              {tUi("detail.appliedNoticeLink")}
+            </Link>
+            .
+          </p>
+        )}
       </div>
-      {userActions?.applied && (
-        <p className="jp-muted">
-          {tUi("detail.appliedNotice")}{" "}
-          <Link href="/ansokningar">
-            {tUi("detail.appliedNoticeLink")}
-          </Link>
-          .
-        </p>
-      )}
     </>
   );
 }

@@ -38,15 +38,11 @@ export function DetailPageSkeleton({ label }: { label: string }) {
             <span className="jp-skeleton block h-6 w-72 max-w-full" />
             <span className="jp-skeleton mt-2 block h-4 w-40 max-w-full" />
           </div>
-          <span className="jp-skeleton block h-6 w-24" />
         </header>
         <div className="jp-modal__body">
-          <div className="jp-modal__metarow">
-            {[0, 1, 2].map((item) => (
-              <div key={item} className="jp-modal__metaitem">
-                <span className="jp-skeleton block h-3 w-20" />
-                <span className="jp-skeleton mt-1 block h-4 w-28" />
-              </div>
+          <div className="jp-job__meta">
+            {[0, 1].map((item) => (
+              <span key={item} className="jp-skeleton block h-4 w-44" />
             ))}
           </div>
           <div className="mt-5 flex flex-col gap-2.5">

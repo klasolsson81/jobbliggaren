@@ -4,8 +4,8 @@ using Mediator;
 namespace Jobbliggaren.Application.Applications.Queries.GetEmployerApplicationCountBatch;
 
 /// <summary>
-/// #446 (#311; ADR 0087 D2 read-model; DPIA #456 / ADR 0090 D1, Art. 6(1)(b)) — the /jobb card badge
-/// "Du har X tidigare ansökningar till detta företag". For a PAGE of job ads, returns how many of the
+/// #446 (#311; ADR 0087 D2 read-model; DPIA #456 / ADR 0090 D1, Art. 6(1)(b)) — the /jobb card's
+/// previous-applications line. For a PAGE of job ads, returns how many of the
 /// signed-in user's OWN submitted applications (<c>AppliedAt != null</c>) target each ad's employer
 /// (same org.nr). A per-user OVERLAY keyed on JobAdId, the fourth in the /jobb overlay family
 /// (parity <c>GetJobAdStatusBatchQuery</c> saved/applied + <c>GetJobAdMatchBatchQuery</c> tags): one

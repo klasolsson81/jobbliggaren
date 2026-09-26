@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { JobAdDetail } from "./job-ad-detail";
-import type { JobAdDetailDto } from "@/lib/dto/job-ads";
+import type { AdContactDto, JobAdDetailDto } from "@/lib/dto/job-ads";
 
 // #745 — the LIST type `JobAdDto` no longer carries `description`; the detail component
 // takes the detail projection minus its contacts block. This fixture mirrors that prop.
@@ -18,18 +18,50 @@ const baseAd: Omit<JobAdDetailDto, "contacts"> = {
   createdAt: "2026-05-13T08:01:00Z",
 };
 
-describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
-  it("renders title, company, status pill, description and Annons-ID", () => {
+const RECRUITER_NOTICE = "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter.";
+const declaredContact: AdContactDto = {
+  name: "Anna Lindqvist",
+  role: "Rekryterande chef",
+  email: "anna@example.com",
+  phone: null,
+  isDerived: false,
+};
+
+describe("JobAdDetail", () => {
+  it("renders title, company and description; an active ad carries no pill and no internal id (#1828)", () => {
     render(<JobAdDetail jobAd={baseAd} />);
     expect(
       screen.getByRole("heading", { name: "Senior Backend Developer" })
     ).toBeInTheDocument();
     expect(screen.getByText("Acme AB")).toBeInTheDocument();
-    expect(screen.getByText("Aktiv")).toBeInTheDocument();
     expect(
       screen.getByText(/Vi söker en .NET-utvecklare/)
     ).toBeInTheDocument();
-    expect(screen.getByText(baseAd.id)).toBeInTheDocument();
+    expect(screen.queryByText("Aktiv")).not.toBeInTheDocument();
+    expect(screen.queryByText(baseAd.id)).not.toBeInTheDocument();
+  });
+
+  it("an archived ad leads its meta line with the pill 'Arkiverad'", () => {
+    const { container } = render(
+      <JobAdDetail jobAd={{ ...baseAd, status: "Archived" }} headless />
+    );
+    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
+    expect(meta?.firstElementChild).toHaveTextContent("Arkiverad");
+    expect(meta?.firstElementChild).toHaveClass("jp-pill", "jp-pill--neutral");
+  });
+
+  it("renders the dates in the card's meta form", () => {
+    const { container } = render(<JobAdDetail jobAd={baseAd} />);
+    const meta = container.querySelector(".jp-modal__body > .jp-job__meta");
+    expect(meta).toHaveTextContent(/Publicerad/);
+    expect(meta).toHaveTextContent(/Sista ansökningsdag/);
+    expect(container.querySelector(".jp-modal__metarow")).toBeNull();
+  });
+
+  it("the ad text is a region named by its heading (#1828 B3)", () => {
+    render(<JobAdDetail jobAd={baseAd} headless />);
+    const region = screen.getByRole("region", { name: "Annonsbeskrivning" });
+    expect(region).toHaveTextContent(/Vi söker en .NET-utvecklare/);
   });
 
   // #1000 (V1) — modalen bär INGEN separat BEVAKAR-tagg (skulle bli en load-time-
@@ -56,18 +88,17 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
   it("omits sista ansökningsdag when expiresAt is null", () => {
     render(<JobAdDetail jobAd={{ ...baseAd, expiresAt: null }} />);
     expect(
-      screen.queryByText("Sista ansökningsdag")
+      screen.queryByText(/Sista ansökningsdag/)
     ).not.toBeInTheDocument();
   });
 
-  it("does NOT render match, requirements, occupation or location (ADR 0053 amendment — frånvaro, ej mock)", () => {
+  it("does NOT render a match section without match data (frånvaro, ej mock)", () => {
     render(<JobAdDetail jobAd={baseAd} />);
     expect(screen.queryByText(/% match/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Krav & meriter/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Yrkesområde")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Matchning" })).not.toBeInTheDocument();
   });
 
-  it("does NOT render Spara annons or Har ansökt (FE-action-fas deferrad — ingen disabled-teater)", () => {
+  it("does NOT render Spara annons or Har ansökt without user actions (ingen disabled-teater)", () => {
     render(<JobAdDetail jobAd={baseAd} />);
     expect(
       screen.queryByRole("button", { name: /spara annons/i })
@@ -82,11 +113,9 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     expect(
       screen.queryByRole("heading", { name: "Senior Backend Developer" })
     ).not.toBeInTheDocument();
-    // Status-pill renderas fortfarande (i body) i headless-läge.
-    expect(screen.getByText("Aktiv")).toBeInTheDocument();
   });
 
-  // #593 (#446-uppföljning) — "tidigare ansökningar till detta företag" som LÄNK. POSITIVE-ONLY.
+  // #593 (#446-uppföljning) — räknaren + länk till historiken. POSITIVE-ONLY.
   it("does NOT render the previous-applications line without the prop (POSITIVE-ONLY)", () => {
     render(<JobAdDetail jobAd={baseAd} />);
     expect(screen.queryByText(/tidigare ansökning/i)).not.toBeInTheDocument();
@@ -100,45 +129,50 @@ describe("JobAdDetail (ADR 0053 Fas-3 fält-set)", () => {
     expect(screen.queryByText(/tidigare ansökning/i)).not.toBeInTheDocument();
   });
 
-  it("renders the previous-applications line as a LINK to /foretag/historik when count > 0", () => {
+  it("renders the previous-applications line with a link to /foretag/historik when count > 0", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
-    // Plural sentence + a valid link (the detail view has no outer <a>, unlike the list card). The
-    // count is a plain integer — org.nr is never passed to this component (§5, enskild firma =
-    // personnummer), so the affordance structurally cannot surface one.
+    // A plain integer — org.nr is never passed to this component (§5, enskild firma =
+    // personnummer), so the line structurally cannot surface one.
     expect(
-      screen.getByText(
-        "Du har minst 3 tidigare ansökningar till detta företag. Sammanställningen kan vara ofullständig."
-      )
+      screen.getByText("Minst 3 tidigare ansökningar till företaget.")
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Visa ansökningshistorik" });
     expect(link).toHaveAttribute("href", "/foretag/historik");
   });
 
-  it("renders the singular previous-applications sentence for count 1", () => {
+  it("renders the singular previous-applications line for count 1", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={1} />);
     expect(
-      screen.getByText(
-        "Du har minst 1 tidigare ansökan till detta företag. Sammanställningen kan vara ofullständig."
-      )
+      screen.getByText("Minst 1 tidigare ansökan till företaget.")
     ).toBeInTheDocument();
   });
 
-  // #824 PR 4 — the detail view has room the card does not, so it carries BOTH halves of the hedge: the
-  // floor marker on the number and the incompleteness of the compilation the link leads to. Losing
-  // either half turns the sentence back into an unreserved factual claim about the user's own data
-  // (Art. 5(1)(a)/(d)).
-  it("presents the count as a floor AND discloses the incompleteness (#824)", () => {
+  // #824 PR 4 — the count is a FLOOR (ADR 0144 D4 row 9): "Minst" governs the number.
+  it("presents the count as a floor — never as a total (#824)", () => {
     render(<JobAdDetail jobAd={baseAd} previousApplicationCount={3} />);
-    // ANCHORED REGEX, deliberately — an exact-string guard here CANNOT FAIL (code-reviewer M1). The
-    // sentence and the disclosure share one <p>, so getNodeText() returns both; dropping "minst" would
-    // yield "Du har 3 … företag. Sammanställningen …", which never equals the bare-total matcher — the
-    // guard would return null and pass while the surface shows a total. A test that cannot fail for its
-    // stated reason IS the #843 defect this PR family exists to condemn. `^` pins the mutation itself.
+    // Anchored on the signed form's own start: with "Minst" removed from the catalogue value the
+    // line reads "3 tidigare ansökningar …" and this matcher finds it.
     expect(
-      screen.queryByText(/^Du har 3 tidigare ansökningar/)
+      screen.queryByText(/^3 tidigare ansökningar/)
     ).toBeNull();
-    expect(
-      screen.getByText(/Sammanställningen kan vara ofullständig/)
-    ).toBeInTheDocument();
+  });
+
+  // ADR 0144 D4 row 10 (Art. 14(5)(b), #842 R5): the recruiter notice renders on the detail
+  // surface with or without contacts, visible, pointing at the public notice (security-auditor
+  // #1828 Minor 1). The contact block renders nothing for [], so the link is its sibling.
+  it.each([
+    ["without contacts", [] as AdContactDto[]],
+    ["with contacts", [declaredContact]],
+  ])("renders the recruiter notice %s", (_label, contacts) => {
+    render(<JobAdDetail jobAd={baseAd} contacts={contacts} headless />);
+    const link = screen.getByRole("link", { name: RECRUITER_NOTICE });
+    expect(link).toHaveAttribute("href", "/kontaktperson-i-annons");
+  });
+
+  it("places the recruiter notice directly after the contact block", () => {
+    render(<JobAdDetail jobAd={baseAd} contacts={[declaredContact]} headless />);
+    const block = screen.getByRole("region", { name: "Kontakt" });
+    const notice = screen.getByRole("link", { name: RECRUITER_NOTICE }).closest("p");
+    expect(block.nextElementSibling).toBe(notice);
   });
 });

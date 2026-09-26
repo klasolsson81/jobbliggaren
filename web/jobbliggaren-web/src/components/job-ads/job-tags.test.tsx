@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { JobTags } from "./job-tags";
+import { hasJobTags, JobTags } from "./job-tags";
 
 describe("JobTags (NY = oläst, #293/#306)", () => {
   it("renders NY when isNew=true", () => {
@@ -22,9 +22,28 @@ describe("JobTags (NY = oläst, #293/#306)", () => {
     const ny = screen.getByText("Ny");
     expect(ny).toHaveAttribute("data-tag", "new");
     expect(ny).not.toHaveAttribute("aria-label");
-    expect(
-      screen.getByText("Nytt jobb sedan ditt senaste besök"),
-    ).toBeInTheDocument();
+    // The companion continues the visible word ("Ny sedan ditt senaste besök"), never repeats it.
+    expect(screen.getByText("sedan ditt senaste besök")).toHaveClass("sr-only");
+  });
+
+  it("hasJobTags speglar exakt när JobTags renderar något (kortets aria-describedby läser den)", () => {
+    const combos = [false, true].flatMap((isNew) =>
+      [false, true].flatMap((isFollowed) =>
+        [false, true].flatMap((isSaved) =>
+          [false, true].map((isApplied) => ({ isNew, isFollowed, isSaved, isApplied })),
+        ),
+      ),
+    );
+    for (const props of combos) {
+      const { container, unmount } = render(<JobTags {...props} />);
+      expect(container.querySelector(".jp-job-tags") !== null).toBe(hasJobTags(props));
+      unmount();
+    }
+  });
+
+  it("bär id:t den får, så kortet kan namnge raden i sin beskrivning", () => {
+    const { container } = render(<JobTags id="t-1" isNew={true} />);
+    expect(container.querySelector(".jp-job-tags")).toHaveAttribute("id", "t-1");
   });
 
   // F4-13 (ADR 0076) — den numeriska matchScore/MATCH_THRESHOLD-taggen är

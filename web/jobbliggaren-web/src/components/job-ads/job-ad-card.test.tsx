@@ -17,6 +17,14 @@ const baseAd: JobAdDto = {
   createdAt: "2026-04-01T08:01:00Z",
 };
 
+/** The IDREFs the title link's aria-describedby names, resolved in order. */
+function describedRows(link: HTMLElement): Array<HTMLElement | null> {
+  return (link.getAttribute("aria-describedby") ?? "")
+    .split(" ")
+    .filter(Boolean)
+    .map((id) => document.getElementById(id));
+}
+
 describe("JobAdCard (v3 .jp-job-rad)", () => {
   it("renders title and company", () => {
     render(<JobAdCard jobAd={baseAd} />);
@@ -26,47 +34,90 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     expect(screen.getByText("Acme AB")).toBeInTheDocument();
   });
 
-  it("renders the whole row as a link to /jobb/[id]", () => {
+  // #1828 (design-reviewer B1, the row family's house form): the title is the card's only
+  // link and is named by its own text — no aria-label replaces the card's content.
+  it("the title is the card's only link, to /jobb/[id], named by the title alone", () => {
     render(<JobAdCard jobAd={baseAd} />);
-    const link = screen.getByRole("link", {
-      name: "Senior Backend Developer – Acme AB",
-    });
+    const link = screen.getByRole("link", { name: "Senior Backend Developer" });
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
+    expect(link).toHaveClass("jp-job__rowlink");
+    expect(link).not.toHaveAttribute("aria-label");
+    expect(link).not.toHaveAttribute("aria-labelledby");
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("the link's description names every rendered row in visual order, and no IDREF dangles", () => {
+    const { container } = render(
+      <JobAdCard
+        jobAd={baseAd}
+        isNew={true}
+        isFollowed={true}
+        isSaved={true}
+        isApplied={true}
+        matchGrade="Strong"
+        previousApplicationCount={3}
+      />
+    );
+    const link = screen.getByRole("link", { name: "Senior Backend Developer" });
+    const rows = describedRows(link);
+    expect(rows).not.toContain(null);
+    expect(rows).toEqual([
+      container.querySelector(".jp-job-tags"),
+      container.querySelector(".jp-matchchip"),
+      container.querySelector(".jp-job__company"),
+      ...Array.from(container.querySelectorAll(".jp-job__meta")),
+    ]);
+    // Security-auditor's condition (d): the counter line is ONE described element that carries
+    // the whole signed text, and "Minst" is its own word in the computed description.
+    expect(link).toHaveAccessibleDescription(
+      expect.stringMatching(/(^|\s)Minst 3 tidigare ansökningar till företaget(\s|$)/)
+    );
+  });
+
+  // Chrome drops a whitespace-only text node between label and value from the computed
+  // description ("Publiceradidag", CDP-measured #1828); jsdom does not, so this pins the form
+  // that avoids it: the label's own text node carries the space.
+  it("each meta label carries its trailing space in its own text node", () => {
+    const { container } = render(<JobAdCard jobAd={baseAd} />);
+    const labels = Array.from(container.querySelectorAll(".jp-job__meta > span")).map(
+      (span) => span.firstChild?.textContent
+    );
+    expect(labels).toEqual(["Publicerad ", "Sista ansökningsdag "]);
+  });
+
+  it("a bare card describes only the company and the meta line", () => {
+    const { container } = render(<JobAdCard jobAd={baseAd} />);
+    const link = screen.getByRole("link", { name: "Senior Backend Developer" });
+    expect(describedRows(link)).toEqual([
+      container.querySelector(".jp-job__company"),
+      container.querySelector(".jp-job__meta"),
+    ]);
   });
 
   // #1000 (V1) — BEVAKAR = du bevakar arbetsgivaren: `isFollowed` driver BÅDE
-  // kortets `data-followed`-vänsterkant OCH BEVAKAR-taggen. Länkens accessible
-  // name kommer ur aria-label (title–company), så taggen påverkar det inte.
+  // kortets `data-followed`-vänsterkant OCH BEVAKAR-taggen.
   it("#1000 — sätter data-followed + renderar BEVAKAR-tagg när isFollowed=true", () => {
-    render(<JobAdCard jobAd={baseAd} isFollowed={true} />);
-    const link = screen.getByRole("link", {
-      name: "Senior Backend Developer – Acme AB",
-    });
-    expect(link).toHaveAttribute("data-followed", "");
+    const { container } = render(<JobAdCard jobAd={baseAd} isFollowed={true} />);
+    expect(container.querySelector("article.jp-job")).toHaveAttribute("data-followed", "");
     expect(screen.getByText("Bevakar")).toBeInTheDocument();
   });
 
   it("#1000 — inget data-followed + ingen BEVAKAR när isFollowed=false (default)", () => {
-    render(<JobAdCard jobAd={baseAd} />);
-    const link = screen.getByRole("link", {
-      name: "Senior Backend Developer – Acme AB",
-    });
-    expect(link).not.toHaveAttribute("data-followed");
+    const { container } = render(<JobAdCard jobAd={baseAd} />);
+    expect(container.querySelector("article.jp-job")).not.toHaveAttribute("data-followed");
     expect(screen.queryByText("Bevakar")).not.toBeInTheDocument();
   });
 
   // #380 — radlänken bär list-URL:ens view-state (filter + match + sort + sök)
-  // så soft-nav till modalen inte tappar filter/match-läget vid öppna→stäng
-  // (children-slotten re-rendras annars till tomma searchParams under modalen;
-  // router.back() återställer bara modal-slotten). `listQuery` byggs i
-  // `JobbResults` via `buildJobbHref` (+ page). Default tom = naken länk.
+  // så soft-nav till modalen inte tappar filter/match-läget (children-slotten
+  // re-rendras annars till tomma searchParams under modalen; router.back()
+  // återställer bara modal-slotten). `listQuery` byggs i `JobbResults` via
+  // `buildJobbHref` (+ page). Default tom = naken länk.
   it("#380 — bär list-staten (relaterade + grader + sortering + sök) i radlänken", () => {
     const listQuery =
       "q=backend&occupationGroup=MVqp_eS8_kDZ&matchGrades=Strong&relaterade=on&sortBy=Relevance";
     render(<JobAdCard jobAd={baseAd} listQuery={listQuery} />);
-    const link = screen.getByRole("link", {
-      name: "Senior Backend Developer – Acme AB",
-    });
+    const link = screen.getByRole("link", { name: "Senior Backend Developer" });
     // Modal-URL:en speglar listans URL exakt → router.back() bevarar HELA
     // filter-/match-läget. relaterade=on tas dessutom in i modalens grad-anrop.
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}?${listQuery}`);
@@ -74,26 +125,31 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
 
   it("#380 — tom listQuery (gäst-/övrig yta) ger en naken länk utan query", () => {
     render(<JobAdCard jobAd={baseAd} listQuery="" />);
-    const link = screen.getByRole("link", {
-      name: "Senior Backend Developer – Acme AB",
-    });
+    const link = screen.getByRole("link", { name: "Senior Backend Developer" });
     expect(link).toHaveAttribute("href", `/jobb/${baseAd.id}`);
   });
 
-  it("renders source label and published date in meta", () => {
+  // #1828 — Platsbanken is the one source /jobb ingests, so the card does not print it; another
+  // source is information and keeps its label.
+  it("does not print Platsbanken, the one source /jobb ingests", () => {
     render(<JobAdCard jobAd={baseAd} />);
-    expect(screen.getByText("Platsbanken")).toBeInTheDocument();
+    expect(screen.queryByText("Platsbanken")).not.toBeInTheDocument();
     expect(screen.getByText(/Publicerad/)).toBeInTheDocument();
   });
 
-  it("omits sista ansökan when expiresAt is null", () => {
-    render(<JobAdCard jobAd={{ ...baseAd, expiresAt: null }} />);
-    expect(screen.queryByText(/Sista ansökan/)).not.toBeInTheDocument();
+  it("prints any other source", () => {
+    render(<JobAdCard jobAd={{ ...baseAd, source: "Manual" }} />);
+    expect(screen.getByText("Egen")).toBeInTheDocument();
   });
 
-  it("renders sista ansökan when expiresAt is set", () => {
+  it("omits sista ansökningsdag when expiresAt is null", () => {
+    render(<JobAdCard jobAd={{ ...baseAd, expiresAt: null }} />);
+    expect(screen.queryByText(/Sista ansökningsdag/)).not.toBeInTheDocument();
+  });
+
+  it("renders sista ansökningsdag when expiresAt is set", () => {
     render(<JobAdCard jobAd={baseAd} />);
-    expect(screen.getByText(/Sista ansökan/)).toBeInTheDocument();
+    expect(screen.getByText(/Sista ansökningsdag/)).toBeInTheDocument();
   });
 
   // NY = oläst (#293/#306): driven av `isNew`-propen (beräknad i JobbResults
@@ -131,54 +187,49 @@ describe("JobAdCard (v3 .jp-job-rad)", () => {
     ).not.toBeInTheDocument();
   });
 
-  // #446 (#311) — "tidigare ansökningar"-badge. POSITIVE-ONLY: bara när räknaren > 0.
-  it("does not render the previous-applications badge without the prop (POSITIVE-ONLY)", () => {
+  // #446 (#311) — räknaren. POSITIVE-ONLY: bara när räknaren > 0.
+  it("does not render the previous-applications line without the prop (POSITIVE-ONLY)", () => {
     render(<JobAdCard jobAd={baseAd} />);
     expect(
       screen.queryByText(/tidigare ansökning/i)
     ).not.toBeInTheDocument();
   });
 
-  it("does not render the previous-applications badge when the count is 0", () => {
+  it("does not render the previous-applications line when the count is 0", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={0} />);
     expect(
       screen.queryByText(/tidigare ansökning/i)
     ).not.toBeInTheDocument();
   });
 
-  it("renders the singular previous-applications badge for count 1 (du-form, no org.nr)", () => {
+  it("renders the singular previous-applications line for count 1 (no org.nr)", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={1} />);
     // ICU one-branch: "ansökan", not "ansökningar"; a plain integer, never an org.nr.
     expect(
-      screen.getByText("Du har minst 1 tidigare ansökan till detta företag")
+      screen.getByText("Minst 1 tidigare ansökan till företaget")
     ).toBeInTheDocument();
   });
 
-  it("renders the plural previous-applications badge for count > 1", () => {
+  it("renders the plural previous-applications line for count > 1", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
     expect(
-      screen.getByText("Du har minst 3 tidigare ansökningar till detta företag")
+      screen.getByText("Minst 3 tidigare ansökningar till företaget")
     ).toBeInTheDocument();
   });
 
-  // #824 PR 4 — the count is a FLOOR, not a total: an application whose ad no longer carries the
-  // employer identity is dropped from the attribution, so the badge systematically undercounts. The
-  // card is the compact surface, so the floor marker IS the whole hedge here (the detail view and
-  // /foretag carry the reason). Dropping "minst" turns this null into a hit.
+  // #824 PR 4 — the count is a FLOOR, not a total (ADR 0144 D4 row 9): "Minst" governs the number.
   it("presents the count as a floor — never as a total (#824)", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={3} />);
-    // Anchored regex, not an exact string: the guard must keep failing for the mutation it names even
-    // if the copy later grows a clause (the sibling guard on the detail view was silently vacuous for
-    // exactly that reason — code-reviewer M1).
+    // Anchored on the signed form's own start: with "Minst" removed from the catalogue value the
+    // line reads "3 tidigare ansökningar …" and this matcher finds it.
     expect(
-      screen.queryByText(/^Du har 3 tidigare ansökningar/)
+      screen.queryByText(/^3 tidigare ansökningar/)
     ).toBeNull();
   });
 
-  // The badge is informative text, never a nested link (B1): the whole card is already one <Link>.
-  it("renders the previous-applications badge as plain text, not a nested link", () => {
+  // The counter is informative text, never a link (B1): the title is the card's only link.
+  it("renders the previous-applications line as plain text, not a second link", () => {
     render(<JobAdCard jobAd={baseAd} previousApplicationCount={2} />);
-    // Exactly one link (the row itself) — the badge adds no second anchor.
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });

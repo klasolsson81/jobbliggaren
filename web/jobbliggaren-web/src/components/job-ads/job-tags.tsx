@@ -58,6 +58,18 @@ export interface JobTagsProps {
    * icke-blå semantisk axel (ADR: `--jp-follow`) — relation, inte grad/handling/tid.
    */
   isFollowed?: boolean;
+  /** Lets a card name the tag row in its link's `aria-describedby`. */
+  id?: string;
+}
+
+/** True when `JobTags` renders anything — the card's `aria-describedby` names the row only then. */
+export function hasJobTags({
+  isNew,
+  isSaved = false,
+  isApplied = false,
+  isFollowed = false,
+}: Omit<JobTagsProps, "id">): boolean {
+  return isNew || isFollowed || isSaved || isApplied;
 }
 
 export function JobTags({
@@ -65,15 +77,16 @@ export function JobTags({
   isSaved = false,
   isApplied = false,
   isFollowed = false,
+  id,
 }: JobTagsProps) {
   const t = useTranslations("jobads.ui");
 
-  if (!isNew && !isFollowed && !isSaved && !isApplied) {
+  if (!hasJobTags({ isNew, isSaved, isApplied, isFollowed })) {
     return null;
   }
 
   return (
-    <span className="jp-job-tags">
+    <span id={id} className="jp-job-tags">
       {isNew && (
         <span className="jp-tag jp-tag--accent" data-tag="new">
           {t("tags.new")}

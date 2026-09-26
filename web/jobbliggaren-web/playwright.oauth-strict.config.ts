@@ -8,14 +8,14 @@ import { HARNESS_PORTS } from "./tests/oauth-strict/servers";
 //   pnpm exec playwright test -c playwright.oauth-strict.config.ts
 //
 // It builds and serves the app in production mode against stub servers (tests/oauth-strict/servers.ts),
-// so it needs no stack and reaches no provider.
+// so it needs no stack and reaches no provider. It needs `openssl` on the PATH for its certificate.
 export default defineConfig({
   testDir: "./tests/oauth-strict",
   fullyParallel: false,
   workers: 1,
   retries: 0,
   reporter: "list",
-  use: { baseURL: `http://localhost:${HARNESS_PORTS.proxy}` },
+  use: { baseURL: `https://localhost:${HARNESS_PORTS.proxy}`, ignoreHTTPSErrors: true },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },

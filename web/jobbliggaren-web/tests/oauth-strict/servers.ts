@@ -1,5 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { createServer, request as forward, type IncomingMessage, type Server } from "node:http";
+import { createServer as createTlsServer, type Server as TlsServer } from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 /**
  * The servers around the app for the Strict-cookie measurement (#1744). The browser only ever talks to
@@ -9,10 +14,13 @@ import { createServer, request as forward, type IncomingMessage, type Server } f
  * A browser follows a 3xx without asking Playwright's routes, so the start's redirect to Google cannot
  * be intercepted in the browser. The proxy rewrites it to the stub instead, and refuses any other
  * redirect off the machine.
+ *
+ * The proxy serves https with a throwaway certificate made by `openssl`: WebKit stores no `Secure`
+ * cookie over plain http, not even on localhost, and every cookie measured here is `__Host-`.
  */
 export const HARNESS_PORTS = { proxy: 3106, next: 3107, backend: 3108, idp: 3109 } as const;
 
-export const APP_ORIGIN = `http://localhost:${HARNESS_PORTS.proxy}`;
+export const APP_ORIGIN = `https://localhost:${HARNESS_PORTS.proxy}`;
 export const IDP_ORIGIN = `http://127.0.0.1:${HARNESS_PORTS.idp}`;
 export const AUTHORIZATION_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 export const CALLBACK_PATH = "/api/auth/oauth/google/callback";
@@ -37,15 +45,27 @@ function cookiesOf(request: IncomingMessage): Record<string, string> {
   return jar;
 }
 
-function listen(server: Server, port: number, host?: string): Promise<Server> {
-  return new Promise((resolve) => server.listen(port, host, () => resolve(server)));
+function listen(server: Server | TlsServer, port: number, host?: string): Promise<void> {
+  return new Promise((resolve) => server.listen(port, host, () => resolve()));
 }
 
-function close(server: Server): Promise<void> {
+function close(server: Server | TlsServer): Promise<void> {
   return new Promise((resolve) => {
     server.closeAllConnections();
     server.close(() => resolve());
   });
+}
+
+function localhostCertificate(): { key: Buffer; cert: Buffer } {
+  const dir = mkdtempSync(join(tmpdir(), "oauth-strict-"));
+  const [key, cert] = [join(dir, "key.pem"), join(dir, "cert.pem")];
+  execFileSync(
+    "openssl",
+    ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
+      "-addext", "subjectAltName=DNS:localhost", "-keyout", key, "-out", cert],
+    { stdio: "ignore" }
+  );
+  return { key: readFileSync(key), cert: readFileSync(cert) };
 }
 
 async function bodyOf(request: IncomingMessage): Promise<unknown> {
@@ -154,7 +174,7 @@ export async function startHarness(): Promise<Harness> {
     return target.origin === APP_ORIGIN ? location : REFUSED_EXTERNAL_PATH;
   }
 
-  const proxy = createServer((request, response) => {
+  const proxy = createTlsServer(localhostCertificate(), (request, response) => {
     const path = request.url ?? "/";
     const record = (setCookies: readonly string[]) =>
       requests.push({ path, cookies: cookiesOf(request), referer: request.headers.referer ?? null, setCookies });

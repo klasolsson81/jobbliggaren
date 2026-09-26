@@ -8,7 +8,9 @@ import type { EdgeLogVerdicts } from "@/test/edge-log-pin";
  * is this declared list. Google's OpenID Connect reference (last updated 2026-03-27, read
  * 2026-09-25) documents `code`, `state`, `scope` and `iss` on success and `error` and
  * `error_description` on failure; `authuser`, `prompt` and `hd` are undocumented and have been
- * reported in practice, which is why they are judged here too.
+ * reported in practice, which is why they are judged here too. GitHub's "Troubleshooting
+ * authorization request errors" (read 2026-09-26, #1745) documents `error`, `error_description`,
+ * `error_uri` and `state` on a refused authorization, and `code` and `state` on success.
  */
 export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   code: {
@@ -42,6 +44,10 @@ export const EDGE_LOG_VERDICT: EdgeLogVerdicts = {
   error: {
     verdict: "kept",
     reason: "An OAuth 2.0 error code from the closed set RFC 6749 §4.1.2.1 defines.",
+  },
+  error_uri: {
+    verdict: "kept",
+    reason: "A link to the provider's own documentation of the error, one published URL per error code.",
   },
   authuser: {
     verdict: "kept",

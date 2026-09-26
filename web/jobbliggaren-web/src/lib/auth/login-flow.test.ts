@@ -23,6 +23,9 @@ const code: LoginFlow = {
   sentAt: MINTED_AT,
 };
 
+// What the callback writes when the api answers `codeRequired` (`callback/route.test.ts` pins the write).
+const providerCode: LoginFlow = { ...code, via: "github", linkGrant: "sample-link-grant" };
+
 const raw = (value: unknown): string =>
   Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 
@@ -46,6 +49,11 @@ describe("the login flow cookie value", () => {
     ["outcome, via Google", { phase: "outcome", result: { outcome: "registrationClosed" }, via: "google" }],
     ["notice, Google could not vouch", { phase: "notice", notice: "externalUnverified", provider: "google" }],
     ["notice, Google not completed", { phase: "notice", notice: "externalNotCompleted", provider: "google" }],
+    ["code, via GitHub with its pending link", providerCode],
+    ["code, via GitHub, dead", { ...providerCode, dead: "expired" }],
+    ["outcome, via GitHub", { phase: "outcome", result: { outcome: "accountUnavailable" }, via: "github" }],
+    ["notice, GitHub could not vouch", { phase: "notice", notice: "externalUnverified", provider: "github" }],
+    ["notice, GitHub not completed", { phase: "notice", notice: "externalNotCompleted", provider: "github" }],
   ])("round-trips the %s phase", (_label, flow) => {
     expect(decodeLoginFlow(encodeLoginFlow(flow))).toEqual(flow);
   });
@@ -70,7 +78,13 @@ describe("the login flow cookie value", () => {
     ["an address on a consent phase", raw({ phase: "consent", grantToken: "sample-grant", next: "", email: "anna@example.com" })],
     ["an address on an outcome phase", raw({ phase: "outcome", result: { outcome: "registrationClosed" }, email: "anna@example.com" })],
     ["a date on a closed registration", raw({ phase: "outcome", result: { outcome: "registrationClosed", permanentDeletionDate: "2026-10-19" } })],
-    ["a provider on a code phase", raw({ ...code, via: "google" })],
+    ["a provider on a code phase without its pending link", raw({ ...code, via: "github" })],
+    ["a pending link on a code phase without its provider", raw({ ...code, linkGrant: "sample-link-grant" })],
+    ["an empty pending link", raw({ ...code, via: "github", linkGrant: "" })],
+    ["a pending link longer than a grant", raw({ ...code, via: "github", linkGrant: "x".repeat(65) })],
+    ["a provider spelled in another case", raw({ ...code, via: "GitHub", linkGrant: "sample-link-grant" })],
+    ["a pending link on a consent phase", raw({ phase: "consent", grantToken: "sample-grant", next: "", linkGrant: "sample-link-grant" })],
+    ["a pending link on an outcome phase", raw({ phase: "outcome", result: { outcome: "registrationClosed" }, via: "github", linkGrant: "sample-link-grant" })],
     ["a provider this build cannot start", raw({ phase: "consent", grantToken: "sample-grant", next: "", via: "linkedin" })],
     ["an external notice without its provider", raw({ phase: "notice", notice: "externalNotCompleted" })],
     ["a provider on a notice that names none", raw({ phase: "notice", notice: "codeExpired", provider: "google" })],

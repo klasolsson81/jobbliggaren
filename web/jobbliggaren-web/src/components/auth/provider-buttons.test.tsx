@@ -10,6 +10,9 @@ vi.mock("next/link", () => ({
 }));
 
 const MARK_SRC = "/provider-marks/google-g-light-square-4x.png";
+const GITHUB_MARK_SRC = "/provider-marks/github-invertocat-black.png";
+
+const markOf = (link: HTMLElement): HTMLImageElement | null => link.querySelector("img");
 
 describe("ProviderButtons with Google active", () => {
   it("makes the Google row a link to its start, the rest staying inactive, in reach order", () => {
@@ -64,5 +67,88 @@ describe("ProviderButtons with Google active", () => {
     render(<ProviderButtons active={["google"]} />);
 
     expect(screen.getByRole("link", { name: "Fortsätt med Google" }).closest("form")).toBeNull();
+  });
+});
+
+// `active` is the api's providers list: `RegisteredProviders.Keys`, in `ExternalProviderKey.Known` order
+// (google, github). GitHub is on it once `GitHubIdentityProviderRegistration.AddGitHubIdentityProvider`
+// (#1745 PR 2) registers the adapter; in PR 1 no composition does.
+describe("ProviderButtons with GitHub active", () => {
+  it("makes the GitHub row a link to its start with its own mark, Google and LinkedIn staying inactive", () => {
+    const { container } = render(<ProviderButtons active={["github"]} />);
+
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Fortsätt med GoogleKommer snart",
+      "Fortsätt med LinkedInKommer snart",
+      "Fortsätt med GitHub",
+    ]);
+    const github = screen.getByRole("link", { name: "Fortsätt med GitHub" });
+    expect(github).toHaveAttribute("href", "/api/auth/oauth/github/start");
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    }
+    const marks = container.querySelectorAll("img");
+    expect(marks).toHaveLength(1);
+    expect(markOf(github)).toHaveAttribute("src", GITHUB_MARK_SRC);
+    expect(markOf(github)).toHaveAttribute("alt", "");
+    expect(markOf(github)!.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  // jsdom lays nothing out: the rendered geometry is measured in a browser (DoD 4), and this pins what
+  // the browser is handed.
+  it("fits GitHub's frameless mark whole in the 20x20 slot, where Google's 40x40 overflows it by layout", () => {
+    render(<ProviderButtons active={["google", "github"]} />);
+
+    const google = markOf(screen.getByRole("link", { name: "Fortsätt med Google" }))!;
+    const github = markOf(screen.getByRole("link", { name: "Fortsätt med GitHub" }))!;
+    expect(google).toHaveAttribute("width", "40");
+    expect(google).toHaveAttribute("height", "40");
+    expect(google).toHaveAttribute("class", "absolute -top-2.5 -left-2.5 h-10 w-10 max-w-none");
+    expect(github).toHaveAttribute("width", "20");
+    expect(github).toHaveAttribute("height", "20");
+    expect(github).toHaveAttribute("class", "size-5 object-contain");
+    for (const mark of [google, github]) {
+      expect(mark.parentElement).toHaveAttribute("class", "relative size-5 shrink-0 overflow-hidden");
+    }
+  });
+});
+
+describe("ProviderButtons with Google and GitHub active", () => {
+  it("links each row to its own start, each with its own mark, in the page's order", () => {
+    render(<ProviderButtons active={["google", "github"]} />);
+
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Fortsätt med Google",
+      "Fortsätt med LinkedInKommer snart",
+      "Fortsätt med GitHub",
+    ]);
+    const links = screen.getAllByRole("link");
+    expect(links.map((link) => [link.textContent, link.getAttribute("href"), markOf(link)?.getAttribute("src")])).toEqual([
+      ["Fortsätt med Google", "/api/auth/oauth/google/start", MARK_SRC],
+      ["Fortsätt med GitHub", "/api/auth/oauth/github/start", GITHUB_MARK_SRC],
+    ]);
+  });
+
+  // Declared unreachable: the api lists its keys in `ExternalProviderKey.Known` order, which is the page's
+  // order for the two it knows. Only that the page keeps its own order is asserted.
+  it("keeps the page's order when the api lists the providers in another", () => {
+    render(<ProviderButtons active={["github", "google"]} />);
+
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Fortsätt med Google",
+      "Fortsätt med GitHub",
+    ]);
+  });
+
+  it("describes both rows by the line the page names, and puts neither in a form", () => {
+    render(<ProviderButtons active={["google", "github"]} describedBy="login-persistence" />);
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute("aria-describedby", "login-persistence");
+      expect(link.closest("form")).toBeNull();
+    }
   });
 });

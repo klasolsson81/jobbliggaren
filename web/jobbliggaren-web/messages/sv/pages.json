@@ -578,6 +578,7 @@
         },
         "title": "Ange koden",
         "resting": "Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en kod skriver du in den här. Koden gäller i 15 minuter.",
+        "restingProvider": "Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en kod skriver du in den här. Det är koden som kopplar {provider} till ditt konto. Koden gäller i 15 minuter.",
         "codeLabel": "Sexsiffrig kod",
         "codeHint": "Titta även i skräpposten.",
         "submit": "Bekräfta koden",
@@ -588,6 +589,7 @@
         "expired": "Koden går inte att använda längre. Skicka en ny kod och försök igen.",
         "burned": "Du har skrivit fel kod tre gånger, så koden går inte att använda längre. Innehåller mejlet en inloggningslänk kan du använda den i stället, annars skickar du en ny kod.",
         "youEntered": "Du angav {email}.",
+        "providerAddress": "Adressen i ditt {provider}-konto är {email}.",
         "resend": {
           "button": "Skicka ny kod",
           "sending": "Skickar…",
@@ -632,7 +634,8 @@
       "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida.",
       "external": {
         "providerNames": {
-          "google": "Google"
+          "google": "Google",
+          "github": "GitHub"
         },
         "title": "Logga in med {provider}",
         "continue": "Fortsätt"

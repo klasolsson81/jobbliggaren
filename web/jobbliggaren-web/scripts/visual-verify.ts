@@ -475,7 +475,7 @@ async function shootJobbInteractiveStates(
       .waitFor({ state: "visible", timeout: 5000 });
     // Vänta in description-elementet (parsad markup).
     await page
-      .locator("#jp-modal-desc")
+      .locator(".jp-modal__description")
       .waitFor({ state: "visible", timeout: 5000 });
     await page.waitForTimeout(300);
     await shoot(page, outDir, `jobb-modal-detalj__${theme}__${vpTag}`);

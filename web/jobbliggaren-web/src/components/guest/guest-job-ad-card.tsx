@@ -8,7 +8,8 @@ import type { GuestMockJobAd } from "@/lib/guest/mock-data";
 // `/gast/jobb/[id]` (gäst-tree-isolering — får aldrig länka till
 // `/jobb/[id]` som är auth-gated). Återanvänder `.jp-job`-CSS-chassi
 // (delad med live, HANDOVER §5.3) men utan JobTags-island (mockdata
-// behöver inga NY/färskhet-tags som faller från BE).
+// behöver inga NY/färskhet-tags som faller från BE). Samma husform som
+// JobAdCard (#1828): titeln är länken, overlay över kortet, resten beskrivning.
 
 export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
   // Synchronous next-intl translators + locale-medveten formatter — håller
@@ -19,22 +20,24 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
   const format = useFormatter();
   const publishedAt = formatDate(format, jobAd.publishedAtIso) ?? "";
   const expiresAt = formatDate(format, jobAd.expiresAtIso);
+  const idBase = `guestjob-${jobAd.id}`;
 
   return (
-    <Link
-      href={`/gast/jobb/${jobAd.id}`}
-      className="jp-job"
-      aria-label={tg("jobb.cardAriaLabel", {
-        title: jobAd.title,
-        company: jobAd.companyName,
-      })}
-    >
+    <article className="jp-job">
       <div className="jp-job__body">
         <h3 className="jp-job__title">
-          <span>{jobAd.title}</span>
+          <Link
+            href={`/gast/jobb/${jobAd.id}`}
+            className="jp-job__rowlink"
+            aria-describedby={`${idBase}-company ${idBase}-meta`}
+          >
+            {jobAd.title}
+          </Link>
         </h3>
-        <div className="jp-job__company">{jobAd.companyName}</div>
-        <div className="jp-job__meta">
+        <div id={`${idBase}-company`} className="jp-job__company">
+          {jobAd.companyName}
+        </div>
+        <div id={`${idBase}-meta`} className="jp-job__meta">
           <span>{jobSourceLabel(t, jobAd.source)}</span>
           <span>
             {tg.rich("jobb.cardPublished", {
@@ -52,6 +55,6 @@ export function GuestJobAdCard({ jobAd }: { jobAd: GuestMockJobAd }) {
           )}
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

@@ -236,9 +236,10 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(screen.getByText("Yrke")).toBeInTheDocument();
   });
 
-  // #300 PR-5 (ADR 0084) — Related-match: chip + "därför lägre"-förklaring på
-  // Yrke-raden.
-  it("Related → chip 'Relaterat yrke' + Yrke-raden förklarar VARFÖR lägre (neutral, ingen siffra)", () => {
+  // #300 PR-5 (ADR 0084) — Related-match: chip + Yrke-raden visar annonsens yrkesgrupp
+  // som "Liknande yrke" (#1828: beviset förklarar relationen; produktionen skickar den
+  // relaterade träffen som `Match` med gruppen i `matched`, MatchScorer.ScoreSsykMembership).
+  it("Related → chip 'Relaterat yrke' + Yrke-raden visar annonsens yrkesgrupp som 'Liknande yrke' (ingen siffra)", () => {
     const { container } = render(
       <JobAdMatchSection
         match={detail({
@@ -249,17 +250,13 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     );
     // Chippen visas (neutral kategori).
     expect(screen.getByText("Relaterat yrke")).toBeInTheDocument();
-    // Yrke-raden bär den neutrala "därför lägre"-copyn i stället för den
-    // generiska "Du har:"-bevisformen.
     expect(
-      screen.getByText(
-        "Liknande yrke, inte ett du valt. Därför rankas annonsen under dina exakta träffar."
-      )
+      screen.getByText("Liknande yrke: Systemutvecklare")
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Du har: Systemutvecklare")
+      screen.queryByText("Yrke som matchar: Systemutvecklare")
     ).not.toBeInTheDocument();
-    // Neutral ink (ej röd) + ingen siffra (Goodhart).
+    // Ingen siffra (Goodhart), ingen danger-färg.
     const section = container.querySelector(".jp-modal__matchsection");
     expect(
       container.querySelector(".text-danger-600, .text-danger-700")
@@ -267,7 +264,47 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
     expect(section?.textContent ?? "").not.toMatch(/\d/);
   });
 
-  it("Related-förklaringen visas BARA på Yrke-raden, inte på andra dimensioner", () => {
+  it("Yrke Match (inte relaterat) → 'Yrke som matchar' med annonsens yrkesgrupp", () => {
+    render(<JobAdMatchSection match={detail()} />);
+    expect(
+      screen.getByText("Yrke som matchar: Systemutvecklare")
+    ).toBeInTheDocument();
+  });
+
+  it("utan CV-kompetenser står skälet EN gång, på Kompetenser; Ska-krav och Meriterande bär bara verdiktet", () => {
+    // De tre CV-dimensionerna är obedömda på ett predikat (tom kompetensmängd,
+    // MatchScorer.ScoreConceptCoverage), så produktionen skickar dem tillsammans.
+    const { container } = render(
+      <JobAdMatchSection
+        match={detail({
+          grade: "Good",
+          skillOverlap: row("NotAssessed"),
+          mustHaveCoverage: row("NotAssessed"),
+          niceToHaveCoverage: row("NotAssessed"),
+        })}
+      />
+    );
+    expect(
+      screen.getAllByText("Inga kompetenser valda.")
+    ).toHaveLength(1);
+    const rowFor = (label: string) =>
+      within(container).getByText(label).closest(".jp-modal__matchrow") as HTMLElement;
+    expect(
+      within(rowFor("Kompetenser")).getByText("Inga kompetenser valda.")
+    ).toBeInTheDocument();
+    for (const label of ["Ska-krav", "Meriterande"]) {
+      const evidence = rowFor(label).querySelector(".jp-modal__matchrow-evidence");
+      expect(within(rowFor(label)).getByText("Ej bedömt")).toBeInTheDocument();
+      expect(evidence?.textContent).toBe("");
+    }
+  });
+
+  it("sektionens rubrik och region heter 'Matchning'", () => {
+    render(<JobAdMatchSection match={detail()} />);
+    expect(screen.getByRole("region", { name: "Matchning" })).toBeInTheDocument();
+  });
+
+  it("Related-ramen gäller BARA Yrke-raden, inte andra dimensioner", () => {
     render(
       <JobAdMatchSection
         match={detail({
@@ -277,7 +314,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
         })}
       />
     );
-    // `regionFit`-raden behåller sin generiska bevisform (förklaringen är yrkes-scoped).
+    // `regionFit`-raden behåller sin generiska bevisform (ramen är yrkes-scoped).
     expect(screen.getByText("Du har: Göteborg")).toBeInTheDocument();
   });
 });
@@ -386,7 +423,7 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
       />
     );
     expect(
-      screen.getByText("Din titel skiljer sig från annonsens.")
+      screen.getByText("Din roll skiljer sig från annonsens titel.")
     ).toBeInTheDocument();
     expect(screen.queryByText(/elektrikerstam/)).not.toBeInTheDocument();
   });
@@ -404,20 +441,20 @@ describe("JobAdMatchSection — titel-dimensionen (#5a / STEG 4)", () => {
     ).toBeInTheDocument();
   });
 
-  it("titel (NotAssessed, ingen roll i CV:t) → uppdaterad reason", () => {
+  it("titel (NotAssessed, ingen roll att jämföra) → skäl som inte förutsätter ett CV", () => {
     render(
       <JobAdMatchSection
         match={detail({ titleSimilarity: row("NotAssessed") })}
       />
     );
     expect(
-      screen.getByText("Ingen roll i ditt CV att jämföra.")
+      screen.getByText("Ingen roll att jämföra.")
     ).toBeInTheDocument();
   });
 });
 
 // #1627 — den generiska bevisgrenens missing-halva. `alsoRequested` är en
-// tillbakasyftning på `youHave`-spannet; utan träff syftade den på ingenting.
+// tillbakasyftning på matched-spannet; utan träff syftade den på ingenting.
 // `regionFit` når den bara utan granularitets-karta, som produktionen alltid
 // skickar, och pinnas därför inte här.
 describe("JobAdMatchSection — bevisram utan föregående träff (#1627)", () => {

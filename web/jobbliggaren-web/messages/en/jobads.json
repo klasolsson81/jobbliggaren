@@ -161,17 +161,16 @@
   },
   "ui": {
     "card": {
-      "ariaLabel": "{title} – {company}",
       "published": "Published",
       "publishedToday": "today, at {time}",
       "publishedYesterday": "yesterday, at {time}",
       "publishedOlder": "{date}, at {time}",
       "lastApplication": "Application deadline",
-      "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer"
+      "previousApplications": "At least {count, plural, one {# previous application} other {# previous applications}} to this employer"
     },
     "tags": {
       "new": "New",
-      "newAriaLabel": "New job since your last visit",
+      "newAriaLabel": "since your last visit",
       "saved": "Saved",
       "applied": "Applied",
       "followed": "Following"
@@ -187,12 +186,11 @@
     "detail": {
       "published": "Published",
       "lastApplicationDay": "Application deadline",
-      "adId": "Ad ID",
       "description": "Ad description",
       "openAd": "Open the ad",
       "appliedNotice": "See the application in",
       "appliedNoticeLink": "My applications",
-      "previousApplications": "You have at least {count, plural, one {# previous application} other {# previous applications}} to this employer. The compilation may be incomplete.",
+      "previousApplications": "At least {count, plural, one {# previous application} other {# previous applications}} to this employer.",
       "previousApplicationsLink": "View application history",
       "recruiterNoticeLink": "Are you a contact person in the ad? Read how we process contact details."
     },
@@ -203,7 +201,7 @@
       "phone": "Phone"
     },
     "match": {
-      "heading": "Match against your profile",
+      "heading": "Matching",
       "settingsCta": "Set up matching",
       "uploadCvCta": "Upload CV",
       "noStatedOccupation": "You have not stated which occupations you are looking for.",
@@ -211,7 +209,10 @@
       "youHave": "You have: {items}",
       "alsoRequested": "The ad also asks for: {items}",
       "requested": "The ad asks for: {items}",
-      "relatedYrkeReason": "A similar occupation, not one you picked. That is why the ad ranks below your exact matches.",
+      "ssyk": {
+        "matched": "Occupation that matches: {items}",
+        "related": "Similar occupation: {items}"
+      },
       "ort": {
         "matchedMunicipalities": "Municipality that matches: {items}",
         "matchedRegions": "Region that matches: {items}",
@@ -248,9 +249,8 @@
         "niceToHaveCoverage": "Nice to have"
       },
       "notAssessedReason": {
-        "titleSimilarity": "No role in your CV to compare.",
-        "skills": "No skills could be read from your CV.",
-        "default": "This part could not be assessed."
+        "titleSimilarity": "No role to compare.",
+        "skills": "No skills selected."
       },
       "matchCause": {
         "PreferenceUnstated": {
@@ -286,7 +286,7 @@
       "titleSummary": {
         "Match": "Your role matches the ad's title.",
         "Partial": "Your role partly matches the ad's title.",
-        "NoMatch": "Your title differs from the ad's."
+        "NoMatch": "Your role differs from the ad's title."
       }
     },
     "gradeFilter": {

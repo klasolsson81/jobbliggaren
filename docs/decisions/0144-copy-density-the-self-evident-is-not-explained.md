@@ -331,3 +331,30 @@ parts of its mail. Four elements join Decision 4's set:
 
 Every catalogue row of Decision 4 is pinned whole, sv and en, in
 `web/jobbliggaren-web/src/lib/i18n/legally-bound-copy.test.ts`, so a change to a bound string fails that test.
+
+## Amendment 2026-09-26 — #1828: the card and detail rows as signed, row 10's reading, row 18
+
+`security-auditor` signed #1828's texts in its form round (her report, `docs/reviews/2026-09-25-1828-form-security.md`,
+local-only, with its follow-ups of 2026-09-25 and 2026-09-26):
+
+- Row 9: `jobads.ui.card.previousApplications`, sv "Minst {count, plural, one {# tidigare ansökan} other {# tidigare
+  ansökningar}} till företaget", en "At least {count, plural, one {# previous application} other {# previous
+  applications}} to this employer"; `jobads.ui.detail.previousApplications`, the same with a closing full stop. The
+  detail's second sentence ("Sammanställningen kan vara ofullständig.") is struck: it is not bound, since "minst"
+  reserves the number on its own. Her element set for any later shortening: the floor word governs the number in every
+  ICU branch and in every channel that carries the count (visible text, an `aria-label`, a description, sr-only text, a `title`); what is
+  counted is named as applications; the scope is the employer, in words, in the same text run, never readable as the ad.
+  Where the count reaches an accessible description, the description names the whole counter line, never a fragment.
+- Row 10: `jobads.ui.detail.recruiterNoticeLink` renders on the detail surface with or without contacts, visible
+  without a click, pointing at `/kontaktperson-i-annons`, beside where the contact block stands or would stand. Row 10
+  binds that, not position, size or alignment. A move keeps the link outside `RecruiterContactBlock`, which renders
+  nothing for `[]`; never behind help, an expander or a tooltip; never in or after the modal foot. For both of row 10's
+  keys the line stays at least 13 px, at least 4.5:1 against its surface, and underlined; for the detail key, a test
+  pins that the link renders with and without contacts. #1828 moved it directly after the block, left-aligned, 14 px,
+  in the house link
+  colour.
+- Row 18 (new): `jobads.ui.contact.derived`, the whole tag ("Från annonstexten" / "From the ad text"), visible beside
+  the lead value of every derived contact (#842 CTO rebind R1(b), #842 PR 4; Art. 5(1)(a)/(d)): our extraction is never
+  presented as the advertiser's own statement.
+
+Every catalogue row above is pinned whole, sv and en, in `web/jobbliggaren-web/src/lib/i18n/legally-bound-copy.test.ts`.

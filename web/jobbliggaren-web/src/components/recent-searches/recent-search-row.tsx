@@ -30,7 +30,7 @@ interface RecentSearchRowProps {
 
 // Klas-direktiv 2026-05-20 (anti-AI-trope): INGEN "NY"-pill på raden.
 // Format: "(N) träffar" om newCount === 0, "(N) träffar, varav (M) nya"
-// om newCount > 0. Mono via `.jp-job__meta b`, ink-2 via `.jp-job__meta`.
+// om newCount > 0.
 //
 // Talet hämtas LAT klient-side (B, CTO 2026-06-13) via `useRecentSearchCounts`
 // i listan och skickas in som `count`-prop. Saknas det (laddar/timeout/fel)

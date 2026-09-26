@@ -23,8 +23,8 @@ namespace Jobbliggaren.Api.Endpoints;
 /// </para>
 ///
 /// <para>
-/// <b>#446 counts overlay — POST (a batch of JobAdIds).</b> The /jobb card badge "Du har X tidigare
-/// ansökningar till detta företag" needs a per-JobAdId count for one list page. It is a batch overlay
+/// <b>#446 counts overlay — POST (a batch of JobAdIds).</b> The /jobb card's previous-applications line
+/// needs a per-JobAdId count for one list page. It is a batch overlay
 /// (parity <c>POST /me/job-ad-status</c> / <c>POST /me/job-ad-match-tags</c>): POST because the request
 /// carries a list body, but it is a pure read that persists nothing. The request carries only JobAdIds
 /// (non-PII) and the response only <c>int</c> counts — no org.nr in either direction.

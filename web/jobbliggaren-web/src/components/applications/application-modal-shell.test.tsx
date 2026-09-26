@@ -27,7 +27,7 @@ describe("ApplicationModalShell", () => {
     expect(heading).toHaveTextContent("Backend-utvecklare");
   });
 
-  it("har aria-describedby=jp-modal-desc och referens-id:t finns i DOM (F5 M1, F3-paritet)", () => {
+  it("har aria-describedby=jp-modal-desc och referens-id:t finns i DOM (F5 M1)", () => {
     render(
       <ApplicationModalShell title="Backend-utvecklare" subtitle="Volvo · #abc">
         <div className="jp-modal__body">

@@ -93,9 +93,8 @@
     "searchButton": "Sök",
     "searchHint": "Logga in eller skapa ett konto för att söka.",
     "listTitle": "Exempelannonser",
-    "cardAriaLabel": "{title} – {company}",
     "cardPublished": "Publicerad <b>{date}</b>",
-    "cardApplyBy": "Sista ansökan <b>{date}</b>",
+    "cardApplyBy": "Sista ansökningsdag <b>{date}</b>",
     "fullKicker": "Demoannons",
     "backToList": "Tillbaka till annonserna",
     "meta": {

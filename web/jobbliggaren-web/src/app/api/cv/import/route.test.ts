@@ -43,7 +43,7 @@ function makeRequest(
 ): NextRequest {
   const req = new Request("http://localhost/api/cv/import", {
     method: "POST",
-    headers,
+    headers: { host: "localhost", origin: "http://localhost", ...headers },
     body,
   });
   return req as unknown as NextRequest;
@@ -53,12 +53,96 @@ describe("POST /api/cv/import (binär-passthrough BFF)", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "test");
     withSession("sess-1");
   });
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     cookiesMock.mockReset();
+  });
+
+  it.each([
+    null, "", "null", "http://foreign.test", "http://sibling.localhost",
+    "http://localhost:3000", "https://localhost", "http://localhost/",
+    "http://user@localhost", "http://localhost?x=1", "http://localhost#fragment",
+    "http://localhost,http://foreign.test",
+  ])("refuses Origin %s before reading the session or body or reaching upstream", async (origin) => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    const request = makeRequest({ "content-type": MULTIPART });
+    if (origin === null) request.headers.delete("origin");
+    else request.headers.set("origin", origin);
+    const bodyRead = vi.spyOn(request, "body", "get");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "error" });
+    expect(cookiesMock).not.toHaveBeenCalled();
+    expect(bodyRead).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([null, "", "null", "localhost,foreign.test", "localhost/path", "localhost:65536"])(
+    "refuses invalid Host %s before session or upstream access", async (host) => {
+      const fetchMock = vi.fn();
+      global.fetch = fetchMock;
+      const request = makeRequest({ "content-type": MULTIPART });
+      if (host === null) request.headers.delete("host");
+      else request.headers.set("host", host);
+
+      expect((await POST(request)).status).toBe(403);
+      expect(cookiesMock).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses spoofed forwarded headers in production before reading cookies", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+    const request = makeRequest({
+      host: "app.example.test",
+      origin: "https://sibling.example.test",
+      forwarded: "host=sibling.example.test;proto=https",
+      "x-forwarded-host": "sibling.example.test",
+      "x-forwarded-proto": "https",
+      "content-type": MULTIPART,
+    });
+
+    expect((await POST(request)).status).toBe(403);
+    expect(cookiesMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves an HTTPS same-origin upload behind internal HTTP in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      parsedResumeId: VALID_ID,
+      personnummer: { found: true, count: 1, kinds: ["Full"] },
+      outcome: "LeftPending",
+      resumeId: null,
+      blockReason: "PersonnummerPresent",
+    }), { status: 200 }));
+    global.fetch = fetchMock;
+    const request = makeRequest({
+      host: "app.example.test:443",
+      origin: "https://app.example.test",
+      "content-type": MULTIPART,
+      "x-forwarded-proto": "http",
+    });
+
+    expect((await POST(request)).status).toBe(200);
+    expect(cookiesMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      "http://test-backend/api/v1/resumes/import",
+      expect.objectContaining({
+        body: request.body,
+        headers: expect.objectContaining({ Authorization: "Bearer sess-1", "Content-Type": MULTIPART }),
+      }),
+    );
   });
 
   it("401 utan session — backend nås aldrig", async () => {
@@ -156,7 +240,7 @@ describe("POST /api/cv/import (binär-passthrough BFF)", () => {
     });
     const request = new Request("http://localhost/api/cv/import", {
       method: "POST",
-      headers: { "content-type": MULTIPART },
+      headers: { host: "localhost", origin: "http://localhost", "content-type": MULTIPART },
       body: "cv-bytes",
       signal: client.signal,
     }) as NextRequest;

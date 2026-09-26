@@ -7,9 +7,9 @@ import { changeEmail } from "@/lib/auth/challenge-actions";
 // step. It also changes state, so a button is the honest element in the accessibility tree, and
 // a `<form action>` works without JavaScript.
 //
-// The classes put the delivered auth text-link form (`confirm-account.tsx`) on the `link` variant:
-// the underline always on, never hover-only; `h-auto px-0` so it reads as inline text; and
-// `py-2 -my-2` for a 44 px hit area without a taller visual box.
+// The classes put the form on the `link` variant: the underline always on, never hover-only;
+// `h-auto px-0` so it reads as inline text; and `py-2 -my-2` for a 44 px hit area without a
+// taller visual box.
 export function ChangeEmailButton({ label }: { label: string }) {
   return (
     <form action={changeEmail}>

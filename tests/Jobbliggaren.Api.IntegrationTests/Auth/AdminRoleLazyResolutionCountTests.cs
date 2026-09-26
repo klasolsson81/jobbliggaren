@@ -124,44 +124,16 @@ public sealed class AdminRoleLazyResolutionCountTests : IDisposable
             return inner.GetRolesAsync(userId, ct);
         }
 
-        public Task<Result<Guid>> CreateUserAsync(string email, string password, CancellationToken ct)
-            => inner.CreateUserAsync(email, password, ct);
-
-        public Task<Result> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct)
-            => inner.ChangePasswordAsync(userId, currentPassword, newPassword, ct);
-
-        public Task DeleteUserAsync(Guid userId, CancellationToken ct)
-            => inner.DeleteUserAsync(userId, ct);
-
-        public Task<Result<UserCredentials>> ValidateCredentialsAsync(string email, string password, CancellationToken ct)
-            => inner.ValidateCredentialsAsync(email, password, ct);
-
         public Task<string?> GetEmailAsync(Guid userId, CancellationToken ct)
             => inner.GetEmailAsync(userId, ct);
 
         public Task<AccountSummary?> GetAccountSummaryAsync(Guid userId, CancellationToken ct)
             => inner.GetAccountSummaryAsync(userId, ct);
 
-        public Task<PasswordResetDelivery?> TryPreparePasswordResetAsync(string email, CancellationToken ct)
-            => inner.TryPreparePasswordResetAsync(email, ct);
-
-        public Task<Result> ResetPasswordAsync(
-            Guid userId, string urlSafeToken, string newPassword, CancellationToken ct)
-            => inner.ResetPasswordAsync(userId, urlSafeToken, newPassword, ct);
-
         public Task<Result> CheckAddressIsFreeAsync(Guid userId, string newEmail, CancellationToken ct)
             => inner.CheckAddressIsFreeAsync(userId, newEmail, ct);
 
         public Task<Result> SwapConfirmedAddressAsync(Guid userId, string newEmail, CancellationToken ct)
             => inner.SwapConfirmedAddressAsync(userId, newEmail, ct);
-
-        public Task<Result<string>> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken ct)
-            => inner.GenerateEmailConfirmationTokenAsync(userId, ct);
-
-        public Task<Result> ConfirmEmailAsync(Guid userId, string urlSafeToken, CancellationToken ct)
-            => inner.ConfirmEmailAsync(userId, urlSafeToken, ct);
-
-        public Task<EmailConfirmationResend?> TryPrepareEmailConfirmationResendAsync(string email, CancellationToken ct)
-            => inner.TryPrepareEmailConfirmationResendAsync(email, ct);
     }
 }

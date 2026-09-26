@@ -152,7 +152,7 @@ describe("ApplicationsBoard — layout", () => {
     expect(within(column).getByText("5 dgr")).toBeInTheDocument();
   });
 
-  it("tomma ytor: kolumn/Accepterad/övrig zon har rätt tomtext", () => {
+  it("tomma ytor: kolumn och varje zon, Accepterad inräknad, har rätt tomtext", () => {
     renderBoard(makeGroups({}));
     expect(
       within(screen.getByRole("group", { name: "Skickad" })).getByText(
@@ -161,7 +161,7 @@ describe("ApplicationsBoard — layout", () => {
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Accepterad" })).getByText(
-        "Dra hit när du accepterar",
+        "Tomt",
       ),
     ).toBeInTheDocument();
     expect(

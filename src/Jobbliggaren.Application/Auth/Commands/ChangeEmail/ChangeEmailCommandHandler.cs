@@ -25,7 +25,7 @@ public sealed class ChangeEmailCommandHandler(
     public async ValueTask<Result<EmailChangeChallenge>> Handle(
         ChangeEmailCommand command, CancellationToken cancellationToken)
     {
-        // Self-defending (mirrors ChangePassword / DeleteAccount): Authorization + Reauthentication ran
+        // Self-defending (mirrors DeleteAccount): Authorization + Reauthentication ran
         // before this handler, but we do not take a dependency on pipeline configuration.
         if (!currentUser.UserId.HasValue)
             return Result.Failure<EmailChangeChallenge>(

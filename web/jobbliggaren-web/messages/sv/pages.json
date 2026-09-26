@@ -1,7 +1,7 @@
 {
   "common": {
     "rateLimitedTitle": "För många förfrågningar",
-    "rateLimitedBody": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
+    "rateLimitedBody": "Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}.",
     "errorBodyReload": "Ett tekniskt fel uppstod. Försök ladda om sidan om en stund.",
     "back": "Tillbaka"
   },
@@ -22,26 +22,21 @@
   },
   "ansokningar": {
     "title": "Mina ansökningar",
-    "lede": "Pipeline över alla ansökningar. Klicka på en rad för detaljer.",
     "newApplication": "Ny ansökan",
     "activityReport": "Aktivitetsrapport-hjälp",
     "statistics": "Statistik",
     "loadErrorTitle": "Kunde inte ladda ansökningar",
     "emptyTitle": "Inga ansökningar ännu",
-    "emptyBody": "Så fort du registrerar din första ansökan hamnar den här. Spåra status från utkast till svar utan att tappa en enda ansökan.",
     "emptyCreateFirst": "Skapa första ansökan",
     "emptySearchFirst": "Sök annonser först",
     "new": {
       "title": "Ny ansökan",
-      "lede": "Lägg in jobbet du söker. Du kan komplettera uppgifterna senare.",
       "titleLabel": "Jobbtitel",
       "companyLabel": "Företag",
-      "urlLabel": "Annonslänk",
-      "urlHint": "Frivilligt. Länken måste börja med http:// eller https://.",
-      "expiresAtLabel": "Sista ansökningsdag",
-      "expiresAtHint": "Frivilligt. Datumet visas som påminnelse i ansökningslistan.",
-      "coverLetterLabel": "Personligt brev",
-      "coverLetterHint": "Frivilligt. Du kan lägga till eller redigera det senare.",
+      "urlLabel": "Annonslänk (valfritt)",
+      "urlHint": "Länken måste börja med http:// eller https://.",
+      "expiresAtLabel": "Sista ansökningsdag (valfritt)",
+      "coverLetterLabel": "Personligt brev (valfritt)",
       "submit": "Skapa ansökan",
       "submitting": "Sparar…",
       "cancel": "Avbryt",
@@ -67,12 +62,11 @@
   },
   "cv": {
     "title": "CV",
-    "lede": "Hantera dina CV-varianter. Importera ett befintligt CV för en granskning. Du behåller alltid kontrollen.",
+    "lede": "Importera ett befintligt CV för en granskning.",
     "importCv": "Importera CV",
     "newCv": "Nytt CV",
     "loadErrorTitle": "Kunde inte ladda CV",
     "emptyTitle": "Inga CV ännu",
-    "emptyBody": "Importera ditt första CV för att komma igång. Du kan ha flera varianter (t.ex. en för ledarskap och en för teknisk roll) och välja rätt CV per ansökan.",
     "emptyCreateFirst": "Skapa första CV",
     "backLink": "Tillbaka till CV",
     "listHeading": "Sparade CV",
@@ -80,11 +74,11 @@
       "kicker": "Kräver åtgärd",
       "imported": "Importerad {when}",
       "heading": "Ditt CV är inläst",
-      "body": "Filen är inläst men inte sparad som CV. Öppna granskningen så ser du varför.",
+      "body": "Filen är inte sparad som CV. Granskningen visar varför.",
       "cta": "Öppna granskningen",
       "discard": "Ta bort utkastet",
       "discardTitle": "Ta bort utkastet?",
-      "discardBody": "Utkastet tas bort. Du kan importera ditt CV på nytt när du vill.",
+      "discardBody": "Du kan importera ditt CV på nytt.",
       "discardConfirm": "Ta bort utkastet",
       "discardCancel": "Avbryt",
       "relativeTime": {
@@ -95,8 +89,6 @@
     },
     "import": {
       "title": "Importera CV",
-      "lede": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en deterministisk granskning med citerad evidens. Du behåller kontrollen. Ditt CV ändras inte.",
-      "modalDescription": "Ladda upp ditt befintliga CV som PDF eller Word-fil. Vi tolkar innehållet och visar en granskning. Ditt CV ändras inte.",
       "meta": {
         "title": "Importera CV"
       }
@@ -114,11 +106,11 @@
     "review": {
       "beta": "Beta",
       "title": "Granska importerat CV",
-      "lede": "Det här är en deterministisk granskning av ditt importerade CV. Inget har ändrats i filen. Granskningen pekar bara ut vad du kan förbättra, med citerad evidens ur din egen text. Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
+      "lede": "Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
-      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-listan.",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan.",
       "nextStepTitle": "Nästa steg",
-      "nextStepBody": "Granskningen är endast för läsning och ändrar inget i din fil. För att förbättra ditt CV, uppdatera filen utifrån anmärkningarna och ladda upp den på nytt.",
+      "nextStepBody": "Uppdatera filen utifrån anmärkningarna och ladda upp den på nytt.",
       "nextStepCta": "Ladda upp på nytt",
       "loading": "Läser in granskningen…",
       "blockReason": {
@@ -128,7 +120,7 @@
         "PersonnummerPresent": "Filen innehåller ett personnummer. Ta bort det ur filen och ladda upp den igen.",
         "clearedKicker": "Inga hinder i filen",
         "clearedTitle": "Inget i filen hindrar den",
-        "clearedBody": "Vi hittar inget i filen som stoppar den. Ladda upp den igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
+        "clearedBody": "Ladda upp filen igen så prövas den på nytt. Ett namn du skriver själv kontrolleras först vid uppladdningen."
       },
       "meta": {
         "title": "Granska importerat CV"
@@ -159,9 +151,9 @@
     "granska": {
       "beta": "Beta",
       "title": "Granskning av ditt CV",
-      "lede": "Det här är en deterministisk granskning av ditt sparade CV, med citerad evidens ur din egen text. Inget ändras i ditt CV automatiskt. Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
+      "lede": "Granskningen är ny och byggs vidare. Kriterier kan tillkomma och ändras.",
       "loadErrorTitle": "Kunde inte ladda granskningen",
-      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan eller gå tillbaka till CV-sidan.",
+      "errorBody": "Ett tekniskt fel uppstod. Försök ladda om sidan.",
       "loading": "Läser in granskningen…",
       "meta": {
         "title": "CV-granskning"
@@ -231,7 +223,7 @@
   },
   "jobb": {
     "title": "Sök jobb",
-    "lede": "Sök bland aktiva annonser från Platsbanken. Filtrera och jämför utan att tappa en enda annons.",
+    "lede": "Sök bland aktiva annonser från Platsbanken.",
     "resultsHeading": "Lediga jobb",
     "loading": "Jobbannonsen läses in…",
     "detail": {
@@ -246,7 +238,7 @@
   },
   "sokningar": {
     "title": "Senaste sökningar",
-    "lede": "Sökningar du gjort under Jobb. Klicka för att köra om en sökning, eller ta bort den du inte behöver. Vi sparar dina 20 senaste sökningar, inklusive söktexten du skrev. Du kan läsa mer i integritetspolicyn.",
+    "lede": "Vi sparar dina 20 senaste sökningar, inklusive söktexten du skrev. Du kan läsa mer i integritetspolicyn.",
     "loadErrorTitle": "Kunde inte ladda senaste sökningar",
     "meta": {
       "title": "Senaste sökningar"
@@ -254,7 +246,6 @@
   },
   "sparade": {
     "title": "Sparade annonser",
-    "lede": "Annonser du har sparat för att kunna återvända till. Öppna annonsen för att se detaljer eller ta bort bokmärket.",
     "loadErrorTitle": "Kunde inte ladda sparade annonser",
     "meta": {
       "title": "Sparade annonser"
@@ -272,9 +263,9 @@
     "loading": "Laddar…",
     "sok": {
       "title": "Sök företag",
-      "lede": "Sök i företagsregistret på namn, bransch eller kommun.",
+      "lede": "Sök i företagsregistret.",
       "searchLabel": "Företagsnamn eller organisationsnummer",
-      "searchHint": "Tio siffror söks som organisationsnummer, all annan text som företagsnamn.",
+      "searchHint": "Tio siffror söks som organisationsnummer.",
       "searchSubmit": "Sök företag",
       "filterGroupLabel": "Avgränsa",
       "branschLabel": "Bransch",
@@ -292,7 +283,7 @@
       "ortEmpty": "Ortlistan kunde inte laddas just nu.",
       "ortRightEmpty": "Välj ett län för att se kommuner.",
       "ortRemove": "Ta bort {namn}",
-      "unappliedChanges": "Ändringen i namnfältet tillämpas när du väljer Sök företag.",
+      "unappliedChanges": "Ändringen tillämpas när du väljer Sök företag.",
       "orgNrResultLabel": "Sökning på organisationsnummer",
       "clearButton": "Rensa sökningen",
       "tableAria": "Företag som matchar sökningen",
@@ -304,11 +295,11 @@
       "orgNrNotFoundTitle": "Inget företag med det numret",
       "orgNrNotFoundBody": "Kontrollera numret, eller sök på namn i stället.",
       "orgNrUrlRefusedTitle": "Numret togs bort ur adressen",
-      "orgNrUrlRefusedBody": "Organisationsnummer hamnar aldrig i webbadressen. Sökning på organisationsnummer görs i sökfältet och kräver att JavaScript är påslaget. Du kan söka på företagsnamn som vanligt.",
+      "orgNrUrlRefusedBody": "Organisationsnummer hamnar aldrig i webbadressen. Sökning på organisationsnummer kräver JavaScript. Du kan söka på företagsnamn som vanligt.",
       "orgNrRefusedTitle": "Numret kan inte sökas",
       "orgNrRefusedBody": "Det ser ut som ett personnummer. Enskilda firmor söker du fram via deras annonser.",
       "orgNrRateLimitedTitle": "För många sökningar",
-      "orgNrRateLimitedBody": "Vänta {seconds} sekunder och försök igen.",
+      "orgNrRateLimitedBody": "Vänta {seconds, plural, one {# sekund} other {# sekunder}} och försök igen.",
       "orgNrErrorTitle": "Sökningen kunde inte genomföras",
       "orgNrErrorBody": "Försök igen om en stund.",
       "resultsHeading": "Företag i registret",
@@ -321,7 +312,7 @@
       "seatHelpAria": "Vad är säteskommun?",
       "source": "Källa: SCB, egen bearbetning.",
       "emptyTitle": "Inga företag matchar sökningen",
-      "emptyBody": "Prova ett kortare namn eller färre filter. Du kan också rensa sökningen och visa alla företag.",
+      "emptyBody": "Prova ett kortare namn eller färre filter.",
       "loadErrorTitle": "Sökningen kunde inte läsas in",
       "loadErrorBody": "Försök igen om en stund.",
       "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
@@ -337,19 +328,19 @@
       }
     },
     "watchesHeading": "Bevakade företag",
-    "watchesLede": "Företag du bevakar. Nya annonser från dem visas på Översikt och under Nya annonser.",
+    "watchesLede": "Nya annonser från företagen visas på Översikt och under Nya annonser.",
     "historyHeading": "Ansökningshistorik",
     "historyLede": "Dina ansökningar grupperade per arbetsgivare.",
     "loadErrorTitle": "Kunde inte ladda bevakade företag",
     "historyLoadErrorTitle": "Kunde inte ladda ansökningshistoriken",
     "newAds": {
       "heading": "Nya annonser från bevakade företag",
-      "lede": "Annonser från företag du bevakar, sedan du senast var här.",
+      "lede": "Sedan du senast var här.",
       "loadErrorTitle": "Kunde inte ladda nya annonser",
       "emptyTitle": "Inget nytt just nu",
-      "emptyBody": "Här visas annonser som tillkommit sedan du senast var här. Alla annonser från företagen du bevakar finns kvar under Bevakade företag.",
-      "summary": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök, varav {matching} matchar dig.",
-      "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}} sedan ditt senaste besök.",
+      "emptyBody": "Alla annonser från företagen du bevakar finns kvar under Bevakade företag.",
+      "summary": "{total, plural, one {# ny annons} other {# nya annonser}}, varav {matching} matchar dig.",
+      "summaryNotAssessed": "{total, plural, one {# ny annons} other {# nya annonser}}.",
       "summaryTruncated": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}, varav {matching} matchar dig.",
       "summaryTruncatedNotAssessed": "Visar {shown, plural, one {# ny annons} other {# nya annonser}}.",
       "consumptionNote": "Listan visar det som var nytt när du öppnade sidan.",
@@ -360,7 +351,6 @@
         "matching": "Matchande annonser"
       },
       "matchingEmptyTitle": "Ingen av de nya annonserna matchar din profil",
-      "matchingEmptyBody": "Matchningen utgår från de yrken, orter och kompetenser du angett under Matchning.",
       "matchingEmptyAction": "Visa alla nya annonser",
       "truncated": "Det finns fler nya annonser än de som visas. De visas nästa gång du öppnar sidan.",
       "backToWatches": "Till bevakade företag",
@@ -370,7 +360,7 @@
     },
     "criteria": {
       "heading": "Branschbevakningar",
-      "lede": "En sparad sökning på bransch och kommun. Du bläddrar bland företagen som matchar och kan börja bevaka dem du är intresserad av. En branschbevakning skickar inga egna notiser.",
+      "lede": "En sparad sökning på bransch och kommun. Den skickar inga egna notiser.",
       "newButton": "Ny branschbevakning",
       "listLabel": "Dina branschbevakningar",
       "emptyTitle": "Du har inga branschbevakningar.",
@@ -387,7 +377,7 @@
         "validationFailed": "Något i urvalet stämmer inte. Kontrollera dina val och försök igen.",
         "maxPerUser": "Du kan ha högst 20 bevakningar. Ta bort en bevakning för att skapa en ny.",
         "notFound": "Bevakningen hittades inte. Den kan redan ha tagits bort.",
-        "rateLimited": "För många försök. Vänta {seconds} sekunder och försök igen.",
+        "rateLimited": "För många försök. Vänta {seconds, plural, one {# sekund} other {# sekunder}} och försök igen.",
         "invalidInput": "Välj minst en bransch och en kommun."
       },
       "row": {
@@ -406,18 +396,16 @@
         "deleting": "Tar bort…"
       },
       "sniHeading": "Branscher",
-      "sniHelp": "Välj en eller flera branscher. Du kan välja en hel avdelning, en huvudgrupp eller enskilda koder.",
+      "sniHelp": "Välj en hel avdelning, en huvudgrupp eller enskilda branscher.",
       "sniFilterLabel": "Sök bransch",
-      "sniFilterHint": "Skriv för att smalna av listan över branscher.",
       "sniGroupAria": "Branscher",
       "sniExpandAria": "Visa branscher i {name}",
       "sniCollapseAria": "Dölj branscher i {name}",
       "sniSelectedCount": "{count, plural, one {# vald bransch} other {# valda branscher}}",
       "sniPickedCount": "{count, plural, one {# val} other {# val}}",
       "kommunHeading": "Kommuner",
-      "kommunHelp": "Välj en eller flera kommuner. Du kan välja ett helt län eller enskilda kommuner.",
+      "kommunHelp": "Välj ett helt län eller enskilda kommuner.",
       "kommunFilterLabel": "Sök kommun",
-      "kommunFilterHint": "Skriv för att smalna av listan över kommuner.",
       "kommunGroupAria": "Kommuner",
       "kommunExpandAria": "Visa kommuner i {name}",
       "kommunCollapseAria": "Dölj kommuner i {name}",
@@ -425,10 +413,9 @@
       "dialog": {
         "createTitle": "Ny branschbevakning",
         "editTitle": "Ändra bevakning",
-        "intro": "Välj branscher och kommuner. Vi visar hur många företag i registret som matchar innan du sparar.",
         "optionsUnavailable": "Registret kunde inte laddas. Ladda om sidan.",
         "labelLabel": "Namn på bevakningen (valfritt)",
-        "labelHint": "Ge bevakningen ett eget namn. Annars visas branscher och kommuner. Högst 120 tecken.",
+        "labelHint": "Utan namn visas branscher och kommuner. Högst 120 tecken.",
         "previewIncomplete": "Välj minst en bransch och en kommun för att se hur många företag som matchar.",
         "previewLoading": "Räknar företag…",
         "previewUnavailable": "Antalet företag kan inte visas just nu. Du kan ändå spara bevakningen.",
@@ -445,7 +432,7 @@
         "none": "Inga aktiva annonser från dessa företag just nu.",
         "countUnavailable": "Annonssiffrorna kan inte visas just nu. Ladda om sidan om en stund.",
         "loadErrorTitle": "Kunde inte ladda annonserna",
-        "loadErrorBody": "Ett fel uppstod. Försök igen om en stund.",
+        "loadErrorBody": "Försök igen om en stund.",
         "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
         "source": "Källa: annonserna från Arbetsförmedlingens Platsbanken, urvalet från SCB:s företagsregister. Egen bearbetning.",
         "seatExplainer": "Urvalet utgår från företagets registrerade säteskommun. Annonsens arbetsort kan vara en annan.",
@@ -453,23 +440,21 @@
         "seatHelpBody1": "Annonserna kommer från företag vars registrerade säte enligt SCB ligger i en av bevakningens kommuner.",
         "seatHelpBody2": "Var arbetet utförs framgår av annonsen och behöver inte vara samma kommun som sätet.",
         "seatHelpAria": "Hur är annonserna utvalda?",
-        "emptyTitle": "Inga aktiva annonser just nu.",
-        "emptyBody": "Företagen som matchar din bevakning har inga aktiva annonser. Prova att bredda bevakningens branscher eller kommuner.",
+        "emptyBody": "Prova att bredda bevakningens branscher eller kommuner.",
         "matchingHeadline": "{count, plural, =0 {Inga matchande annonser} one {# matchande annons} other {# matchande annonser}}",
-        "matchingTooBroad": "Bevakningen har fler annonser än vi kan matcha. Därför kan vi inte räkna hur många annonser som matchar dig. Färre branscher eller kommuner ger färre företag.",
+        "matchingTooBroad": "Bevakningen har fler annonser än vi kan matcha. Färre branscher eller kommuner ger färre företag.",
         "showAll": "Visa alla annonser",
-        "matchingEmptyTitle": "Inga annonser matchar dig just nu.",
-        "matchingEmptyBody": "Ingen av bevakningens aktiva annonser når upp till en bra matchning mot din profil. Prova att bredda bevakningen eller se över dina matchningsinställningar.",
+        "matchingEmptyBody": "Prova att bredda bevakningen eller se över dina matchningsinställningar.",
         "matchingTooBroadCta": "Ändra bevakningen",
         "matchingTooBroadOnList": "Bevakningen har fler annonser än vi kan matcha, så alla aktiva annonser visas här i stället för de matchande.",
         "matchingNotAssessedOnList": "Du har inte angett vilka yrken du söker inom, så alla aktiva annonser visas här.",
         "adsNotMaterialised": "Annonssiffrorna för bevakningen är inte framräknade än. De visas här automatiskt när de är klara.",
         "matchingNotMaterialised": "Bevakningen är inte framräknad än, så vi vet inte hur många annonser som matchar dig.",
-        "matchingNotMaterialisedOnList": "Bevakningen är inte framräknad än, så det finns inga annonser att visa här.",
-        "adsTooBroad": "Bevakningen matchar fler företag än vi kan räkna annonser för. Därför visas inte antalet annonser. Färre branscher eller kommuner ger färre företag.",
+        "matchingNotMaterialisedOnList": "Det finns inga annonser att visa här än.",
+        "adsTooBroad": "Bevakningen matchar fler företag än vi kan räkna annonser för. Färre branscher eller kommuner ger färre företag.",
         "adsTooBroadHeadline": "Antalet annonser kan inte räknas",
         "adsNotMaterialisedHeadline": "Annonserna är inte framräknade än",
-        "tooBroadNoList": "Bevakningen matchar fler företag än vi kan räkna annonser för, så det finns ingen lista att visa.",
+        "tooBroadNoList": "Bevakningen matchar fler företag än vi kan räkna annonser för.",
         "adsAndMatchingTooBroad": "Bevakningen matchar fler företag än vi kan räkna annonser för. Därför visas varken antalet annonser eller matchningen mot din profil. Färre branscher eller kommuner ger färre företag.",
         "linkLabelStandalone": "{count} aktiva annonser",
         "noneStandalone": "Inga aktiva annonser just nu.",
@@ -485,7 +470,7 @@
         "magnitudeHeadline": "{count} företag matchar din bevakning",
         "backLink": "Tillbaka till Företag",
         "loadErrorTitle": "Kunde inte ladda företagen",
-        "loadErrorBody": "Ett fel uppstod. Försök igen om en stund.",
+        "loadErrorBody": "Försök igen om en stund.",
         "rateLimited": "För många förfrågningar just nu. Vänta en stund och ladda om sidan.",
         "source": "Källa: SCB, egen bearbetning.",
         "seatExplainer": "Kommunen som visas är företagets registrerade säteskommun, inte nödvändigtvis där verksamheten bedrivs.",
@@ -507,8 +492,7 @@
         "followAria": "Bevaka {company}",
         "followingAria": "Bevakar {company}",
         "cannotFollow": "Kan inte bevakas",
-        "emptyTitle": "Inga företag matchar just nu.",
-        "emptyBody": "Prova att ändra bevakningens branscher eller kommuner för att bredda urvalet."
+        "emptyBody": "Prova att bredda bevakningens branscher eller kommuner."
       }
     },
     "bevakade": {
@@ -542,13 +526,12 @@
   },
   "matchningar": {
     "title": "Mina matchningar",
-    "lede": "Annonser som bakgrundsmatchningen har hittat åt dig, nyast först. Öppna en annons för att läsa hela den.",
     "listLabel": "Dina matchningar",
     "newBadge": "Ny",
     "newBadgeAriaLabel": "Ny matchning sedan ditt senaste besök",
     "matchedAt": "Matchad",
     "emptyTitle": "Du har inga matchningar än",
-    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom. Så snart en annons matchar din profil visas den här.",
+    "emptyBody": "Bakgrundsmatchningen körs varje natt när du har slagit på Matchningsnotiser under Mina sidor (avstängt som standard) och angett vilka yrken du söker inom.",
     "boundedNote": "Visar dina {count} senaste matchningar.",
     "boundedLink": "Hitta fler via matchningsfiltret i jobblistan",
     "loadErrorTitle": "Kunde inte ladda dina matchningar",
@@ -567,124 +550,17 @@
   },
   "auth": {
     "backToStart": "Till startsidan",
-    "showPassword": "Visa lösenord",
-    "hidePassword": "Dölj lösenord",
-    "login": {
-      "title": "Logga in",
-      "emailLabel": "E-postadress",
-      "emailHint": "Formatet är namn@domän.se",
-      "passwordLabel": "Lösenord",
-      "rememberMeLabel": "Håll mig inloggad",
-      "submit": "Logga in",
-      "submitting": "Loggar in…",
-      "noAccount": "Inget konto?",
-      "createAccount": "Skapa konto",
-      "forgotPassword": "Glömt lösenordet?",
-      "meta": {
-        "title": "Logga in"
-      }
-    },
-    "register": {
-      "title": "Skapa konto",
-      "nameLabel": "Namn",
-      "nameHint": "Namnet visas i ditt konto.",
-      "emailLabel": "E-postadress",
-      "emailHint": "Formatet är namn@domän.se",
-      "passwordLabel": "Lösenord",
-      "passwordHint": "Minst 12 tecken.",
-      "termsLabel": "Jag godkänner <terms>användarvillkoren</terms> och <privacy>integritetspolicyn</privacy>.",
-      "termsHint": "Länkarna öppnas i en ny flik.",
-      "submit": "Skapa konto",
-      "submitting": "Skapar konto…",
-      "haveAccount": "Har du redan ett konto?",
-      "logIn": "Logga in",
-      "pendingTitle": "Kontrollera din inkorg",
-      "pendingBody": "Vi har skickat ett mejl till adressen du angav. Följ instruktionerna i mejlet för att fortsätta. Kontrollera skräpposten om du inte ser det inom några minuter.",
-      "meta": {
-        "title": "Skapa konto"
-      }
-    },
-    "actions": {
-      "credentialsRequired": "E-post och lösenord krävs.",
-      "registrationFieldsRequired": "Namn, e-post och lösenord krävs.",
-      "termsRequired": "Du måste godkänna användarvillkoren och integritetspolicyn för att skapa konto.",
-      "loginFailed": "Inloggningen misslyckades. Kontrollera e-post och lösenord.",
-      "unexpectedError": "Ett oväntat fel uppstod. Försök igen.",
-      "serverUnreachable": "Kunde inte nå servern. Försök igen.",
-      "registrationFailed": "Registreringen misslyckades.",
-      "registrationsClosed": "Registreringen är inte öppen ännu. Försök igen senare.",
-      "passwordBreached": "Lösenordet har förekommit i kända dataläckor. Välj ett annat lösenord.",
-      "emailNotConfirmed": "Din e-postadress är inte bekräftad ännu. Kontrollera inkorgen och skräpposten.",
-      "passwordResetEmailRequired": "Skriv in din e-postadress.",
-      "passwordResetFailed": "Det gick inte att skicka någon återställningslänk just nu. Försök igen om en stund.",
-      "emailDeliveryUnavailable": "E-postutskick är inte aktiverat just nu, så vi kan inte skicka någon återställningslänk. Ditt lösenord är oförändrat. Försök igen senare."
-    },
-    "confirmAccount": {
-      "title": "Bekräfta din e-postadress",
-      "intro": "Adressen bekräftas först när du klickar på knappen nedan.",
-      "confirm": "Bekräfta e-postadressen",
-      "pending": "Bekräftar…",
-      "successTitle": "Din e-postadress är bekräftad",
-      "successBody": "Logga in för att komma igång.",
-      "loginLink": "Logga in",
-      "invalidTitle": "Länken går inte att använda",
-      "invalidBody": "Länken är ogiltig eller har gått ut. Registrera dig igen för att få en ny länk.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
-      "meta": {
-        "title": "Bekräfta konto"
-      }
-    },
-    "resendConfirmation": {
-      "button": "Skicka en ny bekräftelselänk",
-      "sending": "Skickar…",
-      "sent": "Om adressen behöver bekräftas har vi skickat en ny länk. Kontrollera inkorgen och skräpposten.",
-      "error": "Det gick inte att skicka just nu. Försök igen om en stund.",
-      "cooldownHint": "Du kan begära en ny länk om {seconds, plural, one {# sekund} other {# sekunder}}."
-    },
-    "forgotPassword": {
-      "title": "Återställ ditt lösenord",
-      "intro": "Skriv in din e-postadress, så skickar vi en länk där du kan välja ett nytt lösenord.",
-      "emailLabel": "E-postadress",
-      "emailHint": "Samma adress som du använde när du skapade kontot.",
-      "submit": "Skicka återställningslänk",
-      "submitting": "Skickar…",
-      "sentTitle": "Kontrollera din inkorg",
-      "sentBody": "Om adressen hör till ett konto har vi skickat en länk dit. Kontrollera skräpposten om du inte ser mejlet inom några minuter. Länken gäller en kort stund, och tiden står i mejlet.",
-      "backToLogin": "Tillbaka till inloggningen",
-      "requestNewLink": "Begär en ny återställningslänk",
-      "meta": {
-        "title": "Återställ lösenord"
-      }
-    },
-    "resetPassword": {
-      "title": "Välj ett nytt lösenord",
-      "intro": "Skriv in ditt nya lösenord. Du loggas ut på alla enheter när det är sparat.",
-      "passwordLabel": "Nytt lösenord",
-      "passwordHint": "Minst 12 tecken.",
-      "submit": "Spara nytt lösenord",
-      "submitting": "Sparar…",
-      "successTitle": "Lösenordet är ändrat",
-      "successBody": "Du är utloggad på alla enheter. Logga in med ditt nya lösenord.",
-      "loginLink": "Logga in",
-      "invalidTitle": "Länken går inte att använda",
-      "invalidBody": "Länken är ogiltig eller har gått ut. Begär en ny återställningslänk och försök igen.",
-      "passwordTooShort": "Lösenordet måste vara minst 12 tecken.",
-      "networkError": "Det gick inte att nå servern. Försök igen om en stund.",
-      "meta": {
-        "title": "Välj nytt lösenord"
-      }
-    },
     "passwordless": {
       "entry": {
         "meta": {
           "title": "Logga in eller skapa konto"
         },
         "title": "Logga in eller skapa konto",
-        "lede": "Du loggar in med en kod som vi skickar till din e-postadress. Du behöver inget lösenord.",
+        "lede": "Du loggar in med en kod som vi skickar till din e-postadress.",
         "emailLabel": "E-postadress",
-        "emailHint": "Formatet är namn@domän.se",
         "privacyHint": "Så behandlar vi din e-postadress: <privacy>integritetspolicyn</privacy>.",
         "emailRequired": "Skriv in din e-postadress.",
+        "emailInvalid": "Skriv e-postadressen i rätt format, till exempel namn@exempel.se.",
         "submit": "Fortsätt",
         "submitting": "Skickar…",
         "providersHeading": "Andra sätt att logga in",
@@ -700,9 +576,9 @@
           "title": "Ange koden"
         },
         "title": "Ange koden",
-        "resting": "Kontrollera inkorgen och skräpposten. Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en sexsiffrig kod skriver du in den här. Koden gäller i 15 minuter.",
+        "resting": "Finns det ett mejl från Jobbliggaren följer du instruktionerna i det. Innehåller mejlet en kod skriver du in den här. Koden gäller i 15 minuter.",
         "codeLabel": "Sexsiffrig kod",
-        "codeHint": "Kommer inget mejl inom några minuter kan du skicka en ny kod, eller byta e-postadress.",
+        "codeHint": "Titta även i skräpposten.",
         "submit": "Bekräfta koden",
         "submitting": "Bekräftar koden…",
         "wrongCode": "Koden stämmer inte. Kontrollera siffrorna och försök igen.",
@@ -714,7 +590,7 @@
         "resend": {
           "button": "Skicka ny kod",
           "sending": "Skickar…",
-          "consequence": "En ny kod ersätter den förra. Skriv in koden från det senaste mejlet.",
+          "consequence": "En ny kod ersätter den förra.",
           "receipt": "Vi har tagit emot din begäran. Kontrollera inkorgen och skräpposten. Skriv in koden från det senaste mejlet.",
           "cooldownHint": "Du kan skicka en ny kod om {seconds, plural, one {# sekund} other {# sekunder}}."
         },
@@ -739,19 +615,19 @@
           "title": "Logga in på Jobbliggaren"
         },
         "title": "Logga in på Jobbliggaren",
-        "body": "Du har öppnat en inloggningslänk från ditt mejl. Länken gäller en gång och i 15 minuter.",
+        "body": "Länken gäller en gång och i 15 minuter.",
         "submit": "Logga in",
         "submitting": "Loggar in…",
         "unusable": "Länken går inte att använda. Begär en ny kod på inloggningssidan.",
         "toLogin": "Till inloggningssidan",
         "alreadyLoggedIn": {
           "title": "Du är redan inloggad",
-          "body": "En inloggning är redan aktiv i den här webbläsaren. Fortsätter du ersätts den av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
+          "body": "Fortsätter du ersätts den aktiva inloggningen av inloggningen som länken gäller, och allt du gör efteråt hamnar på det kontot.",
           "continue": "Fortsätt och logga in",
           "stay": "Stanna kvar som inloggad"
         }
       },
-      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Du kan logga ut när du vill, Logga ut finns på varje inloggad sida.",
+      "persistence": "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida.",
       "outcome": {
         "registrationClosed": {
           "title": "Registreringen är inte öppen ännu.",
@@ -769,11 +645,11 @@
       "notice": {
         "grantUnusable": {
           "title": "Registreringen slutfördes inte",
-          "body": "Det gick inte att slutföra registreringen. Skriv in din e-postadress nedan och börja om."
+          "body": "Skriv in din e-postadress nedan och börja om."
         },
         "codeExpired": {
           "title": "Inloggningen gick ut",
-          "body": "En inloggning gäller i 15 minuter, och den tiden har gått. Skriv in din e-postadress nedan och börja om."
+          "body": "En inloggning gäller i 15 minuter. Skriv in din e-postadress nedan och börja om."
         },
         "accountDeleted": {
           "title": "Ditt konto är raderat",

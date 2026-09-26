@@ -21,7 +21,7 @@
     "step1": "Hitta jobbet.",
     "step2": "Sök jobbet.",
     "step3": "Följ upp ansökan.",
-    "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan, från utkast till svar. Allt på ett ställe.",
+    "ledgerLede": "Sök bland alla aktiva annonser från Platsbanken, få ditt CV granskat och håll koll på varje ansökan. Allt på ett ställe.",
     "source": "Byggd på öppen data från Arbetsförmedlingen och SCB"
   },
   "account": {
@@ -45,7 +45,7 @@
     },
     "applications": {
       "key": "Ansökningar",
-      "body": "Spåra varje ansökan från utkast till svar: intervjuer, erbjudanden och avslag. Inget tappas mellan stolarna."
+      "body": "Spåra varje ansökan från utkast till svar: intervjuer, erbjudanden och avslag."
     },
     "cvReview": {
       "key": "CV-granskning",

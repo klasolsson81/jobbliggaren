@@ -13,10 +13,7 @@ export function LogoutCard() {
   return (
     <section className="jp-card">
       <h2 className="jp-card__title">{t("logout.title")}</h2>
-      <p className="text-body-sm text-text-primary">
-        {t("logout.description")}
-      </p>
-      <form action={logoutAction} className="mt-3">
+      <form action={logoutAction}>
         <button type="submit" className="jp-btn jp-btn--secondary">
           <LogOut size={16} aria-hidden="true" />
           <span>{t("logout.action")}</span>

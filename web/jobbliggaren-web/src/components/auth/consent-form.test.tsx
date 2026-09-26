@@ -56,6 +56,9 @@ describe("ConsentForm", () => {
     expect(primary.previousElementSibling).toHaveTextContent(
       /Du förblir inloggad på den här enheten i upp till 180 dagar/
     );
+    expect(primary).toHaveAccessibleDescription(
+      "Du förblir inloggad på den här enheten i upp till 180 dagar. Logga ut finns på varje inloggad sida."
+    );
   });
 
   it("walks away through the action that clears the grant: a link would leave it on the device", async () => {
@@ -105,6 +108,23 @@ describe("ConsentForm", () => {
     const posted = completeRegistrationMock.mock.lastCall![1];
     expect(posted.get("acceptTerms")).toBe("on");
     expect([...posted.keys()]).toEqual(["acceptTerms"]);
+  });
+
+  it("describes the checkbox by the new-tab hint, and keeps the hint first when the refusal is added", async () => {
+    completeRegistrationMock.mockResolvedValue({
+      error: "Du behöver godkänna användarvillkoren för att skapa kontot.",
+      channel: "field",
+    });
+    const user = userEvent.setup();
+    render(<ConsentForm />);
+    const box = screen.getByRole("checkbox", { name: TERMS });
+    const [hintId] = (box.getAttribute("aria-describedby") ?? "").split(" ");
+    expect(document.getElementById(hintId!)).toHaveTextContent("Länkarna öppnas i en ny flik.");
+
+    await user.click(screen.getByRole("button", { name: "Skapa konto" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(box.getAttribute("aria-describedby")!.split(" ")).toEqual([hintId, alert.id]);
   });
 
   it("lets the ACTION refuse an unticked box, as an alert on the checkbox with focus moved to it", async () => {

@@ -136,10 +136,11 @@ describe("CriteriaCard — one watch", () => {
     expect(within(card()).queryByRole("link", { name: "Ändra bevakningen" })).toBeNull();
   });
 
-  it("not assessed: the nudge to match settings, the ads link kept, no number", () => {
+  it("not assessed: no nudge to match settings, the ads link kept, no number", () => {
     render(<CriteriaCard criteria={ok([criterion({ matching: MATCH_NOT_ASSESSED })])} reference={REFERENCE} />);
     expect(card().querySelector<HTMLElement>(".jp-ov-num")).toBeNull();
-    expect(within(card()).getByRole("link", { name: "Ställ in matchning" })).toBeInTheDocument();
+    expect(within(card()).queryByRole("link", { name: "Ställ in matchning" })).toBeNull();
+    expect(within(card()).queryByText(/vilka yrken du söker inom/)).toBeNull();
     expect(within(card()).getByRole("link", { name: "42 aktiva annonser" })).toBeInTheDocument();
   });
 
@@ -227,6 +228,18 @@ describe("CriteriaCard — two or more watches", () => {
     expect(within(card()).getByText(COPY.criteriaSummary.matchingTooBroadAdvice, { exact: false })).toBeInTheDocument();
     expect(within(card()).queryByText(COPY.criteriaSummary.adsTooBroadAdvice, { exact: false })).toBeNull();
     expect(within(card()).getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute("href", "/foretag/branschbevakningar");
+  });
+
+  it("not assessed: no row carries the nudge to match settings", () => {
+    render(
+      <CriteriaCard
+        criteria={ok([criterion({ id: "a", matching: MATCH_NOT_ASSESSED }), criterion({ id: "b", matching: MATCH_NOT_ASSESSED })])}
+        reference={REFERENCE}
+      />,
+    );
+    expect(within(card()).getAllByRole("link", { name: "42 aktiva annonser" })).toHaveLength(2);
+    expect(within(card()).queryByRole("link", { name: "Ställ in matchning" })).toBeNull();
+    expect(within(card()).queryByText(/vilka yrken du söker inom/)).toBeNull();
   });
 
   it("criteriaCardIsWide is the one expression the page reads for the siblings' spans", () => {

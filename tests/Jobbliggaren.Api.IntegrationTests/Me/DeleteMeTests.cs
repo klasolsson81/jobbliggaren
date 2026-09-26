@@ -157,8 +157,8 @@ public class DeleteMeTests(ApiFactory factory)
         // ADR 0142 D3 + GDPR Art. 32 oracle-avoidance på delete-vägen: en okänd grant, en förbrukad, en annan
         // användares (fel bindning) och dess ägares därefter (bränd av den främmande inlösningen) renderar EN
         // 401 — annars vore inlösningsstatus ett orakel om vems grant som visats var. Varje premiss produceras
-        // av produktionen: den förbrukade spenderades av /auth/change-password (behavioren löser in före
-        // handlern, som sedan vägrar ett lösenordslöst konto), den främmande mintades av sin egen session.
+        // av produktionen: den förbrukade spenderades av /auth/change-email (behavioren löser in före
+        // handlern, som sedan vägrar kontots egen adress), den främmande mintades av sin egen session.
         // Varje konto träffar /me/delete EN gång (AccountDeletion-limit=1/user).
 
         // Konto A — en grant ingen mintade.
@@ -170,17 +170,17 @@ public class DeleteMeTests(ApiFactory factory)
         var emailB = NewAddress("parity-spent");
         var sessionB = await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, emailB, ct: Ct);
         var grantB = await MintGrantAsync(sessionB, emailB);
-        using (var spend = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-password")
+        using (var spend = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/change-email")
         {
-            Content = JsonContent.Create(new { reauthGrant = grantB, currentPassword = "x", newPassword = new string('a', 12) }),
+            Content = JsonContent.Create(new { reauthGrant = grantB, newEmail = emailB }),
         })
         {
             spend.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sessionB);
             var spent = await _client.SendAsync(spend, Ct);
-            // The grant redeemed (no 401); Identity then refused the passwordless account's current password.
-            spent.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            // The grant redeemed (no 401); the handler then refused the account's own address as taken.
+            spent.StatusCode.ShouldBe(HttpStatusCode.Conflict);
             JsonDocument.Parse(await spent.Content.ReadAsStringAsync(Ct)).RootElement
-                .GetProperty("title").GetString().ShouldBe("Auth.PasswordMismatch");
+                .GetProperty("title").GetString().ShouldBe("Auth.EmailTaken");
         }
         var replayed = await PostDeleteAsync(sessionB, grantB);
 
@@ -204,7 +204,7 @@ public class DeleteMeTests(ApiFactory factory)
         // Hard pin: den centrala 401:an renderar Auth.InvalidCredentials, aldrig ett grant-specifikt skäl.
         var json = JsonDocument.Parse(body).RootElement;
         json.GetProperty("title").GetString().ShouldBe("Auth.InvalidCredentials");
-        json.GetProperty("detail").GetString().ShouldBe("E-post eller lösenord är felaktigt.");
+        json.GetProperty("detail").GetString().ShouldBe("Det gick inte att bekräfta att det är du.");
 
         // Inget konto raderades, och D:s konto lever trots att en riktig grant fanns för det.
         foreach (var email in new[] { emailA, emailB, emailC, emailD })

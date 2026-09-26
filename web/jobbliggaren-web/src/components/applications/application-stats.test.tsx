@@ -124,7 +124,7 @@ describe("ApplicationStats", () => {
     );
 
     // No sent applications → outcome rates show a neutral message, funnel hidden.
-    expect(screen.getByText(/inga skickade ansökningar ännu/i)).toBeInTheDocument();
+    expect(screen.getByText(/Utfall visas när du skickat minst en ansökan/)).toBeInTheDocument();
     // "Svar" is funnel-only (no status label uses it) → its absence proves the
     // funnel section is not rendered. (Erbjudande/Skickad would be ambiguous —
     // the status breakdown still lists them.)

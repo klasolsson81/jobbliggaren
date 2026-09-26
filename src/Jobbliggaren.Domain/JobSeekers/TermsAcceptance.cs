@@ -31,10 +31,10 @@ namespace Jobbliggaren.Domain.JobSeekers;
 public sealed record TermsAcceptance
 {
     /// <summary>The "Senast uppdaterad" date of the published terms (<c>terms.updated</c>).</summary>
-    public const string CurrentTermsVersion = "2026-06-28";
+    public const string CurrentTermsVersion = "2026-09-25";
 
     /// <summary>The "Senast uppdaterad" date of the published privacy policy (<c>privacy.updated</c>).</summary>
-    public const string CurrentPrivacyPolicyVersion = "2026-09-23";
+    public const string CurrentPrivacyPolicyVersion = "2026-09-26";
 
     public DateTimeOffset AcceptedAt { get; }
     public string TermsVersion { get; }

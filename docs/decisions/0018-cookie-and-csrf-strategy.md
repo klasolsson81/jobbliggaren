@@ -194,8 +194,7 @@ reversed there on 2026-09-17).
    The "Håll mig inloggad" checkbox is removed; the `Session` profile becomes dead and is retired
    in a later PR; `Legacy` is untouched. The branch table above therefore describes the state
    between 2026-07-05 and the merge of #1732 part 2, and the `Max-Age` row reads **180 days** from
-   that merge. The disclosure moves to the two steps that create a session (`/logga-in/kod` and
-   `/logga-in/villkor`), and the cookie-policy copy lands in the same PR as
+   that merge. The disclosure moves to the steps that create a session, and the cookie-policy copy lands in the same PR as
    `setSessionCookie(id, true)`.
 2. **The legal basis is written.** The two pointers in the 2026-07-05 amendment cited "ADR 0093"
    for the GDPR/ePrivacy analysis; 0093 is the CV-motor v2 ADR and the analysis existed nowhere

@@ -31,9 +31,9 @@ export default function Loading() {
         {t("navLoading.oversikt")}
       </span>
 
-      {/* The title and lede are the page's own static translations, rendered for real so they
-          wrap as the loaded page does (#1385). */}
-      <PageHeroSkeleton aside={null} title={tOversikt("hero.title")} lede={tOversikt("hero.lede")} />
+      {/* The title is the page's own static translation, rendered for real so it
+          wraps as the loaded page does (#1385). */}
+      <PageHeroSkeleton aside={null} title={tOversikt("hero.title")} lede={null} />
 
       <div className="jp-container jp-page" aria-hidden="true">
         {/* Toolbar: the time-only stamp + refresh on the left, the single gear on the right. */}

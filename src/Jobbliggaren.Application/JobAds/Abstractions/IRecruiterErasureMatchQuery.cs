@@ -238,8 +238,8 @@ public interface IRecruiterErasureMatchQuery
         string identifier, CancellationToken cancellationToken);
 
     /// <summary>
-    /// How many job-seeker PROFILE rows carry <paramref name="identifier"/> — in the plaintext
-    /// <c>display_name</c>, in the <c>match_preferences</c> jsonb, or in the <c>preferences</c>
+    /// How many job-seeker PROFILE rows carry <paramref name="identifier"/> — in the
+    /// <c>match_preferences</c> jsonb, or in the <c>preferences</c>
     /// container (whose <c>Language</c> property the model reports as a second key over the same
     /// bytes). <b>Counted and REPORTED; a human erases it, with the account holder in the loop.</b>
     /// </summary>
@@ -248,13 +248,6 @@ public interface IRecruiterErasureMatchQuery
     /// of <c>^[A-Za-z0-9_-]{1,32}</c> tokens with no taxonomy lookup on any path; and
     /// <c>Language</c> has no server-side validation at all. So the two jsonb arms walk VALUES and
     /// compare every WRITTEN form, for the same two reasons as the watch filter above.
-    /// <para>
-    /// This surface WILL match on a shared name: a user who merely happens to be called what the
-    /// requester is called is counted, because a display name IS that user's own name. The count
-    /// names nobody, and a human resolves it — but the reply must never be written as though a match
-    /// here were a finding about her, which is why this surface has its OWN reply template (B5) and
-    /// is deliberately NOT a trigger for B2.
-    /// </para>
     /// </remarks>
     Task<int> CountJobSeekerProfilesAsync(
         string identifier, CancellationToken cancellationToken);

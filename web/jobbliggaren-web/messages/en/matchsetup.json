@@ -30,31 +30,29 @@
   },
   "counter": {
     "label": "MATCHING NOW",
-    "unit": "ads in Platsbanken. Updates when you change your choices."
+    "unit": "ads in Platsbanken."
   },
   "stepcounter": "STEP {step} OF 6",
   "stepcounterDone": "DONE",
   "start": {
     "title": "Welcome to Jobbliggaren",
-    "intro": "Set up your matching and we will show jobs that suit you. It takes about a minute and you can change everything later.",
+    "intro": "Set up your matching and we will show jobs that suit you. It takes about a minute.",
     "pitchTitle": "We match Platsbanken ads against your profile",
-    "pitchBody": "Tell us what you are looking for: occupations, skills and where you want to work. We highlight ads that suit you and count new matches every day.",
     "uploadTitle": "Upload your CV and we will fill in suggestions for you",
-    "uploadBody": "PDF or Word (DOCX), max 10 MB. We suggest occupations and skills from the content. Your CV is not changed.",
-    "noCv": "No CV to hand? <b>Continue without a CV</b> and choose everything yourself.",
+    "uploadBody": "Max 10 MB.",
+    "noCv": "<b>Continue without a CV</b>",
     "cvDoneTitle": "CV read: {filename}",
     "cvSavedTitle": "CV saved: {filename}",
-    "cvDoneBody": "We have filled in suggested occupations and skills in the steps. The suggestions are not saved to your CV."
+    "cvDoneBody": "We have filled in suggested occupations and skills in the steps."
   },
   "yrken": {
-    "intro": "Choose the occupations you are looking for. We suggest based on your CV, but you decide what is included.",
-    "introNoCv": "Choose the occupations you are looking for. Search below and add the ones that suit you.",
+    "intro": "Choose the occupations you are looking for. The suggestions come from your CV.",
+    "introNoCv": "Choose the occupations you are looking for.",
     "selected": "SELECTED OCCUPATIONS ({count})",
-    "empty": "<b>No occupations selected yet.</b> Choose from the suggestions or search below.",
-    "emptyNoCv": "<b>No occupations selected yet.</b> Search for an occupation below to add it."
+    "empty": "<b>No occupations selected yet.</b>"
   },
   "komp": {
-    "intro": "The suggestions come from your CV. Remove what does not fit and add what is missing.",
+    "intro": "The suggestions come from your CV.",
     "introNoCv": "Add the skills you want to match on. Fewer but more accurate skills give better matching than many broad ones.",
     "selected": "SELECTED SKILLS ({count})",
     "clear": "Clear all",
@@ -62,18 +60,17 @@
     "restore": "Restore suggestions"
   },
   "orter": {
-    "intro": "Choose the counties or municipalities where you want to work, or tick Remote. Leave everything empty for the whole country.",
+    "intro": "Choose the counties or municipalities where you want to work, or tick Remote.",
     "distans": "Remote",
     "selected": "SELECTED LOCATIONS ({count})",
     "empty": "<b>No locations selected.</b> We match across the whole country."
   },
   "former": {
-    "intro": "Choose the employment types you are open to. Leave empty for all.",
+    "intro": "Choose the employment types you are open to.",
     "note": "<b>Most ads are under Regular employment.</b> Leave empty to match all."
   },
   "granska": {
     "title": "Review and save",
-    "intro": "Check your choices. You can change each part from here.",
     "edit": "Change",
     "captionYrken": "OCCUPATIONS",
     "captionKompetenser": "SKILLS",

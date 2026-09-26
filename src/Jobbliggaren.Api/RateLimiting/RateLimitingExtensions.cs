@@ -101,9 +101,8 @@ public static partial class RateLimitingExtensions
                     });
             });
 
-            // Partition: IP (Connection.RemoteIpAddress). Bromsar credential-stuffing
-            // och registration-spam. Vid prod bakom ALB krävs UseForwardedHeaders så
-            // klient-IP plockas från X-Forwarded-For (TD-21 / Sec-Major-1) — annars
+            // Partition: IP (Connection.RemoteIpAddress). Bromsar registration-spam. Vid prod bakom ALB
+            // krävs UseForwardedHeaders så klient-IP plockas från X-Forwarded-For (TD-21 / Sec-Major-1) — annars
             // hamnar alla i samma proxy-IP-bucket och rate-limit blir effektivt no-op.
             options.AddPolicy(AuthWritePolicy, ctx =>
             {
@@ -118,7 +117,7 @@ public static partial class RateLimitingExtensions
             });
 
             // Partition: IP. Mer permissiv än AuthWrite eftersom logout är idempotent
-            // och inte öppnar abuse-vektor på samma sätt som login/register.
+            // och inte öppnar abuse-vektor.
             options.AddPolicy(AuthLoosePolicy, ctx =>
             {
                 var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "anonymous";

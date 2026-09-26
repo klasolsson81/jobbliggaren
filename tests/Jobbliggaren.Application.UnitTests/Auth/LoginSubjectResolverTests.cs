@@ -1,3 +1,4 @@
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.UnitTests.Common;
@@ -25,7 +26,7 @@ public sealed class LoginSubjectResolverTests
         lookup.FindAccountAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(accountUserId is { } id ? new LoginAccount(id, StoredEmail) : null);
         var db = TestAppDbContextFactory.Create();
-        return (new LoginSubjectResolver(lookup, db), db);
+        return (new LoginSubjectResolver(lookup, Substitute.For<IExternalLoginLookup>(), db), db);
     }
 
     private static JobSeeker Profile(Guid userId) =>

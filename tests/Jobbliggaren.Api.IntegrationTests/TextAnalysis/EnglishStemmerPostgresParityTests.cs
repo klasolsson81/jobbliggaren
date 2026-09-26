@@ -1,8 +1,8 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions.TextAnalysis;
 using Jobbliggaren.Infrastructure.TextAnalysis;
 using Npgsql;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 
@@ -22,30 +22,31 @@ namespace Jobbliggaren.Api.IntegrationTests.TextAnalysis;
 //   3. english.stop must ship as an <EmbeddedResource> in the Infrastructure assembly
 //      (parity swedish.stop) and be byte-identical to PG 18.3's built-in list.
 //
-// Self-contained fixture (own PostgreSqlContainer, IAsyncLifetime) — mirrors the Swedish
+// Shares the run's Postgres (SharedPostgresFixture: the oracle is the server's own
+// text-search configuration, so it needs no schema and no database of its own) — mirrors the Swedish
 // gate exactly. WORD-token parity only (URL/email/number parser token-classes out of
 // scope, CLAUDE.md §5).
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class EnglishStemmerPostgresParityTests : IAsyncLifetime
 {
     private const string PgStopwordPath =
         "/usr/share/postgresql/18/tsearch_data/english.stop";
 
-    private readonly PostgreSqlContainer _postgres =
-        new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
 
     private NpgsqlConnection _conn = default!;
 
+    public EnglishStemmerPostgresParityTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
-        _conn = new NpgsqlConnection(_postgres.GetConnectionString());
+        _conn = new NpgsqlConnection(_postgres.AdminConnectionString);
         await _conn.OpenAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _conn.DisposeAsync();
-        await _postgres.DisposeAsync();
         GC.SuppressFinalize(this);
     }
 

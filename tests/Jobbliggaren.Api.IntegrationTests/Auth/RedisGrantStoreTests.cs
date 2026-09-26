@@ -1,15 +1,17 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Common.Validation;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Grants;
+using Jobbliggaren.TestSupport;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 
 namespace Jobbliggaren.Api.IntegrationTests.Auth;
 
@@ -19,9 +21,9 @@ namespace Jobbliggaren.Api.IntegrationTests.Auth;
 /// production registers, on the deploy stack's own <c>redis-volatile</c>. The lifetime is spelled out as a
 /// literal 10, so a change to the policy constant makes this go red.
 /// </summary>
-public sealed class RedisGrantStoreTests : IAsyncLifetime
+public sealed class RedisGrantStoreTests : IAsyncLifetime, IClassFixture<SharedVolatileRedisFixture>
 {
-    private readonly RedisContainer _redis = VolatileRedisContainer.FromDeployCompose();
+    private readonly SharedVolatileRedisFixture _redis;
     private readonly EphemeralDataProtectionProvider _keyring = new();
 
     // The test's OWN reader, beside the connection the store is given.
@@ -29,10 +31,12 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
     private VolatileRedisConnection _connection = null!;
     private RedisGrantStore _store = null!;
 
+    public RedisGrantStoreTests(SharedVolatileRedisFixture redis) => _redis = redis;
+
     public async ValueTask InitializeAsync()
     {
-        await _redis.StartAsync();
-        var connectionString = $"{VolatileRedisContainer.OperatorConnectionString(_redis)},connectTimeout=1000,syncTimeout=1000";
+        await _redis.FlushAsync();
+        var connectionString = $"{_redis.ConnectionString},connectTimeout=1000,syncTimeout=1000";
         _mux = (ConnectionMultiplexer)await ConnectionMultiplexer.ConnectAsync(connectionString);
         _connection = new VolatileRedisConnection(connectionString);
         _store = Store(_keyring);
@@ -43,7 +47,6 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         _connection.Dispose();
         await _mux.CloseAsync();
         _mux.Dispose();
-        await VolatileRedisContainer.DisposeAsync(_redis);
     }
 
     private RedisGrantStore Store(IDataProtectionProvider keyring) =>
@@ -238,18 +241,25 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
             forAnotherUser, GrantAssertion.Of(new GrantSubject.ChangeEmail(Guid.NewGuid(), "visad@example.se")), Ct)).ShouldBeNull();
     }
 
-    public static TheoryData<GrantSubject> OneSubjectPerPurpose() =>
-    [
-        new GrantSubject.LoginComplete("ttl@example.se"),
-        new GrantSubject.Reauthentication(Guid.NewGuid()),
-        new GrantSubject.ChangeEmail(Guid.NewGuid(), "ttl@example.se"),
-    ];
+    // Derived from the enum, so a purpose added without a row here fails loud instead of dropping out (#1744,
+    // test-writer Major 10).
+    public static TheoryData<GrantPurpose> EveryPurpose() => new(Enum.GetValues<GrantPurpose>());
+
+    private static GrantSubject SubjectFor(GrantPurpose purpose, string email = "ttl@example.se") => purpose switch
+    {
+        GrantPurpose.LoginComplete => new GrantSubject.LoginComplete(email),
+        GrantPurpose.Reauthentication => new GrantSubject.Reauthentication(Guid.NewGuid()),
+        GrantPurpose.ChangeEmail => new GrantSubject.ChangeEmail(Guid.NewGuid(), email),
+        GrantPurpose.LoginCompleteExternal => new GrantSubject.LoginCompleteExternal(
+            Verified(email), ExternalProviderKey.Google, ExternalSubject.TryCreate("110248495921238986420")!.Value),
+        _ => throw new InvalidOperationException($"No subject row for grant purpose {purpose}."),
+    };
 
     [Theory]
-    [MemberData(nameof(OneSubjectPerPurpose))]
-    public async Task Every_purpose_lives_the_same_ten_minutes(GrantSubject subject)
+    [MemberData(nameof(EveryPurpose))]
+    public async Task Every_purpose_lives_the_same_ten_minutes(GrantPurpose purpose)
     {
-        var token = await _store.IssueAsync(subject, Ct);
+        var token = await _store.IssueAsync(SubjectFor(purpose), Ct);
 
         var ttl = await _mux.GetDatabase().KeyTimeToLiveAsync(RedisGrantStore.Key(token));
 
@@ -296,26 +306,50 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         // The ceiling is one constant for every payload — the longest address a validator admits, every
         // character escaped — so a 256-character address and a re-authentication grant with none protect to
         // one length. The DataProtector adds a fixed envelope, so the protected lengths compare directly.
-        var longest = $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se";
-        longest.Length.ShouldBe(EmailAddressRules.MaximumLength);
-        GrantSubject[] subjects =
-        [
-            new GrantSubject.LoginComplete("a@b.se"),
-            new GrantSubject.LoginComplete(longest),
-            new GrantSubject.Reauthentication(Guid.NewGuid()),
-            new GrantSubject.ChangeEmail(Guid.NewGuid(), "a@b.se"),
-            new GrantSubject.ChangeEmail(Guid.NewGuid(), longest),
-        ];
         var db = _mux.GetDatabase();
 
         var lengths = new List<long>();
-        foreach (var subject in subjects)
+        foreach (var subject in Enum.GetValues<GrantPurpose>().SelectMany(ShortestAndLongestFor))
         {
             var token = await _store.IssueAsync(subject, Ct);
             lengths.Add(await db.StringLengthAsync(RedisGrantStore.Key(token)));
         }
 
         lengths.Distinct().ShouldHaveSingleItem();
+    }
+
+    // Every purpose at both ends of its fields, derived from the enum like SubjectFor.
+    private static GrantSubject[] ShortestAndLongestFor(GrantPurpose purpose)
+    {
+        var longest = $"{new string('a', EmailAddressRules.MaximumLength - "@example.se".Length)}@example.se";
+        longest.Length.ShouldBe(EmailAddressRules.MaximumLength);
+        // #1744: the external purpose at both ends too — the longest address with the longest subject OIDC allows.
+        var longestSubject = ExternalSubject.TryCreate(new string('7', ExternalSubject.MaximumLength))!.Value;
+        var shortSubject = ExternalSubject.TryCreate("1")!.Value;
+        // Both external fields at their bound in a character the encoder writes as six bytes, admitted by the
+        // factories production builds them with.
+        var escapedAddress = Verified(
+            $"{new string('\"', EmailAddressRules.MaximumLength - 128)}@{new string('\"', 127)}");
+        var escapedSubject = ExternalSubject.TryCreate(new string('\"', ExternalSubject.MaximumLength))!.Value;
+
+        return purpose switch
+        {
+            GrantPurpose.LoginComplete =>
+                [new GrantSubject.LoginComplete("a@b.se"), new GrantSubject.LoginComplete(longest)],
+            GrantPurpose.Reauthentication => [new GrantSubject.Reauthentication(Guid.NewGuid())],
+            GrantPurpose.ChangeEmail =>
+            [
+                new GrantSubject.ChangeEmail(Guid.NewGuid(), "a@b.se"),
+                new GrantSubject.ChangeEmail(Guid.NewGuid(), longest),
+            ],
+            GrantPurpose.LoginCompleteExternal =>
+            [
+                new GrantSubject.LoginCompleteExternal(Verified("a@b.se"), ExternalProviderKey.Google, shortSubject),
+                new GrantSubject.LoginCompleteExternal(Verified(longest), ExternalProviderKey.Google, longestSubject),
+                new GrantSubject.LoginCompleteExternal(escapedAddress, ExternalProviderKey.Google, escapedSubject),
+            ],
+            _ => throw new InvalidOperationException($"No length row for grant purpose {purpose}."),
+        };
     }
 
     [Fact]
@@ -327,5 +361,170 @@ public sealed class RedisGrantStoreTests : IAsyncLifetime
         var token = await _store.IssueAsync(subject, Ct);
 
         (await _store.RedeemAsync(token, GrantAssertion.Of(subject), Ct)).ShouldBe(subject);
+    }
+
+    // ── #1744: the external registration purpose (ADR 0142 D3, D8) ────────────────────────────────────────────
+
+    private static GrantAssertion EitherRegistration =>
+        GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal);
+
+    private static VerifiedEmail Verified(string address) => VerifiedEmail.TryCreate(address)!;
+
+    private static GrantSubject.LoginCompleteExternal ExternalSubjectFor(string email) =>
+        new(Verified(email), ExternalProviderKey.Google, ExternalSubject.TryCreate("110248495921238986420")!.Value);
+
+    [Fact]
+    public async Task An_external_grant_is_redeemed_once_by_a_caller_that_accepts_either_registration()
+    {
+        var subject = ExternalSubjectFor("extern@example.se");
+        var token = await _store.IssueAsync(subject, Ct);
+
+        (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBe(subject);
+        (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task A_code_grant_is_still_redeemed_by_a_caller_that_accepts_either_registration()
+    {
+        var token = await _store.IssueAsync(new GrantSubject.LoginComplete("kod@example.se"), Ct);
+
+        (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBe(new GrantSubject.LoginComplete("kod@example.se"));
+    }
+
+    [Fact]
+    public async Task An_external_grant_redeemed_as_a_code_grant_is_refused_and_spent_by_the_attempt()
+    {
+        var external = await _store.IssueAsync(ExternalSubjectFor("korsad@example.se"), Ct);
+        var code = await _store.IssueAsync(new GrantSubject.LoginComplete("korsad@example.se"), Ct);
+
+        (await _store.RedeemAsync(external, GrantAssertion.Bearer(GrantPurpose.LoginComplete), Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(code, GrantAssertion.Bearer(GrantPurpose.LoginCompleteExternal), Ct)).ShouldBeNull();
+
+        // One GETDEL per redemption, before any protector is tried: the refused attempts took both grants.
+        (await _store.RedeemAsync(external, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(code, EitherRegistration, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Redis_holds_neither_the_subject_nor_the_address_of_an_external_grant()
+    {
+        const string email = "extern-reader@example.se";
+        var token = await _store.IssueAsync(ExternalSubjectFor(email), Ct);
+
+        var stored = Encoding.Latin1.GetString(
+            (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!);
+
+        stored.ShouldNotContain(email);
+        stored.ShouldNotContain("110248495921238986420");
+    }
+
+    /// <summary>
+    /// A grant written by the build before #1744: purpose 1, the JSON that build serialised (the three members, the
+    /// user id as null). Its bytes are written by hand under the
+    /// production protector, because the actor that wrote them — the pre-#1744 <c>RedisGrantStore</c> — is retired;
+    /// <see cref="Purposes_one_to_three_serialise_exactly_as_before_the_external_members"/> pins that the current
+    /// writer still produces that shape. A grant alive across the deploy must still redeem.
+    /// </summary>
+    [Fact]
+    public async Task A_grant_written_before_the_external_purpose_existed_still_redeems()
+    {
+        var token = GrantToken.Generate();
+        var legacy = Encoding.UTF8.GetBytes("""{"p":1,"e":"fore@example.se","u":null}""" + new string(' ', 400));
+        var payload = _keyring
+            .CreateProtector(RedisGrantStore.ProtectorPurpose)
+            .CreateProtector("1")
+            .Protect(legacy);
+        await _mux.GetDatabase().StringSetAsync(RedisGrantStore.Key(token), payload, TimeSpan.FromMinutes(10));
+
+        (await _store.RedeemAsync(token, EitherRegistration, Ct)).ShouldBe(new GrantSubject.LoginComplete("fore@example.se"));
+    }
+
+    [Fact]
+    public async Task Purposes_one_to_three_serialise_exactly_as_before_the_external_members()
+    {
+        // The two external members are omitted when null (ADR 0142 D1: no live record changes shape). One row per
+        // purpose, in the shape each one's subject serialises to.
+        var userId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+        (await StoredJsonAsync(new GrantSubject.LoginComplete("a@b.se")))
+            .ShouldBe("""{"p":1,"e":"a@b.se","u":null}""");
+        (await StoredJsonAsync(new GrantSubject.Reauthentication(userId)))
+            .ShouldBe("""{"p":2,"e":null,"u":"11111111-2222-3333-4444-555555555555"}""");
+        (await StoredJsonAsync(new GrantSubject.ChangeEmail(userId, "a@b.se")))
+            .ShouldBe("""{"p":3,"e":"a@b.se","u":"11111111-2222-3333-4444-555555555555"}""");
+    }
+
+    // What IssueAsync wrote, opened under the purpose's own protector, with the padding trimmed.
+    private async Task<string> StoredJsonAsync(GrantSubject subject)
+    {
+        var token = await _store.IssueAsync(subject, Ct);
+        var stored = (byte[])(await _mux.GetDatabase().StringGetAsync(RedisGrantStore.Key(token)))!;
+        var json = _keyring
+            .CreateProtector(RedisGrantStore.ProtectorPurpose)
+            .CreateProtector(((int)subject.Purpose).ToString(CultureInfo.InvariantCulture))
+            .Unprotect(stored);
+        return Encoding.UTF8.GetString(json).TrimEnd(' ');
+    }
+
+    /// <summary>
+    /// UNREACHABLE STATES, declared: an external record without its provider, with an unknown provider, or without a
+    /// usable subject. The adapter serialises the whole subject, so no path in <c>src/</c> writes one; each is
+    /// written by hand under purpose 4's protector, and the test asserts only that the read side refuses it.
+    /// </summary>
+    [Fact]
+    public async Task An_external_record_without_a_usable_provider_or_subject_redeems_to_nothing()
+    {
+        var withoutProvider = GrantToken.Generate();
+        var unknownProvider = GrantToken.Generate();
+        var withoutSubject = GrantToken.Generate();
+        var control = GrantToken.Generate();
+        await WriteByHandAsync(withoutProvider, subPurpose: "4", new { p = 4, e = "a@b.se", s = "1" });
+        await WriteByHandAsync(unknownProvider, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "myspace", s = "1" });
+        await WriteByHandAsync(withoutSubject, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "google", s = "" });
+        await WriteByHandAsync(control, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "google", s = "1" });
+
+        (await _store.RedeemAsync(withoutProvider, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(unknownProvider, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(withoutSubject, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(control, EitherRegistration, Ct)).ShouldBe(
+            new GrantSubject.LoginCompleteExternal(
+                Verified("a@b.se"), ExternalProviderKey.Google, ExternalSubject.TryCreate("1")!.Value));
+    }
+
+    /// <summary>
+    /// UNREACHABLE, declared: a record sealed under one purpose's protector that claims another purpose.
+    /// <c>IssueAsync</c> seals every payload under its own purpose, so the record is written by hand, and the test
+    /// asserts only that the read side refuses it.
+    /// </summary>
+    [Fact]
+    public async Task A_record_sealed_under_one_purpose_that_claims_another_redeems_to_nothing()
+    {
+        var sealedAsOne = GrantToken.Generate();
+        var control = GrantToken.Generate();
+        await WriteByHandAsync(sealedAsOne, subPurpose: "1", new { p = 4, e = "a@b.se", pr = "google", s = "1" });
+        await WriteByHandAsync(control, subPurpose: "4", new { p = 4, e = "a@b.se", pr = "google", s = "1" });
+
+        (await _store.RedeemAsync(sealedAsOne, EitherRegistration, Ct)).ShouldBeNull();
+        (await _store.RedeemAsync(control, EitherRegistration, Ct)).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task The_unreadable_payload_line_is_written_only_when_no_asserted_purpose_opens_it()
+    {
+        var logger = new RecordingLogger<RedisGrantStore>();
+        var store = new RedisGrantStore(_connection, _keyring, logger);
+
+        // Purpose 1 is tried after purpose 4 fails to open it: no line for the protector that did not fit.
+        var opened = await store.IssueAsync(new GrantSubject.LoginComplete("rad@example.se"), Ct);
+        (await store.RedeemAsync(
+            opened, GrantAssertion.Bearer(GrantPurpose.LoginCompleteExternal, GrantPurpose.LoginComplete), Ct))
+            .ShouldNotBeNull();
+        logger.Records.ShouldBeEmpty();
+
+        // A lost keyring: no asserted protector opens it, and it is logged once.
+        var lost = await store.IssueAsync(new GrantSubject.LoginComplete("rad@example.se"), Ct);
+        var afterKeyLoss = new RedisGrantStore(_connection, new EphemeralDataProtectionProvider(), logger);
+        (await afterKeyLoss.RedeemAsync(lost, EitherRegistration, Ct)).ShouldBeNull();
+        logger.Records.Count(r => r.EventId.Id == 1017).ShouldBe(1);
     }
 }

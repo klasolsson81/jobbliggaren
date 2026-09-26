@@ -41,9 +41,9 @@ class CatchBoundary extends Component<{ children: ReactNode }> {
 const field = {
   title: () => screen.getByLabelText(/^Jobbtitel/),
   company: () => screen.getByLabelText(/^Företag/),
-  url: () => screen.getByLabelText("Annonslänk"),
-  expiresAt: () => screen.getByLabelText("Sista ansökningsdag"),
-  coverLetter: () => screen.getByLabelText("Personligt brev"),
+  url: () => screen.getByLabelText("Annonslänk (valfritt)"),
+  expiresAt: () => screen.getByLabelText("Sista ansökningsdag (valfritt)"),
+  coverLetter: () => screen.getByLabelText("Personligt brev (valfritt)"),
 };
 
 // `<input type="date">` has no jsdom UI, and typing it a character at a time produces invalid
@@ -225,7 +225,7 @@ describe("NewApplicationForm", () => {
     expect(url.getAttribute("aria-describedby")).toBe("url-hint url-error");
     expect(coverLetter).toHaveAttribute("aria-invalid", "true");
     expect(coverLetter.getAttribute("aria-describedby")).toBe(
-      "cover-letter-hint cover-letter-error"
+      "cover-letter-error"
     );
 
     // Focus goes to the FIRST refused field in document order, not the last.

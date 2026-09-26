@@ -32,6 +32,7 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
     private const string BudgetPrefix = "jobbliggaren:budget/";
     private const string GrantPrefix = "jobbliggaren:auth/grant/v1/";
     private const string RegistrationClaimPrefix = "jobbliggaren:auth/registration-claim/v1/";
+    private const string OAuthStatePrefix = "jobbliggaren:auth/oauth-state/v1/";
     private const string SessionPrefix = "jobbliggaren:session:";
 
     private readonly ApiFactory _factory = factory;
@@ -123,6 +124,27 @@ public class VolatileRedisPlacementTests(ApiFactory factory)
         durableKeys.ShouldNotContain(k => k.Contains("auth/registration-claim", StringComparison.Ordinal));
 
         // The control: the session this completion opened is on the durable instance, so the scan sees keys.
+        durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_started_external_login_writes_its_flow_to_the_volatile_instance_only()
+    {
+        // #1744 — the flow holds the PKCE verifier and the post-login path for at most ten minutes, so it belongs
+        // where an expired key is gone.
+        var email = $"placement-oauth-{Guid.NewGuid():N}@example.se";
+        await AuthTestHelpers.RegisterAndGetSessionIdAsync(_factory, email, ct: Ct);
+
+        (await _client.PostAsJsonAsync("/api/v1/auth/oauth/google/start", new { next = "/oversikt" }, Ct))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var volatileKeys = await KeysAsync(_factory.VolatileRedisConnectionString);
+        var durableKeys = await KeysAsync(_factory.DurableRedisConnectionString);
+
+        volatileKeys.ShouldContain(k => k.StartsWith(OAuthStatePrefix, StringComparison.Ordinal));
+        durableKeys.ShouldNotContain(k => k.Contains("auth/oauth-state", StringComparison.Ordinal));
+
+        // The control: the account's session is on the durable instance, so the durable scan sees keys.
         durableKeys.ShouldContain(k => k.StartsWith(SessionPrefix, StringComparison.Ordinal));
     }
 }

@@ -8,8 +8,7 @@ public sealed class ChangeEmailCommandValidator : AbstractValidator<ChangeEmailC
     public ChangeEmailCommandValidator()
     {
         // ValidationBehavior runs BEFORE ReauthenticationBehavior, so an empty grant is a 400 before the
-        // re-auth check — empty vs wrong = 400 vs 401, revealing nothing. (Parity with ChangePassword /
-        // DeleteAccount.)
+        // re-auth check — empty vs wrong = 400 vs 401, revealing nothing. (Parity with DeleteAccount.)
         RuleFor(c => c.ReauthGrant).ReauthGrant();
 
         // The new email is a new value, not a re-auth credential: NotEmpty + well-formed + length cap,

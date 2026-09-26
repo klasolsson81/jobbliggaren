@@ -389,53 +389,51 @@ export function SkillSection({
             {/* Resultat-list: en knapp-rad per GRUPP (klick adderar HELA gruppen
                 till draften som EN chip). role="listbox" inte använt — raderna är
                 add-knappar, inte ett single-select. Lugn live-region för status. */}
-            <div id={resultsId} className="jp-matchdialog__list" role="group">
-              {isSearching ? (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className="text-body-sm text-text-secondary px-4 py-3"
-                >
-                  {t("matchPrefs.skill.searching")}
-                </p>
-              ) : showNoResults ? (
-                <p className="text-body-sm text-text-primary px-4 py-3">
-                  {t("matchPrefs.skill.noResults")}
-                </p>
-              ) : results.length === 0 ? (
-                <p className="text-body-sm text-text-primary px-4 py-3">
-                  {t("matchPrefs.skill.searchPrompt")}
-                </p>
-              ) : (
-                results.map((group) => {
-                  // "Already added" = ALL of the group's member ids selected (a
-                  // half-selected twin is still addable so the pair completes).
-                  const already = isSkillGroupSelected(selected, group);
-                  return (
-                    <button
-                      key={group.conceptId}
-                      type="button"
-                      className="jp-popover-row"
-                      aria-pressed={already}
-                      onClick={() => addGroup(group)}
-                    >
-                      <span>{group.label}</span>
-                      {already ? (
-                        <span className="text-body-sm text-text-secondary">
-                          {t("matchPrefs.skill.added")}
-                        </span>
-                      ) : (
-                        <Plus
-                          size={14}
-                          className="jp-popover-row__chev"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+            {(isSearching || showNoResults || results.length > 0) && (
+              <div id={resultsId} className="jp-matchdialog__list" role="group">
+                {isSearching ? (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="text-body-sm text-text-secondary px-4 py-3"
+                  >
+                    {t("matchPrefs.skill.searching")}
+                  </p>
+                ) : showNoResults ? (
+                  <p className="text-body-sm text-text-primary px-4 py-3">
+                    {t("matchPrefs.skill.noResults")}
+                  </p>
+                ) : (
+                  results.map((group) => {
+                    // "Already added" = ALL of the group's member ids selected (a
+                    // half-selected twin is still addable so the pair completes).
+                    const already = isSkillGroupSelected(selected, group);
+                    return (
+                      <button
+                        key={group.conceptId}
+                        type="button"
+                        className="jp-popover-row"
+                        aria-pressed={already}
+                        onClick={() => addGroup(group)}
+                      >
+                        <span>{group.label}</span>
+                        {already ? (
+                          <span className="text-body-sm text-text-secondary">
+                            {t("matchPrefs.skill.added")}
+                          </span>
+                        ) : (
+                          <Plus
+                            size={14}
+                            className="jp-popover-row__chev"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

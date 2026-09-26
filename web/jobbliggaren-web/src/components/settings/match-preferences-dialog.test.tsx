@@ -94,7 +94,7 @@ beforeEach(() => {
 });
 
 describe("MatchPreferencesDialog — shell + draft", () => {
-  it("renderar titel + intro + tre facet-sektioner", () => {
+  it("renderar titel + tre facet-sektioner", () => {
     renderDialog();
     expect(
       screen.getByRole("heading", { name: "Lägg till i matchning" })
@@ -485,7 +485,7 @@ describe("MatchPreferencesDialog — yrkestitel-fältet borttaget (redesign)", (
 describe("MatchPreferencesDialog — a11y (Radix description-wiring)", () => {
   // Regression: explicit aria-describedby på DialogContent + explicit id på
   // DialogDescription besegrade Radix auto-wiring och gav konsolvarningen
-  // "Missing `Description` or `aria-describedby={undefined}`". Radix kopplar nu själv.
+  // "Missing `Description` or `aria-describedby={undefined}`".
   it("renderar utan Radix missing-description-varning", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -494,6 +494,7 @@ describe("MatchPreferencesDialog — a11y (Radix description-wiring)", () => {
       .flat()
       .join(" ");
     expect(logged).not.toMatch(/Missing .?Description|aria-describedby/i);
+    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
     warnSpy.mockRestore();
     errorSpy.mockRestore();
   });

@@ -483,10 +483,10 @@ describe("BevakningBrowsePage — the ad numbers with no answer", () => {
     ).toBeInTheDocument();
     // ONCE. The two per-number sentences would repeat the same advice under the same heading.
     expect(
-      screen.queryByText(/^Bevakningen matchar fler företag än vi kan räkna annonser för\. Därför visas inte antalet annonser\./),
+      screen.queryByText(/^Bevakningen matchar fler företag än vi kan räkna annonser för\. Färre branscher/),
     ).toBeNull();
     expect(
-      screen.queryByText(/Därför kan vi inte räkna hur många annonser som matchar dig/),
+      screen.queryByText(/^Bevakningen har fler annonser än vi kan matcha\./),
     ).toBeNull();
     // The action is carried, because a refusal that names one must offer the way there.
     expect(screen.getByRole("link", { name: "Ändra bevakningen" })).toHaveAttribute(

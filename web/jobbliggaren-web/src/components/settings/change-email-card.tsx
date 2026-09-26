@@ -77,7 +77,6 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const fieldId = useId();
-  const fieldHintId = useId();
   const codeId = useId();
   const codeHintId = useId();
   const codeStepId = useId();
@@ -404,15 +403,10 @@ export function ChangeEmailCard({ currentEmail }: { currentEmail: string }) {
                 spellCheck={false}
                 aria-required="true"
                 aria-invalid={message?.channel === "field" ? true : undefined}
-                aria-describedby={
-                  message?.channel === "field" ? `${fieldHintId} ${messageId}` : fieldHintId
-                }
+                aria-describedby={message?.channel === "field" ? messageId : undefined}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
               />
-              <p id={fieldHintId} className="text-body-sm text-text-primary">
-                {t("account.changeEmail.newEmailHint")}
-              </p>
             </div>
             {slot}
             <div>

@@ -19,49 +19,28 @@ function policyLink(href: string) {
   };
 }
 
-// Required terms + privacy acceptance for the register form (#1479).
+// The login flow's consent step (ADR 0142 D6): the box accepts the TERMS and nothing else. The
+// privacy policy is an Art. 13 notice the user is pointed to, never something they accept, so it sits
+// in a sibling sentence under the box and outside the checkbox's own name.
 //
-// Shape copied from RememberMeCheckbox, for the same reason: RegisterForm is an
-// uncontrolled `<form action={serverAction}>`, so the value has to travel in
-// FormData (a checked native checkbox posts "on", unchecked posts nothing).
-// That rules out the controlled widgets (ToggleRow, jp-checkitem), and the
-// native input carries keyboard operation, the global :focus-visible ring and
-// checkbox semantics for free.
+// A native checkbox, because the consent form is an uncontrolled `<form action={serverAction}>` and
+// the value has to travel in FormData (a checked box posts "on", an unchecked one posts nothing). The
+// native input also carries keyboard operation, the global :focus-visible ring and checkbox semantics.
 //
 // Unticked by default: a pre-ticked box is not acceptance the user performed.
 //
-// `defaultChecked` is the one exception, and it is narrow on purpose. React 19 resets this
-// uncontrolled form after every action, which silently unticks a box the user DID tick, so the
-// register action echoes the submitted acceptance back and the form re-applies it here. That
-// restores an acceptance the user performed; it never manufactures one, because the only value
-// the caller can pass is the one that arrived in that submit's own FormData.
+// The terms link sits INSIDE the label, which is safe: the HTML standard suppresses a label's
+// activation behaviour for events targeted at interactive descendants, so following the link does not
+// also toggle the box. The links open in a new tab so the step survives the detour, and that warning
+// lives in the hint rather than in the link's accessible name, which is part of the checkbox's own name.
 //
-// The two policy links sit INSIDE the label, which is safe — the HTML standard
-// suppresses a label's activation behavior for events targeted at interactive
-// descendants, so following a link does not also toggle the box. They open in a
-// new tab so a half-filled registration survives the detour, and that warning
-// lives in the hint rather than in each link's own accessible name: the links
-// are part of the label, so an "(öppnas i ny flik)" per link would be read back
-// twice inside the checkbox's own name.
-//
-// The props are narrowed to the four the form actually supplies, so a call site
-// cannot drop `required` or reach any other input attribute, and the spread
-// still goes FIRST so the attributes below also win at runtime. A caller-supplied
-// `aria-describedby` (the error) is prepended by the hint, not replaced by it.
-//
-// `copy` picks which acceptance is being asked for. `register` is the form this
-// was built for. `consent` is the login flow's consent step (ADR 0142 D6), where
-// the box accepts the TERMS and nothing else: the privacy policy is an Art. 13
-// notice the user is pointed to, never something they accept, so it sits in a
-// sibling sentence under the box and outside the checkbox's own name.
+// The props are narrowed to the three the form supplies, so a call site cannot drop `required` or reach
+// any other input attribute, and the spread still goes FIRST so the attributes below also win at
+// runtime. A caller-supplied `aria-describedby` (the error) is prepended by the hint, not replaced by it.
 export function AcceptTermsCheckbox({
   "aria-describedby": describedBy,
-  copy = "register",
   ...props
-}: Pick<
-  ComponentProps<"input">,
-  "ref" | "aria-invalid" | "aria-describedby" | "defaultChecked"
-> & { copy?: "register" | "consent" }) {
+}: Pick<ComponentProps<"input">, "ref" | "aria-invalid" | "aria-describedby">) {
   const t = useTranslations("pages");
   const hintId = useId();
   return (
@@ -84,29 +63,20 @@ export function AcceptTermsCheckbox({
           />
         </span>
         <span>
-          {copy === "consent"
-            ? t.rich("auth.passwordless.consent.termsLabel", {
-                terms: policyLink("/villkor"),
-              })
-            : t.rich("auth.register.termsLabel", {
-                terms: policyLink("/villkor"),
-                privacy: policyLink("/integritet"),
-              })}
+          {t.rich("auth.passwordless.consent.termsLabel", {
+            terms: policyLink("/villkor"),
+          })}
         </span>
       </label>
-      {copy === "consent" && (
-        <p className="text-body-sm text-text-primary">
-          {t.rich("auth.passwordless.consent.privacySibling", {
-            privacy: policyLink("/integritet"),
-          })}
-        </p>
-      )}
+      <p className="text-body-sm text-text-primary">
+        {t.rich("auth.passwordless.consent.privacySibling", {
+          privacy: policyLink("/integritet"),
+        })}
+      </p>
       {/* text-text-primary (not -secondary) to match the sibling field hints in the same
           form and honour the high-contrast, no-muted-text copy rule. */}
       <p id={hintId} className="text-body-sm text-text-primary">
-        {copy === "consent"
-          ? t("auth.passwordless.consent.termsHint")
-          : t("auth.register.termsHint")}
+        {t("auth.passwordless.consent.termsHint")}
       </p>
     </div>
   );

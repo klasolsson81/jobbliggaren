@@ -15,8 +15,8 @@ namespace Jobbliggaren.Application.Common.Abstractions;
 /// (<c>VerifyReauthenticationChallengeCommand</c>), travels WITH the operation, is single-use, and
 /// is never logged (<c>LoggingBehavior</c> logs only the message type name; <c>AuditBehavior</c>
 /// emits only the <c>IAuditableCommand</c> projection). An architecture tripwire requires every
-/// sensitive Auth command to implement this marker, so a future change-email / change-password /
-/// export cannot ship without re-authentication.
+/// sensitive Auth command to implement this marker, so a future sensitive operation (an export, say)
+/// cannot ship without re-authentication.
 /// </summary>
 public interface IReauthenticatingRequest
 {

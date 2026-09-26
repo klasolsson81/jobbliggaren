@@ -399,8 +399,7 @@ grid 1.4fr 1fr 1fr 1fr auto; gap 16px; align-items end; padding 18px 0
 background transparent; border 0
 border-top 1px border; border-bottom 1px border; border-radius 0
 field: flex column gap 6px; label 14px/500 text-secondary;
-       hint mono 13px text-secondary (ADR 0038 — informationsbärande
-       hint är aldrig tertiary). Inga beskrivande placeholder-exempel
+       Inga beskrivande placeholder-exempel
        i sök-/filterfält — labeln bär informationen, hinten bara när
        fältet annars avvisar det användaren skriver (DESIGN.md §8).
 ```

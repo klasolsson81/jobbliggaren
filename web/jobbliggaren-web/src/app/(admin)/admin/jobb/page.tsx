@@ -34,7 +34,6 @@ export default async function JobbPage() {
     <div className="flex flex-col gap-10">
       <div>
         <h1 className="jp-h1">{t("heading")}</h1>
-        <p className="jp-lede">{t("lede")}</p>
       </div>
 
       <section className="flex flex-col gap-4" aria-labelledby="recurring-heading">

@@ -41,7 +41,7 @@
 }
 .jp-settings-field__hint {
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
   margin: 0;
 }
 
@@ -734,13 +734,6 @@
   letter-spacing: -0.01em;
   color: var(--jp-ink-1);
 }
-.jp-wizard__pitch-body {
-  margin: 6px 0 0;
-  max-width: 56ch;
-  font-size: var(--text-ui);
-  line-height: 1.6;
-  color: var(--jp-ink-1);
-}
 .jp-wizard__upload {
   display: flex;
   flex-direction: column;
@@ -1361,7 +1354,7 @@
 .jp-guide__hint {
   margin: 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-guide__wordcount {
   margin: 0;
@@ -2221,7 +2214,7 @@
 .jp-ov-card__emptybody {
   margin: 6px 0 0;
   font-size: var(--text-body-sm);
-  color: var(--jp-ink-2);
+  color: var(--jp-ink-1);
 }
 .jp-ov-card__unavailable {
   margin: 12px 0 0;
@@ -2234,7 +2227,6 @@
   line-height: 1.5;
   color: var(--jp-ink-1);
 }
-.jp-ov-card__text b { font-weight: var(--jp-fw-bold); }
 .jp-ov-card__hint {
   margin: 8px 0 0;
   font-size: var(--text-micro);

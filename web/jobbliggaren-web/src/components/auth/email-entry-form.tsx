@@ -53,13 +53,8 @@ export function EmailEntryForm({ next }: { next: string }) {
           required
           aria-required="true"
           aria-invalid={fieldInvalid ? true : undefined}
-          aria-describedby={
-            fieldInvalid ? `email-hint email-privacy ${errorId}` : "email-hint email-privacy"
-          }
+          aria-describedby={fieldInvalid ? `email-privacy ${errorId}` : "email-privacy"}
         />
-        <p id="email-hint" className="text-body-sm text-text-primary">
-          {t("auth.passwordless.entry.emailHint")}
-        </p>
         {/* The Art. 13 pointer sits where the address is collected (ADR 0142 D6). */}
         <p id="email-privacy" className="text-body-sm text-text-primary">
           {t.rich("auth.passwordless.entry.privacyHint", {

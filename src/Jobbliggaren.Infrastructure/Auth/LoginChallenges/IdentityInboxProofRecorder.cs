@@ -6,10 +6,8 @@ namespace Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 
 /// <summary>
 /// The Identity side of a first passwordless inbox proof (#1735, security-auditor Q-S3). The flag and the
-/// password's removal leave in ONE <c>UPDATE</c>: <see cref="UserManager{TUser}.RemovePasswordAsync"/> nulls
-/// the hash and rotates the stamp in memory and then saves the whole user, the flag set just before
-/// included. A separate <c>UpdateAsync</c> for the flag would open a window in which the address is confirmed
-/// and the pre-registered password still works.
+/// stamp rotation leave in ONE <c>UPDATE</c>: <see cref="UserManager{TUser}.UpdateSecurityStampAsync"/> rotates
+/// the stamp in memory and then saves the whole user, the flag set just before included.
 /// </summary>
 internal sealed class IdentityInboxProofRecorder(UserManager<ApplicationUser> userManager) : IInboxProofRecorder
 {
@@ -24,7 +22,7 @@ internal sealed class IdentityInboxProofRecorder(UserManager<ApplicationUser> us
             return InboxProof.AlreadyConfirmed;
 
         user.EmailConfirmed = true;
-        var result = await userManager.RemovePasswordAsync(user);
+        var result = await userManager.UpdateSecurityStampAsync(user);
 
         // Nothing may follow a write that did not happen: no invalidation, session or audit row. A
         // ConcurrencyFailure is reachable — two first proofs racing on two live records. Codes only: an

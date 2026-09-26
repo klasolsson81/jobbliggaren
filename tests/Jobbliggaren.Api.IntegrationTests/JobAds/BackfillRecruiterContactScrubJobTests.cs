@@ -1,3 +1,4 @@
+using Jobbliggaren.Api.IntegrationTests.Infrastructure;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Application.Common.Auditing;
 using Jobbliggaren.Application.JobAds.Abstractions;
@@ -16,7 +17,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Shouldly;
-using Testcontainers.PostgreSql;
 
 namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 
@@ -45,6 +45,7 @@ namespace Jobbliggaren.Api.IntegrationTests.JobAds;
 /// limitation this clause carries. The clean ad and the surrounding assertions still go through
 /// the real aggregate and the real extractor.
 /// </remarks>
+[Collection(SharedPostgresFixtureGroup.Name)]
 public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
 {
     private const string CleanExternalId = "backfill-clean-1";
@@ -59,19 +60,22 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
     // free text, unreachable by the detector. It must SURVIVE the re-extraction after the scrub.
     private const string RequirementConceptId = "TESTREQ001";
 
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
+    private readonly SharedPostgresFixture _postgres;
+    private string _connectionString = string.Empty;
     private ServiceProvider _provider = default!;
     private ISystemEventAuditor _auditor = default!;
 
+    public BackfillRecruiterContactScrubJobTests(SharedPostgresFixture postgres) => _postgres = postgres;
+
     public async ValueTask InitializeAsync()
     {
-        await _postgres.StartAsync();
+        _connectionString = await _postgres.CreateDatabaseAsync();
 
         _auditor = Substitute.For<ISystemEventAuditor>();
 
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options => options
-            .UseNpgsql(_postgres.GetConnectionString(),
+            .UseNpgsql(_connectionString,
                 npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
             .UseSnakeCaseNamingConvention());
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -93,17 +97,12 @@ public sealed class BackfillRecruiterContactScrubJobTests : IAsyncLifetime
         services.AddScoped<BackfillRecruiterContactScrubJob>();
 
         _provider = services.BuildServiceProvider();
-
-        using var scope = _provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
-        await db.Database.MigrateAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
         await _provider.DisposeAsync();
-        await _postgres.DisposeAsync();
+        await _postgres.DropDatabaseAsync(_connectionString);
     }
 
     private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);

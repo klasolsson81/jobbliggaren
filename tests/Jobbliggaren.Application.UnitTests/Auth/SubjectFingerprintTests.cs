@@ -74,8 +74,7 @@ public sealed class SubjectFingerprintTests
     [Fact]
     public void Hex_IsTheLowerHexSha256OfTheUpperCasedSubject_NeverTheRawValue()
     {
-        // Golden master: sha256("KLAS@EXAMPLE.COM"), lower hex. RedisCooldownGateTests pins the same value
-        // inside the shipped cooldown key, so a change here that resets in-flight windows fails both.
+        // Golden master: sha256("KLAS@EXAMPLE.COM"), lower hex.
         var hex = SubjectFingerprint.Hex("klas@example.com");
 
         hex.ShouldBe("fac6ba54474a51ba1a02f54ae399a4998d235bcf2c44f1b3a04ffb4572ac70f8");

@@ -1,5 +1,6 @@
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Auth.Registration;
@@ -10,6 +11,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Domain.JobSeekers;
 using Jobbliggaren.Infrastructure.Auth.Sessions;
 using Jobbliggaren.Infrastructure.Persistence;
+using Jobbliggaren.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -39,6 +41,8 @@ public sealed class CompleteLoginChallengeTests
     private readonly IInboxProofRecorder _inbox = Substitute.For<IInboxProofRecorder>();
     private readonly ISessionStore _sessions = Substitute.For<ISessionStore>();
     private readonly AppDbContext _db = TestAppDbContextFactory.Create();
+    private readonly IExternalLoginLookup _externalLookup = Substitute.For<IExternalLoginLookup>();
+    private readonly IExternalLoginWriter _externalWriter = Substitute.For<IExternalLoginWriter>();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -59,13 +63,17 @@ public sealed class CompleteLoginChallengeTests
         var correlation = Substitute.For<ICorrelationIdProvider>();
         correlation.Current.Returns(Guid.NewGuid());
         var request = Substitute.For<IRequestContextProvider>();
-        var resolver = new LoginSubjectResolver(_lookup, _db);
+        var resolver = new LoginSubjectResolver(_lookup, _externalLookup, _db);
         var grant = new PasswordlessSessionGrant(
             _inbox, _sessions, Substitute.For<IAuthAuditLogger>(), _db, FakeDateTimeProvider.Default, correlation, request);
 
         return new CompleteLoginChallengeCommandHandler(
-            options, _grants, _claim, resolver, _accounts, _db, FakeDateTimeProvider.Default, correlation, request,
-            new LoginProofOutcome(resolver, grant, _grants, options, NullLogger<LoginProofOutcome>.Instance));
+            options, _grants, _claim, resolver,
+            new AccountRegistrar(_accounts, _db, FakeDateTimeProvider.Default, correlation, request),
+            new LoginProofOutcome(
+                resolver, grant, _grants,
+                new ExternalLoginLinker(_externalWriter, _db, FakeDateTimeProvider.Default, correlation, request),
+                options, NullLogger<LoginProofOutcome>.Instance));
     }
 
     private static CompleteLoginChallengeCommand Command() => new(Token.Reveal(), AcceptTerms: true);
@@ -102,7 +110,7 @@ public sealed class CompleteLoginChallengeTests
 
         await _grants.Received(1).RedeemAsync(
             Token,
-            Arg.Is<GrantAssertion>(a => a.Purpose == GrantPurpose.LoginComplete && a.Binding == null),
+            Arg.Is<GrantAssertion>(a => a.Purposes.Contains(GrantPurpose.LoginComplete) && a.Binding == null),
             Arg.Any<CancellationToken>());
     }
 
@@ -221,7 +229,7 @@ public sealed class CompleteLoginChallengeTests
         await Handler().Handle(Command(), Ct);
 
         var row = await _db.AuditLogEntries.AsNoTracking().SingleAsync(Ct);
-        row.EventType.ShouldBe(CompleteLoginChallengeCommandHandler.AccountCreatedAuditEventType);
+        row.EventType.ShouldBe(AccountRegistrar.AccountCreatedAuditEventType);
         row.AggregateType.ShouldBe("User");
         row.AggregateId.ShouldBe(_userId);
         row.UserId.ShouldBe(_userId);
@@ -292,5 +300,91 @@ public sealed class CompleteLoginChallengeTests
         result.Error.Code.ShouldBe("Auth.InvalidEmail");
         await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
         (await _db.JobSeekers.IgnoreQueryFilters().CountAsync(Ct)).ShouldBe(0);
+    }
+
+    // ── #1744: the external arm (ADR 0142 D3, D8; senior-cto-advisor F2) ─────────────────────────────────────
+    // The grant subject is the one LoginProofOutcome issues for a provider-verified address with no account.
+
+    private static readonly ExternalSubject Subject = ExternalSubject.TryCreate("110248495921238986420")!.Value;
+
+    private async Task TheGrantIsAProvidersGrantAsync()
+    {
+        var proof = await GoogleIdentities.ProofAsync(
+            GoogleUserInfoShapes.Workspace(Subject.Reveal(), Email, hostedDomain: "example.com"));
+        _grants.RedeemAsync(Token, Arg.Any<GrantAssertion>(), Arg.Any<CancellationToken>())
+            .Returns(new GrantSubject.LoginCompleteExternal(proof.Email, proof.Provider, proof.Subject));
+    }
+
+    [Fact]
+    public async Task One_redemption_accepts_either_registration_grant()
+    {
+        TheAddressGetsItsAccountFromTheCreator();
+
+        await Handler().Handle(Command(), Ct);
+
+        await _grants.Received(1).RedeemAsync(
+            Token,
+            GrantAssertion.Bearer(GrantPurpose.LoginComplete, GrantPurpose.LoginCompleteExternal),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_providers_grant_opens_the_account_then_links_the_login_then_opens_a_google_session()
+    {
+        await TheGrantIsAProvidersGrantAsync();
+        TheAddressGetsItsAccountFromTheCreator();
+        _externalWriter.LinkAsync(_userId, ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
+            .Returns(ExternalLinkResult.Linked);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Value.ShouldBe(new LoginOutcome.SignedIn("granted-session-id"));
+        Received.InOrder(() =>
+        {
+            _accounts.CreatePasswordlessUserAsync(Email, Arg.Any<CancellationToken>());
+            _externalWriter.LinkAsync(_userId, ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>());
+            _sessions.CreateAsync(_userId, SessionLifetime.Persistent, Arg.Any<CancellationToken>());
+        });
+        (await _db.AuditLogEntries.AsNoTracking().Select(e => e.EventType).ToListAsync(Ct)).ShouldBe(
+            [AccountRegistrar.AccountCreatedAuditEventType, ExternalLoginLinker.ExternalLoginLinkedAuditEventType],
+            ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task A_providers_grant_whose_login_another_account_holds_opens_no_account()
+    {
+        // Checked before OpenAsync, so the ordinary case never creates an account it then cannot link.
+        await TheGrantIsAProvidersGrantAsync();
+        _lookup.FindAccountAsync(Email, Arg.Any<CancellationToken>()).Returns((LoginAccount?)null);
+        _externalLookup.FindUserIdAsync(ExternalProviderKey.Google, Subject, Arg.Any<CancellationToken>())
+            .Returns(Guid.NewGuid());
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Value.ShouldBeOfType<LoginOutcome.AccountUnavailable>();
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+        await _sessions.DidNotReceiveWithAnyArgs().CreateAsync(default, default, Ct);
+    }
+
+    [Fact]
+    public async Task A_providers_grant_whose_claim_is_lost_is_gone_and_creates_nothing()
+    {
+        await TheGrantIsAProvidersGrantAsync();
+        _claim.TryClaimAsync(Email, Arg.Any<CancellationToken>()).Returns(false);
+
+        var result = await Handler().Handle(Command(), Ct);
+
+        result.Error.Code.ShouldBe(AuthErrorCodes.LoginGrantUnusable);
+        await _accounts.DidNotReceiveWithAnyArgs().CreatePasswordlessUserAsync(default!, Ct);
+    }
+
+    [Fact]
+    public async Task A_codes_grant_writes_no_external_login()
+    {
+        TheAddressGetsItsAccountFromTheCreator();
+
+        await Handler().Handle(Command(), Ct);
+
+        await _externalWriter.DidNotReceiveWithAnyArgs().LinkAsync(default, default, default, Ct);
     }
 }

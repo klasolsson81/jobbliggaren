@@ -1,10 +1,14 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Registration;
 using Jobbliggaren.Application.Common.Abstractions;
+using Jobbliggaren.Application.Dev.Commands.SeedAccount;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Shouldly;
@@ -16,10 +20,11 @@ namespace Jobbliggaren.Architecture.Tests;
 /// (<see cref="IInboxProofRecorder"/>) is reachable only from <see cref="PasswordlessSessionGrant"/>, the grant
 /// only from <see cref="LoginProofOutcome"/>, and that only from the two proof handlers and <c>complete</c>
 /// (#1737); the account lookup is reachable only from <see cref="LoginSubjectResolver"/>, and that only from
-/// the consumer, the outcome function and <c>complete</c>, never from the request path that mints a
-/// challenge (ADR 0142 D2). The scan covers every assembly that composes services,
-/// the Api's included, and every constructor and method parameter of every type, compiler-generated ones
-/// included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
+/// the consumer, the outcome function, <c>complete</c> and the Development seed seam, never from the request
+/// path that mints a challenge (ADR 0142 D2); and an account is opened only through
+/// <see cref="AccountRegistrar"/>, which only <c>complete</c> and the seed seam reach (ADR 0142 part 5a). The
+/// scan covers every assembly that composes services, the Api's included, and every constructor and method
+/// parameter of every type, compiler-generated ones included, so a minimal-API lambda asking for a link by parameter is seen too. A service-locator call is not
 /// a parameter; the source scan covers the write's port by name.
 /// </summary>
 public sealed class LoginProofChainTests
@@ -56,6 +61,7 @@ public sealed class LoginProofChainTests
         ConsumersOf(typeof(PasswordlessSessionGrant)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
         ConsumersOf(typeof(LoginProofOutcome)).ShouldBe(
         [
+            typeof(CompleteExternalLoginCommandHandler).FullName!,
             typeof(CompleteLoginChallengeCommandHandler).FullName!,
             typeof(ConsumeLoginLinkCommandHandler).FullName!,
             typeof(VerifyLoginChallengeCommandHandler).FullName!,
@@ -63,7 +69,17 @@ public sealed class LoginProofChainTests
     }
 
     [Fact]
-    public void Only_the_resolver_reads_the_account_and_only_off_the_request_path()
+    public void Only_the_resolver_asks_who_a_provider_login_belongs_to_and_only_the_linker_writes_one()
+    {
+        // #1744 (senior-cto-advisor F2): the one classifier answers the link as well; the one writer adds it and
+        // its audit row, and only the outcome function reaches the writer, after the address has matched.
+        ConsumersOf(typeof(IExternalLoginLookup)).ShouldBe([typeof(LoginSubjectResolver).FullName!]);
+        ConsumersOf(typeof(IExternalLoginWriter)).ShouldBe([typeof(ExternalLoginLinker).FullName!]);
+        ConsumersOf(typeof(ExternalLoginLinker)).ShouldBe([typeof(LoginProofOutcome).FullName!]);
+    }
+
+    [Fact]
+    public void Only_the_resolver_reads_the_account_and_never_on_the_path_that_mints_a_challenge()
     {
         ConsumersOf(typeof(ILoginAccountLookup)).ShouldBe([typeof(LoginSubjectResolver).FullName!]);
         ConsumersOf(typeof(LoginSubjectResolver)).ShouldBe(
@@ -71,21 +87,34 @@ public sealed class LoginProofChainTests
             typeof(CompleteLoginChallengeCommandHandler).FullName!,
             typeof(LoginChallengeIssuer).FullName!,
             typeof(LoginProofOutcome).FullName!,
+            typeof(DevSeedAccountCommandHandler).FullName!,
         ]);
     }
 
     [Fact]
-    public void The_proof_chain_can_reach_neither_a_password_check_nor_lockout()
+    public void Only_complete_and_the_development_seed_seam_open_an_account_and_only_through_the_registrar()
+    {
+        ConsumersOf(typeof(IPasswordlessAccountCreator)).ShouldBe([typeof(AccountRegistrar).FullName!]);
+        ConsumersOf(typeof(AccountRegistrar)).ShouldBe(
+        [
+            typeof(CompleteLoginChallengeCommandHandler).FullName!,
+            typeof(DevSeedAccountCommandHandler).FullName!,
+        ]);
+    }
+
+    [Fact]
+    public void The_proof_chain_cannot_reach_the_account_service()
     {
         // Every port the three handlers can reach, following concrete classes through their constructors. The
         // account is reached through ILoginAccountLookup, which offers a lookup and nothing else, and created
-        // through IPasswordlessAccountCreator, which offers no password check.
+        // through IPasswordlessAccountCreator.
         var reached = new HashSet<Type>();
         var pending = new Stack<Type>(
         [
             typeof(VerifyLoginChallengeCommandHandler),
             typeof(ConsumeLoginLinkCommandHandler),
             typeof(CompleteLoginChallengeCommandHandler),
+            typeof(CompleteExternalLoginCommandHandler),
         ]);
         while (pending.TryPop(out var type))
         {
@@ -97,7 +126,6 @@ public sealed class LoginProofChainTests
         }
 
         reached.ShouldNotContain(typeof(IUserAccountService));
-        reached.ShouldNotContain(typeof(ILoginTimingEqualizer));
         reached.ShouldContain(typeof(ILoginAccountLookup));
     }
 
@@ -121,6 +149,29 @@ public sealed class LoginProofChainTests
             "Jobbliggaren.Application/Auth/LoginChallenges/PasswordlessSessionGrant.cs",
             "Jobbliggaren.Infrastructure/Auth/LoginChallenges/IdentityInboxProofRecorder.cs",
             "Jobbliggaren.Infrastructure/DependencyInjection.cs",
+        ]);
+    }
+
+    // #1744 (dotnet-architect, PR S): an address becomes a VerifiedEmail in the provider adapter, and again only where
+    // the grant store reads back the purpose-4 payload that address was sealed into.
+    [Fact]
+    public void Only_the_provider_adapter_and_the_grant_store_make_a_verified_email_in_source()
+    {
+        var srcRoot = Path.Combine(RepoRoot(), "src");
+        Directory.Exists(srcRoot).ShouldBeTrue($"src root not found: {srcRoot}");
+
+        var makers = Directory
+            .EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !IsBuildOutput(path))
+            .Where(path => File.ReadAllText(path).Contains("VerifiedEmail.TryCreate(", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(srcRoot, path).Replace('\\', '/'))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        makers.ShouldBe(
+        [
+            "Jobbliggaren.Infrastructure/Auth/ExternalLogins/GoogleIdentityProvider.cs",
+            "Jobbliggaren.Infrastructure/Auth/Grants/RedisGrantStore.cs",
         ]);
     }
 

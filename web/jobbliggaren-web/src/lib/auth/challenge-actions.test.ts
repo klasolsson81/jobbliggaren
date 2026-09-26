@@ -153,6 +153,20 @@ describe("requestCode", () => {
     expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
   });
 
+  it("refuses an address longer than 256 characters as malformed without calling the backend", async () => {
+    const long = `${"a".repeat(250)}@example.com`;
+
+    const result = await run(() => requestCode(null, form({ email: long })));
+
+    expect(result.state).toEqual({
+      error: `${K}.entry.emailInvalid`,
+      channel: "field",
+      values: { email: long },
+    });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
+  });
+
   // Both arms below redirect to the code step, so the redirect cannot tell them apart. The
   // observables are the fetch and the write.
   describe("the same address while its code is still live", () => {
@@ -197,7 +211,7 @@ describe("requestCode", () => {
   });
 
   it.each<[string, () => Response | Promise<never>, string, string]>([
-    ["a 400", () => json(400, { errors: { Email: ["Ogiltig."] } }), "field", `${K}.entry.emailRequired`],
+    ["a 400", () => json(400, { errors: { Email: ["Ogiltig."] } }), "field", `${K}.entry.emailInvalid`],
     ["a 429", () => json(429, {}), "status", `${K}.errors.tooManyAttempts`],
     ["the mail-delivery 503", () => problem(503, "Auth.EmailDeliveryUnavailable"), "status", `${K}.errors.unavailable`],
     ["the store's 503, which has no title", () => json(503, { error: "Tjänsten är inte tillgänglig." }), "status", `${K}.errors.unavailable`],

@@ -66,7 +66,7 @@ test.describe("Pipeline-vy (/ansokningar)", () => {
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);
     await page.goto("/ansokningar");
-    // Statusgrupperna är hopfällda som default ("Utkast (1) — Klicka för att visa").
+    // Statusgrupperna är hopfällda som default ("Utkast (1)").
     // Disclosure-knappen är den enda med aria-expanded; steg-chippen i pipelinen
     // ("1 UTKAST") matchar också namnet men är ingen disclosure.
     await page
@@ -92,7 +92,7 @@ test.describe("Skapa ansökan (/ny-ansokan)", () => {
     ).toBeVisible();
     await expect(page.getByLabel(/Jobbtitel/)).toBeVisible();
     await expect(page.getByLabel(/Företag/)).toBeVisible();
-    await expect(page.getByLabel("Personligt brev")).toBeVisible();
+    await expect(page.getByLabel("Personligt brev (valfritt)")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Skapa ansökan" })
     ).toBeVisible();
@@ -121,7 +121,7 @@ test.describe("Skapa ansökan (/ny-ansokan)", () => {
     await page.getByLabel(/Jobbtitel/).fill(NEW_TITLE);
     await page.getByLabel(/Företag/).fill(NEW_COMPANY);
     await page
-      .getByLabel("Personligt brev")
+      .getByLabel("Personligt brev (valfritt)")
       .fill("Jag söker tjänsten och är väl lämpad.");
     await page.getByRole("button", { name: "Skapa ansökan" }).click();
     await page.waitForURL(/\/ansokningar\/[0-9a-f-]{36}/);

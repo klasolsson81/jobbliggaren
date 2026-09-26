@@ -14,7 +14,7 @@
   },
   "audit": {
     "heading": "Granskning",
-    "lede": "Granskningslogg över alla skrivande operationer. Senaste posten först.",
+    "lede": "Alla skrivande operationer, senaste först.",
     "errors": {
       "forbidden": {
         "title": "Saknar behörighet",
@@ -30,7 +30,7 @@
       },
       "rateLimited": {
         "title": "För många förfrågningar",
-        "body": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder."
+        "body": "Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}."
       },
       "error": {
         "title": "Kunde inte ladda granskningsloggen",
@@ -42,9 +42,9 @@
       "from": "Från",
       "to": "Till",
       "eventType": "Händelse",
-      "eventTypeHint": "Format: Aggregat.Händelse, t.ex. Application.Created",
+      "eventTypeHint": "Till exempel Application.Created",
       "aggregateType": "Aggregat",
-      "aggregateTypeHint": "Aggregatnamn, t.ex. Application",
+      "aggregateTypeHint": "Till exempel Application",
       "userId": "Användar-ID",
       "userIdHint": "Anges som UUID",
       "apply": "Använd filter",
@@ -77,7 +77,6 @@
       "title": "Bakgrundsjobb"
     },
     "heading": "Bakgrundsjobb",
-    "lede": "Status för schemalagda och misslyckade bakgrundsjobb. Endast läsvy.",
     "errors": {
       "forbidden": {
         "title": "Saknar behörighet",
@@ -89,7 +88,7 @@
       },
       "rateLimited": {
         "title": "För många förfrågningar",
-        "body": "Du har gjort för många förfrågningar på kort tid. Försök igen om {seconds} sekunder."
+        "body": "Försök igen om {seconds, plural, one {# sekund} other {# sekunder}}."
       },
       "error": {
         "title": "Kunde inte ladda jobbstatusen",
@@ -117,7 +116,7 @@
       },
       "empty": {
         "title": "Inga schemalagda jobb",
-        "body": "Inga återkommande bakgrundsjobb är registrerade i Hangfire. Kontakta drift om du väntade dig schemalagda jobb här."
+        "body": "Kontakta drift om du väntade dig schemalagda jobb här."
       }
     },
     "failed": {
@@ -135,8 +134,7 @@
         "errorCategory": "Felkategori"
       },
       "empty": {
-        "title": "Inga misslyckade jobb",
-        "body": "Alla bakgrundsjobb har körts utan fel."
+        "title": "Inga misslyckade jobb"
       }
     }
   }

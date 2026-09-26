@@ -67,7 +67,7 @@ internal static class ScalewayClientRegistration
     /// service accepted the message — is a duplicate delivery, not a recovery. Scaleway's send
     /// endpoint carries no idempotency parameter, exactly as SES v2 did not, so the reasoning behind
     /// the retired <c>MaxErrorRetry = 0</c> transfers to this arm unchanged: dedupe across calls is
-    /// owned by the claim-then-send spine and by <c>ICooldownGate</c> (ADR 0103), one layer up, and
+    /// owned by the claim-then-send spine and by the login challenge's budgets, one layer up, and
     /// the posture this codebase already ratified is <c>StrandedMatchReaperJob</c>'s "MarkFailed,
     /// never re-send". ACCEPTED COST: a 429 or a transient 5xx fails outright and costs one reaped
     /// notification. If that ever needs fixing, the fix is a bounded application-level retry through

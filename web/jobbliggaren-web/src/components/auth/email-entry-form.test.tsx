@@ -19,7 +19,7 @@ describe("EmailEntryForm", () => {
     requestCodeMock.mockResolvedValue(null);
   });
 
-  it("is one labelled address field with its hints wired, no placeholder, and one primary", () => {
+  it("is one labelled address field with its privacy line wired, no placeholder, and one primary", () => {
     render(<EmailEntryForm next="" />);
 
     const field = screen.getByLabelText("E-postadress");
@@ -29,7 +29,7 @@ describe("EmailEntryForm", () => {
     expect(field).toHaveAttribute("aria-required", "true");
     expect(field).not.toHaveAttribute("placeholder");
     expect(field).toHaveAccessibleDescription(
-      "Formatet är namn@domän.se Så behandlar vi din e-postadress: integritetspolicyn."
+      "Så behandlar vi din e-postadress: integritetspolicyn."
     );
     // The Art. 13 pointer sits where the address is collected.
     expect(screen.getByRole("link", { name: "integritetspolicyn" })).toHaveAttribute(
@@ -75,7 +75,7 @@ describe("EmailEntryForm", () => {
 
   it("answers a field error as an alert wired to the field, focuses it and re-seeds what was typed", async () => {
     requestCodeMock.mockResolvedValue({
-      error: "Skriv in din e-postadress.",
+      error: "Skriv e-postadressen i rätt format, till exempel namn@exempel.se.",
       channel: "field",
       values: { email: "anna@" },
     });
@@ -86,7 +86,9 @@ describe("EmailEntryForm", () => {
     await user.click(screen.getByRole("button", { name: "Fortsätt" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Skriv in din e-postadress.");
+    expect(alert).toHaveTextContent(
+      "Skriv e-postadressen i rätt format, till exempel namn@exempel.se."
+    );
     const field = screen.getByLabelText("E-postadress");
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.getAttribute("aria-describedby")).toContain(alert.id);

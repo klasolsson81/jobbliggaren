@@ -197,7 +197,7 @@ describe("JobAdMatchSection (F4-16 modal match-sektion)", () => {
       />
     );
     expect(
-      screen.getByText(/Det krävs för Stark match och Toppmatch/)
+      screen.getByText(/Ett CV krävs för Stark match och Toppmatch/)
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Ladda upp CV" });
     expect(link).toHaveAttribute("href", "/cv/importera");
@@ -862,9 +862,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText(
-          "Annonsen erbjuder distansarbete och matchar därför oavsett ort."
-        )
+        screen.getByText("Annonsen erbjuder distansarbete.")
       ).toBeInTheDocument();
       // Och verdiktet står kvar — orsaken förklarar raden, den ändrar den inte.
       expect(
@@ -913,9 +911,8 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
       expect(screen.getByText("Annonsen anger inget yrke.")).toBeInTheDocument();
       expect(screen.getByText("Kompetenser")).toBeInTheDocument();
       // Skylten (och dess CTA till en inställning användaren redan fyllt i) är borta.
-      // Andra meningen är unik för skylten — radens egen fras delar bara den första.
       expect(
-        screen.queryByText(/Ställ in det för att se hur väl/)
+        screen.queryByText("Du har inte angett vilka yrken du söker inom.")
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Ställ in matchning" })
@@ -934,7 +931,7 @@ describe("JobAdMatchSection — RegionFit granularitet (Spår 3 PR-D)", () => {
         />
       );
       expect(
-        screen.getByText(/Ställ in det för att se hur väl/)
+        screen.getByText("Du har inte angett vilka yrken du söker inom.")
       ).toBeInTheDocument();
       expect(screen.queryByText("Kompetenser")).not.toBeInTheDocument();
     });

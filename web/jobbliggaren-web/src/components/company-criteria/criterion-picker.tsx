@@ -103,8 +103,6 @@ interface CriterionPickerProps {
   readonly help?: string;
   readonly selectedCountLabel?: string;
   readonly filterLabel: string;
-  /** Omitted where the field's own label already says it (the popover). */
-  readonly filterHint?: string;
   readonly groupAria: string;
   /**
    * AXIS copy, supplied by the host like `heading`/`help`/`groupAria` — not
@@ -138,7 +136,6 @@ export function CriterionPicker({
   help,
   selectedCountLabel,
   filterLabel,
-  filterHint,
   groupAria,
   expandAria,
   collapseAria,
@@ -152,7 +149,6 @@ export function CriterionPicker({
   // inherits copy written for `/foretag`, or duplicates it.
   const t = useTranslations("components.criterionPicker");
   const filterId = useId();
-  const filterHelpId = useId();
   const [filter, setFilter] = useState("");
 
   const trimmed = filter.trim().toLocaleLowerCase("sv-SE");
@@ -221,13 +217,7 @@ export function CriterionPicker({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           maxLength={80}
-          aria-describedby={filterHint !== undefined ? filterHelpId : undefined}
         />
-        {filterHint !== undefined && (
-          <p id={filterHelpId} className="text-body-sm text-text-primary">
-            {filterHint}
-          </p>
-        )}
       </div>
 
       {/* ONE persistent live region carries every filtering outcome, including zero matches.

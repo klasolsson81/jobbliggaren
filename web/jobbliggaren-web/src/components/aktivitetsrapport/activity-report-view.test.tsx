@@ -350,7 +350,7 @@ describe("ActivityReportView", () => {
   it("shows a calm empty state for a month with no applications (no exclamation)", () => {
     renderView([]);
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
-    expect(screen.getByText(/Inga ansökningar att rapportera/)).toBeInTheDocument();
+    expect(screen.getByText(/När du markerar en ansökan som ansökt/)).toBeInTheDocument();
     expect(document.body.textContent ?? "").not.toContain("!");
   });
 

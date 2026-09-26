@@ -1,7 +1,6 @@
 {
   "hero": {
-    "title": "Overview",
-    "lede": "Notices and events in your job search, gathered in one place."
+    "title": "Overview"
   },
   "today": {
     "kicker": "Today",
@@ -13,9 +12,8 @@
     "stepsAriaLabel": "Applications per step",
     "link": "Show all applications",
     "emptyTitle": "You have no applications yet",
-    "emptyBody": "Add an application to see status and follow-ups here.",
     "emptyCta": "New application",
-    "unavailable": "The application count could not be loaded. Reload the page to try again."
+    "unavailable": "The application count could not be loaded. Refresh the page."
   },
   "companySummary": {
     "heading": "Followed companies",
@@ -25,18 +23,17 @@
     "notLinkable": "The counts above have no link.",
     "filter": "{count, plural, one {# watch has a notification filter} other {# watches have notification filters}}. The counts above cover all ads, regardless of filter.",
     "emptyTitle": "You are not following any companies yet",
-    "emptyBody": "Look up an employer and start following. New ads from the company are collected here.",
     "emptyCta": "Search companies",
-    "unavailable": "Followed companies could not be loaded. Refresh the page to try again."
+    "unavailable": "Followed companies could not be loaded. Refresh the page."
   },
   "criteriaSummary": {
     "heading": "Industry watches",
     "anchor": "{count, plural, one {# industry watch} other {# industry watches}}",
     "link": "View industry watches",
     "emptyTitle": "You have no industry watches yet",
-    "emptyBody": "An industry watch is a saved search by industry and municipality. Ads from the matching companies are collected here.",
+    "emptyBody": "A saved search by industry and municipality.",
     "emptyCta": "New industry watch",
-    "unavailable": "Industry watches could not be loaded. Refresh the page to try again.",
+    "unavailable": "Industry watches could not be loaded. Refresh the page.",
     "adsTooBroadAdvice": "A watch that matches more companies than we can count ads for gets no numbers here.",
     "matchingTooBroadAdvice": "A watch with more ads than we can match does not show how many of them match you."
   },
@@ -49,7 +46,7 @@
     "matching": "Matching",
     "matchingUnit": "{count, plural, one {job ad matches your choices} other {job ads match your choices}}",
     "matchingBasis": "Counted on your occupations, locations and employment types.",
-    "matchingUnavailable": "Matching could not be loaded. Refresh the page to try again.",
+    "matchingUnavailable": "Matching could not be loaded. Refresh the page.",
     "matchingCta": "View matching job ads",
     "matchingCtaAria": "View matching job ads for your choices",
     "matchingCtaZero": "Browse all job ads",
@@ -72,8 +69,8 @@
     "refreshing": "Refreshing…",
     "refreshed": "Refreshed",
     "markAllRead": "Mark all as read",
-    "markAllReadHint": "The notices are hidden in each section until tomorrow. Nothing is removed.",
-    "markAllReadHintStatic": "The notices are hidden in each section. Nothing is removed, and you can show them again.",
+    "markAllReadHint": "The notices are hidden until tomorrow.",
+    "markAllReadHintStatic": "The notices are hidden.",
     "markAllReadReceipt": "{count, plural, one {# notice marked as read} other {# notices marked as read}}",
     "emptyTitle": "No unread notices",
     "emptyBody": "The inbox is empty. You will be notified as soon as something happens in your case.",
@@ -107,32 +104,32 @@
     "prefFollowedAds": "New ads from watched companies",
     "prefCompanyEvents": "Company events",
     "offerLabel": "Offer",
-    "offerTextWithTitle": "<b>{company}</b>: {title}. Offer awaiting response.",
+    "offerTextWithTitle": "<b>{company}</b>: {title}",
     "offerText": "<b>{company}</b>. Offer awaiting response.",
     "offerCta": "Review offer",
     "followUpLabel": "Follow-up",
-    "followUpText": "You have <b>{count, plural, one {# application} other {# applications}}</b> that have not had a response in over {days, number} days. Consider getting in touch.",
+    "followUpText": "You have <b>{count, plural, one {# application} other {# applications}}</b> that have not had a response in over {days, number} days.",
     "followUpCta": "View applications",
     "deadlineLabel": "Deadline",
     "deadlineText": "<b>{count, plural, one {# saved job ad} other {# saved job ads}}</b> have an application deadline within {days, number} days ({labels}).",
     "deadlineCta": "View saved",
     "matchLabel": "Matching",
-    "matchText": "There are <b>{count, number}</b> job ads that match your choices.",
-    "matchTextZero": "There are no job ads that match your choices right now.",
+    "matchText": "<b>{count, number}</b> {count, plural, one {job ad matches} other {job ads match}} your choices.",
+    "matchTextZero": "No job ads match your choices right now.",
     "matchCta": "View job ads",
     "interviewLabel": "Interview",
     "interviewText": "<b>{company}</b> has confirmed an interview time.",
     "interviewCta": "Open case",
     "savedSearchLabel": "Latest search",
     "savedSearchText": "The search <b>{name}</b> has <b>{count, plural, one {# new hit} other {# new hits}}</b> since your last run.",
-    "savedSearchTextNoCount": "Your latest search: <b>{name}</b>.",
+    "savedSearchTextNoCount": "<b>{name}</b>",
     "savedSearchCta": "Run search",
     "companiesLabel": "Watch",
     "companiesText": "The companies you watch have published <b><lnk>{count, plural, one {# new ad} other {# new ads}}</lnk></b> since your last visit.",
     "companiesCta": "View new ads",
-    "calloutText": "<b>Matching is not complete.</b> You have not specified which occupations you are looking for, so Jobbliggaren cannot show which job ads suit you.",
+    "calloutText": "You have not stated which occupations you are looking for.",
     "calloutCta": "Set up matching",
-    "calloutHint": "Takes a couple of minutes"
+    "calloutHint": "Takes about a minute"
   },
   "relativeTime": {
     "today": "today",

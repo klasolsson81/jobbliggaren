@@ -129,6 +129,9 @@ describe("MatchSetupRailModal — steg-navigering", () => {
     expect(
       screen.getByText("Vi matchar Platsbankens annonser mot din profil"),
     ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "Ställ in din matchning så visar vi jobb som passar dig. Det tar någon minut.",
+    );
     expect(screen.getByRole("button", { name: "Fortsätt" })).toBeInTheDocument();
   });
 
@@ -151,6 +154,7 @@ describe("MatchSetupRailModal — steg-navigering", () => {
     expect(
       screen.getByRole("heading", { name: "Granska och spara" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-describedby");
     expect(
       screen.getByRole("button", { name: "Spara matchning" }),
     ).toBeInTheDocument();

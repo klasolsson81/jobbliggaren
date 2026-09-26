@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import svPages from "../../../../../../../messages/sv/pages.json";
-import type { ParsedResumeDetailDto } from "@/lib/dto/parsed-resume";
+import type {
+  CriterionVerdict,
+  CvReviewDto,
+  ParsedResumeDetailDto,
+} from "@/lib/dto/parsed-resume";
 import CvReviewPage from "./page";
 
 /**
@@ -75,7 +79,6 @@ function detail(
     sourceFileName: "cv.pdf",
     confidence: {
       overall: "Degraded",
-      requiresManualReview: true,
       fallback: "None",
       sections: [],
     },
@@ -182,5 +185,59 @@ describe("/cv/granska/[parsedId] — the block reason reaches the page", () => {
 
     getParsedResume.mockResolvedValue({ kind: "unauthorized" });
     await expect(invoke()).rejects.toThrow("NEXT_REDIRECT:/logga-in");
+  });
+});
+
+function review(verdicts: CriterionVerdict[]): CvReviewDto {
+  return {
+    rubricVersion: "1",
+    profile: "Ats",
+    categories: [],
+    verdicts: verdicts.map((verdict, index) => ({
+      criterionId: `A${index + 1}`,
+      name: `Kriterium ${index + 1}`,
+      category: "Content",
+      verdict,
+      evidence: [],
+      notAssessedReason: null,
+      userStatus: null,
+      userStatusStaleAt: null,
+      isIgnorable: false,
+    })),
+    criticalFails: [],
+    assessedCount: verdicts.length,
+    totalCount: verdicts.length,
+  };
+}
+
+describe("/cv/granska/[parsedId] — the next-step sentence", () => {
+  const NEXT_STEP_BODY = "Uppdatera filen utifrån anmärkningarna och ladda upp den på nytt.";
+
+  it("renders the sentence when the review has a finding to fix", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+    getCvReview.mockResolvedValue({ kind: "ok", data: review(["Pass", "Warn"]) });
+
+    render(await invoke());
+
+    expect(screen.getByText(NEXT_STEP_BODY)).toBeInTheDocument();
+  });
+
+  it("renders no sentence when the review has no finding to fix", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+    getCvReview.mockResolvedValue({ kind: "ok", data: review(["Pass", "NotAssessed"]) });
+
+    render(await invoke());
+
+    expect(screen.getByRole("heading", { name: "Nästa steg" })).toBeInTheDocument();
+    expect(screen.queryByText(NEXT_STEP_BODY)).toBeNull();
+  });
+
+  it("renders no sentence when the review could not be loaded", async () => {
+    getParsedResume.mockResolvedValue({ kind: "ok", data: detail("IncompleteContent") });
+
+    render(await invoke());
+
+    expect(screen.getByRole("heading", { name: "Nästa steg" })).toBeInTheDocument();
+    expect(screen.queryByText(NEXT_STEP_BODY)).toBeNull();
   });
 });

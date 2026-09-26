@@ -41,7 +41,7 @@ interface Props {
  * kvarvarande vägen att ÅTERKALLA personnummer-samtycket för ett redan sparat
  * CV (originalfilen lagras på samtycke — se `Domain/Resumes/Files/ResumeFile.cs`).
  * GDPR Art. 7(3) kräver att en återkallelse är LIKA LÄTT som samtycket var att
- * ge; kontoradering (lösenord + 30 dagars väntan) uppfyller inte det, och en
+ * ge; kontoradering (återautentisering med kod + 30 dagars väntan) uppfyller inte det, och en
  * e-postadress gör det inte heller för just samtycken. Båda kontrollerna ligger
  * därför nu på CV-kortet i hubben (`components/resumes/resume-card.tsx`), där de
  * hör hemma på egna meriter: radering är en BIBLIOTEKS-operation, och hubben bär

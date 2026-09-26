@@ -138,3 +138,10 @@ describe("CriterionDialog — the pick counters (#1711)", () => {
     expect(within(dialog).getAllByRole("button", { name: "Rensa val" })).toHaveLength(2);
   });
 });
+
+describe("CriterionDialog — a11y (no description)", () => {
+  it("carries no intro, so the dialog is described by nothing", () => {
+    const dialog = openEdit(WHOLE_HUVUDGRUPP, WHOLE_LAN);
+    expect(dialog).not.toHaveAttribute("aria-describedby");
+  });
+});

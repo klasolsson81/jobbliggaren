@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Jobbliggaren.Application.Auth;
-using Jobbliggaren.Infrastructure.Identity;
 using Shouldly;
 
 namespace Jobbliggaren.Architecture.Tests;
@@ -25,8 +24,7 @@ namespace Jobbliggaren.Architecture.Tests;
 ///
 /// <para>
 /// <b>On the premise (AGENTS.md §5 <c>Tests:</c>).</b> The client's codes are read out of the shipped
-/// source file and the backend's out of the real constants. One thing is re-typed here and named:
-/// the <c>"Auth."</c> prefix of <see cref="ComposedCodes"/>.
+/// source file and the backend's out of the real constants.
 /// </para>
 /// </summary>
 public class AuthErrorCodeWireContractTests
@@ -35,17 +33,6 @@ public class AuthErrorCodeWireContractTests
         "web/jobbliggaren-web/src/lib/auth/auth-error-codes.ts";
 
     private const string FrontendObjectName = "AUTH_ERROR_CODES";
-
-    /// <summary>
-    /// Codes with no constant on <see cref="AuthErrorCodes"/>: <c>UserAccountService</c> composes them
-    /// as <c>$"Auth.{error.Code}"</c> from an Identity error code. The composition's prefix is
-    /// re-typed here; <c>BreachedPasswordTests</c> pins the composed value through the real endpoint.
-    /// </summary>
-    private static readonly IReadOnlyDictionary<string, string> ComposedCodes =
-        new Dictionary<string, string>
-        {
-            ["PwnedPassword"] = $"Auth.{PwnedPasswordValidator.ErrorCode}",
-        };
 
     [Fact]
     public void EveryCodeTheClientComparesIsTheValueTheBackendEmits()
@@ -60,24 +47,8 @@ public class AuthErrorCodeWireContractTests
         }
     }
 
-    [Fact]
-    public void AComposedCodeIsNotAlsoAConstant()
-    {
-        // If a constant appears for a composed code, the constant is the better source and the
-        // special case above should go, or the join has two answers for one name.
-        foreach (var name in ComposedCodes.Keys)
-        {
-            FieldNamed(name).ShouldBeNull(
-                $"AuthErrorCodes.{name} now exists. Drop '{name}' from {nameof(ComposedCodes)} so the "
-                + "join reads the constant.");
-        }
-    }
-
     private static string BackendValueOf(string name)
     {
-        if (ComposedCodes.TryGetValue(name, out var composed))
-            return composed;
-
         var field = FieldNamed(name);
         field.ShouldNotBeNull(
             $"the web client compares a code named '{name}' ({FrontendModuleRelativePath}), and "

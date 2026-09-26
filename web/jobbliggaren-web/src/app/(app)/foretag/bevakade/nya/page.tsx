@@ -109,7 +109,7 @@ export default async function NyaFollowedAdsPage() {
           // counts are always over the WHOLE fetched set, never the filtered view.
           //
           // TRUNCATED changes what the numbers MEAN, not how they are counted. `rows.length` is then
-          // the capped count, so a sentence saying "N nya annonser sedan ditt senaste besök" would
+          // the capped count, so a sentence saying "N nya annonser" would
           // claim a total the page never read — and Översikt, whose count is uncapped, would say a
           // different one (code-reviewer). ADR 0120: a rendered number is true or absent, so the
           // truncated sentence states what is SHOWN and claims no total. The uncounted remainder is
@@ -184,7 +184,6 @@ export default async function NyaFollowedAdsPage() {
                   matchingLabel={t("foretag.newAds.view.matching")}
                   filteredNote={tRule("filter.activeOnlyMatched")}
                   emptyTitle={t("foretag.newAds.matchingEmptyTitle")}
-                  emptyBody={t("foretag.newAds.matchingEmptyBody")}
                   emptyAction={t("foretag.newAds.matchingEmptyAction")}
                   matchingCount={matchingRows.length}
                   all={<JobAdList jobAds={data.rows.map((row) => row.ad)} />}

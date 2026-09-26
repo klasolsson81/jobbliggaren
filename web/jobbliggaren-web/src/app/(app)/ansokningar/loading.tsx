@@ -18,8 +18,8 @@ import { PageHeroSkeleton } from "@/components/skeletons/page-hero-skeleton";
  * controls INSIDE the aside, in two `__btnrow`s under the `--stacked` modifier. So the
  * fallback under-reserved the band and over-reserved beneath it, in the same swap.
  *
- * It now mirrors that structure: the real title and lede (static translations, so the
- * browser wraps them exactly as the page does — `cv/(hub)/loading.tsx` is the precedent),
+ * It now mirrors that structure: the real title (a static translation, so the
+ * browser wraps it exactly as the page does — `cv/(hub)/loading.tsx` is the precedent),
  * the `--stacked` modifier via `stacked`, and both rows at the `.jp-btn` height.
  *
  * ⚠ **The bar widths approximate rather than mirror**, and that is where this file can
@@ -41,7 +41,7 @@ export default function Loading() {
 
       <PageHeroSkeleton
         title={t("ansokningar.title")}
-        lede={t("ansokningar.lede")}
+        lede={null}
         stacked
         aside={
           <>

@@ -17,10 +17,9 @@ namespace Jobbliggaren.Worker.IntegrationTests.Migrations;
 ///
 /// <para>
 /// This is a DESTRUCTIVE migration: two <c>DROP COLUMN</c>s and a <c>DROP INDEX</c> on the table
-/// that holds every account. The journey is head → previous → head with an account inserted at
-/// head, so both directions run on rows; everything is read out of the catalog rather than inferred
-/// from the migration file. No other test in the suite has a populated identity table at migration
-/// time.
+/// that holds every account. The journey is ThisMigration → previous → ThisMigration, never the
+/// assembly's head, with an account inserted at ThisMigration, so both directions run on rows;
+/// everything is read out of the catalog rather than inferred from the migration file.
 /// </para>
 ///
 /// <para>
@@ -96,7 +95,7 @@ public sealed class DropAuthProviderColumnsMigrationTests : IAsyncLifetime
     /// The index as Postgres holds it, not as the model declares it. <c>indexdef</c> comes back so
     /// the partial filter and the UNIQUE-ness are read rather than assumed — a <c>Down</c> that
     /// recreated the index without its <c>WHERE</c> clause would restore a constraint stricter than
-    /// the one it replaced, and a plain existence check would call that a pass. Reading it at head
+    /// the one it replaced, and a plain existence check would call that a pass. Reading it at ThisMigration
     /// is separately worth the query: <c>DropIndex</c> names the index as a string.
     /// </summary>
     private async Task<string?> ReadProviderIndexDefAsync(CancellationToken ct)
@@ -115,7 +114,7 @@ public sealed class DropAuthProviderColumnsMigrationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// An account in the shape <c>AspNetUsers</c> holds at head, written with only the columns that
+    /// An account in the shape <c>AspNetUsers</c> holds at ThisMigration, written with only the columns that
     /// exist there. The NOT NULL set is id, the four Identity flags and access_failed_count, plus
     /// created_at (store default <c>now()</c>); everything else is nullable.
     /// </summary>
@@ -184,8 +183,8 @@ public sealed class DropAuthProviderColumnsMigrationTests : IAsyncLifetime
         assembly.ShouldContain(ThisMigration);
         assembly.ShouldContain(PreviousMigration);
 
-        // --- 1. Head: neither column is in the catalog, and neither is the index.
-        await db.Database.MigrateAsync(ct);
+        // --- 1. ThisMigration: neither column is in the catalog, and neither is the index.
+        await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
         (await ReadDroppedColumnsAsync(ct)).ShouldBeEmpty();
         (await ReadProviderIndexDefAsync(ct)).ShouldBeNull();
@@ -222,11 +221,11 @@ public sealed class DropAuthProviderColumnsMigrationTests : IAsyncLifetime
         (await ReadRestoredProviderAsync(accountId, ct)).ShouldBe(("Local", true));
 
         // --- 4. Forward again, on the populated table: the shape the deploy runs.
-        await db.Database.MigrateAsync(ct);
+        await db.GetService<IMigrator>().MigrateAsync(ThisMigration, ct);
 
         (await ReadDroppedColumnsAsync(ct)).ShouldBeEmpty();
         (await ReadProviderIndexDefAsync(ct)).ShouldBeNull();
-        (await db.Database.GetPendingMigrationsAsync(ct)).ShouldBeEmpty();
+        (await db.Database.GetAppliedMigrationsAsync(ct)).Last().ShouldBe(ThisMigration);
 
         // The EFFECT on that account, not the columns' absence: the row is still there, with its
         // identifying data. DROP COLUMN narrows a table — a statement that reached the table instead

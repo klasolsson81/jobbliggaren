@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -70,7 +69,6 @@ export function RenameResumeForm({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("rename.title")}</DialogTitle>
-            <DialogDescription>{t("rename.description")}</DialogDescription>
           </DialogHeader>
           <form action={formAction} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">

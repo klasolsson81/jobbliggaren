@@ -38,7 +38,7 @@ export async function readProblemBody(res: Response): Promise<ProblemBody | null
 
 /**
  * #616 — reads the ProblemDetails `title` (the backend's machine error code, e.g.
- * "Auth.PwnedPassword") from an error response. Never throws: non-JSON bodies and shapes
+ * "Auth.LoginCodeBurned") from an error response. Never throws: non-JSON bodies and shapes
  * without a `title` resolve to null.
  *
  * The title is ONLY for comparison against an exact whitelist at the call site — callers map a

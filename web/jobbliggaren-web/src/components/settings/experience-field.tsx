@@ -4,7 +4,7 @@
 // raw string to `number | null`. Lives in the same hosts as SkillSection
 // (wizard step + settings). ADR 0079 STEG 3: a single profile-level
 // "antal års erfarenhet" — stored and round-tripped, but NOT scored anywhere in
-// the FE (no badge, no grade math). Label/help text carries the instruction
+// the FE (no badge, no grade math). Label carries the instruction
 // (no placeholder example text — hard Klas rule).
 
 import { useId } from "react";
@@ -26,8 +26,8 @@ interface ExperienceFieldProps {
 
 /**
  * "Antal års erfarenhet" — EN frivillig profil-nivå-siffra (ADR 0079 STEG 3).
- * Tomt fält = `null` (ej angivet, ärligt). Inga exempel i fältet; label +
- * hjälptext bär instruktionen. Klampar till 0..70 (speglar schemat/backend).
+ * Tomt fält = `null` (ej angivet, ärligt). Inga exempel i fältet; label
+ * bär instruktionen. Klampar till 0..70 (speglar schemat/backend).
  */
 export function ExperienceField({
   value,
@@ -37,7 +37,6 @@ export function ExperienceField({
   const t = useTranslations("settings");
   const reactId = useId();
   const fieldId = `${idPrefix}-${reactId}`;
-  const hintId = `${fieldId}-hint`;
 
   function handleChange(raw: string) {
     const trimmed = raw.trim();
@@ -71,12 +70,8 @@ export function ExperienceField({
         step={1}
         value={value === null ? "" : String(value)}
         onChange={(e) => handleChange(e.target.value)}
-        aria-describedby={hintId}
         className="max-w-[12rem]"
       />
-      <p id={hintId} className="text-body-sm text-text-primary">
-        {t("matchPrefs.experience.hint")}
-      </p>
     </div>
   );
 }

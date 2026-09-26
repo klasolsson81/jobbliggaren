@@ -118,8 +118,8 @@ internal static class MappedPlaintextExposureRegistry
                 + "today; listed so a column added here cannot land outside the row test.",
 
             // ── The seeker's own records. ─────────────────────────────────────────────────────
-            ["job_seekers"] = "One row per seeker (UserId). display_name, match_preferences, the "
-                + "preferences ToJson container and Language inside it — #1435 measured all four as "
+            ["job_seekers"] = "One row per seeker (UserId). match_preferences, the "
+                + "preferences ToJson container and Language inside it — #1435 measured them as "
                 + "free text with no taxonomy lookup and, for Language, no server-side validation. "
                 + "terms_version and privacy_policy_version (#1736) are Domain constants, not free "
                 + "text, and the row test exposes them all the same: a closed domain beside her id is "

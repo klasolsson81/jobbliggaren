@@ -95,7 +95,7 @@ describe("GuestOversiktPage — den okvalificerade knappen (#1572)", () => {
 
     const hint = container.querySelector(`#${hintId}`);
     expect(hint).not.toBeNull();
-    expect(hint).toHaveTextContent(/Ingenting tas bort/);
+    expect(hint).toHaveTextContent(/Notiserna döljs/);
     expect(hint).not.toHaveTextContent(/till i morgon/);
   });
 
@@ -118,10 +118,9 @@ describe("GuestOversiktPage — den okvalificerade knappen (#1572)", () => {
     );
   });
 
-  it("hinten håller: en avfärdad notis går att ta tillbaka", async () => {
-    // "Ingenting tas bort" var FALSKT på den gamla gästytan — `<NoticeList>` hade
-    // inget läst-läge alls, så ett klick tömde demot permanent i den webbläsaren.
-    // Återvändbarheten är alltså en förutsättning för copyn, inte en extra finess.
+  it("en avfärdad notis går att ta tillbaka", async () => {
+    // På den gamla gästytan hade `<NoticeList>` inget läst-läge alls, så ett klick
+    // tömde demot permanent i den webbläsaren.
     const user = userEvent.setup();
     render(<GuestOversiktPage />);
 

@@ -18,7 +18,7 @@ interface MatchingCardProps {
   readonly matchHref: string | null;
   /**
    * ADR 0076 — the setup state and the count are mutually exclusive. No stated occupation ⇒ this
-   * card carries the "Matchningen är inte klar" callout and the ONLY settings link on the page.
+   * card carries the setup callout and the ONLY settings link on the page.
    */
   readonly hasStatedOccupation: boolean;
   /** 4 beside three siblings, 6 when the Branschbevakning card has reflowed to a full row. */
@@ -44,9 +44,7 @@ export function MatchingCard({
   if (!hasStatedOccupation) {
     return (
       <OversiktCard id={ID} title={title} tone="accent" span={span} icon={Target}>
-        <p className="jp-ov-card__text">
-          {t.rich("notices.calloutText", { b: (chunks) => <b>{chunks}</b> })}
-        </p>
+        <p className="jp-ov-card__text">{t("notices.calloutText")}</p>
         <OversiktCardFoot>
           {/* `/oversikt?matchsetup=1` opens the match-setup modal via MatchSetupLauncher
               (epic #526) — the same destination the callout has always had. */}
@@ -74,9 +72,7 @@ export function MatchingCard({
         value={matchCount}
         unit={t("cards.matchingUnit", { count: matchCount })}
       />
-      <p className="jp-ov-sub">
-        {matchCount > 0 ? t("cards.matchingBasis") : t("notices.matchTextZero")}
-      </p>
+      {matchCount > 0 && <p className="jp-ov-sub">{t("cards.matchingBasis")}</p>}
       <OversiktCardFoot>
         {matchCount > 0 ? (
           <Link

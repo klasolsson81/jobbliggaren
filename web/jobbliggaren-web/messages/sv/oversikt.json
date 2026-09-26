@@ -1,7 +1,6 @@
 {
   "hero": {
-    "title": "Översikt",
-    "lede": "Notiser och händelser i ditt jobbsökande, samlade på ett ställe."
+    "title": "Översikt"
   },
   "today": {
     "kicker": "Idag",
@@ -13,9 +12,8 @@
     "stepsAriaLabel": "Ansökningar per steg",
     "link": "Visa alla ansökningar",
     "emptyTitle": "Du har inga ansökningar än",
-    "emptyBody": "Lägg till en ansökan, så ser du status och uppföljningar här.",
     "emptyCta": "Ny ansökan",
-    "unavailable": "Antalet ansökningar kunde inte hämtas. Uppdatera sidan för att försöka igen."
+    "unavailable": "Antalet ansökningar kunde inte hämtas. Uppdatera sidan."
   },
   "companySummary": {
     "heading": "Bevakade företag",
@@ -25,18 +23,17 @@
     "notLinkable": "Antalen ovan saknar länk.",
     "filter": "{count, plural, one {# bevakning har ett notisfilter} other {# bevakningar har notisfilter}}. Antalen ovan gäller alla annonser, oavsett filter.",
     "emptyTitle": "Du bevakar inga företag än",
-    "emptyBody": "Sök upp en arbetsgivare och börja bevaka. Nya annonser från företaget samlas här.",
     "emptyCta": "Sök företag",
-    "unavailable": "Bevakade företag kunde inte hämtas. Uppdatera sidan för att försöka igen."
+    "unavailable": "Bevakade företag kunde inte hämtas. Uppdatera sidan."
   },
   "criteriaSummary": {
     "heading": "Branschbevakningar",
     "anchor": "{count, plural, one {# branschbevakning} other {# branschbevakningar}}",
     "link": "Visa branschbevakningar",
     "emptyTitle": "Du har inga branschbevakningar än",
-    "emptyBody": "En branschbevakning är en sparad sökning på bransch och kommun. Annonserna från företagen som matchar samlas här.",
+    "emptyBody": "En sparad sökning på bransch och kommun.",
     "emptyCta": "Ny branschbevakning",
-    "unavailable": "Branschbevakningar kunde inte hämtas. Uppdatera sidan för att försöka igen.",
+    "unavailable": "Branschbevakningar kunde inte hämtas. Uppdatera sidan.",
     "adsTooBroadAdvice": "En bevakning som matchar fler företag än vi kan räkna annonser för får inga tal här.",
     "matchingTooBroadAdvice": "En bevakning med fler annonser än vi kan matcha visar inte hur många av dem som matchar dig."
   },
@@ -49,7 +46,7 @@
     "matching": "Matchning",
     "matchingUnit": "{count, plural, one {annons matchar dina val} other {annonser matchar dina val}}",
     "matchingBasis": "Räknat på dina yrken, orter och anställningsformer.",
-    "matchingUnavailable": "Matchningen kunde inte hämtas. Uppdatera sidan för att försöka igen.",
+    "matchingUnavailable": "Matchningen kunde inte hämtas. Uppdatera sidan.",
     "matchingCta": "Visa matchande annonser",
     "matchingCtaAria": "Visa matchande annonser för dina val",
     "matchingCtaZero": "Sök bland alla annonser",
@@ -72,8 +69,8 @@
     "refreshing": "Uppdaterar…",
     "refreshed": "Uppdaterad",
     "markAllRead": "Markera alla som lästa",
-    "markAllReadHint": "Notiserna döljs i varje sektion till i morgon. Ingenting tas bort.",
-    "markAllReadHintStatic": "Notiserna döljs i varje sektion. Ingenting tas bort, och du kan visa dem igen.",
+    "markAllReadHint": "Notiserna döljs till i morgon.",
+    "markAllReadHintStatic": "Notiserna döljs.",
     "markAllReadReceipt": "{count, plural, one {# notis markerad som läst} other {# notiser markerade som lästa}}",
     "emptyTitle": "Inga olästa notiser",
     "emptyBody": "Inkorgen är tom. Du får besked så snart det händer något i ditt ärende.",
@@ -107,32 +104,32 @@
     "prefFollowedAds": "Nya annonser från bevakade företag",
     "prefCompanyEvents": "Företagshändelser",
     "offerLabel": "Erbjudande",
-    "offerTextWithTitle": "<b>{company}</b>: {title}. Erbjudande väntar svar.",
+    "offerTextWithTitle": "<b>{company}</b>: {title}",
     "offerText": "<b>{company}</b>. Erbjudande väntar svar.",
     "offerCta": "Granska erbjudande",
     "followUpLabel": "Uppföljning",
-    "followUpText": "Du har <b>{count, plural, one {# ansökan} other {# ansökningar}}</b> som inte fått svar på över {days, number} dagar. Överväg att höra av dig.",
+    "followUpText": "Du har <b>{count, plural, one {# ansökan} other {# ansökningar}}</b> som inte fått svar på över {days, number} dagar.",
     "followUpCta": "Visa ansökningar",
     "deadlineLabel": "Deadline",
     "deadlineText": "<b>{count, plural, one {# sparad annons} other {# sparade annonser}}</b> har sista ansökningsdag inom {days, number} dagar ({labels}).",
     "deadlineCta": "Visa sparade",
     "matchLabel": "Matchning",
-    "matchText": "Det finns <b>{count, number}</b> annonser som matchar dina val.",
-    "matchTextZero": "Det finns inga annonser som matchar dina val just nu.",
+    "matchText": "<b>{count, number}</b> {count, plural, one {annons matchar} other {annonser matchar}} dina val.",
+    "matchTextZero": "Inga annonser matchar dina val just nu.",
     "matchCta": "Visa annonser",
     "interviewLabel": "Intervju",
     "interviewText": "<b>{company}</b> har bekräftat intervjutid.",
     "interviewCta": "Öppna ärende",
     "savedSearchLabel": "Senaste sökning",
     "savedSearchText": "Sökningen <b>{name}</b> har <b>{count, plural, one {# ny träff} other {# nya träffar}}</b> sedan din senaste körning.",
-    "savedSearchTextNoCount": "Din senaste sökning: <b>{name}</b>.",
+    "savedSearchTextNoCount": "<b>{name}</b>",
     "savedSearchCta": "Kör sökning",
     "companiesLabel": "Bevakning",
     "companiesText": "Dina bevakade företag har publicerat <b><lnk>{count, plural, one {# ny annons} other {# nya annonser}}</lnk></b> sedan ditt senaste besök.",
     "companiesCta": "Visa nya annonser",
-    "calloutText": "<b>Matchningen är inte klar.</b> Du har inte angett vilka yrken du söker inom, så Jobbliggaren kan inte visa vilka annonser som passar dig.",
+    "calloutText": "Du har inte angett vilka yrken du söker inom.",
     "calloutCta": "Ställ in matchning",
-    "calloutHint": "Tar ett par minuter"
+    "calloutHint": "Tar någon minut"
   },
   "relativeTime": {
     "today": "idag",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { CvReviewPanel } from "./cv-review-panel";
 import type {
   CvReviewDto,
@@ -452,14 +452,28 @@ describe("CvReviewPanel — lager 2 är rader, inte kort (#1062 Q1)", () => {
     ).toBeNull();
   });
 
-  it("täckningsberättelsen leder i eget element, skild från hederlighetsklausulen", () => {
+  it("täckningsberättelsen leder i eget element, och raden under bär bara rubrikversionen", () => {
     const { container } = renderDefault();
     expect(
       container.querySelector(".jp-cvreview__coverage")?.textContent,
     ).toBe("6 av 42 kriterier är bedömda.");
     expect(
-      container.querySelector(".jp-cvreview__coverage-note")?.textContent ?? "",
-    ).toMatch(/räknas som ej bedömda och sänker inte omdömet\./);
+      container.querySelector(".jp-cvreview__coverage-note")?.textContent,
+    ).toBe("Rubrik 1.0.0");
+    expect(screen.queryByText(/sänker inte omdömet/)).toBeNull();
+  });
+
+  it("hederlighetsklausulen ligger bakom ?-hjälpen vid dimensionsrubriken", async () => {
+    renderDefault();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hur räknas omdömet per dimension?" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Bedömning per dimension",
+    });
+    expect(dialog).toHaveAccessibleDescription(
+      /räknas som ej bedömda och sänker inte omdömet\./,
+    );
   });
 });
 

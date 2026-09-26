@@ -515,15 +515,20 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 ### 6.2 Endpoints (grupperade per kontext)
 
 **Auth**
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/challenge`
+- `POST /api/v1/auth/challenge/verify`
+- `POST /api/v1/auth/link`
+- `POST /api/v1/auth/challenge/complete`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
-- `POST /api/v1/auth/forgot-password`
-- `POST /api/v1/auth/reset-password`
-- `POST /api/v1/auth/verify-email`
-- `POST /api/v1/auth/oauth/google`
-- `POST /api/v1/auth/oauth/microsoft`
+- `POST /api/v1/auth/reauth`
+- `POST /api/v1/auth/reauth/verify`
+- `POST /api/v1/auth/change-email`
+- `POST /api/v1/auth/change-email/verify`
+- `POST /api/v1/auth/change-email/confirm`
+- `POST /api/v1/auth/oauth/{provider}/start`
+- `POST /api/v1/auth/oauth/{provider}/callback`
+- `GET /api/v1/auth/oauth/providers`
 
 **Me / profil**
 - `GET /api/v1/me`
@@ -605,7 +610,6 @@ Alla events loggas till `AuditLog`-tabellen via en gemensam `AuditLogHandler`.
 - `GET /api/v1/admin/users/{id}`
 - `POST /api/v1/admin/users/{id}/suspend`
 - `POST /api/v1/admin/users/{id}/unsuspend`
-- `POST /api/v1/admin/users/{id}/reset-password`
 - `POST /api/v1/admin/users/{id}/impersonate` — **OBYGGD.** Endpointen finns inte i `Endpoints/`, och "returnerar temporär JWT" beskriver en mekanism som inte längre existerar (§11.3). Truth-sync #569/#827
 - `GET /api/v1/admin/audit-log?from&to&userId&action&aggregateType`
 - `GET /api/v1/admin/job-sources/status`
@@ -631,7 +635,6 @@ user_roles, roles, role_claims, user_claims, user_logins, user_tokens
 job_seekers
   id (uuid PK)
   user_id (uuid FK users)
-  display_name (text)
   preferences (jsonb)            -- flexibel VO
   terms_accepted_at (timestamptz null)                    -- ADR 0142 D6: avtalsstämpel, null bara före del 1b
   terms_version, privacy_policy_version (varchar(20) null) -- all-or-nothing: ck_job_seekers_terms_all_or_none
@@ -1073,8 +1076,6 @@ public enum CriterionVerdict { Pass, Warn, Fail, NotAssessed }
       /integritet
     /(auth)
       /logga-in
-      /registrera
-      /glomt-losenord
     /(app)                     -- autentiserat
       /layout.tsx             -- app shell, navigation
       /instrumentpanel        -- dashboard
@@ -1217,10 +1218,12 @@ Roles lagras i `user_roles` (Identity).
   token. Revokation = ta bort sessionen; ingen separat revokations-lista behövs.
 - **Förnyelse:** `POST /api/v1/auth/refresh` → `RefreshSessionCommand`, som *slidar* sessionen
   och roterar id:t när det är dags (#481 persistent-login). Ingen refresh-token-rotation.
+- **Inloggning** är en mejlad kod eller länk (ADR 0142); lösenordsvägarna togs bort i del 5a.
 - **Livslängder** (`SessionStoreOptions`, sanningskälla — inte dupliceras utan läsas där):
-  *Session* (vanlig inloggning) 24 h sliding / 24 h absolut, ingen rotation. *Persistent*
-  ("Håll mig inloggad") 30 d sliding / 180 d absolut / id-rotation var 24:e timme. Den gamla
-  §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
+  varje inloggning ger *Persistent*, 30 d sliding / 180 d absolut / id-rotation var 24:e timme.
+  *Session* (24 h sliding / 24 h absolut, ingen rotation) mintas bara när ett adressbyte bekräftas
+  och den aktuella sessionen inte går att läsa. *Legacy* är vad en session skriven före profilerna
+  avkodas till. Den gamla §11.2:s "15 min / 14 dagar" gällde den JWT-design som aldrig byggdes.
 - **Backend sätter inga cookies** (ADR 0018). Next.js-proxyn äger `__Host-`-cookien och
   ersätter dess värde när svaret bär `{ rotated: true }`.
 
@@ -1793,7 +1796,7 @@ ej publika, swap/core-dump-hygien) = gate M-6, hemvist [#196](https://github.com
 
 `build.yml` (`ci`-aggregat):
 - Trigger: PR mot `main`, push till `main`
-- Jobs: backend build + test, frontend lint/typecheck/test, coverage-gate (ADR 0044)
+- Jobs: enumerated in `build.yml`'s `ci.needs` and nowhere else (ADR 0044 Beslut 4: a list of the tree goes stale, a rule does not)
 - Inga moln-anrop, inga deploys
 
 Observe-only-jobb (lighthouse / loadtest / audit per ADR 0045) blockerar ej merge.

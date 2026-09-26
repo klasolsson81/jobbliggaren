@@ -44,8 +44,7 @@ namespace Jobbliggaren.Application.Dev.Commands.ResetMyData;
 /// id is exactly what it does not have. <c>AuditLogEntry.Create</c> refuses
 /// <c>Guid.Empty</c>, so an empty id there would throw inside the audit behavior and turn
 /// an idempotent no-op into a 500. The user id is non-empty on every branch that reaches
-/// a success, which is why the aggregate audited here is the User (parity
-/// <c>ChangePasswordCommand</c>).
+/// a success, which is why the aggregate audited here is the User.
 /// </summary>
 public sealed record ResetMyDataCommand
     : ICommand<Result<Guid>>, IAuthenticatedRequest, IAuditableCommand<Result<Guid>>

@@ -36,13 +36,11 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 ///   • SkillOverlap: ad terms where Kind==Skill (Lexeme==ConceptId, Display=label)
 ///     vs profile.CvSkillConceptIds. Matched/Missing = Display labels of ad skills
 ///     whose ConceptId ∈ / ∉ the CV set. Match (all ad skills covered) / Partial
-///     (some) / NoMatch (none, both non-empty) / NotAssessed (CV empty OR ad has
-///     no Skill terms).
+///     (some) / NoMatch (none, both non-empty) / NotAssessed (CV empty).
 ///   • MustHaveCoverage:  ad terms where Kind==Requirement && Source==MustHave.
 ///   • NiceToHaveCoverage: ad terms where Kind==Requirement && Source==NiceToHave
 ///     (the bonus bucket — same set-emptiness verdict logic, absence never penalises).
-///   • All three: NotAssessed when the CV has no skill ids OR the ad has no terms
-///     of that kind/source (NULL/empty extracted_terms) — NEVER NoMatch.
+///   • All three: NotAssessed when the CV has no skill ids — NEVER NoMatch.
 ///   • Matched/Missing surface Display labels, NOT raw concept-ids (DE-display-1),
 ///     and are Ordinal-stable.
 ///   • Embedded Fast == ScoreAsync(ad, profile.Fast) for the same ad (regression).
@@ -966,6 +964,31 @@ public class FullMatchScorerIntegrationTests(ApiFactory factory)
         // (we could not assess), NOT Vacuous. This pins that Vacuous is the ad-empty-but-
         // CV-PRESENT case only; the no-CV case stays the honest "not assessed v1".
         var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms: null, ct);
+        var profile = FullProfile(); // empty CV-side skills
+
+        var (scope, scorer) = NewScorer();
+        using var _ = scope;
+        var score = (await scorer.ScoreFullAsync(jobAdId, profile, ct)).Score;
+
+        score.SkillOverlap.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.MustHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+        score.NiceToHaveCoverage.Verdict.ShouldBe(MatchDimensionVerdict.NotAssessed);
+    }
+
+    [Fact]
+    public async Task ScoreFull_TermsInAllThreePartitions_NoCv_AllThreeNewDimensions_AreNotAssessed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // The job-ad modal states the no-CV reason once, on the skills row (#1828), because the
+        // three CV dimensions turn NotAssessed on one predicate: the empty CV skill set, checked
+        // before the ad's partitions. An ad listing terms in every partition pins that the ad
+        // side cannot split them.
+        var terms = ExtractedTerms.From([
+            SkillTerm(CSharpConceptId, CSharpDisplay),
+            RequirementTerm(DockerConceptId, DockerDisplay, ExtractedTermSource.MustHave),
+            RequirementTerm(KubernetesConceptId, KubernetesDisplay, ExtractedTermSource.NiceToHave),
+        ]);
+        var jobAdId = await SeedJobAdAsync("Titel", null, null, null, terms, ct);
         var profile = FullProfile(); // empty CV-side skills
 
         var (scope, scorer) = NewScorer();

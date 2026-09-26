@@ -42,6 +42,10 @@ describe("the login flow cookie value", () => {
     ["outcome, account unavailable", { phase: "outcome", result: { outcome: "accountUnavailable" } }],
     ["notice", { phase: "notice", notice: "grantUnusable" }],
     ["notice, account deleted", { phase: "notice", notice: "accountDeleted" }],
+    ["consent, via Google", { phase: "consent", grantToken: "sample-grant", next: "", via: "google" }],
+    ["outcome, via Google", { phase: "outcome", result: { outcome: "registrationClosed" }, via: "google" }],
+    ["notice, Google could not vouch", { phase: "notice", notice: "externalUnverified", provider: "google" }],
+    ["notice, Google not completed", { phase: "notice", notice: "externalNotCompleted", provider: "google" }],
   ])("round-trips the %s phase", (_label, flow) => {
     expect(decodeLoginFlow(encodeLoginFlow(flow))).toEqual(flow);
   });
@@ -66,6 +70,10 @@ describe("the login flow cookie value", () => {
     ["an address on a consent phase", raw({ phase: "consent", grantToken: "sample-grant", next: "", email: "anna@example.com" })],
     ["an address on an outcome phase", raw({ phase: "outcome", result: { outcome: "registrationClosed" }, email: "anna@example.com" })],
     ["a date on a closed registration", raw({ phase: "outcome", result: { outcome: "registrationClosed", permanentDeletionDate: "2026-10-19" } })],
+    ["a provider on a code phase", raw({ ...code, via: "google" })],
+    ["a provider this build cannot start", raw({ phase: "consent", grantToken: "sample-grant", next: "", via: "linkedin" })],
+    ["an external notice without its provider", raw({ phase: "notice", notice: "externalNotCompleted" })],
+    ["a provider on a notice that names none", raw({ phase: "notice", notice: "codeExpired", provider: "google" })],
   ])("refuses %s", (_label, value) => {
     expect(decodeLoginFlow(value)).toBeNull();
   });

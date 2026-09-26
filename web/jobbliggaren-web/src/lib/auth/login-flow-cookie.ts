@@ -10,7 +10,7 @@ import {
 
 // `__Host-` forces Secure, Path=/ and no Domain. Strict because every step is reached same-site;
 // the link landing arrives cross-site and deliberately never reads this cookie (ADR 0142 D2).
-const ATTRIBUTES = {
+export const LOGIN_FLOW_COOKIE_ATTRIBUTES = {
   httpOnly: true,
   secure: true,
   sameSite: "strict",
@@ -30,7 +30,7 @@ export async function readLoginFlow(): Promise<LoginFlow | null> {
 export async function writeLoginFlow(flow: LoginFlow): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(LOGIN_FLOW_COOKIE_NAME, encodeLoginFlow(flow), {
-    ...ATTRIBUTES,
+    ...LOGIN_FLOW_COOKIE_ATTRIBUTES,
     maxAge: maxAgeSecondsFor(flow, nowEpochSeconds()),
   });
 }
@@ -39,5 +39,5 @@ export async function writeLoginFlow(flow: LoginFlow): Promise<void> {
  *  Set-Cookie that still satisfies the prefix (`deleteSessionCookie` does the same). */
 export async function clearLoginFlow(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(LOGIN_FLOW_COOKIE_NAME, "", { ...ATTRIBUTES, maxAge: 0 });
+  cookieStore.set(LOGIN_FLOW_COOKIE_NAME, "", { ...LOGIN_FLOW_COOKIE_ATTRIBUTES, maxAge: 0 });
 }

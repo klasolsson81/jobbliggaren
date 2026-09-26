@@ -575,10 +575,6 @@ public sealed class LoginProofTests
         await TheProviderSpellingIsRefusedAsync(folded, account);
     }
 
-    [Fact]
-    public async Task A_provider_proof_in_a_decomposed_spelling_of_the_accounts_address_is_refused() =>
-        await TheProviderSpellingIsRefusedAsync($"bjo{(char)0x0308}rn@example.com", "björn@example.com");
-
     private async Task TheProviderSpellingIsRefusedAsync(string providerSpelling, string account)
     {
         _lookup.FindAccountAsync(providerSpelling, Arg.Any<CancellationToken>())

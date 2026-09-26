@@ -140,6 +140,12 @@ public class CaddyfileTokenScrubbingPinTests
     /// still, and that debt is named in the app-surface coverage fact rather than left silent.
     /// </para>
     /// <para>
+    /// <c>code</c>, <c>state</c>, <c>hd</c> and <c>error_description</c>: the external-login callback's query
+    /// (#1744). The first two are credentials, <c>hd</c> is a person's own domain on a personal Workspace, and the
+    /// last is the provider's unbounded free text. Their inventory is
+    /// <c>web/jobbliggaren-web/src/lib/auth/oauth-callback-edge-log-verdicts.ts</c>.
+    /// </para>
+    /// <para>
     /// <b>What decides whether a name belongs here.</b> Scrub when the value's content is
     /// UNBOUNDED, or when the value IS an identifier of a natural person. Everything else draws
     /// from a closed, published or enumerated value space and has a stated purpose — it selects
@@ -163,7 +169,8 @@ public class CaddyfileTokenScrubbingPinTests
     /// </para>
     /// </summary>
     private static readonly string[] AppSurfaceScrubbedParameters =
-        ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix"];
+        ["employer", "q", "userId", "namn", "eventType", "aggregateType", "prefix",
+         "code", "state", "hd", "error_description"];
 
     private static readonly Regex TokenLink = new(
         @"https://\S+/logga-in/lank\?\S+",

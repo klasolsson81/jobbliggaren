@@ -94,6 +94,19 @@ describe("LoginFlowNotice", () => {
     await waitFor(() => expect(panel).toHaveFocus());
   });
 
+  it.each([
+    ["externalUnverified", "Google kan inte intyga din e-postadress", "Logga in med en kod i stället: skriv in din e-postadress nedan."],
+    ["externalNotCompleted", "Inloggningen med Google slutfördes inte", "Försök igen med Google, eller skriv in din e-postadress nedan."],
+  ] as const)("%s names its provider and the remedy on THIS page, and takes focus", async (notice, title, body) => {
+    render(<LoginFlowNotice notice={notice} provider="google" />);
+
+    const panel = screen.getByRole("status");
+    expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
+    expect(panel).toHaveTextContent(body);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(panel).toHaveFocus());
+  });
+
   it("says the account is deleted, with the restore route as a mail link, and takes focus", async () => {
     render(<LoginFlowNotice notice="accountDeleted" />);
 

@@ -12,12 +12,13 @@ const NAMES = Object.entries(cookieNames)
   .map(([, value]) => value as string);
 
 describe("the cookies this module names", () => {
-  it("are at least the three known ones (no vacuous pass)", () => {
+  it("are at least the four known ones (no vacuous pass)", () => {
     expect(NAMES).toEqual(
       expect.arrayContaining([
         "__Host-jobbliggaren_session",
         "__Host-jobbliggaren_refresh_after",
         "__Host-jobbliggaren_login",
+        "__Host-jobbliggaren_oauth",
       ])
     );
   });

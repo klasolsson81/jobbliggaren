@@ -70,6 +70,7 @@ public sealed class TaxonomyProdSeederBubbleFactory : WebApplicationFactory<Prog
             // under test; the refusal itself is pinned in AuthOptionsValidatorTests.
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(new RecordingEmailSender());
+            services.NeutraliseExternalLoginsFromLocalConfiguration();
 
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();

@@ -88,7 +88,8 @@ tryckta tidtabeller. Den är **inte** modern AI-app-design, konsument-SaaS,
 
 Vit canvas. Hairlines mellan rader och sektioner. **Inga floating cards. Inga
 drop shadows utan funktion** (skuggor finns bara på popovers/dropdowns för att
-signalera lager). **Inga gradients** — med ETT dokumenterat undantag:
+signalera lager). **Inga gradients** — med två dokumenterade undantag, leverantörsmärket
+på en aktiv provider-rad på `/logga-in` (DESIGN.md §3) och
 hero-banner-plattans mörkgröna gradient (`--jp-hero-gradient`, scoped till
 `.jp-hero__plate`/`.jp-pagehero`/`.jp-land-hero` per
 [ADR 0068](../../../docs/decisions/0068-gron-accent-identitet-f4-banner.md));
@@ -191,7 +192,7 @@ accessible, and built to be trusted — not admired.
 ## Förbjudna mönster (anti-pattern catalog)
 
 ### Layout & styling
-- ✗ Gradienter på bakgrunder, knappar, badges (enda undantag: hero-banner-plattan, ADR 0068)
+- ✗ Gradienter på bakgrunder, knappar, badges (undantag: hero-banner-plattan, ADR 0068; leverantörsmärket bär sin egen, DESIGN.md §3)
 - ✗ Drop-shadows på cards (skuggor endast på popovers/dropdowns)
 - ✗ Avrundade hörn över 6px (utom pill-prickar)
 - ✗ Floating Action Buttons (FAB)
@@ -222,7 +223,7 @@ accessible, and built to be trusted — not admired.
 - ✗ Onödiga tooltips på allt
 - ✗ Auto-genererade ikoner per rad
 - ✗ Achievement-badges
-- ✗ Färgade brand-glyphs på OAuth-knappar (använd monokrom monogram)
+- ✗ Färgade brand-glyphs på OAuth-knappar, utom leverantörens officiella, oförändrade märke på en aktiv rad på `/logga-in` (DESIGN.md §3). Aldrig ett nyritat, omfärgat eller monokromt märke.
 - ✗ Floating labels på inputs
 
 ### Interaktion
@@ -239,7 +240,7 @@ Innan en PR lämnas, gå igenom:
 
 1. ✓ Använder du befintliga CSS-variabler (`--jp-*`) för ALLA färger? (sök efter hårdkodade hex)
 2. ✓ Är komponenten en variant av en befintlig pattern eller en ny art? Om ny — motivera först.
-3. ✓ Finns drop-shadow eller gradient i designen? Ta bort.
+3. ✓ Finns drop-shadow eller gradient i designen? Ta bort (utom leverantörsmärket, DESIGN.md §3).
 4. ✓ Är ikoner faktiskt nyttiga, eller dekorativa? Ta bort dekorativa.
 5. ✓ Är tonen saklig — inga AI-fraser, inga uppmaningar, inget som h1/etikett/knapp redan säger (DESIGN.md §8)?
 6. ✓ Är tabeller flat (`.jp-table--flat`) och rader hairline-separerade?

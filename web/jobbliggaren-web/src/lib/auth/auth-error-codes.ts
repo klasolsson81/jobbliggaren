@@ -19,4 +19,5 @@ export const AUTH_ERROR_CODES = {
   EmailTaken: "Auth.EmailTaken",
   ChangeEmailTargetBudgetExhausted: "Auth.ChangeEmailTargetBudgetExhausted",
   EmailChangeIncomplete: "Auth.EmailChangeIncomplete",
+  ExternalEmailUnverified: "Auth.ExternalEmailUnverified",
 } as const;

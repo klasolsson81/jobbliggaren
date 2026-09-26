@@ -359,6 +359,13 @@ services:
       # would boot LEGALLY once the mail provider delivers. Operator view, flip order and
       # failure modes: deploy/.env.example.
       Auth__RegistrationsOpen: ${AUTH_REGISTRATIONS_OPEN:-false}
+      # Google login (#1744, ADR 0142 D8). Both default EMPTY and never `:?`: a blank client id registers
+      # no provider (GoogleIdentityProviderRegistration reads it raw), and the pointer is blank for the
+      # reason x-app-email gives its Scaleway pointers. jobbliggaren-inject-secrets.sh writes the secret
+      # (JBL_INJECT_GOOGLE=1 before the .env edit). Api only: the Worker never composes a provider.
+      # Pinned by DeployComposeGoogleLoginTests; activation order in docs/runbooks/vps-deploy-stack.md.
+      Auth__OAuth__Google__ClientId: ${AUTH_OAUTH_GOOGLE_CLIENT_ID:-}
+      Auth__OAuth__Google__ClientSecret_FILE: ${AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE:-}
       # DEV-ONLY throwaway tooling. REMOVE BEFORE LAUNCH with the flag itself
       # (docs/runbooks/release-checklist.md 2.7). Default pinned by
       # DeployComposeDevToolsGateTests: this gates a DESTRUCTIVE, owner-scoped reset, so an

@@ -120,6 +120,14 @@ readonly -a SCALEWAY_SECRET_KEYS=(
   "Email__Scaleway__ProjectId"
 )
 
+# THE GOOGLE CLIENT SECRET IS CONDITIONAL FOR THE SAME REASON (#1744). A box without Google keys
+# registers no provider and needs nothing here, so listing it in SECRET_KEYS would be a permanent
+# MISSING. The condition's one home is google_credentials_required below. The client id is not a
+# secret and stays a plain .env line, AUTH_OAUTH_GOOGLE_CLIENT_ID; api alone reads either.
+readonly -a GOOGLE_SECRET_KEYS=(
+  "Auth__OAuth__Google__ClientSecret"
+)
+
 # THE EXPIRY LEAD TIME, AND WHY AN EXPIRY CHECK EXISTS AT ALL (#183 E4, security-auditor Major 3).
 # Scaleway caps an API key's life at one year and there is no instance-role equivalent, so the
 # SecretKey above is long-lived by construction and dies on a DATE. Nothing on this box would
@@ -288,6 +296,15 @@ scaleway_credentials_required() {
   [[ "$(email_provider)" == "scaleway" ]] && return 0
   [[ -n "$(env_value EMAIL_SCALEWAY_SECRET_KEY_FILE)" ]] && return 0
   [[ -n "$(env_value EMAIL_SCALEWAY_PROJECT_ID_FILE)" ]] && return 0
+  return 1
+}
+
+# Two conditions, each a refused api start without the file: (1) a client id is set, so the api
+# registers Google and validates the secret at start; (2) the _FILE pointer is set, and
+# EnvFileSecretsConfiguration throws on a path it cannot read.
+google_credentials_required() {
+  [[ -n "$(env_value AUTH_OAUTH_GOOGLE_CLIENT_ID)" ]] && return 0
+  [[ -n "$(env_value AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE)" ]] && return 0
   return 1
 }
 
@@ -607,6 +624,23 @@ if [[ "${1:-}" == "--check" ]]; then
     fi
   fi
 
+  if google_credentials_required; then
+    for key in "${GOOGLE_SECRET_KEYS[@]}"; do
+      if ! has_usable_content "${SECRETS_DIR}/${key}"; then
+        log "MISSING: ${SECRETS_DIR}/${key} — required because ${ENV_FILE} has"
+        log "         AUTH_OAUTH_GOOGLE_CLIENT_ID or AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE set. api"
+        log "         refuses to START. Re-run this script without arguments to inject it."
+        api_refuses=1
+      fi
+    done
+    if [[ -n "$(env_value AUTH_OAUTH_GOOGLE_CLIENT_ID)" && -z "$(env_value AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE)" ]]; then
+      log "MISSING: AUTH_OAUTH_GOOGLE_CLIENT_SECRET_FILE is unset in ${ENV_FILE} while"
+      log "         AUTH_OAUTH_GOOGLE_CLIENT_ID is set. The file can be injected and api will still"
+      log "         refuse to START: without the pointer the secret never reaches it."
+      api_refuses=1
+    fi
+  fi
+
   # THIS SUMMARY USED TO PRESCRIBE THE ONE REMEDY, and it stopped being the one remedy when
   # the mail branch above gained lines injection cannot fix — an INVALID provider value and an
   # unset EMAIL_SCALEWAY_* variable are edits to deploy/.env, not missing files. Telling an operator
@@ -882,6 +916,32 @@ else
   log "set — Scaleway credentials not prompted for. To place them BEFORE the flip (which is the"
   log "order that avoids downtime), re-run with JBL_INJECT_SCALEWAY=1. The flip itself is"
   log "release-checklist.md §2.5 and is never this script's."
+fi
+
+# The Google client secret, with the same discipline. JBL_INJECT_GOOGLE places it before the .env
+# edit that would otherwise refuse the next api start: inject, then set the client id and the
+# pointer, then recreate api (docs/runbooks/vps-deploy-stack.md, Google login).
+if google_credentials_required || [[ "${JBL_INJECT_GOOGLE:-}" == "1" ]]; then
+  for key in "${GOOGLE_SECRET_KEYS[@]}"; do
+    if has_usable_content "${SECRETS_DIR}/${key}"; then
+      log "${key} already present — skipping (remove the file first to replace it)"
+      continue
+    fi
+
+    printf 'Value for %s: ' "$key" >&2
+    read -rs value
+    printf '\n' >&2
+    [[ -n "${value//[[:space:]]/}" ]] || die "${key} was empty or whitespace-only — nothing
+written, and the run is aborted so a partially injected directory is never mistaken for a
+complete one"
+
+    write_secret "$SECRETS_DIR" "$uid" "$gid" "$key" "$value"
+    unset value
+  done
+else
+  log "No Google client is configured in ${ENV_FILE} — its secret is not prompted for. To"
+  log "place it BEFORE setting AUTH_OAUTH_GOOGLE_CLIENT_ID, which is the order that avoids a"
+  log "refused api start, re-run with JBL_INJECT_GOOGLE=1."
 fi
 
 # ---------------------------------------------------------------------------------------------

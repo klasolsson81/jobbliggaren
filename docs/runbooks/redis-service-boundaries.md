@@ -94,8 +94,8 @@ boundary.
 The volatile budget scopes are `login-challenge-cooldown`,
 `login-challenge-mails`, `login-challenge-codes`,
 `login-challenge-unknown-address-mails`, `reauth-cooldown`, `reauth-codes`,
-`change-email-user`, `change-email-target`, `change-email-per-target-daily` and
-`change-email-targets-daily`.
+`change-email-user`, `change-email-target`, `change-email-per-target-daily`,
+`change-email-targets-daily` and `external-login-starts`.
 Each is enumerated in the template; unknown scopes are refused.
 `VolatileAclBudgetScopeParityTests` fails when the template and the scopes the
 application declares differ.

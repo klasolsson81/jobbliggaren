@@ -27,7 +27,7 @@ coverage/
 **/*.test.tsx
 **/*.test.mjs
 vitest.config.ts
-playwright.config.ts
+playwright*.config.ts
 
 # Secrets and local-only files — must never reach a layer.
 **/.env*

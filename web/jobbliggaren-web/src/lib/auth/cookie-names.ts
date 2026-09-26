@@ -16,6 +16,10 @@ export const REFRESH_AFTER_COOKIE_NAME = "__Host-jobbliggaren_refresh_after";
 // carries the address as typed, so it is the one cookie here that holds a personal datum.
 export const LOGIN_FLOW_COOKIE_NAME = "__Host-jobbliggaren_login";
 
+// An external login's state (#1744, ADR 0142 D8): Lax, because the provider's redirect back is a
+// cross-site top-level navigation, and a Strict cookie would not be sent with it.
+export const OAUTH_STATE_COOKIE_NAME = "__Host-jobbliggaren_oauth";
+
 // Persistent-session cookie Max-Age = the 180d absolute cap. The
 // server is the SSOT for expiry (30d sliding + 180d cap from CreatedAt); this is just the
 // finite ceiling so the cookie survives browser restarts (never an infinite cookie).

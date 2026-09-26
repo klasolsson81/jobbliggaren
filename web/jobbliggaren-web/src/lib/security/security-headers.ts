@@ -155,3 +155,18 @@ export const LOGIN_LINK_ROUTE_HEADERS: readonly HttpHeader[] = [
   { key: "Cache-Control", value: "no-store" },
   { key: "Referrer-Policy", value: LOGIN_LINK_REFERRER_POLICY },
 ];
+
+/**
+ * An external login's callback (#1744, ADR 0142 D8) carries the provider's single-use `code` and the
+ * flow's `state` in its query. `no-referrer` here, where the link landing needs `same-origin`: the
+ * callback's document is the one page it serves and has no form. Set as a route entry after the global
+ * block rather than in the route handler, because the route entry's precedence is the one measured
+ * (security-auditor m-1(c)); the document's first meta tag says the same thing.
+ */
+export const OAUTH_CALLBACK_ROUTE = "/api/auth/oauth/:provider/callback";
+
+export const OAUTH_CALLBACK_ROUTE_HEADERS: readonly HttpHeader[] = [
+  { key: "Cache-Control", value: "no-store" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "X-Robots-Tag", value: "noindex" },
+];

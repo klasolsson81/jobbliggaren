@@ -1,7 +1,10 @@
 using Jobbliggaren.Api.IntegrationTests.Infrastructure;
+using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.LoginChallenges;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Infrastructure.Auth;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -125,4 +128,44 @@ public sealed class VolatileRedisOutOfMemoryTests : IAsyncLifetime
         // Redis's own refusal, which is what the sizing relation exists for.
         ((int)await db.StringGetAsync(before)).ShouldBe(1);
     }
+
+    /// <summary>
+    /// #1744 (security-auditor PR S m3) — the external-login start's bound. The actor is the start path over every
+    /// budget window a flow can outlive: <see cref="ExternalLoginPolicy.StartBudget"/> admits its limit per window
+    /// and each flow lives <see cref="ExternalLoginPolicy.StateTtl"/>, so no more flows than written here are ever
+    /// live at once. Each carries the longest path the start validator admits, in the character the JSON writer
+    /// escapes to six bytes, through the production store.
+    /// </summary>
+    [Fact]
+    public async Task The_start_path_at_its_budget_bound_takes_at_most_a_sixteenth_of_the_instance()
+    {
+        var budget = ExternalLoginPolicy.StartBudget;
+        var live = budget.Limit * ((int)Math.Ceiling(ExternalLoginPolicy.StateTtl / budget.Window) + 1);
+        var next = "/" + new string('&', ExternalLoginPolicy.MaxNextLength - 1);
+        new StartExternalLoginCommandValidator().Validate(new StartExternalLoginCommand("google", next)).IsValid
+            .ShouldBeTrue();
+        var flows = new RedisOAuthStateStore(
+            _connection, new EphemeralDataProtectionProvider(), NullLogger<RedisOAuthStateStore>.Instance);
+        await using var admin = await ConnectionMultiplexer.ConnectAsync(
+            $"{VolatileRedisContainer.OperatorConnectionString(_redis)},allowAdmin=true");
+        var server = admin.GetServer(admin.GetEndPoints().Single());
+        var before = await MemoryAsync(server, "used_memory");
+
+        for (var i = 0; i < live; i++)
+            await flows.PutAsync(new OAuthFlow(ExternalProviderKey.Google, PkceVerifier.Generate(), next), Ct);
+
+        var taken = await MemoryAsync(server, "used_memory") - before;
+        var maxmemory = await MemoryAsync(server, "maxmemory");
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"{live} flows took {taken} of {maxmemory} bytes ({100.0 * taken / maxmemory:F1} %)");
+        taken.ShouldBeLessThanOrEqualTo(maxmemory / 16);
+        await _store.PutAsync(
+            new NewLoginChallenge(ChallengeId.Generate(), "after-flows@example.com", ChallengeCredentials.CodeAndLink, true),
+            Ct);
+    }
+
+    private static async Task<long> MemoryAsync(IServer server, string field) =>
+        long.Parse(
+            (await server.InfoAsync("memory")).SelectMany(group => group).Single(pair => pair.Key == field).Value,
+            System.Globalization.CultureInfo.InvariantCulture);
 }

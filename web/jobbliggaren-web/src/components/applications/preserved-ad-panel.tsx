@@ -149,7 +149,7 @@ export function PreservedAdPanel({ preservedAd }: PreservedAdPanelProps) {
       {preservedAd.contacts.length > 0 && (
         <div className="mt-4">
           <RecruiterContactBlock contacts={preservedAd.contacts} />
-          <p className="jp-muted mt-3 text-left">
+          <p className="jp-recruiter-notice mt-2">
             <Link href="/kontaktperson-i-annons">
               {tUi("preservedAd.recruiterNoticeLink")}
             </Link>

@@ -80,20 +80,23 @@ function MatchSectionHeading({
  * att skälet går att läsa ur dimensionen ensam. De tre membership-dimensionerna
  * har inte det längre och står därför inte här: deras skäl kommer från servern
  * (`causeReason`), som är den enda som vet vilken arm som körde.
+ *
+ * Kompetenser, Ska-krav och Meriterande är obedömda på ETT predikat (CV:ts
+ * kompetensmängd är tom, `MatchScorer.ScoreConceptCoverage`), så skälet står en
+ * gång, på Kompetenser; foten under raderna bär åtgärden (ADR 0076 §6). Ett skäl
+ * som bara upprepar verdiktet "Ej bedömt" renderas inte (DESIGN.md §8 regel 1).
  */
 function notAssessedReason(
   key: keyof Omit<JobAdMatchDetail, "grade">,
   t: MatchTranslator,
-): string {
+): string | null {
   switch (key) {
     case "titleSimilarity":
       return t("notAssessedReason.titleSimilarity");
     case "skillOverlap":
-    case "mustHaveCoverage":
-    case "niceToHaveCoverage":
       return t("notAssessedReason.skills");
     default:
-      return t("notAssessedReason.default");
+      return null;
   }
 }
 
@@ -436,10 +439,10 @@ function MatchRow({
   /** Spår 3 PR-D — endast satt för RegionFit-raden (conceptId → kommun/län). */
   ort?: OrtEvidence;
   /**
-   * #300 PR-5 (ADR 0084, design-reviewer bind) — true PÅ Yrke-raden (ssykOverlap)
-   * NÄR hela matchen är `Related`. Då ersätts den generiska bevisformen med en
-   * neutral förklaring av VARFÖR annonsen rankas lägre (liknande, inte exakt valt,
-   * yrke). Neutral ink, ALDRIG röd (ett relaterat yrke är inget fel).
+   * #300 PR-5 (ADR 0084) — true PÅ Yrke-raden (ssykOverlap) NÄR hela matchen är
+   * `Related`. Då ramas beviset (annonsens yrkesgrupp) som "Liknande yrke" i stället
+   * för "Yrke som matchar" (#1828: beviset förklarar, en mening om rankningen gjorde
+   * det inte).
    */
   isRelatedYrke?: boolean;
 }) {
@@ -474,7 +477,18 @@ function MatchRow({
   // sätter, inte en kvalifikation den sökande bär: annonsen ERBJUDER den. Egen
   // ramfamilj i paritet med `ort.*`, aldrig den generiska ramens kompetens-verb.
   const isEmploymentDim = dimensionKey === "employmentFit";
-  // #1627 — `alsoRequested` syftar tillbaka på `youHave`-spannet, som gatas på
+  // The matched side's frame: occupation and employment type name their own axis, like
+  // `ort.*`; skills keep the generic "Du har".
+  const matchedFrame =
+    dimensionKey === "ssykOverlap"
+      ? isRelatedYrke
+        ? "ssyk.related"
+        : "ssyk.matched"
+      : isEmploymentDim
+        ? "employment.matched"
+        : "youHave";
+  const notAssessedText = isNotAssessed ? notAssessedReason(dimensionKey, t) : null;
+  // #1627 — `alsoRequested` syftar tillbaka på matched-spannet, som gatas på
   // `matched.length > 0`. Guarden är därför SAMMA uttryck och inte verdiktet:
   // att `NoMatch` sammanfaller med tom `matched` är en egenskap hos
   // scorer-metoderna, och att grunda renderingen på det sammanfallet vore just
@@ -505,16 +519,9 @@ function MatchRow({
           // användarens fel.
           <span className="jp-modal__matchrow-missing">{reason}</span>
         ) : isNotAssessed ? (
-          <span className="jp-modal__matchrow-missing">
-            {notAssessedReason(dimensionKey, t)}
-          </span>
-        ) : isRelatedYrke ? (
-          // #300 PR-5 — neutral "därför lägre"-förklaring på Yrke-raden för en
-          // Related-match. Ingen siffra (Goodhart), neutral ink (jp-modal__
-          // matchrow-missing, ej röd — ett relaterat yrke är inget fel).
-          <span className="jp-modal__matchrow-missing">
-            {t("relatedYrkeReason")}
-          </span>
+          notAssessedText !== null && (
+            <span className="jp-modal__matchrow-missing">{notAssessedText}</span>
+          )
         ) : useOrtGranularity ? (
           <RegionFitEvidence ort={ort} t={t} />
         ) : isRequirementDim && hasRequirementItems ? (
@@ -525,9 +532,7 @@ function MatchRow({
           <>
             {detail.matched.length > 0 && (
               <span>
-                {t(isEmploymentDim ? "employment.matched" : "youHave", {
-                  items: detail.matched.join(", "),
-                })}
+                {t(matchedFrame, { items: detail.matched.join(", ") })}
               </span>
             )}
             {detail.missing.length > 0 && (

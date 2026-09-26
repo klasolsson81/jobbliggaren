@@ -6,7 +6,7 @@
     "removed": "Annonsen är borttagen",
     "saved": "Sparad",
     "published": "Publicerad",
-    "lastApplication": "Sista ansökan",
+    "lastApplication": "Sista ansökningsdag",
     "removeBookmark": "Ta bort bokmärke",
     "openAd": "Öppna {title}",
     "openExternal": "Öppna annonsen på externa webbplatsen",
@@ -161,17 +161,16 @@
   },
   "ui": {
     "card": {
-      "ariaLabel": "{title} – {company}",
       "published": "Publicerad",
       "publishedToday": "idag, kl. {time}",
       "publishedYesterday": "igår, kl. {time}",
       "publishedOlder": "{date}, kl. {time}",
-      "lastApplication": "Sista ansökan",
-      "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag"
+      "lastApplication": "Sista ansökningsdag",
+      "previousApplications": "Minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till företaget"
     },
     "tags": {
       "new": "Ny",
-      "newAriaLabel": "Nytt jobb sedan ditt senaste besök",
+      "newAriaLabel": "sedan ditt senaste besök",
       "saved": "Sparad",
       "applied": "Ansökt",
       "followed": "Bevakar"
@@ -187,12 +186,11 @@
     "detail": {
       "published": "Publicerad",
       "lastApplicationDay": "Sista ansökningsdag",
-      "adId": "Annons-ID",
       "description": "Annonsbeskrivning",
       "openAd": "Öppna annonsen",
       "appliedNotice": "Se ansökan i",
       "appliedNoticeLink": "Mina ansökningar",
-      "previousApplications": "Du har minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till detta företag. Sammanställningen kan vara ofullständig.",
+      "previousApplications": "Minst {count, plural, one {# tidigare ansökan} other {# tidigare ansökningar}} till företaget.",
       "previousApplicationsLink": "Visa ansökningshistorik",
       "recruiterNoticeLink": "Är du kontaktperson i annonsen? Läs hur vi behandlar kontaktuppgifter."
     },
@@ -203,7 +201,7 @@
       "phone": "Telefon"
     },
     "match": {
-      "heading": "Matchning mot din profil",
+      "heading": "Matchning",
       "settingsCta": "Ställ in matchning",
       "uploadCvCta": "Ladda upp CV",
       "noStatedOccupation": "Du har inte angett vilka yrken du söker inom.",
@@ -211,7 +209,10 @@
       "youHave": "Du har: {items}",
       "alsoRequested": "Annonsen efterfrågar även: {items}",
       "requested": "Annonsen efterfrågar: {items}",
-      "relatedYrkeReason": "Liknande yrke, inte ett du valt. Därför rankas annonsen under dina exakta träffar.",
+      "ssyk": {
+        "matched": "Yrke som matchar: {items}",
+        "related": "Liknande yrke: {items}"
+      },
       "ort": {
         "matchedMunicipalities": "Kommun som matchar: {items}",
         "matchedRegions": "Län som matchar: {items}",
@@ -248,9 +249,8 @@
         "niceToHaveCoverage": "Meriterande"
       },
       "notAssessedReason": {
-        "titleSimilarity": "Ingen roll i ditt CV att jämföra.",
-        "skills": "Inga kompetenser kunde läsas ur ditt CV.",
-        "default": "Den här delen kunde inte bedömas."
+        "titleSimilarity": "Ingen roll från ett CV att jämföra.",
+        "skills": "Inga kompetenser från ett CV att jämföra."
       },
       "matchCause": {
         "PreferenceUnstated": {
@@ -286,7 +286,7 @@
       "titleSummary": {
         "Match": "Din roll stämmer med annonsens titel.",
         "Partial": "Din roll stämmer delvis med annonsens titel.",
-        "NoMatch": "Din titel skiljer sig från annonsens."
+        "NoMatch": "Din roll skiljer sig från annonsens titel."
       }
     },
     "gradeFilter": {

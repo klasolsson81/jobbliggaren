@@ -102,7 +102,6 @@ export function JobAdModalShell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelId}
-        aria-describedby="jp-modal-desc"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="jp-modal__head">

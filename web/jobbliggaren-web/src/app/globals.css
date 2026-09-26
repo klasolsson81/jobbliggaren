@@ -539,9 +539,11 @@ body {
    an <a> because it navigates, but it is row chrome and carries its own ink, and
    at (0,1,0) its `color` loses to this rule's (0,1,1). Exempting it here keeps
    that declaration true instead of answering with a louder one, and covers the
-   :hover twin — which the row has no color rule of its own to answer at all. */
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn) { color: var(--jp-accent-700); }
-a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn):hover { color: var(--jp-accent-600); }
+   :hover twin — which the row has no color rule of its own to answer at all.
+   `.jp-job__rowlink` (the /jobb card's title, #1828) is the fourth for the same
+   reason: its `color: inherit` keeps the title ink (E2f), hover included. */
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink) { color: var(--jp-accent-700); }
+a:not(.jp-btn, [data-slot="button"], .jp-popover__rowbtn, .jp-job__rowlink):hover { color: var(--jp-accent-600); }
 [data-theme="dark"] a.text-brand-600 { color: var(--jp-accent-700); }
 [data-theme="dark"] a.text-brand-600:hover { color: var(--jp-accent-600); }
 
@@ -2269,6 +2271,11 @@ a.jp-adminnav__link[aria-current="page"]::after {
   line-height: 1.4;
   white-space: nowrap;
 }
+/* The tag's sr-only companion is read, not seen: Chrome hands the inherited
+   uppercase to the accessibility tree ("NY NYTT JOBB …", measured #1828). */
+.jp-tag .sr-only {
+  text-transform: none;
+}
 .jp-tag--accent {
   background: var(--jp-leaf-50);
   color: var(--jp-leaf-600);
@@ -3595,6 +3602,15 @@ a.jp-adminnav__link[aria-current="page"]::after {
   flex-wrap: wrap;
 }
 .jp-modal__foot__spacer { flex: 1; }
+/* The applied note: a full-width row of its own inside the foot, under the buttons. */
+.jp-modal__footnote {
+  flex-basis: 100%;
+  font-size: var(--text-body-sm);
+  text-align: right;
+}
+.jp-modal__footnote a {
+  text-decoration: underline;
+}
 
 /* ── Status pills (för ansökningar) ──────────────── */
 .jp-pill {
@@ -3743,21 +3759,26 @@ a.jp-adminnav__link[aria-current="page"]::after {
 }
 /* Länk-overlay (CTO-bind 6, a11y): titeln är radens ENDA <a>, sträckt över
    raden via ::after — handlingszonen lyfts ovanpå med z-index så interaktiva
-   element aldrig nästlas i ankaret (ogiltig HTML). */
-.jp-app__rowlink {
+   element aldrig nästlas i ankaret (ogiltig HTML). /jobb-kortet bär samma
+   overlay (`.jp-job__rowlink`, #1828). */
+.jp-app__rowlink,
+.jp-job__rowlink {
   color: inherit;
   text-decoration: none;
 }
-.jp-app__rowlink::after {
+.jp-app__rowlink::after,
+.jp-job__rowlink::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: var(--jp-r-md);
 }
-.jp-app__rowlink:focus-visible {
+.jp-app__rowlink:focus-visible,
+.jp-job__rowlink:focus-visible {
   outline: none;
 }
-.jp-app__rowlink:focus-visible::after {
+.jp-app__rowlink:focus-visible::after,
+.jp-job__rowlink:focus-visible::after {
   outline: 2px solid var(--jp-accent-700);
   outline-offset: -2px;
 }
@@ -7001,18 +7022,13 @@ a.jp-adminnav__link[aria-current="page"]::after {
   color: var(--jp-ink-1);
 }
 
-/* job-ad-detail-noter: "Du har ansökt" i modalfoten (högerställd) och
-   Art. 14-notislänken under beskrivningen (#842 — vänsterställs med text-left
-   på konsumenten; caption-storleken delas). Länken ärver notens färg
-   (var(--jp-link, currentColor) var odefinierad → computed = currentColor). */
-.jp-muted {
-  margin-top: 8px;
-  font-size: var(--text-caption);
-  color: var(--jp-ink-1);
-  text-align: right;
+/* ADR 0144 D4 row 10's line (Art. 14(5)(b), #842): the link to /kontaktperson-i-annons
+   on the ad detail and on the preserved-ad panel. The link keeps the house link colour
+   and its underline, so it never reads as a link by colour alone. */
+.jp-recruiter-notice {
+  font-size: var(--text-body-sm);
 }
-.jp-muted a {
-  color: inherit;
+.jp-recruiter-notice a {
   text-decoration: underline;
 }
 

@@ -223,7 +223,7 @@ accessible, and built to be trusted — not admired.
 - ✗ Onödiga tooltips på allt
 - ✗ Auto-genererade ikoner per rad
 - ✗ Achievement-badges
-- ✗ Färgade brand-glyphs på OAuth-knappar, utom leverantörens officiella, oförändrade märke på en aktiv rad på `/logga-in` (DESIGN.md §3). Aldrig ett nyritat, omfärgat eller monokromt märke.
+- ✗ Färgade brand-glyphs på OAuth-knappar, utom leverantörens officiella, oförändrade märke på en aktiv rad på `/logga-in` (DESIGN.md §3). Aldrig ett nyritat eller omfärgat märke, och aldrig en variant som leverantören inte själv ger ut.
 - ✗ Floating labels på inputs
 
 ### Interaktion

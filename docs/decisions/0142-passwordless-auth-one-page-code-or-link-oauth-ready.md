@@ -671,8 +671,9 @@ question was quoted to him verbatim first.
 
 `POST /auth/oauth/{p}/start` and `POST /auth/oauth/{p}/callback {code, state}` exchange via
 `HttpClient` behind `IExternalIdentityProvider` (Google OIDC userinfo, GitHub `/user/emails` with
-`primary && verified` **only** — `/user`.`email` is the public profile field and may be unverified,
-LinkedIn OIDC userinfo). **What userinfo buys is no JWKS fetch, no key-rotation cache and no
+`primary && verified` **only**, as parsing and never as an inbox proof, since GitHub is never the mailbox *(corrected in
+Amendment 2026-09-26 (16): GitHub's address only chooses where a code goes)* — `/user`.`email` is the public profile
+field and may be unverified, LinkedIn OIDC userinfo). **What userinfo buys is no JWKS fetch, no key-rotation cache and no
 signature-validation path of our own** — a real reduction of security-critical surface. (The
 epic's "so no JWT package" is struck: `Microsoft.AspNetCore.Authentication.JwtBearer` already sits
 in Infrastructure as the package that gives it its framework reference, ADR 0017 amendment
@@ -1009,7 +1010,7 @@ presupposes an id already stolen, which the overwrite does not create.
 
 **The Strict premise, per engine (F10), measured 2026-09-26.** `pnpm exec playwright test -c playwright.oauth-strict.config.ts`, Playwright 1.62.1, Windows 11, production build behind an https proxy with a throwaway localhost certificate. chromium (v1234) and firefox 153.0 (v1538): all six branches pass, controls (ii) and (iv) included; the design rests on these two readings. webkit 26.5 (v2336), Playwright's Windows port: **void for the Strict premise** — (ii) failed (a `SameSite=Strict` probe set on a 302 inside the cross-site chain was sent on the next hop) and (iv) failed at its precondition (the state cookie rewritten to `Strict` was reported as `sameSite: "None"`), so (i), (iii) and (v) passed without measuring. (vi) does not rest on SameSite and stands as a reading of that port only.
 
-**Residual: the premise is unmeasured in Apple's WebKit** (Safari, iOS and macOS). F10's "three engines before merge" is revised (CTO, 2026-09-26). A failure is fail-closed and is rolled back by deactivation (vps-deploy-stack.md §3d). **Closing measurement:** the first Google login that succeeds on the box is taken in Safari; landing signed in on `/oversikt` is Apple WebKit's reading of (i), and (v) rests on the same mechanism. The date, device, OS and Safari version go into a dated comment on #1732, and the next amendment transcribes it. If the login fails: deactivate, and file the defect.
+**Residual: the premise is unmeasured in Apple's WebKit** (Safari, iOS and macOS). F10's "three engines before merge" is revised (CTO, 2026-09-26). A failure is fail-closed and is rolled back by deactivation (vps-deploy-stack.md §3d). **Closing measurement:** the first external login that succeeds on the box in Safari, with Google or GitHub *(corrected in Amendment 2026-09-26 (16): the continuation hop is provider-neutral, and the first Google login was taken in Brave)*; landing signed in on `/oversikt` is Apple WebKit's reading of (i), and (v) rests on the same mechanism. The date, device, OS and Safari version go into a dated comment on #1732, and the next amendment transcribes it. If the login fails: deactivate, and file the defect.
 
 **Re-measure (F10's triggers, revised):** on any trigger, the harness is re-run in that change's PR. chromium and firefox are owed with both controls green. A WebKit reading counts only where (ii) passes and (iv)'s precondition holds; otherwise it is recorded as void, with its port and version, and never as a pass. The same triggers void the Safari reading, which is owed again at the first login after that change deploys.
 
@@ -1058,6 +1059,176 @@ inventory, and `app-surface-coverage.test.ts` joins it. The callback never answe
 - **The register** (`docs/runbooks/gdpr-processing-register.md`, gitignored, written in the main copy) gains the
   OAuth-state keys, `provider_key`, the grant sentence, Google as an independent controller, and the Chapter V entry
   with its lapse set.
+
+#### Amendment 2026-09-26 (16) (#1745, part 6b, PR 1) — GitHub's address is asserted, and the first link needs a code
+
+*Decided before code in a form round (`security-auditor`, `dotnet-architect`, `design-reviewer`, `test-writer`), routed
+by `senior-cto-advisor`, and read again by the first three and `test-writer` against the ruling
+(`docs/reviews/2026-09-26-1745-form-{security-auditor,dotnet-architect,design-reviewer,test-writer,cto}.md` and
+`…-form-reading-{security-auditor,dotnet-architect,test-writer}.md`). D8's GitHub parenthesis and the Apple-WebKit
+residual's closing measurement are corrected in place; this block records why.*
+
+**Klas answered on 2026-09-26.** Each question was put to him verbatim through AskUserQuestion, and the sent text was
+measured as a substring of its source.
+1. `security-auditor`'s question A (M-1, below), with option (b) worded by `senior-cto-advisor`: **"(b) Kod första
+   gången"**. Option (a) was to pause 6b.
+2. `security-auditor`'s question B, GitHub's Chapter V: **"(a) Ja, jag accepterar"**. GitHub login rests on Art. 45
+   ((EU) 2023/1795, the EU-US Data Privacy Framework). If GitHub is no longer certified, or the decision falls, the
+   GitHub keys are removed on the box, and there is no fallback basis. It gates activation, not merge; the Chapter V
+   entry lands with PR 2.
+3. The download of `GitHub_Logos.zip` (499 228 bytes, brand.github.com, Last-Modified 2026-07-28): **"Ja, ladda ner"**.
+
+**Why GitHub is not Google (`security-auditor` M-1, 2026-09-26).**
+- D8 accepted GitHub's primary, verified address. Amendment (14) then made authority the contract, because a verified
+  third-party address may have changed hands.
+- GitHub is never the mailbox for any address. Its `verified` records that someone once followed a mailed link, and
+  GitHub documents no re-verification. An address that changes hands and still receives mail keeps the flag, so a
+  former holder would log in to the new holder's account. Enterprise Managed Users' addresses were verified without a
+  mail until 2024-08-01.
+- The invariant: GitHub's flag never alone binds an identifier, creates an account or opens a session. A GitHub
+  identifier opens a session only in an account where a present-time inbox proof bound it.
+- `security-auditor` did not sign a §9.6 (3) acceptance: its bound falls at the first test user.
+
+**The form (`senior-cto-advisor`, 2026-09-26): the first link needs a code.**
+- **The type carries it.** The adapter never makes a `VerifiedEmail`. It makes an `AssertedEmail`, which chooses where
+  a login code is sent and is compared with an address an account holds or a code proved; no account, link, grant or
+  inbox proof is made from it.
+  - `ExternalIdentity` carries `ExternalAddress`, a closed choice of `Authoritative(VerifiedEmail)` and
+    `Asserted(AssertedEmail)`.
+  - `ExchangeAsync` returns the closed `ExternalExchange`: `Identified`, `AddressRefused` (400) or `Failed` (410).
+    Google's behaviour is unchanged.
+- **A found link** (`LoginProofOutcome.ResolveFoundLinkAsync`). The link is read first, then Google's checks run: the
+  address names the account (`ExternalAddressMatch`), and the identifier is linked to that account. It creates or moves
+  no link and issues no grant. It passes `SessionEvidence.BoundLink`, so it never confirms an address. The session is
+  recorded as `LoginMethod.GitHub = 4`.
+- **No link.** No account is read.
+  - `PendingLinkChallenge` sends a code to the address through `LoginChallengeAdmission`: the gates `POST
+    /auth/challenge` has always used (capability, cooldown, mail budget, code budget), moved out of its handler.
+  - It issues grant purpose 5, `PendingExternalLink` (address, provider, id), whatever the gates decided.
+  - The callback answers `codeRequired` with the challenge id, the grant and the address as an echo. The answer is the
+    same whether the address has an account.
+- **The code, typed in the same browser.**
+  - `/auth/challenge/verify` takes the optional grant and redeems it only after the code has verified.
+  - The link is bound only when the grant's address is the address the code proved (`ExternalAddressMatch`), on an
+    active account, before the session. The session is `LoginMethod.Code`, and the `User.ExternalLoginLinked` row is
+    written.
+  - A new address earns purpose 6, `LoginCompleteWithLink`. `complete` opens the account on the code-proven address
+    and binds the link. `complete` never redeems purpose 5.
+- **The pending link only adds a link** (`security-auditor` V-2). In every other case exactly the code's outcome
+  stands, and a new address then earns purpose 1. EventId 1029 names which case it was:
+  - the addresses do not match;
+  - the identifier is linked to another account, or another account linked it meanwhile;
+  - the account is pending deletion or has no profile, or the grant has expired.
+- **The mailed link never binds.** A link is consumed in any browser, and the pending link lives only in the browser
+  that completed GitHub's flow (RFC 6749 §10.12). Two named UX residuals follow:
+  - A user who clicks the link instead of typing the code is signed in without GitHub linked, and is asked for a code
+    again next time. The code step via GitHub says that the code links GitHub.
+  - Grant 5 lives 10 minutes and the code 15, so a code typed after 10 minutes signs in without the link.
+- `unverified_user_email` at GitHub's token endpoint is `AddressRefused`: 400 `Auth.ExternalEmailUnverified`
+  (`design-reviewer` Major 2). GitHub documents that a user without a verified primary address gets no token.
+- **Rejected:**
+  - linking only from a signed-in session: a session is no present-time proof, and it needs a re-authentication code,
+    a new flow type and a Mina sidor surface;
+  - a code at every GitHub login;
+  - the pending link in the challenge record, or in the unsigned flow cookie;
+  - a boolean on the provider instead of a type.
+
+**`ExternalAddressMatch` on code-bound links (`security-auditor`, signed 2026-09-26).**
+- Under this form the case-blind ASCII branch rests on the code-bound link, not on mailbox semantics. The code went to
+  the account's own stored spelling, and the comparison only decides that the grant and the code concern the same
+  account.
+- The signature covers code-bound links only. It requires four things:
+  - (a) the challenge's issuer;
+  - (b) the comparison against the challenge's proven address, never the cookie's;
+  - (c) the ASCII guard standing, so #1779 stays closed;
+  - (d) the found path never creating or moving a link.
+- A provider that is to bind without a code is read again from the start.
+
+**The adapter** (`GitHubIdentityProvider`; docs.github.com, read 2026-09-26).
+- **Authorize:** `https://github.com/login/oauth/authorize`, PKCE S256 and scope `user:email` alone, never `read:user`
+  or `offline_access`. There is no `response_type`.
+- **Token:** `POST https://github.com/login/oauth/access_token` with `Accept: application/json`. An `error` member wins
+  over a token beside it, and is mapped to a closed cause; its text is never logged.
+- **Identity:** `GET /user` for the numeric `id` only, as a positive JSON integer written in invariant decimal. `login`
+  and `email` are never read.
+- **Address:** `GET /user/emails?per_page=100`. It takes the list's one primary entry, whose `verified` is the JSON
+  `true`, which is not `@users.noreply.github.com` and which is storable. Any other shape refuses the whole list.
+- **Headers:** every API call carries `User-Agent`, `Accept: application/vnd.github+json` and
+  `X-GitHub-Api-Version: 2026-03-10`.
+- **Revocation:** the token is revoked (`DELETE /applications/{client_id}/token`) on every path that holds one. A failed
+  revocation (EventId 1028) never changes the outcome.
+- **Client:** the named client `github-oauth`: 10 s, no redirect, no resilience handler. It is shared with Google's
+  through `ExternalLoginRegistration`. EventIds 1022 and 1023 name the provider in both adapters.
+
+**The grant store.**
+- Purposes 5 and 6 are bearer-bound and reuse purpose 4's fields.
+- The padding ceiling is computed from `ExternalProviderKey.MaximumLength` and the highest purpose number, so a new
+  provider moves nothing. Every grant written from this build on is padded to the new common length.
+- A build without purpose 5 or 6 refuses such a record (410).
+
+**PR 1 is inert for GitHub; PR 2 activates.**
+- In PR 1, `AddExternalIdentityProviders` composes Google's gate only, and no composition can register GitHub. That is
+  pinned three ways: in the compositions, in a Development and a Production host, and in a scan of `src/`.
+- PR 2 carries the rest, with Amendment (17): GitHub's gate, the privacy and cookie copy, the register, Chapter V,
+  `vps-deploy-stack.md` §3d and the deploy mirror.
+
+**Lapse trigger 4, read for PR 1 (`security-auditor`, 2026-09-26).** It fires in this PR: the port and the outcome
+table change for a live provider.
+- **(a)** The guessing arithmetic stands. The code step goes through the same issuer and the same per-address budgets.
+- **(b)** For Google the outcome is unchanged, and GitHub is unreachable in PR 1. Under the form, the set that can
+  obtain a first session does not grow, since a code is required. After that, the code-bound link is a durable login
+  path, declared in (d)(2).
+- **(c)** A GitHub link needs a code. Past the code budget it does not bind until the budget resets. For a linked
+  account the improvement returns.
+- **(d) Declared residuals, not measured:**
+  1. A code handed over by its recipient, or guessed within the per-address budget, binds a durable GitHub login to
+     the account, not only a session. It ends when the account's address changes (M-1 then refuses) or the link is
+     removed on request. No mail tells the account holder that a login path was linked (OWASP ASVS 4.0.3 V2.2.3;
+     `security-auditor`, Minor, 2026-09-26; read again at the #734 flip).
+  2. A bound link outlives its binder's control of the inbox, as a session does, but without the session's 180-day
+     bound.
+  3. The link's value rests on the security of the GitHub account that holds it.
+- **(e)** A bearer reading is owed before PR 1 merges, because a merge reaches the box without an activation step. It is
+  taken again before PR 2 merges and at activation, and is never inherited. **Before PR 1, 2026-09-26T21:21:39Z**,
+  read-only on the box over `ssh jp-vps` (`docker exec` into the running containers):
+  - `Auth__RegistrationsOpen` in the running api container is `false`. Two `Auth__OAuth__Google__` variables are set
+    and no `Auth__OAuth__GitHub__` one.
+  - The providers list, read from inside the web container, answers `200 ["google"]`.
+  - There are 2 accounts, 0 created after 2026-09-26T19:14Z, and both are the controller's own (counted against a hash
+    of his address's local part, never printed).
+  - `identity."AspNetUserLogins"` holds `google` 1 and `github` 0.
+
+**The 6a activation readings, transcribed** (Amendment (15): "the next amendment … transcribes it"). Counts only.
+- **#1732, 2026-09-26T19:09:23Z, measured 19:09:10Z: activation.**
+  - The box ran images of `40b73f81` with its git at `066a7fbf`. The deploy trees are identical.
+  - Chapter V was read that day. The volatile ACL was re-published from Klas's escrow, with the same seven values and a
+    matching hash for each. `ACL DRYRUN` passes both selectors, and the control `GET` is refused.
+  - The Google client is a separate one for the box.
+  - `Auth__RegistrationsOpen` `false`; 2 accounts, 0 created after 2026-09-21, both the controller's;
+    `AspNetUserLogins` 0; providers `200 ["google"]`.
+  - The web start answers 302 to Google's authorize endpoint with the box's callback, `openid email`, S256 and no
+    `access_type`. The cookie is `__Host-jobbliggaren_oauth`: Secure, HttpOnly, Lax, `Max-Age=600`.
+- **#1732, 2026-09-26T19:14:54Z, measured 19:14:23Z: the first successful Google login.**
+  - It was taken in Brave (Chromium) on Windows, after one account's address was changed from its `+` alias to the
+    plain address.
+  - `AspNetUserLogins` 1 (`google`). The audit log holds `User.EmailChangeRequested`, `User.EmailChanged` and
+    `User.ExternalLoginLinked`, one each.
+  - The log holds `login_succeeded … Method=Google` and no EventId 1023. `email_verified` arrived as the JSON `true`.
+- **The Apple-WebKit residual stays open.** Its closing measurement is corrected in place above (`security-auditor`
+  Q7): the premise is the continuation hop from our own origin, which is provider-neutral. So the first successful
+  external login in Safari, with Google or GitHub, closes it, provided none of F10's re-measure triggers has fired
+  since. PR 1 fires none: the callback still answers 200 with the continuation document, and the three cookies keep
+  their prefixes and SameSite values.
+
+**The mark** (`design-reviewer`, 2026-09-26).
+- The file is `GitHub Logos/PNG/GitHub_Invertocat_Black.png` from the archive, 294×288. It is committed byte-identical
+  as `public/provider-marks/github-invertocat-black.png` and pinned by sha256 in `provider-marks.test.ts`.
+- It renders whole in the row's 20×20 slot with `object-contain`. There is no window, because the asset has no frame.
+- DESIGN.md §3 already admits the mark. The design-principles skill's ban on a "monokromt" mark becomes a ban on a
+  variant the provider does not publish itself.
+
+**DoD 8 for PR 1.** No new personal data reaches production: GitHub cannot be registered, so no flow reaches purposes
+5 or 6, and Google's path is unchanged. PR 2's DoD 8 is Amendment (17)'s.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -2241,16 +2412,17 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)) · **6b** #1745 GitHub · **6c** #1746 LinkedIn
-(`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S #1861 · PR G (Amendment 2026-09-26 (15)), activated on the box 2026-09-26 (the readings on #1732, transcribed in Amendment (16)) · **6b** #1745 GitHub, in two PRs (Amendment 2026-09-26 (16)): PR 1 the code-bound link, inert for GitHub · PR 2 activatable · **6c** #1746 LinkedIn
+(its code after 6b PR 1) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
 **Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
 1b, 1c-expand (`DisplayNameNullable`), 4b (`UnmapJobSeekerDisplayName`, then `DropJobSeekerDisplayName`). 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
 ix_asp_net_users_provider_provider_user_id`; applied on the box through `vps-deploy-stack.md` §3c on 2026-09-25,
-16:53:54–59Z, on Klas's GO, read back 1/0/0), 5b (a data migration —`password_hash` is already
-nullable). Exact SQL forms are `db-migration-writer`'s.
+16:53:54–59Z, on Klas's GO, read back 1/0/0), 5b (a data migration — `password_hash` is already
+nullable; applied on the box through `vps-deploy-stack.md` §3c on 2026-09-26, 06:14:39–46Z, on Klas's GO, read back
+1/0/2, both stamps moved on 2 of 2 rows). Exact SQL forms are `db-migration-writer`'s.
 
 The reports: `docs/reviews/2026-09-17-auth-epic-{cto,architect,security,design}.md`, promoted with
 this ADR because production decisions point at them.

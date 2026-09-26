@@ -19,8 +19,8 @@
 # the repo pins `version: 9`. There is no `packageManager` field anywhere here, so a
 # bare `corepack enable` would resolve whatever pnpm ships as the image default — and
 # pnpm 11 reads NONE of the `pnpm` block in package.json (CLAUDE.md §9.2). That block
-# is the vulnerability-suppression surface: eight `overrides` entries across seven
-# packages, the single accepted advisory, and `ignoredBuiltDependencies`. Dropping it
+# is the vulnerability-suppression surface: `overrides`, any `auditConfig`
+# acceptance, and `ignoredBuiltDependencies`. Dropping it
 # would ship an image whose remediations were silently not applied while every gate
 # still reported clean. Node follows the same rule for the weaker reason: no CI job
 # runs a Node major other than 22, so a different one here builds what nothing tests.

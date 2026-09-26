@@ -435,8 +435,8 @@ else
     #      not be reproduced: a workspace lockfile writes `specifier: workspace:*`
     #      and `version: link:../lib` under `importers`, never a `pkg@workspace:`
     #      key (measured 2026-08-01 against a generated workspace). The true case is
-    #      the lockfile OWN overrides block — measured, 3 live lines here
-    #      (`js-yaml@>=4.0.0 <4.3.0:` and two `brace-expansion` ranges). Those start
+    #      the lockfile OWN overrides block — every gated key there
+    #      (`js-yaml@>=4.0.0 <4.3.0:` is one). Those start
     #      with the bare name and `@`, so guard 1 passes them, and only the digit
     #      test separates a repair that is merely DECLARED from a package that is
     #      installed. Without it a dead override reads as live: a false negative on

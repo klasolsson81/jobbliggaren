@@ -54,6 +54,15 @@ function flowOf(response: Response): LoginFlow | null {
   return raw ? decodeLoginFlow(raw.split(";")[0]!.split("=").slice(1).join("=")) : null;
 }
 
+function expectStateCookieCleared(response: Response): void {
+  const cleared = setCookie(response, "__Host-jobbliggaren_oauth") ?? "";
+  expect(cleared).toMatch(/Max-Age=0/);
+  expect(cleared).toMatch(/Path=\//);
+  expect(cleared).toMatch(/HttpOnly/);
+  expect(cleared).toMatch(/Secure/);
+  expect(cleared).toMatch(/SameSite=lax/i);
+}
+
 async function targetOf(response: Response): Promise<string | null> {
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
   return doc.querySelector("a[href]")?.getAttribute("href") ?? null;
@@ -77,12 +86,7 @@ describe("the external login callback", () => {
       expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(response.headers.get("cache-control")).toBe("no-store");
       expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-      const cleared = setCookie(response, "__Host-jobbliggaren_oauth") ?? "";
-      expect(cleared).toMatch(/Max-Age=0/);
-      expect(cleared).toMatch(/Path=\//);
-      expect(cleared).toMatch(/HttpOnly/);
-      expect(cleared).toMatch(/Secure/);
-      expect(cleared).toMatch(/SameSite=lax/i);
+      expectStateCookieCleared(response);
     });
 
     it("never writes the code, the state, the grant or the session id into the document", async () => {
@@ -124,6 +128,8 @@ describe("the external login callback", () => {
       expect(await targetOf(response)).toBe("/ansokningar/abc-123");
     });
 
+    // Declared unreachable: the api echoes only a path its start validator admitted, and the web's start guards
+    // it before that. Only safe degradation is asserted.
     it("continues to the default when the echoed path is not a same-site path", async () => {
       backendAnswers(200, { outcome: "signedIn", sessionId: SESSION, next: "//evil.example/" });
 
@@ -152,6 +158,7 @@ describe("the external login callback", () => {
 
       expect(flowOf(response)).toEqual({ phase: "outcome", result, via: "google" });
       expect(await targetOf(response)).toBe("/logga-in/kod");
+      expectStateCookieCleared(response);
     });
 
     it("says Google cannot vouch for the address when the api refuses it as unverified", async () => {
@@ -161,6 +168,7 @@ describe("the external login callback", () => {
 
       expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalUnverified", provider: "google" });
       expect(await targetOf(response)).toBe("/logga-in");
+      expectStateCookieCleared(response);
     });
 
     it.each([
@@ -179,6 +187,7 @@ describe("the external login callback", () => {
       expect(response.status).toBe(200);
       expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "google" });
       expect(await targetOf(response)).toBe("/logga-in");
+      expectStateCookieCleared(response);
     });
 
     it("says the login was not completed when the api cannot be reached", async () => {
@@ -208,6 +217,7 @@ describe("the external login callback", () => {
       expect(response.status).toBe(200);
       expect(flowOf(response)).toEqual({ phase: "notice", notice: "externalNotCompleted", provider: "google" });
       expect(setCookie(response, "__Host-jobbliggaren_session")).toBeUndefined();
+      expectStateCookieCleared(response);
     });
 
     it("when the provider answers with an error, and shows nothing of it", async () => {
@@ -219,6 +229,7 @@ describe("the external login callback", () => {
       expect(fetchMock).not.toHaveBeenCalled();
       expect(html).not.toContain("access_denied");
       expect(html).not.toContain("nope");
+      expectStateCookieCleared(response);
     });
 
     it.each(["..", "../challenge", "google/../x", "GOOGLE", "evil", "linkedin"])(
@@ -232,6 +243,7 @@ describe("the external login callback", () => {
         expect(response.status).toBe(200);
         expect(flowOf(response)).toBeNull();
         expect(await targetOf(response)).toBe("/logga-in");
+        expectStateCookieCleared(response);
       }
     );
   });

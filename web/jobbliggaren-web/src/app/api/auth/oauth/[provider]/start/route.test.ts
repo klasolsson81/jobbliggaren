@@ -128,6 +128,8 @@ describe("the external login start", () => {
     ["an unavailable api", 503, {}],
     ["a body that is not json", 200, "<html>"],
     ["an answer with another member", 200, { authorizeUrl: AUTHORIZE, state: STATE, verifier: "x" }],
+    // Declared unreachable, the next two: the api builds the request from its one authorization endpoint
+    // (GoogleIdentityProvider.AuthorizationEndpoint) and the state it minted. Only safe degradation is asserted.
     ["an authorization request to another host", 200, { authorizeUrl: AUTHORIZE.replace("accounts.google.com", "evil.example"), state: STATE }],
     ["an authorization request for another state", 200, { authorizeUrl: AUTHORIZE, state: `${STATE.slice(0, -1)}Y` }],
   ])("sends the browser back with a not-completed notice and no state cookie on %s", async (_, status, body) => {

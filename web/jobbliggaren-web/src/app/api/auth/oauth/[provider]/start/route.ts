@@ -7,11 +7,12 @@ import {
 } from "@/lib/auth/external-login";
 import { setLoginFlow, setOAuthState } from "@/lib/auth/external-login-responses";
 import { cookieSafeNext } from "@/lib/auth/login-flow";
+import { LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { env } from "@/lib/env";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 
-const ENTRY = "/logga-in";
+const ENTRY = LOGIN_ENTRY_PATH;
 
 const startResponseSchema = z.strictObject({
   authorizeUrl: z.string(),

@@ -24,6 +24,7 @@ import {
   readLoginFlow,
   writeLoginFlow,
 } from "@/lib/auth/login-flow-cookie";
+import { LOGIN_CODE_PATH, LOGIN_CONSENT_PATH, LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { DEFAULT_REDIRECT_PATH, safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { getSessionId, setSessionCookie } from "@/lib/auth/session";
 import { parseResponse } from "@/lib/dto/_helpers";
@@ -42,9 +43,9 @@ import { readProblemBody, readProblemTitle } from "@/lib/http/problem";
 //
 // Nothing here logs. The address, the code, the link token and the grant never reach a console.
 
-const ENTRY = "/logga-in";
-const CODE_STEP = "/logga-in/kod";
-const CONSENT_STEP = "/logga-in/villkor";
+const ENTRY = LOGIN_ENTRY_PATH;
+const CODE_STEP = LOGIN_CODE_PATH;
+const CONSENT_STEP = LOGIN_CONSENT_PATH;
 
 /** `forwardedHeaders()` on every call: all four routes are rate-limited per IP, and without the
  *  relay that partition collapses into one bucket behind Next. No browser cookie is forwarded. */

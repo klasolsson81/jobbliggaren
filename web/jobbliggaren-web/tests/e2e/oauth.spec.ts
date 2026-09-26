@@ -46,11 +46,12 @@ test.describe("Fortsätt med Google", () => {
       path: "/",
     });
     expect(cookie!.expires - Date.now() / 1000).toBeLessThanOrEqual(600);
+    expect(cookie!.expires).toBeGreaterThan(Date.now() / 1000);
   });
 
   // Declared unreachable: no path in src renders a form to the start (provider-buttons.test.tsx pins
   // the row outside any form). This asserts only that the page degrades safely if one appears.
-  test("a form cannot start it: the CSP refuses the navigation to the provider", async ({ page }) => {
+  test("a form never reaches the provider: the CSP refuses its redirect there", async ({ page }) => {
     await page.goto("/logga-in");
     const violated = page.evaluate(
       () =>

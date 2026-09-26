@@ -125,7 +125,7 @@ export async function startHarness(): Promise<Harness> {
     if (request.method === "POST" && request.url === `/api/v1/auth/oauth/google/callback`) {
       const { code, state } = (await bodyOf(request)) as { code: string; state: string };
       callbacks.push({ code, state });
-      if (state !== issuedState) return json(400, { title: "Auth.ExternalLoginStateUnusable" });
+      if (state !== issuedState) return json(410, { title: "Auth.ExternalLoginUnusable" });
       if (code === "unverified") return json(400, { title: "Auth.ExternalEmailUnverified" });
       if (code === "closed") return json(200, { outcome: "registrationClosed" });
       return code === "consent"

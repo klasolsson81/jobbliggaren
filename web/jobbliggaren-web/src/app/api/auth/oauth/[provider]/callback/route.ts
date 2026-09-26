@@ -8,6 +8,7 @@ import { buildContinuationDocument } from "@/lib/auth/continuation-document";
 import { toExternalProviderKey, type ExternalProviderKey } from "@/lib/auth/external-login";
 import { clearLoginFlow, clearOAuthState, setLoginFlow } from "@/lib/auth/external-login-responses";
 import { cookieSafeNext, type LoginFlow } from "@/lib/auth/login-flow";
+import { LOGIN_CODE_PATH, LOGIN_CONSENT_PATH, LOGIN_ENTRY_PATH } from "@/lib/auth/login-paths";
 import { safeRedirectPath } from "@/lib/auth/safe-redirect";
 import { SESSION_COOKIE_ATTRIBUTES } from "@/lib/auth/session";
 import { loginOutcomeSchema } from "@/lib/dto/login-challenge";
@@ -15,9 +16,9 @@ import { env } from "@/lib/env";
 import { pickForwardedHeaders } from "@/lib/http/forwarded-headers";
 import { readProblemTitle } from "@/lib/http/problem";
 
-const ENTRY = "/logga-in";
-const CODE_STEP = "/logga-in/kod";
-const CONSENT_STEP = "/logga-in/villkor";
+const ENTRY = LOGIN_ENTRY_PATH;
+const CODE_STEP = LOGIN_CODE_PATH;
+const CONSENT_STEP = LOGIN_CONSENT_PATH;
 
 const echoedNextSchema = z.object({ next: z.string().optional() });
 

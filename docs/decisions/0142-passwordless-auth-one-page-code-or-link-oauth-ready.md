@@ -111,7 +111,7 @@ protected code is a confidentiality control and is written as one.
 **Keys** follow the delivered cooldown form, versioned: `auth/challenge/v1/{b64url(sha256(id))}` and
 its address index `auth/challenge-by-address/v1/{hex}` (1a), `auth/grant/v1/{b64url(sha256(token))}` and
 `auth/registration-claim/v1/{hex}` (1c), `auth/challenge-bound/v1/{b64url(sha256(id))}` and its index
-`auth/challenge-by-user/v1/{purpose}/{hex}` (3a), `auth/oauth-state/v1/{state}` (6a), `budget/{scope}/v1/{hex}`. No new root
+`auth/challenge-by-user/v1/{purpose}/{hex}` (3a), `auth/oauth-state/v1/{b64url(sha256(state))}` (6a), `budget/{scope}/v1/{hex}`. No new root
 segment beside `session:`; a record-shape change costs a new segment, never a decode crash on live
 records.
 **TTL 15 min** for code and link (one expiry state). **3 attempts, then the code is burned** — a state of
@@ -683,7 +683,8 @@ Auth.js adapter in Next) moves the client secret and the identity assertion into
 layer, so Next becomes the authority over who the user is; rejected on the dependency rule.
 
 **Contract:** `ExternalIdentity(string ProviderKey, string Subject, VerifiedEmail? Email)` with
-`readonly record struct VerifiedEmail(string Value)` — "provider asserts verified" is carried by
+`readonly record struct VerifiedEmail(string Value)` *(typed further, and `VerifiedEmail` given no public
+constructor, in Amendment 2026-09-25 (14))* — "provider asserts verified" is carried by
 the **type**, so no caller can read the string and forget the bool. Every adapter parses the
 verified claim **fail-closed** (LinkedIn returns `email_verified` as a string in some responses;
 missing or unparsable = not verified). Linking to an existing account by email happens ONLY on a
@@ -718,6 +719,111 @@ the third-country sentence (`content-legal.json:101`) is rewritten; Chapter V is
 provider with a dated measurement** (EU establishment and/or Art. 45 adequacy, CLAUDE.md §9.5) in
 the processing register; a provider that is not covered does not ship; Art. 49 derogations do not
 apply to a login path.
+
+#### Amendment 2026-09-25 (14) (#1744, part 6a, PR S) — the external-login spine, inert, and the corrections above
+
+*Decided before code in one form round: `security-auditor`, `dotnet-architect`, `design-reviewer` and `test-writer`,
+then `senior-cto-advisor` (`docs/reviews/2026-09-25-1744-form-{security-auditor,dotnet-architect,design-reviewer,test-writer,cto}.md`,
+and the targeted answers `…-security-auditor-s1-s4.md` and `…-design-reviewer-d1-d2.md`). D1's key and D8's contract
+are corrected in place; this block records why.*
+
+**6a is three PRs.**
+- **PR 0** (#1859, merged `2118a7b3`) closed an open redirect in `safeRedirectPath`, a defect in delivered code that
+  the round found.
+- **PR S, this one, is the spine:**
+  - it contains the ports, the value types, the Google adapter, the stores, the endpoints and the outcome function's
+    external entry;
+  - it registers no provider in any composition;
+  - that is pinned three ways: the Api and Worker compositions with a full Google client, a Production and a
+    Development host with one, and a scan of `src/`.
+- **PR G is the first PR that can register a provider.** It carries the privacy copy, Chapter V, the DESIGN.md
+  exception, the web and lapse trigger 4. security-auditor (S4) reads "the same PR as the first live provider" as the
+  first PR that can make one live.
+
+**The types refine D8's contract.**
+- `ExternalIdentity(ExternalProviderKey Provider, ExternalSubject Subject, VerifiedEmail? Email)`.
+- `ExternalProviderKey` is a closed set, with Google alone in 6a.
+- `ExternalSubject` holds OIDC's bound: at most 255 visible ASCII characters.
+- `VerifiedEmail` has no public constructor. Its factory requires one local part, one domain and the address bound,
+  and only an adapter decides that an address qualifies.
+- `PkceVerifier` (256 bits) and
+  `AuthorizationCode` print none of their value, and neither does the subject or the address.
+
+**Google is authoritative only for Gmail and Workspace.**
+- An address becomes a `VerifiedEmail` only when `email_verified` is the JSON `true` AND the address ends in
+  `@gmail.com` (ordinal) or `hd` names a Workspace domain (Google, "Verify the Google ID token", read 2026-09-25).
+  A verified third-party address may have changed hands since Google checked it.
+- `googlemail.com` is refused, because Google's rule does not name it.
+- `hd` is read from userinfo and fails closed; no id_token is read.
+- The rule applies to linking and to a new account alike.
+- The adapter logs the refusal's closed cause class (EventId 1023: `NotBoolean`, `False`, `AddressUnparsable`,
+  `NotAuthoritative`) and never the address.
+
+**Address first, then the identifier (`security-auditor` M-1).**
+- Every provider session, a found link included, needs a `VerifiedEmail` that is the account's own address at that
+  login.
+- A provider identifier linked to another account than the address names is refused and never moved (EventId 1024).
+- The match is `ExternalAddressMatch`: case-blind only when both spellings are pure ASCII, and ordinal otherwise.
+  `security-auditor` signed the rule on 2026-09-25 (S3). The characters Unicode folds onto ASCII never reach the
+  case-blind branch, so #1779 stays closed. A code and a link keep the ordinal rule.
+- So a link is validated again at every login, and a login whose address changed at the provider is refused.
+- No self-service unlink exists in 6a. That is scheduling, not verified.
+
+**One outcome function, one switch.** The entry point decides what a proof of a new address earns:
+- a code earns a `LoginComplete` grant;
+- a link earns none;
+- a provider's proof earns a `LoginCompleteExternal` grant.
+
+On an existing account's first provider login, the link and its `User.ExternalLoginLinked` audit row commit before
+`PasswordlessSessionGrant` runs. The row's payload is the provider key, never the identifier. A link that another
+account won in the meantime opens no session (EventId 1025). `IInboxProofRecorder`'s contract names this third proof.
+`LoginMethod.Google = 3`: the form `External` plus a provider field was declined, because it makes
+`Method=Code Provider=google` expressible.
+
+**Grants (D1, D3).**
+- Purpose 4, `LoginCompleteExternal(ProvenEmail, Provider, Subject)`, is bearer-bound.
+- `complete` redeems with `GrantAssertion.Bearer(LoginComplete, LoginCompleteExternal)`: ONE `GETDEL`, then each
+  asserted purpose's protector. EventId 1017 is written only when none of them opens the payload.
+- No live record changes shape, so no new segment is owed:
+  - the new payload members are nullable and omitted when null, so purposes 1–3 serialise byte-identically before
+    padding (pinned);
+  - no member is renamed, and the number is never reused;
+  - the padding ceiling now counts every field at its bound, so every grant stored from now on is padded to one new
+    common length.
+- `complete`'s external arm checks the identifier's link before `AccountRegistrar.OpenAsync`, so the ordinary case
+  never opens an account it cannot link. Then it lets the outcome function link and sign in.
+
+**The state store (D1's key, corrected in place).**
+- The key is `auth/oauth-state/v1/{b64url(sha256(state))}` on `redis-volatile`.
+- It is written with one `SET NX EX 600` and read with one `GETDEL`.
+- The `GETDEL` runs before the provider is compared, so a flow presented to another provider's callback is spent.
+- The protected payload holds the provider, the verifier and the path (protector `Jobbliggaren.Auth.OAuthState.v1`).
+- The volatile ACL template admits the family's two commands and nothing else (`RedisAclContractTests`).
+- The provider-mismatch branch is unreachable while Google is the only key. It becomes a row in 6b.
+
+**The callback's order** (see the row after it for each refusal):
+1. The provider must be registered. Otherwise 404, and the state is untouched.
+2. The state must name a live flow for that provider. Otherwise `Auth.ExternalLoginUnusable` 410 (EventId 1021).
+3. The provider must accept the code with the flow's verifier. Otherwise the same 410; the adapter logs the cause
+   (EventId 1022).
+4. The address must be verified. Otherwise `Auth.ExternalEmailUnverified` 400.
+
+Each refusal the page words differently gets its own wire code; the cause lives only in the log.
+
+**Bounds.**
+- `next` is a same-site path of at most 512 characters, with no control character and no backslash.
+- The code is at most 512 characters.
+- The state is exactly the minted 43-character Base64Url.
+
+The volatile instance refuses writes when it is full, so no unbounded value reaches it.
+
+**Lapse triggers, read for PR S: none fires.**
+- 1–3 and 5–7 are untouched.
+- Trigger 4 ("an IdP goes live") does not fire in PR S: no composition can register a provider, as the three pins
+  above measure. It is read in PR G.
+
+**DoD 8.** In PR S no new personal data reaches production: without a registered provider no flow can complete. The
+processing-register entries land with PR G.
 
 ### D9 — Test harness first (part 0.5)
 
@@ -870,10 +976,7 @@ not indexed, so a link-only record never burns the live code challenge. **Named 
 to 8 records can be live for one address inside 15 minutes, at most one of them code-bearing — more
 single-use links exposed to scanners and forwarding, still under the reset path's rate.
 
-**The first inbox proof (security Q21/Q-S3).** For an account with `EmailConfirmed=false`, the first
-proof sets the flag, removes the password and rotates the stamp in one Identity write; a write that did
-not persist throws and nothing follows it; earlier sessions are revoked before the new one is created;
-and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
+**The first inbox proof (security Q21/Q-S3).** For an account with `EmailConfirmed=false`, the first proof sets the flag and rotates the stamp in one Identity write (until 5b the same write also removed the password); a write that did not persist throws and nothing follows it; earlier sessions are revoked before the new one is created; and a `User.InboxProvenByLogin` `audit_log` row is written. Only `PasswordlessSessionGrant` can reach
 that write, and only the two proof handlers can reach the grant — pinned by reflection. **Residual (Minor):** a squatter's password on an account its
 owner already confirmed survives a code login until 5b. Nobody can be in that position while
 registration stays closed. **If the #734 flip happens before 5b, this becomes a Major at the flip.**
@@ -1262,6 +1365,63 @@ seam exists only in Development. 4: no IdP. 5: code length, attempts and the min
 as "5b lands"; 5a removes the fallback reversibly, the hashes stay, and 5b's PR re-measures. 7: the request path
 and its budget branch are untouched.
 
+#### Amendment 2026-09-25 (13) (#1857, part 5b) — the hashes nulled in one statement, and the corrections above
+
+*Decided in 5b's form round: `db-migration-writer`, `security-auditor`, `dotnet-architect` and `test-writer`, then
+`senior-cto-advisor` (`docs/reviews/2026-09-25-1857-form-{db-migration-writer,security-auditor,dotnet-architect,test-writer,cto}.md`;
+`security-auditor`'s report carries her signature on the backup decision and is promoted with this amendment).*
+
+**The migration.** `20260925172152_NullPasswordHashes`, in the Identity context, runs one statement inside EF's
+migration transaction:
+
+```sql
+UPDATE identity."AspNetUsers"
+SET password_hash = NULL,
+    security_stamp = gen_random_uuid()::text,
+    concurrency_stamp = gen_random_uuid()::text
+WHERE password_hash IS NOT NULL;
+```
+
+It touches only the rows that hold a hash, so a second run changes nothing. `concurrency_stamp` rotates with the hash
+because `UserStore.UpdateAsync` writes the whole row under a check on that column: a `UserManager` instance that loaded
+a row before the run and saves after it would otherwise write the old hash back, and with the rotation that save is
+refused as a concurrency failure. The statement is a bare `UPDATE`, not a `DO` block, because its row count is what
+the journey test reads to prove it is one statement. `Down` throws `NotSupportedException`, so no rollback script can
+be generated.
+
+**The backup decision for 5b's throwing `Down`** (`vps-deploy-stack.md` §3c precondition 5), **signed by security-auditor in 5b's form round, 2026-09-25** (`docs/reviews/2026-09-25-1857-form-security-auditor.md`): **no copy of any kind** — no dump, no Netcup snapshot, no copied table. No route has accepted a password since 5a PR B, so a restored hash is a credential nothing reads, and Klas's answer 3 is to delete it. A copy would keep, past its purpose, exactly what this part destroys (Art. 5(1)(c), (e)). The offsite backup has never run (#197). And the migration's only irreversible effect is the intended one: one `UPDATE` inside EF's migration transaction, built from the constant its test runs, alone in its §3c run, so a failed apply leaves nothing to restore. **The decision lapses if any account on the box is not the controller's when §3c runs**; 5b then waits for a new signature. Home of that check: §3c precondition 5. Reader: the operator running §3c.
+
+**The copy precedes the data by one interval, and misinforms no one.** The struck line reaches the box with the images, and §3c applies 5b later, on its own GO; precondition 2 forbids the reverse order. In between, the policy does not name the hashes the box still stores. Every account anyone else can create is born without one, and `NoPasswordSymbolTests` pins that nothing writes one, so the new text is true of every account except the controller's own (security-auditor, 5b's form round).
+
+**The recorder.** `IdentityInboxProofRecorder` confirms an unconfirmed address and rotates its stamp with
+`UpdateSecurityStampAsync`, one save. `RemovePasswordAsync` is gone, and so is the private legacy-password seed in
+`LoginChallengeProofTests`. The `FirstProofRecorded` branch stays, because rows the retired register left unconfirmed
+survive 5b.
+
+**`NoPasswordSymbolTests` scans Infrastructure.** In every assembly a type is judged by its outermost declaring type,
+and a migration, a model snapshot and a design-time context factory are outside the scope; a reference to a member of
+a type the module defines is judged as that type is. In Infrastructure every other member reference counts except one
+declared on `StackExchange.Redis.ConfigurationOptions`. Identity members are
+resolved so that their parameter names are read. This revises F3's per-assembly granularity.
+
+**Applying it.** The merge moves no data. Only `migrate bootstrap` applies an Identity migration, and only
+`vps-deploy-stack.md` §3c runs it, on Klas's GO for exactly this migration.
+
+**DoD 8.** No new personal data, processing, recipient or transfer, and no DPIA: nothing in Art. 35(3) changes. One stored item ends: every account's password verifier. The migration sets `password_hash` to NULL and rotates `security_stamp` and `concurrency_stamp` on the rows that held one; the column stays in the schema and nothing writes it (`NoPasswordSymbolTests`, Infrastructure now included). The old values stay in dead row versions until autovacuum reclaims them, and WAL is not claimed erased. No copy was made for the run, by the decision above; the offsite backup has never run (#197), so no backup of record holds a hash; whether a Netcup snapshot from before the run exists is not measured. The migration writes no `audit_log` row: §3c's run record, here and in the session log, is the trail of an operator's bulk change, and it outlives `audit_log`'s 90 days. The privacy line "lösenord (hash)" is struck in this PR, with `privacy.updated` and `CurrentPrivacyPolicyVersion` moved together to the merge day; the register's `password_hash` field follows the data, after the run.
+
+**Lapse trigger 6 fires in this part and is re-measured** (security-auditor, 5b's form round 2026-09-25; re-read against the final diff). The trigger reads "5b lands (no password fallback remains)". It names an event that happens once, so it is spent here and not re-armed; the acceptance lapses from now on triggers 1–5 and 7.
+- **The arithmetic is unchanged.** 5b touches neither code length, attempts per challenge, challenge TTL nor the mint budget, so 30 guesses per address per day, ≈ 0.003 % per day and 1.089 % per year under sustained attack stand as written above.
+- **"Mail is the only way in" did not start here.** It has held for every account since 5a PR B (`41a49394`) removed every route that accepts a password, measured live on 2026-09-25T16:51:37Z, and it holds until an IdP goes live (trigger 4). What 5b changes is reversibility: once §3c's read-back shows no row holding a hash, reverting 5a restores no way in, because no account has a password to present.
+- **Evicting a session won by a guessed code** (security-auditor's #1743 form-round m-2). The owner can end every session through a confirmed address change, which invalidates all and re-issues one, or through account deletion; logout ends the current session only. A password holder could also do it by changing or resetting the password until 5a; that path went with 5a and 5b does not bring it back. Otherwise the owner contacts the controller, as the terms say. No self-service "log out everywhere" is proposed, and none is a #734 gate: Klas declined the session list on 2026-09-20. m-2 stays a Minor.
+- **Bearer reading, re-taken for this part:** 2026-09-25T16:51:37Z: 2 accounts, none created after the direct reading of 2026-09-21, one in the Admin role; `Auth__RegistrationsOpen=false` in the running api container. Every consequence above is the controller's alone.
+
+**The acceptance continues for the product as it is today.** The other triggers, read for this part: 1: the compose default `${AUTH_REGISTRATIONS_OPEN:-false}` is unchanged. 2, 3: no account is added; the migration updates existing rows only. 4: no IdP in this diff; if 6a (#1744) merges first, security-auditor re-reads triggers 4 and 6 against the merged base before this part's verdict. 5: code length, attempts and the mint budget are unchanged. 7: the request path and its budget branch are untouched; the recorder change sits after proof. No other acceptance in this ADR lapses: 5b opens nothing and adds no account.
+
+**Corrections above.** Amendment 2026-09-19's residual — *a squatter's password on an account its owner already confirmed survives a code login until 5b* — lost its harm when 5a PR B removed every route that accepts a password (measured live 2026-09-25T16:51:37Z). It is discharged, together with its *Major at the flip* clause, at 5b's §3c read-back on the box, and not by this merge: until the run, the box still holds the hashes.
+
+§3c precondition 2 read "carry the same revision label X". The images carry no `org.opencontainers.image.revision`
+label (measured on the box at gate 0(a), 2026-09-25), so it now reads the digest the registry's `:sha-<X>` points to.
+
 ## Open — Klas decides (put to him in plain text 2026-09-17)
 
 ### Klas's answers, 2026-09-18 (verbatim; recorded on epic #1732, comment 5724716936)
@@ -1369,7 +1529,7 @@ new measurement recorded in an amendment here:
    2026-09-19 (2) it also fires if a restart of `redis-volatile` becomes reachable by anything other
    than the operator. Since Amendment 2026-09-20 the global cap on mails to addresses without an account
    is one of its quantities: it is what bounds code-bearing records for new addresses.
-6. 5b lands (no password fallback remains).
+6. 5b lands (no password fallback remains). *(Fired and re-measured in Amendment (13); spent.)*
 7. D2's "the consumer always sends a mail" premise falls or the budget branch changes behaviour —
    the code-step resting copy (below) was written on that premise (design B2). It fell three times
    (#1756, #1779, #1783), and part 2 re-bound the copy so that it rests on no such premise
@@ -1798,7 +1958,7 @@ columns; the CV stops requiring a name the product never needed.
 (above). Three OAuth adapters are written and tested by hand (≈ 3 × 150 lines + contract tests)
 instead of configured. Two mails and two code entries for an email change. Eighteen PRs instead of
 fifteen. A new PII key class in Redis for ≤ 15 min, with the keyring as its confidentiality bound.
-The attempt budget is a measured acceptance with seven lapse triggers, not a permanent property.
+The attempt budget is a measured acceptance with seven lapse triggers, one of them spent (6, Amendment (13)), not a permanent property.
 
 ## Alternatives considered
 
@@ -1823,7 +1983,7 @@ The attempt budget is a measured acceptance with seven lapse triggers, not a per
 ## Implementation status
 
 Parts, one PR each, all `mvp`, sequence as bound by the CTO (issue numbers from #1732's first
-comment; 5a/5b are one issue, #1743, until it is split):
+comment):
 
 **0** #1733 this ADR → **0.5** #1734 harness → **1b** #1736 consent seat + migration
 (`Persistence`) → **1a** #1735 in four PRs: **1a-prep** #1755 (merged 2026-09-19; Klas's three D10 answers,
@@ -1842,14 +2002,15 @@ account half, after 3b; RP beside them → **4b** #1742 in two PRs (Amendment 20
 (opens only after all of 4a
 is merged and measured live) → **5a** teardown + truth-sync + #734 re-pointed + the manual Identity `bootstrap` procedure (Klas 2026-09-18) → **5b** `password_hash`
 nulled, `security_stamp` rotated in the same statement, `Down` an explicit throw (**Klas answered 2026-09-18: yes, before launch; opens only after 5a is merged and measured live on
-`dev.jobbliggaren.se`**) → **6a** #1744 OAuth spine + Google · **6b** #1745 GitHub · **6c** #1746 LinkedIn
+`dev.jobbliggaren.se`**; #1857, Amendment 2026-09-25 (13)) → **6a** #1744 OAuth spine + Google, in three PRs (Amendment 2026-09-25 (14)): PR 0 #1859 · PR S · PR G · **6b** #1745 GitHub · **6c** #1746 LinkedIn
 (`blocked` until keys) → **6d** #1747 **unblocked and moved into 1b's migration window**: the
 columns are measured unused (`ApplicationUser.cs` + its configuration only; `HasConversion<string>`,
 so no Postgres enum to clean).
 
 **Migration order (single-owner, CLAUDE.md §6.5):** 1b → 6d → 1c-expand → 4b → 5b. `Persistence` context:
 1b, 1c-expand (`DisplayNameNullable`), 4b (`UnmapJobSeekerDisplayName`, then `DropJobSeekerDisplayName`). 4a carries none (Amendment 2026-09-22, #1741). `Identity` context: 6d (two `DropColumn` + `DropIndex
-ix_asp_net_users_provider_provider_user_id`), 5b (a data migration —`password_hash` is already
+ix_asp_net_users_provider_provider_user_id`; applied on the box through `vps-deploy-stack.md` §3c on 2026-09-25,
+16:53:54–59Z, on Klas's GO, read back 1/0/0), 5b (a data migration —`password_hash` is already
 nullable). Exact SQL forms are `db-migration-writer`'s.
 
 The reports: `docs/reviews/2026-09-17-auth-epic-{cto,architect,security,design}.md`, promoted with

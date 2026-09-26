@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Threading.RateLimiting;
 using Jobbliggaren.Application.Auth;
+using Jobbliggaren.Application.Auth.ExternalLogins;
 using Jobbliggaren.Application.Auth.Grants;
 using Jobbliggaren.Application.Auth.Jobs.HardDeleteAccounts;
 using Jobbliggaren.Application.Auth.LoginChallenges;
@@ -14,6 +15,7 @@ using Jobbliggaren.Domain.Common;
 using Jobbliggaren.Infrastructure.Auditing;
 using Jobbliggaren.Infrastructure.Auth;
 using Jobbliggaren.Infrastructure.Auth.Auditing;
+using Jobbliggaren.Infrastructure.Auth.ExternalLogins;
 using Jobbliggaren.Infrastructure.Auth.Grants;
 using Jobbliggaren.Infrastructure.Auth.LoginChallenges;
 using Jobbliggaren.Infrastructure.Auth.Registration;
@@ -1614,11 +1616,13 @@ public static class DependencyInjection
     /// <c>IDataProtectionProvider</c>. Its consumers are Identity's token provider (one
     /// <c>DataProtectorTokenProvider</c>: of the four <c>AddDefaultTokenProviders</c> registers only Default
     /// is DataProtector-based, the other three being TOTP), the login challenge store (#1735, purpose
-    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>) and the grant store (<c>RedisGrantStore</c>). Sharing a
+    /// <c>RedisLoginChallengeStore.ProtectorPurpose</c>), the grant store (<c>RedisGrantStore</c>) and the OAuth state
+    /// store (#1744, <c>RedisOAuthStateStore</c>). Sharing a
     /// keyring with the Worker would hand it cryptographic reach over credentials it never mints or
     /// validates, and re-open the cross-process coupling the 2026-07-10 ruling rejected. This codebase has
     /// no antiforgery, so the keyring's blast radius is the one token KIND that provider mints - change
-    /// email - plus every live login challenge's address and code (ADR 0142 D1) and every live grant, and
+    /// email - plus every live login challenge's address and code (ADR 0142 D1), every live grant and every live
+    /// OAuth flow's PKCE verifier, and
     /// nothing else. The keys are persisted unprotected on the file system (no
     /// <c>ProtectKeysWith*</c>), so whoever reads the keyring volume reads all of it. Regenerate with
     /// <c>git grep -in -e antiforgery -e "CreateProtector(" -- src/</c> and read the result as a property,
@@ -1772,6 +1776,16 @@ public static class DependencyInjection
         services.AddScoped<IInboxProofRecorder, IdentityInboxProofRecorder>();
         services.AddScoped<PasswordlessSessionGrant>();
         services.AddScoped<LoginProofOutcome>();
+
+        // #1744 (ADR 0142 D8) — the external-login spine: the started flows on the volatile connection and the
+        // Api's keyring, like the grant store; the links in Identity's AspNetUserLogins. No IExternalIdentityProvider
+        // is registered here: a provider without keys is not registered at all, and the registration that reads the
+        // keys lands with the web and the copy (6a PR G). Until then the providers list is empty on every host.
+        services.AddSingleton<IOAuthStateStore, RedisOAuthStateStore>();
+        services.AddSingleton<RegisteredProviders>();
+        services.AddScoped<IExternalLoginLookup, IdentityExternalLoginStore>();
+        services.AddScoped<IExternalLoginWriter, IdentityExternalLoginStore>();
+        services.AddScoped<ExternalLoginLinker>();
 
         // Admin-bootstrap: idempotent seeder kör vid app-startup. Skapar Admin-rollen
         // om saknas och tilldelar till user med email AdminBootstrap__InitialAdminEmail.

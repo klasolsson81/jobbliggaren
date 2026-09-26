@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json.Serialization;
 using Jobbliggaren.Api.RateLimiting;
 using Jobbliggaren.Application.Auth;
 using Jobbliggaren.Application.Auth.Commands.ChangeEmail;
+using Jobbliggaren.Application.Auth.Commands.CompleteExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.CompleteLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.ConfirmEmailChange;
 using Jobbliggaren.Application.Auth.Commands.ConsumeLoginLink;
@@ -10,10 +12,12 @@ using Jobbliggaren.Application.Auth.Commands.Logout;
 using Jobbliggaren.Application.Auth.Commands.RefreshSession;
 using Jobbliggaren.Application.Auth.Commands.RequestLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.RequestReauthenticationChallenge;
+using Jobbliggaren.Application.Auth.Commands.StartExternalLogin;
 using Jobbliggaren.Application.Auth.Commands.VerifyEmailChangeChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyLoginChallenge;
 using Jobbliggaren.Application.Auth.Commands.VerifyReauthenticationChallenge;
 using Jobbliggaren.Application.Auth.LoginChallenges;
+using Jobbliggaren.Application.Auth.Queries.GetExternalLoginProviders;
 using Jobbliggaren.Application.Common.Abstractions;
 using Jobbliggaren.Domain.Common;
 using Mediator;
@@ -209,6 +213,48 @@ public static class AuthEndpoints
             return result.IsFailure ? ToErrorResult(result.Error) : LoginOutcomeResult(result.Value);
         }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
 
+        // External login — START (#1744, ADR 0142 D8). PUBLIC: mints a flow for a provider this host registered and
+        // answers where to send the browser. No account is read; a provider without keys is not registered, so it
+        // is a 404 here.
+        group.MapPost("/oauth/{provider}/start", async (
+            string provider,
+            ExternalLoginStartRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new StartExternalLoginCommand(provider, body.Next), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : Results.Ok(new
+                {
+                    authorizeUrl = result.Value.AuthorizeUrl.AbsoluteUri,
+                    state = result.Value.State.Reveal(),
+                });
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // External login — CALLBACK (#1744, ADR 0142 D8). PUBLIC: answers the same outcome union as a code or a
+        // link, plus the post-login path the flow carried. A flow that cannot be completed is one 410; an address
+        // the provider is not authoritative for is a 400.
+        group.MapPost("/oauth/{provider}/callback", async (
+            string provider,
+            ExternalLoginCallbackRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new CompleteExternalLoginCommand(provider, body.Code, body.State), ct);
+            return result.IsFailure
+                ? ToErrorResult(result.Error)
+                : LoginOutcomeResult(result.Value.Outcome, result.Value.Next);
+        }).RequireRateLimiting(RateLimitingExtensions.AuthWritePolicy);
+
+        // External login — the PROVIDERS this host registered (#1744, ADR 0142 D8). PUBLIC and the same for every
+        // caller, so it may be cached: the login page reads it server-side. Empty where no keys are set.
+        group.MapGet("/oauth/providers", async (HttpContext http, IMediator mediator, CancellationToken ct) =>
+        {
+            var providers = await mediator.Send(new GetExternalLoginProvidersQuery(), ct);
+            http.Response.Headers.CacheControl = "public, max-age=300";
+            return Results.Ok(providers);
+        }).RequireRateLimiting(RateLimitingExtensions.LandingPublicReadPolicy);
     }
 
     /// <summary>
@@ -245,30 +291,56 @@ public static class AuthEndpoints
     /// </summary>
     public sealed record LoginChallengeCompleteRequest(string? GrantToken, bool AcceptTerms);
 
+    /// <summary>POST /auth/oauth/{provider}/start body (#1744): the post-login path.</summary>
+    public sealed record ExternalLoginStartRequest(string? Next);
+
+    /// <summary>
+    /// POST /auth/oauth/{provider}/callback body (#1744). The code and the state are credentials and are never logged.
+    /// </summary>
+    public sealed record ExternalLoginCallbackRequest(string? Code, string? State);
+
     // Every outcome is a 200 carrying `outcome`. Internal so a test can hand it every variant: the default
-    // arm below would otherwise turn a variant added without its arm into a 500 found at runtime.
-    internal static IResult LoginOutcomeResult(LoginOutcome outcome) => outcome switch
+    // arm below would otherwise turn a variant added without its arm into a 500 found at runtime. An external
+    // callback adds the post-login path its flow carried (#1744); every other route answers without it.
+    internal static IResult LoginOutcomeResult(LoginOutcome outcome, string? next = null) =>
+        Results.Ok(LoginOutcomeBodyFor(outcome) with { Next = next });
+
+    private static LoginOutcomeBody LoginOutcomeBodyFor(LoginOutcome outcome) => outcome switch
     {
-        LoginOutcome.SignedIn signedIn => Results.Ok(new
+        LoginOutcome.SignedIn signedIn => new(LoginOutcome.SignedIn.WireName) { SessionId = signedIn.SessionId },
+        LoginOutcome.PendingDeletion pending => new(LoginOutcome.PendingDeletion.WireName)
         {
-            outcome = LoginOutcome.SignedIn.WireName,
-            sessionId = signedIn.SessionId,
-        }),
-        LoginOutcome.PendingDeletion pending => Results.Ok(new
+            PermanentDeletionDate = pending.PermanentDeletionEarliest.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        },
+        LoginOutcome.RegistrationClosed => new(LoginOutcome.RegistrationClosed.WireName),
+        LoginOutcome.ConsentRequired consent => new(LoginOutcome.ConsentRequired.WireName)
         {
-            outcome = LoginOutcome.PendingDeletion.WireName,
-            permanentDeletionDate = pending.PermanentDeletionEarliest.ToString(
-                "yyyy-MM-dd", CultureInfo.InvariantCulture),
-        }),
-        LoginOutcome.RegistrationClosed => Results.Ok(new { outcome = LoginOutcome.RegistrationClosed.WireName }),
-        LoginOutcome.ConsentRequired consent => Results.Ok(new
-        {
-            outcome = LoginOutcome.ConsentRequired.WireName,
-            grantToken = consent.Grant.Reveal(),
-        }),
-        LoginOutcome.AccountUnavailable => Results.Ok(new { outcome = LoginOutcome.AccountUnavailable.WireName }),
+            GrantToken = consent.Grant.Reveal(),
+        },
+        LoginOutcome.AccountUnavailable => new(LoginOutcome.AccountUnavailable.WireName),
         _ => throw new UnreachableException($"Unmapped login outcome {outcome.GetType().Name}."),
     };
+
+    // The wire names are spelled out, so the body reads the same under any serializer options; a member that does
+    // not apply to the outcome is left out, never sent as null.
+    internal sealed record LoginOutcomeBody([property: JsonPropertyName("outcome")] string Outcome)
+    {
+        [JsonPropertyName("sessionId")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? SessionId { get; init; }
+
+        [JsonPropertyName("permanentDeletionDate")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? PermanentDeletionDate { get; init; }
+
+        [JsonPropertyName("grantToken")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? GrantToken { get; init; }
+
+        [JsonPropertyName("next")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Next { get; init; }
+    }
 
     // 401 is an authentication-identity status ("who are you"), a different axis from the
     // request/resource-semantics the kind-union models (400/404/409/410) — so it stays an

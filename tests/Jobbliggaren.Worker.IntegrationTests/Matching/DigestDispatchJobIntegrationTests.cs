@@ -151,7 +151,7 @@ public class DigestDispatchJobIntegrationTests(WorkerTestFixture fixture)
 
         var email = $"digest-{Guid.NewGuid():N}@test.local";
         var user = new ApplicationUser { UserName = email, Email = email };
-        var created = await userManager.CreateAsync(user, "DigestPass123!");
+        var created = await userManager.CreateAsync(user);
         created.Succeeded.ShouldBeTrue("seed: Identity-user måste skapas");
 
         var jobSeeker = JobSeeker.Register(user.Id, TermsAcceptance.AcceptCurrent(clock), clock).Value;

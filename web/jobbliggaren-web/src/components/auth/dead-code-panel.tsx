@@ -13,14 +13,25 @@ import { useFocusOnMount } from "@/lib/hooks/use-focus-on-mount";
 // `expired` names no cause, because the page cannot know one: the backend answers the same for a
 // code that ran out, was used, was replaced by a newer one, or never had a record. `burned` does
 // name its cause, and names the way on that still works: the burn is the code arm's only, and the
-// link in the same mail still logs in.
-export function DeadCodePanel({ reason }: { reason: "expired" | "burned" }) {
+// link in the same mail still logs in. Reached through a provider (#1745) it names only a new code:
+// the link logs in without linking the provider, and a new code still links it.
+export function DeadCodePanel({
+  reason,
+  linksProvider = false,
+}: {
+  reason: "expired" | "burned";
+  linksProvider?: boolean;
+}) {
   const t = useTranslations("pages");
   const panelRef = useFocusOnMount<HTMLDivElement>();
 
   return (
     <div ref={panelRef} tabIndex={-1} role="status" aria-live="polite">
-      <p className="text-body text-text-primary">{t(`auth.passwordless.code.${reason}`)}</p>
+      <p className="text-body text-text-primary">
+        {reason === "burned" && linksProvider
+          ? t("auth.passwordless.code.burnedProvider")
+          : t(`auth.passwordless.code.${reason}`)}
+      </p>
     </div>
   );
 }

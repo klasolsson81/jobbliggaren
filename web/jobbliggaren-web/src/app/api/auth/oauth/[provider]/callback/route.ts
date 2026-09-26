@@ -24,8 +24,8 @@ const CONSENT_STEP = LOGIN_CONSENT_PATH;
 const echoedNextSchema = z.object({ next: z.string().optional() });
 
 /**
- * #1745 — a provider's asserted address with no link yet: a code went to it, and the pending link
- * waits for the code. The address is an echo for the code step to show, never proof of anything.
+ * #1745 — a provider's asserted address with no link yet, and the pending link. The address is an
+ * echo for the code step to show, never proof of anything.
  */
 const codeRequiredSchema = z.object({
   outcome: z.literal("codeRequired"),

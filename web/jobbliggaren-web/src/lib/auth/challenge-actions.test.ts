@@ -186,6 +186,18 @@ describe("requestCode", () => {
       expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
     });
 
+    it("keeps a provider's live code phase for its address: that code still binds the provider (#1745)", async () => {
+      // Actor: the callback's codeRequired branch wrote this phase in this browser. The step it lands on names the
+      // provider and what the code does, so the binding is visible before the code is typed (design-reviewer, #1882).
+      mocks.readLoginFlow.mockResolvedValue(providerCode);
+
+      const result = await run(() => requestCode(null, form({ email: providerCode.email })));
+
+      expect(result.redirectedTo).toBe("/logga-in/kod");
+      expect(mocks.fetch).not.toHaveBeenCalled();
+      expect(mocks.writeLoginFlow).not.toHaveBeenCalled();
+    });
+
     it("does NOT fold case: another spelling mints, because the backend's fold is not mirrored here", async () => {
       mocks.readLoginFlow.mockResolvedValue(liveCode);
       mocks.fetch.mockResolvedValue(json(202, { challengeId: "challenge-2" }));
@@ -337,6 +349,22 @@ describe("verifyCode", () => {
 
     expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({ phase: "outcome", result: body });
     expect(mocks.setSessionCookie).not.toHaveBeenCalled();
+    expect(result.redirectedTo).toBe("/logga-in/kod");
+  });
+
+  it("keeps the provider on the outcome after a provider's code, and never its grant (#1745, design Minor 1)", async () => {
+    // Actor: the callback's codeRequired branch wrote this code phase (pinned in callback/route.test.ts). `via` is
+    // display only: it keeps the step's heading, and the code's own outcome is what is stored.
+    mocks.readLoginFlow.mockResolvedValue(providerCode);
+    mocks.fetch.mockResolvedValue(json(200, { outcome: "registrationClosed" }));
+
+    const result = await run(() => verifyCode(null, form({ code: "123456" })));
+
+    expect(mocks.writeLoginFlow).toHaveBeenCalledExactlyOnceWith({
+      phase: "outcome",
+      result: { outcome: "registrationClosed" },
+      via: "github",
+    });
     expect(result.redirectedTo).toBe("/logga-in/kod");
   });
 

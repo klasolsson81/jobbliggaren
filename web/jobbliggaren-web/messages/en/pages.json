@@ -588,6 +588,7 @@
         "lastAttempt": "One attempt left. After that you need to request a new code.",
         "expired": "That code can no longer be used. Send a new code and try again.",
         "burned": "You have entered the wrong code three times, so the code can no longer be used. If the email contains a login link you can use that instead, otherwise send a new code.",
+        "burnedProvider": "You have entered the wrong code three times, so the code can no longer be used. Send a new code.",
         "youEntered": "You entered {email}.",
         "providerAddress": "The address in your {provider} account is {email}.",
         "resend": {

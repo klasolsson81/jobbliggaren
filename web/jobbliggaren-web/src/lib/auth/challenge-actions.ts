@@ -216,7 +216,11 @@ export async function verifyCode(
     await writeLoginFlow({ phase: "consent", grantToken: outcome.grantToken, next: flow.next });
     redirect(CONSENT_STEP);
   }
-  await writeLoginFlow({ phase: "outcome", result: outcome });
+  await writeLoginFlow({
+    phase: "outcome",
+    result: outcome,
+    ...(flow.via === undefined ? {} : { via: flow.via }),
+  });
   redirect(CODE_STEP);
 }
 

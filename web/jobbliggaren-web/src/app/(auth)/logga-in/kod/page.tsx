@@ -76,7 +76,7 @@ export default async function LoggaInKodPage() {
       </FocusHeading>
 
       {flow.dead ? (
-        <DeadCodePanel reason={flow.dead} />
+        <DeadCodePanel reason={flow.dead} linksProvider={provider !== null} />
       ) : (
         <div className="flex flex-col gap-5">
           <p className="text-body text-text-primary">

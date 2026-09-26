@@ -54,7 +54,7 @@ const codePhase = z
     sentAt: z.number().int().nonnegative(),
     /** Set once the backend has answered 410 for this challenge; survives a reload. */
     dead: z.enum(["expired", "burned"]).optional(),
-    /** #1745 — reached through a provider whose address only chose where the code went. */
+    /** #1745 — the provider the code step was reached through. */
     via,
     /** The pending-link grant the code's verification redeems; only a code typed here binds the login. */
     linkGrant: z.string().min(1).max(64).optional(),

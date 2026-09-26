@@ -44,7 +44,7 @@ namespace Jobbliggaren.Infrastructure.Matching;
 /// secondaries — ort (<see cref="ScoreOrtUnion"/>) and employment
 /// (<see cref="ScoreEmploymentMembership"/>) — invert the ad-side-absent rule: a
 /// stated preference against a NULL ad shadow is a contradiction (NoMatch, empty
-/// evidence), so the RB1 floor keeps such ads out of ≥Good. SSYK/title/skills keep
+/// evidence), so the RB1 floor keeps such ads out of ≥Good. SSYK/title keep
 /// the original rule. Scoped (touches <see cref="AppDbContext"/>), unlike the
 /// singleton-cached deriver.
 /// </para>
@@ -237,7 +237,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
     //   NiceToHaveCoverage: terms where Kind==Requirement && Source==NiceToHave (bonus).
     // Each verdict derives from SET EMPTINESS only (parity ScoreTitle — no
     // ratio/Jaccard threshold, CLAUDE.md §5); NotAssessed when the CV has no skill
-    // ids OR the ad has no terms of that kind/source (NULL/empty VO) — never NoMatch
+    // ids — never NoMatch
     // on absence. Matched/Missing are ALWAYS surfaced (ADR 0074 gate), as Display
     // labels (DE-display-1, not raw concept-ids) Ordinal-sorted (deterministic).
     // must_have is the binding requirement signal but it is just its own dimension's
@@ -860,8 +860,7 @@ internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMa
         bool Remote);
 
     // The Full row (F4-6) — the Fast inputs plus the extracted_terms VO (materialized
-    // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable
-    // (NULL ⇒ never extracted ⇒ the three new dims read NotAssessed).
+    // via its jsonb ValueConverter). Constructor-projected; ExtractedTerms is nullable.
     private sealed record AdFullRow(
         string Title,
         string? OccupationGroupConceptId,

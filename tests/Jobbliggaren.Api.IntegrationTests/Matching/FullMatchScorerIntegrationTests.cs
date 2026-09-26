@@ -27,10 +27,6 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 /// title dimension. Mirrors MatchScorerIntegrationTests (the F4-5 sibling) and
 /// JobAdExtractedTermsPersistenceTests (the extracted_terms round-trip).
 ///
-/// SUT contract (CTO bound shapes):
-///   internal sealed class MatchScorer(AppDbContext db, ITextAnalyzer analyzer) : IMatchScorer
-///   ValueTask&lt;FullMatchScore&gt; ScoreFullAsync(JobAdId, FullCandidateMatchProfile, CancellationToken)
-///
 /// Per-dimension semantics for the three NEW dims (CTO Decision D/E — set-emptiness
 /// only, NO ratio/Jaccard threshold; parity F4-5 ScoreTitle):
 ///   • SkillOverlap: ad terms where Kind==Skill (Lexeme==ConceptId, Display=label)
@@ -45,9 +41,6 @@ namespace Jobbliggaren.Api.IntegrationTests.Matching;
 ///     and are Ordinal-stable.
 ///   • Embedded Fast == ScoreAsync(ad, profile.Fast) for the same ad (regression).
 ///   • JobAd not found → NotFoundException.
-///
-/// RED until ScoreFullAsync is implemented (the SUT throws NotImplementedException;
-/// FullMatchScore/FullCandidateMatchProfile already ship as the RED contract surface).
 /// </summary>
 [Collection("Api")]
 public class FullMatchScorerIntegrationTests(ApiFactory factory)
